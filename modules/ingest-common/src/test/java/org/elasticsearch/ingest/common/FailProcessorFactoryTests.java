@@ -49,7 +49,7 @@ public class FailProcessorFactoryTests extends ESTestCase {
     }
 
     public void testInvalidMustacheTemplate() throws Exception {
-        FailProcessor.Factory factory = new FailProcessor.Factory(TestTemplateService.instance(true));
+        factory = new FailProcessor.Factory(TestTemplateService.instance(true));
         Map<String, Object> config = new HashMap<>();
         config.put("message", "{{error}}");
         String processorTag = randomAlphaOfLength(10);

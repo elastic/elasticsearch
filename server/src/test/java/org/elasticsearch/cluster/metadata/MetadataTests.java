@@ -25,10 +25,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -51,12 +55,14 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBack
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.Metadata.Builder.validateDataStreams;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -79,7 +85,8 @@ public class MetadataTests extends ESTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(new GetAliasesRequest(), Strings.EMPTY_ARRAY);
+            GetAliasesRequest request = new GetAliasesRequest();
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), Strings.EMPTY_ARRAY);
             assertThat(aliases.size(), equalTo(0));
         }
         {
@@ -91,7 +98,7 @@ public class MetadataTests extends ESTestCase {
                 // replacing with empty aliases behaves as if aliases were unspecified at request building
                 request.replaceAliases(Strings.EMPTY_ARRAY);
             }
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(new GetAliasesRequest(), new String[] { "index" });
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));
@@ -99,10 +106,8 @@ public class MetadataTests extends ESTestCase {
             assertThat(aliasMetadataList.get(1).alias(), equalTo("alias2"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(
-                new GetAliasesRequest("alias*"),
-                new String[] { "index" }
-            );
+            GetAliasesRequest request = new GetAliasesRequest("alias*");
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));
@@ -110,10 +115,8 @@ public class MetadataTests extends ESTestCase {
             assertThat(aliasMetadataList.get(1).alias(), equalTo("alias2"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(
-                new GetAliasesRequest("alias1"),
-                new String[] { "index" }
-            );
+            GetAliasesRequest request = new GetAliasesRequest("alias1");
+            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(request.aliases(), new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(1));
@@ -144,8 +147,8 @@ public class MetadataTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("alias2").build())
             )
             .build();
-        List<AliasMetadata> aliases = metadata.findAliases(new GetAliasesRequest().aliases("*", "-alias1"), new String[] { "index" })
-            .get("index");
+        GetAliasesRequest request = new GetAliasesRequest().aliases("*", "-alias1");
+        List<AliasMetadata> aliases = metadata.findAliases(request.aliases(), new String[] { "index" }).get("index");
         assertThat(aliases.size(), equalTo(1));
         assertThat(aliases.get(0).alias(), equalTo("alias2"));
     }
@@ -179,8 +182,8 @@ public class MetadataTests extends ESTestCase {
                     .putAlias(AliasMetadata.builder("bb").build())
             )
             .build();
-        List<AliasMetadata> aliases = metadata.findAliases(new GetAliasesRequest().aliases("a*", "-*b", "b*"), new String[] { "index" })
-            .get("index");
+        GetAliasesRequest request = new GetAliasesRequest().aliases("a*", "-*b", "b*");
+        List<AliasMetadata> aliases = metadata.findAliases(request.aliases(), new String[] { "index" }).get("index");
         assertThat(aliases.size(), equalTo(2));
         assertThat(aliases.get(0).alias(), equalTo("aa"));
         assertThat(aliases.get(1).alias(), equalTo("bb"));
@@ -1750,6 +1753,344 @@ public class MetadataTests extends ESTestCase {
             assertThat(previous.getIndicesLookup(), sameInstance(metadata.getIndicesLookup()));
             previous = metadata;
         }
+    }
+
+    public static final String SYSTEM_ALIAS_NAME = "system_alias";
+
+    public void testHiddenAliasValidation() {
+        final String hiddenAliasName = "hidden_alias";
+
+        IndexMetadata hidden1 = buildIndexWithAlias("hidden1", hiddenAliasName, true, Version.CURRENT, false);
+        IndexMetadata hidden2 = buildIndexWithAlias("hidden2", hiddenAliasName, true, Version.CURRENT, false);
+        IndexMetadata hidden3 = buildIndexWithAlias("hidden3", hiddenAliasName, true, Version.CURRENT, false);
+
+        IndexMetadata nonHidden = buildIndexWithAlias("nonhidden1", hiddenAliasName, false, Version.CURRENT, false);
+        IndexMetadata unspecified = buildIndexWithAlias("nonhidden2", hiddenAliasName, null, Version.CURRENT, false);
+
+        {
+            // Should be ok:
+            metadataWithIndices(hidden1, hidden2, hidden3);
+        }
+
+        {
+            // Should be ok:
+            if (randomBoolean()) {
+                metadataWithIndices(nonHidden, unspecified);
+            } else {
+                metadataWithIndices(unspecified, nonHidden);
+            }
+        }
+
+        {
+            IllegalStateException exception = expectThrows(
+                IllegalStateException.class,
+                () -> metadataWithIndices(hidden1, hidden2, hidden3, nonHidden)
+            );
+            assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName + "] has is_hidden set to true on indices ["));
+            assertThat(
+                exception.getMessage(),
+                allOf(
+                    containsString(hidden1.getIndex().getName()),
+                    containsString(hidden2.getIndex().getName()),
+                    containsString(hidden3.getIndex().getName())
+                )
+            );
+            assertThat(
+                exception.getMessage(),
+                containsString(
+                    "but does not have is_hidden set to true on indices ["
+                        + nonHidden.getIndex().getName()
+                        + "]; alias must have the same is_hidden setting on all indices"
+                )
+            );
+        }
+
+        {
+            IllegalStateException exception = expectThrows(
+                IllegalStateException.class,
+                () -> metadataWithIndices(hidden1, hidden2, hidden3, unspecified)
+            );
+            assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName + "] has is_hidden set to true on indices ["));
+            assertThat(
+                exception.getMessage(),
+                allOf(
+                    containsString(hidden1.getIndex().getName()),
+                    containsString(hidden2.getIndex().getName()),
+                    containsString(hidden3.getIndex().getName())
+                )
+            );
+            assertThat(
+                exception.getMessage(),
+                containsString(
+                    "but does not have is_hidden set to true on indices ["
+                        + unspecified.getIndex().getName()
+                        + "]; alias must have the same is_hidden setting on all indices"
+                )
+            );
+        }
+
+        {
+            final IndexMetadata hiddenIndex = randomFrom(hidden1, hidden2, hidden3);
+            IllegalStateException exception = expectThrows(IllegalStateException.class, () -> {
+                if (randomBoolean()) {
+                    metadataWithIndices(nonHidden, unspecified, hiddenIndex);
+                } else {
+                    metadataWithIndices(unspecified, nonHidden, hiddenIndex);
+                }
+            });
+            assertThat(
+                exception.getMessage(),
+                containsString(
+                    "alias ["
+                        + hiddenAliasName
+                        + "] has is_hidden set to true on "
+                        + "indices ["
+                        + hiddenIndex.getIndex().getName()
+                        + "] but does not have is_hidden set to true on indices ["
+                )
+            );
+            assertThat(
+                exception.getMessage(),
+                allOf(containsString(unspecified.getIndex().getName()), containsString(nonHidden.getIndex().getName()))
+            );
+            assertThat(exception.getMessage(), containsString("but does not have is_hidden set to true on indices ["));
+        }
+    }
+
+    public void testSystemAliasValidationMixedVersionSystemAndRegularFails() {
+        final Version random7xVersion = VersionUtils.randomVersionBetween(
+            random(),
+            Version.V_7_0_0,
+            VersionUtils.getPreviousVersion(Version.V_8_0_0)
+        );
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
+        final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, Version.CURRENT, false);
+
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> metadataWithIndices(currentVersionSystem, oldVersionSystem, regularIndex)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "alias ["
+                    + SYSTEM_ALIAS_NAME
+                    + "] refers to both system indices ["
+                    + currentVersionSystem.getIndex().getName()
+                    + "] and non-system indices: ["
+                    + regularIndex.getIndex().getName()
+                    + "], but aliases must refer to either system or non-system indices, not both"
+            )
+        );
+    }
+
+    public void testSystemAliasValidationNewSystemAndRegularFails() {
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, Version.CURRENT, false);
+
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> metadataWithIndices(currentVersionSystem, regularIndex)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "alias ["
+                    + SYSTEM_ALIAS_NAME
+                    + "] refers to both system indices ["
+                    + currentVersionSystem.getIndex().getName()
+                    + "] and non-system indices: ["
+                    + regularIndex.getIndex().getName()
+                    + "], but aliases must refer to either system or non-system indices, not both"
+            )
+        );
+    }
+
+    public void testSystemAliasOldSystemAndNewRegular() {
+        final Version random7xVersion = VersionUtils.randomVersionBetween(
+            random(),
+            Version.V_7_0_0,
+            VersionUtils.getPreviousVersion(Version.V_8_0_0)
+        );
+        final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
+        final IndexMetadata regularIndex = buildIndexWithAlias("regular1", SYSTEM_ALIAS_NAME, false, Version.CURRENT, false);
+
+        // Should be ok:
+        metadataWithIndices(oldVersionSystem, regularIndex);
+    }
+
+    public void testSystemIndexValidationAllRegular() {
+        final Version random7xVersion = VersionUtils.randomVersionBetween(
+            random(),
+            Version.V_7_0_0,
+            VersionUtils.getPreviousVersion(Version.V_8_0_0)
+        );
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
+
+        // Should be ok
+        metadataWithIndices(currentVersionSystem, currentVersionSystem2, oldVersionSystem);
+    }
+
+    public void testSystemAliasValidationAllSystemSomeOld() {
+        final Version random7xVersion = VersionUtils.randomVersionBetween(
+            random(),
+            Version.V_7_0_0,
+            VersionUtils.getPreviousVersion(Version.V_8_0_0)
+        );
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata oldVersionSystem = buildIndexWithAlias(".oldVersionSystem", SYSTEM_ALIAS_NAME, null, random7xVersion, true);
+
+        // Should be ok:
+        metadataWithIndices(currentVersionSystem, currentVersionSystem2, oldVersionSystem);
+    }
+
+    public void testSystemAliasValidationAll8x() {
+        final IndexMetadata currentVersionSystem = buildIndexWithAlias(".system1", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+        final IndexMetadata currentVersionSystem2 = buildIndexWithAlias(".system2", SYSTEM_ALIAS_NAME, null, Version.CURRENT, true);
+
+        // Should be ok
+        metadataWithIndices(currentVersionSystem, currentVersionSystem2);
+    }
+
+    private void metadataWithIndices(IndexMetadata... indices) {
+        Metadata.Builder builder = Metadata.builder();
+        for (var cursor : indices) {
+            builder.put(cursor, false);
+        }
+        builder.build();
+    }
+
+    private IndexMetadata buildIndexWithAlias(
+        String indexName,
+        String aliasName,
+        @Nullable Boolean aliasIsHidden,
+        Version indexCreationVersion,
+        boolean isSystem
+    ) {
+        final AliasMetadata.Builder aliasMetadata = new AliasMetadata.Builder(aliasName);
+        if (aliasIsHidden != null || randomBoolean()) {
+            aliasMetadata.isHidden(aliasIsHidden);
+        }
+        return new IndexMetadata.Builder(indexName).settings(settings(indexCreationVersion))
+            .system(isSystem)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .putAlias(aliasMetadata)
+            .build();
+    }
+
+    public void testMappingDuplication() {
+        final Set<String> randomMappingDefinitions;
+        {
+            int numEntries = randomIntBetween(4, 8);
+            randomMappingDefinitions = new HashSet<>(numEntries);
+            for (int i = 0; i < numEntries; i++) {
+                Map<String, Object> mapping = RandomAliasActionsGenerator.randomMap(2);
+                String mappingAsString = Strings.toString((builder, params) -> builder.mapContents(mapping));
+                randomMappingDefinitions.add(mappingAsString);
+            }
+        }
+
+        Metadata metadata;
+        int numIndices = randomIntBetween(16, 32);
+        {
+            String[] definitions = randomMappingDefinitions.toArray(String[]::new);
+            Metadata.Builder mb = new Metadata.Builder();
+            for (int i = 0; i < numIndices; i++) {
+                IndexMetadata.Builder indexBuilder = IndexMetadata.builder("index-" + i)
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .putMapping(definitions[i % randomMappingDefinitions.size()])
+                    .numberOfShards(1)
+                    .numberOfReplicas(0);
+                if (randomBoolean()) {
+                    mb.put(indexBuilder);
+                } else {
+                    mb.put(indexBuilder.build(), true);
+                }
+            }
+            metadata = mb.build();
+        }
+        assertThat(metadata.getMappingsByHash().size(), equalTo(randomMappingDefinitions.size()));
+        assertThat(
+            metadata.indices().stream().map(entry -> entry.getValue().mapping()).collect(Collectors.toSet()),
+            hasSize(metadata.getMappingsByHash().size())
+        );
+
+        // Add a new index with a new index with known mapping:
+        MappingMetadata mapping = metadata.indices().get("index-" + randomInt(numIndices - 1)).mapping();
+        MappingMetadata entry = metadata.getMappingsByHash().get(mapping.getSha256());
+        {
+            Metadata.Builder mb = new Metadata.Builder(metadata);
+            mb.put(
+                IndexMetadata.builder("index-" + numIndices)
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .putMapping(mapping)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            );
+            metadata = mb.build();
+        }
+        assertThat(metadata.getMappingsByHash().size(), equalTo(randomMappingDefinitions.size()));
+        assertThat(metadata.getMappingsByHash().get(mapping.getSha256()), equalTo(entry));
+
+        // Remove index and ensure mapping cache stays the same
+        {
+            Metadata.Builder mb = new Metadata.Builder(metadata);
+            mb.remove("index-" + numIndices);
+            metadata = mb.build();
+        }
+        assertThat(metadata.getMappingsByHash().size(), equalTo(randomMappingDefinitions.size()));
+        assertThat(metadata.getMappingsByHash().get(mapping.getSha256()), equalTo(entry));
+
+        // Update a mapping of an index:
+        IndexMetadata luckyIndex = metadata.index("index-" + randomInt(numIndices - 1));
+        entry = metadata.getMappingsByHash().get(luckyIndex.mapping().getSha256());
+        MappingMetadata updatedMapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Map.of("mapping", "updated"));
+        {
+            Metadata.Builder mb = new Metadata.Builder(metadata);
+            mb.put(IndexMetadata.builder(luckyIndex).putMapping(updatedMapping));
+            metadata = mb.build();
+        }
+        assertThat(metadata.getMappingsByHash().size(), equalTo(randomMappingDefinitions.size() + 1));
+        assertThat(metadata.getMappingsByHash().get(luckyIndex.mapping().getSha256()), equalTo(entry));
+        assertThat(metadata.getMappingsByHash().get(updatedMapping.getSha256()), equalTo(updatedMapping));
+
+        // Remove the index with updated mapping
+        {
+            Metadata.Builder mb = new Metadata.Builder(metadata);
+            mb.remove(luckyIndex.getIndex().getName());
+            metadata = mb.build();
+        }
+        assertThat(metadata.getMappingsByHash().size(), equalTo(randomMappingDefinitions.size()));
+        assertThat(metadata.getMappingsByHash().get(updatedMapping.getSha256()), nullValue());
+
+        // Add an index with new mapping and then later remove it:
+        MappingMetadata newMapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Map.of("new", "mapping"));
+        {
+            Metadata.Builder mb = new Metadata.Builder(metadata);
+            mb.put(
+                IndexMetadata.builder("index-" + numIndices)
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+                    .putMapping(newMapping)
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            );
+            metadata = mb.build();
+        }
+        assertThat(metadata.getMappingsByHash().size(), equalTo(randomMappingDefinitions.size() + 1));
+        assertThat(metadata.getMappingsByHash().get(newMapping.getSha256()), equalTo(newMapping));
+
+        {
+            Metadata.Builder mb = new Metadata.Builder(metadata);
+            mb.remove("index-" + numIndices);
+            metadata = mb.build();
+        }
+        assertThat(metadata.getMappingsByHash().size(), equalTo(randomMappingDefinitions.size()));
+        assertThat(metadata.getMappingsByHash().get(newMapping.getSha256()), nullValue());
     }
 
     public static Metadata randomMetadata() {

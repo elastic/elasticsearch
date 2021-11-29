@@ -102,6 +102,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return SETTINGS;
     }
 
+    protected final Settings.Builder getIndexSettingsBuilder() {
+        return Settings.builder().put(getIndexSettings());
+    }
+
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
         return createIndexAnalyzers();
     }

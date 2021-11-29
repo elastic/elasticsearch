@@ -33,6 +33,7 @@ import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -75,6 +76,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.freeze();
         }
+
+        public static final int IGNORE_ABOVE = Integer.MAX_VALUE;
     }
 
     public static class KeywordField extends Field {
@@ -108,7 +111,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             "ignore_above",
             true,
             m -> toType(m).ignoreAbove,
-            Integer.MAX_VALUE
+            Defaults.IGNORE_ABOVE
         );
 
         private final Parameter<String> indexOptions = Parameter.restrictedStringParam(
@@ -535,9 +538,6 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
-    /** The maximum keyword length allowed for a dimension field */
-    private static final int DIMENSION_MAX_BYTES = 1024;
-
     private final boolean indexed;
     private final boolean hasDocValues;
     private final String nullValue;
@@ -619,7 +619,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, String value) {
-
         if (value == null) {
             return;
         }
@@ -630,27 +629,20 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         value = normalizeValue(fieldType().normalizer(), name(), value);
+        if (dimension) {
+            // Encode the tsid part of the dimension field. Although, it would seem reasonable
+            // to skip the encode part if we don't generate a _tsid field (as we do with number
+            // and ip fields), we keep this test because we must ensure that the value of this
+            // dimension field is not larger than TimeSeriesIdFieldMapper.DIMENSION_VALUE_LIMIT
+            BytesReference bytes = TimeSeriesIdFieldMapper.encodeTsidValue(value);
+            context.doc().addDimensionBytes(fieldType().name(), bytes);
+        }
 
         // convert to utf8 only once before feeding postings/dv/stored fields
         final BytesRef binaryValue = new BytesRef(value);
-        if (dimension && binaryValue.length > DIMENSION_MAX_BYTES) {
-            throw new IllegalArgumentException(
-                "Dimension field [" + fieldType().name() + "] cannot be more than [" + DIMENSION_MAX_BYTES + "] bytes long."
-            );
-        }
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
-            if (dimension) {
-                // Check that a dimension field is single-valued and not an array
-                if (context.doc().getByKey(fieldType().name()) != null) {
-                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
-                }
-                // Add dimension field with key so that we ensure it is single-valued.
-                // Dimension fields are always indexed.
-                context.doc().addWithKey(fieldType().name(), field);
-            } else {
-                context.doc().add(field);
-            }
+            context.doc().add(field);
 
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
                 context.addToFieldNames(fieldType().name());

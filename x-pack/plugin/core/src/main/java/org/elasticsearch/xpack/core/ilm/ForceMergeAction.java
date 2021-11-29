@@ -83,7 +83,7 @@ public class ForceMergeAction implements LifecycleAction {
     public ForceMergeAction(StreamInput in) throws IOException {
         this.maxNumSegments = in.readVInt();
         this.codec = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
             this.readOnly = in.readBoolean();
         } else {
             this.readOnly = true;
@@ -106,7 +106,7 @@ public class ForceMergeAction implements LifecycleAction {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(maxNumSegments);
         out.writeOptionalString(codec);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
             out.writeBoolean(readOnly);
         }
     }

@@ -777,7 +777,24 @@ public class ClusterStatsNodes implements ToXContentFragment {
     static class IndexPressureStats implements ToXContentFragment {
 
         private IndexingPressureStats indexingPressureStats = new IndexingPressureStats(
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
         );
 
         IndexPressureStats(final List<NodeStats> nodeStats) {
@@ -785,13 +802,13 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 IndexingPressureStats nodeStatIndexingPressureStats = nodeStat.getIndexingPressureStats();
                 if (nodeStatIndexingPressureStats != null) {
                     indexingPressureStats = new IndexingPressureStats(
-                        indexingPressureStats.getTotalCombinedCoordinatingAndPrimaryBytes()
-                            + nodeStatIndexingPressureStats.getTotalCombinedCoordinatingAndPrimaryBytes(),
+                        indexingPressureStats.getTotalCombinedCoordinatingAndPrimaryBytes() + nodeStatIndexingPressureStats
+                            .getTotalCombinedCoordinatingAndPrimaryBytes(),
                         indexingPressureStats.getTotalCoordinatingBytes() + nodeStatIndexingPressureStats.getTotalCoordinatingBytes(),
                         indexingPressureStats.getTotalPrimaryBytes() + nodeStatIndexingPressureStats.getTotalPrimaryBytes(),
                         indexingPressureStats.getTotalReplicaBytes() + nodeStatIndexingPressureStats.getTotalReplicaBytes(),
-                        indexingPressureStats.getCurrentCombinedCoordinatingAndPrimaryBytes()
-                            + nodeStatIndexingPressureStats.getCurrentCombinedCoordinatingAndPrimaryBytes(),
+                        indexingPressureStats.getCurrentCombinedCoordinatingAndPrimaryBytes() + nodeStatIndexingPressureStats
+                            .getCurrentCombinedCoordinatingAndPrimaryBytes(),
                         indexingPressureStats.getCurrentCoordinatingBytes() + nodeStatIndexingPressureStats.getCurrentCoordinatingBytes(),
                         indexingPressureStats.getCurrentPrimaryBytes() + nodeStatIndexingPressureStats.getCurrentPrimaryBytes(),
                         indexingPressureStats.getCurrentReplicaBytes() + nodeStatIndexingPressureStats.getCurrentReplicaBytes(),

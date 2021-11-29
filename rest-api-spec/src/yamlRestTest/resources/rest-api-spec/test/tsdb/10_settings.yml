@@ -186,6 +186,8 @@ set start_time and end_time:
                 end_time: 1632625792000
           mappings:
             properties:
+              "@timestamp":
+                type: date
               metricset:
                 type: keyword
                 time_series_dimension: true

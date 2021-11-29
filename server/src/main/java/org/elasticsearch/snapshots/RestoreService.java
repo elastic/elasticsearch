@@ -949,7 +949,16 @@ public class RestoreService implements ClusterStateApplier {
     );
 
     private static boolean skipVersionChecks(RepositoryMetadata repositoryMetadata) {
-        return Build.CURRENT.isSnapshot() && ALLOW_BWC_INDICES_SETTING.get(repositoryMetadata.settings());
+        if (Build.CURRENT.isSnapshot()) {
+            return ALLOW_BWC_INDICES_SETTING.get(repositoryMetadata.settings());
+        } else {
+            if (ALLOW_BWC_INDICES_SETTING.exists(repositoryMetadata.settings())) {
+                throw new IllegalArgumentException(
+                    "Repository setting [" + ALLOW_BWC_INDICES_SETTING.getKey() + "] only allowed in release builds"
+                );
+            }
+            return false;
+        }
     }
 
     public static boolean failed(SnapshotInfo snapshot, String index) {

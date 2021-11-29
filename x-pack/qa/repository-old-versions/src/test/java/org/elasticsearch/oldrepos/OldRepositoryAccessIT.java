@@ -103,11 +103,15 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 oldEs.performRequest(createSnapshotRequest);
 
                 // register repo on new ES
+                Settings.Builder repoSettingsBuilder = Settings.builder().put("location", repoLocation);
+                if (Build.CURRENT.isSnapshot()) {
+                    repoSettingsBuilder
+                        .put("allow_bwc_indices", true);
+                }
                 ElasticsearchAssertions.assertAcked(
                     client.snapshot()
                         .createRepository(
-                            new PutRepositoryRequest("testrepo").type("fs")
-                                .settings(Settings.builder().put("location", repoLocation).put("allow_bwc_indices", true).build()),
+                            new PutRepositoryRequest("testrepo").type("fs").settings(repoSettingsBuilder),
                             RequestOptions.DEFAULT
                         )
                 );

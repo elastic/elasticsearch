@@ -8,6 +8,8 @@
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 import static org.elasticsearch.gradle.internal.distribution.InternalElasticsearchDistributionTypes.DOCKER;
 
 apply plugin: 'war'
@@ -41,8 +43,8 @@ tasks.named("war").configure {
   archiveFileName = 'example-app.war'
 }
 
-// The wildfly docker image is only available for x86 architectures so disable these tests on arm
-if (Architecture.current() == Architecture.X64) {
+
+if (isDockerImageAvailable()) {
   testFixtures.useFixture()
 }
 
@@ -61,10 +63,16 @@ tasks.named("preProcessFixture").configure {
 
 tasks.register("integTest", Test) {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
-  onlyIf { Architecture.current() == Architecture.X64 }
+  onlyIf { isDockerImageAvailable() }
   maxParallelForks = '1'
   include '**/*IT.class'
   systemProperty 'tests.security.manager', 'false'
+}
+
+static def isDockerImageAvailable() {
+  // The wildfly docker image is only available for x86 architectures so disable these tests on arm
+  // The wildfly docker image is only available for Java 11
+  return Architecture.current() == Architecture.X64 && BuildParams.getMinimumRuntimeVersion() == JavaVersion.VERSION_11
 }
 
 tasks.named("check").configure {

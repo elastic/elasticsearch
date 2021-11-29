@@ -282,7 +282,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // Cancel main task
         CancelTasksRequest request = new CancelTasksRequest();
         request.setReason("Testing Cancellation");
-        request.setTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
+        request.setTargetTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
         // And send the cancellation request to a random node
         CancelTasksResponse response = ActionTestUtils.executeBlocking(
             testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction,
@@ -316,7 +316,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // Make sure that tasks are no longer running
         ListTasksResponse listTasksResponse = ActionTestUtils.executeBlocking(
             testNodes[randomIntBetween(0, testNodes.length - 1)].transportListTasksAction,
-            new ListTasksRequest().setTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()))
+            new ListTasksRequest().setTargetTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()))
         );
         assertEquals(0, listTasksResponse.getTasks().size());
 
@@ -354,7 +354,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // Cancel all child tasks without cancelling the main task, which should quit on its own
         CancelTasksRequest request = new CancelTasksRequest();
         request.setReason("Testing Cancellation");
-        request.setParentTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
+        request.setTargetParentTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
         // And send the cancellation request to a random node
         CancelTasksResponse response = ActionTestUtils.executeBlocking(
             testNodes[randomIntBetween(1, testNodes.length - 1)].transportCancelTasksAction,
@@ -373,7 +373,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             // Make sure that main task is no longer running
             ListTasksResponse listTasksResponse = ActionTestUtils.executeBlocking(
                 testNodes[randomIntBetween(0, testNodes.length - 1)].transportListTasksAction,
-                new ListTasksRequest().setTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()))
+                new ListTasksRequest().setTargetTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()))
             );
             assertEquals(0, listTasksResponse.getTasks().size());
         });
@@ -460,7 +460,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // Make sure that tasks are running
         ListTasksResponse listTasksResponse = ActionTestUtils.executeBlocking(
             testNodes[randomIntBetween(0, testNodes.length - 1)].transportListTasksAction,
-            new ListTasksRequest().setParentTaskId(new TaskId(mainNode, mainTask.getId()))
+            new ListTasksRequest().setTargetParentTaskId(new TaskId(mainNode, mainTask.getId()))
         );
         assertThat(listTasksResponse.getTasks().size(), greaterThanOrEqualTo(blockOnNodes.size()));
 
@@ -474,7 +474,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
                 // Simulate issuing cancel request on the node that is about to leave the cluster
                 CancelTasksRequest request = new CancelTasksRequest();
                 request.setReason("Testing Cancellation");
-                request.setTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
+                request.setTargetTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
                 // And send the cancellation request to a random node
                 CancelTasksResponse response = ActionTestUtils.executeBlocking(testNodes[0].transportCancelTasksAction, request);
                 logger.info("--> Done simulating issuing cancel request on the node that is about to leave the cluster");
@@ -502,7 +502,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             // Make sure that tasks are no longer running
             ListTasksResponse listTasksResponse1 = ActionTestUtils.executeBlocking(
                 testNodes[randomIntBetween(1, testNodes.length - 1)].transportListTasksAction,
-                new ListTasksRequest().setTaskId(new TaskId(mainNode, mainTask.getId()))
+                new ListTasksRequest().setTargetTaskId(new TaskId(mainNode, mainTask.getId()))
             );
             assertEquals(0, listTasksResponse1.getTasks().size());
         });

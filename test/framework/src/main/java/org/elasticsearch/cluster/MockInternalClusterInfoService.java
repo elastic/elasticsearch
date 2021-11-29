@@ -40,13 +40,13 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
         super(settings, clusterService, threadPool, client);
     }
 
-    public void setDiskUsageFunctionAndRefresh(BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction) {
-        this.diskUsageFunction = diskUsageFunction;
+    public void setDiskUsageFunctionAndRefresh(BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFn) {
+        this.diskUsageFunction = diskUsageFn;
         ClusterInfoServiceUtils.refresh(this);
     }
 
-    public void setShardSizeFunctionAndRefresh(Function<ShardRouting, Long> shardSizeFunction) {
-        this.shardSizeFunction = shardSizeFunction;
+    public void setShardSizeFunctionAndRefresh(Function<ShardRouting, Long> shardSizeFn) {
+        this.shardSizeFunction = shardSizeFn;
         ClusterInfoServiceUtils.refresh(this);
     }
 
@@ -58,8 +58,8 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
 
     @Override
     List<NodeStats> adjustNodesStats(List<NodeStats> nodesStats) {
-        final BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction = this.diskUsageFunction;
-        if (diskUsageFunction == null) {
+        final BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunctionCopy = this.diskUsageFunction;
+        if (diskUsageFunctionCopy == null) {
             return nodesStats;
         }
 
@@ -78,7 +78,7 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                     oldFsInfo.getTimestamp(),
                     oldFsInfo.getIoStats(),
                     StreamSupport.stream(oldFsInfo.spliterator(), false)
-                        .map(fsInfoPath -> diskUsageFunction.apply(discoveryNode, fsInfoPath))
+                        .map(fsInfoPath -> diskUsageFunctionCopy.apply(discoveryNode, fsInfoPath))
                         .toArray(FsInfo.Path[]::new)
                 ),
                 nodeStats.getTransport(),
@@ -108,12 +108,12 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
 
         @Override
         public Long getShardSize(ShardRouting shardRouting) {
-            final Function<ShardRouting, Long> shardSizeFunction = MockInternalClusterInfoService.this.shardSizeFunction;
-            if (shardSizeFunction == null) {
+            final Function<ShardRouting, Long> shardSizeFunctionCopy = MockInternalClusterInfoService.this.shardSizeFunction;
+            if (shardSizeFunctionCopy == null) {
                 return super.getShardSize(shardRouting);
             }
 
-            return shardSizeFunction.apply(shardRouting);
+            return shardSizeFunctionCopy.apply(shardRouting);
         }
     }
 

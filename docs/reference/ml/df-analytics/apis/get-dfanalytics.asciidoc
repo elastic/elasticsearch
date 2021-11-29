@@ -54,7 +54,7 @@ You can get information for all {dfanalytics-jobs} by using _all, by specifying
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-dfa-jobs]
 
 `from`::
 (Optional, integer)

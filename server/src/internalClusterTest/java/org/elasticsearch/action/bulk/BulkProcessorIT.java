@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -93,6 +94,42 @@ public class BulkProcessorIT extends ESIntegTestCase {
             processor.flush();
             latch.await();
 
+            assertThat(listener.beforeCounts.get(), equalTo(1));
+            assertThat(listener.afterCounts.get(), equalTo(1));
+            assertThat(listener.bulkFailures.size(), equalTo(0));
+            assertResponseItems(listener.bulkItems, numDocs);
+            assertMultiGetResponse(multiGetRequestBuilder.get(), numDocs);
+        }
+    }
+
+    public void testBulkProcessorFlushDisabled() throws Exception {
+        final CountDownLatch latch = new CountDownLatch(1);
+        BulkProcessorTestListener listener = new BulkProcessorTestListener(latch);
+
+        int numDocs = randomIntBetween(10, 100);
+
+        AtomicBoolean flushEnabled = new AtomicBoolean(false);
+        try (
+            BulkProcessor processor = BulkProcessor.builder(client()::bulk, listener, "BulkProcessorIT")
+                // let's make sure that this bulk won't be automatically flushed
+                .setConcurrentRequests(randomIntBetween(0, 10))
+                .setBulkActions(numDocs + randomIntBetween(1, 100))
+                .setFlushInterval(TimeValue.timeValueHours(24))
+                .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB))
+                .setFlushCondition(flushEnabled::get)
+                .build()
+        ) {
+
+            MultiGetRequestBuilder multiGetRequestBuilder = indexDocs(client(), processor, numDocs);
+            assertThat(latch.await(randomInt(500), TimeUnit.MILLISECONDS), equalTo(false));
+            // no documents will be indexed here
+            processor.flush();
+
+            flushEnabled.set(true);
+            processor.flush();
+            latch.await();
+
+            // disabled flush resulted in listener being triggered only once
             assertThat(listener.beforeCounts.get(), equalTo(1));
             assertThat(listener.afterCounts.get(), equalTo(1));
             assertThat(listener.bulkFailures.size(), equalTo(0));

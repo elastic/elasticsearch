@@ -359,7 +359,7 @@ public final class TransformInternalIndex {
     }
 
     protected static boolean hasLatestVersionedIndex(ClusterState state) {
-        return state.getMetadata().getIndicesLookup().containsKey(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
+        return state.getMetadata().hasIndexAbstraction(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME);
     }
 
     protected static boolean allPrimaryShardsActiveForLatestVersionedIndex(ClusterState state) {

@@ -160,11 +160,11 @@ reject @timestamp with wrong type:
 ---
 reject timestamp meta field with wrong type:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
-      catch: /.* time series index \[_data_stream_timestamp\] meta field must be enabled/
+      catch: /\[_data_stream_timestamp\] meta field has been disabled/
       indices.create:
         index: test
         body:
@@ -177,3 +177,138 @@ reject timestamp meta field with wrong type:
           mappings:
             _data_stream_timestamp:
               enabled: false
+
+---
+enable timestamp meta field:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset]
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            _data_stream_timestamp:
+              enabled: true
+
+  - do:
+      indices.get_mapping:
+        index: test
+  - match: { "test.mappings.properties.@timestamp.type": date }
+  - match: { 'test.mappings._data_stream_timestamp.enabled': true }
+
+---
+reject bad timestamp meta field:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+
+  - do:
+      catch: /\[_data_stream_timestamp\] config must be an object/
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset]
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            _data_stream_timestamp: enabled
+
+---
+write without timestamp:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset]
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      indices.get_mapping:
+        index: test
+  - match: { "test.mappings.properties.@timestamp.type": date }
+  - match: { 'test.mappings._data_stream_timestamp.enabled': true }
+
+  - do:
+      catch: /data stream timestamp field \[@timestamp\] is missing/
+      index:
+        index: test
+        body:
+          "metricset": "pod"
+
+---
+explicitly enable timestamp meta field:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset]
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+                meta:
+                  field_meta: time_series
+              metricset:
+                type: keyword
+                time_series_dimension: true
+
+  - do:
+      index:
+        refresh: true
+        index: test
+        body: {
+          "@timestamp": 1632625793000,
+          "metricset": "pod",
+          "new_field" : "value"
+        }
+
+  - do:
+      search:
+        index: test
+        body:
+          docvalue_fields: [ '@timestamp', 'new_field.keyword' ]
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.@timestamp: [ "2021-09-26T03:09:53.000Z" ] }
+  - match: { hits.hits.0.fields.new_field\.keyword: [ "value" ] }
+
+  - do:
+      indices.get_mapping:
+        index: test
+  - match: { "test.mappings.properties.@timestamp.type": date }
+  - match: { "test.mappings.properties.@timestamp.meta.field_meta": time_series }
+  - match: { 'test.mappings._data_stream_timestamp.enabled': true }

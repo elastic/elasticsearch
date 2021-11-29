@@ -50,7 +50,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
@@ -266,6 +265,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     ) throws Exception {
         final DocWriteRequest.OpType opType = context.getCurrent().opType();
 
+        // Translate update requests into index or delete requests which can be executed directly
         final UpdateHelper.Result updateResult;
         if (opType == DocWriteRequest.OpType.UPDATE) {
             final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
@@ -280,24 +280,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 context.markAsCompleted(context.getExecutionResult());
                 return true;
             }
-            // execute translated update request
-            switch (updateResult.getResponseResult()) {
-                case CREATED:
-                case UPDATED:
-                    IndexRequest indexRequest = updateResult.action();
-                    indexRequest.process();
-                    context.setRequestToExecute(indexRequest);
-                    break;
-                case DELETED:
-                    context.setRequestToExecute(updateResult.action());
-                    break;
-                case NOOP:
-                    context.markOperationAsNoOp(updateResult.action());
-                    context.markAsCompleted(context.getExecutionResult());
-                    return true;
-                default:
-                    throw new IllegalStateException("Illegal update operation " + updateResult.getResponseResult());
+            if (updateResult.getResponseResult() == DocWriteResponse.Result.NOOP) {
+                context.markOperationAsNoOp(updateResult.action());
+                context.markAsCompleted(context.getExecutionResult());
+                return true;
             }
+            DocWriteRequest<?> translated = updateResult.action();
+            translated.process();
+            context.setRequestToExecute(translated);
         } else {
             context.setRequestToExecute(context.getCurrent());
             updateResult = null;
@@ -321,7 +311,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         } else {
             final IndexRequest request = context.getRequestToExecute();
             final SourceToParse sourceToParse = new SourceToParse(
-                request.index(),
                 request.id(),
                 request.source(),
                 request.getContentType(),
@@ -582,9 +571,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             case CREATE:
             case INDEX:
                 final IndexRequest indexRequest = (IndexRequest) docWriteRequest;
-                final ShardId shardId = replica.shardId();
                 final SourceToParse sourceToParse = new SourceToParse(
-                    shardId.getIndexName(),
                     indexRequest.id(),
                     indexRequest.source(),
                     indexRequest.getContentType(),

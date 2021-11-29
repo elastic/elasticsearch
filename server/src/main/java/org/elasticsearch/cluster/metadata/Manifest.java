@@ -33,7 +33,7 @@ import java.util.stream.Collectors;
  * Index metadata generation could be obtained by calling {@link #getIndexGenerations()}.
  */
 public class Manifest implements ToXContentFragment {
-    // TODO revisit missing and unknown constants once Zen2 BWC is ready
+
     private static final long MISSING_GLOBAL_GENERATION = -1L;
     private static final long MISSING_CURRENT_TERM = 0L;
     private static final long UNKNOWN_CURRENT_TERM = MISSING_CURRENT_TERM;

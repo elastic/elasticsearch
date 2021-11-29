@@ -3,27 +3,36 @@
 
 [partintro]
 
-Elasticsearch uses jUnit for testing, it also uses randomness in the
-tests, that can be set using a seed, the following is a cheatsheet of
-options for running the tests for ES.
+Elasticsearch uses JUnit for testing. It also generated random inputs into
+tests, either using a random seed, or one that is set via a system
+property. The following is a cheatsheet of options for running the
+Elasticsearch tests.
 
 == Creating packages
 
-To create a distribution without running the tests, simply run the
-following:
+To build a distribution for your local OS and print its output location upon completion, run:
 
 -----------------------------
-./gradlew assemble
+./gradlew localDistro
 -----------------------------
 
-To create a platform-specific build including the x-pack modules, use the
-following depending on your operating system:
+To create a platform-specific build, use the following depending on your
+operating system:
 
 -----------------------------
 ./gradlew :distribution:archives:linux-tar:assemble
-./gradlew :distribution:archives:darwin-tar:assemble
+./gradlew :distribution:archives:darwin(-aarch64)-tar:assemble
 ./gradlew :distribution:archives:windows-zip:assemble
 -----------------------------
+
+You can build a Docker image with:
+
+-----------------------------
+./gradlew build(Aarch64)DockerImage
+-----------------------------
+
+Note: you almost certainly don't want to run `./gradlew assemble` as this
+will attempt build every single Elasticsearch distribtion.
 
 === Running Elasticsearch from a checkout
 

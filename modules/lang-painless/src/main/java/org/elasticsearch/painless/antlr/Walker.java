@@ -179,8 +179,8 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
         return identifier++;
     }
 
-    private SourceContext buildAntlrTree(String source) {
-        ANTLRInputStream stream = new ANTLRInputStream(source);
+    private SourceContext buildAntlrTree(String sourceString) {
+        ANTLRInputStream stream = new ANTLRInputStream(sourceString);
         PainlessLexer lexer = new EnhancedPainlessLexer(stream, sourceName);
         PainlessParser parser = new PainlessParser(new CommonTokenStream(lexer));
         ParserErrorStrategy strategy = new ParserErrorStrategy(sourceName);

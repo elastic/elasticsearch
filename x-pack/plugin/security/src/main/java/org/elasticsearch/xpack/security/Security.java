@@ -1531,6 +1531,8 @@ public class Security extends Plugin
         return templates -> {
             // .security index is not managed by using templates anymore
             templates.remove("security_audit_log");
+            // .security is a system index now. deleting another legacy template that's not used anymore
+            templates.remove("security-index-template");
             return templates;
         };
     }

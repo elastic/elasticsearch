@@ -19,6 +19,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
@@ -347,6 +348,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     static void prohibitAppendWritesInBackingIndices(DocWriteRequest<?> writeRequest, Metadata metadata) {
+        DocWriteRequest.OpType opType = writeRequest.opType();
+        if ((opType == OpType.CREATE || opType == OpType.INDEX) == false) {
+            // op type not create or index, then bail early
+            return;
+        }
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(writeRequest.index());
         if (indexAbstraction == null) {
             return;
@@ -364,7 +370,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         // so checking if write op is append-only and if so fail.
         // (Updates and deletes are allowed to target a backing index)
 
-        DocWriteRequest.OpType opType = writeRequest.opType();
         // CREATE op_type is considered append-only and
         // INDEX op_type is considered append-only when no if_primary_term and if_seq_no is specified.
         // (the latter maybe an update, but at this stage we can't determine that. In order to determine
@@ -523,26 +528,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
                     }
 
-                    IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
+                    prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
+                    prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
+                    docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
+                    docWriteRequest.process();
 
-                    switch (docWriteRequest.opType()) {
-                        case CREATE:
-                        case INDEX:
-                            prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
-                            prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
-                            IndexRequest indexRequest = (IndexRequest) docWriteRequest;
-                            indexRequest.resolveRouting(metadata);
-                            indexRequest.process();
-                            break;
-                        case UPDATE:
-                            docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
-                            break;
-                        case DELETE:
-                            docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
-                            break;
-                        default:
-                            throw new AssertionError("request type not supported: [" + docWriteRequest.opType() + "]");
-                    }
+                    IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
                     int shardId = docWriteRequest.route(indexRouting);
                     List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
                         new ShardId(concreteIndex, shardId),

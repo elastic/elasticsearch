@@ -292,8 +292,8 @@ tasks.register("bootstrapPerformanceTests", Copy) {
   from('performance')
   into('build/performanceTests')
   def root = file('..')
-  filter(ReplaceTokens, tokens: [gradleVersion: gradle.gradleVersion,
-                                 oldGradleVersion: GradleVersionInfo.getPreviousRelease(GradleVersionInfo.getLatestReleaseOrRC()),
+  filter(ReplaceTokens, tokens: [gradleVersion: gradle.gradleVersion.toString(),
+                                 oldGradleVersion: GradleVersionInfo.getPreviousRelease(GradleVersionInfo.getLatestReleaseOrRC()).toString(),
                                  testGitCommit:GitInfo.gitInfo(root).revision
   ]
   )

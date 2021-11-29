@@ -7,7 +7,7 @@
 <titleabbrev>Start {transform}</titleabbrev>
 ++++
 
-Starts one or more {transforms}.
+Starts a {transform}.
 
 [[start-transform-request]]
 == {api-request-title}
@@ -57,8 +57,7 @@ required privileges on the source and destination indices, the
 
 `<transform_id>`::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
-
+Identifier for the {transform}.
 
 [[start-transform-query-parms]]
 == {api-query-parms-title}

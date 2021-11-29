@@ -689,7 +689,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 addFailure(request, idx, cannotCreate);
                 return true;
             }
-            Index concreteIndex = concreteIndices.resolveIfAbsent(request);
+            Index concreteIndex;
+            try {
+                concreteIndex = concreteIndices.resolveIfAbsent(request);
+            } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
+                addFailure(request, idx, ex);
+                return true;
+            }
             IndexMetadata indexMetadata = metadata.getIndexSafe(concreteIndex);
             if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
                 addFailure(request, idx, new IndexClosedException(concreteIndex));

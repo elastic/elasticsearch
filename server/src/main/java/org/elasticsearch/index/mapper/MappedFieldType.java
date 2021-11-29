@@ -565,6 +565,11 @@ public abstract class MappedFieldType {
         );
     }
 
+    /**
+     * This field as a {@link QueryableExpression} for approximating scripts
+     * against the search index, or {@link QueryableExpression#UNQUERYABLE}
+     * if the field doesn't know how to approximate anything.
+     */
     public QueryableExpression asQueryableExpression(SearchExecutionContext context) {
         return QueryableExpression.UNQUERYABLE;
     }

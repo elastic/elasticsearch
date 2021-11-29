@@ -36,6 +36,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.assertSnapshotListSorted;
 import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.matchAllPattern;
@@ -177,14 +178,24 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             inProgressSnapshots.add(AbstractSnapshotIntegTestCase.startFullSnapshot(logger, repoName, snapshotName, false));
         }
         AbstractSnapshotIntegTestCase.awaitNumberOfSnapshotsInProgress(logger, inProgressCount);
-        AbstractSnapshotIntegTestCase.awaitClusterState(
-            logger,
-            state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+        AbstractSnapshotIntegTestCase.awaitClusterState(logger, state -> {
+            boolean firstIndexSuccessfullySnapshot = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
                 .asStream()
                 .flatMap(s -> s.shards().stream())
-                .filter(e -> e.getKey().getIndexName().equals("test-index-1"))
-                .allMatch(e -> e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS)
-        );
+                .allMatch(
+                    e -> e.getKey().getIndexName().equals("test-index-1") == false
+                        || e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS
+                );
+            List<SnapshotsInProgress.ShardState> secondIndexStates = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .asStream()
+                .flatMap(s -> s.shards().stream())
+                .filter(e -> e.getKey().getIndexName().equals("test-index-2"))
+                .map(e -> e.getValue().state())
+                .collect(Collectors.toList());
+            boolean secondIndexIsBlocked = secondIndexStates.stream().filter(e -> e == SnapshotsInProgress.ShardState.INIT).count() == 1
+                && secondIndexStates.stream().filter(e -> e == SnapshotsInProgress.ShardState.QUEUED == false).count() == 1;
+            return firstIndexSuccessfullySnapshot && secondIndexIsBlocked;
+        });
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);

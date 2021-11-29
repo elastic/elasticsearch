@@ -500,7 +500,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                         return new LeafFieldData() {
                             @Override
                             public DocValuesField<?> getScriptField(String name) {
-                                return new DelegateDocValuesField(new ScriptDocValues<String>() {
+                                return new DelegateDocValuesField(new ScriptDocValues<String>(new ScriptDocValues.Supplier<String>() {
                                     String value;
 
                                     @Override
@@ -509,7 +509,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                                     }
 
                                     @Override
-                                    public String get(int index) {
+                                    public String getInternal(int index) {
                                         assert index == 0;
                                         return value;
                                     }
@@ -520,6 +520,16 @@ public class SearchExecutionContextTests extends ESTestCase {
                                         LeafSearchLookup leafLookup = searchLookup.get().getLeafSearchLookup(context);
                                         leafLookup.setDocument(docId);
                                         value = runtimeDocValues.apply(leafLookup, docId);
+                                    }
+                                }) {
+                                    @Override
+                                    public int size() {
+                                        return supplier.size();
+                                    }
+
+                                    @Override
+                                    public String get(int i) {
+                                        return supplier.getInternal(i);
                                     }
                                 }, name);
                             }
@@ -616,7 +626,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                                     scriptDocValues = indexFieldData.load(context).getScriptField("test").getScriptDocValues();
                                     ;
                                 }
-                                scriptDocValues.setNextDocId(doc);
+                                scriptDocValues.getSupplier().setNextDocId(doc);
                                 for (int i = 0; i < scriptDocValues.size(); i++) {
                                     result.add(scriptDocValues.get(i).toString());
                                 }

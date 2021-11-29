@@ -15,23 +15,44 @@ import java.io.IOException;
 
 public final class VersionScriptDocValues extends ScriptDocValues<String> {
 
-    private final SortedSetDocValues in;
-    private long[] ords = new long[0];
-    private int count;
+    public static final class VersionScriptSupplier implements ScriptDocValues.Supplier<String> {
 
-    public VersionScriptDocValues(SortedSetDocValues in) {
-        this.in = in;
-    }
+        private final SortedSetDocValues in;
+        private long[] ords = new long[0];
+        private int count;
 
-    @Override
-    public void setNextDocId(int docId) throws IOException {
-        count = 0;
-        if (in.advanceExact(docId)) {
-            for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
-                ords = ArrayUtil.grow(ords, count + 1);
-                ords[count++] = ord;
+        public VersionScriptSupplier(SortedSetDocValues in) {
+            this.in = in;
+        }
+
+        @Override
+        public void setNextDocId(int docId) throws IOException {
+            count = 0;
+            if (in.advanceExact(docId)) {
+                for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
+                    ords = ArrayUtil.grow(ords, count + 1);
+                    ords[count++] = ord;
+                }
             }
         }
+
+        @Override
+        public String getInternal(int index) {
+            try {
+                return VersionEncoder.decodeVersion(in.lookupOrd(ords[index]));
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        @Override
+        public int size() {
+            return count;
+        }
+    }
+
+    public VersionScriptDocValues(VersionScriptSupplier supplier) {
+        super(supplier);
     }
 
     public String getValue() {
@@ -40,20 +61,16 @@ public final class VersionScriptDocValues extends ScriptDocValues<String> {
 
     @Override
     public String get(int index) {
-        if (count == 0) {
+        if (supplier.size() == 0) {
             throw new IllegalStateException(
                 "A document doesn't have a value for a field! " + "Use doc[<field>].size()==0 to check if a document is missing a field!"
             );
         }
-        try {
-            return VersionEncoder.decodeVersion(in.lookupOrd(ords[index]));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        return supplier.getInternal(index);
     }
 
     @Override
     public int size() {
-        return count;
+        return supplier.size();
     }
 }

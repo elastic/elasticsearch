@@ -18,6 +18,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.fielddata.LongScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
+import org.elasticsearch.index.fielddata.ScriptDocValues.LongsSupplier;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -132,7 +133,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         return new LongScriptFieldData.Builder(
             name(),
             leafFactory(searchLookup.get()),
-            (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
+            (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
         );
     }
 

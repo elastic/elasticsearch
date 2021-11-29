@@ -34,6 +34,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
+import org.elasticsearch.index.fielddata.ScriptDocValues.DatesSupplier;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -80,7 +81,7 @@ public final class DateFieldMapper extends FieldMapper {
     private static final DateMathParser EPOCH_MILLIS_PARSER = DateFormatter.forPattern("epoch_millis").toDateMathParser();
 
     public enum Resolution {
-        MILLISECONDS(CONTENT_TYPE, NumericType.DATE, (dv, n) -> new DelegateDocValuesField(new Dates(dv, false), n)) {
+        MILLISECONDS(CONTENT_TYPE, NumericType.DATE, (dv, n) -> new DelegateDocValuesField(new Dates(new DatesSupplier(dv, false)), n)) {
             @Override
             public long convert(Instant instant) {
                 return instant.toEpochMilli();
@@ -111,7 +112,11 @@ public final class DateFieldMapper extends FieldMapper {
                 return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getMillis());
             }
         },
-        NANOSECONDS(DATE_NANOS_CONTENT_TYPE, NumericType.DATE_NANOSECONDS, (dv, n) -> new DelegateDocValuesField(new Dates(dv, true), n)) {
+        NANOSECONDS(
+            DATE_NANOS_CONTENT_TYPE,
+            NumericType.DATE_NANOSECONDS,
+            (dv, n) -> new DelegateDocValuesField(new Dates(new DatesSupplier(dv, true)), n)
+        ) {
             @Override
             public long convert(Instant instant) {
                 return toLong(instant);

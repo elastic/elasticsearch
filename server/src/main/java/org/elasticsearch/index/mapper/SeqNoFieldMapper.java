@@ -18,6 +18,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
+import org.elasticsearch.index.fielddata.ScriptDocValues.LongsSupplier;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -188,7 +189,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
             return new SortedNumericIndexFieldData.Builder(
                 name(),
                 NumericType.LONG,
-                (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
+                (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
             );
         }
     }

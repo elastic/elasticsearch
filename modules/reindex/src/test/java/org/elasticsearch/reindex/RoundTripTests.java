@@ -174,12 +174,12 @@ public class RoundTripTests extends ESTestCase {
         if (randomBoolean()) {
             request.setActions(randomFrom(UpdateByQueryAction.NAME, ReindexAction.NAME));
         } else {
-            request.setTaskId(new TaskId(randomAlphaOfLength(5), randomLong()));
+            request.setTargetTaskId(new TaskId(randomAlphaOfLength(5), randomLong()));
         }
         RethrottleRequest tripped = new RethrottleRequest(toInputByteStream(request));
         assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0.00001);
         assertArrayEquals(request.getActions(), tripped.getActions());
-        assertEquals(request.getTaskId(), tripped.getTaskId());
+        assertEquals(request.getTargetTaskId(), tripped.getTargetTaskId());
     }
 
     private StreamInput toInputByteStream(Writeable example) throws IOException {

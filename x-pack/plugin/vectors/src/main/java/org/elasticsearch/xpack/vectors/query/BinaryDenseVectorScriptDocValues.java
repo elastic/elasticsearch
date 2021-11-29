@@ -17,49 +17,73 @@ import java.nio.ByteBuffer;
 
 public class BinaryDenseVectorScriptDocValues extends DenseVectorScriptDocValues {
 
-    private final BinaryDocValues in;
+    public static class BinaryDenseVectorSupplier implements DenseVectorSupplier<BytesRef> {
+
+        private final BinaryDocValues in;
+        private BytesRef value;
+
+        public BinaryDenseVectorSupplier(BinaryDocValues in) {
+            this.in = in;
+        }
+
+        @Override
+        public void setNextDocId(int docId) throws IOException {
+            if (in.advanceExact(docId)) {
+                value = in.binaryValue();
+            } else {
+                value = null;
+            }
+        }
+
+        @Override
+        public BytesRef getInternal(int index) {
+            throw new UnsupportedOperationException();
+        }
+
+        public BytesRef getInternal() {
+            return value;
+        }
+
+        @Override
+        public int size() {
+            if (value == null) {
+                return 0;
+            } else {
+                return 1;
+            }
+        }
+    }
+
+    private final BinaryDenseVectorSupplier bdvSupplier;
     private final Version indexVersion;
     private final float[] vector;
-    private BytesRef value;
 
-    BinaryDenseVectorScriptDocValues(BinaryDocValues in, Version indexVersion, int dims) {
-        super(dims);
-        this.in = in;
+    BinaryDenseVectorScriptDocValues(BinaryDenseVectorSupplier supplier, Version indexVersion, int dims) {
+        super(supplier, dims);
+        this.bdvSupplier = supplier;
         this.indexVersion = indexVersion;
         this.vector = new float[dims];
     }
 
     @Override
-    public void setNextDocId(int docId) throws IOException {
-        if (in.advanceExact(docId)) {
-            value = in.binaryValue();
-        } else {
-            value = null;
-        }
+    public int size() {
+        return supplier.size();
     }
 
     @Override
     public float[] getVectorValue() {
-        VectorEncoderDecoder.decodeDenseVector(value, vector);
+        VectorEncoderDecoder.decodeDenseVector(bdvSupplier.getInternal(), vector);
         return vector;
     }
 
     @Override
     public float getMagnitude() {
-        return VectorEncoderDecoder.getMagnitude(indexVersion, value);
-    }
-
-    @Override
-    public int size() {
-        if (value == null) {
-            return 0;
-        } else {
-            return 1;
-        }
+        return VectorEncoderDecoder.getMagnitude(indexVersion, bdvSupplier.getInternal());
     }
 
     @Override
     public double dotProduct(float[] queryVector) {
+        BytesRef value = bdvSupplier.getInternal();
         ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
 
         double dotProduct = 0;
@@ -71,6 +95,7 @@ public class BinaryDenseVectorScriptDocValues extends DenseVectorScriptDocValues
 
     @Override
     public double l1Norm(float[] queryVector) {
+        BytesRef value = bdvSupplier.getInternal();
         ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
 
         double l1norm = 0;
@@ -82,6 +107,7 @@ public class BinaryDenseVectorScriptDocValues extends DenseVectorScriptDocValues
 
     @Override
     public double l2Norm(float[] queryVector) {
+        BytesRef value = bdvSupplier.getInternal();
         ByteBuffer byteBuffer = ByteBuffer.wrap(value.bytes, value.offset, value.length);
         double l2norm = 0;
         for (float queryValue : queryVector) {

@@ -80,12 +80,6 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         verifyContainerInstallation(installation);
         verifySecurityAutoConfigured(installation);
         waitForElasticsearch(installation);
-        assertBusy(
-            () -> assertThat(
-                makeRequestAsElastic("https://localhost:9200/_cluster/health", "password"),
-                containsString("\"number_of_nodes\":1")
-            )
-        );
         final String node1ContainerId = Docker.getContainerId();
         String createTokenResult = installation.executables().createEnrollmentToken.run("-s node").stdout;
         assertThat(createTokenResult, not(emptyOrNullString()));

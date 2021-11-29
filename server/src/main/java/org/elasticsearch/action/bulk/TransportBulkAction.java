@@ -678,11 +678,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return false;
         }
 
-        private boolean addFailureIfIndexIsUnavailable(
-            DocWriteRequest<?> request,
-            int idx,
-            final ConcreteIndices concreteIndices
-        ) {
+        private boolean addFailureIfIndexIsUnavailable(DocWriteRequest<?> request, int idx, final ConcreteIndices concreteIndices) {
             IndexNotFoundException cannotCreate = indicesThatCannotBeCreated.get(request.index());
             if (cannotCreate != null) {
                 addFailure(request, idx, cannotCreate);

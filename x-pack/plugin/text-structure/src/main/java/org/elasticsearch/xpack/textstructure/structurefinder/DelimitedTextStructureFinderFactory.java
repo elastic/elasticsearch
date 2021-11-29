@@ -27,13 +27,13 @@ public class DelimitedTextStructureFinderFactory implements TextStructureFinderF
         this.trimFields = trimFields;
     }
 
-    DelimitedTextStructureFinderFactory makeSimilar(Character quote, Boolean trimFields) {
+    DelimitedTextStructureFinderFactory makeSimilar(Character quote, Boolean shouldTrimFields) {
 
         return new DelimitedTextStructureFinderFactory(
             (char) csvPreference.getDelimiterChar(),
             (quote == null) ? csvPreference.getQuoteChar() : quote,
             minFieldsPerRow,
-            (trimFields == null) ? this.trimFields : trimFields
+            (shouldTrimFields == null) ? this.trimFields : shouldTrimFields
         );
     }
 

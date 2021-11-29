@@ -94,7 +94,7 @@ public class SearchableSnapshotsStatsResponse extends BroadcastResponse {
         if ("indices".equalsIgnoreCase(level) || "shards".equalsIgnoreCase(level)) {
             builder.startObject("indices");
             final List<Index> indices = getStats().stream()
-                .filter(stats -> stats.getStats().isEmpty() == false)
+                .filter(shardStats -> shardStats.getStats().isEmpty() == false)
                 .map(SearchableSnapshotShardStats::getShardRouting)
                 .map(ShardRouting::index)
                 .sorted(Comparator.comparing(Index::getName))

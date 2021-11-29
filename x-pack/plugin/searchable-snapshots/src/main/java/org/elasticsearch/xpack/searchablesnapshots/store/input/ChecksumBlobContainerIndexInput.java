@@ -79,7 +79,7 @@ public class ChecksumBlobContainerIndexInput extends IndexInput {
     }
 
     @Override
-    public IndexInput slice(String sliceDescription, long offset, long length) {
+    public IndexInput slice(String sliceDescription, long offset, long sliceLength) {
         assert false : "unexpected slicing (" + sliceDescription + ") for " + this;
         throw new UnsupportedOperationException();
     }

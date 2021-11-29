@@ -972,9 +972,9 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         }
     }
 
-    private PutUserRequestBuilder preparePutUser(String username, String password, Hasher hasher, String... roles) {
+    private PutUserRequestBuilder preparePutUser(String username, String password, Hasher hasherToUse, String... roles) {
         return new PutUserRequestBuilder(client()).username(username)
-            .password(password == null ? null : new SecureString(password.toCharArray()), hasher)
+            .password(password == null ? null : new SecureString(password.toCharArray()), hasherToUse)
             .roles(roles);
     }
 

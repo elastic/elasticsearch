@@ -39,8 +39,8 @@ public class ConfigurationTests extends PackagingTestCase {
                 append(installation.envFile, "HOSTNAME=mytesthost");
                 // In packages, we would have set cluster.initial_master_nodes pointing to the original HOSTNAME upon installation
                 // We need to update that if we change HOSTNAME since node.name points to that, otherwise the cluster can't form
-                ServerUtils.removeSettingFromExistingConfiguration(installation, "cluster.initial_master_nodes");
-                ServerUtils.addSettingToExistingConfiguration(installation, "cluster.initial_master_nodes", "[\"mytesthost\"]");
+                ServerUtils.removeSettingFromExistingConfiguration(confPath, "cluster.initial_master_nodes");
+                ServerUtils.addSettingToExistingConfiguration(confPath, "cluster.initial_master_nodes", "[\"$HOSTNAME\"]");
             }
             // security auto-config requires that the archive owner and the node process user be the same
             Platforms.onWindows(() -> sh.chown(confPath, installation.getOwner()));

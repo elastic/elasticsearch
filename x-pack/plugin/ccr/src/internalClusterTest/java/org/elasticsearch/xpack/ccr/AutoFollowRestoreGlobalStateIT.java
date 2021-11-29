@@ -17,16 +17,20 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.CcrIntegTestCase;
+import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AutoFollowRestoreGlobalStateIT extends CcrIntegTestCase {
+
+    private static final TimeValue TIMEOUT = TimeValue.MAX_VALUE;
 
     public void testShouldHandleRestoringGlobalState() {
 
@@ -44,12 +48,10 @@ public class AutoFollowRestoreGlobalStateIT extends CcrIntegTestCase {
         ).actionGet();
 
         assertThat(
-            followerClient().admin().cluster().state(
-                new ClusterStateRequest().masterNodeTimeout(timeout)
-            ).actionGet()
-            .getState().metadata().persistentSettings().get("cluster.remote.leader_cluster.seeds"),
+            getClusterSettings(followerClient()).get("cluster.remote.leader_cluster.seeds"),
             nullValue()
         );
+        assertThat(getAutoFollowerPatterns(followerClient()).keySet(), equalTo(Set.of()));
 
         //create repository
         followerClient().admin().cluster().putRepository(
@@ -81,18 +83,24 @@ public class AutoFollowRestoreGlobalStateIT extends CcrIntegTestCase {
         ).actionGet();
 
         //assert remote is present
-        assertThat(
-            followerClient().admin().cluster().state(
-                new ClusterStateRequest().masterNodeTimeout(timeout)
-            ).actionGet()
-            .getState().metadata().persistentSettings().get("cluster.remote.leader_cluster.seeds"),
-            equalTo(remote)
-        );
+//        assertThat(
+//            getClusterSettings(followerClient()).get("cluster.remote.leader_cluster.seeds"),
+//            equalTo(remote)
+//        );
 
         //assert auto-follow is present
-        var getAutoFollowerRequest = new GetAutoFollowPatternAction.Request();
-        var getAutoFollowerResponse = followerClient().execute(GetAutoFollowPatternAction.INSTANCE, getAutoFollowerRequest).actionGet();
-        assertThat(getAutoFollowerResponse.getAutoFollowPatterns().keySet(), equalTo(Set.of("pattern-1")));
-        assertThat(getAutoFollowerResponse.getAutoFollowPatterns().get("pattern-1").isActive(), equalTo(true));
+        assertThat(getAutoFollowerPatterns(followerClient()).keySet(), equalTo(Set.of("pattern-1")));
+    }
+
+    private Settings getClusterSettings(Client client) {
+        var response = client.admin().cluster().state(
+            new ClusterStateRequest().masterNodeTimeout(TIMEOUT)
+        ).actionGet();
+        return response.getState().metadata().persistentSettings();
+    }
+
+    private Map<String, AutoFollowMetadata.AutoFollowPattern> getAutoFollowerPatterns(Client client) {
+        var response = client.execute(GetAutoFollowPatternAction.INSTANCE, new GetAutoFollowPatternAction.Request()).actionGet();
+        return response.getAutoFollowPatterns();
     }
 }

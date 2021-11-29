@@ -835,8 +835,8 @@ public class SearchAsyncActionTests extends ESTestCase {
         }
 
         @Override
-        public boolean hasReferences() {
-            return true;
+        public int refCount() {
+            return 1;
         }
     }
 }

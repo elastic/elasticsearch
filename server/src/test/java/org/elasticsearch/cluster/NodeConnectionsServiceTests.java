@@ -664,6 +664,11 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                         public boolean hasReferences() {
                             return refCounted.hasReferences();
                         }
+
+                        @Override
+                        public int refCount() {
+                            return refCounted.refCount();
+                        }
                     });
                 });
             }

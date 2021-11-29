@@ -31,7 +31,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     private static final ReleasableBytesReference EMPTY = new ReleasableBytesReference(BytesArray.EMPTY, NO_OP);
 
     private final BytesReference delegate;
-    private final AbstractRefCounted refCounted;
+    private final RefCounted refCounted;
 
     public static ReleasableBytesReference empty() {
         EMPTY.incRef();
@@ -42,7 +42,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         this(delegate, new RefCountedReleasable(releasable));
     }
 
-    public ReleasableBytesReference(BytesReference delegate, AbstractRefCounted refCounted) {
+    public ReleasableBytesReference(BytesReference delegate, RefCounted refCounted) {
         this.delegate = delegate;
         this.refCounted = refCounted;
         assert refCounted.refCount() > 0;
@@ -53,6 +53,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         return reference.length() == 0 ? empty() : new ReleasableBytesReference(reference, NO_OP);
     }
 
+    @Override
     public int refCount() {
         return refCounted.refCount();
     }

@@ -58,8 +58,8 @@ public abstract class TransportMessage implements Writeable, RefCounted {
     }
 
     @Override
-    public boolean hasReferences() {
-        // noop, override to manage the life-cycle of resources held by a transport message
-        return true;
+    public int refCount() {
+        // noop, override to manage life-cycle of resources held by a transport message
+        return 1;
     }
 }

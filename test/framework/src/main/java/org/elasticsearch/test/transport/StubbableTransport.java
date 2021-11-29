@@ -311,6 +311,11 @@ public class StubbableTransport implements Transport {
         public boolean hasReferences() {
             return connection.hasReferences();
         }
+
+        @Override
+        public int refCount() {
+            return connection.refCount();
+        }
     }
 
     @FunctionalInterface

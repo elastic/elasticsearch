@@ -242,8 +242,8 @@ public class RemoteConnectionManager implements ConnectionManager {
         }
 
         @Override
-        public boolean hasReferences() {
-            return true;
+        public int refCount() {
+            return 1;
         }
 
         @Override

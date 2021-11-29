@@ -311,7 +311,7 @@ public class DocValueFormatTests extends ESTestCase {
             Map.entry(1583650800000L + hourInMillis, ZoneId.of("America/New_York")),
 
             // November 1st 2020, transitioning out of DST
-            Map.entry(1604214000000L - hourInMillis, ZoneId.of("America/New_York"))
+            Map.entry(1604214000000L - hourInMillis, ZoneId.of("America/New_York")),
             Map.entry(1604214000000L, ZoneId.of("America/New_York")),
             Map.entry(1604214000000L + (hourInMillis / 2), ZoneId.of("America/New_York")),
             Map.entry(1604214000000L + hourInMillis, ZoneId.of("America/New_York")),

@@ -44,12 +44,7 @@ public class JavaDateMathParserTests extends ESTestCase {
         ZonedDateTime oneAm = ZonedDateTime.of(2020, 7, 11, 1, 0, 0, 0, ZoneOffset.UTC);
         assertEquals(1594429200000L, oneAm.toInstant().toEpochMilli());
         Instant actual = epochMillis.toDateMathParser()
-            .parse(
-                epochMillis.format(oneAm),
-                () -> { throw new UnsupportedOperationException(); },
-                false,
-                ZoneId.of("America/New_York")
-            );
+            .parse(epochMillis.format(oneAm), () -> { throw new UnsupportedOperationException(); }, false, ZoneId.of("America/New_York"));
         assertEquals(oneAm.toInstant(), actual);
     }
 
@@ -59,12 +54,7 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertEquals(1604210400000L, sixAm.toInstant().toEpochMilli());
         assertEquals("2020-11-01T01:00:00.000-05:00", iso8601.format(sixAm));
         Instant actual = iso8601.toDateMathParser()
-            .parse(
-                iso8601.format(sixAm),
-                () -> { throw new UnsupportedOperationException(); },
-                false,
-                ZoneId.of("America/New_York")
-            );
+            .parse(iso8601.format(sixAm), () -> { throw new UnsupportedOperationException(); }, false, ZoneId.of("America/New_York"));
         assertEquals(sixAm.toInstant(), actual);
     }
 
@@ -74,12 +64,7 @@ public class JavaDateMathParserTests extends ESTestCase {
         assertEquals(1604210400000L, sixAm.toInstant().toEpochMilli());
         assertEquals("1604210400000", epochMillis.format(sixAm));
         Instant actual = epochMillis.toDateMathParser()
-            .parse(
-                epochMillis.format(sixAm),
-                () -> { throw new UnsupportedOperationException(); },
-                false,
-                ZoneId.of("America/New_York")
-            );
+            .parse(epochMillis.format(sixAm), () -> { throw new UnsupportedOperationException(); }, false, ZoneId.of("America/New_York"));
 
         /*
         expected:<2020-11-01T06:00:00Z> but was:<2020-11-01T11:00:00Z>

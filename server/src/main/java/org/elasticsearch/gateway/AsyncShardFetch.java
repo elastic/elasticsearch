@@ -169,6 +169,11 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
         }
     }
 
+    public List<NodeEntry<T>> getTargetFetchNodes(final DiscoveryNodes nodes) {
+        fillShardCacheWithDataNodes(cache, nodes);
+        return findNodesToFetch(cache);
+    }
+
     /**
      * Called by the response handler of the async action to fetch data. Verifies that its still working
      * on the same cache generation, otherwise the results are discarded. It then goes and fills the relevant data for

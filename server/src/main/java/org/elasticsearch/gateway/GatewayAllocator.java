@@ -259,10 +259,9 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         }
 
         // node grouped shard requests
-        private final Map<DiscoveryNode, Map<ShardId, ShardRequestInfo>> queuedRequests = new ConcurrentHashMap<>();
-        // shard to nodes requests
-        private final Map<ShardId, Map<String, ActionListener<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards>>>
-            queuedListeners = new ConcurrentHashMap<>();
+        private final Map<DiscoveryNode, List<ShardRequestInfo>> queuedRequests = new ConcurrentHashMap<>();
+        // key: shardId + nodeId, value: listeners of this shard for specific node
+        private final Map<String, List<ActionListener<NodesGatewayStartedShards>>> queuedListeners = new ConcurrentHashMap<>();
 
         Lister<NodesGatewayStartedShards, NodeGatewayStartedShards> lister =
             new Lister<>() {
@@ -271,18 +270,23 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                                  ActionListener<NodesGatewayStartedShards> listener) {
                     // group shards by node
                     for (DiscoveryNode node : nodes) {
-                        Map<ShardId, ShardRequestInfo> nodeLevelRequest = queuedRequests.computeIfAbsent(node, n -> new HashMap<>());
-                        nodeLevelRequest.put(shardId, new ShardRequestInfo(shardId, customDataPath, listener));
+                        List<ShardRequestInfo> nodeLevelRequests = queuedRequests.computeIfAbsent(node,
+                            n -> Collections.synchronizedList(new ArrayList<>()));
+                        nodeLevelRequests.add(new ShardRequestInfo(shardId, customDataPath, listener));
+
+                        // queue child listeners
+                        List<ActionListener<NodesGatewayStartedShards>> shardListeners =
+                            queuedListeners.computeIfAbsent(shardId.toString().concat(node.getId()),
+                                m -> Collections.synchronizedList(new ArrayList<>()));
+                        shardListeners.add(listener);
                     }
                 }
 
                 @Override
                 public void flush() {
                     Map<ShardId, String> shards = new HashMap<>();
-                    for (DiscoveryNode node : queuedRequests.keySet()) {
-                        Map<ShardId, ShardRequestInfo> requestMap = queuedRequests.get(node);
-                        for (ShardId shardId : requestMap.keySet()) {
-                            ShardRequestInfo shardRequest = requestMap.get(shardId);
+                    for (DiscoveryNode node: queuedRequests.keySet()) {
+                        for (ShardRequestInfo shardRequest : queuedRequests.get(node)) {
                             shards.put(shardRequest.shardId(), shardRequest.getCustomDataPath());
                             if (node.getVersion().before(Version.V_7_16_0)) {
                                 // bwc, send single shard to node
@@ -313,11 +317,6 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                                     new TransportNodesListGatewayStartedShards.Request(shards, new DiscoveryNode[]{node}),
                                     listener);
                                 shards.remove(shardRequest.shardId());
-                            } else {
-                                // queue child listeners
-                                Map<String, ActionListener<TransportNodesListGatewayStartedShards.NodesGatewayStartedShards>> shardListeners =
-                                    queuedListeners.computeIfAbsent(shardRequest.shardId(), m -> new HashMap<>());
-                                shardListeners.put(node.getId(), shardRequest.getListener());
                             }
                         }
 
@@ -326,10 +325,25 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
                         if (node.getVersion().onOrAfter(Version.V_7_16_0)) {
                             // send shard fetch request per node
-                            final Map<ShardId, ShardRequestInfo> curNodeRequests = queuedRequests.get(node);
+                            final List<ShardRequestInfo> curNodeRequests = queuedRequests.get(node);
                             ActionListener<NodesGroupedGatewayStartedShards> listener = new ActionListener<>() {
                                 @Override
                                 public void onResponse(NodesGroupedGatewayStartedShards nodesGroupedStartedShards) {
+                                    if (nodesGroupedStartedShards.failures().size() > 0) {
+                                        assert nodesGroupedStartedShards.getNodes().size() == 0;
+                                        for (ShardRequestInfo request : curNodeRequests) {
+                                            String listenersKey = request.shardId().toString().concat(node.getId());
+                                            for (ActionListener<NodesGatewayStartedShards> listener : queuedListeners.get(listenersKey)) {
+                                                listener.onResponse(new NodesGatewayStartedShards(
+                                                    nodesGroupedStartedShards.getClusterName(),
+                                                    new ArrayList<>(),
+                                                    nodesGroupedStartedShards.failures()));
+                                            }
+                                            queuedListeners.get(listenersKey).clear();
+                                        }
+                                        return;
+                                    }
+
                                     assert nodesGroupedStartedShards.getNodes().size() == 1;
                                     NodeGroupedGatewayStartedShards startedShardResponse = nodesGroupedStartedShards.getNodes().get(0);
                                     List<NodeGatewayStartedShards> startedShards = startedShardResponse.getStartedShards();
@@ -343,16 +357,15 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                                             nodesGroupedStartedShards.failures());
 
                                         // call child listener
-                                        Map<String, ActionListener<NodesGatewayStartedShards>> listeners =
-                                            queuedListeners.get(startedShard.getShardId());
-                                        ActionListener<NodesGatewayStartedShards> listener = listeners.get(node.getId());
+                                        String listenersKey = startedShard.getShardId().toString().concat(node.getId());
+                                        List<ActionListener<NodesGatewayStartedShards>> listeners = queuedListeners.get(listenersKey);
+                                        assert listeners.isEmpty() == false;
+                                        ActionListener<NodesGatewayStartedShards> listener = listeners.remove(listeners.size() - 1);
                                         listener.onResponse(newNodesResponse);
 
                                         // clean child listener
-                                        ActionListener<NodesGatewayStartedShards> removed = listeners.remove(node.getId());
-                                        assert removed != null;
                                         if (listeners.isEmpty()) {
-                                            queuedListeners.remove(startedShard.getShardId());
+                                            queuedListeners.remove(listenersKey);
                                         }
                                     }
                                 }
@@ -360,9 +373,9 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                                 @Override
                                 public void onFailure(Exception e) {
                                     // clean requests and listeners of this node
-                                    for (ShardId shardId : curNodeRequests.keySet()) {
-                                        curNodeRequests.get(shardId).getListener().onFailure(e);
-                                        queuedListeners.get(shardId).remove(node.getId());
+                                    for (ShardRequestInfo request : curNodeRequests) {
+                                        request.getListener().onFailure(e);
+                                        queuedListeners.get(request.shardId().toString().concat(node.getId())).clear();
                                     }
                                 }
                             };

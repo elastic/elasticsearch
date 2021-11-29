@@ -20,13 +20,13 @@ import java.io.InputStream;
  *
  * Only used by the InstallPluginCommand, thus package private here
  */
-abstract class ProgressInputStream extends FilterInputStream {
+public abstract class ProgressInputStream extends FilterInputStream {
 
     private final int expectedTotalSize;
     private int currentPercent;
     private int count = 0;
 
-    ProgressInputStream(InputStream is, int expectedTotalSize) {
+    public ProgressInputStream(InputStream is, int expectedTotalSize) {
         super(is);
         this.expectedTotalSize = expectedTotalSize;
         this.currentPercent = 0;

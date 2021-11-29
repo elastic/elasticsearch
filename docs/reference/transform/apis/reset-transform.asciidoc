@@ -8,7 +8,7 @@
 <titleabbrev>Reset {transform}</titleabbrev>
 ++++
 
-Resets an existing {transform}.
+Resets a {transform}.
 
 [[reset-transform-request]]
 == {api-request-title}
@@ -20,7 +20,14 @@ Resets an existing {transform}.
 
 * Requires the `manage_transform` cluster privilege. This privilege is included
 in the `transform_admin` built-in role.
-* Before you can reset the {transform}, you must stop it; alternatively, use the `force` query parameter.
+
+[reset-transform-desc]]
+== {api-description-title}
+
+Before you can reset the {transform}, you must stop it; alternatively, use the
+`force` query parameter.
+
+If the destination index was created by the transform, it is deleted.
 
 [[reset-transform-path-parms]]
 == {api-path-parms-title}
@@ -33,9 +40,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 == {api-query-parms-title}
 
 `force`::
-(Optional, Boolean) When `true`, the {transform} is reset regardless of its
-current state. The default value is `false`, meaning that the {transform} must be
-`stopped` before it can be reset.
+(Optional, Boolean)
+If this value is `true`, the {transform} is reset regardless of its current
+state. If it's false, the {transform} must be `stopped` before it can be reset.
+The default value is `false`
 
 [[reset-transform-examples]]
 == {api-examples-title}

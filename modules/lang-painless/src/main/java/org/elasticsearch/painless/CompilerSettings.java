@@ -171,14 +171,14 @@ public final class CompilerSettings {
      * annotation.
      */
     public Map<String, Object> asMap() {
-        int regexLimitFactor = this.regexLimitFactor;
+        int regexLimitFactorToApply = this.regexLimitFactor;
         if (regexesEnabled == RegexEnabled.TRUE) {
-            regexLimitFactor = Augmentation.UNLIMITED_PATTERN_FACTOR;
+            regexLimitFactorToApply = Augmentation.UNLIMITED_PATTERN_FACTOR;
         } else if (regexesEnabled == RegexEnabled.FALSE) {
-            regexLimitFactor = Augmentation.DISABLED_PATTERN_FACTOR;
+            regexLimitFactorToApply = Augmentation.DISABLED_PATTERN_FACTOR;
         }
         Map<String, Object> map = new HashMap<>();
-        map.put("regex_limit_factor", regexLimitFactor);
+        map.put("regex_limit_factor", regexLimitFactorToApply);
 
         // for testing only
         map.put("testInject0", testInject0);

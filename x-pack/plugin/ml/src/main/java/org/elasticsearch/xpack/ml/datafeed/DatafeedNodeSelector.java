@@ -145,7 +145,7 @@ public class DatafeedNodeSelector {
         }
 
         if (jobState.isAnyOf(JobState.OPENING, JobState.OPENED) == false) {
-            // lets try again later when the job has been opened:
+            // let's try again later when the job has been opened:
             String reason = "cannot start datafeed ["
                 + datafeedId
                 + "], because the job's ["
@@ -168,6 +168,7 @@ public class DatafeedNodeSelector {
 
     @Nullable
     private AssignmentFailure verifyIndicesActive() {
+        boolean hasRemoteIndices = datafeedIndices.stream().anyMatch(RemoteClusterLicenseChecker::isRemoteIndex);
         String[] index = datafeedIndices.stream()
             // We cannot verify remote indices
             .filter(i -> RemoteClusterLicenseChecker.isRemoteIndex(i) == false)
@@ -177,7 +178,9 @@ public class DatafeedNodeSelector {
 
         try {
             concreteIndices = resolver.concreteIndexNames(clusterState, indicesOptions, true, index);
-            if (concreteIndices.length == 0) {
+
+            // If we have remote indices we cannot check those. We should not fail as they may contain data.
+            if (hasRemoteIndices == false && concreteIndices.length == 0) {
                 return new AssignmentFailure(
                     "cannot start datafeed ["
                         + datafeedId

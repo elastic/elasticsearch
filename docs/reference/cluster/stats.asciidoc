@@ -1477,15 +1477,25 @@ The API returns the following response:
           ...
         }
       },
-      "index_pressure": {
+      "indexing_pressure": {
         "memory": {
             "current": {
-                ...
+                 "combined_coordinating_and_primary_in_bytes": 0,
+                 "coordinating_in_bytes": 0,
+                 "primary_in_bytes": 0,
+                 "replica_in_bytes": 0,
+                 "all_in_bytes": 0
             },
             "total": {
-                ...
+                "combined_coordinating_and_primary_in_bytes": 0,
+                "coordinating_in_bytes": 0,
+                "primary_in_bytes": 0,
+                "replica_in_bytes": 0,
+                "all_in_bytes": 0,
+                "coordinating_rejections": 0,
+                "primary_rejections": 0,
+                "replica_rejections": 0
             },
-            "limit": "0b",
             "limit_in_bytes": 0
         }
       },
@@ -1507,8 +1517,6 @@ The API returns the following response:
 // TESTRESPONSE[s/"network_types": \{[^\}]*\}/"network_types": $body.$_path/]
 // TESTRESPONSE[s/"discovery_types": \{[^\}]*\}/"discovery_types": $body.$_path/]
 // TESTRESPONSE[s/"processor_stats": \{[^\}]*\}/"processor_stats": $body.$_path/]
-// TESTRESPONSE[s/"current": \{[^\}]*\}/"current": $body.$_path/]
-// TESTRESPONSE[s/"total": \{[^\}]*\}/"total": $body.$_path/]
 // TESTRESPONSE[s/"count": \{[^\}]*\}/"count": $body.$_path/]
 // TESTRESPONSE[s/"packaging_types": \[[^\]]*\]/"packaging_types": $body.$_path/]
 // TESTRESPONSE[s/"field_types": \[[^\]]*\]/"field_types": $body.$_path/]

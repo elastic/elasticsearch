@@ -152,7 +152,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
         assertThat(
             toXContent(indexPressureStats, XContentType.JSON, false).utf8ToString(),
             equalTo(
-                "{\"index_pressure\":{"
+                "{\"indexing_pressure\":{"
                     + "\"memory\":{"
                     + "\"current\":{"
                     + "\"combined_coordinating_and_primary_in_bytes\":"

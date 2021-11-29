@@ -776,79 +776,41 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     static class IndexPressureStats implements ToXContentFragment {
 
-        private static final String COMBINED = "combined_coordinating_and_primary";
-        private static final String COMBINED_IN_BYTES = "combined_coordinating_and_primary_in_bytes";
-        private static final String COORDINATING = "coordinating";
-        private static final String COORDINATING_IN_BYTES = "coordinating_in_bytes";
-        private static final String PRIMARY = "primary";
-        private static final String PRIMARY_IN_BYTES = "primary_in_bytes";
-        private static final String REPLICA = "replica";
-        private static final String REPLICA_IN_BYTES = "replica_in_bytes";
-        private static final String ALL = "all";
-        private static final String ALL_IN_BYTES = "all_in_bytes";
-        private static final String COORDINATING_REJECTIONS = "coordinating_rejections";
-        private static final String PRIMARY_REJECTIONS = "primary_rejections";
-        private static final String REPLICA_REJECTIONS = "replica_rejections";
-        private static final String LIMIT = "limit";
-        private static final String LIMIT_IN_BYTES = "limit_in_bytes";
-
-        final long[] stats = new long[12];
-
-        public long[] getStats() {
-            return stats;
-        }
+        private IndexingPressureStats indexingPressureStats = new IndexingPressureStats(
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+        );
 
         IndexPressureStats(final List<NodeStats> nodeStats) {
             for (NodeStats nodeStat : nodeStats) {
-                IndexingPressureStats indexingPressureStats = nodeStat.getIndexingPressureStats();
-                if (indexingPressureStats != null) {
-                    stats[0] += indexingPressureStats.getCurrentCombinedCoordinatingAndPrimaryBytes();
-                    stats[1] += indexingPressureStats.getCurrentCoordinatingBytes();
-                    stats[2] += indexingPressureStats.getCurrentPrimaryBytes();
-                    stats[3] += indexingPressureStats.getCurrentReplicaBytes();
-
-                    stats[4] += indexingPressureStats.getTotalCombinedCoordinatingAndPrimaryBytes();
-                    stats[5] += indexingPressureStats.getTotalCoordinatingBytes();
-                    stats[6] += indexingPressureStats.getTotalPrimaryBytes();
-                    stats[7] += indexingPressureStats.getTotalReplicaBytes();
-
-                    stats[8] += indexingPressureStats.getCoordinatingRejections();
-                    stats[9] += indexingPressureStats.getPrimaryRejections();
-                    stats[10] += indexingPressureStats.getReplicaRejections();
-
-                    stats[11] += indexingPressureStats.getMemoryLimit();
+                IndexingPressureStats nodeStatIndexingPressureStats = nodeStat.getIndexingPressureStats();
+                if (nodeStatIndexingPressureStats != null) {
+                    indexingPressureStats = new IndexingPressureStats(
+                        indexingPressureStats.getTotalCombinedCoordinatingAndPrimaryBytes() + nodeStatIndexingPressureStats.getTotalCombinedCoordinatingAndPrimaryBytes(),
+                        indexingPressureStats.getTotalCoordinatingBytes() + nodeStatIndexingPressureStats.getTotalCoordinatingBytes(),
+                        indexingPressureStats.getTotalPrimaryBytes() + nodeStatIndexingPressureStats.getTotalPrimaryBytes(),
+                        indexingPressureStats.getTotalReplicaBytes() + nodeStatIndexingPressureStats.getTotalReplicaBytes(),
+                        indexingPressureStats.getCurrentCombinedCoordinatingAndPrimaryBytes() + nodeStatIndexingPressureStats.getCurrentCombinedCoordinatingAndPrimaryBytes(),
+                        indexingPressureStats.getCurrentCoordinatingBytes() + nodeStatIndexingPressureStats.getCurrentCoordinatingBytes(),
+                        indexingPressureStats.getCurrentPrimaryBytes() + nodeStatIndexingPressureStats.getCurrentPrimaryBytes(),
+                        indexingPressureStats.getCurrentReplicaBytes() + nodeStatIndexingPressureStats.getCurrentReplicaBytes(),
+                        indexingPressureStats.getCoordinatingRejections() + nodeStatIndexingPressureStats.getCoordinatingRejections(),
+                        indexingPressureStats.getPrimaryRejections() + nodeStatIndexingPressureStats.getPrimaryRejections(),
+                        indexingPressureStats.getReplicaRejections() + nodeStatIndexingPressureStats.getReplicaRejections(),
+                        indexingPressureStats.getMemoryLimit() + nodeStatIndexingPressureStats.getMemoryLimit(),
+                        indexingPressureStats.getTotalCoordinatingOps() + nodeStatIndexingPressureStats.getTotalCoordinatingOps(),
+                        indexingPressureStats.getTotalPrimaryOps() + nodeStatIndexingPressureStats.getTotalPrimaryOps(),
+                        indexingPressureStats.getTotalReplicaOps() + nodeStatIndexingPressureStats.getTotalReplicaOps(),
+                        indexingPressureStats.getCurrentCoordinatingOps() + nodeStatIndexingPressureStats.getCurrentCoordinatingOps(),
+                        indexingPressureStats.getCurrentPrimaryOps() + nodeStatIndexingPressureStats.getCurrentPrimaryOps(),
+                        indexingPressureStats.getCurrentReplicaOps() + nodeStatIndexingPressureStats.getCurrentReplicaOps()
+                    );
                 }
             }
         }
 
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
-            builder.startObject("index_pressure");
-            builder.startObject("memory");
-
-            builder.startObject("current");
-            builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, new ByteSizeValue(stats[0]));
-            builder.humanReadableField(COORDINATING_IN_BYTES, COORDINATING, new ByteSizeValue(stats[1]));
-            builder.humanReadableField(PRIMARY_IN_BYTES, PRIMARY, new ByteSizeValue(stats[2]));
-            builder.humanReadableField(REPLICA_IN_BYTES, REPLICA, new ByteSizeValue(stats[3]));
-            builder.humanReadableField(ALL_IN_BYTES, ALL, new ByteSizeValue(stats[3] + stats[0]));
-            builder.endObject();
-
-            builder.startObject("total");
-            builder.humanReadableField(COMBINED_IN_BYTES, COMBINED, new ByteSizeValue(stats[4]));
-            builder.humanReadableField(COORDINATING_IN_BYTES, COORDINATING, new ByteSizeValue(stats[5]));
-            builder.humanReadableField(PRIMARY_IN_BYTES, PRIMARY, new ByteSizeValue(stats[6]));
-            builder.humanReadableField(REPLICA_IN_BYTES, REPLICA, new ByteSizeValue(stats[7]));
-            builder.humanReadableField(ALL_IN_BYTES, ALL, new ByteSizeValue(stats[7] + stats[4]));
-            builder.field(COORDINATING_REJECTIONS, stats[8]);
-            builder.field(PRIMARY_REJECTIONS, stats[9]);
-            builder.field(REPLICA_REJECTIONS, stats[10]);
-            builder.endObject();
-
-            builder.humanReadableField(LIMIT_IN_BYTES, LIMIT, new ByteSizeValue(stats[11]));
-            builder.endObject();
-            builder.endObject();
-            return builder;
+            return indexingPressureStats.toXContent(builder, params);
         }
 
     }

@@ -68,35 +68,35 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.RequestBuilder getRequestBuilder(NlpConfig nlpConfig) {
-        final String[] labels;
+        final String[] labelsValue;
         if (nlpConfig instanceof ZeroShotClassificationConfig) {
             ZeroShotClassificationConfig zeroShotConfig = (ZeroShotClassificationConfig) nlpConfig;
-            labels = zeroShotConfig.getLabels().toArray(new String[0]);
+            labelsValue = zeroShotConfig.getLabels().toArray(new String[0]);
         } else {
-            labels = this.labels;
+            labelsValue = this.labels;
         }
-        if (labels == null || labels.length == 0) {
+        if (labelsValue == null || labelsValue.length == 0) {
             throw ExceptionsHelper.badRequestException("zero_shot_classification requires non-empty [labels]");
         }
-        return new RequestBuilder(tokenizer, labels, hypothesisTemplate);
+        return new RequestBuilder(tokenizer, labelsValue, hypothesisTemplate);
     }
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig nlpConfig) {
-        final String[] labels;
-        final boolean isMultiLabel;
-        final String resultsField;
+        final String[] labelsValue;
+        final boolean isMultiLabelValue;
+        final String resultsFieldValue;
         if (nlpConfig instanceof ZeroShotClassificationConfig) {
             ZeroShotClassificationConfig zeroShotConfig = (ZeroShotClassificationConfig) nlpConfig;
-            labels = zeroShotConfig.getLabels().toArray(new String[0]);
-            isMultiLabel = zeroShotConfig.isMultiLabel();
-            resultsField = zeroShotConfig.getResultsField();
+            labelsValue = zeroShotConfig.getLabels().toArray(new String[0]);
+            isMultiLabelValue = zeroShotConfig.isMultiLabel();
+            resultsFieldValue = zeroShotConfig.getResultsField();
         } else {
-            labels = this.labels;
-            isMultiLabel = this.isMultiLabel;
-            resultsField = this.resultsField;
+            labelsValue = this.labels;
+            isMultiLabelValue = this.isMultiLabel;
+            resultsFieldValue = this.resultsField;
         }
-        return new ResultProcessor(entailmentPos, contraPos, labels, isMultiLabel, resultsField);
+        return new ResultProcessor(entailmentPos, contraPos, labelsValue, isMultiLabelValue, resultsFieldValue);
     }
 
     static class RequestBuilder implements NlpTask.RequestBuilder {

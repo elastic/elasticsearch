@@ -699,7 +699,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         public PersistentTasksCustomMetadata.Assignment getAssignment(
             TaskParams params,
             Collection<DiscoveryNode> candidateNodes,
-            ClusterState clusterState
+            @SuppressWarnings("HiddenField") ClusterState clusterState
         ) {
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
             Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(

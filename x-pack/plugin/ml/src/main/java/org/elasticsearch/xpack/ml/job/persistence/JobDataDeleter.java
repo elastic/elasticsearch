@@ -421,7 +421,11 @@ public class JobDataDeleter {
         deleteModelState(jobId, deleteStateHandler);
     }
 
-    private void deleteResultsByQuery(String jobId, String[] indices, ActionListener<BulkByScrollResponse> listener) {
+    private void deleteResultsByQuery(
+        @SuppressWarnings("HiddenField") String jobId,
+        String[] indices,
+        ActionListener<BulkByScrollResponse> listener
+    ) {
         assert indices.length > 0;
 
         ActionListener<RefreshResponse> refreshListener = ActionListener.wrap(refreshResponse -> {
@@ -442,7 +446,7 @@ public class JobDataDeleter {
         executeAsyncWithOrigin(client, ML_ORIGIN, RefreshAction.INSTANCE, refreshRequest, refreshListener);
     }
 
-    private void deleteAliases(String jobId, ActionListener<AcknowledgedResponse> finishedHandler) {
+    private void deleteAliases(@SuppressWarnings("HiddenField") String jobId, ActionListener<AcknowledgedResponse> finishedHandler) {
         final String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         final String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);
 
@@ -494,7 +498,7 @@ public class JobDataDeleter {
             );
     }
 
-    private void deleteQuantiles(String jobId, ActionListener<Boolean> finishedHandler) {
+    private void deleteQuantiles(@SuppressWarnings("HiddenField") String jobId, ActionListener<Boolean> finishedHandler) {
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(Quantiles.documentId(jobId));
         DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(query)
@@ -511,7 +515,7 @@ public class JobDataDeleter {
         );
     }
 
-    private void deleteModelState(String jobId, ActionListener<BulkByScrollResponse> listener) {
+    private void deleteModelState(@SuppressWarnings("HiddenField") String jobId, ActionListener<BulkByScrollResponse> listener) {
         GetModelSnapshotsAction.Request request = new GetModelSnapshotsAction.Request(jobId, null);
         request.setPageParams(new PageParams(0, MAX_SNAPSHOTS_TO_DELETE));
         executeAsyncWithOrigin(client, ML_ORIGIN, GetModelSnapshotsAction.INSTANCE, request, ActionListener.wrap(response -> {
@@ -520,7 +524,11 @@ public class JobDataDeleter {
         }, listener::onFailure));
     }
 
-    private void deleteCategorizerState(String jobId, int docNum, ActionListener<Boolean> finishedHandler) {
+    private void deleteCategorizerState(
+        @SuppressWarnings("HiddenField") String jobId,
+        int docNum,
+        ActionListener<Boolean> finishedHandler
+    ) {
         // Just use ID here, not type, as trying to delete different types spams the logs with an exception stack trace
         IdsQueryBuilder query = new IdsQueryBuilder().addIds(CategorizerState.documentId(jobId, docNum));
         DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(query)

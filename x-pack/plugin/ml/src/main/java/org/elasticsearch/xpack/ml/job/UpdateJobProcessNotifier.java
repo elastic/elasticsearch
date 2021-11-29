@@ -85,9 +85,9 @@ public class UpdateJobProcessNotifier {
     private void stop() {
         orderedJobUpdates.clear();
 
-        ThreadPool.Cancellable cancellable = this.cancellable;
-        if (cancellable != null) {
-            cancellable.cancel();
+        ThreadPool.Cancellable cancellableCopy = this.cancellable;
+        if (cancellableCopy != null) {
+            cancellableCopy.cancel();
         }
     }
 

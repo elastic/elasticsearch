@@ -82,8 +82,8 @@ public class ExtractedFieldsDetector {
         this.topNestedFieldPrefixes = findTopNestedFieldPrefixes(fieldCapabilitiesResponse);
     }
 
-    private List<String> findTopNestedFieldPrefixes(FieldCapabilitiesResponse fieldCapabilitiesResponse) {
-        List<String> sortedNestedFieldPrefixes = fieldCapabilitiesResponse.get()
+    private List<String> findTopNestedFieldPrefixes(FieldCapabilitiesResponse response) {
+        List<String> sortedNestedFieldPrefixes = response.get()
             .keySet()
             .stream()
             .filter(field -> isNested(getMappingTypes(field)))

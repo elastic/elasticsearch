@@ -758,7 +758,7 @@ public class JobResultsProvider {
         BucketsQueryBuilder query,
         Consumer<QueryPage<Bucket>> handler,
         Consumer<Exception> errorHandler,
-        Client client
+        @SuppressWarnings("HiddenField") Client client
     ) throws ResourceNotFoundException {
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);

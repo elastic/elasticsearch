@@ -619,9 +619,9 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
          *         will only be set to the supplied value if the return value of this method is
          *         {@link StoppedOrIsolatedBeforeRunning#NEITHER}.
          */
-        synchronized StoppedOrIsolatedBeforeRunning setDatafeedRunner(DatafeedRunner datafeedRunner) {
+        synchronized StoppedOrIsolatedBeforeRunning setDatafeedRunner(DatafeedRunner runner) {
             if (stoppedOrIsolatedBeforeRunning == StoppedOrIsolatedBeforeRunning.NEITHER) {
-                this.datafeedRunner = Objects.requireNonNull(datafeedRunner);
+                this.datafeedRunner = Objects.requireNonNull(runner);
             }
             return stoppedOrIsolatedBeforeRunning;
         }

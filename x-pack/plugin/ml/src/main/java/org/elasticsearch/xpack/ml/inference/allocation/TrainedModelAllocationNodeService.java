@@ -206,7 +206,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
 
     public void stopDeploymentAndNotify(TrainedModelDeploymentTask task, String reason) {
         ActionListener<Void> notifyDeploymentOfStopped = ActionListener.wrap(
-            stopped -> updateStoredState(
+            _void -> updateStoredState(
                 task.getModelId(),
                 new RoutingStateAndReason(RoutingState.STOPPED, reason),
                 ActionListener.wrap(s -> {}, failure -> {})

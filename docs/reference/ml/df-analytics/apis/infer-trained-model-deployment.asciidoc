@@ -148,6 +148,7 @@ POST _ml/trained_models/model2/deployment/_infer
 --------------------------------------------------
 // TEST[skip:TBD]
 
+The API returns the predicted label and the confidence, as well as the top classes:
 
 [source,console-result]
 ----

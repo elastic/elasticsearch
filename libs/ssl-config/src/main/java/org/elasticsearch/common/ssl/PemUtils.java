@@ -52,6 +52,7 @@ import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 
+@SuppressWarnings("removal")
 public final class PemUtils {
 
     private static final String PKCS1_HEADER = "-----BEGIN RSA PRIVATE KEY-----";

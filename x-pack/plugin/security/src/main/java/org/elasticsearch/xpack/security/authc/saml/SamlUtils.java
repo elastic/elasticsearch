@@ -65,6 +65,7 @@ import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
 
+@SuppressWarnings("removal")
 public class SamlUtils {
 
     private static final String SAML_EXCEPTION_KEY = "es.security.saml";

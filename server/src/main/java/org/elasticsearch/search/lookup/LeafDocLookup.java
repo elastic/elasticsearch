@@ -47,6 +47,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         this.docId = docId;
     }
 
+    @SuppressWarnings("removal")
     public DocValuesField<?> getScriptField(String fieldName) {
         DocValuesField<?> field = localCacheScriptFieldData.get(fieldName);
 

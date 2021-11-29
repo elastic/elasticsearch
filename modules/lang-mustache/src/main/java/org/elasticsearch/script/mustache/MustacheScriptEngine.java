@@ -105,6 +105,7 @@ public final class MustacheScriptEngine implements ScriptEngine {
         }
 
         @Override
+        @SuppressWarnings("removal")
         public String execute() {
             final StringWriter writer = new StringWriter();
             try {

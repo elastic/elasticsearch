@@ -130,6 +130,7 @@ import static org.objectweb.asm.Opcodes.H_NEWINVOKESPECIAL;
  * invocation with captures, stressing garbage collector (thanks
  * to Rémi Forax for the explanation about this on Jaxcon 2017!).
  */
+@SuppressWarnings("removal")
 public final class LambdaBootstrap {
 
     /**

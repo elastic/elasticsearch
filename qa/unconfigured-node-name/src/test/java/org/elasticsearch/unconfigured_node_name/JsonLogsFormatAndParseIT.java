@@ -37,6 +37,7 @@ public class JsonLogsFormatAndParseIT extends JsonLogsIntegTestCase {
         return equalTo(HOSTNAME);
     }
 
+    @SuppressWarnings("removal")
     @Override
     protected BufferedReader openReader(Path logFile) {
         return AccessController.doPrivileged((PrivilegedAction<BufferedReader>) () -> {

@@ -54,6 +54,7 @@ import java.util.stream.Collectors;
 
 import javax.naming.ldap.Rdn;
 
+@SuppressWarnings("removal")
 public final class LdapUtils {
 
     public static final Filter OBJECT_CLASS_PRESENCE_FILTER = Filter.createPresenceFilter("objectClass");

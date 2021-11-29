@@ -129,6 +129,7 @@ import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectReal
  * the ID Token and extracts the elasticsearch user properties from it. In the case of an authorization code flow, it first
  * exchanges the code in the authentication response for an ID Token at the token endpoint of the OpenID Connect Provider.
  */
+@SuppressWarnings("removal")
 public class OpenIdConnectAuthenticator {
 
     private final RealmConfig realmConfig;

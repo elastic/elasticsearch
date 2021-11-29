@@ -41,6 +41,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Locale;
 
+@SuppressWarnings("removal")
 public final class HdfsRepository extends BlobStoreRepository {
 
     private static final Logger logger = LogManager.getLogger(HdfsRepository.class);

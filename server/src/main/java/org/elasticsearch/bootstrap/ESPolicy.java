@@ -25,6 +25,7 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 /** custom policy for union of static and dynamic permissions */
+@SuppressWarnings("removal")
 final class ESPolicy extends Policy {
 
     /** template policy file, the one used in tests */

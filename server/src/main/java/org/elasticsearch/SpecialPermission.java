@@ -72,6 +72,7 @@ public final class SpecialPermission extends BasicPermission {
     /**
      * Check that the current stack has {@link SpecialPermission} access according to the {@link SecurityManager}.
      */
+    @SuppressWarnings("removal")
     public static void check() {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {

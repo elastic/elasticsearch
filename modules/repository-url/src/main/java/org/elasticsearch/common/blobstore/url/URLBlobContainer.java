@@ -33,6 +33,7 @@ import java.util.Map;
 /**
  * URL blob implementation of {@link org.elasticsearch.common.blobstore.BlobContainer}
  */
+@SuppressWarnings("removal")
 public class URLBlobContainer extends AbstractBlobContainer {
 
     protected final URLBlobStore blobStore;

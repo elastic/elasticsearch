@@ -24,6 +24,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+@SuppressWarnings("removal")
 public class ServerChannelContext extends ChannelContext<ServerSocketChannel> {
 
     private final NioServerSocketChannel channel;

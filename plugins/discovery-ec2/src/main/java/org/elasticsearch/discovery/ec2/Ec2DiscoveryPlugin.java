@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+@SuppressWarnings("removal")
 public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, ReloadablePlugin {
 
     private static final Logger logger = LogManager.getLogger(Ec2DiscoveryPlugin.class);

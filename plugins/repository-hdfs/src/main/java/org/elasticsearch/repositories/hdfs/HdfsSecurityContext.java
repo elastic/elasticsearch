@@ -33,6 +33,7 @@ import javax.security.auth.kerberos.ServicePermission;
  * Keeps track of the current user for a given repository, as well as which
  * permissions to grant the blob store restricted execution methods.
  */
+@SuppressWarnings("removal")
 class HdfsSecurityContext {
 
     private static final Permission[] SIMPLE_AUTH_PERMISSIONS;

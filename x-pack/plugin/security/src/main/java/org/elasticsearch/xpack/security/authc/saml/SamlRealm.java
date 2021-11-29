@@ -133,6 +133,7 @@ import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings
  * This class is {@link Releasable} because it uses a library that thinks timers and timer tasks
  * are still cool and no chance to opt out
  */
+@SuppressWarnings("removal")
 public final class SamlRealm extends Realm implements Releasable {
     private static final Logger logger = LogManager.getLogger(SamlRealm.class);
 

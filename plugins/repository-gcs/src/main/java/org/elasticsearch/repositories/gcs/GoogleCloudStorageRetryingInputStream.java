@@ -39,6 +39,7 @@ import java.util.stream.Stream;
  * This should be handled by the SDK but it isn't today. This should be revisited in the future (e.g. before removing
  * the {@link org.elasticsearch.Version#V_7_0_0} version constant) and removed if the SDK handles retries itself in the future.
  */
+@SuppressWarnings("removal")
 class GoogleCloudStorageRetryingInputStream extends InputStream {
 
     private static final Logger logger = LogManager.getLogger(GoogleCloudStorageRetryingInputStream.class);

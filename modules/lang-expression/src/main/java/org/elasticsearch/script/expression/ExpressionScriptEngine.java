@@ -50,6 +50,7 @@ import java.util.function.Function;
  *
  * Only contexts returning numeric types or {@link Object} are supported.
  */
+@SuppressWarnings("removal")
 public class ExpressionScriptEngine implements ScriptEngine {
 
     public static final String NAME = "expression";

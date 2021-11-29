@@ -58,6 +58,7 @@ import javax.security.auth.PrivateCredentialPermission;
 import javax.security.auth.kerberos.DelegationPermission;
 import javax.security.auth.kerberos.ServicePermission;
 
+@SuppressWarnings("removal")
 public class PolicyUtil {
 
     // this object is checked by reference, so the value in the list does not matter

@@ -84,6 +84,7 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  * Unit tests for the reloading of SSL configuration
  */
+@SuppressWarnings("removal")
 public class SSLConfigurationReloaderTests extends ESTestCase {
 
     private ThreadPool threadPool;

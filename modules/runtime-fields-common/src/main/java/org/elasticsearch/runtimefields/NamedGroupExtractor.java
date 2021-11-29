@@ -87,6 +87,7 @@ public interface NamedGroupExtractor {
             threadPoolContainer.set(threadPool);
         }
 
+        @SuppressWarnings("removal")
         public NamedGroupExtractor grok(String pattern) {
             MatcherWatchdog watchdog = watchdogSupplier.get();
             /*

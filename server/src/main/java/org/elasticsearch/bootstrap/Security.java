@@ -94,6 +94,7 @@ import static org.elasticsearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  * See <a href="https://docs.oracle.com/javase/7/docs/technotes/guides/security/troubleshooting-security.html">
  * Troubleshooting Security</a> for information.
  */
+@SuppressWarnings("removal")
 final class Security {
     /** no instantiation */
     private Security() {}

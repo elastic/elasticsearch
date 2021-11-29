@@ -106,6 +106,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+@SuppressWarnings("removal")
 public class XPackPlugin extends XPackClientPlugin
     implements
         ExtensiblePlugin,

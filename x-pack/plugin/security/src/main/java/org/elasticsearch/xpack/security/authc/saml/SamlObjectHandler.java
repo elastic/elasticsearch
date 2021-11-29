@@ -75,6 +75,7 @@ import javax.xml.parsers.DocumentBuilder;
 import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
 import static org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport.getUnmarshallerFactory;
 
+@SuppressWarnings("removal")
 public class SamlObjectHandler {
 
     protected static final String SAML_NAMESPACE = "urn:oasis:names:tc:SAML:2.0:protocol";

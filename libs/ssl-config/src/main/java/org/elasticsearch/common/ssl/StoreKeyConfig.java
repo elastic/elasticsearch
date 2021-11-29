@@ -36,6 +36,7 @@ import javax.net.ssl.X509ExtendedKeyManager;
 /**
  * A {@link SslKeyConfig} that builds a Key Manager from a keystore file.
  */
+@SuppressWarnings("removal")
 public class StoreKeyConfig implements SslKeyConfig {
     private final String keystorePath;
     private final String type;

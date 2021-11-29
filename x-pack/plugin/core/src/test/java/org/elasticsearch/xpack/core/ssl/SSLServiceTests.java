@@ -95,6 +95,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings("removal")
 public class SSLServiceTests extends ESTestCase {
 
     private Path testnodeStore;

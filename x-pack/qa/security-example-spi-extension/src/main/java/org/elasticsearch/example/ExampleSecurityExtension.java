@@ -32,6 +32,7 @@ import static org.elasticsearch.example.role.CustomInMemoryRolesProvider.ROLE_B;
 /**
  * An example x-pack extension for testing custom realms and custom role providers.
  */
+@SuppressWarnings("removal")
 public class ExampleSecurityExtension implements SecurityExtension {
 
     static {

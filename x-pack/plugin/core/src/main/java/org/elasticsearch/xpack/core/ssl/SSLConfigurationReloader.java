@@ -35,6 +35,7 @@ import javax.net.ssl.SSLContext;
  * Ensures that the files backing an {@link SslConfiguration} are monitored for changes and the underlying key/trust material is reloaded
  * and the {@link SSLContext} has existing sessions invalidated to force the use of the new key/trust material
  */
+@SuppressWarnings("removal")
 public final class SSLConfigurationReloader {
 
     private static final Logger logger = LogManager.getLogger(SSLConfigurationReloader.class);

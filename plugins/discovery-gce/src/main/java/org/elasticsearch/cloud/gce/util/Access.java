@@ -24,6 +24,7 @@ import java.security.PrivilegedExceptionAction;
  * {@code connect}. This class wraps the operations requiring access in
  * {@link AccessController#doPrivileged(PrivilegedAction)} blocks.
  */
+@SuppressWarnings("removal")
 public final class Access {
 
     private Access() {}

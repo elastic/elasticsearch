@@ -26,6 +26,7 @@ import javax.net.ssl.X509ExtendedTrustManager;
 /**
  * A {@link SslTrustConfig} that builds a Trust Manager from a keystore file.
  */
+@SuppressWarnings("removal")
 public final class StoreTrustConfig implements SslTrustConfig {
     private final String truststorePath;
     private final char[] password;

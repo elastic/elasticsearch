@@ -41,6 +41,7 @@ public class ExtendedPluginsClassLoader extends ClassLoader {
     /**
      * Return a new classloader across the parent and extended loaders.
      */
+    @SuppressWarnings("removal")
     public static ExtendedPluginsClassLoader create(ClassLoader parent, List<ClassLoader> extendedLoaders) {
         return AccessController.doPrivileged(
             (PrivilegedAction<ExtendedPluginsClassLoader>) () -> new ExtendedPluginsClassLoader(parent, extendedLoaders)

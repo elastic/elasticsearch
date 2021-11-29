@@ -20,6 +20,7 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+@SuppressWarnings("removal")
 public final class SamlInit {
 
     private static final AtomicBoolean INITIALISED = new AtomicBoolean(false);

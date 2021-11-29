@@ -16,6 +16,7 @@ import javax.activation.FileTypeMap;
 import javax.mail.MessagingException;
 import javax.mail.internet.MimeBodyPart;
 
+@SuppressWarnings("removal")
 public abstract class BodyPartSource implements ToXContentObject {
 
     protected static FileTypeMap fileTypeMap;

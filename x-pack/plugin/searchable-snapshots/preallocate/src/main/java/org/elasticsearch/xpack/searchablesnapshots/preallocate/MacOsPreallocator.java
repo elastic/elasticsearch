@@ -17,6 +17,7 @@ import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.List;
 
+@SuppressWarnings("removal")
 final class MacOsPreallocator implements Preallocator {
 
     @Override

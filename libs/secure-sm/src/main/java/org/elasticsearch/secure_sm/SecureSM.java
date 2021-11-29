@@ -50,6 +50,7 @@ import java.util.Objects;
  * @see <a href="http://cs.oswego.edu/pipermail/concurrency-interest/2009-August/006508.html">
  *         http://cs.oswego.edu/pipermail/concurrency-interest/2009-August/006508.html</a>
  */
+@SuppressWarnings("removal")
 public class SecureSM extends SecurityManager {
 
     private final String[] classesThatCanExit;
@@ -100,6 +101,7 @@ public class SecureSM extends SecurityManager {
         "com\\.intellij\\.rt\\.junit\\..*" };
 
     // java.security.debug support
+    @SuppressWarnings("removal")
     private static final boolean DEBUG = AccessController.doPrivileged(new PrivilegedAction<Boolean>() {
         @Override
         public Boolean run() {
@@ -207,6 +209,7 @@ public class SecureSM extends SecurityManager {
      *
      * @param status the exit status
      */
+    @SuppressWarnings("removal")
     protected void innerCheckExit(final int status) {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @Override

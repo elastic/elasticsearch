@@ -216,6 +216,7 @@ class RetryingHttpInputStream extends InputStream {
         return e;
     }
 
+    @SuppressWarnings("removal")
     private HttpResponseInputStream openInputStream() throws IOException {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<HttpResponseInputStream>) () -> {

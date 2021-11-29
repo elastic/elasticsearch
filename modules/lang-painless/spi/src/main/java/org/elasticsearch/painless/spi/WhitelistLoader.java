@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 
 /** Loads and creates a {@link Whitelist} from one to many text files. */
+@SuppressWarnings("removal")
 public final class WhitelistLoader {
 
     /**

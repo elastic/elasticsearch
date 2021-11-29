@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.security.Policy;
 import java.util.Set;
 
+@SuppressWarnings("removal")
 public class PluginPolicyInfo {
     public final Path file;
     public final Set<URL> jars;

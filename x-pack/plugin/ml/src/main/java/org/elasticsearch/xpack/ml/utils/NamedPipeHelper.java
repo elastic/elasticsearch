@@ -43,6 +43,7 @@ import java.time.Duration;
  *   this, the check for whether a given path represents a named pipe is done using simple string
  *   comparison on Windows.
  */
+@SuppressWarnings("removal")
 public class NamedPipeHelper {
 
     /**

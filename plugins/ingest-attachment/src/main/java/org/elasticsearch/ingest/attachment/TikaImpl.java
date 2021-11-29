@@ -50,6 +50,7 @@ import java.util.Set;
  * <p>
  * Do NOT make public
  */
+@SuppressWarnings("removal")
 final class TikaImpl {
 
     /** Exclude some formats */

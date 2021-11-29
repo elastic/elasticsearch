@@ -32,6 +32,7 @@ import javax.net.ssl.X509ExtendedTrustManager;
  * Strictly speaking, this class does not require PEM certificates, and will load any file that can be read by
  * {@link java.security.cert.CertificateFactory#generateCertificate(InputStream)}.
  */
+@SuppressWarnings("removal")
 public final class PemTrustConfig implements SslTrustConfig {
 
     private static final String CA_FILE_TYPE = "PEM " + SslConfigurationKeys.CERTIFICATE_AUTHORITIES;

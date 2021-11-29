@@ -29,6 +29,7 @@ import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Map;
 
+@SuppressWarnings("removal")
 public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
 
     // initialize some problematic classes with elevated privileges

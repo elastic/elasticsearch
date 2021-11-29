@@ -36,6 +36,7 @@ import java.util.Objects;
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
  */
+@SuppressWarnings("removal")
 public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
 
     static {

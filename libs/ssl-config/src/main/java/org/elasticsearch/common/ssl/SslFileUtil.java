@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 /**
  * Utility methods for common file handling in SSL configuration
  */
+@SuppressWarnings("removal")
 final class SslFileUtil {
 
     static String pathsToString(List<Path> paths) {

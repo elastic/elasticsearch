@@ -71,6 +71,7 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
         Terminal.DEFAULT.flush();
     }
 
+    @SuppressWarnings("removal")
     void halt(int status) {
         AccessController.doPrivileged(new PrivilegedHaltAction(status));
     }

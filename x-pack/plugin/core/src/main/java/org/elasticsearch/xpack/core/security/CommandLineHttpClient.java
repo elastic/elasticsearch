@@ -63,6 +63,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_
  * A simple http client for usage in command line tools. This client only uses internal jdk classes and does
  * not rely on an external http libraries.
  */
+@SuppressWarnings("removal")
 public class CommandLineHttpClient {
 
     /**

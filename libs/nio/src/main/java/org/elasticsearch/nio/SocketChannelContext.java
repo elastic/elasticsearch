@@ -39,6 +39,7 @@ import java.util.function.Consumer;
  * The only methods of the context that should ever be called from a non-selector thread are
  * {@link #closeChannel()} and {@link #sendMessage(Object, BiConsumer)}.
  */
+@SuppressWarnings("removal")
 public abstract class SocketChannelContext extends ChannelContext<SocketChannel> {
 
     protected final NioSocketChannel channel;

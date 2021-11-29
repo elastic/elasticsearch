@@ -33,6 +33,7 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ServiceLoader;
 
+@SuppressWarnings("removal")
 public class AzureComputeServiceImpl extends AbstractLifecycleComponent implements AzureComputeService {
     private static final Logger logger = LogManager.getLogger(AzureComputeServiceImpl.class);
 

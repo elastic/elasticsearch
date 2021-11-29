@@ -653,6 +653,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
+    @SuppressWarnings("removal")
     private Plugin loadBundle(Bundle bundle, Map<String, Tuple<Plugin, ClassLoader>> loaded) {
         String name = bundle.plugin.getName();
 

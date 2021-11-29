@@ -38,6 +38,7 @@ import javax.net.ssl.SSLSocketFactory;
 
 import static org.elasticsearch.xpack.core.watcher.WatcherField.EMAIL_NOTIFICATION_SSL_PREFIX;
 
+@SuppressWarnings("removal")
 public class Account {
 
     static final String SMTP_PROTOCOL = "smtp";

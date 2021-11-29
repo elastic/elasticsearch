@@ -261,6 +261,7 @@ public class EsExecutors {
         final AtomicInteger threadNumber = new AtomicInteger(1);
         final String namePrefix;
 
+        @SuppressWarnings("removal")
         EsThreadFactory(String namePrefix) {
             this.namePrefix = namePrefix;
             SecurityManager s = System.getSecurityManager();

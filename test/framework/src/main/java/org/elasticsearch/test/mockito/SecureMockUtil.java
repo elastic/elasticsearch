@@ -17,6 +17,7 @@ import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
 import java.util.function.Supplier;
 
+@SuppressWarnings("removal")
 class SecureMockUtil {
 
     // we use the protection domain of mockito for wrapped calls so that

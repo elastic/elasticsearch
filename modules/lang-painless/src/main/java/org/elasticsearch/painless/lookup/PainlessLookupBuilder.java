@@ -70,6 +70,7 @@ import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToCano
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typeToJavaType;
 import static org.elasticsearch.painless.lookup.PainlessLookupUtility.typesToCanonicalTypeNames;
 
+@SuppressWarnings("removal")
 public final class PainlessLookupBuilder {
 
     private static final class BridgeLoader extends SecureClassLoader {

@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 
+@SuppressWarnings("removal")
 public final class DomainSplitFunction {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DomainSplitFunction.class);

@@ -26,6 +26,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
+@SuppressWarnings("removal")
 public class RestGetActionsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {

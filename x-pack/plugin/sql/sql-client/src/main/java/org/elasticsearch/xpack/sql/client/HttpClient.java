@@ -43,6 +43,7 @@ import static java.util.Collections.emptyMap;
  * Similar to JDBC and the underlying HTTP connection, this class is not thread-safe
  * and follows a request-response flow.
  */
+@SuppressWarnings("removal")
 public class HttpClient {
 
     private final ConnectionConfiguration cfg;

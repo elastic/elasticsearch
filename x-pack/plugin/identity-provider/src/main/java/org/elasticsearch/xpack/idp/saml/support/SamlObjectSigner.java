@@ -24,6 +24,7 @@ import java.security.PrivilegedExceptionAction;
 /**
  * Signs OpenSAML {@link SignableXMLObject} instances using {@link SamlIdentityProvider#getSigningCredential()}.
  */
+@SuppressWarnings("removal")
 public class SamlObjectSigner {
 
     private final SamlIdentityProvider idp;

@@ -727,6 +727,7 @@ final class BootstrapChecks {
             return BootstrapCheckResult.success();
         }
 
+        @SuppressWarnings("removal")
         boolean isAllPermissionGranted() {
             final SecurityManager sm = System.getSecurityManager();
             assert sm != null;

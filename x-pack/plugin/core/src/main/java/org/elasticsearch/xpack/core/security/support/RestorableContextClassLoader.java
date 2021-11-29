@@ -17,6 +17,7 @@ import java.security.PrivilegedExceptionAction;
  * On construction this class will set the current (or provided) thread's context class loader.
  * On {@link #close()}, it restores the previous value of the class loader.
  */
+@SuppressWarnings("removal")
 public class RestorableContextClassLoader implements AutoCloseable {
 
     private final Thread thread;

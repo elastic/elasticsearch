@@ -23,6 +23,7 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
 
+@SuppressWarnings("removal")
 public class Preallocate {
 
     private static final Logger logger = LogManager.getLogger(Preallocate.class);

@@ -113,6 +113,7 @@ public final class BootstrapInfo {
     /**
      * Returns a read-only view of all system properties
      */
+    @SuppressWarnings("removal")
     public static Dictionary<Object, Object> getSystemProperties() {
         SecurityManager sm = System.getSecurityManager();
         if (sm != null) {

@@ -58,6 +58,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
     /**
      * Main entry point for starting elasticsearch
      */
+    @SuppressWarnings("removal")
     public static void main(final String[] args) throws Exception {
         overrideDnsCachePolicyProperties();
         org.elasticsearch.bootstrap.Security.prepopulateSecurityCaller();

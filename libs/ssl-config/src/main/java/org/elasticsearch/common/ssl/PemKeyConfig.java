@@ -31,6 +31,7 @@ import javax.net.ssl.X509ExtendedKeyManager;
 /**
  * A {@link SslKeyConfig} that reads from PEM formatted paths.
  */
+@SuppressWarnings("removal")
 public final class PemKeyConfig implements SslKeyConfig {
 
     private static final String KEY_FILE_TYPE = "PEM private key";

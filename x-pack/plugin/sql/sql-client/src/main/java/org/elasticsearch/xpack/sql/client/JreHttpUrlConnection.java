@@ -44,6 +44,7 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.SQL_QUERY_REST_ENDPOINT
  * As such, it has a stateless, on-demand, request-response flow without
  * any connection pooling or sharing.
  */
+@SuppressWarnings("removal")
 public class JreHttpUrlConnection implements Closeable {
     /**
      * State added to {@link SQLException}s when the server encounters an

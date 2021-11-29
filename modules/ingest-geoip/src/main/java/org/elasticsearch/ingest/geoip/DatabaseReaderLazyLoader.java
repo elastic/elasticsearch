@@ -44,6 +44,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * Facilitates lazy loading of the database reader, so that when the geoip plugin is installed, but not used,
  * no memory is being wasted on the database reader.
  */
+@SuppressWarnings("removal")
 class DatabaseReaderLazyLoader implements Closeable {
 
     private static final boolean LOAD_DATABASE_ON_HEAP = Booleans.parseBoolean(System.getProperty("es.geoip.load_db_on_heap", "false"));

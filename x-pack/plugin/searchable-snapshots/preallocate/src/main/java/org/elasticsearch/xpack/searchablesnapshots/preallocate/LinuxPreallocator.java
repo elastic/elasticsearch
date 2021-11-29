@@ -13,6 +13,7 @@ import com.sun.jna.Platform;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
+@SuppressWarnings("removal")
 final class LinuxPreallocator implements Preallocator {
 
     @Override

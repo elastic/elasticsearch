@@ -14,12 +14,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -29,6 +27,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -89,10 +89,16 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.isMo
 public class CompositeRolesStore {
 
     private static final String ROLES_STORE_SOURCE = "roles_stores";
-    private static final Setting<Integer> CACHE_SIZE_SETTING =
-        Setting.intSetting("xpack.security.authz.store.roles.cache.max_size", 10000, Property.NodeScope);
-    private static final Setting<Integer> NEGATIVE_LOOKUP_CACHE_SIZE_SETTING =
-        Setting.intSetting("xpack.security.authz.store.roles.negative_lookup_cache.max_size", 10000, Property.NodeScope);
+    private static final Setting<Integer> CACHE_SIZE_SETTING = Setting.intSetting(
+        "xpack.security.authz.store.roles.cache.max_size",
+        10000,
+        Property.NodeScope
+    );
+    private static final Setting<Integer> NEGATIVE_LOOKUP_CACHE_SIZE_SETTING = Setting.intSetting(
+        "xpack.security.authz.store.roles.negative_lookup_cache.max_size",
+        10000,
+        Property.NodeScope
+    );
     private static final Logger logger = LogManager.getLogger(CompositeRolesStore.class);
 
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(CompositeRolesStore.class);
@@ -117,11 +123,19 @@ public class CompositeRolesStore {
     private final Role asyncSearchUserRole;
     private final Automaton restrictedIndicesAutomaton;
 
-    public CompositeRolesStore(Settings settings, RoleProviders roleProviders, NativePrivilegeStore privilegeStore,
-                               ThreadContext threadContext, XPackLicenseState licenseState, FieldPermissionsCache fieldPermissionsCache,
-                               ApiKeyService apiKeyService, ServiceAccountService serviceAccountService,
-                               DocumentSubsetBitsetCache dlsBitsetCache, IndexNameExpressionResolver resolver,
-                               Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer) {
+    public CompositeRolesStore(
+        Settings settings,
+        RoleProviders roleProviders,
+        NativePrivilegeStore privilegeStore,
+        ThreadContext threadContext,
+        XPackLicenseState licenseState,
+        FieldPermissionsCache fieldPermissionsCache,
+        ApiKeyService apiKeyService,
+        ServiceAccountService serviceAccountService,
+        DocumentSubsetBitsetCache dlsBitsetCache,
+        IndexNameExpressionResolver resolver,
+        Consumer<Collection<RoleDescriptor>> effectiveRoleDescriptorsConsumer
+    ) {
         this.roleProviders = roleProviders;
         roleProviders.addChangeListener(new RoleProviders.ChangeListener() {
             @Override
@@ -159,11 +173,8 @@ public class CompositeRolesStore {
         this.anonymousUser = new AnonymousUser(settings);
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.restrictedIndicesAutomaton = resolver.getSystemNameAutomaton();
-        this.superuserRole = Role.builder(
-            ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR,
-            fieldPermissionsCache,
-            restrictedIndicesAutomaton
-        ).build();
+        this.superuserRole = Role.builder(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton)
+            .build();
         xpackUserRole = Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
         asyncSearchUserRole = Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
     }
@@ -175,33 +186,48 @@ public class CompositeRolesStore {
             roleActionListener.onResponse(existing);
         } else {
             final long invalidationCounter = numInvalidation.get();
-            roleDescriptors(roleNames, ActionListener.wrap(
-                    rolesRetrievalResult -> {
-                        logDeprecatedRoles(rolesRetrievalResult.roleDescriptors);
-                        final boolean missingRoles = rolesRetrievalResult.getMissingRoles().isEmpty() == false;
-                        if (missingRoles) {
-                            logger.debug(() -> new ParameterizedMessage("Could not find roles with names {}",
-                                    rolesRetrievalResult.getMissingRoles()));
-                        }
-                        final Set<RoleDescriptor> effectiveDescriptors;
-                        Set<RoleDescriptor> roleDescriptors = rolesRetrievalResult.getRoleDescriptors();
-                        if (roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity) &&
-                            DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
-                            effectiveDescriptors = roleDescriptors.stream()
-                                .filter(not(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity))
-                                .collect(Collectors.toSet());
-                        } else {
-                            effectiveDescriptors = roleDescriptors;
-                        }
-                        logger.trace(() -> new ParameterizedMessage("Exposing effective role descriptors [{}] for role names [{}]",
-                                effectiveDescriptors, roleNames));
-                        effectiveRoleDescriptorsConsumer.accept(Collections.unmodifiableCollection(effectiveDescriptors));
-                        logger.trace(() -> new ParameterizedMessage("Building role from descriptors [{}] for role names [{}]",
-                                effectiveDescriptors, roleNames));
-                        buildThenMaybeCacheRole(roleKey, effectiveDescriptors, rolesRetrievalResult.getMissingRoles(),
-                            rolesRetrievalResult.isSuccess(), invalidationCounter, roleActionListener);
-                    },
-                    roleActionListener::onFailure));
+            roleDescriptors(roleNames, ActionListener.wrap(rolesRetrievalResult -> {
+                logDeprecatedRoles(rolesRetrievalResult.roleDescriptors);
+                final boolean missingRoles = rolesRetrievalResult.getMissingRoles().isEmpty() == false;
+                if (missingRoles) {
+                    logger.debug(
+                        () -> new ParameterizedMessage("Could not find roles with names {}", rolesRetrievalResult.getMissingRoles())
+                    );
+                }
+                final Set<RoleDescriptor> effectiveDescriptors;
+                Set<RoleDescriptor> roleDescriptors = rolesRetrievalResult.getRoleDescriptors();
+                if (roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)
+                    && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
+                    effectiveDescriptors = roleDescriptors.stream()
+                        .filter(not(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity))
+                        .collect(Collectors.toSet());
+                } else {
+                    effectiveDescriptors = roleDescriptors;
+                }
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "Exposing effective role descriptors [{}] for role names [{}]",
+                        effectiveDescriptors,
+                        roleNames
+                    )
+                );
+                effectiveRoleDescriptorsConsumer.accept(Collections.unmodifiableCollection(effectiveDescriptors));
+                logger.trace(
+                    () -> new ParameterizedMessage(
+                        "Building role from descriptors [{}] for role names [{}]",
+                        effectiveDescriptors,
+                        roleNames
+                    )
+                );
+                buildThenMaybeCacheRole(
+                    roleKey,
+                    effectiveDescriptors,
+                    rolesRetrievalResult.getMissingRoles(),
+                    rolesRetrievalResult.isSuccess(),
+                    invalidationCounter,
+                    roleActionListener
+                );
+            }, roleActionListener::onFailure));
         }
     }
 
@@ -210,9 +236,14 @@ public class CompositeRolesStore {
             .filter(rd -> Boolean.TRUE.equals(rd.getMetadata().get(MetadataUtils.DEPRECATED_METADATA_KEY)))
             .forEach(rd -> {
                 String reason = Objects.toString(
-                    rd.getMetadata().get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY), "Please check the documentation");
-                deprecationLogger.critical(DeprecationCategory.SECURITY, "deprecated_role-" + rd.getName(), "The role [" + rd.getName() +
-                            "] is deprecated and will be removed in a future version of Elasticsearch. " + reason);
+                    rd.getMetadata().get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY),
+                    "Please check the documentation"
+                );
+                deprecationLogger.warn(
+                    DeprecationCategory.SECURITY,
+                    "deprecated_role-" + rd.getName(),
+                    "The role [" + rd.getName() + "] is deprecated and will be removed in a future version of Elasticsearch. " + reason
+                );
             });
     }
 
@@ -232,8 +263,9 @@ public class CompositeRolesStore {
         // internal user. The SystemUser is special cased as it has special privileges to execute internal actions and should never be
         // passed into this method. The XPackUser has the Superuser role and we can simply return that
         if (SystemUser.is(user)) {
-            throw new IllegalArgumentException("the user [" + user.principal() + "] is the system user and we should never try to get its" +
-                " roles");
+            throw new IllegalArgumentException(
+                "the user [" + user.principal() + "] is the system user and we should never try to get its" + " roles"
+            );
         }
         if (XPackUser.is(user)) {
             assert XPackUser.INSTANCE.roles().length == 1;
@@ -249,26 +281,37 @@ public class CompositeRolesStore {
             return;
         }
 
-        if (authentication.isServiceAccount()) {
-            getRolesForServiceAccount(authentication, roleActionListener);
-        } else if (ApiKeyService.isApiKeyAuthentication(authentication)) {
-            getRolesForApiKey(authentication, roleActionListener);
+        if (user.isRunAs()) {
+            // The runas user currently must be from a realm and have regular roles
+            getRolesForUser(user, roleActionListener);
         } else {
-            Set<String> roleNames = new HashSet<>(Arrays.asList(user.roles()));
-            if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
-                if (anonymousUser.roles().length == 0) {
-                    throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
-                }
-                Collections.addAll(roleNames, anonymousUser.roles());
-            }
-
-            if (roleNames.isEmpty()) {
-                roleActionListener.onResponse(Role.EMPTY);
-            } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
-                roleActionListener.onResponse(superuserRole);
+            // The authenticated user may not come from a realm and they need to be handled specially
+            if (authentication.isAuthenticatedWithServiceAccount()) {
+                getRolesForServiceAccount(authentication, roleActionListener);
+            } else if (ApiKeyService.isApiKeyAuthentication(authentication)) {
+                // API key role descriptors are stored in the authentication metadata
+                getRolesForApiKey(authentication, roleActionListener);
             } else {
-                roles(roleNames, roleActionListener);
+                getRolesForUser(user, roleActionListener);
             }
+        }
+    }
+
+    private void getRolesForUser(User user, ActionListener<Role> roleActionListener) {
+        Set<String> roleNames = new HashSet<>(Arrays.asList(user.roles()));
+        if (isAnonymousEnabled && anonymousUser.equals(user) == false) {
+            if (anonymousUser.roles().length == 0) {
+                throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
+            }
+            Collections.addAll(roleNames, anonymousUser.roles());
+        }
+
+        if (roleNames.isEmpty()) {
+            roleActionListener.onResponse(Role.EMPTY);
+        } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
+            roleActionListener.onResponse(superuserRole);
+        } else {
+            roles(roleNames, roleActionListener);
         }
     }
 
@@ -287,42 +330,49 @@ public class CompositeRolesStore {
 
     private void getRolesForApiKey(Authentication authentication, ActionListener<Role> roleActionListener) {
         if (authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)) {
-            buildAndCacheRoleForApiKey(authentication, false, ActionListener.wrap(
-                role -> {
-                    if (role == Role.EMPTY) {
-                        buildAndCacheRoleForApiKey(authentication, true, roleActionListener);
-                    } else {
-                        buildAndCacheRoleForApiKey(authentication, true, ActionListener.wrap(
-                            limitedByRole -> roleActionListener.onResponse(
-                                LimitedRole.createLimitedRole(role, limitedByRole)),
+            buildAndCacheRoleForApiKey(authentication, false, ActionListener.wrap(role -> {
+                if (role == Role.EMPTY) {
+                    buildAndCacheRoleForApiKey(authentication, true, roleActionListener);
+                } else {
+                    buildAndCacheRoleForApiKey(
+                        authentication,
+                        true,
+                        ActionListener.wrap(
+                            limitedByRole -> roleActionListener.onResponse(LimitedRole.createLimitedRole(role, limitedByRole)),
                             roleActionListener::onFailure
-                        ));
-                    }
-                },
-                roleActionListener::onFailure
-            ));
+                        )
+                    );
+                }
+            }, roleActionListener::onFailure));
         } else {
             apiKeyService.getRoleForApiKey(authentication, ActionListener.wrap(apiKeyRoleDescriptors -> {
                 final List<RoleDescriptor> descriptors = apiKeyRoleDescriptors.getRoleDescriptors();
                 if (descriptors == null) {
                     roleActionListener.onFailure(new IllegalStateException("missing role descriptors"));
                 } else if (apiKeyRoleDescriptors.getLimitedByRoleDescriptors() == null) {
-                    buildAndCacheRoleFromDescriptors(descriptors,
-                        apiKeyRoleDescriptors.getApiKeyId() + "_role_desc", roleActionListener);
+                    buildAndCacheRoleFromDescriptors(descriptors, apiKeyRoleDescriptors.getApiKeyId() + "_role_desc", roleActionListener);
                 } else {
-                    buildAndCacheRoleFromDescriptors(descriptors, apiKeyRoleDescriptors.getApiKeyId() + "_role_desc",
+                    buildAndCacheRoleFromDescriptors(
+                        descriptors,
+                        apiKeyRoleDescriptors.getApiKeyId() + "_role_desc",
                         ActionListener.wrap(
-                            role -> buildAndCacheRoleFromDescriptors(apiKeyRoleDescriptors.getLimitedByRoleDescriptors(),
-                                apiKeyRoleDescriptors.getApiKeyId() + "_limited_role_desc", ActionListener.wrap(
+                            role -> buildAndCacheRoleFromDescriptors(
+                                apiKeyRoleDescriptors.getLimitedByRoleDescriptors(),
+                                apiKeyRoleDescriptors.getApiKeyId() + "_limited_role_desc",
+                                ActionListener.wrap(
                                     limitedBy -> roleActionListener.onResponse(LimitedRole.createLimitedRole(role, limitedBy)),
-                                    roleActionListener::onFailure)), roleActionListener::onFailure));
+                                    roleActionListener::onFailure
+                                )
+                            ),
+                            roleActionListener::onFailure
+                        )
+                    );
                 }
             }, roleActionListener::onFailure));
         }
     }
 
-    public void buildAndCacheRoleFromDescriptors(Collection<RoleDescriptor> roleDescriptors, String source,
-                                                  ActionListener<Role> listener) {
+    public void buildAndCacheRoleFromDescriptors(Collection<RoleDescriptor> roleDescriptors, String source, ActionListener<Role> listener) {
         if (ROLES_STORE_SOURCE.equals(source)) {
             throw new IllegalArgumentException("source [" + ROLES_STORE_SOURCE + "] is reserved for internal use");
         }
@@ -336,10 +386,20 @@ public class CompositeRolesStore {
         }
     }
 
-    private void buildThenMaybeCacheRole(RoleKey roleKey, Collection<RoleDescriptor> roleDescriptors, Set<String> missing,
-                                         boolean tryCache, long invalidationCounter, ActionListener<Role> listener) {
+    private void buildThenMaybeCacheRole(
+        RoleKey roleKey,
+        Collection<RoleDescriptor> roleDescriptors,
+        Set<String> missing,
+        boolean tryCache,
+        long invalidationCounter,
+        ActionListener<Role> listener
+    ) {
         logger.trace("Building role from descriptors [{}] for names [{}] from source [{}]", roleDescriptors, roleKey.names, roleKey.source);
-        buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, privilegeStore, restrictedIndicesAutomaton,
+        buildRoleFromDescriptors(
+            roleDescriptors,
+            fieldPermissionsCache,
+            privilegeStore,
+            restrictedIndicesAutomaton,
             ActionListener.wrap(role -> {
                 if (role != null && tryCache) {
                     try (ReleasableLock ignored = roleCacheHelper.acquireUpdateLock()) {
@@ -366,15 +426,15 @@ public class CompositeRolesStore {
 
     private void buildAndCacheRoleForApiKey(Authentication authentication, boolean limitedBy, ActionListener<Role> roleActionListener) {
         final Tuple<String, BytesReference> apiKeyIdAndBytes = apiKeyService.getApiKeyIdAndRoleBytes(authentication, limitedBy);
-        final String roleDescriptorsHash =
-                MessageDigests.toHexString(MessageDigests.digest(apiKeyIdAndBytes.v2(), MessageDigests.sha256()));
+        final String roleDescriptorsHash = MessageDigests.toHexString(
+            MessageDigests.digest(apiKeyIdAndBytes.v2(), MessageDigests.sha256())
+        );
         final RoleKey roleKey = new RoleKey(Set.of("apikey:" + roleDescriptorsHash), limitedBy ? "apikey_limited_role" : "apikey_role");
         final Role existing = roleCache.get(roleKey);
         if (existing == null) {
             final long invalidationCounter = numInvalidation.get();
             final List<RoleDescriptor> roleDescriptors = apiKeyService.parseRoleDescriptors(apiKeyIdAndBytes.v1(), apiKeyIdAndBytes.v2());
-            buildThenMaybeCacheRole(roleKey, roleDescriptors, Collections.emptySet(),
-                true, invalidationCounter, roleActionListener);
+            buildThenMaybeCacheRole(roleKey, roleDescriptors, Collections.emptySet(), true, invalidationCounter, roleActionListener);
         } else {
             roleActionListener.onResponse(existing);
         }
@@ -406,19 +466,22 @@ public class CompositeRolesStore {
     private void loadRoleDescriptorsAsync(Set<String> roleNames, ActionListener<RolesRetrievalResult> listener) {
         final RolesRetrievalResult rolesResult = new RolesRetrievalResult();
         final List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>> asyncRoleProviders = roleProviders.getProviders();
-        final ActionListener<RoleRetrievalResult> descriptorsListener =
-            ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(ignore -> {
-                    rolesResult.setMissingRoles(roleNames);
-                    listener.onResponse(rolesResult);
-                }, listener::onFailure), threadContext);
+        final ActionListener<RoleRetrievalResult> descriptorsListener = ContextPreservingActionListener.wrapPreservingContext(
+            ActionListener.wrap(ignore -> {
+                rolesResult.setMissingRoles(roleNames);
+                listener.onResponse(rolesResult);
+            }, listener::onFailure),
+            threadContext
+        );
 
         final Predicate<RoleRetrievalResult> iterationPredicate = result -> roleNames.isEmpty() == false;
         new IteratingActionListener<>(descriptorsListener, (rolesProvider, providerListener) -> {
             // try to resolve descriptors with role provider
             rolesProvider.accept(roleNames, ActionListener.wrap(result -> {
                 if (result.isSuccess()) {
-                    logger.debug(() -> new ParameterizedMessage("Roles [{}] were resolved by [{}]",
-                        names(result.getDescriptors()), rolesProvider));
+                    logger.debug(
+                        () -> new ParameterizedMessage("Roles [{}] were resolved by [{}]", names(result.getDescriptors()), rolesProvider)
+                    );
                     final Set<RoleDescriptor> resolvedDescriptors = result.getDescriptors();
                     rolesResult.addDescriptors(resolvedDescriptors);
                     // remove resolved descriptors from the set of roles still needed to be resolved
@@ -438,9 +501,13 @@ public class CompositeRolesStore {
         return descriptors.stream().map(RoleDescriptor::getName).collect(Collectors.joining(","));
     }
 
-    public static void buildRoleFromDescriptors(Collection<RoleDescriptor> roleDescriptors, FieldPermissionsCache fieldPermissionsCache,
-                                                NativePrivilegeStore privilegeStore, Automaton restrictedIndicesAutomaton,
-                                                ActionListener<Role> listener) {
+    public static void buildRoleFromDescriptors(
+        Collection<RoleDescriptor> roleDescriptors,
+        FieldPermissionsCache fieldPermissionsCache,
+        NativePrivilegeStore privilegeStore,
+        Automaton restrictedIndicesAutomaton,
+        ActionListener<Role> listener
+    ) {
         if (roleDescriptors.isEmpty()) {
             listener.onResponse(Role.EMPTY);
             return;
@@ -484,10 +551,10 @@ public class CompositeRolesStore {
 
         final Privilege runAsPrivilege = runAs.isEmpty() ? Privilege.NONE : new Privilege(runAs, runAs.toArray(Strings.EMPTY_ARRAY));
         final Role.Builder builder = Role.builder(restrictedIndicesAutomaton, roleNames.toArray(Strings.EMPTY_ARRAY))
-                .cluster(clusterPrivileges, configurableClusterPrivileges)
-                .runAs(runAsPrivilege);
-        indicesPrivilegesMap.forEach((key, privilege) ->
-            builder.add(
+            .cluster(clusterPrivileges, configurableClusterPrivileges)
+            .runAs(runAsPrivilege);
+        indicesPrivilegesMap.forEach(
+            (key, privilege) -> builder.add(
                 fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
                 privilege.query,
                 IndexPrivilege.get(privilege.privileges),
@@ -495,8 +562,8 @@ public class CompositeRolesStore {
                 privilege.indices.toArray(Strings.EMPTY_ARRAY)
             )
         );
-        restrictedIndicesPrivilegesMap.forEach((key, privilege) ->
-            builder.add(
+        restrictedIndicesPrivilegesMap.forEach(
+            (key, privilege) -> builder.add(
                 fieldPermissionsCache.getFieldPermissions(privilege.fieldPermissionsDefinition),
                 privilege.query,
                 IndexPrivilege.get(privilege.privileges),
@@ -508,15 +575,16 @@ public class CompositeRolesStore {
         if (applicationPrivilegesMap.isEmpty()) {
             listener.onResponse(builder.build());
         } else {
-            final Set<String> applicationNames = applicationPrivilegesMap.keySet().stream()
-                    .map(Tuple::v1)
-                    .collect(Collectors.toSet());
-            final Set<String> applicationPrivilegeNames = applicationPrivilegesMap.values().stream()
-                    .flatMap(Collection::stream)
-                    .collect(Collectors.toSet());
+            final Set<String> applicationNames = applicationPrivilegesMap.keySet().stream().map(Tuple::v1).collect(Collectors.toSet());
+            final Set<String> applicationPrivilegeNames = applicationPrivilegesMap.values()
+                .stream()
+                .flatMap(Collection::stream)
+                .collect(Collectors.toSet());
             privilegeStore.getPrivileges(applicationNames, applicationPrivilegeNames, ActionListener.wrap(appPrivileges -> {
-                applicationPrivilegesMap.forEach((key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
-                    .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2())));
+                applicationPrivilegesMap.forEach(
+                    (key, names) -> ApplicationPrivilege.get(key.v1(), names, appPrivileges)
+                        .forEach(priv -> builder.addApplicationPrivilege(priv, key.v2()))
+                );
                 listener.onResponse(builder.build());
             }, listener::onFailure));
         }
@@ -576,8 +644,13 @@ public class CompositeRolesStore {
         private FieldPermissionsDefinition fieldPermissionsDefinition;
         private Set<BytesReference> query = null;
 
-        MergeableIndicesPrivilege(String[] indices, String[] privileges, @Nullable String[] grantedFields, @Nullable String[] deniedFields,
-                                  @Nullable BytesReference query) {
+        MergeableIndicesPrivilege(
+            String[] indices,
+            String[] privileges,
+            @Nullable String[] grantedFields,
+            @Nullable String[] deniedFields,
+            @Nullable BytesReference query
+        ) {
             this.indices = newHashSet(Objects.requireNonNull(indices));
             this.privileges = newHashSet(Objects.requireNonNull(privileges));
             this.fieldPermissionsDefinition = new FieldPermissionsDefinition(grantedFields, deniedFields);
@@ -601,24 +674,39 @@ public class CompositeRolesStore {
             }
         }
 
-        private static void collatePrivilegesByIndices(IndicesPrivileges[] indicesPrivileges, boolean allowsRestrictedIndices,
-                Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap) {
+        private static void collatePrivilegesByIndices(
+            IndicesPrivileges[] indicesPrivileges,
+            boolean allowsRestrictedIndices,
+            Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap
+        ) {
             for (final IndicesPrivileges indicesPrivilege : indicesPrivileges) {
                 // if a index privilege is an explicit denial, then we treat it as non-existent since we skipped these in the past when
                 // merging
                 final boolean isExplicitDenial = indicesPrivileges.length == 1
-                        && "none".equalsIgnoreCase(indicesPrivilege.getPrivileges()[0]);
+                    && "none".equalsIgnoreCase(indicesPrivilege.getPrivileges()[0]);
                 if (isExplicitDenial || (indicesPrivilege.allowRestrictedIndices() != allowsRestrictedIndices)) {
                     continue;
                 }
                 final Set<String> key = newHashSet(indicesPrivilege.getIndices());
                 indicesPrivilegesMap.compute(key, (k, value) -> {
                     if (value == null) {
-                        return new MergeableIndicesPrivilege(indicesPrivilege.getIndices(), indicesPrivilege.getPrivileges(),
-                                indicesPrivilege.getGrantedFields(), indicesPrivilege.getDeniedFields(), indicesPrivilege.getQuery());
+                        return new MergeableIndicesPrivilege(
+                            indicesPrivilege.getIndices(),
+                            indicesPrivilege.getPrivileges(),
+                            indicesPrivilege.getGrantedFields(),
+                            indicesPrivilege.getDeniedFields(),
+                            indicesPrivilege.getQuery()
+                        );
                     } else {
-                        value.merge(new MergeableIndicesPrivilege(indicesPrivilege.getIndices(), indicesPrivilege.getPrivileges(),
-                                indicesPrivilege.getGrantedFields(), indicesPrivilege.getDeniedFields(), indicesPrivilege.getQuery()));
+                        value.merge(
+                            new MergeableIndicesPrivilege(
+                                indicesPrivilege.getIndices(),
+                                indicesPrivilege.getPrivileges(),
+                                indicesPrivilege.getGrantedFields(),
+                                indicesPrivilege.getDeniedFields(),
+                                indicesPrivilege.getQuery()
+                            )
+                        );
                         return value;
                     }
                 });
@@ -672,8 +760,7 @@ public class CompositeRolesStore {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             RoleKey roleKey = (RoleKey) o;
-            return names.equals(roleKey.names) &&
-                source.equals(roleKey.source);
+            return names.equals(roleKey.names) && source.equals(roleKey.source);
         }
 
         @Override

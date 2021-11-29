@@ -31,9 +31,7 @@ public class RestCountAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_cat/count"),
-            new Route(GET, "/_cat/count/{index}"));
+        return List.of(new Route(GET, "/_cat/count"), new Route(GET, "/_cat/count/{index}"));
     }
 
     @Override

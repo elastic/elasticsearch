@@ -9,10 +9,10 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -158,7 +158,6 @@ public abstract class BaseTermQueryBuilder<QB extends BaseTermQueryBuilder<QB>> 
 
     @Override
     protected boolean doEquals(QB other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-               Objects.equals(value, other.value);
+        return Objects.equals(fieldName, other.fieldName) && Objects.equals(value, other.value);
     }
 }

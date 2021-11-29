@@ -19,7 +19,7 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizePoint;
 /**
  * Splits lines by datelines.
  */
-public class GeoLineDecomposer {
+class GeoLineDecomposer {
 
     private static final double DATELINE = 180;
 
@@ -44,8 +44,8 @@ public class GeoLineDecomposer {
         double[] lats = new double[lons.length];
 
         for (int i = 0; i < lons.length; i++) {
-            double[] lonLat = new double[] {line.getX(i), line.getY(i)};
-            normalizePoint(lonLat,false, true);
+            double[] lonLat = new double[] { line.getX(i), line.getY(i) };
+            normalizePoint(lonLat, false, true);
             lons[i] = lonLat[0];
             lats[i] = lonLat[1];
         }

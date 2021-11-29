@@ -17,9 +17,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -42,11 +42,19 @@ public class TemplateUtils {
     /**
      * Loads a JSON template as a resource and puts it into the provided map
      */
-    public static void loadLegacyTemplateIntoMap(String resource, Map<String, IndexTemplateMetadata> map, String templateName,
-                                                 String version, String versionProperty, Logger logger) {
+    public static void loadLegacyTemplateIntoMap(
+        String resource,
+        Map<String, IndexTemplateMetadata> map,
+        String templateName,
+        String version,
+        String versionProperty,
+        Logger logger
+    ) {
         final String template = loadTemplate(resource, version, versionProperty);
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template)) {
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, template)
+        ) {
             map.put(templateName, IndexTemplateMetadata.Builder.fromXContent(parser, templateName));
         } catch (IOException e) {
             // TODO: should we handle this with a thrown exception?
@@ -112,9 +120,7 @@ public class TemplateUtils {
      * Replaces all occurrences of given variable with the value
      */
     public static String replaceVariable(String input, String variable, String value) {
-        return Pattern.compile("${" + variable + "}", Pattern.LITERAL)
-                .matcher(input)
-                .replaceAll(value);
+        return Pattern.compile("${" + variable + "}", Pattern.LITERAL).matcher(input).replaceAll(value);
     }
 
     /**
@@ -141,10 +147,21 @@ public class TemplateUtils {
      *                                          <code>null</code> means the template hasn't been switched yet.
      */
     public static boolean checkTemplateExistsAndIsUpToDate(
-        String templateName, String versionKey, ClusterState state, Logger logger, Version versionComposableTemplateExpected) {
+        String templateName,
+        String versionKey,
+        ClusterState state,
+        Logger logger,
+        Version versionComposableTemplateExpected
+    ) {
 
-        return checkTemplateExistsAndVersionMatches(templateName, versionKey, state, logger,
-            Version.CURRENT::equals, versionComposableTemplateExpected);
+        return checkTemplateExistsAndVersionMatches(
+            templateName,
+            versionKey,
+            state,
+            logger,
+            Version.CURRENT::equals,
+            versionComposableTemplateExpected
+        );
     }
 
     /**
@@ -158,8 +175,13 @@ public class TemplateUtils {
      *                                          <code>null</code> means the template hasn't been switched yet.
      */
     public static boolean checkTemplateExistsAndVersionMatches(
-        String templateName, String versionKey, ClusterState state, Logger logger, Predicate<Version> predicate,
-        Version versionComposableTemplateExpected) {
+        String templateName,
+        String versionKey,
+        ClusterState state,
+        Logger logger,
+        Predicate<Version> predicate,
+        Version versionComposableTemplateExpected
+    ) {
 
         CompressedXContent mappings;
         if (versionComposableTemplateExpected != null && state.nodes().getMinNodeVersion().onOrAfter(versionComposableTemplateExpected)) {
@@ -191,16 +213,14 @@ public class TemplateUtils {
                     return false;
                 }
             } catch (ElasticsearchParseException e) {
-                logger.error(new ParameterizedMessage(
-                    "Cannot parse the template [{}]", templateName), e);
+                logger.error(new ParameterizedMessage("Cannot parse the template [{}]", templateName), e);
                 throw new IllegalStateException("Cannot parse the template " + templateName, e);
             }
         }
         return true;
     }
 
-    private static boolean containsCorrectVersion(String versionKey, Map<String, Object> typeMappingMap,
-                                                  Predicate<Version> predicate) {
+    private static boolean containsCorrectVersion(String versionKey, Map<String, Object> typeMappingMap, Predicate<Version> predicate) {
         @SuppressWarnings("unchecked")
         Map<String, Object> meta = (Map<String, Object>) typeMappingMap.get("_meta");
         if (meta == null) {

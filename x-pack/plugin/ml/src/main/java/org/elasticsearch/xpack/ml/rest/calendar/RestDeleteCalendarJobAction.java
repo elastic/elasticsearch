@@ -28,7 +28,8 @@ public class RestDeleteCalendarJobAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(DELETE, BASE_PATH + "calendars/{" + Calendar.ID + "}/jobs/{" + Job.ID + "}")
-                .replaces(DELETE, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}/jobs/{" + Job.ID + "}", RestApiVersion.V_7).build()
+                .replaces(DELETE, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}/jobs/{" + Job.ID + "}", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -41,8 +42,7 @@ public class RestDeleteCalendarJobAction extends BaseRestHandler {
     protected BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String calendarId = restRequest.param(Calendar.ID.getPreferredName());
         String jobId = restRequest.param(Job.ID.getPreferredName());
-        UpdateCalendarJobAction.Request request =
-                new UpdateCalendarJobAction.Request(calendarId, null, jobId);
+        UpdateCalendarJobAction.Request request = new UpdateCalendarJobAction.Request(calendarId, null, jobId);
         return channel -> client.execute(UpdateCalendarJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

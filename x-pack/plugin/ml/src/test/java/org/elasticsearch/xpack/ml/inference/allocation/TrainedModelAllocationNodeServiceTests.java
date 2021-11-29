@@ -356,8 +356,7 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                                 )
                                 .addNewAllocation(
                                     modelTwo,
-                                    TrainedModelAllocation.Builder
-                                        .empty(newParams(modelTwo))
+                                    TrainedModelAllocation.Builder.empty(newParams(modelTwo))
                                         .addNewRoutingEntry(NODE_ID)
                                         .updateExistingRoutingEntry(
                                             NODE_ID,
@@ -366,10 +365,10 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
                                                 randomAlphaOfLength(10)
                                             )
                                         )
-                                ).addNewAllocation(
+                                )
+                                .addNewAllocation(
                                     previouslyUsedModel,
-                                    TrainedModelAllocation.Builder
-                                        .empty(newParams(modelTwo))
+                                    TrainedModelAllocation.Builder.empty(newParams(modelTwo))
                                         .addNewRoutingEntry(NODE_ID)
                                         .updateExistingRoutingEntry(
                                             NODE_ID,

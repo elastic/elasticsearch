@@ -53,8 +53,11 @@ public class ChunkedDataExtractor implements DataExtractor {
 
     interface DataSummary {
         long estimateChunk();
+
         boolean hasData();
+
         long earliestTime();
+
         long getDataTimeSpread();
     }
 
@@ -78,10 +81,11 @@ public class ChunkedDataExtractor implements DataExtractor {
     private DataExtractor currentExtractor;
 
     public ChunkedDataExtractor(
-            Client client,
-            DataExtractorFactory dataExtractorFactory,
-            ChunkedDataExtractorContext context,
-            DatafeedTimingStatsReporter timingStatsReporter) {
+        Client client,
+        DataExtractorFactory dataExtractorFactory,
+        ChunkedDataExtractorContext context,
+        DatafeedTimingStatsReporter timingStatsReporter
+    ) {
         this.client = Objects.requireNonNull(client);
         this.dataExtractorFactory = Objects.requireNonNull(dataExtractorFactory);
         this.context = Objects.requireNonNull(context);
@@ -98,7 +102,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         if (isCancelled()) {
             return currentHasNext;
         }
-        return currentHasNext ||  currentEnd < context.end;
+        return currentHasNext || currentEnd < context.end;
     }
 
     @Override
@@ -122,8 +126,13 @@ public class ChunkedDataExtractor implements DataExtractor {
             currentEnd = currentStart;
             chunkSpan = context.chunkSpan == null ? dataSummary.estimateChunk() : context.chunkSpan.getMillis();
             chunkSpan = context.timeAligner.alignToCeil(chunkSpan);
-            LOGGER.debug("[{}] Chunked search configured: kind = {}, dataTimeSpread = {} ms, chunk span = {} ms",
-                    context.jobId, dataSummary.getClass().getSimpleName(), dataSummary.getDataTimeSpread(), chunkSpan);
+            LOGGER.debug(
+                "[{}] Chunked search configured: kind = {}, dataTimeSpread = {} ms, chunk span = {} ms",
+                context.jobId,
+                dataSummary.getClass().getSimpleName(),
+                dataSummary.getDataTimeSpread(),
+                chunkSpan
+            );
         } else {
             // search is over
             currentEnd = context.end;
@@ -244,8 +253,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
 
         private SearchSourceBuilder rangeSearchBuilder() {
-            return new SearchSourceBuilder()
-                .size(0)
+            return new SearchSourceBuilder().size(0)
                 .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, currentStart, context.end))
                 .runtimeMappings(context.runtimeMappings)
                 .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.timeField))
@@ -253,8 +261,7 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
 
         private SearchRequestBuilder rangeSearchRequest() {
-            return new SearchRequestBuilder(client, SearchAction.INSTANCE)
-                .setIndices(context.indices)
+            return new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(context.indices)
                 .setIndicesOptions(context.indicesOptions)
                 .setSource(rangeSearchBuilder())
                 .setAllowPartialSearchResults(false)
@@ -348,12 +355,12 @@ public class ChunkedDataExtractor implements DataExtractor {
 
         @Override
         public long earliestTime() {
-            return (long)earliestTime;
+            return (long) earliestTime;
         }
 
         @Override
         public long getDataTimeSpread() {
-            return (long)latestTime - (long)earliestTime;
+            return (long) latestTime - (long) earliestTime;
         }
     }
 }

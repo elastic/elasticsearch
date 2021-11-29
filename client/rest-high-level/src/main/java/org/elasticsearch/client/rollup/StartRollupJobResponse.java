@@ -18,8 +18,11 @@ public class StartRollupJobResponse extends AcknowledgedResponse {
 
     private static final String PARSE_FIELD_NAME = "started";
 
-    private static final ConstructingObjectParser<StartRollupJobResponse, Void> PARSER = AcknowledgedResponse
-            .generateParser("start_rollup_job_response", StartRollupJobResponse::new, PARSE_FIELD_NAME);
+    private static final ConstructingObjectParser<StartRollupJobResponse, Void> PARSER = AcknowledgedResponse.generateParser(
+        "start_rollup_job_response",
+        StartRollupJobResponse::new,
+        PARSE_FIELD_NAME
+    );
 
     public StartRollupJobResponse(boolean acknowledged) {
         super(acknowledged);

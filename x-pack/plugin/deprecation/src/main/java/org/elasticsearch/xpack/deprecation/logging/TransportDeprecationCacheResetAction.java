@@ -24,8 +24,8 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-public class TransportDeprecationCacheResetAction
-    extends TransportNodesAction<DeprecationCacheResetAction.Request,
+public class TransportDeprecationCacheResetAction extends TransportNodesAction<
+    DeprecationCacheResetAction.Request,
     DeprecationCacheResetAction.Response,
     DeprecationCacheResetAction.NodeRequest,
     DeprecationCacheResetAction.NodeResponse> {
@@ -35,23 +35,33 @@ public class TransportDeprecationCacheResetAction
     private final RateLimitingFilter rateLimitingFilterForIndexing;
 
     @Inject
-    public TransportDeprecationCacheResetAction(ThreadPool threadPool,
-                                                ClusterService clusterService,
-                                                TransportService transportService,
-                                                ActionFilters actionFilters,
-                                                RateLimitingFilter rateLimitingFilterForIndexing) {
-        super(DeprecationCacheResetAction.NAME, threadPool, clusterService, transportService, actionFilters,
+    public TransportDeprecationCacheResetAction(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        RateLimitingFilter rateLimitingFilterForIndexing
+    ) {
+        super(
+            DeprecationCacheResetAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
             DeprecationCacheResetAction.Request::new,
             DeprecationCacheResetAction.NodeRequest::new,
             ThreadPool.Names.MANAGEMENT,
-            DeprecationCacheResetAction.NodeResponse.class);
+            DeprecationCacheResetAction.NodeResponse.class
+        );
         this.rateLimitingFilterForIndexing = rateLimitingFilterForIndexing;
     }
 
     @Override
-    protected DeprecationCacheResetAction.Response newResponse(DeprecationCacheResetAction.Request request,
-                                                               List<DeprecationCacheResetAction.NodeResponse> nodeResponses,
-                                                               List<FailedNodeException> failures) {
+    protected DeprecationCacheResetAction.Response newResponse(
+        DeprecationCacheResetAction.Request request,
+        List<DeprecationCacheResetAction.NodeResponse> nodeResponses,
+        List<FailedNodeException> failures
+    ) {
         return new DeprecationCacheResetAction.Response(clusterService.getClusterName(), nodeResponses, failures);
     }
 
@@ -68,7 +78,7 @@ public class TransportDeprecationCacheResetAction
     @Override
     protected DeprecationCacheResetAction.NodeResponse nodeOperation(DeprecationCacheResetAction.NodeRequest request, Task task) {
         rateLimitingFilterForIndexing.reset();
-        logger.debug( "Deprecation cache was reset");
+        logger.debug("Deprecation cache was reset");
         return new DeprecationCacheResetAction.NodeResponse(transportService.getLocalNode());
     }
 }

@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
@@ -64,24 +64,37 @@ public class TextClassificationProcessorTests extends ESTestCase {
     public void testBuildRequest() throws IOException {
         NlpTokenizer tokenizer = NlpTokenizer.build(
             new Vocabulary(
-                Arrays.asList("Elastic", "##search", "fun",
-                    BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN, BertTokenizer.PAD_TOKEN),
+                Arrays.asList(
+                    "Elastic",
+                    "##search",
+                    "fun",
+                    BertTokenizer.CLASS_TOKEN,
+                    BertTokenizer.SEPARATOR_TOKEN,
+                    BertTokenizer.PAD_TOKEN
+                ),
                 randomAlphaOfLength(10)
             ),
-            new BertTokenization(null, null, 512, Tokenization.Truncate.NONE));
+            new BertTokenization(null, null, 512, Tokenization.Truncate.NONE)
+        );
 
         TextClassificationConfig config = new TextClassificationConfig(
-            new VocabularyConfig("test-index"), null, List.of("a", "b"), null, null);
+            new VocabularyConfig("test-index"),
+            null,
+            List.of("a", "b"),
+            null,
+            null
+        );
 
         TextClassificationProcessor processor = new TextClassificationProcessor(tokenizer, config);
 
-        NlpTask.Request request = processor.getRequestBuilder(config).buildRequest(List.of("Elasticsearch fun"), "request1");
+        NlpTask.Request request = processor.getRequestBuilder(config)
+            .buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE);
 
         Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput, true, XContentType.JSON).v2();
 
         assertThat(jsonDocAsMap.keySet(), hasSize(5));
         assertEquals("request1", jsonDocAsMap.get("request_id"));
-        assertEquals(Arrays.asList(3, 0, 1, 2, 4), ((List<List<Integer>>)jsonDocAsMap.get("tokens")).get(0));
-        assertEquals(Arrays.asList(1, 1, 1, 1, 1), ((List<List<Integer>>)jsonDocAsMap.get("arg_1")).get(0));
+        assertEquals(Arrays.asList(3, 0, 1, 2, 4), ((List<List<Integer>>) jsonDocAsMap.get("tokens")).get(0));
+        assertEquals(Arrays.asList(1, 1, 1, 1, 1), ((List<List<Integer>>) jsonDocAsMap.get("arg_1")).get(0));
     }
 }

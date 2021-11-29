@@ -12,9 +12,9 @@ import org.apache.lucene.mockfile.FilterFileStore;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.fs.FsService;
@@ -114,11 +114,11 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
 
         @Override
         public long getTotalSpace() throws IOException {
-            final long totalSpace = this.totalSpace;
-            if (totalSpace == -1) {
+            final long totalSpaceCopy = this.totalSpace;
+            if (totalSpaceCopy == -1) {
                 return super.getTotalSpace();
             } else {
-                return totalSpace;
+                return totalSpaceCopy;
             }
         }
 
@@ -129,21 +129,21 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
 
         @Override
         public long getUsableSpace() throws IOException {
-            final long totalSpace = this.totalSpace;
-            if (totalSpace == -1) {
+            final long totalSpaceCopy = this.totalSpace;
+            if (totalSpaceCopy == -1) {
                 return super.getUsableSpace();
             } else {
-                return Math.max(0L, totalSpace - getTotalFileSize(path));
+                return Math.max(0L, totalSpaceCopy - getTotalFileSize(path));
             }
         }
 
         @Override
         public long getUnallocatedSpace() throws IOException {
-            final long totalSpace = this.totalSpace;
-            if (totalSpace == -1) {
+            final long totalSpaceCopy = this.totalSpace;
+            if (totalSpaceCopy == -1) {
                 return super.getUnallocatedSpace();
             } else {
-                return Math.max(0L, totalSpace - getTotalFileSize(path));
+                return Math.max(0L, totalSpaceCopy - getTotalFileSize(path));
             }
         }
 

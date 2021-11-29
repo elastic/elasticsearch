@@ -10,6 +10,7 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
@@ -61,27 +62,23 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-
 public class ElasticsearchMappingsTests extends ESTestCase {
 
     // These are not reserved because they're Elasticsearch keywords, not
     // field names
     private static final List<String> KEYWORDS = Arrays.asList(
-            ElasticsearchMappings.ANALYZER,
-            ElasticsearchMappings.COPY_TO,
-            ElasticsearchMappings.DYNAMIC,
-            ElasticsearchMappings.ENABLED,
-            ElasticsearchMappings.NESTED,
-            ElasticsearchMappings.PROPERTIES,
-            ElasticsearchMappings.TYPE,
-            ElasticsearchMappings.WHITESPACE,
-            SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()
+        ElasticsearchMappings.ANALYZER,
+        ElasticsearchMappings.COPY_TO,
+        ElasticsearchMappings.DYNAMIC,
+        ElasticsearchMappings.ENABLED,
+        ElasticsearchMappings.NESTED,
+        ElasticsearchMappings.PROPERTIES,
+        ElasticsearchMappings.TYPE,
+        ElasticsearchMappings.WHITESPACE,
+        SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()
     );
 
-    private static final List<String> INTERNAL_FIELDS = Arrays.asList(
-            GetResult._ID,
-            GetResult._INDEX
-    );
+    private static final List<String> INTERNAL_FIELDS = Arrays.asList(GetResult._ID, GetResult._INDEX);
 
     public void testResultsMappingReservedFields() throws Exception {
         Set<String> overridden = new HashSet<>(KEYWORDS);
@@ -154,7 +151,8 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     public void testMappingRequiresUpdateMaliciousMappingVersion() {
         ClusterState cs = getClusterStateWithMappingsWithMetadata(
-            Collections.singletonMap("version_current", Collections.singletonMap("nested", "1.0")));
+            Collections.singletonMap("version_current", Collections.singletonMap("nested", "1.0"))
+        );
         String[] indices = new String[] { "version_nested" };
         assertArrayEquals(indices, ElasticsearchMappings.mappingRequiresUpdate(cs, indices, Version.CURRENT));
     }
@@ -174,23 +172,23 @@ public class ElasticsearchMappingsTests extends ESTestCase {
     public void testMappingRequiresUpdateNewerMappingVersionMinor() {
         ClusterState cs = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("version_newer_minor", Version.CURRENT));
         String[] indices = new String[] { "version_newer_minor" };
-        assertArrayEquals(new String[] {},
-            ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion()));
+        assertArrayEquals(
+            new String[] {},
+            ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion())
+        );
     }
 
-    @SuppressWarnings({"unchecked"})
+    @SuppressWarnings({ "unchecked" })
     public void testAddDocMappingIfMissing() {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
-        doAnswer(
-            invocationOnMock -> {
-                ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
-                listener.onResponse(AcknowledgedResponse.TRUE);
-                return null;
-            })
-            .when(client).execute(eq(PutMappingAction.INSTANCE), any(), any(ActionListener.class));
+        doAnswer(invocationOnMock -> {
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return null;
+        }).when(client).execute(eq(PutMappingAction.INSTANCE), any(), any(ActionListener.class));
 
         ClusterState clusterState = getClusterStateWithMappingsWithMetadata(Collections.singletonMap("index-name", "0.0"));
         ElasticsearchMappings.addDocMappingIfMissing(
@@ -199,10 +197,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             client,
             clusterState,
             MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
-            ActionListener.wrap(
-                ok -> assertTrue(ok),
-                e -> fail(e.toString())
-            )
+            ActionListener.wrap(ok -> assertTrue(ok), e -> fail(e.toString()))
         );
 
         ArgumentCaptor<PutMappingRequest> requestCaptor = ArgumentCaptor.forClass(PutMappingRequest.class);
@@ -224,8 +219,12 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             Object version = entry.getValue();
 
             IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName);
-            indexMetadata.settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+            indexMetadata.settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            );
 
             Map<String, Object> mapping = new HashMap<>();
             Map<String, Object> properties = new HashMap<>();
@@ -252,13 +251,12 @@ public class ElasticsearchMappingsTests extends ESTestCase {
     }
 
     private Set<String> collectResultsDocFieldNames() throws IOException {
-        // Only the mappings for the results index should be added below.  Do NOT add mappings for other indexes here.
+        // Only the mappings for the results index should be added below. Do NOT add mappings for other indexes here.
         return collectFieldNames(AnomalyDetectorsIndex.resultsMapping());
     }
 
     private Set<String> collectFieldNames(String mapping) throws IOException {
-        BufferedInputStream inputStream =
-                new BufferedInputStream(new ByteArrayInputStream(mapping.getBytes(StandardCharsets.UTF_8)));
+        BufferedInputStream inputStream = new BufferedInputStream(new ByteArrayInputStream(mapping.getBytes(StandardCharsets.UTF_8)));
         JsonParser parser = new JsonFactory().createParser(inputStream);
         Set<String> fieldNames = new HashSet<>();
         boolean isAfterPropertiesStart = false;

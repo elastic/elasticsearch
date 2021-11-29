@@ -61,8 +61,7 @@ public final class AsyncExecutionId {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AsyncExecutionId searchId = (AsyncExecutionId) o;
-        return docId.equals(searchId.docId) &&
-            taskId.equals(searchId.taskId);
+        return docId.equals(searchId.docId) && taskId.equals(searchId.taskId);
     }
 
     @Override
@@ -72,10 +71,7 @@ public final class AsyncExecutionId {
 
     @Override
     public String toString() {
-        return "AsyncExecutionId{" +
-            "docId='" + docId + '\'' +
-            ", taskId=" + taskId +
-            '}';
+        return "AsyncExecutionId{" + "docId='" + docId + '\'' + ", taskId=" + taskId + '}';
     }
 
     /**

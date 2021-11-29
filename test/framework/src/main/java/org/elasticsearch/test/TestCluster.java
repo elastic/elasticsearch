@@ -9,6 +9,7 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -52,8 +53,8 @@ public abstract class TestCluster implements Closeable {
     /**
      * This method should be executed before each test to reset the cluster to its initial state.
      */
-    public void beforeTest(Random random) throws IOException, InterruptedException {
-        this.random = new Random(random.nextLong());
+    public void beforeTest(Random randomGenerator) throws IOException, InterruptedException {
+        this.random = new Random(randomGenerator.nextLong());
     }
 
     /**
@@ -68,8 +69,7 @@ public abstract class TestCluster implements Closeable {
     /**
      * Assertions that should run before the cluster is wiped should be called in this method
      */
-    public void beforeIndexDeletion() throws Exception {
-    }
+    public void beforeIndexDeletion() throws Exception {}
 
     /**
      * This method checks all the things that need to be checked after each test
@@ -124,8 +124,12 @@ public abstract class TestCluster implements Closeable {
         if (size() > 0) {
             try {
                 // include wiping hidden indices!
-                assertAcked(client().admin().indices().prepareDelete(indices)
-                    .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false)));
+                assertAcked(
+                    client().admin()
+                        .indices()
+                        .prepareDelete(indices)
+                        .setIndicesOptions(IndicesOptions.fromOptions(false, true, true, true, true, false, false, true, false))
+                );
             } catch (IndexNotFoundException e) {
                 // ignore
             } catch (IllegalArgumentException e) {
@@ -172,7 +176,7 @@ public abstract class TestCluster implements Closeable {
         if (size() > 0) {
             // if nothing is provided, delete all
             if (templates.length == 0) {
-                templates = new String[]{"*"};
+                templates = new String[] { "*" };
             }
             for (String template : templates) {
                 try {
@@ -191,7 +195,7 @@ public abstract class TestCluster implements Closeable {
         if (size() > 0) {
             // if nothing is provided, delete all
             if (repositories.length == 0) {
-                repositories = new String[]{"*"};
+                repositories = new String[] { "*" };
             }
             for (String repository : repositories) {
                 try {

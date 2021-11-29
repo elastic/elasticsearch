@@ -9,6 +9,7 @@
 package org.elasticsearch.common.logging;
 
 import co.elastic.logging.log4j2.EcsLayout;
+
 import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.config.Node;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
@@ -32,7 +33,8 @@ public class ECSJsonLayout {
     }
 
     public static class Builder extends AbstractStringLayout.Builder<Builder>
-        implements org.apache.logging.log4j.core.util.Builder<EcsLayout> {
+        implements
+            org.apache.logging.log4j.core.util.Builder<EcsLayout> {
 
         @PluginAttribute("dataset")
         String dataset;
@@ -44,23 +46,23 @@ public class ECSJsonLayout {
         @Override
         public EcsLayout build() {
             return EcsLayout.newBuilder()
-                            .setConfiguration(getConfiguration())
-                            .setServiceName("ES_ECS")
-                            .setStackTraceAsArray(false)
-                            .setIncludeMarkers(true)
-                            .setAdditionalFields(additionalFields())
-                            .build();
+                .setConfiguration(getConfiguration())
+                .setServiceName("ES_ECS")
+                .setEventDataset(dataset)
+                .setStackTraceAsArray(false)
+                .setIncludeMarkers(true)
+                .setAdditionalFields(additionalFields())
+                .build();
         }
 
         private KeyValuePair[] additionalFields() {
             return new KeyValuePair[] {
-                new KeyValuePair("event.dataset", dataset),
                 new KeyValuePair("trace.id", "%trace_id"),
                 new KeyValuePair("elasticsearch.cluster.uuid", "%cluster_id"),
                 new KeyValuePair("elasticsearch.node.id", "%node_id"),
                 new KeyValuePair("elasticsearch.node.name", "%ESnode_name"),
                 new KeyValuePair("elasticsearch.cluster.name", "${sys:es.logs.cluster_name}"), };
-    }
+        }
 
         public String getDataset() {
             return dataset;

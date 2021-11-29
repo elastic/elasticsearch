@@ -18,15 +18,16 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
-
 public class SnapshotUpgradePredicateTests extends ESTestCase {
 
     public void testWhenWaitForCompletionIsTrue() {
-        final PersistentTask<SnapshotUpgradeTaskParams> assignedTask = new PersistentTask<>("task_id",
+        final PersistentTask<SnapshotUpgradeTaskParams> assignedTask = new PersistentTask<>(
+            "task_id",
             MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             new SnapshotUpgradeTaskParams("job", "snapshot"),
             1,
-            new PersistentTasksCustomMetadata.Assignment("test-node", ""));
+            new PersistentTasksCustomMetadata.Assignment("test-node", "")
+        );
         {
             SnapshotUpgradePredicate snapshotUpgradePredicate = new SnapshotUpgradePredicate(true, logger);
             assertThat(snapshotUpgradePredicate.test(null), is(true));
@@ -40,27 +41,31 @@ public class SnapshotUpgradePredicateTests extends ESTestCase {
         }
 
         {
-            PersistentTask<SnapshotUpgradeTaskParams> failedAssignedTask = new PersistentTask<>(assignedTask,
-                new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, 1,
-                    "this reason"));
+            PersistentTask<SnapshotUpgradeTaskParams> failedAssignedTask = new PersistentTask<>(
+                assignedTask,
+                new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, 1, "this reason")
+            );
             SnapshotUpgradePredicate snapshotUpgradePredicate = new SnapshotUpgradePredicate(true, logger);
             assertThat(snapshotUpgradePredicate.test(failedAssignedTask), is(true));
             assertThat(snapshotUpgradePredicate.isCompleted(), is(false));
             assertThat(snapshotUpgradePredicate.isShouldCancel(), is(true));
             assertThat(snapshotUpgradePredicate.getException(), is(notNullValue()));
-            assertThat(snapshotUpgradePredicate.getException().getMessage(),
-                containsString("while waiting for to be assigned to a node; recorded reason [this reason]"));
+            assertThat(
+                snapshotUpgradePredicate.getException().getMessage(),
+                containsString("while waiting for to be assigned to a node; recorded reason [this reason]")
+            );
         }
-
 
     }
 
     public void testWhenWaitForCompletionIsFalse() {
-        final PersistentTask<SnapshotUpgradeTaskParams> assignedTask = new PersistentTask<>("task_id",
+        final PersistentTask<SnapshotUpgradeTaskParams> assignedTask = new PersistentTask<>(
+            "task_id",
             MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
             new SnapshotUpgradeTaskParams("job", "snapshot"),
             1,
-            new PersistentTasksCustomMetadata.Assignment("test-node", ""));
+            new PersistentTasksCustomMetadata.Assignment("test-node", "")
+        );
         {
             SnapshotUpgradePredicate snapshotUpgradePredicate = new SnapshotUpgradePredicate(false, logger);
             assertThat(snapshotUpgradePredicate.test(null), is(true));
@@ -74,16 +79,19 @@ public class SnapshotUpgradePredicateTests extends ESTestCase {
         }
 
         {
-            PersistentTask<SnapshotUpgradeTaskParams> failedAssignedTask = new PersistentTask<>(assignedTask,
-                new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, 1,
-                    "this reason"));
+            PersistentTask<SnapshotUpgradeTaskParams> failedAssignedTask = new PersistentTask<>(
+                assignedTask,
+                new SnapshotUpgradeTaskState(SnapshotUpgradeState.FAILED, 1, "this reason")
+            );
             SnapshotUpgradePredicate snapshotUpgradePredicate = new SnapshotUpgradePredicate(false, logger);
             assertThat(snapshotUpgradePredicate.test(failedAssignedTask), is(true));
             assertThat(snapshotUpgradePredicate.isCompleted(), is(false));
             assertThat(snapshotUpgradePredicate.isShouldCancel(), is(true));
             assertThat(snapshotUpgradePredicate.getException(), is(notNullValue()));
-            assertThat(snapshotUpgradePredicate.getException().getMessage(),
-                containsString("while waiting for to be assigned to a node; recorded reason [this reason]"));
+            assertThat(
+                snapshotUpgradePredicate.getException().getMessage(),
+                containsString("while waiting for to be assigned to a node; recorded reason [this reason]")
+            );
         }
 
     }

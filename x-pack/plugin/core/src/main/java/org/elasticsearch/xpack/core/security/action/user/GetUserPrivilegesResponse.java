@@ -48,10 +48,13 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         runAs = Collections.unmodifiableSet(in.readSet(StreamInput::readString));
     }
 
-    public GetUserPrivilegesResponse(Set<String> cluster, Set<ConfigurableClusterPrivilege> conditionalCluster,
-                                     Set<Indices> index,
-                                     Set<RoleDescriptor.ApplicationResourcePrivileges> application,
-                                     Set<String> runAs) {
+    public GetUserPrivilegesResponse(
+        Set<String> cluster,
+        Set<ConfigurableClusterPrivilege> conditionalCluster,
+        Set<Indices> index,
+        Set<RoleDescriptor.ApplicationResourcePrivileges> application,
+        Set<String> runAs
+    ) {
         this.cluster = Collections.unmodifiableSet(cluster);
         this.configurableClusterPrivileges = Collections.unmodifiableSet(conditionalCluster);
         this.index = Collections.unmodifiableSet(index);
@@ -97,11 +100,11 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
             return false;
         }
         final GetUserPrivilegesResponse that = (GetUserPrivilegesResponse) other;
-        return Objects.equals(cluster, that.cluster) &&
-            Objects.equals(configurableClusterPrivileges, that.configurableClusterPrivileges) &&
-            Objects.equals(index, that.index) &&
-            Objects.equals(application, that.application) &&
-            Objects.equals(runAs, that.runAs);
+        return Objects.equals(cluster, that.cluster)
+            && Objects.equals(configurableClusterPrivileges, that.configurableClusterPrivileges)
+            && Objects.equals(index, that.index)
+            && Objects.equals(application, that.application)
+            && Objects.equals(runAs, that.runAs);
     }
 
     @Override
@@ -120,9 +123,13 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
         private final Set<BytesReference> queries;
         private final boolean allowRestrictedIndices;
 
-        public Indices(Collection<String> indices, Collection<String> privileges,
-                Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity, Set<BytesReference> queries,
-                boolean allowRestrictedIndices) {
+        public Indices(
+            Collection<String> indices,
+            Collection<String> privileges,
+            Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity,
+            Set<BytesReference> queries,
+            boolean allowRestrictedIndices
+        ) {
             // The use of TreeSet is to provide a consistent order that can be relied upon in tests
             this.indices = Collections.unmodifiableSet(new TreeSet<>(Objects.requireNonNull(indices)));
             this.privileges = Collections.unmodifiableSet(new TreeSet<>(Objects.requireNonNull(privileges)));
@@ -166,11 +173,13 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
 
         @Override
         public String toString() {
-            StringBuilder sb = new StringBuilder(getClass().getSimpleName())
-                .append("[")
-                .append("indices=[").append(Strings.collectionToCommaDelimitedString(indices))
-                .append("], allow_restricted_indices=[").append(allowRestrictedIndices)
-                .append("], privileges=[").append(Strings.collectionToCommaDelimitedString(privileges))
+            StringBuilder sb = new StringBuilder(getClass().getSimpleName()).append("[")
+                .append("indices=[")
+                .append(Strings.collectionToCommaDelimitedString(indices))
+                .append("], allow_restricted_indices=[")
+                .append(allowRestrictedIndices)
+                .append("], privileges=[")
+                .append(Strings.collectionToCommaDelimitedString(privileges))
                 .append("]");
             if (fieldSecurity.isEmpty() == false) {
                 sb.append(", fls=[").append(Strings.collectionToCommaDelimitedString(fieldSecurity)).append("]");
@@ -210,8 +219,9 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
             builder.field(RoleDescriptor.Fields.PRIVILEGES.getPreferredName(), privileges);
             if (fieldSecurity.stream().anyMatch(g -> nonEmpty(g.getGrantedFields()) || nonEmpty(g.getExcludedFields()))) {
                 builder.startArray(RoleDescriptor.Fields.FIELD_PERMISSIONS.getPreferredName());
-                final List<FieldPermissionsDefinition.FieldGrantExcludeGroup> sortedFieldSecurity =
-                    this.fieldSecurity.stream().sorted().collect(Collectors.toUnmodifiableList());
+                final List<FieldPermissionsDefinition.FieldGrantExcludeGroup> sortedFieldSecurity = this.fieldSecurity.stream()
+                    .sorted()
+                    .collect(Collectors.toUnmodifiableList());
                 for (FieldPermissionsDefinition.FieldGrantExcludeGroup group : sortedFieldSecurity) {
                     builder.startObject();
                     if (nonEmpty(group.getGrantedFields())) {

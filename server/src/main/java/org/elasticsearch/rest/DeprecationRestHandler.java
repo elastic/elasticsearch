@@ -7,10 +7,12 @@
  */
 package org.elasticsearch.rest;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Objects;
 
@@ -26,6 +28,8 @@ public class DeprecationRestHandler implements RestHandler {
     private final DeprecationLogger deprecationLogger;
     private final boolean compatibleVersionWarning;
     private final String deprecationKey;
+    @Nullable
+    private final Level deprecationLevel;
 
     /**
      * Create a {@link DeprecationRestHandler} that encapsulates the {@code handler} using the {@code deprecationLogger} to log
@@ -42,13 +46,26 @@ public class DeprecationRestHandler implements RestHandler {
      * @throws NullPointerException if any parameter except {@code deprecationMessage} is {@code null}
      * @throws IllegalArgumentException if {@code deprecationMessage} is not a valid header
      */
-    public DeprecationRestHandler(RestHandler handler, RestRequest.Method method, String path, String deprecationMessage,
-                                  DeprecationLogger deprecationLogger, boolean compatibleVersionWarning) {
+    public DeprecationRestHandler(
+        RestHandler handler,
+        RestRequest.Method method,
+        String path,
+        @Nullable Level deprecationLevel,
+        String deprecationMessage,
+        DeprecationLogger deprecationLogger,
+        boolean compatibleVersionWarning
+    ) {
         this.handler = Objects.requireNonNull(handler);
         this.deprecationMessage = requireValidHeader(deprecationMessage);
         this.deprecationLogger = Objects.requireNonNull(deprecationLogger);
         this.compatibleVersionWarning = compatibleVersionWarning;
         this.deprecationKey = DEPRECATED_ROUTE_KEY + "_" + method + "_" + path;
+        if (deprecationLevel != null && (deprecationLevel != Level.WARN && deprecationLevel != DeprecationLogger.CRITICAL)) {
+            throw new IllegalArgumentException(
+                "unexpected deprecation logger level: " + deprecationLevel + ", expected either 'CRITICAL' or 'WARN'"
+            );
+        }
+        this.deprecationLevel = deprecationLevel;
     }
 
     /**
@@ -59,9 +76,20 @@ public class DeprecationRestHandler implements RestHandler {
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         if (compatibleVersionWarning == false) {
-            deprecationLogger.critical(DeprecationCategory.API, deprecationKey, deprecationMessage);
+            // The default value for deprecated requests without a version warning is WARN
+            if (deprecationLevel == null || deprecationLevel == Level.WARN) {
+                deprecationLogger.warn(DeprecationCategory.API, deprecationKey, deprecationMessage);
+            } else {
+                deprecationLogger.critical(DeprecationCategory.API, deprecationKey, deprecationMessage);
+            }
         } else {
-            deprecationLogger.compatibleCritical(deprecationKey, deprecationMessage);
+            // The default value for deprecated requests with a version warning is CRITICAL,
+            // because they have a specific version where the endpoint is removed
+            if (deprecationLevel == null || deprecationLevel == DeprecationLogger.CRITICAL) {
+                deprecationLogger.compatibleCritical(deprecationKey, deprecationMessage);
+            } else {
+                deprecationLogger.compatible(Level.WARN, deprecationKey, deprecationMessage);
+            }
         }
 
         handler.handleRequest(request, channel, client);

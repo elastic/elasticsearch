@@ -34,16 +34,13 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
-    private boolean return200ForClusterHealthTimeout;
-
     /**
      * Only used by the high-level REST Client. Controls the details level of the health information returned.
      * The default value is 'cluster'.
      */
     private Level level = Level.CLUSTER;
 
-    public ClusterHealthRequest() {
-    }
+    public ClusterHealthRequest() {}
 
     public ClusterHealthRequest(String... indices) {
         this.indices = indices;
@@ -64,7 +61,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         }
         waitForNoInitializingShards = in.readBoolean();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        return200ForClusterHealthTimeout = in.readBoolean();
     }
 
     @Override
@@ -93,7 +89,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         }
         out.writeBoolean(waitForNoInitializingShards);
         indicesOptions.writeIndicesOptions(out);
-        out.writeBoolean(return200ForClusterHealthTimeout);
     }
 
     @Override
@@ -237,18 +232,6 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
         return this.waitForEvents;
     }
 
-    public boolean doesReturn200ForClusterHealthTimeout() {
-        return return200ForClusterHealthTimeout;
-    }
-
-    /**
-     * Sets whether to return HTTP 200 status code instead of HTTP 408 in case of a
-     * cluster health timeout from the server side.
-     */
-    public void return200ForClusterHealthTimeout(boolean return200ForClusterHealthTimeout) {
-        this.return200ForClusterHealthTimeout = return200ForClusterHealthTimeout;
-    }
-
     /**
      * Set the level of detail for the health information to be returned.
      * Only used by the high-level REST Client.
@@ -271,6 +254,8 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     }
 
     public enum Level {
-        CLUSTER, INDICES, SHARDS
+        CLUSTER,
+        INDICES,
+        SHARDS
     }
 }

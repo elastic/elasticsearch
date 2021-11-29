@@ -37,13 +37,15 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureSet.Usage {
     private final Map<String, Object> inferenceUsage;
     private final int nodeCount;
 
-    public MachineLearningFeatureSetUsage(boolean available,
-                                          boolean enabled,
-                                          Map<String, Object> jobsUsage,
-                                          Map<String, Object> datafeedsUsage,
-                                          Map<String, Object> analyticsUsage,
-                                          Map<String, Object> inferenceUsage,
-                                          int nodeCount) {
+    public MachineLearningFeatureSetUsage(
+        boolean available,
+        boolean enabled,
+        Map<String, Object> jobsUsage,
+        Map<String, Object> datafeedsUsage,
+        Map<String, Object> analyticsUsage,
+        Map<String, Object> inferenceUsage,
+        int nodeCount
+    ) {
         super(XPackField.MACHINE_LEARNING, available, enabled);
         this.jobsUsage = Objects.requireNonNull(jobsUsage);
         this.datafeedsUsage = Objects.requireNonNull(datafeedsUsage);

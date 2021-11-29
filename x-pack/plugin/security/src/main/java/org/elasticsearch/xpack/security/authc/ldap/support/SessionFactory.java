@@ -11,6 +11,7 @@ import com.unboundid.ldap.sdk.LDAPException;
 import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.ServerSet;
 import com.unboundid.util.ssl.HostNameSSLSocketVerifier;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -27,12 +28,13 @@ import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySe
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import javax.net.SocketFactory;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
+
+import javax.net.SocketFactory;
 
 /**
  * This factory holds settings needed for authenticating to LDAP and creating LdapConnections.
@@ -49,10 +51,8 @@ import java.util.regex.Pattern;
  */
 public abstract class SessionFactory implements Closeable {
 
-    private static final Pattern STARTS_WITH_LDAPS = Pattern.compile("^ldaps:.*",
-            Pattern.CASE_INSENSITIVE);
-    private static final Pattern STARTS_WITH_LDAP = Pattern.compile("^ldap:.*",
-            Pattern.CASE_INSENSITIVE);
+    private static final Pattern STARTS_WITH_LDAPS = Pattern.compile("^ldaps:.*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern STARTS_WITH_LDAP = Pattern.compile("^ldap:.*", Pattern.CASE_INSENSITIVE);
 
     protected final Logger logger;
     protected final RealmConfig config;
@@ -69,12 +69,15 @@ public abstract class SessionFactory implements Closeable {
     protected SessionFactory(RealmConfig config, SSLService sslService, ThreadPool threadPool) {
         this.config = config;
         this.logger = LogManager.getLogger(getClass());
-        TimeValue searchTimeout = config.getSetting(SessionFactorySettings.TIMEOUT_LDAP_SETTING,
-                () -> SessionFactorySettings.TIMEOUT_DEFAULT);
+        TimeValue searchTimeout = config.getSetting(
+            SessionFactorySettings.TIMEOUT_LDAP_SETTING,
+            () -> SessionFactorySettings.TIMEOUT_DEFAULT
+        );
         if (searchTimeout.millis() < 1000L) {
-            logger.warn("ldap_search timeout [{}] is less than the minimum supported search " +
-                            "timeout of 1s. using 1s",
-                    searchTimeout.millis());
+            logger.warn(
+                "ldap_search timeout [{}] is less than the minimum supported search " + "timeout of 1s. using 1s",
+                searchTimeout.millis()
+            );
             searchTimeout = TimeValue.timeValueSeconds(1L);
         }
         this.timeout = searchTimeout;
@@ -101,8 +104,7 @@ public abstract class SessionFactory implements Closeable {
      * @param password The password of the user
      * @param listener the listener to call on a failure or result
      */
-    public abstract void session(String user, SecureString password,
-                                 ActionListener<LdapSession> listener);
+    public abstract void session(String user, SecureString password, ActionListener<LdapSession> listener);
 
     /**
      * Returns a flag to indicate if this session factory supports unauthenticated sessions.
@@ -125,17 +127,20 @@ public abstract class SessionFactory implements Closeable {
         throw new UnsupportedOperationException("unauthenticated sessions are not supported");
     }
 
-    protected static LDAPConnectionOptions connectionOptions(RealmConfig config,
-                                                             SSLService sslService, Logger logger) {
+    protected static LDAPConnectionOptions connectionOptions(RealmConfig config, SSLService sslService, Logger logger) {
         LDAPConnectionOptions options = new LDAPConnectionOptions();
         options.setConnectTimeoutMillis(Math.toIntExact(config.getSetting(SessionFactorySettings.TIMEOUT_TCP_CONNECTION_SETTING).millis()));
         options.setFollowReferrals(config.getSetting(SessionFactorySettings.FOLLOW_REFERRALS_SETTING));
         final long responseTimeoutMillis;
         if (config.hasSetting(SessionFactorySettings.TIMEOUT_RESPONSE_SETTING)) {
             if (config.hasSetting(SessionFactorySettings.TIMEOUT_TCP_READ_SETTING)) {
-                throw new IllegalArgumentException("[" + RealmSettings.getFullSettingKey(config,
-                        SessionFactorySettings.TIMEOUT_TCP_READ_SETTING) + "] and [" + RealmSettings.getFullSettingKey(config,
-                        SessionFactorySettings.TIMEOUT_RESPONSE_SETTING) + "] may not be used at the same time");
+                throw new IllegalArgumentException(
+                    "["
+                        + RealmSettings.getFullSettingKey(config, SessionFactorySettings.TIMEOUT_TCP_READ_SETTING)
+                        + "] and ["
+                        + RealmSettings.getFullSettingKey(config, SessionFactorySettings.TIMEOUT_RESPONSE_SETTING)
+                        + "] may not be used at the same time"
+                );
             }
             responseTimeoutMillis = config.getSetting(SessionFactorySettings.TIMEOUT_RESPONSE_SETTING).millis();
         } else {
@@ -152,10 +157,13 @@ public abstract class SessionFactory implements Closeable {
         final boolean hostnameVerificationExists = config.hasSetting(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING);
 
         if (verificationModeExists && hostnameVerificationExists) {
-            throw new IllegalArgumentException("[" +
-                    RealmSettings.getFullSettingKey(config, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING) + "] and [" +
-                    RealmSettings.getFullSettingKey(config, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM) +
-                    "] may not be used at the same time");
+            throw new IllegalArgumentException(
+                "["
+                    + RealmSettings.getFullSettingKey(config, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING)
+                    + "] and ["
+                    + RealmSettings.getFullSettingKey(config, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM)
+                    + "] may not be used at the same time"
+            );
         } else if (verificationModeExists) {
             final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
             final SslConfiguration sslConfiguration = sslService.getSSLConfiguration(sslKey);
@@ -168,9 +176,14 @@ public abstract class SessionFactory implements Closeable {
         } else if (hostnameVerificationExists) {
             final String fullSettingKey = RealmSettings.getFullSettingKey(config, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING);
             final String deprecationKey = "deprecated_setting_" + fullSettingKey.replace('.', '_');
-            DeprecationLogger.getLogger(logger.getName()).critical(DeprecationCategory.SETTINGS, deprecationKey,
-                "the setting [{}] has been deprecated and will be removed in a future version. use [{}] instead",
-                fullSettingKey, RealmSettings.getFullSettingKey(config, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM));
+            DeprecationLogger.getLogger(logger.getName())
+                .warn(
+                    DeprecationCategory.SETTINGS,
+                    deprecationKey,
+                    "the setting [{}] has been deprecated and will be removed in a future version. use [{}] instead",
+                    fullSettingKey,
+                    RealmSettings.getFullSettingKey(config, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM)
+                );
             if (config.getSetting(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING)) {
                 options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
             }
@@ -184,8 +197,9 @@ public abstract class SessionFactory implements Closeable {
         // Parse LDAP urls
         List<String> ldapUrls = config.getSetting(SessionFactorySettings.URLS_SETTING, () -> getDefaultLdapUrls(config));
         if (ldapUrls == null || ldapUrls.isEmpty()) {
-            throw new IllegalArgumentException("missing required LDAP setting ["
-                    + RealmSettings.getFullSettingKey(config, SessionFactorySettings.URLS_SETTING) + "]");
+            throw new IllegalArgumentException(
+                "missing required LDAP setting [" + RealmSettings.getFullSettingKey(config, SessionFactorySettings.URLS_SETTING) + "]"
+            );
         }
         return new LDAPServers(ldapUrls.toArray(new String[ldapUrls.size()]));
     }
@@ -194,8 +208,7 @@ public abstract class SessionFactory implements Closeable {
         return null;
     }
 
-    private ServerSet serverSet(RealmConfig realmConfig, SSLService clientSSLService,
-                                LDAPServers ldapServers) {
+    private ServerSet serverSet(RealmConfig realmConfig, SSLService clientSSLService, LDAPServers ldapServers) {
         SocketFactory socketFactory = null;
         if (ldapServers.ssl()) {
             final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
@@ -207,8 +220,13 @@ public abstract class SessionFactory implements Closeable {
                 logger.debug("using encryption for LDAP connections without hostname verification");
             }
         }
-        return LdapLoadBalancing.serverSet(ldapServers.addresses(), ldapServers.ports(), realmConfig,
-                socketFactory, connectionOptions(realmConfig, sslService, logger));
+        return LdapLoadBalancing.serverSet(
+            ldapServers.addresses(),
+            ldapServers.ports(),
+            realmConfig,
+            socketFactory,
+            connectionOptions(realmConfig, sslService, logger)
+        );
     }
 
     // package private to use for testing
@@ -236,8 +254,7 @@ public abstract class SessionFactory implements Closeable {
                     addresses[i] = url.getHost();
                     ports[i] = url.getPort();
                 } catch (LDAPException e) {
-                    throw new IllegalArgumentException("unable to parse configured LDAP url [" +
-                            urls[i] + "]", e);
+                    throw new IllegalArgumentException("unable to parse configured LDAP url [" + urls[i] + "]", e);
                 }
             }
         }
@@ -262,16 +279,16 @@ public abstract class SessionFactory implements Closeable {
                 return true;
             }
 
-            final boolean allSecure = Arrays.stream(ldapUrls)
-                    .allMatch(s -> STARTS_WITH_LDAPS.matcher(s).find());
-            final boolean allClear = Arrays.stream(ldapUrls)
-                    .allMatch(s -> STARTS_WITH_LDAP.matcher(s).find());
+            final boolean allSecure = Arrays.stream(ldapUrls).allMatch(s -> STARTS_WITH_LDAPS.matcher(s).find());
+            final boolean allClear = Arrays.stream(ldapUrls).allMatch(s -> STARTS_WITH_LDAP.matcher(s).find());
 
             if (allSecure == false && allClear == false) {
-                //No mixing is allowed because we use the same socketfactory
+                // No mixing is allowed because we use the same socketfactory
                 throw new IllegalArgumentException(
-                        "configured LDAP protocols are not all equal (ldaps://.. and ldap://..): ["
-                                + Strings.arrayToCommaDelimitedString(ldapUrls) + "]");
+                    "configured LDAP protocols are not all equal (ldaps://.. and ldap://..): ["
+                        + Strings.arrayToCommaDelimitedString(ldapUrls)
+                        + "]"
+                );
             }
 
             return allSecure;

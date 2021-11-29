@@ -67,16 +67,16 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     private static void checkIndexCompatibility(IndexSettings settings, String name) {
         if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
-            throw new IllegalStateException("cannot create join field [" + name + "] " +
-                "for the partitioned index " + "[" + settings.getIndex().getName() + "]");
+            throw new IllegalStateException(
+                "cannot create join field [" + name + "] " + "for the partitioned index " + "[" + settings.getIndex().getName() + "]"
+            );
         }
     }
 
     private static void checkObjectOrNested(MapperBuilderContext context, String name) {
         String fullName = context.buildFullName(name);
         if (fullName.equals(name) == false) {
-            throw new IllegalArgumentException("join field [" + fullName + "] " +
-                "cannot be added inside an object or in a multi-field");
+            throw new IllegalArgumentException("join field [" + fullName + "] " + "cannot be added inside an object or in a multi-field");
         }
     }
 
@@ -86,11 +86,19 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     public static class Builder extends FieldMapper.Builder {
 
-        final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam("eager_global_ordinals", true,
-            m -> toType(m).eagerGlobalOrdinals, true);
-        final Parameter<List<Relations>> relations = new Parameter<List<Relations>>("relations", true,
-            Collections::emptyList, (n, c, o) -> Relations.parse(o), m -> toType(m).relations)
-            .setMergeValidator(ParentJoinFieldMapper::checkRelationsConflicts);
+        final Parameter<Boolean> eagerGlobalOrdinals = Parameter.boolParam(
+            "eager_global_ordinals",
+            true,
+            m -> toType(m).eagerGlobalOrdinals,
+            true
+        );
+        final Parameter<List<Relations>> relations = new Parameter<List<Relations>>(
+            "relations",
+            true,
+            Collections::emptyList,
+            (n, c, o) -> Relations.parse(o),
+            m -> toType(m).relations
+        ).setMergeValidator(ParentJoinFieldMapper::checkRelationsConflicts);
 
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -112,12 +120,18 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         public ParentJoinFieldMapper build(MapperBuilderContext context) {
             checkObjectOrNested(context, name);
             final Map<String, ParentIdFieldMapper> parentIdFields = new HashMap<>();
-            relations.get().stream()
+            relations.get()
+                .stream()
                 .map(relation -> new ParentIdFieldMapper(name + "#" + relation.parent, eagerGlobalOrdinals.get()))
                 .forEach(mapper -> parentIdFields.put(mapper.name(), mapper));
             Joiner joiner = new Joiner(name(), relations.get());
-            return new ParentJoinFieldMapper(name, new JoinFieldType(context.buildFullName(name), joiner, meta.get()),
-                Collections.unmodifiableMap(parentIdFields), eagerGlobalOrdinals.get(), relations.get());
+            return new ParentJoinFieldMapper(
+                name,
+                new JoinFieldType(context.buildFullName(name), joiner, meta.get()),
+                Collections.unmodifiableMap(parentIdFields),
+                eagerGlobalOrdinals.get(),
+                relations.get()
+            );
         }
     }
 
@@ -182,10 +196,13 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     private final boolean eagerGlobalOrdinals;
     private final List<Relations> relations;
 
-    protected ParentJoinFieldMapper(String simpleName,
-                                    MappedFieldType mappedFieldType,
-                                    Map<String, ParentIdFieldMapper> parentIdFields,
-                                    boolean eagerGlobalOrdinals, List<Relations> relations) {
+    protected ParentJoinFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        Map<String, ParentIdFieldMapper> parentIdFields,
+        boolean eagerGlobalOrdinals,
+        List<Relations> relations
+    ) {
         super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, MultiFields.empty(), CopyTo.empty());
         this.parentIdFields = parentIdFields;
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
@@ -244,7 +261,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             name = context.parser().text();
             parent = null;
         } else {
-            throw new IllegalStateException("[" + name()  + "] expected START_OBJECT or VALUE_STRING but was: " + token);
+            throw new IllegalStateException("[" + name() + "] expected START_OBJECT or VALUE_STRING but was: " + token);
         }
 
         if (name == null) {
@@ -300,8 +317,12 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     @Override
     protected void doValidate(MappingLookup mappingLookup) {
-        List<String> joinFields = mappingLookup.getMatchingFieldNames("*").stream().map(mappingLookup::getFieldType)
-            .filter(ft -> ft instanceof JoinFieldType).map(MappedFieldType::name).collect(Collectors.toList());
+        List<String> joinFields = mappingLookup.getMatchingFieldNames("*")
+            .stream()
+            .map(mappingLookup::getFieldType)
+            .filter(ft -> ft instanceof JoinFieldType)
+            .map(MappedFieldType::name)
+            .collect(Collectors.toList());
         if (joinFields.size() > 1) {
             throw new IllegalArgumentException("Only one [parent-join] field can be defined per index, got " + joinFields);
         }

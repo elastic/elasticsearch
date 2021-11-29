@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -66,32 +67,8 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         Client client,
         Settings settings
     ) {
-        this(
-            UpgradeTransformsAction.NAME,
-            transportService,
-            actionFilters,
-            clusterService,
-            threadPool,
-            indexNameExpressionResolver,
-            transformServices,
-            client,
-            settings
-        );
-    }
-
-    protected TransportUpgradeTransformsAction(
-        String name,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        ClusterService clusterService,
-        ThreadPool threadPool,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        TransformServices transformServices,
-        Client client,
-        Settings settings
-    ) {
         super(
-            name,
+            UpgradeTransformsAction.NAME,
             transportService,
             clusterService,
             threadPool,
@@ -157,7 +134,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         final ClusterState clusterState = clusterService.state();
 
         transformConfigManager.getTransformConfigurationForUpdate(id, ActionListener.wrap(configAndVersion -> {
-            TransformConfigUpdate update = new TransformConfigUpdate(null, null, null, null, null, null, null, null);
+            TransformConfigUpdate update = TransformConfigUpdate.EMPTY;
             TransformConfig config = configAndVersion.v1();
 
             /*
@@ -190,7 +167,14 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 timeout,
                 listener
             );
-        }, listener::onFailure));
+        }, failure -> {
+            // ignore if transform got deleted while upgrade was running
+            if (failure instanceof ResourceNotFoundException) {
+                listener.onResponse(new UpdateResult(null, UpdateResult.Status.DELETED));
+            } else {
+                listener.onFailure(failure);
+            }
+        }));
     }
 
     private void recursiveUpdate(
@@ -209,11 +193,11 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
         }
 
         updateOneTransform(next, dryRun, timeout, ActionListener.wrap(updateResponse -> {
-            TransformConfig updatedConfig = updateResponse.getConfig();
-            auditor.info(updatedConfig.getId(), "Updated transform.");
-            logger.debug("[{}] Updated transform [{}]", updatedConfig.getId(), updateResponse.getStatus());
-            updatesByStatus.compute(updateResponse.getStatus(), (k, v) -> (v == null) ? 1 : v + 1L);
-
+            if (UpdateResult.Status.DELETED.equals(updateResponse.getStatus()) == false) {
+                auditor.info(next, "Updated transform.");
+                logger.debug("[{}] Updated transform [{}]", next, updateResponse.getStatus());
+                updatesByStatus.compute(updateResponse.getStatus(), (k, v) -> (v == null) ? 1 : v + 1L);
+            }
             if (transformsToUpgrade.isEmpty() == false) {
                 recursiveUpdate(transformsToUpgrade, updatesByStatus, dryRun, timeout, listener);
             } else {

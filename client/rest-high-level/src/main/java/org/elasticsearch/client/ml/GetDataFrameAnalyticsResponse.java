@@ -9,8 +9,8 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.List;
@@ -23,11 +23,11 @@ public class GetDataFrameAnalyticsResponse {
     public static final ParseField DATA_FRAME_ANALYTICS = new ParseField("data_frame_analytics");
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<GetDataFrameAnalyticsResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "get_data_frame_analytics",
-            true,
-            args -> new GetDataFrameAnalyticsResponse((List<DataFrameAnalyticsConfig>) args[0]));
+    static final ConstructingObjectParser<GetDataFrameAnalyticsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_data_frame_analytics",
+        true,
+        args -> new GetDataFrameAnalyticsResponse((List<DataFrameAnalyticsConfig>) args[0])
+    );
 
     static {
         PARSER.declareObjectArray(constructorArg(), (p, c) -> DataFrameAnalyticsConfig.fromXContent(p), DATA_FRAME_ANALYTICS);

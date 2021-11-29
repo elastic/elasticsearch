@@ -64,7 +64,6 @@ public class ToStringFunctionProcessor implements Processor {
         return Objects.hash(input());
     }
 
-
     @Override
     public String getWriteableName() {
         return NAME;

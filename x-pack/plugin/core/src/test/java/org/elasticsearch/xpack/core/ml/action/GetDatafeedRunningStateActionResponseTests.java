@@ -23,9 +23,11 @@ public class GetDatafeedRunningStateActionResponseTests extends AbstractWireSeri
     @Override
     protected Response createTestInstance() {
         int listSize = randomInt(10);
-        return new Response(Stream.generate(() -> randomAlphaOfLength(10))
-            .limit(listSize)
-            .collect(Collectors.toMap(Function.identity(), _unused -> randomRunningState())));
+        return new Response(
+            Stream.generate(() -> randomAlphaOfLength(10))
+                .limit(listSize)
+                .collect(Collectors.toMap(Function.identity(), _unused -> randomRunningState()))
+        );
     }
 
     @Override

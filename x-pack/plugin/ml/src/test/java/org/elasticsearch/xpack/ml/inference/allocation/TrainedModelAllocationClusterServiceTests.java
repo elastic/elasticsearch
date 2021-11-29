@@ -98,7 +98,8 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                         TrainedModelAllocationMetadata.Builder.empty()
                             .addNewAllocation(
                                 modelId,
-                                TrainedModelAllocation.Builder.empty(newParams(modelId, 10_000L)).addNewRoutingEntry(nodeId)
+                                TrainedModelAllocation.Builder.empty(newParams(modelId, 10_000L))
+                                    .addNewRoutingEntry(nodeId)
                                     .addNewRoutingEntry(startedNode)
                             )
                             .build()
@@ -227,10 +228,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         ClusterState clusterStateWithAllocations = ClusterState.builder(new ClusterName("testRemoveAllAllocations"))
             .metadata(
                 Metadata.builder()
-                    .putCustom(
-                        TrainedModelAllocationMetadata.NAME,
-                        TrainedModelAllocationMetadataTests.randomInstance()
-                    )
+                    .putCustom(TrainedModelAllocationMetadata.NAME, TrainedModelAllocationMetadataTests.randomInstance())
                     .build()
             )
             .build();
@@ -261,10 +259,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         assertThat(createdAllocation.getNodeRoutingTable(), hasKey("ml-node-with-room"));
         assertThat(createdAllocation.getNodeRoutingTable().get("ml-node-with-room").getState(), equalTo(RoutingState.STARTING));
         assertThat(createdAllocation.getReason().isPresent(), is(true));
-        assertThat(
-            createdAllocation.getReason().get(),
-            containsString("Not allocating on node [ml-node-without-room]")
-        );
+        assertThat(createdAllocation.getReason().get(), containsString("Not allocating on node [ml-node-without-room]"));
         assertThat(createdAllocation.getAllocationState(), equalTo(AllocationState.STARTING));
 
         expectThrows(
@@ -275,11 +270,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
 
     public void testCreateAllocationWhileResetModeIsTrue() {
         ClusterState currentState = ClusterState.builder(new ClusterName("testCreateAllocation"))
-            .nodes(
-                DiscoveryNodes.builder()
-                    .add(buildNode("ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes()))
-                    .build()
-            )
+            .nodes(DiscoveryNodes.builder().add(buildNode("ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes())).build())
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build()))
             .build();
         TrainedModelAllocationClusterService trainedModelAllocationClusterService = createClusterService();
@@ -289,11 +280,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         );
 
         ClusterState stateWithoutReset = ClusterState.builder(new ClusterName("testCreateAllocation"))
-            .nodes(
-                DiscoveryNodes.builder()
-                    .add(buildNode("ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes()))
-                    .build()
-            )
+            .nodes(DiscoveryNodes.builder().add(buildNode("ml-node-with-room", true, ByteSizeValue.ofGb(4).getBytes())).build())
             .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(false).build()))
             .build();
         // Shouldn't throw
@@ -340,10 +327,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         TrainedModelAllocationClusterService trainedModelAllocationClusterService = createClusterService();
 
         // Stopping shouldn't cause any updates
-        assertThatStoppingAllocationPreventsMutation(
-            trainedModelAllocationClusterService::addRemoveAllocationNodes,
-            currentState
-        );
+        assertThatStoppingAllocationPreventsMutation(trainedModelAllocationClusterService::addRemoveAllocationNodes, currentState);
 
         ClusterState modified = trainedModelAllocationClusterService.addRemoveAllocationNodes(currentState);
         TrainedModelAllocationMetadata trainedModelAllocationMetadata = TrainedModelAllocationMetadata.fromState(modified);
@@ -357,10 +341,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         );
         assertNodeState(trainedModelAllocationMetadata, "model-1", "ml-node-with-room", RoutingState.STARTED);
         assertNodeState(trainedModelAllocationMetadata, "model-1", "new-ml-node-with-room", RoutingState.STARTING);
-        assertThat(
-            trainedModelAllocationMetadata.modelAllocations().get("model-1").getAllocationState(),
-            equalTo(AllocationState.STARTED)
-        );
+        assertThat(trainedModelAllocationMetadata.modelAllocations().get("model-1").getAllocationState(), equalTo(AllocationState.STARTED));
 
         assertThat(trainedModelAllocationMetadata.getModelAllocation("model-2").getNodeRoutingTable().keySet(), hasSize(2));
         assertThat(
@@ -406,7 +387,8 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                                 "model-2",
                                 TrainedModelAllocation.Builder.empty(newParams("model-2", ByteSizeValue.ofGb(1).getBytes()))
                                     .addNewRoutingEntry("ml-node-with-room")
-                            ).addNewAllocation(
+                            )
+                            .addNewAllocation(
                                 "model-3",
                                 TrainedModelAllocation.Builder.empty(newParams("model-3", ByteSizeValue.ofGb(1).getBytes()))
                             )
@@ -421,21 +403,12 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         assertThat(trainedModelAllocationMetadata.modelAllocations(), allOf(hasKey("model-1"), hasKey("model-2"), hasKey("model-3")));
 
         assertThat(trainedModelAllocationMetadata.getModelAllocation("model-1").getNodeRoutingTable().keySet(), hasSize(1));
-        assertThat(
-            trainedModelAllocationMetadata.getModelAllocation("model-1").getNodeRoutingTable(),
-            allOf(hasKey("ml-node-with-room"))
-        );
+        assertThat(trainedModelAllocationMetadata.getModelAllocation("model-1").getNodeRoutingTable(), allOf(hasKey("ml-node-with-room")));
         assertNodeState(trainedModelAllocationMetadata, "model-1", "ml-node-with-room", RoutingState.STARTED);
-        assertThat(
-            trainedModelAllocationMetadata.modelAllocations().get("model-1").getAllocationState(),
-            equalTo(AllocationState.STARTED)
-        );
+        assertThat(trainedModelAllocationMetadata.modelAllocations().get("model-1").getAllocationState(), equalTo(AllocationState.STARTED));
 
         assertThat(trainedModelAllocationMetadata.getModelAllocation("model-2").getNodeRoutingTable().keySet(), hasSize(1));
-        assertThat(
-            trainedModelAllocationMetadata.getModelAllocation("model-2").getNodeRoutingTable(),
-            allOf(hasKey("ml-node-with-room"))
-        );
+        assertThat(trainedModelAllocationMetadata.getModelAllocation("model-2").getNodeRoutingTable(), allOf(hasKey("ml-node-with-room")));
         assertNodeState(trainedModelAllocationMetadata, "model-2", "ml-node-with-room", RoutingState.STARTING);
         assertThat(
             trainedModelAllocationMetadata.modelAllocations().get("model-2").getAllocationState(),
@@ -482,10 +455,7 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
                             )
                             .build()
                     )
-                    .putCustom(
-                        PersistentTasksCustomMetadata.TYPE,
-                        persistentTasks
-                    )
+                    .putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks)
             )
             .build();
         TrainedModelAllocationClusterService trainedModelAllocationClusterService = createClusterService();
@@ -495,15 +465,24 @@ public class TrainedModelAllocationClusterServiceTests extends ESTestCase {
         assertThat(trainedModelAllocationMetadata.modelAllocations().keySet(), contains("model-1"));
 
         assertThat(trainedModelAllocationMetadata.getModelAllocation("model-1").getNodeRoutingTable().keySet(), hasSize(1));
-        assertThat(trainedModelAllocationMetadata.getModelAllocation("model-1").getNodeRoutingTable().keySet(),
-            contains("ml-node-no-load"));
-        assertThat(trainedModelAllocationMetadata.getModelAllocation("model-1").getNodeRoutingTable().get("ml-node-no-load").getState(),
-            equalTo(RoutingState.STARTED));
+        assertThat(
+            trainedModelAllocationMetadata.getModelAllocation("model-1").getNodeRoutingTable().keySet(),
+            contains("ml-node-no-load")
+        );
+        assertThat(
+            trainedModelAllocationMetadata.getModelAllocation("model-1").getNodeRoutingTable().get("ml-node-no-load").getState(),
+            equalTo(RoutingState.STARTED)
+        );
 
         TrainedModelAllocation allocation = trainedModelAllocationMetadata.getModelAllocation("model-1");
-        assertThat(allocation.getReason().get(), equalTo("Not allocating on node [ml-node-full-load]." +
-            " Reason: This node is full. Number of opened jobs and allocated native inference processes [512], " +
-            "xpack.ml.max_open_jobs [512]."));
+        assertThat(
+            allocation.getReason().get(),
+            equalTo(
+                "Not allocating on node [ml-node-full-load]."
+                    + " Reason: This node is full. Number of opened jobs and allocated native inference processes [512], "
+                    + "xpack.ml.max_open_jobs [512]."
+            )
+        );
     }
 
     public void testShouldAllocateModels() {

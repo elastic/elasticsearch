@@ -46,8 +46,8 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
 
         general = null;
         int size = in.readInt();
-        Map<String,ScriptStats> context = new HashMap<>(size);
-        for (int i=0; i < size; i++) {
+        Map<String, ScriptStats> context = new HashMap<>(size);
+        for (int i = 0; i < size; i++) {
             String name = in.readString();
             context.put(name, new ScriptStats(in));
         }
@@ -64,7 +64,7 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
 
         out.writeBoolean(true);
         out.writeInt(context.size());
-        for (String name: context.keySet().stream().sorted().collect(Collectors.toList())) {
+        for (String name : context.keySet().stream().sorted().collect(Collectors.toList())) {
             out.writeString(name);
             context.get(name).writeTo(out);
         }
@@ -89,7 +89,7 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
         builder.endObject();
 
         builder.startArray(Fields.CONTEXTS);
-        for (String name: context.keySet().stream().sorted().collect(Collectors.toList())) {
+        for (String name : context.keySet().stream().sorted().collect(Collectors.toList())) {
             ScriptStats stats = context.get(name);
             builder.startObject();
             builder.field(Fields.CONTEXT, name);
@@ -128,16 +128,12 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
         long compilations = 0;
         long cacheEvictions = 0;
         long compilationLimitTriggered = 0;
-        for (ScriptStats stat: context.values()) {
+        for (ScriptStats stat : context.values()) {
             compilations += stat.getCompilations();
             cacheEvictions += stat.getCacheEvictions();
             compilationLimitTriggered += stat.getCompilationLimitTriggered();
         }
-        return new ScriptStats(
-            compilations,
-            cacheEvictions,
-            compilationLimitTriggered
-        );
+        return new ScriptStats(compilations, cacheEvictions, compilationLimitTriggered, null, null);
     }
 
     static final class Fields {

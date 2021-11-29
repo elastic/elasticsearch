@@ -13,17 +13,15 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
-
 
 /**
  * Specialization of {@link LeafNumericFieldData} for floating-point numerics.
@@ -42,11 +40,6 @@ public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public final DocValuesField getScriptField(String name) {
-        return new DelegateDocValuesField(new ScriptDocValues.Doubles(getDoubleValues()), name);
-    }
-
-    @Override
     public final SortedBinaryDocValues getBytesValues() {
         return FieldData.toString(getDoubleValues());
     }
@@ -56,7 +49,7 @@ public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
         return FieldData.castToLong(getDoubleValues());
     }
 
-    public static LeafNumericFieldData empty(final int maxDoc) {
+    public static LeafNumericFieldData empty(final int maxDoc, ToScriptField<SortedNumericDoubleValues> toScriptField) {
         return new LeafDoubleFieldData(0) {
 
             @Override
@@ -65,10 +58,14 @@ public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
             }
 
             @Override
+            public DocValuesField<?> getScriptField(String name) {
+                return toScriptField.getScriptField(getDoubleValues(), name);
+            }
+
+            @Override
             public Collection<Accountable> getChildResources() {
                 return Collections.emptyList();
             }
-
         };
     }
 
@@ -94,7 +91,6 @@ public abstract class LeafDoubleFieldData implements LeafNumericFieldData {
     }
 
     @Override
-    public void close() {
-    }
+    public void close() {}
 
 }

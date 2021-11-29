@@ -19,9 +19,9 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -102,11 +102,7 @@ public final class DatabaseNodeService implements Closeable {
         );
     }
 
-    DatabaseNodeService(Path tmpDir,
-                        Client client,
-                        GeoIpCache cache,
-                        ConfigDatabases configDatabases,
-                        Consumer<Runnable> genericExecutor) {
+    DatabaseNodeService(Path tmpDir, Client client, GeoIpCache cache, ConfigDatabases configDatabases, Consumer<Runnable> genericExecutor) {
         this.client = client;
         this.cache = cache;
         this.geoipTmpBaseDirectory = tmpDir.resolve("geoip-databases");
@@ -114,7 +110,7 @@ public final class DatabaseNodeService implements Closeable {
         this.genericExecutor = genericExecutor;
     }
 
-    public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestService) throws IOException {
+    public void initialize(String nodeId, ResourceWatcherService resourceWatcher, IngestService ingestServiceArg) throws IOException {
         configDatabases.initialize(resourceWatcher);
         geoipTmpDirectory = geoipTmpBaseDirectory.resolve(nodeId);
         Files.walkFileTree(geoipTmpDirectory, new FileVisitor<>() {
@@ -151,16 +147,15 @@ public final class DatabaseNodeService implements Closeable {
             Files.createDirectories(geoipTmpDirectory);
         }
         LOGGER.info("initialized database registry, using geoip-databases directory [{}]", geoipTmpDirectory);
-        ingestService.addIngestClusterStateListener(this::checkDatabases);
-        this.ingestService = ingestService;
+        ingestServiceArg.addIngestClusterStateListener(this::checkDatabases);
+        this.ingestService = ingestServiceArg;
     }
 
     public DatabaseReaderLazyLoader getDatabase(String name) {
         // There is a need for reference counting in order to avoid using an instance
         // that gets closed while using it. (this can happen during a database update)
         while (true) {
-            DatabaseReaderLazyLoader instance =
-                databases.getOrDefault(name, configDatabases.getDatabase(name));
+            DatabaseReaderLazyLoader instance = databases.getOrDefault(name, configDatabases.getDatabase(name));
             if (instance == null || instance.preLookup()) {
                 return instance;
             }
@@ -201,36 +196,40 @@ public final class DatabaseNodeService implements Closeable {
             return;
         }
 
-        PersistentTasksCustomMetadata.PersistentTask<?> task =
-            PersistentTasksCustomMetadata.getTaskWithId(state, GeoIpDownloader.GEOIP_DOWNLOADER);
+        PersistentTasksCustomMetadata.PersistentTask<?> task = PersistentTasksCustomMetadata.getTaskWithId(
+            state,
+            GeoIpDownloader.GEOIP_DOWNLOADER
+        );
         // Empty state will purge stale entries in databases map.
         GeoIpTaskState taskState = task == null || task.getState() == null ? GeoIpTaskState.EMPTY : (GeoIpTaskState) task.getState();
 
-        taskState.getDatabases().entrySet().stream()
-            .filter(e -> e.getValue().isValid(state.getMetadata().settings()))
-            .forEach(e -> {
-                String name = e.getKey();
-                GeoIpTaskState.Metadata metadata = e.getValue();
-                DatabaseReaderLazyLoader reference = databases.get(name);
-                String remoteMd5 = metadata.getMd5();
-                String localMd5 = reference != null ? reference.getMd5() : null;
-                if (Objects.equals(localMd5, remoteMd5)) {
-                    LOGGER.debug("Current reference of [{}] is up to date [{}] with was recorded in CS [{}]", name, localMd5, remoteMd5);
-                    return;
-                }
+        taskState.getDatabases().entrySet().stream().filter(e -> e.getValue().isValid(state.getMetadata().settings())).forEach(e -> {
+            String name = e.getKey();
+            GeoIpTaskState.Metadata metadata = e.getValue();
+            DatabaseReaderLazyLoader reference = databases.get(name);
+            String remoteMd5 = metadata.getMd5();
+            String localMd5 = reference != null ? reference.getMd5() : null;
+            if (Objects.equals(localMd5, remoteMd5)) {
+                LOGGER.debug("Current reference of [{}] is up to date [{}] with was recorded in CS [{}]", name, localMd5, remoteMd5);
+                return;
+            }
 
-                try {
-                    retrieveAndUpdateDatabase(name, metadata);
-                } catch (Exception ex) {
-                    LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("attempt to download database [{}] failed", name), ex);
-                }
-            });
+            try {
+                retrieveAndUpdateDatabase(name, metadata);
+            } catch (Exception ex) {
+                LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("attempt to download database [{}] failed", name), ex);
+            }
+        });
 
         List<String> staleEntries = new ArrayList<>(databases.keySet());
-        staleEntries.removeAll(taskState.getDatabases().entrySet().stream()
-            .filter(e->e.getValue().isValid(state.getMetadata().settings()))
-            .map(Map.Entry::getKey)
-            .collect(Collectors.toSet()));
+        staleEntries.removeAll(
+            taskState.getDatabases()
+                .entrySet()
+                .stream()
+                .filter(e -> e.getValue().isValid(state.getMetadata().settings()))
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet())
+        );
         removeStaleEntries(staleEntries);
     }
 
@@ -274,11 +273,14 @@ public final class DatabaseNodeService implements Closeable {
                 Path databaseFile = geoipTmpDirectory.resolve(databaseName);
                 // tarball contains <database_name>.mmdb, LICENSE.txt, COPYRIGHTS.txt and optional README.txt files.
                 // we store mmdb file as is and prepend database name to all other entries to avoid conflicts
-                try (TarInputStream is =
-                         new TarInputStream(new GZIPInputStream(new BufferedInputStream(Files.newInputStream(databaseTmpGzFile)), 8192))) {
+                try (
+                    TarInputStream is = new TarInputStream(
+                        new GZIPInputStream(new BufferedInputStream(Files.newInputStream(databaseTmpGzFile)), 8192)
+                    )
+                ) {
                     TarInputStream.TarEntry entry;
                     while ((entry = is.getNextEntry()) != null) {
-                        //there might be ./ entry in tar, we should skip it
+                        // there might be ./ entry in tar, we should skip it
                         if (entry.isNotFile()) {
                             continue;
                         }
@@ -306,7 +308,8 @@ public final class DatabaseNodeService implements Closeable {
                     ioe.addSuppressed(failure);
                     LOGGER.error("Unable to delete tmp database file after failure", ioe);
                 }
-            });
+            }
+        );
     }
 
     void updateDatabase(String databaseFileName, String recordedMd5, Path file) {
@@ -321,16 +324,28 @@ public final class DatabaseNodeService implements Closeable {
                 Predicate<GeoIpProcessor.DatabaseUnavailableProcessor> predicate = p -> databaseFileName.equals(p.getDatabaseName());
                 var ids = ingestService.getPipelineWithProcessorType(GeoIpProcessor.DatabaseUnavailableProcessor.class, predicate);
                 if (ids.isEmpty() == false) {
+                    LOGGER.debug("pipelines [{}] found to reload", ids);
                     for (var id : ids) {
                         try {
                             ingestService.reloadPipeline(id);
-                            LOGGER.debug("successfully reloaded pipeline [{}] after downloading of database [{}] for the first time",
-                                id, databaseFileName);
+                            LOGGER.trace(
+                                "successfully reloaded pipeline [{}] after downloading of database [{}] for the first time",
+                                id,
+                                databaseFileName
+                            );
                         } catch (Exception e) {
-                            LOGGER.debug((Supplier<?>) () -> new ParameterizedMessage(
-                                "failed to reload pipeline [{}] after downloading of database [{}]", id, databaseFileName), e);
+                            LOGGER.debug(
+                                (Supplier<?>) () -> new ParameterizedMessage(
+                                    "failed to reload pipeline [{}] after downloading of database [{}]",
+                                    id,
+                                    databaseFileName
+                                ),
+                                e
+                            );
                         }
                     }
+                } else {
+                    LOGGER.debug("no pipelines found to reload");
                 }
             }
             LOGGER.info("successfully reloaded changed geoip database file [{}]", file);
@@ -352,12 +367,14 @@ public final class DatabaseNodeService implements Closeable {
         }
     }
 
-    void retrieveDatabase(String databaseName,
-                          String expectedMd5,
-                          GeoIpTaskState.Metadata metadata,
-                          CheckedConsumer<byte[], IOException> chunkConsumer,
-                          CheckedRunnable<Exception> completedHandler,
-                          Consumer<Exception> failureHandler) {
+    void retrieveDatabase(
+        String databaseName,
+        String expectedMd5,
+        GeoIpTaskState.Metadata metadata,
+        CheckedConsumer<byte[], IOException> chunkConsumer,
+        CheckedRunnable<Exception> completedHandler,
+        Consumer<Exception> failureHandler
+    ) {
         // Need to run the search from a different thread, since this is executed from cluster state applier thread:
         genericExecutor.accept(() -> {
             MessageDigest md = MessageDigests.md5();
@@ -390,8 +407,9 @@ public final class DatabaseNodeService implements Closeable {
                 if (Objects.equals(expectedMd5, actualMd5)) {
                     completedHandler.run();
                 } else {
-                    failureHandler.accept(new RuntimeException("expected md5 hash [" + expectedMd5 +
-                        "], but got md5 hash [" + actualMd5 + "]"));
+                    failureHandler.accept(
+                        new RuntimeException("expected md5 hash [" + expectedMd5 + "], but got md5 hash [" + actualMd5 + "]")
+                    );
                 }
             } catch (Exception e) {
                 failureHandler.accept(e);

@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -28,8 +28,16 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public final class HasPrivilegesResponse {
 
     private static final ConstructingObjectParser<HasPrivilegesResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "has_privileges_response", true, args -> new HasPrivilegesResponse(
-        (String) args[0], (Boolean) args[1], checkMap(args[2], 0), checkMap(args[3], 1), checkMap(args[4], 2)));
+        "has_privileges_response",
+        true,
+        args -> new HasPrivilegesResponse(
+            (String) args[0],
+            (Boolean) args[1],
+            checkMap(args[2], 0),
+            checkMap(args[3], 1),
+            checkMap(args[4], 2)
+        )
+    );
 
     static {
         PARSER.declareString(constructorArg(), new ParseField("username"));
@@ -44,11 +52,10 @@ public final class HasPrivilegesResponse {
         if (argument instanceof Map) {
             Map<String, T> map = (Map<String, T>) argument;
             if (depth == 0) {
-                map.values().stream()
+                map.values()
+                    .stream()
                     .filter(val -> (val instanceof Boolean) == false)
-                    .forEach(val -> {
-                        throw new IllegalArgumentException("Map value [" + val + "] in [" + map + "] is not a Boolean");
-                    });
+                    .forEach(val -> { throw new IllegalArgumentException("Map value [" + val + "] in [" + map + "] is not a Boolean"); });
             } else {
                 map.values().stream().forEach(val -> checkMap(val, depth - 1));
             }
@@ -67,10 +74,13 @@ public final class HasPrivilegesResponse {
     private final Map<String, Map<String, Boolean>> indexPrivileges;
     private final Map<String, Map<String, Map<String, Boolean>>> applicationPrivileges;
 
-    public HasPrivilegesResponse(String username, boolean hasAllRequested,
-                                 Map<String, Boolean> clusterPrivileges,
-                                 Map<String, Map<String, Boolean>> indexPrivileges,
-                                 Map<String, Map<String, Map<String, Boolean>>> applicationPrivileges) {
+    public HasPrivilegesResponse(
+        String username,
+        boolean hasAllRequested,
+        Map<String, Boolean> clusterPrivileges,
+        Map<String, Map<String, Boolean>> indexPrivileges,
+        Map<String, Map<String, Map<String, Boolean>>> applicationPrivileges
+    ) {
         this.username = username;
         this.hasAllRequested = hasAllRequested;
         this.clusterPrivileges = Collections.unmodifiableMap(clusterPrivileges);
@@ -85,7 +95,8 @@ public final class HasPrivilegesResponse {
     }
 
     private static Map<String, Map<String, Map<String, Boolean>>> unmodifiableMap3(
-        final Map<String, Map<String, Map<String, Boolean>>> map) {
+        final Map<String, Map<String, Map<String, Boolean>>> map
+    ) {
         final Map<String, Map<String, Map<String, Boolean>>> copy = new HashMap<>(map);
         copy.replaceAll((k, v) -> unmodifiableMap2(v));
         return Collections.unmodifiableMap(copy);
@@ -138,16 +149,17 @@ public final class HasPrivilegesResponse {
      *                                  {@link HasPrivilegesRequest#getIndexPrivileges() included in the request}.
      */
     public boolean hasIndexPrivilege(String indexName, String privilegeName) {
-        Map<String, Boolean> indexPrivileges = this.indexPrivileges.get(indexName);
-        if (indexPrivileges == null) {
+        Map<String, Boolean> privilegesForIndex = this.indexPrivileges.get(indexName);
+        if (privilegesForIndex == null) {
             throw new IllegalArgumentException("No privileges for index [" + indexName + "] were included in this response");
         }
-        Boolean has = indexPrivileges.get(privilegeName);
-        if (has == null) {
-            throw new IllegalArgumentException("Privilege [" + privilegeName + "] was not included in the response for index ["
-                + indexName + "]");
+        Boolean hasPrivilege = privilegesForIndex.get(privilegeName);
+        if (hasPrivilege == null) {
+            throw new IllegalArgumentException(
+                "Privilege [" + privilegeName + "] was not included in the response for index [" + indexName + "]"
+            );
         }
-        return has;
+        return hasPrivilege;
     }
 
     /**
@@ -171,13 +183,21 @@ public final class HasPrivilegesResponse {
         }
         final Map<String, Boolean> resourcePrivileges = appPrivileges.get(resourceName);
         if (resourcePrivileges == null) {
-            throw new IllegalArgumentException("No privileges for resource [" + resourceName +
-                "] were included in the response for application [" + applicationName + "]");
+            throw new IllegalArgumentException(
+                "No privileges for resource [" + resourceName + "] were included in the response for application [" + applicationName + "]"
+            );
         }
         Boolean has = resourcePrivileges.get(privilegeName);
         if (has == null) {
-            throw new IllegalArgumentException("Privilege [" + privilegeName + "] was not included in the response for application [" +
-                applicationName + "] and resource [" + resourceName + "]");
+            throw new IllegalArgumentException(
+                "Privilege ["
+                    + privilegeName
+                    + "] was not included in the response for application ["
+                    + applicationName
+                    + "] and resource ["
+                    + resourceName
+                    + "]"
+            );
         }
         return has;
     }
@@ -226,11 +246,11 @@ public final class HasPrivilegesResponse {
             return false;
         }
         final HasPrivilegesResponse that = (HasPrivilegesResponse) o;
-        return this.hasAllRequested == that.hasAllRequested &&
-            Objects.equals(this.username, that.username) &&
-            Objects.equals(this.clusterPrivileges, that.clusterPrivileges) &&
-            Objects.equals(this.indexPrivileges, that.indexPrivileges) &&
-            Objects.equals(this.applicationPrivileges, that.applicationPrivileges);
+        return this.hasAllRequested == that.hasAllRequested
+            && Objects.equals(this.username, that.username)
+            && Objects.equals(this.clusterPrivileges, that.clusterPrivileges)
+            && Objects.equals(this.indexPrivileges, that.indexPrivileges)
+            && Objects.equals(this.applicationPrivileges, that.applicationPrivileges);
     }
 
     @Override
@@ -238,4 +258,3 @@ public final class HasPrivilegesResponse {
         return Objects.hash(username, hasAllRequested, clusterPrivileges, indexPrivileges, applicationPrivileges);
     }
 }
-

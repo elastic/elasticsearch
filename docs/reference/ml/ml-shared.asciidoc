@@ -17,7 +17,7 @@ return an error and the job waits in the `opening` state until sufficient {ml}
 node capacity is available.
 end::allow-lazy-open[]
 
-tag::allow-no-datafeeds[]
+tag::allow-no-match-datafeeds[]
 Specifies what to do when the request:
 +
 --
@@ -30,24 +30,24 @@ there are no matches and the subset of results when there are partial matches.
 If this parameter is `false`, the request returns a `404` status code when there
 are no matches or only partial matches.
 --
-end::allow-no-datafeeds[]
+end::allow-no-match-datafeeds[]
 
-tag::allow-no-jobs[]
+tag::allow-no-match-deployments[]
 Specifies what to do when the request:
 +
 --
-* Contains wildcard expressions and there are no jobs that match.
+* Contains wildcard expressions and there are no deployments that match.
 * Contains the `_all` string or no identifiers and there are no matches.
 * Contains wildcard expressions and there are only partial matches.
 
-The default value is `true`, which returns an empty `jobs` array
-when there are no matches and the subset of results when there are partial
-matches. If this parameter is `false`, the request returns a `404` status code
-when there are no matches or only partial matches.
+The default value is `true`, which returns an empty array when there are no
+matches and the subset of results when there are partial matches. If this
+parameter is `false`, the request returns a `404` status code when there are no
+matches or only partial matches.
 --
-end::allow-no-jobs[]
+end::allow-no-match-deployments[]
 
-tag::allow-no-match[]
+tag::allow-no-match-dfa-jobs[]
  Specifies what to do when the request:
 +
 --
@@ -60,7 +60,22 @@ when there are no matches and the subset of results when there are partial
 matches. If this parameter is `false`, the request returns a `404` status code
 when there are no matches or only partial matches.
 --
-end::allow-no-match[]
+end::allow-no-match-dfa-jobs[]
+
+tag::allow-no-match-jobs[]
+Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no jobs that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches.
+
+The default value is `true`, which returns an empty `jobs` array
+when there are no matches and the subset of results when there are partial
+matches. If this parameter is `false`, the request returns a `404` status code
+when there are no matches or only partial matches.
+--
+end::allow-no-match-jobs[]
 
 tag::allow-no-match-models[]
 Specifies what to do when the request:
@@ -109,19 +124,19 @@ Contains messages relating to the selection of a node.
 end::assignment-explanation-dfanalytics[]
 
 tag::assignment-memory-basis[]
-Where should the memory requirement used for deciding which node the job
-will run on come from? The possible values are:
+Indicates where to find the memory requirement that is used to decide where the
+job runs. The possible values are:
 +
 --
-* `model_memory_limit`: The job's memory requirement will be calculated on
-the basis that its model memory will grow to the `model_memory_limit`
-specified in the `analysis_limits` of its config.
-* `current_model_bytes`: The job's memory requirement will be calculated on
-the basis that its current model memory size is a good reflection of what
-it will be in the future.
-* `peak_model_bytes`: The job's memory requirement will be calculated on
-the basis that its peak model memory size is a good reflection of what
-the model size will be in the future.
+* `model_memory_limit`: The job's memory requirement is calculated on the basis
+that its model memory will grow to the `model_memory_limit` specified in the
+`analysis_limits` of its config.
+* `current_model_bytes`: The job's memory requirement is calculated on the basis
+that its current model memory size is a good reflection of what it will be in
+the future.
+* `peak_model_bytes`: The job's memory requirement is calculated on the basis
+that its peak model memory size is a good reflection of what the model size will
+be in the future.
 --
 end::assignment-memory-basis[]
 
@@ -897,7 +912,7 @@ end::inference-config-classification-num-top-classes[]
 
 tag::inference-config-classification-num-top-feature-importance-values[]
 Specifies the maximum number of
-{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document. Defaults 
+{ml-docs}/ml-feature-importance.html[{feat-imp}] values per document. Defaults
 to 0 which means no {feat-imp} calculation occurs.
 end::inference-config-classification-num-top-feature-importance-values[]
 
@@ -908,7 +923,7 @@ end::inference-config-classification-top-classes-results-field[]
 
 tag::inference-config-classification-prediction-field-type[]
 Specifies the type of the predicted field to write.
-Valid values are: `string`, `number`, `boolean`. When `boolean` is provided 
+Valid values are: `string`, `number`, `boolean`. When `boolean` is provided
 `1.0` is transformed to `true` and `0.0` to `false`.
 end::inference-config-classification-prediction-field-type[]
 
@@ -921,9 +936,25 @@ BERT-style tokenization is to be performed with the enclosed settings.
 end::inference-config-nlp-tokenization-bert[]
 
 tag::inference-config-nlp-tokenization-bert-do-lower-case[]
-Specifies if the tokenization lower case the text sequence when building the 
+Specifies if the tokenization lower case the text sequence when building the
 tokens.
 end::inference-config-nlp-tokenization-bert-do-lower-case[]
+
+tag::inference-config-nlp-tokenization-bert-truncate[]
+Indicates how tokens are truncated when they exceed `max_sequence_length`.
+The default value is `first`.
++
+--
+* `none`: No truncation occurs; the inference request receives an error.
+* `first`: Only the first sequence is truncated.
+* `second`: Only the second sequence is truncated. If there is just one sequence,
+					 that sequence is truncated.
+--
+
+NOTE: For `zero_shot_classification`, the hypothesis sequence is always the second
+sequence. Therefore, do not use `second` in this case.
+
+end::inference-config-nlp-tokenization-bert-truncate[]
 
 tag::inference-config-nlp-tokenization-bert-with-special-tokens[]
 Tokenize with special tokens. The tokens typically included in BERT-style tokenization are:
@@ -935,21 +966,21 @@ Tokenize with special tokens. The tokens typically included in BERT-style tokeni
 end::inference-config-nlp-tokenization-bert-with-special-tokens[]
 
 tag::inference-config-nlp-tokenization-bert-max-sequence-length[]
-Specifies the maximum number of tokens allowed to be output by the tokenizer. 
+Specifies the maximum number of tokens allowed to be output by the tokenizer.
 The default for BERT-style tokenization is `512`.
 end::inference-config-nlp-tokenization-bert-max-sequence-length[]
 
 tag::inference-config-nlp-vocabulary[]
-The configuration for retreiving the vocabulary of the model. The vocabulary is 
-then used at inference time. This information is usually provided automatically 
+The configuration for retreiving the vocabulary of the model. The vocabulary is
+then used at inference time. This information is usually provided automatically
 by storing vocabulary in a known, internally managed index.
 end::inference-config-nlp-vocabulary[]
 
 tag::inference-config-nlp-fill-mask[]
-Configuration for a fill_mask natural language processing (NLP) task. The 
-fill_mask task works with models optimized for a fill mask action. For example, 
-for BERT models, the following text may be provided: "The capital of France is 
-[MASK].". The response indicates the value most likely to replace `[MASK]`. In 
+Configuration for a fill_mask natural language processing (NLP) task. The
+fill_mask task works with models optimized for a fill mask action. For example,
+for BERT models, the following text may be provided: "The capital of France is
+[MASK].". The response indicates the value most likely to replace `[MASK]`. In
 this instance, the most probable token is `paris`.
 end::inference-config-nlp-fill-mask[]
 
@@ -977,7 +1008,7 @@ end::inference-config-text-classification[]
 tag::inference-config-text-embedding[]
 Text embedding takes an input sequence and transforms it into a vector of
 numbers. These embeddings capture not simply tokens, but semantic meanings and
-context. These embeddings can be used in a <<dense-vector,dense vector>> field 
+context. These embeddings can be used in a <<dense-vector,dense vector>> field
 for powerful insights.
 end::inference-config-text-embedding[]
 
@@ -1005,7 +1036,7 @@ it is possible to adjust the labels to classify. This makes this type of model
 and task exceptionally flexible.
 +
 --
-If consistently classifying the same labels, it may be better to use a 
+If consistently classifying the same labels, it may be better to use a
 fine-tuned text classification model.
 --
 end::inference-config-zero-shot-classification[]
@@ -1260,10 +1291,14 @@ analytical processing. Once this limit is approached, data pruning becomes
 more aggressive. Upon exceeding this limit, new entities are not modeled. The
 default value for jobs created in version 6.1 and later is `1024mb`. If the
 `xpack.ml.max_model_memory_limit` setting has a value greater than `0` and less
-than `1024mb`, however, that value is used instead. The default value is
-relatively small to ensure that high resource usage is a conscious decision. If
-you have jobs that are expected to analyze high cardinality fields, you will
-likely need to use a higher value.
+than `1024mb`, however, that value is used instead. If
+`xpack.ml.max_model_memory_limit` is not set, but
+`xpack.ml.use_auto_machine_memory_percent` is set, then the default
+`model_memory_limit` will be set to the largest size that could be assigned in
+the cluster, capped at `1024mb`. The default value is relatively small to
+ensure that high resource usage is a conscious decision. If you have jobs that
+are expected to analyze high cardinality fields, you will likely need to use a
+higher value.
 +
 If you specify a number instead of a string, the units are assumed to be MiB.
 Specifying a string is recommended for clarity. If you specify a byte size unit

@@ -44,7 +44,9 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Service for managing EQL requests
  */
-public class AsyncTaskManagementService<Request extends TaskAwareRequest, Response extends ActionResponse,
+public class AsyncTaskManagementService<
+    Request extends TaskAwareRequest,
+    Response extends ActionResponse,
     T extends StoredAsyncTask<Response>> {
 
     private static final Logger logger = LogManager.getLogger(AsyncTaskManagementService.class);
@@ -57,11 +59,21 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
     private final ClusterService clusterService;
     private final Class<T> taskClass;
 
-    public interface AsyncOperation<Request extends TaskAwareRequest, Response extends ActionResponse,
+    public interface AsyncOperation<
+        Request extends TaskAwareRequest,
+        Response extends ActionResponse,
         T extends CancellableTask & AsyncTask> {
 
-        T createTask(Request request, long id, String type, String action, TaskId parentTaskId, Map<String, String> headers,
-                     Map<String, String> originHeaders, AsyncExecutionId asyncExecutionId);
+        T createTask(
+            Request request,
+            long id,
+            String type,
+            String action,
+            TaskId parentTaskId,
+            Map<String, String> headers,
+            Map<String, String> originHeaders,
+            AsyncExecutionId asyncExecutionId
+        );
 
         void execute(Request request, T task, ActionListener<Response> listener);
 
@@ -97,8 +109,16 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             Map<String, String> originHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
-            return operation.createTask(request, id, type, action, parentTaskId, headers, originHeaders, new AsyncExecutionId(doc,
-                    new TaskId(node, id)));
+            return operation.createTask(
+                request,
+                id,
+                type,
+                action,
+                parentTaskId,
+                headers,
+                originHeaders,
+                new AsyncExecutionId(doc, new TaskId(node, id))
+            );
         }
 
         @Override
@@ -107,30 +127,54 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
         }
     }
 
-    public AsyncTaskManagementService(String index, Client client, String origin, NamedWriteableRegistry registry, TaskManager taskManager,
-                                      String action, AsyncOperation<Request, Response, T> operation, Class<T> taskClass,
-                                      ClusterService clusterService,
-                                      ThreadPool threadPool,
-                                      BigArrays bigArrays) {
+    public AsyncTaskManagementService(
+        String index,
+        Client client,
+        String origin,
+        NamedWriteableRegistry registry,
+        TaskManager taskManager,
+        String action,
+        AsyncOperation<Request, Response, T> operation,
+        Class<T> taskClass,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        BigArrays bigArrays
+    ) {
         this.taskManager = taskManager;
         this.action = action;
         this.operation = operation;
         this.taskClass = taskClass;
-        this.asyncTaskIndexService = new AsyncTaskIndexService<>(index, clusterService, threadPool.getThreadContext(), client,
-            origin, i -> new StoredAsyncResponse<>(operation::readResponse, i), registry, bigArrays);
+        this.asyncTaskIndexService = new AsyncTaskIndexService<>(
+            index,
+            clusterService,
+            threadPool.getThreadContext(),
+            client,
+            origin,
+            i -> new StoredAsyncResponse<>(operation::readResponse, i),
+            registry,
+            bigArrays
+        );
         this.clusterService = clusterService;
         this.threadPool = threadPool;
     }
 
-    public void asyncExecute(Request request, TimeValue waitForCompletionTimeout, TimeValue keepAlive, boolean keepOnCompletion,
-                             ActionListener<Response> listener) {
+    public void asyncExecute(
+        Request request,
+        TimeValue waitForCompletionTimeout,
+        TimeValue keepAlive,
+        boolean keepOnCompletion,
+        ActionListener<Response> listener
+    ) {
         String nodeId = clusterService.localNode().getId();
         @SuppressWarnings("unchecked")
         T searchTask = (T) taskManager.register("transport", action + "[a]", new AsyncRequestWrapper(request, nodeId));
         boolean operationStarted = false;
         try {
-            operation.execute(request, searchTask,
-                wrapStoringListener(searchTask, waitForCompletionTimeout, keepAlive, keepOnCompletion, listener));
+            operation.execute(
+                request,
+                searchTask,
+                wrapStoringListener(searchTask, waitForCompletionTimeout, keepAlive, keepOnCompletion, listener)
+            );
             operationStarted = true;
         } finally {
             // If we didn't start operation for any reason, we need to clean up the task that we have created
@@ -140,11 +184,13 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
         }
     }
 
-    private ActionListener<Response> wrapStoringListener(T searchTask,
-                                                         TimeValue waitForCompletionTimeout,
-                                                         TimeValue keepAlive,
-                                                         boolean keepOnCompletion,
-                                                         ActionListener<Response> listener) {
+    private ActionListener<Response> wrapStoringListener(
+        T searchTask,
+        TimeValue waitForCompletionTimeout,
+        TimeValue keepAlive,
+        boolean keepOnCompletion,
+        ActionListener<Response> listener
+    ) {
         AtomicReference<ActionListener<Response>> exclusiveListener = new AtomicReference<>(listener);
         // This is will performed in case of timeout
         Scheduler.ScheduledCancellable timeoutHandler = threadPool.schedule(() -> {
@@ -160,9 +206,11 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
                 // We finished before timeout
                 timeoutHandler.cancel();
                 if (keepOnCompletion) {
-                    storeResults(searchTask,
+                    storeResults(
+                        searchTask,
                         new StoredAsyncResponse<>(response, threadPool.absoluteTimeInMillis() + keepAlive.getMillis()),
-                        ActionListener.wrap(() -> acquiredListener.onResponse(response)));
+                        ActionListener.wrap(() -> acquiredListener.onResponse(response))
+                    );
                 } else {
                     taskManager.unregister(searchTask);
                     searchTask.onResponse(response);
@@ -178,9 +226,11 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
                 // We finished before timeout
                 timeoutHandler.cancel();
                 if (keepOnCompletion) {
-                    storeResults(searchTask,
+                    storeResults(
+                        searchTask,
                         new StoredAsyncResponse<>(e, threadPool.absoluteTimeInMillis() + keepAlive.getMillis()),
-                        ActionListener.wrap(() -> acquiredListener.onFailure(e)));
+                        ActionListener.wrap(() -> acquiredListener.onFailure(e))
+                    );
                 } else {
                     taskManager.unregister(searchTask);
                     searchTask.onFailure(e);
@@ -199,12 +249,16 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
 
     private void storeResults(T searchTask, StoredAsyncResponse<Response> storedResponse, ActionListener<Void> finalListener) {
         try {
-            asyncTaskIndexService.createResponseForEQL(searchTask.getExecutionId().getDocId(),
-                searchTask.getOriginHeaders(), storedResponse, ActionListener.wrap(
+            asyncTaskIndexService.createResponseForEQL(
+                searchTask.getExecutionId().getDocId(),
+                searchTask.getOriginHeaders(),
+                storedResponse,
+                ActionListener.wrap(
                     // We should only unregister after the result is saved
                     resp -> {
-                        logger.trace(() -> new ParameterizedMessage("stored eql search results for [{}]",
-                            searchTask.getExecutionId().getEncoded()));
+                        logger.trace(
+                            () -> new ParameterizedMessage("stored eql search results for [{}]", searchTask.getExecutionId().getEncoded())
+                        );
                         taskManager.unregister(searchTask);
                         if (storedResponse.getException() != null) {
                             searchTask.onFailure(storedResponse.getException());
@@ -219,20 +273,29 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
                         taskManager.unregister(searchTask);
                         searchTask.onFailure(exc);
                         Throwable cause = ExceptionsHelper.unwrapCause(exc);
-                        if (cause instanceof DocumentMissingException == false &&
-                            cause instanceof VersionConflictEngineException == false) {
-                            logger.error(() -> new ParameterizedMessage("failed to store eql search results for [{}]",
-                                searchTask.getExecutionId().getEncoded()), exc);
+                        if (cause instanceof DocumentMissingException == false
+                            && cause instanceof VersionConflictEngineException == false) {
+                            logger.error(
+                                () -> new ParameterizedMessage(
+                                    "failed to store eql search results for [{}]",
+                                    searchTask.getExecutionId().getEncoded()
+                                ),
+                                exc
+                            );
                         }
                         if (finalListener != null) {
                             finalListener.onFailure(exc);
                         }
-                    }));
+                    }
+                )
+            );
         } catch (Exception exc) {
             taskManager.unregister(searchTask);
             searchTask.onFailure(exc);
-            logger.error(() -> new ParameterizedMessage("failed to store eql search results for [{}]",
-                searchTask.getExecutionId().getEncoded()), exc);
+            logger.error(
+                () -> new ParameterizedMessage("failed to store eql search results for [{}]", searchTask.getExecutionId().getEncoded()),
+                exc
+            );
         }
     }
 
@@ -244,18 +307,27 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
         ThreadPool threadPool,
         Task task,
         ActionListener<StoredAsyncResponse<Response>> listener,
-        TimeValue timeout) {
+        TimeValue timeout
+    ) {
         if (timeout.getMillis() <= 0) {
             getCurrentResult(task, listener);
         } else {
-            task.addCompletionListener(ListenerTimeouts.wrapWithTimeout(threadPool, timeout, ThreadPool.Names.SEARCH, ActionListener.wrap(
-                r -> listener.onResponse(new StoredAsyncResponse<>(r, task.getExpirationTimeMillis())),
-                e -> listener.onResponse(new StoredAsyncResponse<>(e, task.getExpirationTimeMillis()))
-            ), wrapper -> {
-                // Timeout was triggered
-                task.removeCompletionListener(wrapper);
-                getCurrentResult(task, listener);
-            }));
+            task.addCompletionListener(
+                ListenerTimeouts.wrapWithTimeout(
+                    threadPool,
+                    timeout,
+                    ThreadPool.Names.SEARCH,
+                    ActionListener.wrap(
+                        r -> listener.onResponse(new StoredAsyncResponse<>(r, task.getExpirationTimeMillis())),
+                        e -> listener.onResponse(new StoredAsyncResponse<>(e, task.getExpirationTimeMillis()))
+                    ),
+                    wrapper -> {
+                        // Timeout was triggered
+                        task.removeCompletionListener(wrapper);
+                        getCurrentResult(task, listener);
+                    }
+                )
+            );
         }
     }
 

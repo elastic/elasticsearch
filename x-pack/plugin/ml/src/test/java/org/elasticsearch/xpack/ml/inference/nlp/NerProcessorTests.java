@@ -203,10 +203,7 @@ public class NerProcessorTests extends ESTestCase {
         tokens.add(new NerProcessor.NerResultProcessor.TaggedToken("Bob", NerProcessor.IobTag.B_PER, 1.0));
         tokens.add(new NerProcessor.NerResultProcessor.TaggedToken("too", NerProcessor.IobTag.O, 1.0));
 
-        List<NerResults.EntityGroup> entityGroups = NerProcessor.NerResultProcessor.groupTaggedTokens(
-            tokens,
-            "Rita, Sue, and Bob too"
-        );
+        List<NerResults.EntityGroup> entityGroups = NerProcessor.NerResultProcessor.groupTaggedTokens(tokens, "Rita, Sue, and Bob too");
         assertThat(entityGroups, hasSize(3));
         assertThat(entityGroups.get(0).getClassName(), equalTo("PER"));
         assertThat(entityGroups.get(0).getEntity(), equalTo("Rita"));
@@ -239,34 +236,14 @@ public class NerProcessorTests extends ESTestCase {
     public void testAnnotatedTextBuilder() {
         String input = "Alexander, my name is Benjamin Trent, I work at Acme Inc.";
         List<NerResults.EntityGroup> entities = List.of(
-            new NerResults.EntityGroup(
-                "alexander",
-                "PER",
-                0.9963429980065166,
-                0,
-                9
-            ),
-            new NerResults.EntityGroup(
-                "benjamin trent",
-                "PER",
-                0.9972042749283819,
-                22,
-               36
-            ),
-            new NerResults.EntityGroup(
-                "acme inc",
-                "ORG",
-                0.9982026600781208,
-                48,
-               56
-            )
+            new NerResults.EntityGroup("alexander", "PER", 0.9963429980065166, 0, 9),
+            new NerResults.EntityGroup("benjamin trent", "PER", 0.9972042749283819, 22, 36),
+            new NerResults.EntityGroup("acme inc", "ORG", 0.9982026600781208, 48, 56)
         );
         assertThat(
             NerProcessor.buildAnnotatedText(input, entities),
             equalTo(
-                "[Alexander](PER&Alexander), "
-                    + "my name is [Benjamin Trent](PER&Benjamin+Trent), "
-                    + "I work at [Acme Inc](ORG&Acme+Inc)."
+                "[Alexander](PER&Alexander), " + "my name is [Benjamin Trent](PER&Benjamin+Trent), " + "I work at [Acme Inc](ORG&Acme+Inc)."
             )
         );
     }
@@ -282,6 +259,6 @@ public class NerProcessorTests extends ESTestCase {
             .setDoLowerCase(true)
             .setWithSpecialTokens(false)
             .build();
-        return tokenizer.buildTokenizationResult(List.of(tokenizer.tokenize(input)));
+        return tokenizer.buildTokenizationResult(List.of(tokenizer.tokenize(input, Tokenization.Truncate.NONE)));
     }
 }

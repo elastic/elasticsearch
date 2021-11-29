@@ -70,34 +70,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         Client client,
         IngestService ingestService
     ) {
-        this(
-            PutTransformAction.NAME,
-            settings,
-            transportService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver,
-            clusterService,
-            transformServices,
-            client,
-            ingestService
-        );
-    }
-
-    protected TransportPutTransformAction(
-        String name,
-        Settings settings,
-        TransportService transportService,
-        ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterService clusterService,
-        TransformServices transformServices,
-        Client client,
-        IngestService ingestService
-    ) {
         super(
-            name,
+            PutTransformAction.NAME,
             transportService,
             clusterService,
             threadPool,
@@ -135,28 +109,31 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
 
         // <3> Create the transform
         ActionListener<ValidateTransformAction.Response> validateTransformListener = ActionListener.wrap(
-            validationResponse -> {
-                putTransform(request, listener);
-            },
+            validationResponse -> { putTransform(request, listener); },
             listener::onFailure
         );
 
         // <2> Validate source and destination indices
-        ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
-            aVoid -> {
-                client.execute(
-                    ValidateTransformAction.INSTANCE,
-                    new ValidateTransformAction.Request(config, request.isDeferValidation(), request.timeout()),
-                    validateTransformListener
-                );
-            },
-            listener::onFailure
-        );
+        ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(aVoid -> {
+            client.execute(
+                ValidateTransformAction.INSTANCE,
+                new ValidateTransformAction.Request(config, request.isDeferValidation(), request.timeout()),
+                validateTransformListener
+            );
+        }, listener::onFailure);
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
         if (XPackSettings.SECURITY_ENABLED.get(settings) && request.isDeferValidation() == false) {
             TransformPrivilegeChecker.checkPrivileges(
-                "create", securityContext, indexNameExpressionResolver, clusterState, client, config, true, checkPrivilegesListener);
+                "create",
+                securityContext,
+                indexNameExpressionResolver,
+                clusterState,
+                client,
+                config,
+                true,
+                checkPrivilegesListener
+            );
         } else { // No security enabled, just move on
             checkPrivilegesListener.onResponse(null);
         }

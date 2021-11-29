@@ -8,6 +8,7 @@ package org.elasticsearch.smoketest;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -26,11 +27,11 @@ import org.elasticsearch.client.xpack.XPackUsageRequest;
 import org.elasticsearch.client.xpack.XPackUsageResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -146,7 +147,8 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .put(ESRestTestCase.TRUSTSTORE_PATH, keyStore)
-            .put(ESRestTestCase.TRUSTSTORE_PASSWORD, KEYSTORE_PASS).build();
+            .put(ESRestTestCase.TRUSTSTORE_PASSWORD, KEYSTORE_PASS)
+            .build();
     }
 
     @Before
@@ -163,8 +165,8 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
             .put("xpack.monitoring.exporters._http.ssl.certificate_authorities", "testnode.crt")
             .setSecureSettings(secureSettings)
             .build();
-        ClusterUpdateSettingsResponse response = newHighLevelClient().cluster().putSettings(
-            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
+        ClusterUpdateSettingsResponse response = newHighLevelClient().cluster()
+            .putSettings(new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
         assertTrue(response.isAcknowledged());
     }
 
@@ -179,8 +181,8 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
             .putNull("xpack.monitoring.exporters._http.ssl.verification_mode")
             .putNull("xpack.monitoring.exporters._http.ssl.certificate_authorities")
             .build();
-        ClusterUpdateSettingsResponse response = newHighLevelClient().cluster().putSettings(
-            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
+        ClusterUpdateSettingsResponse response = newHighLevelClient().cluster()
+            .putSettings(new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
         assertTrue(response.isAcknowledged());
     }
 

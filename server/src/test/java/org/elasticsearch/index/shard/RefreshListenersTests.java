@@ -17,7 +17,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -87,7 +86,6 @@ public class RefreshListenersTests extends ESTestCase {
     private volatile int maxListeners;
     private ThreadPool threadPool;
     private Store store;
-    private MeanMetric refreshMetric;
 
     @Before
     public void setupListeners() throws Exception {
@@ -95,22 +93,25 @@ public class RefreshListenersTests extends ESTestCase {
         maxListeners = randomIntBetween(2, 1000);
         // Now setup the InternalEngine which is much more complicated because we aren't mocking anything
         threadPool = new TestThreadPool(getTestName());
-        refreshMetric = new MeanMetric();
         listeners = new RefreshListeners(
             () -> maxListeners,
             () -> engine.refresh("too-many-listeners"),
             logger,
             threadPool.getThreadContext(),
-            refreshMetric);
+            new MeanMetric()
+        );
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
         ShardId shardId = new ShardId(new Index("index", "_na_"), 1);
-        String allocationId = UUIDs.randomBase64UUID(random());
         Directory directory = newDirectory();
         store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
         IndexWriterConfig iwc = newIndexWriterConfig();
-        TranslogConfig translogConfig = new TranslogConfig(shardId, createTempDir("translog"), indexSettings,
-            BigArrays.NON_RECYCLING_INSTANCE);
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            createTempDir("translog"),
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE
+        );
         Engine.EventListener eventListener = new Engine.EventListener() {
             @Override
             public void onFailedEngine(String reason, @Nullable Exception e) {
@@ -119,33 +120,38 @@ public class RefreshListenersTests extends ESTestCase {
         };
         store.createEmpty();
         final long primaryTerm = randomNonNegativeLong();
-        final String translogUUID =
-            Translog.createEmptyTranslog(translogConfig.getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm);
+        final String translogUUID = Translog.createEmptyTranslog(
+            translogConfig.getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            primaryTerm
+        );
         store.associateIndexWithNewTranslog(translogUUID);
         EngineConfig config = new EngineConfig(
-                shardId,
-                threadPool,
-                indexSettings,
-                null,
-                store,
-                newMergePolicy(),
-                iwc.getAnalyzer(),
-                iwc.getSimilarity(),
-                new CodecService(null),
-                eventListener,
-                IndexSearcher.getDefaultQueryCache(),
-                IndexSearcher.getDefaultQueryCachingPolicy(),
-                translogConfig,
-                TimeValue.timeValueMinutes(5),
-                Collections.singletonList(listeners),
-                Collections.emptyList(),
-                null,
-                new NoneCircuitBreakerService(),
-                () -> SequenceNumbers.NO_OPS_PERFORMED,
-                () -> RetentionLeases.EMPTY,
-                () -> primaryTerm,
-                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
-                null);
+            shardId,
+            threadPool,
+            indexSettings,
+            null,
+            store,
+            newMergePolicy(),
+            iwc.getAnalyzer(),
+            iwc.getSimilarity(),
+            new CodecService(null),
+            eventListener,
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            translogConfig,
+            TimeValue.timeValueMinutes(5),
+            Collections.singletonList(listeners),
+            Collections.emptyList(),
+            null,
+            new NoneCircuitBreakerService(),
+            () -> SequenceNumbers.NO_OPS_PERFORMED,
+            () -> RetentionLeases.EMPTY,
+            () -> primaryTerm,
+            IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
+            null
+        );
         engine = new InternalEngine(config);
         engine.recoverFromTranslog((e, s) -> 0, Long.MAX_VALUE);
         listeners.setCurrentRefreshLocationSupplier(engine::getTranslogLastWriteLocation);
@@ -320,8 +326,10 @@ public class RefreshListenersTests extends ESTestCase {
         {
             // But adding a location listener to a non-refreshed location will fail
             TestLocationListener listener = new TestLocationListener();
-            Exception e = expectThrows(IllegalStateException.class, () ->
-                listeners.addOrNotify(unrefreshedOperation.getTranslogLocation(), listener));
+            Exception e = expectThrows(
+                IllegalStateException.class,
+                () -> listeners.addOrNotify(unrefreshedOperation.getTranslogLocation(), listener)
+            );
             assertEquals("can't wait for refresh on a closed index", e.getMessage());
             assertNull(listener.forcedRefresh.get());
 
@@ -415,12 +423,19 @@ public class RefreshListenersTests extends ESTestCase {
 
                         Engine.Get get = new Engine.Get(false, false, threadId);
                         MapperService mapperService = EngineTestCase.createMapperService();
-                        try (Engine.GetResult getResult = engine.get(get, mapperService.mappingLookup(), mapperService.documentParser(),
-                            EngineTestCase.randomSearcherWrapper())) {
+                        try (
+                            Engine.GetResult getResult = engine.get(
+                                get,
+                                mapperService.mappingLookup(),
+                                mapperService.documentParser(),
+                                EngineTestCase.randomSearcherWrapper()
+                            )
+                        ) {
                             assertTrue("document not found", getResult.exists());
                             assertEquals(iteration, getResult.version());
-                            org.apache.lucene.document.Document document =
-                                getResult.docIdAndVersion().reader.document(getResult.docIdAndVersion().docId);
+                            org.apache.lucene.document.Document document = getResult.docIdAndVersion().reader.document(
+                                getResult.docIdAndVersion().docId
+                            );
                             assertThat(document.getValues("test"), arrayContaining(testFieldValue));
                         }
                     } catch (Exception t) {
@@ -437,7 +452,6 @@ public class RefreshListenersTests extends ESTestCase {
         refresher.cancel();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79689")
     public void testDisallowAddListeners() throws Exception {
         assertEquals(0, listeners.pendingCount());
         TestLocationListener listener = new TestLocationListener();
@@ -484,8 +498,21 @@ public class RefreshListenersTests extends ESTestCase {
         }
 
         assertFalse(listeners.addOrNotify(index("1").getTranslogLocation(), new TestLocationListener()));
-        assertFalse(listeners.addOrNotify(index("1").getSeqNo(), new TestSeqNoListener()));
-        assertEquals(3, listeners.pendingCount());
+        final int expectedPending;
+        if (listeners.pendingCount() == maxListeners) {
+            // Rejected
+            TestSeqNoListener rejected = new TestSeqNoListener();
+            assertTrue(listeners.addOrNotify(index("1").getSeqNo(), rejected));
+            assertNotNull(rejected.error);
+            expectedPending = 2;
+        } else {
+            TestSeqNoListener acceptedListener = new TestSeqNoListener();
+            assertFalse(listeners.addOrNotify(index("1").getSeqNo(), acceptedListener));
+            assertFalse(acceptedListener.isDone.get());
+            assertNull(acceptedListener.error);
+            expectedPending = 3;
+        }
+        assertEquals(expectedPending, listeners.pendingCount());
     }
 
     public void testSequenceNumberMustBeIssued() throws Exception {
@@ -495,7 +522,10 @@ public class RefreshListenersTests extends ESTestCase {
         assertTrue(listeners.addOrNotify(issued + 1, seqNoListener));
         assertThat(seqNoListener.error, instanceOf(IllegalArgumentException.class));
         String message = "Cannot wait for unissued seqNo checkpoint [wait_for_checkpoint="
-            + (issued + 1) + ", max_issued_seqNo=" + issued + "]";
+            + (issued + 1)
+            + ", max_issued_seqNo="
+            + issued
+            + "]";
         assertThat(seqNoListener.error.getMessage(), equalTo(message));
     }
 
@@ -515,7 +545,7 @@ public class RefreshListenersTests extends ESTestCase {
         document.add(seqID.seqNo);
         document.add(seqID.seqNoDocValue);
         document.add(seqID.primaryTerm);
-        BytesReference source = new BytesArray(new byte[]{1});
+        BytesReference source = new BytesArray(new byte[] { 1 });
         ParsedDocument doc = new ParsedDocument(versionField, seqID, id, null, Arrays.asList(document), source, XContentType.JSON, null);
         Engine.Index index = new Engine.Index(uid, engine.config().getPrimaryTermSupplier().getAsLong(), doc);
         return engine.index(index);

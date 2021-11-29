@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.aggs.inference;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 
 import java.io.IOException;
@@ -20,12 +20,11 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.ml.aggs.MlAggsHelper.invalidPathException;
 
-public  class InternalInferenceAggregation extends InternalAggregation {
+public class InternalInferenceAggregation extends InternalAggregation {
 
     private final InferenceResults inferenceResult;
 
-    protected InternalInferenceAggregation(String name, Map<String, Object> metadata,
-                                           InferenceResults inferenceResult) {
+    protected InternalInferenceAggregation(String name, Map<String, Object> metadata, InferenceResults inferenceResult) {
         super(name, metadata);
         this.inferenceResult = inferenceResult;
     }
@@ -72,7 +71,6 @@ public  class InternalInferenceAggregation extends InternalAggregation {
 
         return propertyValue;
     }
-
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {

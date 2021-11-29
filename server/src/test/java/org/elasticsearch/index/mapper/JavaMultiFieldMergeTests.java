@@ -28,8 +28,7 @@ public class JavaMultiFieldMergeTests extends MapperServiceTestCase {
         assertThat(mapperService.fieldType("name.indexed"), nullValue());
 
         BytesReference json = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject());
-        LuceneDocument doc = mapperService.documentMapper().parse(
-            new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        LuceneDocument doc = mapperService.documentMapper().parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -45,7 +44,7 @@ public class JavaMultiFieldMergeTests extends MapperServiceTestCase {
         assertThat(mapperService.fieldType("name.not_indexed2"), nullValue());
         assertThat(mapperService.fieldType("name.not_indexed3"), nullValue());
 
-        doc = mapperService.documentMapper().parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+        doc = mapperService.documentMapper().parse(new SourceToParse("1", json, XContentType.JSON)).rootDoc();
         f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");
@@ -110,7 +109,6 @@ public class JavaMultiFieldMergeTests extends MapperServiceTestCase {
         assertThat(mapperService.fieldType("name.not_indexed"), notNullValue());
         assertThat(mapperService.fieldType("name.not_indexed2"), notNullValue());
         assertThat(mapperService.fieldType("name.not_indexed3"), nullValue());
-
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/upgrade3.json");
         try {

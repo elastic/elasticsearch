@@ -59,8 +59,19 @@ public class RoundTripTests extends ESTestCase {
             TimeValue socketTimeout = parseTimeValue(randomPositiveTimeValue(), "socketTimeout");
             TimeValue connectTimeout = parseTimeValue(randomPositiveTimeValue(), "connectTimeout");
             reindex.setRemoteInfo(
-                new RemoteInfo(randomAlphaOfLength(5), randomAlphaOfLength(5), port, null,
-                    query, username, password, headers, socketTimeout, connectTimeout));
+                new RemoteInfo(
+                    randomAlphaOfLength(5),
+                    randomAlphaOfLength(5),
+                    port,
+                    null,
+                    query,
+                    username,
+                    password,
+                    headers,
+                    socketTimeout,
+                    connectTimeout
+                )
+            );
         }
         ReindexRequest tripped = new ReindexRequest(toInputByteStream(reindex));
         assertRequestEquals(reindex, tripped);
@@ -140,8 +151,7 @@ public class RoundTripTests extends ESTestCase {
         }
     }
 
-    private void assertRequestEquals(AbstractBulkIndexByScrollRequest<?> request,
-            AbstractBulkIndexByScrollRequest<?> tripped) {
+    private void assertRequestEquals(AbstractBulkIndexByScrollRequest<?> request, AbstractBulkIndexByScrollRequest<?> tripped) {
         assertRequestEquals((AbstractBulkByScrollRequest<?>) request, (AbstractBulkByScrollRequest<?>) tripped);
         assertEquals(request.getScript(), tripped.getScript());
     }
@@ -164,12 +174,12 @@ public class RoundTripTests extends ESTestCase {
         if (randomBoolean()) {
             request.setActions(randomFrom(UpdateByQueryAction.NAME, ReindexAction.NAME));
         } else {
-            request.setTaskId(new TaskId(randomAlphaOfLength(5), randomLong()));
+            request.setTargetTaskId(new TaskId(randomAlphaOfLength(5), randomLong()));
         }
         RethrottleRequest tripped = new RethrottleRequest(toInputByteStream(request));
         assertEquals(request.getRequestsPerSecond(), tripped.getRequestsPerSecond(), 0.00001);
         assertArrayEquals(request.getActions(), tripped.getActions());
-        assertEquals(request.getTaskId(), tripped.getTaskId());
+        assertEquals(request.getTargetTaskId(), tripped.getTargetTaskId());
     }
 
     private StreamInput toInputByteStream(Writeable example) throws IOException {

@@ -63,8 +63,7 @@ public class IndexTemplateConfig {
      * @param variables A map of additional variable substitutions. The map's keys are the variable names.
      *                 The corresponding values will replace the variable names.
      */
-    public IndexTemplateConfig(String templateName, String fileName, int version, String versionProperty, Map<String, String> variables)
-    {
+    public IndexTemplateConfig(String templateName, String fileName, int version, String versionProperty, Map<String, String> variables) {
         this.templateName = templateName;
         this.fileName = fileName;
         this.version = version;

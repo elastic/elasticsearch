@@ -22,8 +22,8 @@ import java.util.Map;
 public class BufferTests extends ScriptTestCase {
 
     public void testByteBufferMethods() {
-        ByteBuffer bb = ByteBuffer.wrap(new byte[] {0, 1, 2, 3, 4, 5, 6, 7});
-        Map<String, Object> params = Collections.singletonMap("bb", ByteBuffer.wrap(new byte[] {0, 1, 2, 3, 4, 5, 6, 7}));
+        ByteBuffer bb = ByteBuffer.wrap(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7 });
+        Map<String, Object> params = Collections.singletonMap("bb", ByteBuffer.wrap(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7 }));
 
         assertEquals(bb.limit(), exec("def bb = params['bb']; bb.limit()", params, true));
         assertEquals(bb.limit(), exec("ByteBuffer bb = params['bb']; bb.limit()", params, true));
@@ -31,10 +31,14 @@ public class BufferTests extends ScriptTestCase {
         assertEquals(bb.order(), exec("def bb = params['bb']; bb.order()", params, true));
         assertEquals(bb.order(), exec("ByteBuffer bb = params['bb']; bb.order()", params, true));
 
-        assertEquals(bb.order(ByteOrder.LITTLE_ENDIAN).order(),
-                exec("def bb = params['bb']; bb.order(ByteOrder.LITTLE_ENDIAN).order()", params, true));
-        assertEquals(bb.order(ByteOrder.LITTLE_ENDIAN).order(),
-                exec("ByteBuffer bb = params['bb']; bb.order(ByteOrder.LITTLE_ENDIAN).order()", params, true));
+        assertEquals(
+            bb.order(ByteOrder.LITTLE_ENDIAN).order(),
+            exec("def bb = params['bb']; bb.order(ByteOrder.LITTLE_ENDIAN).order()", params, true)
+        );
+        assertEquals(
+            bb.order(ByteOrder.LITTLE_ENDIAN).order(),
+            exec("ByteBuffer bb = params['bb']; bb.order(ByteOrder.LITTLE_ENDIAN).order()", params, true)
+        );
 
         assertEquals(bb.get(0), exec("def bb = params['bb']; bb.get(0)", params, true));
         assertEquals(bb.get(0), exec("ByteBuffer bb = params['bb']; bb.get(0)", params, true));
@@ -44,11 +48,11 @@ public class BufferTests extends ScriptTestCase {
         assertEquals(bb.getChar(0), exec("def bb = params['bb']; bb.getChar(0)", params, true));
         assertEquals(bb.getChar(0), exec("ByteBuffer bb = params['bb']; bb.getChar(0)", params, true));
 
-        assertEquals(bb.getDouble(0), (double)exec("def bb = params['bb']; bb.getDouble(0)", params, true), 0.1);
-        assertEquals(bb.getDouble(0), (double)exec("ByteBuffer bb = params['bb']; bb.getDouble(0)", params, true), 0.1);
+        assertEquals(bb.getDouble(0), (double) exec("def bb = params['bb']; bb.getDouble(0)", params, true), 0.1);
+        assertEquals(bb.getDouble(0), (double) exec("ByteBuffer bb = params['bb']; bb.getDouble(0)", params, true), 0.1);
 
-        assertEquals(bb.getFloat(0), (float)exec("def bb = params['bb']; bb.getFloat(0)", params, true), 0.1);
-        assertEquals(bb.getFloat(0), (float)exec("ByteBuffer bb = params['bb']; bb.getFloat(0)", params, true), 0.1);
+        assertEquals(bb.getFloat(0), (float) exec("def bb = params['bb']; bb.getFloat(0)", params, true), 0.1);
+        assertEquals(bb.getFloat(0), (float) exec("ByteBuffer bb = params['bb']; bb.getFloat(0)", params, true), 0.1);
 
         assertEquals(bb.getInt(0), exec("def bb = params['bb']; bb.getInt(0)", params, true));
         assertEquals(bb.getInt(0), exec("ByteBuffer bb = params['bb']; bb.getInt(0)", params, true));
@@ -77,12 +81,12 @@ public class BufferTests extends ScriptTestCase {
         assertEquals(bb.asShortBuffer(), exec("def bb = params['bb']; bb.asShortBuffer()", params, true));
         assertEquals(bb.asShortBuffer(), exec("ByteBuffer bb = params['bb']; bb.asShortBuffer()", params, true));
 
-        assertEquals(ByteBuffer.wrap(new byte[] {1, 2, 3}), exec("ByteBuffer.wrap(new byte[] {1, 2, 3})"));
-        assertEquals(ByteBuffer.wrap(new byte[] {1, 2, 3}, 1, 2), exec("ByteBuffer.wrap(new byte[] {1, 2, 3}, 1, 2)"));
+        assertEquals(ByteBuffer.wrap(new byte[] { 1, 2, 3 }), exec("ByteBuffer.wrap(new byte[] {1, 2, 3})"));
+        assertEquals(ByteBuffer.wrap(new byte[] { 1, 2, 3 }, 1, 2), exec("ByteBuffer.wrap(new byte[] {1, 2, 3}, 1, 2)"));
     }
 
     public void testCharBufferMethods() {
-        CharBuffer bb = CharBuffer.wrap(new char[] {0, 1, 2, 3, 4, 5, 6, 7});
+        CharBuffer bb = CharBuffer.wrap(new char[] { 0, 1, 2, 3, 4, 5, 6, 7 });
         Map<String, Object> params = Collections.singletonMap("bb", bb);
 
         assertEquals(bb.limit(), exec("def bb = params['bb']; bb.limit()", params, true));
@@ -95,7 +99,7 @@ public class BufferTests extends ScriptTestCase {
     }
 
     public void testDoubleBufferMethods() {
-        DoubleBuffer bb = DoubleBuffer.wrap(new double[] {0, 1, 2, 3, 4, 5, 6, 7});
+        DoubleBuffer bb = DoubleBuffer.wrap(new double[] { 0, 1, 2, 3, 4, 5, 6, 7 });
         Map<String, Object> params = Collections.singletonMap("bb", bb);
 
         assertEquals(bb.limit(), exec("def bb = params['bb']; bb.limit()", params, true));
@@ -108,7 +112,7 @@ public class BufferTests extends ScriptTestCase {
     }
 
     public void testFloatBufferMethods() {
-        FloatBuffer bb = FloatBuffer.wrap(new float[] {0, 1, 2, 3, 4, 5, 6, 7});
+        FloatBuffer bb = FloatBuffer.wrap(new float[] { 0, 1, 2, 3, 4, 5, 6, 7 });
         Map<String, Object> params = Collections.singletonMap("bb", bb);
 
         assertEquals(bb.limit(), exec("def bb = params['bb']; bb.limit()", params, true));
@@ -121,7 +125,7 @@ public class BufferTests extends ScriptTestCase {
     }
 
     public void testIntBufferMethods() {
-        IntBuffer bb = IntBuffer.wrap(new int[] {0, 1, 2, 3, 4, 5, 6, 7});
+        IntBuffer bb = IntBuffer.wrap(new int[] { 0, 1, 2, 3, 4, 5, 6, 7 });
         Map<String, Object> params = Collections.singletonMap("bb", bb);
 
         assertEquals(bb.limit(), exec("def bb = params['bb']; bb.limit()", params, true));
@@ -134,7 +138,7 @@ public class BufferTests extends ScriptTestCase {
     }
 
     public void testLongBufferMethods() {
-        LongBuffer bb = LongBuffer.wrap(new long[] {0, 1, 2, 3, 4, 5, 6, 7});
+        LongBuffer bb = LongBuffer.wrap(new long[] { 0, 1, 2, 3, 4, 5, 6, 7 });
         Map<String, Object> params = Collections.singletonMap("bb", bb);
 
         assertEquals(bb.limit(), exec("def bb = params['bb']; bb.limit()", params, true));
@@ -147,7 +151,7 @@ public class BufferTests extends ScriptTestCase {
     }
 
     public void testShortBufferMethods() {
-        ShortBuffer bb = ShortBuffer.wrap(new short[] {0, 1, 2, 3, 4, 5, 6, 7});
+        ShortBuffer bb = ShortBuffer.wrap(new short[] { 0, 1, 2, 3, 4, 5, 6, 7 });
         Map<String, Object> params = Collections.singletonMap("bb", bb);
 
         assertEquals(bb.limit(), exec("def bb = params['bb']; bb.limit()", params, true));

@@ -15,8 +15,8 @@ import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.junit.After;
 
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -125,19 +126,16 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         startDataFrameJob("feature_reset_data_frame_analytics_job");
         putTrainedModelIngestPipeline("feature_reset_inference_pipeline");
         createdPipelines.add("feature_reset_inference_pipeline");
-        for(int i = 0; i < 100; i ++) {
+        for (int i = 0; i < 100; i++) {
             indexDocForInference("feature_reset_inference_pipeline");
         }
         client().execute(DeletePipelineAction.INSTANCE, new DeletePipelineRequest("feature_reset_inference_pipeline")).actionGet();
         createdPipelines.remove("feature_reset_inference_pipeline");
 
-        assertBusy(() ->
-            assertThat(countNumberInferenceProcessors(client().admin().cluster().prepareState().get().getState()), equalTo(0))
+        assertBusy(
+            () -> assertThat(countNumberInferenceProcessors(client().admin().cluster().prepareState().get().getState()), equalTo(0))
         );
-        client().execute(
-            ResetFeatureStateAction.INSTANCE,
-            new ResetFeatureStateRequest()
-        ).actionGet();
+        client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();
         assertBusy(() -> {
             List<String> indices = Arrays.asList(client().admin().indices().prepareGetIndex().addIndices(".ml*").get().indices());
             assertThat(indices.toString(), indices, is(empty()));
@@ -151,10 +149,10 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
     public void testMLFeatureResetFailureDueToPipelines() throws Exception {
         putTrainedModelIngestPipeline("feature_reset_failure_inference_pipeline");
         createdPipelines.add("feature_reset_failure_inference_pipeline");
-        Exception ex = expectThrows(Exception.class, () -> client().execute(
-            ResetFeatureStateAction.INSTANCE,
-            new ResetFeatureStateRequest()
-        ).actionGet());
+        Exception ex = expectThrows(
+            Exception.class,
+            () -> client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet()
+        );
         assertThat(
             ex.getMessage(),
             containsString(
@@ -168,10 +166,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
 
     public void testMLFeatureResetWithModelDeployment() throws Exception {
         createModelDeployment();
-        client().execute(
-            ResetFeatureStateAction.INSTANCE,
-            new ResetFeatureStateRequest()
-        ).actionGet();
+        client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();
         assertBusy(() -> {
             List<String> indices = Arrays.asList(client().admin().indices().prepareGetIndex().addIndices(".ml*").get().indices());
             assertThat(indices.toString(), indices, is(empty()));
@@ -196,11 +191,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                 TrainedModelConfig.builder()
                     .setModelType(TrainedModelType.PYTORCH)
                     .setInferenceConfig(
-                        new PassThroughConfig(
-                            null,
-                            new BertTokenization(null, false, null, Tokenization.Truncate.NONE),
-                            null
-                        )
+                        new PassThroughConfig(null, new BertTokenization(null, false, null, Tokenization.Truncate.NONE), null)
                     )
                     .setModelId(TRAINED_MODEL_ID)
                     .build(),
@@ -209,16 +200,20 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         ).actionGet();
         client().execute(
             PutTrainedModelDefinitionPartAction.INSTANCE,
-            new PutTrainedModelDefinitionPartAction.Request(TRAINED_MODEL_ID, new BytesArray(BASE_64_ENCODED_MODEL), 0, RAW_MODEL_SIZE, 1)
+            new PutTrainedModelDefinitionPartAction.Request(
+                TRAINED_MODEL_ID,
+                new BytesArray(Base64.getDecoder().decode(BASE_64_ENCODED_MODEL)),
+                0,
+                RAW_MODEL_SIZE,
+                1
+            )
         ).actionGet();
         client().execute(
             PutTrainedModelVocabularyAction.INSTANCE,
             new PutTrainedModelVocabularyAction.Request(TRAINED_MODEL_ID, List.of("these", "are", "my", "words"))
         ).actionGet();
-        client().execute(
-            StartTrainedModelDeploymentAction.INSTANCE,
-            new StartTrainedModelDeploymentAction.Request(TRAINED_MODEL_ID)
-        ).actionGet();
+        client().execute(StartTrainedModelDeploymentAction.INSTANCE, new StartTrainedModelDeploymentAction.Request(TRAINED_MODEL_ID))
+            .actionGet();
     }
 
     private boolean isResetMode() {
@@ -232,7 +227,11 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         ClassificationIT.createIndex(sourceIndex, false);
         ClassificationIT.indexData(sourceIndex, 300, 50, KEYWORD_FIELD);
 
-        DataFrameAnalyticsConfig config = buildAnalytics(jobId, sourceIndex, destIndex, null,
+        DataFrameAnalyticsConfig config = buildAnalytics(
+            jobId,
+            sourceIndex,
+            destIndex,
+            null,
             new Classification(
                 KEYWORD_FIELD,
                 BoostedTreeParams.builder().setNumTopFeatureImportanceValues(1).build(),
@@ -242,7 +241,9 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
                 null,
                 null,
                 null,
-                null));
+                null
+            )
+        );
         PutDataFrameAnalyticsAction.Request request = new PutDataFrameAnalyticsAction.Request(config);
         client().execute(PutDataFrameAnalyticsAction.INSTANCE, request).actionGet();
 
@@ -258,9 +259,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private void startRealtime(String jobId) throws Exception {
-        client().admin().indices().prepareCreate("data")
-            .setMapping("time", "type=date")
-            .get();
+        client().admin().indices().prepareCreate("data").setMapping("time", "type=date").get();
         long numDocs1 = randomIntBetween(32, 2048);
         long now = System.currentTimeMillis();
         long lastWeek = now - 604800000;
@@ -292,17 +291,17 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             new PutPipelineRequest(
                 pipelineId,
                 new BytesArray(
-                    "{\n" +
-                    "    \"processors\": [\n" +
-                        "      {\n" +
-                        "        \"inference\": {\n" +
-                        "          \"inference_config\": {\"classification\":{}},\n" +
-                        "          \"model_id\": \"lang_ident_model_1\",\n" +
-                        "          \"field_map\": {}\n" +
-                        "        }\n" +
-                        "      }\n" +
-                        "    ]\n" +
-                        "  }"
+                    "{\n"
+                        + "    \"processors\": [\n"
+                        + "      {\n"
+                        + "        \"inference\": {\n"
+                        + "          \"inference_config\": {\"classification\":{}},\n"
+                        + "          \"model_id\": \"lang_ident_model_1\",\n"
+                        + "          \"field_map\": {}\n"
+                        + "        }\n"
+                        + "      }\n"
+                        + "    ]\n"
+                        + "  }"
                 ),
                 XContentType.JSON
             )
@@ -310,10 +309,7 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
     }
 
     private void indexDocForInference(String pipelineId) {
-        client().prepareIndex("foo")
-            .setPipeline(pipelineId)
-            .setSource("{\"text\": \"this is some plain text.\"}", XContentType.JSON)
-            .get();
+        client().prepareIndex("foo").setPipeline(pipelineId).setSource("{\"text\": \"this is some plain text.\"}", XContentType.JSON).get();
     }
 
 }

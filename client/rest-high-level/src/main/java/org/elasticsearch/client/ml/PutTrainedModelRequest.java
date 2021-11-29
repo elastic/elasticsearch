@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-
 public class PutTrainedModelRequest implements Validatable, ToXContentObject {
 
     private final TrainedModelConfig config;

@@ -67,9 +67,13 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ClusterService clusterService, BigArrays bigArrays,
-                                                           RecoverySettings recoverySettings) {
+    public Map<String, Repository.Factory> getRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings
+    ) {
         return Collections.singletonMap(AzureRepository.TYPE, metadata -> {
             AzureStorageService storageService = azureStoreService.get();
             assert storageService != null;
@@ -78,25 +82,26 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     }
 
     @Override
-    public Collection<Object> createComponents(Client client,
-                                               ClusterService clusterService,
-                                               ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService,
-                                               ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry,
-                                               Environment environment,
-                                               NodeEnvironment nodeEnvironment,
-                                               NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver indexNameExpressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
-        AzureClientProvider azureClientProvider =
-            AzureClientProvider.create(threadPool, settings);
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
+        AzureClientProvider azureClientProvider = AzureClientProvider.create(threadPool, settings);
         azureStoreService.set(createAzureStorageService(settings, azureClientProvider));
         return List.of(azureClientProvider);
     }
 
-    AzureStorageService createAzureStorageService(Settings settings, AzureClientProvider azureClientProvider) {
-        return new AzureStorageService(settings, azureClientProvider);
+    AzureStorageService createAzureStorageService(Settings settingsToUse, AzureClientProvider azureClientProvider) {
+        return new AzureStorageService(settingsToUse, azureClientProvider);
     }
 
     @Override
@@ -115,8 +120,8 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     }
 
     @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        return List.of(executorBuilder(), nettyEventLoopExecutorBuilder(settings));
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
+        return List.of(executorBuilder(), nettyEventLoopExecutorBuilder(settingsToUse));
     }
 
     public static ExecutorBuilder<?> executorBuilder() {
@@ -129,9 +134,9 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     }
 
     @Override
-    public void reload(Settings settings) {
+    public void reload(Settings settingsToLoad) {
         // secure settings should be readable
-        final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
+        final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settingsToLoad);
         AzureStorageService storageService = azureStoreService.get();
         assert storageService != null;
         storageService.refreshSettings(clientsSettings);

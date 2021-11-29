@@ -35,10 +35,8 @@ public final class GetServiceAccountCredentialsRequest implements Validatable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         GetServiceAccountCredentialsRequest that = (GetServiceAccountCredentialsRequest) o;
         return namespace.equals(that.namespace) && serviceName.equals(that.serviceName);
     }

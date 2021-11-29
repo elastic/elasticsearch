@@ -28,7 +28,6 @@ import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK
 import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
-
 public class BytesRestResponse extends RestResponse {
 
     public static final String TEXT_CONTENT_TYPE = "text/plain; charset=UTF-8";
@@ -86,8 +85,11 @@ public class BytesRestResponse extends RestResponse {
         ToXContent.Params params = paramsFromRequest(channel.request());
         if (params.paramAsBoolean(REST_EXCEPTION_SKIP_STACK_TRACE, REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT) && e != null) {
             // log exception only if it is not returned in the response
-            Supplier<?> messageSupplier = () -> new ParameterizedMessage("path: {}, params: {}",
-                    channel.request().rawPath(), channel.request().params());
+            Supplier<?> messageSupplier = () -> new ParameterizedMessage(
+                "path: {}, params: {}",
+                channel.request().rawPath(),
+                channel.request().params()
+            );
             if (status.getStatus() < 500) {
                 SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
             } else {
@@ -123,7 +125,7 @@ public class BytesRestResponse extends RestResponse {
     private ToXContent.Params paramsFromRequest(RestRequest restRequest) {
         ToXContent.Params params = restRequest;
         if (params.paramAsBoolean("error_trace", REST_EXCEPTION_SKIP_STACK_TRACE_DEFAULT == false) && skipStackTrace() == false) {
-            params =  new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
+            params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
         return params;
     }
@@ -132,8 +134,8 @@ public class BytesRestResponse extends RestResponse {
         return false;
     }
 
-    private void build(XContentBuilder builder, ToXContent.Params params, RestStatus status,
-                       boolean detailedErrorsEnabled, Exception e) throws IOException {
+    private void build(XContentBuilder builder, ToXContent.Params params, RestStatus status, boolean detailedErrorsEnabled, Exception e)
+        throws IOException {
         builder.startObject();
         ElasticsearchException.generateFailureXContent(builder, params, e, detailedErrorsEnabled);
         builder.field(STATUS, status.getStatus());
@@ -141,10 +143,10 @@ public class BytesRestResponse extends RestResponse {
     }
 
     static BytesRestResponse createSimpleErrorResponse(RestChannel channel, RestStatus status, String errorMessage) throws IOException {
-        return new BytesRestResponse(status, channel.newErrorBuilder().startObject()
-            .field("error", errorMessage)
-            .field("status", status.getStatus())
-            .endObject());
+        return new BytesRestResponse(
+            status,
+            channel.newErrorBuilder().startObject().field("error", errorMessage).field("status", status.getStatus()).endObject()
+        );
     }
 
     public static ElasticsearchStatusException errorFromXContent(XContentParser parser) throws IOException {

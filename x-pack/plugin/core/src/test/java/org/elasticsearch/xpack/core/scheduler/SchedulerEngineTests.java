@@ -9,8 +9,9 @@ package org.elasticsearch.xpack.core.scheduler;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.core.Tuple;
+import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.ActiveSchedule;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Job;
@@ -31,6 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -83,16 +85,14 @@ public class SchedulerEngineTests extends ESTestCase {
             listeners.stream().map(Tuple::v1).forEach(engine::register);
 
             final AtomicBoolean scheduled = new AtomicBoolean();
-            engine.add(new SchedulerEngine.Job(
-                    getTestName(),
-                    (startTime, now) -> {
-                        // only allow one triggering of the listeners
-                        if (scheduled.compareAndSet(false, true)) {
-                            return 0;
-                        } else {
-                            return -1;
-                        }
-                    }));
+            engine.add(new SchedulerEngine.Job(getTestName(), (startTime, now) -> {
+                // only allow one triggering of the listeners
+                if (scheduled.compareAndSet(false, true)) {
+                    return 0;
+                } else {
+                    return -1;
+                }
+            }));
 
             latch.await();
 
@@ -101,6 +101,9 @@ public class SchedulerEngineTests extends ESTestCase {
             if (numberOfFailingListeners > 0) {
                 assertFailedListenerLogMessage(mockLogger, numberOfFailingListeners);
             }
+            // Verify the debug logging:
+            verifyDebugLogging(mockLogger);
+
             verifyNoMoreInteractions(mockLogger);
         } finally {
             engine.stop();
@@ -131,24 +134,25 @@ public class SchedulerEngineTests extends ESTestCase {
 
             // latch for each invocation of nextScheduledTimeAfter, once for each scheduled run, and then a final time when we disable
             final CountDownLatch latch = new CountDownLatch(1 + numberOfSchedules);
-            engine.add(new SchedulerEngine.Job(
-                    getTestName(),
-                    (startTime, now) -> {
-                        if (latch.getCount() >= 2) {
-                            latch.countDown();
-                            return 0;
-                        } else if (latch.getCount() == 1) {
-                            latch.countDown();
-                            return -1;
-                        } else {
-                            throw new AssertionError("nextScheduledTimeAfter invoked more than the expected number of times");
-                        }
-                    }));
+            engine.add(new SchedulerEngine.Job(getTestName(), (startTime, now) -> {
+                if (latch.getCount() >= 2) {
+                    latch.countDown();
+                    return 0;
+                } else if (latch.getCount() == 1) {
+                    latch.countDown();
+                    return -1;
+                } else {
+                    throw new AssertionError("nextScheduledTimeAfter invoked more than the expected number of times");
+                }
+            }));
 
             listenersLatch.await();
             assertTrue(listeners.stream().map(Tuple::v2).allMatch(count -> count.get() == numberOfSchedules));
             latch.await();
             assertFailedListenerLogMessage(mockLogger, numberOfSchedules * numberOfListeners);
+            // Verify the debug logging:
+            verifyDebugLogging(mockLogger);
+
             verifyNoMoreInteractions(mockLogger);
         } finally {
             engine.stop();
@@ -198,10 +202,14 @@ public class SchedulerEngineTests extends ESTestCase {
             assertNotNull(activeSchedule);
             assertEquals(clock.millis() + oneHourMillis, activeSchedule.getScheduledTime());
 
-            assertEquals(clock.millis() + oneHourMillis + oneHourMillis,
-                activeSchedule.computeNextScheduledTime(clock.millis() - randomIntBetween(1, 999)));
-            assertEquals(clock.millis() + oneHourMillis + oneHourMillis,
-                activeSchedule.computeNextScheduledTime(clock.millis() + TimeUnit.SECONDS.toMillis(10L)));
+            assertEquals(
+                clock.millis() + oneHourMillis + oneHourMillis,
+                activeSchedule.computeNextScheduledTime(clock.millis() - randomIntBetween(1, 999))
+            );
+            assertEquals(
+                clock.millis() + oneHourMillis + oneHourMillis,
+                activeSchedule.computeNextScheduledTime(clock.millis() + TimeUnit.SECONDS.toMillis(10L))
+            );
         } finally {
             engine.stop();
         }
@@ -220,6 +228,10 @@ public class SchedulerEngineTests extends ESTestCase {
             assertThat(throwable, instanceOf(RuntimeException.class));
             assertThat(throwable.getMessage(), equalTo(getTestName()));
         }
+    }
+
+    private static void verifyDebugLogging(Logger mockLogger) {
+        verify(mockLogger, atLeastOnce()).debug(any(MessageSupplier.class));
     }
 
 }

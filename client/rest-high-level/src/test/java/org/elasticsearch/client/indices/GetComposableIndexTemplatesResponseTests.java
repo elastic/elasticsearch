@@ -9,9 +9,9 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -30,10 +30,8 @@ public class GetComposableIndexTemplatesResponseTests extends ESTestCase {
             this::createParser,
             GetComposableIndexTemplatesResponseTests::createTestInstance,
             GetComposableIndexTemplatesResponseTests::toXContent,
-            GetComposableIndexTemplatesResponse::fromXContent)
-            .supportsUnknownFields(true)
-            .randomFieldsExcludeFilter(a -> true)
-            .test();
+            GetComposableIndexTemplatesResponse::fromXContent
+        ).supportsUnknownFields(true).randomFieldsExcludeFilter(a -> true).test();
     }
 
     private static GetComposableIndexTemplatesResponse createTestInstance() {

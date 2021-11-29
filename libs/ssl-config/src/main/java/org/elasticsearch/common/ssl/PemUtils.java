@@ -10,13 +10,6 @@ package org.elasticsearch.common.ssl;
 
 import org.elasticsearch.core.CharArrays;
 
-import javax.crypto.Cipher;
-import javax.crypto.EncryptedPrivateKeyInfo;
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -51,14 +44,22 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import javax.crypto.Cipher;
+import javax.crypto.EncryptedPrivateKeyInfo;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.SecretKeySpec;
+
 public final class PemUtils {
 
     private static final String PKCS1_HEADER = "-----BEGIN RSA PRIVATE KEY-----";
     private static final String PKCS1_FOOTER = "-----END RSA PRIVATE KEY-----";
     private static final String OPENSSL_DSA_HEADER = "-----BEGIN DSA PRIVATE KEY-----";
     private static final String OPENSSL_DSA_FOOTER = "-----END DSA PRIVATE KEY-----";
-    private static final String OPENSSL_DSA_PARAMS_HEADER ="-----BEGIN DSA PARAMETERS-----";
-    private static final String OPENSSL_DSA_PARAMS_FOOTER ="-----END DSA PARAMETERS-----";
+    private static final String OPENSSL_DSA_PARAMS_HEADER = "-----BEGIN DSA PARAMETERS-----";
+    private static final String OPENSSL_DSA_PARAMS_FOOTER = "-----END DSA PARAMETERS-----";
     private static final String PKCS8_HEADER = "-----BEGIN PRIVATE KEY-----";
     private static final String PKCS8_FOOTER = "-----END PRIVATE KEY-----";
     private static final String PKCS8_ENCRYPTED_HEADER = "-----BEGIN ENCRYPTED PRIVATE KEY-----";
@@ -135,8 +136,11 @@ public final class PemUtils {
             } else if (OPENSSL_EC_PARAMS_HEADER.equals(line.trim())) {
                 return parseOpenSslEC(removeECHeaders(bReader), passwordSupplier);
             } else {
-                throw new SslConfigException("cannot read PEM private key [" + keyPath.toAbsolutePath()
-                    + "] because the file does not contain a supported key format");
+                throw new SslConfigException(
+                    "cannot read PEM private key ["
+                        + keyPath.toAbsolutePath()
+                        + "] because the file does not contain a supported key format"
+                );
             }
         }
     }
@@ -221,7 +225,7 @@ public final class PemUtils {
      * @throws IOException if the algorithm identifier can not be parsed from DER
      * @throws GeneralSecurityException if the private key can't be generated from the {@link PKCS8EncodedKeySpec}
      */
-    public static PrivateKey parsePKCS8PemString(String pemString) throws IOException, GeneralSecurityException{
+    public static PrivateKey parsePKCS8PemString(String pemString) throws IOException, GeneralSecurityException {
         byte[] keyBytes = Base64.getDecoder().decode(pemString);
         String keyAlgo = getKeyAlgorithmIdentifier(keyBytes);
         KeyFactory keyFactory = KeyFactory.getInstance(keyAlgo);
@@ -353,8 +357,7 @@ public final class PemUtils {
      * @throws IOException              if the file can't be read
      * @throws GeneralSecurityException if the private key can't be generated from the {@link PKCS8EncodedKeySpec}
      */
-    private static PrivateKey parsePKCS8Encrypted(BufferedReader bReader, char[] keyPassword) throws IOException,
-        GeneralSecurityException {
+    private static PrivateKey parsePKCS8Encrypted(BufferedReader bReader, char[] keyPassword) throws IOException, GeneralSecurityException {
         StringBuilder sb = new StringBuilder();
         String line = bReader.readLine();
         while (line != null) {
@@ -448,10 +451,10 @@ public final class PemUtils {
         byte[] keyBytes = Base64.getDecoder().decode(keyContents);
         String procType = pemHeaders.get("Proc-Type");
         if ("4,ENCRYPTED".equals(procType)) {
-            //We only handle PEM encryption
+            // We only handle PEM encryption
             String encryptionParameters = pemHeaders.get("DEK-Info");
             if (null == encryptionParameters) {
-                //malformed pem
+                // malformed pem
                 throw new IOException("Malformed PEM File, DEK-Info header is missing");
             }
             char[] password = passwordSupplier.get();
@@ -477,8 +480,7 @@ public final class PemUtils {
      * for the cipher
      * @throws IOException if the DEK-Info PEM header is invalid
      */
-    private static Cipher getCipherFromParameters(String dekHeaderValue, char[] password) throws
-        GeneralSecurityException, IOException {
+    private static Cipher getCipherFromParameters(String dekHeaderValue, char[] password) throws GeneralSecurityException, IOException {
         final String padding = "PKCS5Padding";
         final SecretKey encryptionKey;
         final String[] valueTokens = dekHeaderValue.split(",");
@@ -563,8 +565,9 @@ public final class PemUtils {
             }
             return data;
         } else {
-            throw new IllegalStateException("Hexadecimal string [" + hexString +
-                "] has odd length and cannot be converted to a byte array");
+            throw new IllegalStateException(
+                "Hexadecimal string [" + hexString + "] has odd length and cannot be converted to a byte array"
+            );
         }
     }
 
@@ -575,8 +578,7 @@ public final class PemUtils {
      * @return {@link ECPrivateKeySpec}
      * @throws IOException if the DER encoded key can't be parsed
      */
-    private static ECPrivateKeySpec parseEcDer(byte[] keyBytes) throws IOException,
-            GeneralSecurityException {
+    private static ECPrivateKeySpec parseEcDer(byte[] keyBytes) throws IOException, GeneralSecurityException {
         DerParser parser = new DerParser(keyBytes);
         DerParser.Asn1Object sequence = parser.readAsn1Object();
         parser = sequence.getParser();
@@ -660,8 +662,9 @@ public final class PemUtils {
             case "1.2.840.10045.2.1":
                 return "EC";
         }
-        throw new GeneralSecurityException("Error parsing key algorithm identifier. Algorithm with OID [" + oidString +
-            "] is not supported");
+        throw new GeneralSecurityException(
+            "Error parsing key algorithm identifier. Algorithm with OID [" + oidString + "] is not supported"
+        );
     }
 
     public static List<Certificate> readCertificates(Collection<Path> certPaths) throws CertificateException, IOException {
@@ -763,8 +766,9 @@ public final class PemUtils {
             case "1.3.132.0.39":
                 return "sect571r1";
         }
-        throw new GeneralSecurityException("Error parsing EC named curve identifier. Named curve with OID: " + oidString
-            + " is not supported");
+        throw new GeneralSecurityException(
+            "Error parsing EC named curve identifier. Named curve with OID: " + oidString + " is not supported"
+        );
     }
 
 }

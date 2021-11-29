@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.index.BinaryDocValues;
@@ -55,7 +54,7 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     }
 
     @Override
-    public DocValuesField getScriptField(String name) {
+    public DocValuesField<?> getScriptField(String name) {
         try {
             if (indexed) {
                 VectorValues values = reader.getVectorValues(field);

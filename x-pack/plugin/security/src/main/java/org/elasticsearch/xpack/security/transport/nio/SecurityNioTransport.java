@@ -10,12 +10,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
 import org.elasticsearch.nio.Config;
@@ -40,9 +40,6 @@ import org.elasticsearch.xpack.core.security.transport.SecurityTransportExceptio
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 
-import javax.net.ssl.SNIHostName;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLParameters;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
@@ -51,6 +48,10 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
+
+import javax.net.ssl.SNIHostName;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
@@ -72,12 +73,28 @@ public class SecurityNioTransport extends NioTransport {
     private final Map<String, SslConfiguration> profileConfiguration;
     private final boolean sslEnabled;
 
-    public SecurityNioTransport(Settings settings, Version version, ThreadPool threadPool, NetworkService networkService,
-                                PageCacheRecycler pageCacheRecycler, NamedWriteableRegistry namedWriteableRegistry,
-                                CircuitBreakerService circuitBreakerService, @Nullable final IPFilter ipFilter,
-                                SSLService sslService, NioGroupFactory groupFactory) {
-        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService,
-            groupFactory);
+    public SecurityNioTransport(
+        Settings settings,
+        Version version,
+        ThreadPool threadPool,
+        NetworkService networkService,
+        PageCacheRecycler pageCacheRecycler,
+        NamedWriteableRegistry namedWriteableRegistry,
+        CircuitBreakerService circuitBreakerService,
+        @Nullable final IPFilter ipFilter,
+        SSLService sslService,
+        NioGroupFactory groupFactory
+    ) {
+        super(
+            settings,
+            version,
+            threadPool,
+            networkService,
+            pageCacheRecycler,
+            namedWriteableRegistry,
+            circuitBreakerService,
+            groupFactory
+        );
         this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.ipFilter = ipFilter;
         this.sslService = sslService;
@@ -146,7 +163,7 @@ public class SecurityNioTransport extends NioTransport {
         @Override
         public NioTcpChannel createChannel(NioSelector selector, SocketChannel channel, Config.Socket socketConfig) throws IOException {
             NioTcpChannel nioChannel = new NioTcpChannel(isClient == false, profileName, channel);
-            TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, bytesRefRecycler, SecurityNioTransport.this);
+            TcpReadWriteHandler readWriteHandler = new TcpReadWriteHandler(nioChannel, recycler, SecurityNioTransport.this);
             final NioChannelHandler handler;
             if (ipFilter != null) {
                 handler = new NioIPFilter(readWriteHandler, socketConfig.getRemoteAddress(), ipFilter, profileName);
@@ -160,8 +177,16 @@ public class SecurityNioTransport extends NioTransport {
             if (sslEnabled) {
                 SSLDriver sslDriver = new SSLDriver(createSSLEngine(socketConfig), pageAllocator, isClient);
                 InboundChannelBuffer applicationBuffer = new InboundChannelBuffer(pageAllocator);
-                context = new SSLChannelContext(nioChannel, selector, socketConfig, exceptionHandler, sslDriver, handler, networkBuffer,
-                    applicationBuffer);
+                context = new SSLChannelContext(
+                    nioChannel,
+                    selector,
+                    socketConfig,
+                    exceptionHandler,
+                    sslDriver,
+                    handler,
+                    networkBuffer,
+                    applicationBuffer
+                );
             } else {
                 context = new BytesChannelContext(nioChannel, selector, socketConfig, exceptionHandler, handler, networkBuffer);
             }
@@ -171,8 +196,11 @@ public class SecurityNioTransport extends NioTransport {
         }
 
         @Override
-        public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel,
-                                                       Config.ServerSocket socketConfig) {
+        public NioTcpServerChannel createServerChannel(
+            NioSelector selector,
+            ServerSocketChannel channel,
+            Config.ServerSocket socketConfig
+        ) {
             NioTcpServerChannel nioChannel = new NioTcpServerChannel(channel);
             Consumer<Exception> exceptionHandler = (e) -> onServerException(nioChannel, e);
             Consumer<NioSocketChannel> acceptor = SecurityNioTransport.this::acceptChannel;
@@ -207,8 +235,11 @@ public class SecurityNioTransport extends NioTransport {
         }
 
         @Override
-        public NioTcpServerChannel createServerChannel(NioSelector selector, ServerSocketChannel channel,
-                                                       Config.ServerSocket socketConfig) {
+        public NioTcpServerChannel createServerChannel(
+            NioSelector selector,
+            ServerSocketChannel channel,
+            Config.ServerSocket socketConfig
+        ) {
             throw new AssertionError("Cannot create TcpServerChannel with client factory");
         }
 

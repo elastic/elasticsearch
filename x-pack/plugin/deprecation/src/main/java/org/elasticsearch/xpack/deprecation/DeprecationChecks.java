@@ -26,21 +26,17 @@ import java.util.stream.Collectors;
  */
 public class DeprecationChecks {
 
-    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING =
-        Setting.listSetting(
-            "deprecation.skip_deprecated_settings",
-            Collections.emptyList(),
-            Function.identity(),
-            Setting.Property.NodeScope,
-            Setting.Property.Dynamic
-        );
-
-    private DeprecationChecks() {
-    }
-
-    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = List.of(
-        ClusterDeprecationChecks::checkTransientSettingsExistence
+    public static final Setting<List<String>> SKIP_DEPRECATIONS_SETTING = Setting.listSetting(
+        "deprecation.skip_deprecated_settings",
+        Collections.emptyList(),
+        Function.identity(),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
+
+    private DeprecationChecks() {}
+
+    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = Collections.emptyList();
 
     static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS = List.of(
         NodeDeprecationChecks::checkSharedDataPathSetting,
@@ -84,7 +80,9 @@ public class DeprecationChecks {
         NodeDeprecationChecks::checkScriptContextCompilationsRateLimitSetting,
         NodeDeprecationChecks::checkScriptContextCacheSizeSetting,
         NodeDeprecationChecks::checkScriptContextCacheExpirationSetting,
-        NodeDeprecationChecks::checkEnforceDefaultTierPreferenceSetting
+        NodeDeprecationChecks::checkEnforceDefaultTierPreferenceSetting,
+        NodeDeprecationChecks::checkLifecyleStepMasterTimeoutSetting,
+        NodeDeprecationChecks::checkEqlEnabledSetting
     );
 
     static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(

@@ -67,7 +67,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::list-tasks-request-filter
             request.setActions("cluster:*"); // <1>
             request.setNodes("nodeId1", "nodeId2"); // <2>
-            request.setParentTaskId(new TaskId("parentTaskId", 42)); // <3>
+            request.setTargetParentTaskId(new TaskId("parentTaskId", 42)); // <3>
             // end::list-tasks-request-filter
 
             // tag::list-tasks-request-detailed
@@ -176,7 +176,6 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
         Map<String, List<org.elasticsearch.client.tasks.TaskInfo>> perNodeTasks = response.getPerNodeTasks(); // <1>
         List<org.elasticsearch.client.tasks.TaskGroup> groups = response.getTaskGroups(); // <2>
         // end::cancel-tasks-response-calc
-
 
         // tag::cancel-tasks-response-failures
         List<org.elasticsearch.client.tasks.ElasticsearchException> nodeFailures = response.getNodeFailures(); // <1>

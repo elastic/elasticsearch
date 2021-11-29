@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamActionTests extends ESTestCase {
 
@@ -38,9 +38,8 @@ public class DataStreamActionTests extends ESTestCase {
     }
 
     public static DataStreamAction createTestInstance() {
-        DataStreamAction action = new DataStreamAction(randomBoolean()
-                ? DataStreamAction.Type.ADD_BACKING_INDEX
-                : DataStreamAction.Type.REMOVE_BACKING_INDEX
+        DataStreamAction action = new DataStreamAction(
+            randomBoolean() ? DataStreamAction.Type.ADD_BACKING_INDEX : DataStreamAction.Type.REMOVE_BACKING_INDEX
         );
         action.setDataStream(randomAlphaOfLength(8));
         action.setIndex(randomAlphaOfLength(8));

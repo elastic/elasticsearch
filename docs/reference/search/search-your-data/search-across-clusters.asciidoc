@@ -452,7 +452,7 @@ version needed to search the other clusters. For example, if you have 7.14 and
 cluster for {ccs}.
 
 * Keep each cluster no more than one minor version apart. For example, if one
-cluster runs {es} 8.0, other clusters must run 8.0 or 7.16. This lets you use
+cluster runs {es} 8.0, other clusters must run 8.0 or 7.17. This lets you use
 any cluster as the local cluster when running a {ccs}.
 
 [discrete]

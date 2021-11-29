@@ -73,12 +73,9 @@ public class MlDeprecationChecker implements DeprecationChecker {
             StringBuilder details = new StringBuilder(
                 String.format(
                     Locale.ROOT,
-                    // Important: the Kibana upgrade assistant expects this to match the pattern /[Mm]odel snapshot/
-                    // and if it doesn't then the expected "Fix" button won't appear for this deprecation.
-                    "Model snapshot [%s] for job [%s] has an obsolete minimum version [%s].",
+                    "Delete model snapshot [%s] or update it to %s or greater.",
                     modelSnapshot.getSnapshotId(),
-                    modelSnapshot.getJobId(),
-                    modelSnapshot.getMinVersion()
+                    MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION
                 )
             );
             if (modelSnapshot.getLatestRecordTimeStamp() != null) {
@@ -95,9 +92,12 @@ public class MlDeprecationChecker implements DeprecationChecker {
                     DeprecationIssue.Level.CRITICAL,
                     String.format(
                         Locale.ROOT,
-                        "Delete model snapshot [%s] or update it to %s or greater.",
+                        // Important: the Kibana upgrade assistant expects this to match the pattern /[Mm]odel snapshot/
+                        // and if it doesn't then the expected "Fix" button won't appear for this deprecation.
+                        "Model snapshot [%s] for job [%s] has an obsolete minimum version [%s].",
                         modelSnapshot.getSnapshotId(),
-                        MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION
+                        modelSnapshot.getJobId(),
+                        modelSnapshot.getMinVersion()
                     ),
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/ml-upgrade-job-model-snapshot.html",
                     details.toString(),

@@ -83,7 +83,7 @@ setup:
 split:
   - skip:
       version: " - 8.00.99"
-      reason: indesx-split check introduced in 8.1.0
+      reason: index-split check introduced in 8.1.0
 
   - do:
       catch: /index-split is not supported because the destination index \[test\] is in time series mode/

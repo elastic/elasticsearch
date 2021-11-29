@@ -44,7 +44,9 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -93,8 +95,11 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
@@ -142,6 +147,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -150,6 +156,8 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -161,6 +169,7 @@ import static org.mockito.Mockito.when;
  * {@link AggregationBuilder} instance.
  */
 public abstract class AggregatorTestCase extends ESTestCase {
+    private NamedWriteableRegistry namedWriteableRegistry;
     private List<AggregationContext> releasables = new ArrayList<>();
     protected ValuesSourceRegistry valuesSourceRegistry;
     private AnalysisModule analysisModule;
@@ -179,11 +188,17 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     @Before
-    public void initValuesSourceRegistry() {
+    public final void initPlugns() {
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
-        plugins.add(new AggCardinalityPlugin());
+        plugins.add(new AggCardinalityUpperBoundPlugin());
         SearchModule searchModule = new SearchModule(Settings.EMPTY, false, plugins);
         valuesSourceRegistry = searchModule.getValuesSourceRegistry();
+        namedWriteableRegistry = new NamedWriteableRegistry(
+            Stream.concat(
+                searchModule.getNamedWriteables().stream(),
+                plugins.stream().flatMap(p -> p instanceof Plugin ? ((Plugin) p).getNamedWriteables().stream() : Stream.empty())
+            ).collect(toList())
+        );
     }
 
     @Before
@@ -469,11 +484,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Collects all documents that match the provided query {@link Query} and
      * returns the reduced {@link InternalAggregation}.
      *
+     * It runs the aggregation as well using a circuit breaker that randomly throws {@link CircuitBreakingException}
+     * in order to mak sure the implementation does not leak.
+     *
      * @param splitLeavesIntoSeparateAggregators If true this creates a new {@link Aggregator}
      *          for each leaf as though it were a separate index. If false this aggregates
      *          all leaves together, like we do in production.
      */
-    @SuppressWarnings("unchecked")
     protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
         IndexSettings indexSettings,
         IndexSearcher searcher,
@@ -483,11 +500,56 @@ public abstract class AggregatorTestCase extends ESTestCase {
         boolean splitLeavesIntoSeparateAggregators,
         MappedFieldType... fieldTypes
     ) throws IOException {
+        // First run it to find circuit breaker leaks on the aggregator
+        CircuitBreakerService crankyService = new CrankyCircuitBreakerService();
+        for (int i = 0; i < 5; i++) {
+            try {
+                searchAndReduce(
+                    indexSettings,
+                    searcher,
+                    query,
+                    builder,
+                    maxBucket,
+                    splitLeavesIntoSeparateAggregators,
+                    crankyService,
+                    fieldTypes
+                );
+            } catch (CircuitBreakingException e) {
+                // expected
+            } catch (IOException e) {
+                throw e;
+            }
+        }
+        // Second run it to the end
+        CircuitBreakerService breakerService = new NoneCircuitBreakerService();
+        return searchAndReduce(
+            indexSettings,
+            searcher,
+            query,
+            builder,
+            maxBucket,
+            splitLeavesIntoSeparateAggregators,
+            breakerService,
+            fieldTypes
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(
+        IndexSettings indexSettings,
+        IndexSearcher searcher,
+        Query query,
+        AggregationBuilder builder,
+        int maxBucket,
+        boolean splitLeavesIntoSeparateAggregators,
+        CircuitBreakerService breakerService,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
         List<InternalAggregation> aggs = new ArrayList<>();
         Query rewritten = searcher.rewrite(query);
-        CircuitBreakerService breakerService = new NoneCircuitBreakerService();
+
         AggregationContext context = createAggregationContext(
             searcher,
             indexSettings,
@@ -522,6 +584,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             root.postCollection();
             aggs.add(root.buildTopLevel());
         }
+        assertRoundTrip(aggs);
         if (randomBoolean() && aggs.size() > 1) {
             // sometimes do an incremental reduce
             int toReduceSize = aggs.size();
@@ -537,6 +600,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             A reduced = (A) aggs.get(0).reduce(toReduce, reduceContext);
             aggs = new ArrayList<>(aggs.subList(r, toReduceSize));
             aggs.add(reduced);
+            assertRoundTrip(aggs);
         }
 
         // now do the final reduce
@@ -554,6 +618,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         A internalAgg = (A) aggs.get(0).reduce(aggs, reduceContext);
+        assertRoundTrip(internalAgg);
 
         // materialize any parent pipelines
         internalAgg = (A) internalAgg.reducePipelines(internalAgg, reduceContext, pipelines);
@@ -563,6 +628,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             internalAgg = (A) pipelineAggregator.reduce(internalAgg, reduceContext);
         }
         doAssertReducedMultiBucketConsumer(internalAgg, reduceBucketConsumer);
+        assertRoundTrip(internalAgg);
+
         if (builder instanceof ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?>) {
             verifyMetricNames((ValuesSourceAggregationBuilder.MetricsAggregationBuilder<?, ?>) builder, internalAgg);
         }
@@ -685,6 +752,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         );
         @SuppressWarnings("unchecked") // We'll get a cast error in the test if we're wrong here and that is ok
         R result = (R) r;
+        assertRoundTrip(result);
         Map<String, Map<String, Object>> debug = new HashMap<>();
         collectDebugInfo("", aggregator, debug);
         verify.apply(result, aggregator.getClass(), debug);
@@ -1153,17 +1221,36 @@ public abstract class AggregatorTestCase extends ESTestCase {
         return new RangeFieldMapper.RangeFieldType(name, rangeType);
     }
 
+    private void assertRoundTrip(List<InternalAggregation> result) throws IOException {
+        for (InternalAggregation i : result) {
+            assertRoundTrip(i);
+        }
+    }
+
+    private void assertRoundTrip(InternalAggregation result) throws IOException {
+        InternalAggregation roundTripped = copyNamedWriteable(result, writableRegistry(), InternalAggregation.class);
+        assertThat(roundTripped, not(sameInstance(result)));
+        assertThat(roundTripped, equalTo(result));
+        assertThat(roundTripped.hashCode(), equalTo(result.hashCode()));
+    }
+
+    @Override
+    protected final NamedWriteableRegistry writableRegistry() {
+        return namedWriteableRegistry;
+    }
+
     /**
      * Request an aggregation that returns the {@link CardinalityUpperBound}
      * that was passed to its ctor.
      */
-    public static AggregationBuilder aggCardinality(String name) {
-        return new AggCardinalityAggregationBuilder(name);
+    public static AggregationBuilder aggCardinalityUpperBound(String name) {
+        return new AggCardinalityUpperBoundAggregationBuilder(name);
     }
 
-    private static class AggCardinalityAggregationBuilder extends AbstractAggregationBuilder<AggCardinalityAggregationBuilder> {
+    private static class AggCardinalityUpperBoundAggregationBuilder extends AbstractAggregationBuilder<
+        AggCardinalityUpperBoundAggregationBuilder> {
 
-        AggCardinalityAggregationBuilder(String name) {
+        AggCardinalityUpperBoundAggregationBuilder(String name) {
             super(name);
         }
 
@@ -1182,7 +1269,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
                         @Override
                         public InternalAggregation buildAggregation(long owningBucketOrd) throws IOException {
-                            return new InternalAggCardinality(name, cardinality, metadata);
+                            return new InternalAggCardinalityUpperBound(name, cardinality, metadata);
                         }
 
                         @Override
@@ -1206,7 +1293,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         @Override
         public String getType() {
-            return "agg_cardinality";
+            return InternalAggCardinalityUpperBound.NAME;
         }
 
         @Override
@@ -1221,12 +1308,24 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
     }
 
-    public static class InternalAggCardinality extends InternalAggregation {
+    public static class InternalAggCardinalityUpperBound extends InternalAggregation {
+        private static final String NAME = "ctor_cardinality_upper_bound";
+
         private final CardinalityUpperBound cardinality;
 
-        protected InternalAggCardinality(String name, CardinalityUpperBound cardinality, Map<String, Object> metadata) {
+        protected InternalAggCardinalityUpperBound(String name, CardinalityUpperBound cardinality, Map<String, Object> metadata) {
             super(name, metadata);
             this.cardinality = cardinality;
+        }
+
+        public InternalAggCardinalityUpperBound(StreamInput in) throws IOException {
+            super(in);
+            this.cardinality = CardinalityUpperBound.ONE.multiply(in.readVInt());
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            out.writeVInt(cardinality.map(i -> i));
         }
 
         public CardinalityUpperBound cardinality() {
@@ -1235,8 +1334,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         @Override
         public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-            aggregations.forEach(ia -> { assertThat(((InternalAggCardinality) ia).cardinality, equalTo(cardinality)); });
-            return new InternalAggCardinality(name, cardinality, metadata);
+            aggregations.forEach(ia -> { assertThat(((InternalAggCardinalityUpperBound) ia).cardinality, equalTo(cardinality)); });
+            return new InternalAggCardinalityUpperBound(name, cardinality, metadata);
         }
 
         @Override
@@ -1256,21 +1355,92 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         @Override
         public String getWriteableName() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        protected void doWriteTo(StreamOutput out) throws IOException {
-            throw new UnsupportedOperationException();
+            return NAME;
         }
     }
 
-    private static class AggCardinalityPlugin implements SearchPlugin {
+    private static class AggCardinalityUpperBoundPlugin implements SearchPlugin {
         @Override
         public List<AggregationSpec> getAggregations() {
             return singletonList(
-                new AggregationSpec("agg_cardinality", in -> null, (ContextParser<String, AggCardinalityAggregationBuilder>) (p, c) -> null)
+                new AggregationSpec(
+                    InternalAggCardinalityUpperBound.NAME,
+                    in -> null,
+                    (ContextParser<String, AggCardinalityUpperBoundAggregationBuilder>) (p, c) -> null
+                ).addResultReader(InternalAggCardinalityUpperBound::new)
             );
+        }
+    }
+
+    private static class CrankyCircuitBreakerService extends CircuitBreakerService {
+
+        private final CircuitBreaker breaker = new CircuitBreaker() {
+            @Override
+            public void circuitBreak(String fieldName, long bytesNeeded) {
+
+            }
+
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                if (random().nextInt(20) == 0) {
+                    throw new CircuitBreakingException("fake error", Durability.PERMANENT);
+                }
+            }
+
+            @Override
+            public void addWithoutBreaking(long bytes) {
+
+            }
+
+            @Override
+            public long getUsed() {
+                return 0;
+            }
+
+            @Override
+            public long getLimit() {
+                return 0;
+            }
+
+            @Override
+            public double getOverhead() {
+                return 0;
+            }
+
+            @Override
+            public long getTrippedCount() {
+                return 0;
+            }
+
+            @Override
+            public String getName() {
+                return CircuitBreaker.FIELDDATA;
+            }
+
+            @Override
+            public Durability getDurability() {
+                return null;
+            }
+
+            @Override
+            public void setLimitAndOverhead(long limit, double overhead) {
+
+            }
+        };
+
+        @Override
+        public CircuitBreaker getBreaker(String name) {
+            return breaker;
+        }
+
+        @Override
+        public AllCircuitBreakerStats stats() {
+            return new AllCircuitBreakerStats(new CircuitBreakerStats[] { stats(CircuitBreaker.FIELDDATA) });
+        }
+
+        @Override
+        public CircuitBreakerStats stats(String name) {
+            return new CircuitBreakerStats(CircuitBreaker.FIELDDATA, -1, -1, 0, 0);
         }
     }
 }

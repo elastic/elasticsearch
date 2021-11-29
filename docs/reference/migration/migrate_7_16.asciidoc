@@ -91,7 +91,7 @@ logging>>.
 ====
 *Details* +
 In SAML, Identity Providers (IdPs) can either be explicitly configured to
-release a `NameID` with a specific format, or configured to attempt to conform 
+release a `NameID` with a specific format, or configured to attempt to conform
 with the requirements of a Service Provider (SP). The SP declares its
 requirements in the `NameIDPolicy` element of a SAML Authentication Request.
 In {es}, the `nameid_format` SAML realm setting controls the `NameIDPolicy`
@@ -106,9 +106,9 @@ IdP. If you want to retain the previous behavior, set `nameid_format` to
 
 *Impact* +
 If you currently don't configure `nameid_format` explicitly, it's possible
-that your IdP will reject authentication requests from {es} because the requests 
+that your IdP will reject authentication requests from {es} because the requests
 do not specify a `NameID` format (and your IdP is configured to expect one).
-This mismatch can result in a broken SAML configuration. If you're unsure whether 
+This mismatch can result in a broken SAML configuration. If you're unsure whether
 your IdP is explicitly configured to use a certain `NameID` format and you want to retain current behavior
 , try setting `nameid_format` to `urn:oasis:names:tc:SAML:2.0:nameid-format:transient` explicitly.
 ====
@@ -351,7 +351,7 @@ The `estimated_heap_memory_usage_bytes` property in the
 {ref}/put-trained-models.html[create trained models API] is deprecated in 7.16.
 
 *Impact* +
-Use `model_size_bytes` instead. 
+Use `model_size_bytes` instead.
 ====
 
 [discrete]
@@ -359,22 +359,19 @@ Use `model_size_bytes` instead.
 ==== Settings deprecations
 
 [[deprecate-transient-cluster-settings]]
-.Transient cluster settings are now deprecated.
+.We no longer recommend using transient cluster settings.
 [%collapsible]
 ====
 *Details* +
-Transient cluster settings are now deprecated and will be removed in a future release. This is because transient
-cluster settings have an unpredictable lifecycle. Transient cluster settings do not survive full cluster restarts or
-cluster instability. In these cases, {es} recovers the cluster state
-from persistent storage, effectively erasing the transient settings. The loss of transient settings can happen
-unexpectedly, leading to a potentially undesired cluster configuration.
+We no longer recommend using transient cluster settings. Use persistent cluster
+settings instead. If a cluster becomes unstable, transient settings can clear
+unexpectedly, resulting in an undesired cluster configuration.
 
 *Impact* +
-To avoid deprecation warnings, discontinue use of transient settings when modifying
-your cluster settings through the `PUT _cluster/settings` REST API. Use persistent
-settings instead. See the
+Transient cluster settings are not yet deprecated, but we plan to deprecate them
+in a future release. For migration steps, see the
 {ref}/transient-settings-migration-guide.html[Transient settings migration
-guide]. 
+guide].
 ====
 
 [discrete]
@@ -388,14 +385,14 @@ guide].
 *Details* +
 Directly accessing system indices is deprecated. In {es} 8.0, you must add the
 `allow_restricted_indices` permission set to `true` on a user role to access
-system indices. Refer to 
+system indices. Refer to
 {ref}/defining-roles.html#roles-indices-priv[indices privileges] for
 information on adding this permission to an index privilege.
 
 *Impact* +
-Accessing system indices directly results in warnings in the header of API 
+Accessing system indices directly results in warnings in the header of API
 responses and in the deprecation logs. Use {kib} or the associated feature's
-{es} APIs to manage the data that you want to access. While it's still possible 
+{es} APIs to manage the data that you want to access. While it's still possible
 to access system indices in {es} 7.16, they are reserved only for internal use
 by Elastic products and should not be accessed directly.
 ====
@@ -403,27 +400,6 @@ by Elastic products and should not be accessed directly.
 [discrete]
 [[breaking_716_cluster_deprecations]]
 ==== Cluster deprecations
-
-[[deprecate-cluster-health-408]]
-.Distinguishing cluster health timeout status by HTTP response code is now deprecated.
-[%collapsible]
-====
-*Details* +
-The {ref}/cluster-health.html[cluster health API] includes options for waiting
-for certain health conditions to be satisfied. If the requested conditions are
-not satisfied within a timeout then {es} will send back a normal response
-including the field `"timed_out": true`. In earlier versions it would also use
-the HTTP response code `408 Request timeout` if the request timed out, and `200
-OK` otherwise. The `408 Request timeout` response code is not appropriate for
-this situation and its use is deprecated. Future versions will use the response
-code `200 OK` for both cases.
-
-*Impact* +
-Update your application to read the `"timed_out"` field of the response instead
-of the HTTP response code to determine whether the request timed out or not. To
-avoid deprecation warnings and opt into the future behaviour, include the query
-parameter `?return_200_for_cluster_health_timeout` in your request.
-====
 
 [[script-context-cache-deprecated]]
 .The script context cache is deprecated.

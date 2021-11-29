@@ -7,10 +7,12 @@
  */
 package org.elasticsearch.rest;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Objects;
 
@@ -25,6 +27,8 @@ public class DeprecationRestHandler implements RestHandler {
     private final String deprecationMessage;
     private final DeprecationLogger deprecationLogger;
     private final String deprecationKey;
+    @Nullable
+    private final Level deprecationLevel;
 
     /**
      * Create a {@link DeprecationRestHandler} that encapsulates the {@code handler} using the {@code deprecationLogger} to log
@@ -42,6 +46,7 @@ public class DeprecationRestHandler implements RestHandler {
         RestHandler handler,
         RestRequest.Method method,
         String path,
+        @Nullable Level deprecationLevel,
         String deprecationMessage,
         DeprecationLogger deprecationLogger
     ) {
@@ -49,6 +54,12 @@ public class DeprecationRestHandler implements RestHandler {
         this.deprecationMessage = requireValidHeader(deprecationMessage);
         this.deprecationLogger = Objects.requireNonNull(deprecationLogger);
         this.deprecationKey = DEPRECATED_ROUTE_KEY + "_" + method + "_" + path;
+        if (deprecationLevel != null && (deprecationLevel != Level.WARN && deprecationLevel != DeprecationLogger.CRITICAL)) {
+            throw new IllegalArgumentException(
+                "unexpected deprecation logger level: " + deprecationLevel + ", expected either 'CRITICAL' or 'WARN'"
+            );
+        }
+        this.deprecationLevel = deprecationLevel;
     }
 
     /**
@@ -58,7 +69,12 @@ public class DeprecationRestHandler implements RestHandler {
      */
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        deprecationLogger.critical(DeprecationCategory.API, deprecationKey, deprecationMessage);
+        // The default value for deprecated requests without a version warning is CRITICAL
+        if (deprecationLevel == null || deprecationLevel == DeprecationLogger.CRITICAL) {
+            deprecationLogger.critical(DeprecationCategory.API, deprecationKey, deprecationMessage);
+        } else {
+            deprecationLogger.warn(DeprecationCategory.API, deprecationKey, deprecationMessage);
+        }
 
         handler.handleRequest(request, channel, client);
     }

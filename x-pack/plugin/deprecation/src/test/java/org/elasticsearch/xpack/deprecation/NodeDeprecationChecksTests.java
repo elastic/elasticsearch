@@ -775,8 +775,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     DeprecationIssue.Level.CRITICAL,
                     "Setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated",
                     expectedUrl,
-                    "Remove the [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] setting. Disk watermarks"
-                        + " are always enabled for single node clusters in 8.0.",
+                    "Disk watermarks do not treat single-node clusters differently in versions 8.0 and later, and "
+                        + "[cluster.routing.allocation.disk.watermark.enable_for_single_data_node] may not be set to [false] in these "
+                        + "versions. Set [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] to [true] to adopt the "
+                        + "future behavior before upgrading.",
                     false,
                     null
                 )
@@ -808,11 +810,12 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         final String expectedUrl = "https://ela.st/es-deprecation-7-disk-watermark-enable-for-single-node-setting";
         DeprecationIssue deprecationIssue = new DeprecationIssue(
-            DeprecationIssue.Level.CRITICAL,
-            "Disabling disk watermarks for single node clusters is deprecated and no longer the default",
+            DeprecationIssue.Level.WARNING,
+            "Disk watermarks do not treat single-node clusters differently in versions 8.0 and later.",
             expectedUrl,
-            "Disk watermarks are always enabled in 8.0, which will affect the behavior of this single node cluster when you upgrade. You "
-                + "can set \"cluster.routing.allocation.disk.threshold_enabled\" to false to disable disk based allocation.",
+            "Disk watermarks do not treat single-node clusters differently in versions 8.0 and later, which will affect the behavior of "
+                + "this cluster. Set [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] to [true] to adopt the future "
+                + "behavior before upgrading.",
             false,
             null
         );

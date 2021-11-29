@@ -24,6 +24,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeAction;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -81,6 +85,7 @@ import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
@@ -111,6 +116,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
@@ -119,6 +125,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -1900,6 +1907,38 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         ElasticsearchTimeoutException ex = expectThrows(ElasticsearchTimeoutException.class, future::actionGet);
         assertThat(ex.getMessage(), containsString("Wait for seq_no [0] refreshed timed out ["));
+    }
+
+    public void testMinimalSearchSourceInShardRequests() {
+        createIndex("test");
+        int numDocs = between(0, 10);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test", "_doc").setSource("id", Integer.toString(i)).get();
+        }
+        client().admin().indices().prepareRefresh("test").get();
+
+        String pitId = client().execute(
+            OpenPointInTimeAction.INSTANCE,
+            new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(10))
+        ).actionGet().getPointInTimeId();
+        final MockSearchService searchService = (MockSearchService) getInstanceFromNode(SearchService.class);
+        final List<ShardSearchRequest> shardRequests = new CopyOnWriteArrayList<>();
+        searchService.setOnCreateSearchContext(ctx -> shardRequests.add(ctx.request()));
+        try {
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().size(between(numDocs, numDocs * 2)).pointInTimeBuilder(new PointInTimeBuilder(pitId))
+            );
+            final SearchResponse searchResponse = client().search(searchRequest).actionGet();
+            assertHitCount(searchResponse, numDocs);
+        } finally {
+            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
+        }
+        assertThat(shardRequests, not(emptyList()));
+        for (ShardSearchRequest shardRequest : shardRequests) {
+            assertNotNull(shardRequest.source());
+            assertNotNull(shardRequest.source().pointInTimeBuilder());
+            assertThat(shardRequest.source().pointInTimeBuilder().getEncodedId(), equalTo(""));
+        }
     }
 
     private ReaderContext createReaderContext(IndexService indexService, IndexShard indexShard) {

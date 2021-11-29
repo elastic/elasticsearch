@@ -43,6 +43,7 @@ import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -216,7 +217,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.shardRequestIndex = shardRequestIndex;
         this.numberOfShards = numberOfShards;
         this.searchType = searchType;
-        this.source = source;
+        this.source(source);
         this.types = types;
         this.requestCache = requestCache;
         this.aliasFilter = aliasFilter;
@@ -295,7 +296,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.searchType = clone.searchType;
         this.numberOfShards = clone.numberOfShards;
         this.scroll = clone.scroll;
-        this.source = clone.source;
+        this.source(clone.source);
         this.types = clone.types;
         this.aliasFilter = clone.aliasFilter;
         this.indexBoost = clone.indexBoost;
@@ -412,6 +413,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     }
 
     public void source(SearchSourceBuilder source) {
+        if (source != null && source.pointInTimeBuilder() != null) {
+            // Discard the actual point in time as data nodes don't use it to reduce the memory usage and the serialization cost
+            // of shard-level search requests. However, we need to assign as a dummy PIT instead of null as we verify PIT for
+            // slice requests on data nodes.
+            source = source.shallowCopy();
+            source.pointInTimeBuilder(new PointInTimeBuilder(""));
+        }
         this.source = source;
     }
 

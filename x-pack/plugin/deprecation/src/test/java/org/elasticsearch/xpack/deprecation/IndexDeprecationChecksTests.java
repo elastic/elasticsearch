@@ -843,11 +843,10 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 issues,
                 contains(
                     new DeprecationIssue(
-                        DeprecationIssue.Level.CRITICAL,
-                        "Index [test] does not have a [index.routing.allocation.include._tier_preference] setting, "
-                            + "in 8.0 this setting will be required for all indices and may not be empty or null.",
+                        DeprecationIssue.Level.WARNING,
+                        "No [index.routing.allocation.include._tier_preference] is set for index [test].",
                         "https://ela.st/es-deprecation-7-empty-tier-preference",
-                        "Update the settings for this index to specify an appropriate tier preference.",
+                        "Specify a data tier preference for this index.",
                         false,
                         null
                     )

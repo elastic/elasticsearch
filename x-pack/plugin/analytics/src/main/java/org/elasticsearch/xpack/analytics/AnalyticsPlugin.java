@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.analytics.aggregations.AnalyticsAggregatorFactory
 import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
+import org.elasticsearch.xpack.analytics.cumulativecardinality.InternalSimpleLongValue;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import org.elasticsearch.xpack.analytics.movingPercentiles.MovingPercentilesPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms;
@@ -79,7 +80,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
                 CumulativeCardinalityPipelineAggregationBuilder.NAME,
                 CumulativeCardinalityPipelineAggregationBuilder::new,
                 usage.track(AnalyticsStatsAction.Item.CUMULATIVE_CARDINALITY, CumulativeCardinalityPipelineAggregationBuilder.PARSER)
-            )
+            ).addResultReader(InternalSimpleLongValue.NAME, InternalSimpleLongValue::new)
         );
         pipelineAggs.add(
             new PipelineAggregationSpec(

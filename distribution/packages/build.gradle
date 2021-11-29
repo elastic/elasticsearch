@@ -205,6 +205,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
 
     // ========= config files =========
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
+    configurationFile '/etc/elasticsearch/elasticsearch-plugins.example.yml'
     configurationFile '/etc/elasticsearch/jvm.options'
     configurationFile '/etc/elasticsearch/log4j2.properties'
     if (oss == false) {

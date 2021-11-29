@@ -298,6 +298,60 @@ public class InboundPipelineTests extends ESTestCase {
         }
     }
 
+    public void testDecodeDoesNotRetainOnClosedChannel() throws IOException {
+        BiConsumer<TcpChannel, InboundMessage> messageHandler = (c, m) -> {};
+        final StatsTracker statsTracker = new StatsTracker();
+        final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
+        final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
+        final Supplier<CircuitBreaker> breaker = () -> new NoopCircuitBreaker("test");
+        final InboundAggregator aggregator = new InboundAggregator(breaker, (Predicate<String>) action -> true);
+        final InboundPipeline pipeline = new InboundPipeline(statsTracker, millisSupplier, decoder, aggregator, messageHandler);
+        try (RecyclerBytesStreamOutput streamOutput = new RecyclerBytesStreamOutput(recycler)) {
+            String actionName = "actionName";
+            final Version version = Version.CURRENT;
+            final String value = randomAlphaOfLength(1000);
+            final boolean isRequest = randomBoolean();
+            final long requestId = randomNonNegativeLong();
+
+            OutboundMessage message;
+            if (isRequest) {
+                message = new OutboundMessage.Request(threadContext, new TestRequest(value), version, actionName, requestId, false, null);
+            } else {
+                message = new OutboundMessage.Response(threadContext, new TestResponse(value), version, requestId, false, null);
+            }
+
+            final BytesReference reference = message.serialize(streamOutput);
+            final int fixedHeaderSize = TcpHeader.headerSize(Version.CURRENT);
+            final int variableHeaderSize = reference.getInt(fixedHeaderSize - 4);
+            final int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
+            for (int i = 0; i < totalHeaderSize - 1; ++i) {
+                try (ReleasableBytesReference slice = ReleasableBytesReference.wrap(reference.slice(i, 1))) {
+                    pipeline.handleBytes(new FakeTcpChannel(), slice);
+                }
+            }
+
+            final AtomicBoolean bodyPart1Released = new AtomicBoolean(false);
+            final int from = totalHeaderSize - 1;
+            final BytesReference partHeaderPartBody = reference.slice(from, reference.length() - from - 1);
+            try (ReleasableBytesReference slice = new ReleasableBytesReference(partHeaderPartBody, () -> bodyPart1Released.set(true))) {
+                pipeline.handleBytes(new FakeTcpChannel(), slice);
+            }
+            assertFalse(bodyPart1Released.get());
+            pipeline.close();
+            assertTrue(bodyPart1Released.get());
+            final AtomicBoolean bodyPart2Released = new AtomicBoolean(false);
+            try (
+                ReleasableBytesReference slice = new ReleasableBytesReference(
+                    reference.slice(reference.length() - 1, 1),
+                    () -> bodyPart2Released.set(true)
+                )
+            ) {
+                pipeline.handleBytes(new FakeTcpChannel(), slice);
+            }
+            assertTrue(bodyPart2Released.get());
+        }
+    }
+
     private static class MessageData {
 
         private final Version version;

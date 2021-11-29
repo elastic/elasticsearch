@@ -273,6 +273,8 @@ public class ArchiveTests extends PackagingTestCase {
         Platforms.onWindows(
             () -> sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + "" + "'} | " + bin.keystoreTool + " passwd")
         );
+        // Cleanup node.name so that following tests can set it if need be.
+        ServerUtils.removeSettingFromExistingConfiguration(installation, "node.name");
     }
 
     public void test52AutoConfigurationOnWindows() throws Exception {
@@ -289,12 +291,12 @@ public class ArchiveTests extends PackagingTestCase {
         verifySecurityAutoConfigured(installation);
         stopElasticsearch();
         sh.chown(installation.config);
+        // Cleanup node.name so that following tests can set it if need be.
+        ServerUtils.removeSettingFromExistingConfiguration(installation, "node.name");
     }
 
     public void test60StartAndStop() throws Exception {
         startElasticsearch();
-        // Cleanup node.name so that following tests can set it if need be.
-        ServerUtils.removeSettingFromExistingConfiguration(installation, "node.name");
         assertThat(installation.logs.resolve("gc.log"), fileExists());
         runElasticsearchTests();
         stopElasticsearch();

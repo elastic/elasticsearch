@@ -511,7 +511,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, metadata)) {
                     continue;
                 }
-                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices, metadata)) {
+                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices)) {
                     continue;
                 }
                 Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
@@ -681,24 +681,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         private boolean addFailureIfIndexIsUnavailable(
             DocWriteRequest<?> request,
             int idx,
-            final ConcreteIndices concreteIndices,
-            final Metadata metadata
+            final ConcreteIndices concreteIndices
         ) {
             IndexNotFoundException cannotCreate = indicesThatCannotBeCreated.get(request.index());
             if (cannotCreate != null) {
                 addFailure(request, idx, cannotCreate);
                 return true;
             }
-            Index concreteIndex;
             try {
-                concreteIndex = concreteIndices.resolveIfAbsent(request);
+                assert request.indicesOptions().forbidClosedIndices() : "only open indices can be resolved";
+                Index concreteIndex = concreteIndices.resolveIfAbsent(request);
+                assert concreteIndex != null;
             } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
                 addFailure(request, idx, ex);
-                return true;
-            }
-            IndexMetadata indexMetadata = metadata.getIndexSafe(concreteIndex);
-            if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
-                addFailure(request, idx, new IndexClosedException(concreteIndex));
                 return true;
             }
             return false;

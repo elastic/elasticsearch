@@ -168,7 +168,7 @@ public class DatafeedNodeSelector {
 
     @Nullable
     private AssignmentFailure verifyIndicesActive() {
-        boolean hasRemoteIndices = datafeedIndices.stream().filter(RemoteClusterLicenseChecker::isRemoteIndex).findAny().isPresent();
+        boolean hasRemoteIndices = datafeedIndices.stream().anyMatch(RemoteClusterLicenseChecker::isRemoteIndex);
         String[] index = datafeedIndices.stream()
             // We cannot verify remote indices
             .filter(i -> RemoteClusterLicenseChecker.isRemoteIndex(i) == false)

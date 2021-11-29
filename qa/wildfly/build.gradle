@@ -76,6 +76,6 @@ tasks.named("check").configure {
 
 static def isDockerImageAvailable() {
   // The wildfly docker image is only available for x86 architectures so disable these tests on arm
-  // The wildfly docker image is only available for Java 11
+  // The wildfly docker image is only available for Java 11 (https://github.com/jboss-dockerfiles/wildfly/issues/148)
   return Architecture.current() == Architecture.X64 && BuildParams.getMinimumRuntimeVersion() == JavaVersion.VERSION_11
 }

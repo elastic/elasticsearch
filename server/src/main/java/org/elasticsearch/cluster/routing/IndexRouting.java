@@ -112,6 +112,7 @@ public abstract class IndexRouting {
 
     /**
      * Check if the _split index operation is allowed for an index
+     * @throws IllegalArgumentException if the operation is not allowed
      */
     public void checkIndexSplitAllowed() {}
 

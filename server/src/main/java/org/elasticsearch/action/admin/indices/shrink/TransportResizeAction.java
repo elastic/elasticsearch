@@ -127,12 +127,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
 
         // Index splits are not allowed for time-series indices
         if (resizeRequest.getResizeType() == ResizeType.SPLIT) {
-            try {
-                IndexRouting.fromIndexMetadata(sourceMetadata).checkIndexSplitAllowed();
-            } catch (IllegalArgumentException e) {
-                listener.onFailure(e);
-                return;
-            }
+            IndexRouting.fromIndexMetadata(sourceMetadata).checkIndexSplitAllowed();
         }
 
         IndicesStatsRequestBuilder statsRequestBuilder = client.admin()

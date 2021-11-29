@@ -68,52 +68,48 @@ public abstract class FileRestoreContext {
     public void restore(SnapshotFiles snapshotFiles, Store store, ActionListener<Void> listener) {
         store.incRef();
         try {
-            logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, repositoryName, shardId);
-            Store.MetadataSnapshot recoveryTargetMetadata;
-            try {
-                // this will throw an IOException if the store has no segments infos file. The
-                // store can still have existing files but they will be deleted just before being
-                // restored.
-                if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
-                    recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
-                } else {
-                    recoveryTargetMetadata = store.getMetadata(null, true);
-                }
-            } catch (org.apache.lucene.index.IndexNotFoundException e) {
-                // happens when restore to an empty shard, not a big deal
-                logger.trace("[{}] [{}] restoring from to an empty shard", shardId, snapshotId);
-                recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
-            } catch (IOException e) {
-                logger.warn(
-                    new ParameterizedMessage(
-                        "[{}] [{}] Can't read metadata from store, will not reuse local files during restore",
-                        shardId,
-                        snapshotId
-                    ),
-                    e
-                );
-                recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
-            }
             final List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover = new ArrayList<>();
-            final Map<String, StoreFileMetadata> snapshotMetadata = new HashMap<>();
-            final Map<String, BlobStoreIndexShardSnapshot.FileInfo> fileInfos = new HashMap<>();
-            for (final BlobStoreIndexShardSnapshot.FileInfo fileInfo : snapshotFiles.indexFiles()) {
-                snapshotMetadata.put(fileInfo.metadata().name(), fileInfo.metadata());
-                fileInfos.put(fileInfo.metadata().name(), fileInfo);
-            }
-
-            final Store.MetadataSnapshot sourceMetadata = new Store.MetadataSnapshot(unmodifiableMap(snapshotMetadata), emptyMap(), 0);
-
-            final StoreFileMetadata restoredSegmentsFile = sourceMetadata.getSegmentsFile();
-            if (restoredSegmentsFile == null) {
-                throw new IndexShardRestoreFailedException(shardId, "Snapshot has no segments file");
-            }
-
             if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
                 for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : snapshotFiles.indexFiles()) {
                     recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), true);
                 }
             } else {
+                logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, repositoryName, shardId);
+                Store.MetadataSnapshot recoveryTargetMetadata;
+                try {
+                    // this will throw an IOException if the store has no segments infos file. The
+                    // store can still have existing files but they will be deleted just before being
+                    // restored.
+                    recoveryTargetMetadata = store.getMetadata(null, true);
+                } catch (org.apache.lucene.index.IndexNotFoundException e) {
+                    // happens when restore to an empty shard, not a big deal
+                    logger.trace("[{}] [{}] restoring from to an empty shard", shardId, snapshotId);
+                    recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
+                } catch (IOException e) {
+                    logger.warn(
+                        new ParameterizedMessage(
+                            "[{}] [{}] Can't read metadata from store, will not reuse local files during restore",
+                            shardId,
+                            snapshotId
+                        ),
+                        e
+                    );
+                    recoveryTargetMetadata = Store.MetadataSnapshot.EMPTY;
+                }
+                final Map<String, StoreFileMetadata> snapshotMetadata = new HashMap<>();
+                final Map<String, BlobStoreIndexShardSnapshot.FileInfo> fileInfos = new HashMap<>();
+                for (final BlobStoreIndexShardSnapshot.FileInfo fileInfo : snapshotFiles.indexFiles()) {
+                    snapshotMetadata.put(fileInfo.metadata().name(), fileInfo.metadata());
+                    fileInfos.put(fileInfo.metadata().name(), fileInfo);
+                }
+
+                final Store.MetadataSnapshot sourceMetadata = new Store.MetadataSnapshot(unmodifiableMap(snapshotMetadata), emptyMap(), 0);
+
+                final StoreFileMetadata restoredSegmentsFile = sourceMetadata.getSegmentsFile();
+                if (restoredSegmentsFile == null) {
+                    throw new IndexShardRestoreFailedException(shardId, "Snapshot has no segments file");
+                }
+
                 final Store.RecoveryDiff diff = sourceMetadata.recoveryDiff(recoveryTargetMetadata);
                 for (StoreFileMetadata md : diff.identical) {
                     BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfos.get(md.name());
@@ -192,9 +188,10 @@ public abstract class FileRestoreContext {
                 try {
                     store.directory().deleteFile(storeFile);
                 } catch (ImmutableDirectoryException e) {
-                    // snapshots of immutable directories only contain an empty `segments_N` file since the data lives elsewhere, and if we
-                    // restore such a snapshot then the real data is already present in the directory and cannot be removed.
-                    assert snapshotFiles.indexFiles().size() == 1 : snapshotFiles;
+                    // snapshots of immutable directories either only contain an empty `segments_N` file or no data at all,
+                    // since the data lives elsewhere, and if we restore such a snapshot then the real data is already present
+                    // in the directory and cannot be removed.
+                    assert snapshotFiles.indexFiles().size() <= 1 : snapshotFiles;
                 } catch (IOException e) {
                     logger.warn("[{}] [{}] failed to delete file [{}] during snapshot cleanup", shardId, snapshotId, storeFile);
                 }

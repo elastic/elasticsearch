@@ -14,10 +14,10 @@ import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;

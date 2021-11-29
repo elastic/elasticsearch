@@ -17,7 +17,9 @@ import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -67,6 +69,13 @@ public enum IndexMode {
         public Map<String, Object> getDefaultMapping() {
             return Collections.emptyMap();
         }
+
+        @Override
+        public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
+            // non time-series indices must not have a TimeSeriesIdFieldMapper
+            return null;
+        }
+
     },
     TIME_SERIES {
         @Override
@@ -124,6 +133,11 @@ public enum IndexMode {
         private String tsdbMode() {
             return "[" + IndexSettings.MODE.getKey() + "=time_series]";
         }
+
+        @Override
+        public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
+            return TimeSeriesIdFieldMapper.INSTANCE;
+        }
     };
 
     public static final Map<String, Object> DEFAULT_TIME_SERIES_TIMESTAMP_MAPPING = Map.of(
@@ -177,4 +191,11 @@ public enum IndexMode {
      * @return
      */
     public abstract Map<String, Object> getDefaultMapping();
+
+    /**
+     * Return an instance of the {@link TimeSeriesIdFieldMapper} that generates
+     * the _tsid field. The field mapper will be added to the list of the metadata
+     * field mappers for the index.
+     */
+    public abstract MetadataFieldMapper buildTimeSeriesIdFieldMapper();
 }

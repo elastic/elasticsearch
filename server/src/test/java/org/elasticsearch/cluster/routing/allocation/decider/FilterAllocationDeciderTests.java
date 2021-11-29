@@ -24,13 +24,13 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_NAME;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOURCE_UUID;
@@ -190,7 +190,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testInvalidIPFilter() {
         String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
-        Setting<String> filterSetting = randomFrom(
+        var filterSetting = randomFrom(
             IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
             IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
             IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING
@@ -209,7 +209,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     public void testNull() {
-        Setting<String> filterSetting = randomFrom(
+        var filterSetting = randomFrom(
             IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
             IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
             IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING
@@ -224,7 +224,7 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
 
     public void testWildcardIPFilter() {
         String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
-        Setting<String> filterSetting = randomFrom(
+        var filterSetting = randomFrom(
             IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
             IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
             IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING
@@ -233,6 +233,38 @@ public class FilterAllocationDeciderTests extends ESAllocationTestCase {
         IndexScopedSettings indexScopedSettings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
         indexScopedSettings.updateDynamicSettings(
             Settings.builder().put(filterSetting.getKey() + ipKey, wildcardIP).build(),
+            Settings.builder().put(Settings.EMPTY),
+            Settings.builder(),
+            "test ip validation"
+        );
+    }
+
+    public void testSettingsAcceptComaSeparatedValues() {
+        String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
+        var filterSetting = randomFrom(
+            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+            IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
+            IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING
+        );
+
+        new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS).updateDynamicSettings(
+            Settings.builder().put(filterSetting.getKey() + ipKey, "192.168.0.10,192.168.0.11").build(),
+            Settings.builder().put(Settings.EMPTY),
+            Settings.builder(),
+            "test ip validation"
+        );
+    }
+
+    public void testSettingsAcceptArrayOfValues() {
+        String ipKey = randomFrom("_ip", "_host_ip", "_publish_ip");
+        var filterSetting = randomFrom(
+            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+            IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
+            IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING
+        );
+
+        new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS).updateDynamicSettings(
+            Settings.builder().putList(filterSetting.getKey() + ipKey, List.of("192.168.0.10", "192.168.0.11")).build(),
             Settings.builder().put(Settings.EMPTY),
             Settings.builder(),
             "test ip validation"

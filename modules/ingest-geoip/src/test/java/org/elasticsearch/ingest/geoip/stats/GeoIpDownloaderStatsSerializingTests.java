@@ -32,7 +32,7 @@ public class GeoIpDownloaderStatsSerializingTests extends AbstractSerializingTes
     }
 
     static GeoIpDownloaderStats createRandomInstance() {
-        GeoIpDownloaderStats stats = GeoIpDownloaderStats.EMPTY.count(randomInt(1000));
+        GeoIpDownloaderStats stats = GeoIpDownloaderStats.EMPTY.databasesCount(randomInt(1000));
         int successes = randomInt(20);
         for (int i = 0; i < successes; i++) {
             stats = stats.successfulDownload(randomLongBetween(0, 3000));

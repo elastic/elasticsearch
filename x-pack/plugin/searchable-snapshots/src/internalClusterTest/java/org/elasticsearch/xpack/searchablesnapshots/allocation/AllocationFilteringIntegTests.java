@@ -111,9 +111,9 @@ public class AllocationFilteringIntegTests extends BaseSearchableSnapshotsIntegT
      * @param mountSettingIsPositive whether {@code mountSetting} is positive (i.e. include/require) or negative (i.e. exclude)
      */
     private void runTest(
-        Setting.AffixSetting<String> indexSetting,
+        Setting.AffixSetting<List<String>> indexSetting,
         boolean indexSettingIsPositive,
-        @Nullable Setting.AffixSetting<String> mountSetting,
+        @Nullable Setting.AffixSetting<List<String>> mountSetting,
         boolean mountSettingIsPositive
     ) throws InterruptedException {
         final List<String> nodes = internalCluster().startNodes(2);

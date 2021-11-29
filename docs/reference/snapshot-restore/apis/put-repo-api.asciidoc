@@ -30,17 +30,11 @@ PUT /_snapshot/my_repository
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API.
 
-[[put-snapshot-repo-api-desc]]
-==== {api-description-title}
-
-A snapshot repository must be registered before you can perform
-<<snapshot-restore,snapshot and restore>> operations. You can use the put
-snapshot repository API to register new repositories and update existing ones.
-See <<snapshots-register-repository>>.
-
-TIP: Because snapshot formats can change between major versions of
-{es}, we recommend registering a new snapshot repository for each major version.
-See <<snapshot-restore-version-compatibility>>.
+// tag::put-repo-api-prereqs[]
+* To register a snapshot repository, the cluster's global metadata must be
+writeable. Ensure there aren't any <<cluster-read-only,cluster blocks>> that
+prevent write access.
+// end::put-repo-api-prereqs[]
 
 [[put-snapshot-repo-api-path-params]]
 ==== {api-path-parms-title}
@@ -78,18 +72,6 @@ You can manually perform this verification using the
 [role="child_attributes"]
 [[put-snapshot-repo-api-request-body]]
 ==== {api-request-body-title}
-
-`master_timeout`::
-(Optional, <<time-units, time units>>)
-Specifies the period of time to wait for
-a connection to the master node. If no response is received before the timeout
-expires, the request fails and returns an error. Defaults to `30s`.
-
-`timeout`::
-(Optional, <<time-units, time units>>)
-Specifies the period of time to wait for
-a response. If no response is received before the timeout expires, the request
-fails and returns an error. Defaults to `30s`.
 
 [[put-snapshot-repo-api-request-type]]
 `type`::
@@ -241,6 +223,8 @@ type. See <<snapshots-source-only-repository>>.
 [%collapsible%open]
 ====
 `url`::
++
+---
 (Required, string)
 URL location of the root of the shared filesystem repository. The following
 protocols are supported:
@@ -251,13 +235,24 @@ protocols are supported:
 * `https`
 * `jar`
 
+URLs using the `http`, `https`, or `ftp` protocols must be explicitly allowed
+with the <<repositories-url-allowed,`repositories.url.allowed_urls`>> cluster
+setting. This setting supports wildcards in the place of a host, path, query, or
+fragment in the URL.
+
 URLs using the `file` protocol must point to the location of a shared filesystem
 accessible to all master and data nodes in the cluster. This location must be
-registered in the `path.repo` setting.
+registered in the `path.repo` setting. You don't need to register URLs using the
+`ftp`, `http`, `https`, or `jar` protocols in the `path.repo` setting.
+---
 
-URLs using the `http`, `https`, or `ftp` protocols must be explicitly allowed with the
-`repositories.url.allowed_urls` setting. This setting supports wildcards in the
-place of a host, path, query, or fragment in the URL.
+`http_max_retries`::
+(Optional, integer) Maximum number of retries for `http` and `https` URLs.
+Defaults to `5`.
+
+`http_socket_timeout`::
+(Optional, <<time-units,time value>>) Maximum wait time for data transfers over
+a connection. Defaults to `50s`.
 ====
 --
 

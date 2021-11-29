@@ -374,7 +374,6 @@ import org.elasticsearch.xpack.ml.rest.filter.RestPutFilterAction;
 import org.elasticsearch.xpack.ml.rest.filter.RestUpdateFilterAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestDeleteTrainedModelAliasAction;
-import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelDeploymentStatsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestGetTrainedModelsStatsAction;
 import org.elasticsearch.xpack.ml.rest.inference.RestInferTrainedModelDeploymentAction;
@@ -409,6 +408,7 @@ import org.elasticsearch.xpack.ml.rest.results.RestGetOverallBucketsAction;
 import org.elasticsearch.xpack.ml.rest.results.RestGetRecordsAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateDetectorAction;
 import org.elasticsearch.xpack.ml.rest.validate.RestValidateJobConfigAction;
+import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
@@ -528,11 +528,6 @@ public class MachineLearning extends Plugin
      * This calculation takes into account total node size and the size of the JVM on that node.
      *
      * If the calculation fails, we fall back to `max_machine_memory_percent`.
-     *
-     * This setting is NOT dynamic. This allows the cluster administrator to set it on startup without worry of it
-     * being edited accidentally later.
-     * Consequently, it could be that this setting differs between nodes. But, we only ever pay attention to the value
-     * that is set on the current master. As master nodes are responsible for persistent task assignments.
      */
     public static final Setting<Boolean> USE_AUTO_MACHINE_MEMORY_PERCENT = Setting.boolSetting(
         "xpack.ml.use_auto_machine_memory_percent",
@@ -655,7 +650,6 @@ public class MachineLearning extends Plugin
     }
 
     public static boolean isMlNode(DiscoveryNode node) {
-        logger.info("DMR node roles are " + node.getRoles());
         return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE);
     }
 
@@ -789,7 +783,6 @@ public class MachineLearning extends Plugin
         this.datafeedConfigProvider.set(datafeedConfigProvider);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
         JobManager jobManager = new JobManager(
-            settings,
             jobResultsProvider,
             jobResultsPersister,
             clusterService,
@@ -798,7 +791,8 @@ public class MachineLearning extends Plugin
             client,
             notifier,
             xContentRegistry,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            () -> NativeMemoryCalculator.getMaxModelMemoryLimit(clusterService)
         );
         DatafeedManager datafeedManager = new DatafeedManager(
             datafeedConfigProvider,
@@ -1196,7 +1190,6 @@ public class MachineLearning extends Plugin
             new RestPutTrainedModelAliasAction(),
             new RestDeleteTrainedModelAliasAction(),
             new RestPreviewDataFrameAnalyticsAction(),
-            new RestGetTrainedModelDeploymentStatsAction(),
             new RestStartTrainedModelDeploymentAction(),
             new RestStopTrainedModelDeploymentAction(),
             new RestInferTrainedModelDeploymentAction(),

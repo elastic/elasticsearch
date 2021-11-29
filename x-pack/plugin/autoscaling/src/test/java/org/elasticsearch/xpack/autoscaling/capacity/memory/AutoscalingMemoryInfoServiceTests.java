@@ -331,7 +331,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             n -> {
                 assertThat(
                     service.snapshot().get(n),
-                    equalTo(response.getNodesMap().get(n.getId()).getOs().getMem().getTotal().getBytes())
+                    equalTo(response.getNodesMap().get(n.getId()).getOs().getMem().getAdjustedTotal().getBytes())
                 );
             }
         );
@@ -347,7 +347,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         OsStats osStats = new OsStats(
             randomNonNegativeLong(),
             new OsStats.Cpu(randomShort(), null),
-            new OsStats.Mem(memory, memory, randomLongBetween(0, memory)),
+            new OsStats.Mem(memory, randomLongBetween(0, memory), randomLongBetween(0, memory)),
             new OsStats.Swap(randomNonNegativeLong(), randomNonNegativeLong()),
             null
         );
@@ -395,9 +395,9 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             });
         }
 
-        public void respond(BiConsumer<NodesStatsRequest, ActionListener<NodesStatsResponse>> responder) {
-            assertThat(responder, notNullValue());
-            this.responder = responder;
+        public void respond(BiConsumer<NodesStatsRequest, ActionListener<NodesStatsResponse>> responderValue) {
+            assertThat(responderValue, notNullValue());
+            this.responder = responderValue;
         }
 
         @Override
@@ -410,11 +410,11 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             NodesStatsRequest nodesStatsRequest = (NodesStatsRequest) request;
             assertThat(nodesStatsRequest.timeout(), equalTo(fetchTimeout));
             assertThat(responder, notNullValue());
-            BiConsumer<NodesStatsRequest, ActionListener<NodesStatsResponse>> responder = this.responder;
+            BiConsumer<NodesStatsRequest, ActionListener<NodesStatsResponse>> responderValue = this.responder;
             this.responder = null;
             @SuppressWarnings("unchecked")
             ActionListener<NodesStatsResponse> statsListener = (ActionListener<NodesStatsResponse>) listener;
-            responder.accept(nodesStatsRequest, statsListener);
+            responderValue.accept(nodesStatsRequest, statsListener);
         }
 
         public void assertNoResponder() {

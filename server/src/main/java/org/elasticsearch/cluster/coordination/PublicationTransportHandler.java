@@ -25,15 +25,13 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.PositionTrackingOutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasables;
@@ -61,7 +59,6 @@ public class PublicationTransportHandler {
     public static final String PUBLISH_STATE_ACTION_NAME = "internal:cluster/coordination/publish_state";
     public static final String COMMIT_STATE_ACTION_NAME = "internal:cluster/coordination/commit_state";
 
-    private final BigArrays bigArrays;
     private final TransportService transportService;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest;
@@ -88,13 +85,11 @@ public class PublicationTransportHandler {
     private final SerializationStatsTracker serializationStatsTracker = new SerializationStatsTracker();
 
     public PublicationTransportHandler(
-        BigArrays bigArrays,
         TransportService transportService,
         NamedWriteableRegistry namedWriteableRegistry,
         Function<PublishRequest, PublishWithJoinResponse> handlePublishRequest,
         BiConsumer<ApplyCommitRequest, ActionListener<Void>> handleApplyCommit
     ) {
-        this.bigArrays = bigArrays;
         this.transportService = transportService;
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.handlePublishRequest = handlePublishRequest;
@@ -225,7 +220,7 @@ public class PublicationTransportHandler {
 
     private ReleasableBytesReference serializeFullClusterState(ClusterState clusterState, DiscoveryNode node) {
         final Version nodeVersion = node.getVersion();
-        final BytesStreamOutput bytesStream = new ReleasableBytesStreamOutput(bigArrays);
+        final RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream();
         boolean success = false;
         try {
             final long uncompressedBytes;
@@ -241,7 +236,7 @@ public class PublicationTransportHandler {
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state for publishing to node {}", e, node);
             }
-            final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream::close);
+            final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream);
             serializationStatsTracker.serializedFullState(uncompressedBytes, result.length());
             logger.trace(
                 "serialized full cluster state version [{}] for node version [{}] with size [{}]",
@@ -260,7 +255,7 @@ public class PublicationTransportHandler {
 
     private ReleasableBytesReference serializeDiffClusterState(long clusterStateVersion, Diff<ClusterState> diff, DiscoveryNode node) {
         final Version nodeVersion = node.getVersion();
-        final BytesStreamOutput bytesStream = new ReleasableBytesStreamOutput(bigArrays);
+        final RecyclerBytesStreamOutput bytesStream = transportService.newNetworkBytesStream();
         boolean success = false;
         try {
             final long uncompressedBytes;
@@ -276,7 +271,7 @@ public class PublicationTransportHandler {
             } catch (IOException e) {
                 throw new ElasticsearchException("failed to serialize cluster state diff for publishing to node {}", e, node);
             }
-            final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream::close);
+            final ReleasableBytesReference result = new ReleasableBytesReference(bytesStream.bytes(), bytesStream);
             serializationStatsTracker.serializedDiff(uncompressedBytes, result.length());
             logger.trace(
                 "serialized cluster state diff for version [{}] for node version [{}] with size [{}]",

@@ -58,7 +58,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * to control if the {@code caused_by} element should render. Unlike most parameters to {@code toXContent} methods this parameter is
      * internal only and not available as a URL parameter.
      */
-    private static final String REST_EXCEPTION_SKIP_CAUSE = "rest.exception.cause.skip";
+    public static final String REST_EXCEPTION_SKIP_CAUSE = "rest.exception.cause.skip";
     /**
      * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}
      * to control if the {@code stack_trace} element should render. Unlike most parameters to {@code toXContent} methods this parameter is

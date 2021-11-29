@@ -1,5 +1,5 @@
 pr: 81082
 summary: Docker fix additional nodes
-area: "Packaging"
+area: Packaging
 type: bug
-issues: [81068]
+issues: []

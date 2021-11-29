@@ -40,7 +40,7 @@ public class ConditionTests extends ESTestCase {
         assertThat(evaluate.matched, equalTo(true));
 
         long maxDocsNotMatch = randomIntBetween(0, 99);
-        evaluate = maxDocsCondition.evaluate(new Condition.Stats(0, maxDocsNotMatch, randomByteSize(), randomByteSize()));
+        evaluate = maxDocsCondition.evaluate(new Condition.Stats(maxDocsNotMatch, 0, randomByteSize(), randomByteSize()));
         assertThat(evaluate.condition, equalTo(maxDocsCondition));
         assertThat(evaluate.matched, equalTo(false));
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.scheduler;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.MessageSupplier;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -31,6 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -99,6 +101,9 @@ public class SchedulerEngineTests extends ESTestCase {
             if (numberOfFailingListeners > 0) {
                 assertFailedListenerLogMessage(mockLogger, numberOfFailingListeners);
             }
+            // Verify the debug logging:
+            verifyDebugLogging(mockLogger);
+
             verifyNoMoreInteractions(mockLogger);
         } finally {
             engine.stop();
@@ -145,6 +150,9 @@ public class SchedulerEngineTests extends ESTestCase {
             assertTrue(listeners.stream().map(Tuple::v2).allMatch(count -> count.get() == numberOfSchedules));
             latch.await();
             assertFailedListenerLogMessage(mockLogger, numberOfSchedules * numberOfListeners);
+            // Verify the debug logging:
+            verifyDebugLogging(mockLogger);
+
             verifyNoMoreInteractions(mockLogger);
         } finally {
             engine.stop();
@@ -220,6 +228,10 @@ public class SchedulerEngineTests extends ESTestCase {
             assertThat(throwable, instanceOf(RuntimeException.class));
             assertThat(throwable.getMessage(), equalTo(getTestName()));
         }
+    }
+
+    private static void verifyDebugLogging(Logger mockLogger) {
+        verify(mockLogger, atLeastOnce()).debug(any(MessageSupplier.class));
     }
 
 }

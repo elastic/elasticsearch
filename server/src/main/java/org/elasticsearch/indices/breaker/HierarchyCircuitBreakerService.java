@@ -31,7 +31,6 @@ import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryMXBean;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +59,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public static final Setting<Boolean> USE_REAL_MEMORY_USAGE_SETTING = Setting.boolSetting(
         "indices.breaker.total.use_real_memory",
         true,
+        Property.Dynamic,
         Property.NodeScope
     );
 
@@ -136,13 +136,14 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         Property.NodeScope
     );
 
-    private final boolean trackRealMemoryUsage;
+    private volatile boolean trackRealMemoryUsage;
     private volatile BreakerSettings parentSettings;
 
     // Tripped count for when redistribution was attempted but wasn't successful
     private final AtomicLong parentTripCount = new AtomicLong(0);
 
-    private final OverLimitStrategy overLimitStrategy;
+    private final Function<Boolean, OverLimitStrategy> overLimitStrategyFactory;
+    private volatile OverLimitStrategy overLimitStrategy;
 
     public HierarchyCircuitBreakerService(Settings settings, List<BreakerSettings> customBreakers, ClusterSettings clusterSettings) {
         this(settings, customBreakers, clusterSettings, HierarchyCircuitBreakerService::createOverLimitStrategy);
@@ -202,7 +203,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             }
             childCircuitBreakers.put(breakerSettings.getName(), validateAndCreateBreaker(breakerSettings));
         }
-        this.breakers = Collections.unmodifiableMap(childCircuitBreakers);
+        this.breakers = Map.copyOf(childCircuitBreakers);
         this.parentSettings = new BreakerSettings(
             CircuitBreaker.PARENT,
             TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
@@ -240,7 +241,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
             (name, updatedValues) -> updateCircuitBreakerSettings(name, updatedValues.v1(), updatedValues.v2()),
             (s, t) -> {}
         );
+        clusterSettings.addSettingsUpdateConsumer(USE_REAL_MEMORY_USAGE_SETTING, this::updateUseRealMemorySetting);
 
+        this.overLimitStrategyFactory = overLimitStrategyFactory;
         this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
     }
 
@@ -265,6 +268,20 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     private void setTotalCircuitBreakerLimit(ByteSizeValue byteSizeValue) {
         this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT, byteSizeValue.getBytes(), 1.0, CircuitBreaker.Type.PARENT, null);
+    }
+
+    public void updateUseRealMemorySetting(boolean trackRealMemoryUsage) {
+        this.trackRealMemoryUsage = trackRealMemoryUsage;
+
+        this.overLimitStrategy = overLimitStrategyFactory.apply(this.trackRealMemoryUsage);
+    }
+
+    public boolean isTrackRealMemoryUsage() {
+        return trackRealMemoryUsage;
+    }
+
+    public OverLimitStrategy getOverLimitStrategy() {
+        return overLimitStrategy;
     }
 
     /**

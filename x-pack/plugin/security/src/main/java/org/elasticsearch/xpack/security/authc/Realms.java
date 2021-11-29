@@ -375,7 +375,7 @@ public class Realms implements Iterable<Realm> {
                 if (kerberosRealmNames.size() > 1) {
                     throw new IllegalArgumentException(
                         "multiple realms "
-                            + kerberosRealmNames.toString()
+                            + kerberosRealmNames.stream().sorted().collect(Collectors.toUnmodifiableList())
                             + " configured of type ["
                             + identifier.getType()
                             + "], ["

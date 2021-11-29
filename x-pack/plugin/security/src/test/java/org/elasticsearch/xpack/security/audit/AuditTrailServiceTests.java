@@ -181,7 +181,7 @@ public class AuditTrailServiceTests extends ESTestCase {
         verify(licenseState).isAllowed(Security.AUDITING_FEATURE);
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).authenticationFailed(requestId, "_realm", token, "_action", request);
+                verify(auditTrail).authenticationFailed(requestId, "_realm", null, token, "_action", request);
             }
         } else {
             verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));
@@ -194,7 +194,7 @@ public class AuditTrailServiceTests extends ESTestCase {
         verify(licenseState).isAllowed(Security.AUDITING_FEATURE);
         if (isAuditingAllowed) {
             for (AuditTrail auditTrail : auditTrails) {
-                verify(auditTrail).authenticationFailed(requestId, "_realm", token, restRequest);
+                verify(auditTrail).authenticationFailed(requestId, "_realm", null, token, restRequest);
             }
         } else {
             verifyNoMoreInteractions(auditTrails.toArray((Object[]) new AuditTrail[auditTrails.size()]));

@@ -38,8 +38,8 @@ public class PkiRealmAuthIT extends SecurityRealmSmokeTestCase {
         Map<String, Object> authenticate = super.authenticate(RequestOptions.DEFAULT.toBuilder());
 
         assertUsername(authenticate, USERNAME);
-        assertRealm(authenticate, "pki", "pki4");
-        assertRoles(authenticate, new String[0]);
+        assertRealm(authenticate, "pki", "pki4", "rac");
+        assertRoles(authenticate);
         assertNoApiKeyInfo(authenticate, Authentication.AuthenticationType.REALM);
     }
 

@@ -489,7 +489,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
         }, this::logAndFail));
         assertTrue(completed.get());
-        verify(auditTrail).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
+        verify(auditTrail).authenticationFailed(reqId.get(), firstRealm.name(), null, token, "_action", transportRequest);
         verify(realms, atLeastOnce()).recomputeActiveRealms();
         verify(realms, atLeastOnce()).calculateLicensedRealms(any(XPackLicenseState.class));
         verify(realms, atLeastOnce()).getActiveRealms();
@@ -551,10 +551,12 @@ public class AuthenticationServiceTests extends ESTestCase {
             verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
         }, this::logAndFail));
 
-        verify(auditTrail).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
+        verify(auditTrail).authenticationFailed(reqId.get(), firstRealm.name(), null, token, "_action", transportRequest);
         verify(firstRealm, times(2)).name(); // used above one time
+        verify(firstRealm, times(1)).domain(); // used above one time
         verify(secondRealm, Mockito.atLeast(2)).name(); // also used in license tracking
         verify(secondRealm, Mockito.atLeast(2)).type(); // used to create realm ref, and license tracking
+        verify(secondRealm, Mockito.atLeast(2)).domain();
         verify(firstRealm, times(2)).token(threadContext);
         verify(secondRealm, times(2)).token(threadContext);
         verify(firstRealm).supports(token);
@@ -585,7 +587,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
         }, this::logAndFail));
 
-        verify(auditTrail).authenticationFailed(reqId.get(), SECOND_REALM_NAME, token, "_action", transportRequest);
+        verify(auditTrail).authenticationFailed(reqId.get(), SECOND_REALM_NAME, null, token, "_action", transportRequest);
         verify(secondRealm, times(3)).authenticate(eq(token), anyActionListener()); // 2 from above + 1 more
         verify(firstRealm, times(2)).authenticate(eq(token), anyActionListener()); // 1 from above + 1 more
     }
@@ -684,9 +686,11 @@ public class AuthenticationServiceTests extends ESTestCase {
             setCompletedToTrue(completed);
             verify(operatorPrivilegesService).maybeMarkOperatorUser(eq(result), eq(threadContext));
         }, this::logAndFail));
-        verify(auditTrail, times(2)).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
+        verify(auditTrail, times(2)).authenticationFailed(reqId.get(), firstRealm.name(), null, token, "_action", transportRequest);
         verify(firstRealm, times(3)).name(); // used above one time
+        verify(firstRealm, times(2)).domain();
         verify(secondRealm, Mockito.atLeast(2)).name();
+        verify(secondRealm, Mockito.atLeast(2)).domain();
         verify(secondRealm, Mockito.atLeast(2)).type(); // used to create realm ref
         verify(firstRealm, times(2)).token(threadContext);
         verify(secondRealm, times(2)).token(threadContext);
@@ -1486,7 +1490,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         } else {
             reqId.set(expectAuditRequestId(threadContext));
         }
-        verify(auditTrail).authenticationFailed(reqId.get(), secondRealm.name(), token, "_action", transportRequest);
+        verify(auditTrail).authenticationFailed(reqId.get(), secondRealm.name(), null, token, "_action", transportRequest);
         verify(auditTrail).authenticationFailed(reqId.get(), token, "_action", transportRequest);
         verifyNoMoreInteractions(auditTrail);
         verifyNoMoreInteractions(operatorPrivilegesService);
@@ -1517,7 +1521,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         } else {
             reqId.set(expectAuditRequestId(threadContext));
         }
-        verify(auditTrail).authenticationFailed(reqId.get(), firstRealm.name(), token, "_action", transportRequest);
+        verify(auditTrail).authenticationFailed(reqId.get(), firstRealm.name(), null, token, "_action", transportRequest);
         verify(auditTrail).authenticationFailed(reqId.get(), token, "_action", transportRequest);
         verifyNoMoreInteractions(auditTrail);
         verifyNoMoreInteractions(operatorPrivilegesService);

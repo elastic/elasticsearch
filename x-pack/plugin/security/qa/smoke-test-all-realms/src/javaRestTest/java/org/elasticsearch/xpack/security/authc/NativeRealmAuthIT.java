@@ -46,7 +46,7 @@ public class NativeRealmAuthIT extends SecurityRealmSmokeTestCase {
         );
 
         assertUsername(authenticate, USERNAME);
-        assertRealm(authenticate, "native", "native1");
+        assertRealm(authenticate, "native", "native1", "rac");
         assertRoles(authenticate, ROLE_NAME);
         assertNoApiKeyInfo(authenticate, Authentication.AuthenticationType.REALM);
     }

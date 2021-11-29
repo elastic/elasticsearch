@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -53,6 +55,8 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
     GetDeploymentStatsAction.Request,
     GetDeploymentStatsAction.Response,
     AllocationStats> {
+
+    private static final Logger logger = LogManager.getLogger(TransportGetDeploymentStatsAction.class);
 
     @Inject
     public TransportGetDeploymentStatsAction(
@@ -129,9 +133,6 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
             }
         }
 
-        // check request has been satisfied
-        ExpandedIdsMatcher requiredIdsMatcher = new ExpandedIdsMatcher(tokenizedRequestIds, true);
-        requiredIdsMatcher.filterMatchedIds(matchedDeploymentIds);
         if (matchedDeploymentIds.isEmpty()) {
             listener.onResponse(
                 new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), 0L)
@@ -154,8 +155,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 .collect(Collectors.toList());
             // Set the allocation state and reason if we have it
             for (AllocationStats stats : updatedResponse.getStats().results()) {
-                Optional<TrainedModelAllocation> modelAllocation = Optional.ofNullable(allocation.getModelAllocation(stats.getModelId()));
-                TrainedModelAllocation trainedModelAllocation = modelAllocation.orElse(null);
+                TrainedModelAllocation trainedModelAllocation = allocation.getModelAllocation(stats.getModelId());
                 if (trainedModelAllocation != null) {
                     stats.setState(trainedModelAllocation.getAllocationState()).setReason(trainedModelAllocation.getReason().orElse(null));
                     if (trainedModelAllocation.getAllocationState().isAnyOf(AllocationState.STARTED, AllocationState.STARTING)) {
@@ -274,6 +274,8 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
 
                 nodeStats.sort(Comparator.comparing(n -> n.getNode().getId()));
 
+                // debug logging added for https://github.com/elastic/elasticsearch/issues/80819
+                logger.debug("[{}] deployment stats for non-started deployment", modelId);
                 updatedAllocationStats.add(new AllocationStats(modelId, null, null, null, null, allocation.getStartTime(), nodeStats));
             }
         }

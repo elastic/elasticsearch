@@ -13,7 +13,6 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.SegmentInfosHelper;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -58,7 +57,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin {
                 if (version != null
                     && version.onOrAfter(Version.fromBits(7, 0, 0))
                     && version.onOrAfter(Version.fromBits(8, 0, 0)) == false) {
-                    final SegmentInfos oldSegmentInfos = SegmentInfosHelper.readLucene7x(indexShard.store().directory());
+                    final OldSegmentInfos oldSegmentInfos = OldSegmentInfos.readLatestCommit(indexShard.store().directory(), 7);
                     final SegmentInfos segmentInfos = convertLucene7x(oldSegmentInfos);
                     // write upgraded segments file
                     segmentInfos.commit(indexShard.store().directory());
@@ -98,7 +97,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin {
         return null;
     }
 
-    private static SegmentInfos convertLucene7x(SegmentInfos oldSegmentInfos) {
+    private static SegmentInfos convertLucene7x(OldSegmentInfos oldSegmentInfos) {
         final SegmentInfos segmentInfos = new SegmentInfos(org.apache.lucene.util.Version.LATEST.major);
         segmentInfos.setNextWriteGeneration(oldSegmentInfos.getGeneration() + 1);
         final Map<String, String> map = new HashMap<>(oldSegmentInfos.getUserData());

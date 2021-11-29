@@ -177,10 +177,6 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
-    protected <T> T compileScript(Script script, ScriptContext<T> context) {
-        throw new UnsupportedOperationException("Cannot compile script " + Strings.toString(script));
-    }
-
     protected final MapperService createMapperService(Version version, Settings settings, BooleanSupplier idFieldDataEnabled) {
         IndexSettings indexSettings = createIndexSettings(version, settings);
         MapperRegistry mapperRegistry = new IndicesModule(
@@ -198,6 +194,14 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             new IdFieldMapper(idFieldDataEnabled),
             this::compileScript
         );
+    }
+
+    /**
+     *  This is the injection point for tests that require mock scripts.  Test cases should override this to return the
+     *  mock script factory of their choice.
+     */
+    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+        throw new UnsupportedOperationException("Cannot compile script " + Strings.toString(script));
     }
 
     protected static IndexSettings createIndexSettings(Version version, Settings settings) {
@@ -329,7 +333,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         ValuesSourceRegistry valuesSourceRegistry,
         MapperService mapperService,
         IndexSearcher searcher,
-        Query query
+        Query query,
+        Supplier<SearchLookup> lookupSupplier
     ) {
         return new AggregationContext() {
             private final CircuitBreaker breaker = mock(CircuitBreaker.class);
@@ -383,7 +388,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             public SearchLookup lookup() {
-                throw new UnsupportedOperationException();
+                return lookupSupplier.get();
             }
 
             @Override
@@ -407,8 +412,9 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            @SuppressWarnings("unchecked")
             public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
-                throw new UnsupportedOperationException();
+                return compileScript(script, context);
             }
 
             @Override
@@ -518,7 +524,16 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         List<SourceToParse> docs,
         CheckedConsumer<AggregationContext, IOException> test
     ) throws IOException {
-        withAggregationContext(null, mapperService, docs, null, test);
+        withAggregationContext(mapperService, docs, test, () -> { throw new UnsupportedOperationException(); });
+    }
+
+    protected final void withAggregationContext(
+        MapperService mapperService,
+        List<SourceToParse> docs,
+        CheckedConsumer<AggregationContext, IOException> test,
+        Supplier<SearchLookup> lookupSupplier
+    ) throws IOException {
+        withAggregationContext(null, mapperService, docs, null, test, lookupSupplier);
     }
 
     protected final void withAggregationContext(
@@ -528,11 +543,32 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         Query query,
         CheckedConsumer<AggregationContext, IOException> test
     ) throws IOException {
+        withAggregationContext(
+            valuesSourceRegistry,
+            mapperService,
+            docs,
+            query,
+            test,
+            () -> { throw new UnsupportedOperationException(); }
+        );
+    }
+
+    protected final void withAggregationContext(
+        ValuesSourceRegistry valuesSourceRegistry,
+        MapperService mapperService,
+        List<SourceToParse> docs,
+        Query query,
+        CheckedConsumer<AggregationContext, IOException> test,
+        Supplier<SearchLookup> lookupSupplier
+    ) throws IOException {
         withLuceneIndex(mapperService, writer -> {
             for (SourceToParse doc : docs) {
                 writer.addDocuments(mapperService.documentMapper().parse(doc).docs());
+
             }
-        }, reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, new IndexSearcher(reader), query)));
+        },
+            reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, new IndexSearcher(reader), query, lookupSupplier))
+        );
     }
 
     protected SearchExecutionContext createSearchExecutionContext(MapperService mapperService) {

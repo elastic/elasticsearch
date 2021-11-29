@@ -138,8 +138,8 @@ public class Watch implements ToXContentObject {
      *
      * @return  {@code true} if the status of this watch changed, {@code false} otherwise.
      */
-    public boolean ack(ZonedDateTime now, String... actions) {
-        return status.onAck(now, actions);
+    public boolean ack(ZonedDateTime now, String... actionIds) {
+        return status.onAck(now, actionIds);
     }
 
     public boolean acked(String actionId) {

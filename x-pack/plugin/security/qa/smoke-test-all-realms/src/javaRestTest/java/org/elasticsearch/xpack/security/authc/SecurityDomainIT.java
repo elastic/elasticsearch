@@ -172,8 +172,7 @@ public class SecurityDomainIT extends SecurityRealmSmokeTestCase {
         assertThat(getAsyncSearchMap.get("response"), notNullValue());
 
         // Even admin cannot access the search result
-        final ResponseException e =
-            expectThrows(ResponseException.class, () -> adminClient().performRequest(getAsyncSearchRequest));
+        final ResponseException e = expectThrows(ResponseException.class, () -> adminClient().performRequest(getAsyncSearchRequest));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
         // Delete the async search task
@@ -226,16 +225,19 @@ public class SecurityDomainIT extends SecurityRealmSmokeTestCase {
     private List<ApiKey> convertToApiKeys(Map<String, Object> responseMap) {
         final List<ApiKey> apiKeys = new ArrayList<>();
         for (Map<String, Object> apiKey : (List<Map<String, Object>>) responseMap.get("api_keys")) {
-            apiKeys.add(new ApiKey(
-                (String) apiKey.get("name"),
-                (String) apiKey.get("id"),
-                Instant.ofEpochMilli((long) apiKey.get("creation")),
-                null,
-                (boolean) apiKey.get("invalidated"),
-                (String) apiKey.get("username"),
-                (String) apiKey.get("realm"),
-                null,
-                (String) apiKey.get("domain")));
+            apiKeys.add(
+                new ApiKey(
+                    (String) apiKey.get("name"),
+                    (String) apiKey.get("id"),
+                    Instant.ofEpochMilli((long) apiKey.get("creation")),
+                    null,
+                    (boolean) apiKey.get("invalidated"),
+                    (String) apiKey.get("username"),
+                    (String) apiKey.get("realm"),
+                    null,
+                    (String) apiKey.get("domain")
+                )
+            );
         }
         return List.copyOf(apiKeys);
     }

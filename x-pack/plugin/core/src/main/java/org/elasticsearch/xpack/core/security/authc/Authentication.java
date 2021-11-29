@@ -171,8 +171,8 @@ public class Authentication implements ToXContentObject {
             final boolean sameKeyId = getMetadata().get(AuthenticationField.API_KEY_ID_KEY)
                 .equals(other.getMetadata().get(AuthenticationField.API_KEY_ID_KEY));
             if (sameKeyId) {
-                assert getUser().principal()
-                    .equals(other.getUser().principal()) : "The same API key ID cannot be attributed to two different usernames";
+                assert getUser().principal().equals(other.getUser().principal())
+                    : "The same API key ID cannot be attributed to two different usernames";
             }
             return sameKeyId;
         }
@@ -200,10 +200,8 @@ public class Authentication implements ToXContentObject {
                 AuthenticationType.TOKEN,
                 AuthenticationType.ANONYMOUS,
                 AuthenticationType.INTERNAL
-            )
-                .containsAll(
-                    EnumSet.of(getAuthenticationType(), other.getAuthenticationType())
-                ) : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
+            ).containsAll(EnumSet.of(getAuthenticationType(), other.getAuthenticationType()))
+                : "cross AuthenticationType comparison for canAccessResourcesOf is not applicable for: "
                     + EnumSet.of(getAuthenticationType(), other.getAuthenticationType());
             return false;
         }
@@ -290,10 +288,8 @@ public class Authentication implements ToXContentObject {
     }
 
     private void assertApiKeyMetadata() {
-        assert (AuthenticationType.API_KEY.equals(this.type) == false)
-            || (this.metadata.get(
-                AuthenticationField.API_KEY_ID_KEY
-            ) != null) : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
+        assert (AuthenticationType.API_KEY.equals(this.type) == false) || (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
+            : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
     }
 
     @Override

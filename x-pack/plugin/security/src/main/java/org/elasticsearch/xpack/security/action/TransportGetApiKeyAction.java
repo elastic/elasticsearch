@@ -61,9 +61,9 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
         }
         // TODO: pass complete realm info
         if (domain != null) {
-            apiKeyService.getApiKeysForDomain(domain, username,  apiKeyName, apiKeyId, listener);
+            apiKeyService.getApiKeysForDomain(domain, username, apiKeyName, apiKeyId, listener);
         } else {
-            apiKeyService.getApiKeysForRealmName(realm, username,  apiKeyName, apiKeyId, listener);
+            apiKeyService.getApiKeysForRealmName(realm, username, apiKeyName, apiKeyId, listener);
         }
     }
 

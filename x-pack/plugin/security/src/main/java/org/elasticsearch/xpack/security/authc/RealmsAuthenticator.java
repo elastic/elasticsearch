@@ -303,7 +303,10 @@ class RealmsAuthenticator implements Authenticator {
                     }
                     logger.trace("Using run-as user [{}] with authenticated user [{}]", foundUser, authentication.getUser().principal());
                     listener.onResponse(
-                        new Tuple<>(tuple.v1(), new Authentication.RealmRef(tuple.v2().name(), tuple.v2().type(), nodeName, tuple.v2().domain()))
+                        new Tuple<>(
+                            tuple.v1(),
+                            new Authentication.RealmRef(tuple.v2().name(), tuple.v2().type(), nodeName, tuple.v2().domain())
+                        )
                     );
                 }
             }, e -> listener.onFailure(context.getRequest().exceptionProcessingRequest(e, context.getMostRecentAuthenticationToken()))));

@@ -39,7 +39,13 @@ public interface AuditTrail {
 
     void authenticationFailed(String requestId, AuthenticationToken token, RestRequest request);
 
-    default void authenticationFailed(String requestId, String realm, AuthenticationToken token, String action, TransportRequest transportRequest) {
+    default void authenticationFailed(
+        String requestId,
+        String realm,
+        AuthenticationToken token,
+        String action,
+        TransportRequest transportRequest
+    ) {
         authenticationFailed(requestId, realm, null, token, action, transportRequest);
     }
 

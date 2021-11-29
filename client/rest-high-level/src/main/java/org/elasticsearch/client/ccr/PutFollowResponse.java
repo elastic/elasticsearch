@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.ccr;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -22,7 +22,10 @@ public final class PutFollowResponse {
     static final ParseField INDEX_FOLLOWING_STARTED = new ParseField("index_following_started");
 
     private static final ConstructingObjectParser<PutFollowResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "put_follow_response", true, args -> new PutFollowResponse((boolean) args[0], (boolean) args[1], (boolean) args[2]));
+        "put_follow_response",
+        true,
+        args -> new PutFollowResponse((boolean) args[0], (boolean) args[1], (boolean) args[2])
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), FOLLOW_INDEX_CREATED);
@@ -61,9 +64,9 @@ public final class PutFollowResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PutFollowResponse that = (PutFollowResponse) o;
-        return followIndexCreated == that.followIndexCreated &&
-            followIndexShardsAcked == that.followIndexShardsAcked &&
-            indexFollowingStarted == that.indexFollowingStarted;
+        return followIndexCreated == that.followIndexCreated
+            && followIndexShardsAcked == that.followIndexShardsAcked
+            && indexFollowingStarted == that.indexFollowingStarted;
     }
 
     @Override

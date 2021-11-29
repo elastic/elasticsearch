@@ -7,12 +7,12 @@
  */
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -22,8 +22,10 @@ public class MigrateAction implements LifecycleAction, ToXContentObject {
 
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
 
-    private static final ConstructingObjectParser<MigrateAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        a -> new MigrateAction(a[0] == null ? true : (boolean) a[0]));
+    private static final ConstructingObjectParser<MigrateAction, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        a -> new MigrateAction(a[0] == null ? true : (boolean) a[0])
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);

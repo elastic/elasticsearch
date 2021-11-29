@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.function.Function;
 
 public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFieldData {
-    private static final Logger logger = LogManager.getLogger(AbstractBinaryDVLeafFieldData.class);
+    private static final Logger logger = LogManager.getLogger(AbstractIndexOrdinalsFieldData.class);
 
     private final String fieldName;
     private final ValuesSourceType valuesSourceType;
@@ -137,13 +137,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
 
     @Override
     public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return GlobalOrdinalsBuilder.build(
-            indexReader,
-            this,
-            breakerService,
-            logger,
-            scriptFunction
-        );
+        return GlobalOrdinalsBuilder.build(indexReader, this, breakerService, logger, scriptFunction);
     }
 
     @Override

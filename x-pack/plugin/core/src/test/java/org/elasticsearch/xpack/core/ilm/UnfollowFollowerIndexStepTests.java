@@ -28,7 +28,7 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
         return new UnfollowFollowerIndexStep(key, nextKey, client);
     }
 
-    public void testUnFollow() {
+    public void testUnFollow() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
@@ -46,7 +46,7 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
         }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, null, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f));
     }
 
     public void testRequestNotAcknowledged() {
@@ -65,8 +65,10 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
         }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        Exception e = expectThrows(Exception.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, null, null, f)));
+        Exception e = expectThrows(
+            Exception.class,
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f))
+        );
         assertThat(e.getMessage(), is("unfollow request failed to be acknowledged"));
     }
 
@@ -89,11 +91,16 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
         }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        assertSame(error, expectThrows(RuntimeException.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, null, null, f))));
+        assertSame(
+            error,
+            expectThrows(
+                RuntimeException.class,
+                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f))
+            )
+        );
     }
 
-    public void testFailureToReleaseRetentionLeases() {
+    public void testFailureToReleaseRetentionLeases() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
@@ -113,6 +120,6 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
         }).when(client).execute(Mockito.same(UnfollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, null, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, null, null, f));
     }
 }

@@ -32,14 +32,15 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
     }
 
     @Override
-    void innerPerformAction(String followerIndex, ClusterState currentClusterState, ActionListener<Boolean> listener) {
+    void innerPerformAction(String followerIndex, ClusterState currentClusterState, ActionListener<Void> listener) {
         PersistentTasksCustomMetadata persistentTasksMetadata = currentClusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         if (persistentTasksMetadata == null) {
-            listener.onResponse(true);
+            listener.onResponse(null);
             return;
         }
 
-        List<PersistentTasksCustomMetadata.PersistentTask<?>> shardFollowTasks = persistentTasksMetadata.tasks().stream()
+        List<PersistentTasksCustomMetadata.PersistentTask<?>> shardFollowTasks = persistentTasksMetadata.tasks()
+            .stream()
             .filter(persistentTask -> ShardFollowTask.NAME.equals(persistentTask.getTaskName()))
             .filter(persistentTask -> {
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
@@ -48,20 +49,17 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
             .collect(Collectors.toList());
 
         if (shardFollowTasks.isEmpty()) {
-            listener.onResponse(true);
+            listener.onResponse(null);
             return;
         }
 
         PauseFollowAction.Request request = new PauseFollowAction.Request(followerIndex);
         request.masterNodeTimeout(TimeValue.MAX_VALUE);
-        getClient().execute(PauseFollowAction.INSTANCE, request, ActionListener.wrap(
-            r -> {
-                if (r.isAcknowledged() == false) {
-                    throw new ElasticsearchException("pause follow request failed to be acknowledged");
-                }
-                listener.onResponse(true);
-            },
-            listener::onFailure
-        ));
+        getClient().execute(PauseFollowAction.INSTANCE, request, ActionListener.wrap(r -> {
+            if (r.isAcknowledged() == false) {
+                throw new ElasticsearchException("pause follow request failed to be acknowledged");
+            }
+            listener.onResponse(null);
+        }, listener::onFailure));
     }
 }

@@ -28,12 +28,12 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -98,6 +98,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressWarnings("removal")
 public class ApiKeyIntegTests extends SecurityIntegTestCase {
     private static final long DELETE_INTERVAL_MILLIS = 100L;
     private static final int CRYPTO_THREAD_POOL_QUEUE_SIZE = 10;
@@ -132,33 +133,39 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     @Override
     public String configRoles() {
-        return super.configRoles() + "\n" +
-            "no_api_key_role:\n" +
-            "  cluster: [\"manage_token\"]\n" +
-            "manage_api_key_role:\n" +
-            "  cluster: [\"manage_api_key\"]\n" +
-            "manage_own_api_key_role:\n" +
-            "  cluster: [\"manage_own_api_key\"]\n" +
-            "run_as_role:\n" +
-            "  run_as: [\"user_with_manage_own_api_key_role\"]\n";
+        return super.configRoles()
+            + "\n"
+            + "no_api_key_role:\n"
+            + "  cluster: [\"manage_token\"]\n"
+            + "manage_api_key_role:\n"
+            + "  cluster: [\"manage_api_key\"]\n"
+            + "manage_own_api_key_role:\n"
+            + "  cluster: [\"manage_own_api_key\"]\n"
+            + "run_as_role:\n"
+            + "  run_as: [\"user_with_manage_own_api_key_role\"]\n";
     }
 
     @Override
     public String configUsers() {
-        final String usersPasswdHashed = new String(
-            getFastStoredHashAlgoForTests().hash(TEST_PASSWORD_SECURE_STRING));
-        return super.configUsers() +
-            "user_with_no_api_key_role:" + usersPasswdHashed + "\n" +
-            "user_with_manage_api_key_role:" + usersPasswdHashed + "\n" +
-            "user_with_manage_own_api_key_role:" + usersPasswdHashed + "\n";
+        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(TEST_PASSWORD_SECURE_STRING));
+        return super.configUsers()
+            + "user_with_no_api_key_role:"
+            + usersPasswdHashed
+            + "\n"
+            + "user_with_manage_api_key_role:"
+            + usersPasswdHashed
+            + "\n"
+            + "user_with_manage_own_api_key_role:"
+            + usersPasswdHashed
+            + "\n";
     }
 
     @Override
     public String configUsersRoles() {
-        return super.configUsersRoles() +
-            "no_api_key_role:user_with_no_api_key_role\n" +
-            "manage_api_key_role:user_with_manage_api_key_role\n" +
-            "manage_own_api_key_role:user_with_manage_own_api_key_role\n";
+        return super.configUsersRoles()
+            + "no_api_key_role:user_with_no_api_key_role\n"
+            + "manage_api_key_role:user_with_manage_api_key_role\n"
+            + "manage_own_api_key_role:user_with_manage_own_api_key_role\n";
     }
 
     private void awaitApiKeysRemoverCompletion() throws Exception {
@@ -172,9 +179,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final Instant start = Instant.ofEpochMilli(Instant.now().toEpochMilli());
         final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
         Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
-        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client)
-            .setName("test key")
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
+        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName("test key")
             .setExpiration(TimeValue.timeValueHours(TimeUnit.DAYS.toHours(7L)))
             .setRoleDescriptors(Collections.singletonList(descriptor))
             .setMetadata(ApiKeyTests.randomMetadata())
@@ -197,22 +204,25 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertNull(simple.getExpiration());
 
         // use the first ApiKey for authorized action
-        final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
-            (response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
+        final String base64ApiKeyKeyValue = Base64.getEncoder()
+            .encodeToString((response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
         // Assert that we can authenticate with the API KEY
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
-        AuthenticateResponse authResponse = restClient.security().authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
-            "ApiKey " + base64ApiKeyKeyValue).build());
+        AuthenticateResponse authResponse = restClient.security()
+            .authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + base64ApiKeyKeyValue).build());
         assertThat(authResponse.getUser().getUsername(), equalTo(TEST_SUPERUSER));
         assertThat(authResponse.getAuthenticationType(), equalTo("api_key"));
 
         // use the first ApiKey for an unauthorized action
-        ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, () ->
-            client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue))
+        ElasticsearchSecurityException e = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue))
                 .admin()
                 .cluster()
-                .prepareUpdateSettings().setTransientSettings(Settings.builder().put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), true))
-                .get());
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(IPFilter.IP_FILTER_ENABLED_SETTING.getKey(), true))
+                .get()
+        );
         assertThat(e.getMessage(), containsString("unauthorized"));
         assertThat(e.status(), is(RestStatus.FORBIDDEN));
     }
@@ -224,10 +234,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         for (int i = 0; i < noOfApiKeys; i++) {
             final RoleDescriptor descriptor = new RoleDescriptor("role", new String[] { "monitor" }, null, null);
             Client client = client().filterWithHeader(
-                Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
-            final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName(keyName).setExpiration(null)
+                Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+            );
+            final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName(keyName)
+                .setExpiration(null)
                 .setRoleDescriptors(Collections.singletonList(descriptor))
-                .setMetadata(ApiKeyTests.randomMetadata()).get();
+                .setMetadata(ApiKeyTests.randomMetadata())
+                .get();
             assertNotNull(response.getId());
             assertNotNull(response.getKey());
             responses.add(response);
@@ -240,9 +253,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     public void testCreateApiKeyWithoutNameWillFail() {
         Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
-        final ActionRequestValidationException e =
-            expectThrows(ActionRequestValidationException.class, () -> new CreateApiKeyRequestBuilder(client).get());
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
+        final ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            () -> new CreateApiKeyRequestBuilder(client).get()
+        );
         assertThat(e.getMessage(), containsString("api key name is required"));
     }
 
@@ -250,7 +266,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         int noOfApiKeys = randomIntBetween(3, 5);
         List<CreateApiKeyResponse> responses = createApiKeys(noOfApiKeys, null).v1();
         Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
         client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingRealmName("file"), listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
@@ -261,10 +278,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         int noOfApiKeys = randomIntBetween(3, 5);
         List<CreateApiKeyResponse> responses = createApiKeys(noOfApiKeys, null).v1();
         Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE,
-            InvalidateApiKeyRequest.usingUserName(TEST_SUPERUSER), listener);
+        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingUserName(TEST_SUPERUSER), listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
         verifyInvalidateResponse(noOfApiKeys, responses, invalidateResponse);
     }
@@ -272,10 +289,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public void testInvalidateApiKeysForRealmAndUser() throws InterruptedException, ExecutionException {
         List<CreateApiKeyResponse> responses = createApiKeys(1, null).v1();
         Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE,
-            InvalidateApiKeyRequest.usingRealmAndUserName("file", TEST_SUPERUSER), listener);
+        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingRealmAndUserName("file", TEST_SUPERUSER), listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
         verifyInvalidateResponse(1, responses, invalidateResponse);
     }
@@ -283,7 +300,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public void testInvalidateApiKeysForApiKeyId() throws InterruptedException, ExecutionException {
         List<CreateApiKeyResponse> responses = createApiKeys(1, null).v1();
         Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
         client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(responses.get(0).getId(), false), listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
@@ -293,10 +311,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public void testInvalidateApiKeysForApiKeyName() throws InterruptedException, ExecutionException {
         List<CreateApiKeyResponse> responses = createApiKeys(1, null).v1();
         Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyName(responses.get(0).getName(), false),
-            listener);
+        client.execute(
+            InvalidateApiKeyAction.INSTANCE,
+            InvalidateApiKeyRequest.usingApiKeyName(responses.get(0).getName(), false),
+            listener
+        );
         InvalidateApiKeyResponse invalidateResponse = listener.get();
         verifyInvalidateResponse(1, responses, invalidateResponse);
     }
@@ -311,10 +333,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Tuple<String, String> apiKey2 = createApiKeyAndAuthenticateWithIt();
 
         // Find out which nodes handled the above authentication requests
-        final ApiKeyService serviceForDoc1 =
-            services.stream().filter(s -> s.getDocCache().get(apiKey1.v1()) != null).findFirst().orElseThrow();
-        final ApiKeyService serviceForDoc2 =
-            services.stream().filter(s -> s.getDocCache().get(apiKey2.v1()) != null).findFirst().orElseThrow();
+        final ApiKeyService serviceForDoc1 = services.stream()
+            .filter(s -> s.getDocCache().get(apiKey1.v1()) != null)
+            .findFirst()
+            .orElseThrow();
+        final ApiKeyService serviceForDoc2 = services.stream()
+            .filter(s -> s.getDocCache().get(apiKey2.v1()) != null)
+            .findFirst()
+            .orElseThrow();
         assertNotNull(serviceForDoc1.getFromCache(apiKey1.v1()));
         assertNotNull(serviceForDoc2.getFromCache(apiKey2.v1()));
         final boolean sameServiceNode = serviceForDoc1 == serviceForDoc2;
@@ -327,7 +353,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // Invalidate the first key
         Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
         client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(apiKey1.v1(), false), listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
@@ -343,34 +370,44 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
 
         // Authentication with the first key should fail
-        final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
-            (apiKey1.v1() + ":" + apiKey1.v2()).getBytes(StandardCharsets.UTF_8));
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
+        final String base64ApiKeyKeyValue = Base64.getEncoder()
+            .encodeToString((apiKey1.v1() + ":" + apiKey1.v2()).getBytes(StandardCharsets.UTF_8));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
             () -> new TestRestHighLevelClient().security()
-                .authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
-                    "ApiKey " + base64ApiKeyKeyValue).build()));
+                .authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + base64ApiKeyKeyValue).build())
+        );
         assertThat(e.getMessage(), containsString("security_exception"));
         assertThat(e.status(), is(RestStatus.UNAUTHORIZED));
     }
 
-    private void verifyInvalidateResponse(int noOfApiKeys, List<CreateApiKeyResponse> responses,
-                                          InvalidateApiKeyResponse invalidateResponse) {
+    private void verifyInvalidateResponse(
+        int noOfApiKeys,
+        List<CreateApiKeyResponse> responses,
+        InvalidateApiKeyResponse invalidateResponse
+    ) {
         assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(noOfApiKeys));
-        assertThat(invalidateResponse.getInvalidatedApiKeys(),
-            containsInAnyOrder(responses.stream().map(r -> r.getId()).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY)));
+        assertThat(
+            invalidateResponse.getInvalidatedApiKeys(),
+            containsInAnyOrder(responses.stream().map(r -> r.getId()).collect(Collectors.toList()).toArray(Strings.EMPTY_ARRAY))
+        );
         assertThat(invalidateResponse.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
         assertThat(invalidateResponse.getErrors().size(), equalTo(0));
     }
 
     public void testInvalidatedApiKeysDeletedByRemover() throws Exception {
         Client client = waitForExpiredApiKeysRemoverTriggerReadyAndGetClient().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
 
         List<CreateApiKeyResponse> createdApiKeys = createApiKeys(2, null).v1();
 
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(createdApiKeys.get(0).getId(), false),
-            listener);
+        client.execute(
+            InvalidateApiKeyAction.INSTANCE,
+            InvalidateApiKeyRequest.usingApiKeyId(createdApiKeys.get(0).getId(), false),
+            listener
+        );
         InvalidateApiKeyResponse invalidateResponse = listener.get();
         assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(1));
         assertThat(invalidateResponse.getPreviouslyInvalidatedApiKeys().size(), equalTo(0));
@@ -394,16 +431,22 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 assertThat(apiKey.isInvalidated(), is(false));
             }
         }
-        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length,
-            is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 2 : 1));
+        assertThat(
+            getApiKeyResponseListener.get().getApiKeyInfos().length,
+            is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 2 : 1)
+        );
 
         client = waitForExpiredApiKeysRemoverTriggerReadyAndGetClient().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
 
         // invalidate API key to trigger remover
         listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(createdApiKeys.get(1).getId(), false),
-            listener);
+        client.execute(
+            InvalidateApiKeyAction.INSTANCE,
+            InvalidateApiKeyRequest.usingApiKeyId(createdApiKeys.get(1).getId(), false),
+            listener
+        );
         assertThat(listener.get().getInvalidatedApiKeys().size(), is(1));
 
         awaitApiKeysRemoverCompletion();
@@ -423,8 +466,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = true;
             }
         }
-        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length,
-            is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 1 : 0));
+        assertThat(
+            getApiKeyResponseListener.get().getApiKeyInfos().length,
+            is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 1 : 0)
+        );
     }
 
     private Client waitForExpiredApiKeysRemoverTriggerReadyAndGetClient() throws Exception {
@@ -441,15 +486,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         }
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeWithMostRecentRun);
         final long lastRunTime = apiKeyLastTrigger;
-        assertBusy(() -> {
-            assertThat(threadPool.relativeTimeInMillis() - lastRunTime, greaterThan(DELETE_INTERVAL_MILLIS));
-        });
+        assertBusy(() -> { assertThat(threadPool.relativeTimeInMillis() - lastRunTime, greaterThan(DELETE_INTERVAL_MILLIS)); });
         return internalCluster().client(nodeWithMostRecentRun);
     }
 
     public void testExpiredApiKeysBehaviorWhenKeysExpired1WeekBeforeAnd1DayBefore() throws Exception {
         Client client = waitForExpiredApiKeysRemoverTriggerReadyAndGetClient().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
 
         int noOfKeys = 4;
         List<CreateApiKeyResponse> createdApiKeys = createApiKeys(noOfKeys, null).v1();
@@ -463,8 +507,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // hack doc to modify the expiration time to a day before
         Instant dayBefore = created.minus(1L, ChronoUnit.DAYS);
         assertTrue(Instant.now().isAfter(dayBefore));
-        UpdateResponse expirationDateUpdatedResponse = client
-            .prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(0).getId())
+        UpdateResponse expirationDateUpdatedResponse = client.prepareUpdate(SECURITY_MAIN_ALIAS, createdApiKeys.get(0).getId())
             .setDoc("expiration_time", dayBefore.toEpochMilli())
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
@@ -482,8 +525,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // Invalidate to trigger the remover
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(createdApiKeys.get(2).getId(), false),
-            listener);
+        client.execute(
+            InvalidateApiKeyAction.INSTANCE,
+            InvalidateApiKeyRequest.usingApiKeyId(createdApiKeys.get(2).getId(), false),
+            listener
+        );
         assertThat(listener.get().getInvalidatedApiKeys().size(), is(1));
 
         awaitApiKeysRemoverCompletion();
@@ -494,8 +540,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         getApiKeyResponseListener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingRealmName("file"), getApiKeyResponseListener);
 
-        Set<String> expectedKeyIds = Sets.newHashSet(createdApiKeys.get(0).getId(), createdApiKeys.get(2).getId(),
-            createdApiKeys.get(3).getId());
+        Set<String> expectedKeyIds = Sets.newHashSet(
+            createdApiKeys.get(0).getId(),
+            createdApiKeys.get(2).getId(),
+            createdApiKeys.get(3).getId()
+        );
         boolean apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover = false;
         for (ApiKey apiKey : getApiKeyResponseListener.get().getApiKeyInfos()) {
             assertThat(apiKey.getId(), is(in(expectedKeyIds)));
@@ -516,8 +565,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 fail("unexpected API key " + apiKey);
             }
         }
-        assertThat(getApiKeyResponseListener.get().getApiKeyInfos().length,
-            is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 3 : 2));
+        assertThat(
+            getApiKeyResponseListener.get().getApiKeyInfos().length,
+            is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 3 : 2)
+        );
     }
 
     private void refreshSecurityIndex() throws Exception {
@@ -532,7 +583,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         List<CreateApiKeyResponse> responses = tuple.v1();
 
         Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
         // trigger expired keys remover
         client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(responses.get(1).getId(), false), listener);
@@ -544,8 +596,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         PlainActionFuture<GetApiKeyResponse> getApiKeyResponseListener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingRealmName("file"), getApiKeyResponseListener);
         GetApiKeyResponse response = getApiKeyResponseListener.get();
-        verifyGetResponse(2, responses, tuple.v2(), response, Collections.singleton(responses.get(0).getId()),
-            Collections.singletonList(responses.get(1).getId()));
+        verifyGetResponse(
+            2,
+            responses,
+            tuple.v2(),
+            response,
+            Collections.singleton(responses.get(0).getId()),
+            Collections.singletonList(responses.get(1).getId())
+        );
     }
 
     public void testGetApiKeysForRealm() throws InterruptedException, ExecutionException {
@@ -553,17 +611,23 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple = createApiKeys(noOfApiKeys, null);
         List<CreateApiKeyResponse> responses = tuple.v1();
         Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
         boolean invalidate = randomBoolean();
         List<String> invalidatedApiKeyIds = null;
         Set<String> expectedValidKeyIds = null;
         if (invalidate) {
             PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-            client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(responses.get(0).getId(), false),
-                listener);
+            client.execute(
+                InvalidateApiKeyAction.INSTANCE,
+                InvalidateApiKeyRequest.usingApiKeyId(responses.get(0).getId(), false),
+                listener
+            );
             InvalidateApiKeyResponse invalidateResponse = listener.get();
             invalidatedApiKeyIds = invalidateResponse.getInvalidatedApiKeys();
-            expectedValidKeyIds = responses.stream().filter(o -> o.getId().equals(responses.get(0).getId()) == false).map(o -> o.getId())
+            expectedValidKeyIds = responses.stream()
+                .filter(o -> o.getId().equals(responses.get(0).getId()) == false)
+                .map(o -> o.getId())
                 .collect(Collectors.toSet());
         } else {
             invalidatedApiKeyIds = Collections.emptyList();
@@ -573,9 +637,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingRealmName("file"), listener);
         GetApiKeyResponse response = listener.get();
-        verifyGetResponse(noOfApiKeys, responses, tuple.v2(), response,
-            expectedValidKeyIds,
-            invalidatedApiKeyIds);
+        verifyGetResponse(noOfApiKeys, responses, tuple.v2(), response, expectedValidKeyIds, invalidatedApiKeyIds);
     }
 
     public void testGetApiKeysForUser() throws Exception {
@@ -583,22 +645,29 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple = createApiKeys(noOfApiKeys, null);
         List<CreateApiKeyResponse> responses = tuple.v1();
         Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingUserName(TEST_SUPERUSER), listener);
         GetApiKeyResponse response = listener.get();
-        verifyGetResponse(noOfApiKeys, responses, tuple.v2(),
-            response, responses.stream().map(o -> o.getId()).collect(Collectors.toSet()), null);
+        verifyGetResponse(
+            noOfApiKeys,
+            responses,
+            tuple.v2(),
+            response,
+            responses.stream().map(o -> o.getId()).collect(Collectors.toSet()),
+            null
+        );
     }
 
     public void testGetApiKeysForRealmAndUser() throws InterruptedException, ExecutionException {
         final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple = createApiKeys(1, null);
         List<CreateApiKeyResponse> responses = tuple.v1();
         Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingRealmAndUserName("file", TEST_SUPERUSER),
-            listener);
+        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingRealmAndUserName("file", TEST_SUPERUSER), listener);
         GetApiKeyResponse response = listener.get();
         verifyGetResponse(1, responses, tuple.v2(), response, Collections.singleton(responses.get(0).getId()), null);
     }
@@ -607,7 +676,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple = createApiKeys(1, null);
         List<CreateApiKeyResponse> responses = tuple.v1();
         Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyId(responses.get(0).getId(), false), listener);
         GetApiKeyResponse response = listener.get();
@@ -617,13 +687,19 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     public void testGetApiKeysForApiKeyName() throws InterruptedException, ExecutionException {
         final Map<String, String> headers = Collections.singletonMap(
             "Authorization",
-            basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING));
+            basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)
+        );
 
         final int noOfApiKeys = randomIntBetween(1, 3);
         final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple1 = createApiKeys(noOfApiKeys, null);
         final List<CreateApiKeyResponse> createApiKeyResponses1 = tuple1.v1();
-        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple2 =
-            createApiKeys(headers, noOfApiKeys, "another-test-key-", null, "monitor");
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple2 = createApiKeys(
+            headers,
+            noOfApiKeys,
+            "another-test-key-",
+            null,
+            "monitor"
+        );
         final List<CreateApiKeyResponse> createApiKeyResponses2 = tuple2.v1();
 
         Client client = client().filterWithHeader(headers);
@@ -636,15 +712,27 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         PlainActionFuture<GetApiKeyResponse> listener2 = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyName("test-key*", false), listener2);
-        verifyGetResponse(noOfApiKeys, createApiKeyResponses1, tuple1.v2(), listener2.get(),
-            createApiKeyResponses1.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()), null);
+        verifyGetResponse(
+            noOfApiKeys,
+            createApiKeyResponses1,
+            tuple1.v2(),
+            listener2.get(),
+            createApiKeyResponses1.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()),
+            null
+        );
 
         PlainActionFuture<GetApiKeyResponse> listener3 = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyName("*", false), listener3);
         responses = Stream.concat(createApiKeyResponses1.stream(), createApiKeyResponses2.stream()).collect(Collectors.toList());
         metadatas = Stream.concat(tuple1.v2().stream(), tuple2.v2().stream()).collect(Collectors.toList());
-        verifyGetResponse(2 * noOfApiKeys, responses, metadatas, listener3.get(),
-            responses.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()), null);
+        verifyGetResponse(
+            2 * noOfApiKeys,
+            responses,
+            metadatas,
+            listener3.get(),
+            responses.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()),
+            null
+        );
 
         PlainActionFuture<GetApiKeyResponse> listener4 = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyName("does-not-exist*", false), listener4);
@@ -652,8 +740,14 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         PlainActionFuture<GetApiKeyResponse> listener5 = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyName("another-test-key*", false), listener5);
-        verifyGetResponse(noOfApiKeys, createApiKeyResponses2, tuple2.v2(), listener5.get(),
-            createApiKeyResponses2.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()), null);
+        verifyGetResponse(
+            noOfApiKeys,
+            createApiKeyResponses2,
+            tuple2.v2(),
+            listener5.get(),
+            createApiKeyResponses2.stream().map(CreateApiKeyResponse::getId).collect(Collectors.toSet()),
+            null
+        );
     }
 
     public void testGetApiKeysOwnedByCurrentAuthenticatedUser() throws InterruptedException, ExecutionException {
@@ -661,17 +755,29 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
         List<CreateApiKeyResponse> defaultUserCreatedKeys = createApiKeys(noOfSuperuserApiKeys, null).v1();
         String userWithManageApiKeyRole = randomFrom("user_with_manage_api_key_role", "user_with_manage_own_api_key_role");
-        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple =
-            createApiKeys(userWithManageApiKeyRole, noOfApiKeysForUserWithManageApiKeyRole, null, "monitor");
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple = createApiKeys(
+            userWithManageApiKeyRole,
+            noOfApiKeysForUserWithManageApiKeyRole,
+            null,
+            "monitor"
+        );
         List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = tuple.v1();
         final Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(userWithManageApiKeyRole, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(userWithManageApiKeyRole, TEST_PASSWORD_SECURE_STRING))
+        );
 
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.forOwnedApiKeys(), listener);
         GetApiKeyResponse response = listener.get();
-        verifyGetResponse(userWithManageApiKeyRole, noOfApiKeysForUserWithManageApiKeyRole, userWithManageApiKeyRoleApiKeys, tuple.v2(),
-            response, userWithManageApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()), null);
+        verifyGetResponse(
+            userWithManageApiKeyRole,
+            noOfApiKeysForUserWithManageApiKeyRole,
+            userWithManageApiKeyRoleApiKeys,
+            tuple.v2(),
+            response,
+            userWithManageApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()),
+            null
+        );
     }
 
     public void testGetApiKeysOwnedByRunAsUserWhenOwnerIsTrue() throws ExecutionException, InterruptedException {
@@ -679,18 +785,26 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         int noOfSuperuserApiKeys = randomIntBetween(3, 5);
         int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
         createApiKeys(noOfSuperuserApiKeys, null);
-        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple = createApiKeys("user_with_manage_own_api_key_role",
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple = createApiKeys(
+            "user_with_manage_own_api_key_role",
             "user_with_run_as_role",
             noOfApiKeysForUserWithManageApiKeyRole,
             null,
-            "monitor");
+            "monitor"
+        );
         List<CreateApiKeyResponse> userWithManageOwnApiKeyRoleApiKeys = tuple.v1();
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
         getClientForRunAsUser().execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.forOwnedApiKeys(), listener);
         GetApiKeyResponse response = listener.get();
-        verifyGetResponse("user_with_manage_own_api_key_role", noOfApiKeysForUserWithManageApiKeyRole,
-            userWithManageOwnApiKeyRoleApiKeys, tuple.v2(),
-            response, userWithManageOwnApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()), null);
+        verifyGetResponse(
+            "user_with_manage_own_api_key_role",
+            noOfApiKeysForUserWithManageApiKeyRole,
+            userWithManageOwnApiKeyRoleApiKeys,
+            tuple.v2(),
+            response,
+            userWithManageOwnApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()),
+            null
+        );
     }
 
     public void testGetApiKeysOwnedByRunAsUserWhenRunAsUserInfoIsGiven() throws ExecutionException, InterruptedException {
@@ -698,19 +812,30 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         int noOfSuperuserApiKeys = randomIntBetween(3, 5);
         int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
         createApiKeys(noOfSuperuserApiKeys, null);
-        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple = createApiKeys("user_with_manage_own_api_key_role",
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple = createApiKeys(
+            "user_with_manage_own_api_key_role",
             "user_with_run_as_role",
             noOfApiKeysForUserWithManageApiKeyRole,
             null,
-            "monitor");
+            "monitor"
+        );
         List<CreateApiKeyResponse> userWithManageOwnApiKeyRoleApiKeys = tuple.v1();
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
-        getClientForRunAsUser().execute(GetApiKeyAction.INSTANCE,
-            GetApiKeyRequest.usingRealmAndUserName("file", "user_with_manage_own_api_key_role"), listener);
+        getClientForRunAsUser().execute(
+            GetApiKeyAction.INSTANCE,
+            GetApiKeyRequest.usingRealmAndUserName("file", "user_with_manage_own_api_key_role"),
+            listener
+        );
         GetApiKeyResponse response = listener.get();
-        verifyGetResponse("user_with_manage_own_api_key_role", noOfApiKeysForUserWithManageApiKeyRole,
-            userWithManageOwnApiKeyRoleApiKeys, tuple.v2(),
-            response, userWithManageOwnApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()), null);
+        verifyGetResponse(
+            "user_with_manage_own_api_key_role",
+            noOfApiKeysForUserWithManageApiKeyRole,
+            userWithManageOwnApiKeyRoleApiKeys,
+            tuple.v2(),
+            response,
+            userWithManageOwnApiKeyRoleApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()),
+            null
+        );
     }
 
     public void testGetApiKeysOwnedByRunAsUserWillNotWorkWhenAuthUserInfoIsGiven() throws ExecutionException, InterruptedException {
@@ -718,19 +843,30 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         int noOfSuperuserApiKeys = randomIntBetween(3, 5);
         int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
         createApiKeys(noOfSuperuserApiKeys, null);
-        final List<CreateApiKeyResponse> userWithManageOwnApiKeyRoleApiKeys = createApiKeys("user_with_manage_own_api_key_role",
-            "user_with_run_as_role", noOfApiKeysForUserWithManageApiKeyRole, null, "monitor").v1();
+        final List<CreateApiKeyResponse> userWithManageOwnApiKeyRoleApiKeys = createApiKeys(
+            "user_with_manage_own_api_key_role",
+            "user_with_run_as_role",
+            noOfApiKeysForUserWithManageApiKeyRole,
+            null,
+            "monitor"
+        ).v1();
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
         @SuppressWarnings("unchecked")
         final Tuple<String, String> invalidRealmAndUserPair = randomFrom(
             new Tuple<>("file", "user_with_run_as_role"),
             new Tuple<>("index", "user_with_manage_own_api_key_role"),
-            new Tuple<>("index", "user_with_run_as_role"));
-        getClientForRunAsUser().execute(GetApiKeyAction.INSTANCE,
-            GetApiKeyRequest.usingRealmAndUserName(invalidRealmAndUserPair.v1(), invalidRealmAndUserPair.v2()), listener);
+            new Tuple<>("index", "user_with_run_as_role")
+        );
+        getClientForRunAsUser().execute(
+            GetApiKeyAction.INSTANCE,
+            GetApiKeyRequest.usingRealmAndUserName(invalidRealmAndUserPair.v1(), invalidRealmAndUserPair.v2()),
+            listener
+        );
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, listener::actionGet);
-        assertThat(e.getMessage(), containsString(
-            "unauthorized for user [user_with_run_as_role] run as [user_with_manage_own_api_key_role]"));
+        assertThat(
+            e.getMessage(),
+            containsString("unauthorized for user [user_with_run_as_role] run as [user_with_manage_own_api_key_role]")
+        );
     }
 
     public void testGetAllApiKeys() throws InterruptedException, ExecutionException {
@@ -739,27 +875,42 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         int noOfApiKeysForUserWithManageOwnApiKeyRole = randomIntBetween(3, 7);
         final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> defaultUserTuple = createApiKeys(noOfSuperuserApiKeys, null);
         List<CreateApiKeyResponse> defaultUserCreatedKeys = defaultUserTuple.v1();
-        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> userWithManageTuple =
-            createApiKeys("user_with_manage_api_key_role", noOfApiKeysForUserWithManageApiKeyRole, null, "monitor");
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> userWithManageTuple = createApiKeys(
+            "user_with_manage_api_key_role",
+            noOfApiKeysForUserWithManageApiKeyRole,
+            null,
+            "monitor"
+        );
         List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = userWithManageTuple.v1();
-        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> userWithManageOwnTuple =
-            createApiKeys("user_with_manage_own_api_key_role", noOfApiKeysForUserWithManageOwnApiKeyRole, null, "monitor");
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> userWithManageOwnTuple = createApiKeys(
+            "user_with_manage_own_api_key_role",
+            noOfApiKeysForUserWithManageOwnApiKeyRole,
+            null,
+            "monitor"
+        );
         List<CreateApiKeyResponse> userWithManageOwnApiKeyRoleApiKeys = userWithManageOwnTuple.v1();
 
         final Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue("user_with_manage_api_key_role", TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue("user_with_manage_api_key_role", TEST_PASSWORD_SECURE_STRING))
+        );
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, new GetApiKeyRequest(), listener);
         GetApiKeyResponse response = listener.get();
         int totalApiKeys = noOfSuperuserApiKeys + noOfApiKeysForUserWithManageApiKeyRole + noOfApiKeysForUserWithManageOwnApiKeyRole;
         List<CreateApiKeyResponse> allApiKeys = new ArrayList<>();
-        Stream.of(defaultUserCreatedKeys, userWithManageApiKeyRoleApiKeys, userWithManageOwnApiKeyRoleApiKeys).forEach(
-            allApiKeys::addAll);
+        Stream.of(defaultUserCreatedKeys, userWithManageApiKeyRoleApiKeys, userWithManageOwnApiKeyRoleApiKeys).forEach(allApiKeys::addAll);
         final List<Map<String, Object>> metadatas = Stream.of(defaultUserTuple.v2(), userWithManageTuple.v2(), userWithManageOwnTuple.v2())
-            .flatMap(List::stream).collect(Collectors.toList());
-        verifyGetResponse(new String[] {TEST_SUPERUSER, "user_with_manage_api_key_role",
-                "user_with_manage_own_api_key_role" }, totalApiKeys, allApiKeys, metadatas, response,
-            allApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()), null);
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
+        verifyGetResponse(
+            new String[] { TEST_SUPERUSER, "user_with_manage_api_key_role", "user_with_manage_own_api_key_role" },
+            totalApiKeys,
+            allApiKeys,
+            metadatas,
+            response,
+            allApiKeys.stream().map(o -> o.getId()).collect(Collectors.toSet()),
+            null
+        );
     }
 
     public void testGetAllApiKeysFailsForUserWithNoRoleOrRetrieveOwnApiKeyRole() throws InterruptedException, ExecutionException {
@@ -767,14 +918,23 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
         int noOfApiKeysForUserWithManageOwnApiKeyRole = randomIntBetween(3, 7);
         List<CreateApiKeyResponse> defaultUserCreatedKeys = createApiKeys(noOfSuperuserApiKeys, null).v1();
-        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys("user_with_manage_api_key_role",
-            noOfApiKeysForUserWithManageApiKeyRole, null, "monitor").v1();
-        List<CreateApiKeyResponse> userWithManageOwnApiKeyRoleApiKeys = createApiKeys("user_with_manage_own_api_key_role",
-            noOfApiKeysForUserWithManageOwnApiKeyRole, null, "monitor").v1();
+        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys(
+            "user_with_manage_api_key_role",
+            noOfApiKeysForUserWithManageApiKeyRole,
+            null,
+            "monitor"
+        ).v1();
+        List<CreateApiKeyResponse> userWithManageOwnApiKeyRoleApiKeys = createApiKeys(
+            "user_with_manage_own_api_key_role",
+            noOfApiKeysForUserWithManageOwnApiKeyRole,
+            null,
+            "monitor"
+        ).v1();
 
         final String withUser = randomFrom("user_with_manage_own_api_key_role", "user_with_no_api_key_role");
         final Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(withUser, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(withUser, TEST_PASSWORD_SECURE_STRING))
+        );
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, new GetApiKeyRequest(), listener);
         ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, () -> listener.actionGet());
@@ -786,10 +946,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
         List<CreateApiKeyResponse> defaultUserCreatedKeys = createApiKeys(noOfSuperuserApiKeys, null).v1();
         String userWithManageApiKeyRole = randomFrom("user_with_manage_api_key_role", "user_with_manage_own_api_key_role");
-        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys(userWithManageApiKeyRole,
-            noOfApiKeysForUserWithManageApiKeyRole, null, "monitor").v1();
+        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys(
+            userWithManageApiKeyRole,
+            noOfApiKeysForUserWithManageApiKeyRole,
+            null,
+            "monitor"
+        ).v1();
         final Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(userWithManageApiKeyRole, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(userWithManageApiKeyRole, TEST_PASSWORD_SECURE_STRING))
+        );
 
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
         client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.forOwnedApiKeys(), listener);
@@ -803,8 +968,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         int noOfSuperuserApiKeys = randomIntBetween(3, 5);
         int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
         createApiKeys(noOfSuperuserApiKeys, null);
-        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys("user_with_manage_own_api_key_role",
-            "user_with_run_as_role", noOfApiKeysForUserWithManageApiKeyRole, null, "monitor").v1();
+        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys(
+            "user_with_manage_own_api_key_role",
+            "user_with_run_as_role",
+            noOfApiKeysForUserWithManageApiKeyRole,
+            null,
+            "monitor"
+        ).v1();
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
         getClientForRunAsUser().execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.forOwnedApiKeys(), listener);
         InvalidateApiKeyResponse invalidateResponse = listener.get();
@@ -816,11 +986,19 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         int noOfSuperuserApiKeys = randomIntBetween(3, 5);
         int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
         createApiKeys(noOfSuperuserApiKeys, null);
-        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys("user_with_manage_own_api_key_role",
-            "user_with_run_as_role", noOfApiKeysForUserWithManageApiKeyRole, null, "monitor").v1();
+        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys(
+            "user_with_manage_own_api_key_role",
+            "user_with_run_as_role",
+            noOfApiKeysForUserWithManageApiKeyRole,
+            null,
+            "monitor"
+        ).v1();
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        getClientForRunAsUser().execute(InvalidateApiKeyAction.INSTANCE,
-            InvalidateApiKeyRequest.usingRealmAndUserName("file", "user_with_manage_own_api_key_role"), listener);
+        getClientForRunAsUser().execute(
+            InvalidateApiKeyAction.INSTANCE,
+            InvalidateApiKeyRequest.usingRealmAndUserName("file", "user_with_manage_own_api_key_role"),
+            listener
+        );
         InvalidateApiKeyResponse invalidateResponse = listener.get();
         verifyInvalidateResponse(noOfApiKeysForUserWithManageApiKeyRole, userWithManageApiKeyRoleApiKeys, invalidateResponse);
     }
@@ -830,28 +1008,38 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         int noOfSuperuserApiKeys = randomIntBetween(3, 5);
         int noOfApiKeysForUserWithManageApiKeyRole = randomIntBetween(3, 5);
         createApiKeys(noOfSuperuserApiKeys, null);
-        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys("user_with_manage_own_api_key_role",
-            "user_with_run_as_role", noOfApiKeysForUserWithManageApiKeyRole, null, "monitor").v1();
+        List<CreateApiKeyResponse> userWithManageApiKeyRoleApiKeys = createApiKeys(
+            "user_with_manage_own_api_key_role",
+            "user_with_run_as_role",
+            noOfApiKeysForUserWithManageApiKeyRole,
+            null,
+            "monitor"
+        ).v1();
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
         @SuppressWarnings("unchecked")
         final Tuple<String, String> invalidRealmAndUserPair = randomFrom(
             new Tuple<>("file", "user_with_run_as_role"),
             new Tuple<>("index", "user_with_manage_own_api_key_role"),
-            new Tuple<>("index", "user_with_run_as_role"));
-        getClientForRunAsUser().execute(InvalidateApiKeyAction.INSTANCE,
-            InvalidateApiKeyRequest.usingRealmAndUserName(invalidRealmAndUserPair.v1(), invalidRealmAndUserPair.v2()), listener);
+            new Tuple<>("index", "user_with_run_as_role")
+        );
+        getClientForRunAsUser().execute(
+            InvalidateApiKeyAction.INSTANCE,
+            InvalidateApiKeyRequest.usingRealmAndUserName(invalidRealmAndUserPair.v1(), invalidRealmAndUserPair.v2()),
+            listener
+        );
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, listener::actionGet);
-        assertThat(e.getMessage(), containsString(
-            "unauthorized for user [user_with_run_as_role] run as [user_with_manage_own_api_key_role]"));
+        assertThat(
+            e.getMessage(),
+            containsString("unauthorized for user [user_with_run_as_role] run as [user_with_manage_own_api_key_role]")
+        );
     }
 
     public void testApiKeyAuthorizationApiKeyMustBeAbleToRetrieveItsOwnInformationButNotAnyOtherKeysCreatedBySameOwner()
         throws InterruptedException, ExecutionException {
-        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple =
-            createApiKeys(TEST_SUPERUSER, 2, null, (String[]) null);
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple = createApiKeys(TEST_SUPERUSER, 2, null, (String[]) null);
         List<CreateApiKeyResponse> responses = tuple.v1();
-        final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
-            (responses.get(0).getId() + ":" + responses.get(0).getKey().toString()).getBytes(StandardCharsets.UTF_8));
+        final String base64ApiKeyKeyValue = Base64.getEncoder()
+            .encodeToString((responses.get(0).getId() + ":" + responses.get(0).getKey().toString()).getBytes(StandardCharsets.UTF_8));
         Client client = client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue));
         PlainActionFuture<GetApiKeyResponse> listener = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyId(responses.get(0).getId(), randomBoolean()), listener);
@@ -860,11 +1048,13 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         final PlainActionFuture<GetApiKeyResponse> failureListener = new PlainActionFuture<>();
         // for any other API key id, it must deny access
-        client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyId(responses.get(1).getId(), randomBoolean()),
-            failureListener);
+        client.execute(
+            GetApiKeyAction.INSTANCE,
+            GetApiKeyRequest.usingApiKeyId(responses.get(1).getId(), randomBoolean()),
+            failureListener
+        );
         ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, () -> failureListener.actionGet());
-        assertErrorMessage(ese, "cluster:admin/xpack/security/api_key/get", TEST_SUPERUSER,
-            responses.get(0).getId());
+        assertErrorMessage(ese, "cluster:admin/xpack/security/api_key/get", TEST_SUPERUSER, responses.get(0).getId());
 
         final PlainActionFuture<GetApiKeyResponse> failureListener1 = new PlainActionFuture<>();
         client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.forOwnedApiKeys(), failureListener1);
@@ -872,20 +1062,22 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertErrorMessage(ese, "cluster:admin/xpack/security/api_key/get", TEST_SUPERUSER, responses.get(0).getId());
     }
 
-    public void testApiKeyWithManageOwnPrivilegeIsAbleToInvalidateItselfButNotAnyOtherKeysCreatedBySameOwner()
-        throws InterruptedException, ExecutionException {
+    public void testApiKeyWithManageOwnPrivilegeIsAbleToInvalidateItselfButNotAnyOtherKeysCreatedBySameOwner() throws InterruptedException,
+        ExecutionException {
         List<CreateApiKeyResponse> responses = createApiKeys(TEST_SUPERUSER, 2, null, "manage_own_api_key").v1();
-        final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
-            (responses.get(0).getId() + ":" + responses.get(0).getKey().toString()).getBytes(StandardCharsets.UTF_8));
+        final String base64ApiKeyKeyValue = Base64.getEncoder()
+            .encodeToString((responses.get(0).getId() + ":" + responses.get(0).getKey().toString()).getBytes(StandardCharsets.UTF_8));
         Client client = client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue));
 
         final PlainActionFuture<InvalidateApiKeyResponse> failureListener = new PlainActionFuture<>();
         // for any other API key id, it must deny access
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(responses.get(1).getId(), randomBoolean()),
-            failureListener);
+        client.execute(
+            InvalidateApiKeyAction.INSTANCE,
+            InvalidateApiKeyRequest.usingApiKeyId(responses.get(1).getId(), randomBoolean()),
+            failureListener
+        );
         ElasticsearchSecurityException ese = expectThrows(ElasticsearchSecurityException.class, () -> failureListener.actionGet());
-        assertErrorMessage(ese, "cluster:admin/xpack/security/api_key/invalidate", TEST_SUPERUSER,
-            responses.get(0).getId());
+        assertErrorMessage(ese, "cluster:admin/xpack/security/api_key/invalidate", TEST_SUPERUSER, responses.get(0).getId());
 
         final PlainActionFuture<InvalidateApiKeyResponse> failureListener1 = new PlainActionFuture<>();
         client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.forOwnedApiKeys(), failureListener1);
@@ -893,8 +1085,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertErrorMessage(ese, "cluster:admin/xpack/security/api_key/invalidate", TEST_SUPERUSER, responses.get(0).getId());
 
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingApiKeyId(responses.get(0).getId(), randomBoolean()),
-            listener);
+        client.execute(
+            InvalidateApiKeyAction.INSTANCE,
+            InvalidateApiKeyRequest.usingApiKeyId(responses.get(0).getId(), randomBoolean()),
+            listener
+        );
         InvalidateApiKeyResponse invalidateResponse = listener.get();
 
         assertThat(invalidateResponse.getInvalidatedApiKeys().size(), equalTo(1));
@@ -904,13 +1099,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     public void testDerivedKeys() throws ExecutionException, InterruptedException {
-        Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
-            basicAuthHeaderValue(TEST_SUPERUSER,
-                TEST_PASSWORD_SECURE_STRING)));
-        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client)
-            .setName("key-1")
-            .setRoleDescriptors(Collections.singletonList(
-                new RoleDescriptor("role", new String[] { "manage_api_key" }, null, null)))
+        Client client = client().filterWithHeader(
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
+        final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName("key-1")
+            .setRoleDescriptors(Collections.singletonList(new RoleDescriptor("role", new String[] { "manage_api_key" }, null, null)))
             .setMetadata(ApiKeyTests.randomMetadata())
             .get();
 
@@ -919,45 +1112,54 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertNotNull(response.getKey());
 
         // use the first ApiKey for authorized action
-        final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
-            (response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
+        final String base64ApiKeyKeyValue = Base64.getEncoder()
+            .encodeToString((response.getId() + ":" + response.getKey().toString()).getBytes(StandardCharsets.UTF_8));
         final Client clientKey1 = client().filterWithHeader(Collections.singletonMap("Authorization", "ApiKey " + base64ApiKeyKeyValue));
 
         final String expectedMessage = "creating derived api keys requires an explicit role descriptor that is empty";
 
-        final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class,
-            () -> new CreateApiKeyRequestBuilder(clientKey1).setName("key-2").setMetadata(ApiKeyTests.randomMetadata()).get());
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CreateApiKeyRequestBuilder(clientKey1).setName("key-2").setMetadata(ApiKeyTests.randomMetadata()).get()
+        );
         assertThat(e1.getMessage(), containsString(expectedMessage));
 
-        final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class,
-            () -> new CreateApiKeyRequestBuilder(clientKey1).setName("key-3")
-                .setRoleDescriptors(Collections.emptyList()).get());
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new CreateApiKeyRequestBuilder(clientKey1).setName("key-3").setRoleDescriptors(Collections.emptyList()).get()
+        );
         assertThat(e2.getMessage(), containsString(expectedMessage));
 
-        final IllegalArgumentException e3 = expectThrows(IllegalArgumentException.class,
+        final IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
             () -> new CreateApiKeyRequestBuilder(clientKey1).setName("key-4")
                 .setMetadata(ApiKeyTests.randomMetadata())
-                .setRoleDescriptors(Collections.singletonList(
-                    new RoleDescriptor("role", new String[] { "manage_own_api_key" }, null, null)
-                )).get());
+                .setRoleDescriptors(
+                    Collections.singletonList(new RoleDescriptor("role", new String[] { "manage_own_api_key" }, null, null))
+                )
+                .get()
+        );
         assertThat(e3.getMessage(), containsString(expectedMessage));
 
-        final List<RoleDescriptor> roleDescriptors = randomList(2, 10,
-            () -> new RoleDescriptor("role", null, null, null));
-        roleDescriptors.set(randomInt(roleDescriptors.size() - 1),
-            new RoleDescriptor("role", new String[] { "manage_own_api_key" }, null, null));
+        final List<RoleDescriptor> roleDescriptors = randomList(2, 10, () -> new RoleDescriptor("role", null, null, null));
+        roleDescriptors.set(
+            randomInt(roleDescriptors.size() - 1),
+            new RoleDescriptor("role", new String[] { "manage_own_api_key" }, null, null)
+        );
 
-        final IllegalArgumentException e4 = expectThrows(IllegalArgumentException.class,
+        final IllegalArgumentException e4 = expectThrows(
+            IllegalArgumentException.class,
             () -> new CreateApiKeyRequestBuilder(clientKey1).setName("key-5")
                 .setMetadata(ApiKeyTests.randomMetadata())
-                .setRoleDescriptors(roleDescriptors).get());
+                .setRoleDescriptors(roleDescriptors)
+                .get()
+        );
         assertThat(e4.getMessage(), containsString(expectedMessage));
 
         final CreateApiKeyResponse key100Response = new CreateApiKeyRequestBuilder(clientKey1).setName("key-100")
             .setMetadata(ApiKeyTests.randomMetadata())
-            .setRoleDescriptors(Collections.singletonList(
-                new RoleDescriptor("role", null, null, null)
-            )).get();
+            .setRoleDescriptors(Collections.singletonList(new RoleDescriptor("role", null, null, null)))
+            .get();
         assertEquals("key-100", key100Response.getName());
         assertNotNull(key100Response.getId());
         assertNotNull(key100Response.getKey());
@@ -977,11 +1179,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
         final ApiKeyService apiKeyService = internalCluster().getInstance(ApiKeyService.class, nodeName);
 
-        final RoleDescriptor descriptor = new RoleDescriptor("auth_only", new String[] { }, null, null);
+        final RoleDescriptor descriptor = new RoleDescriptor("auth_only", new String[] {}, null, null);
         final Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
-        final CreateApiKeyResponse createApiKeyResponse = new CreateApiKeyRequestBuilder(client)
-            .setName("auth only key")
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
+        final CreateApiKeyResponse createApiKeyResponse = new CreateApiKeyRequestBuilder(client).setName("auth only key")
             .setRoleDescriptors(Collections.singletonList(descriptor))
             .setMetadata(ApiKeyTests.randomMetadata())
             .get();
@@ -991,7 +1193,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // Clear the auth cache to force recompute the expensive hash which requires the crypto thread pool
         apiKeyService.getApiKeyAuthCache().invalidateAll();
 
-        final List<NodeInfo> nodeInfos = client().admin().cluster().prepareNodesInfo().get().getNodes().stream()
+        final List<NodeInfo> nodeInfos = client().admin()
+            .cluster()
+            .prepareNodesInfo()
+            .get()
+            .getNodes()
+            .stream()
             .filter(nodeInfo -> nodeInfo.getNode().getName().equals(nodeName))
             .collect(Collectors.toList());
         assertEquals(1, nodeInfos.size());
@@ -1017,27 +1224,31 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         int i = 0;
         try {
             for (i = 0; i < CRYPTO_THREAD_POOL_QUEUE_SIZE; i++) {
-                lastTaskFuture = executorService.submit(() -> { });
+                lastTaskFuture = executorService.submit(() -> {});
             }
         } catch (EsRejectedExecutionException e) {
             logger.info("Attempted to push {} tasks but only pushed {}", CRYPTO_THREAD_POOL_QUEUE_SIZE, i + 1);
         }
 
         try (RestClient restClient = createRestClient(nodeInfos, null, "http")) {
-            final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
-                (createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8));
+            final String base64ApiKeyKeyValue = Base64.getEncoder()
+                .encodeToString(
+                    (createApiKeyResponse.getId() + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8)
+                );
 
             final Request authRequest = new Request("GET", "_security/_authenticate");
-            authRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(
-                "Authorization", "ApiKey " + base64ApiKeyKeyValue).build());
+            authRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + base64ApiKeyKeyValue).build());
             final ResponseException e1 = expectThrows(ResponseException.class, () -> restClient.performRequest(authRequest));
             assertThat(e1.getMessage(), containsString("429 Too Many Requests"));
             assertThat(e1.getResponse().getStatusLine().getStatusCode(), is(429));
 
             final Request createApiKeyRequest = new Request("POST", "_security/api_key");
             createApiKeyRequest.setJsonEntity("{\"name\":\"key\"}");
-            createApiKeyRequest.setOptions(createApiKeyRequest.getOptions().toBuilder()
-                .addHeader("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            createApiKeyRequest.setOptions(
+                createApiKeyRequest.getOptions()
+                    .toBuilder()
+                    .addHeader("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+            );
             final ResponseException e2 = expectThrows(ResponseException.class, () -> restClient.performRequest(createApiKeyRequest));
             assertThat(e2.getMessage(), containsString("429 Too Many Requests"));
             assertThat(e2.getResponse().getStatusLine().getStatusCode(), is(429));
@@ -1059,10 +1270,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         String docId2 = createApiKeyAndAuthenticateWithIt().v1();
 
         // Find out which nodes handled the above authentication requests
-        final ApiKeyService serviceForDoc1 =
-            services.stream().filter(s -> s.getDocCache().get(docId1) != null).findFirst().orElseThrow();
-        final ApiKeyService serviceForDoc2 =
-            services.stream().filter(s -> s.getDocCache().get(docId2) != null).findFirst().orElseThrow();
+        final ApiKeyService serviceForDoc1 = services.stream().filter(s -> s.getDocCache().get(docId1) != null).findFirst().orElseThrow();
+        final ApiKeyService serviceForDoc2 = services.stream().filter(s -> s.getDocCache().get(docId2) != null).findFirst().orElseThrow();
         assertNotNull(serviceForDoc1.getFromCache(docId1));
         assertNotNull(serviceForDoc2.getFromCache(docId2));
         final boolean sameServiceNode = serviceForDoc1 == serviceForDoc2;
@@ -1080,8 +1289,10 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         ClearSecurityCacheRequest clearSecurityCacheRequest = new ClearSecurityCacheRequest();
         clearSecurityCacheRequest.cacheName("api_key");
         clearSecurityCacheRequest.keys(docId1);
-        ClearSecurityCacheResponse clearSecurityCacheResponse =
-            client().execute(ClearSecurityCacheAction.INSTANCE, clearSecurityCacheRequest).get();
+        ClearSecurityCacheResponse clearSecurityCacheResponse = client().execute(
+            ClearSecurityCacheAction.INSTANCE,
+            clearSecurityCacheRequest
+        ).get();
         assertFalse(clearSecurityCacheResponse.hasFailures());
 
         assertBusy(() -> {
@@ -1101,8 +1312,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         // Invalidate all cache entries by setting keys to an empty array
         clearSecurityCacheRequest.keys(new String[0]);
-        clearSecurityCacheResponse =
-            client().execute(ClearSecurityCacheAction.INSTANCE, clearSecurityCacheRequest).get();
+        clearSecurityCacheResponse = client().execute(ClearSecurityCacheAction.INSTANCE, clearSecurityCacheRequest).get();
         assertFalse(clearSecurityCacheResponse.hasFailures());
         assertBusy(() -> {
             assertEquals(0, serviceForDoc1.getDocCache().count());
@@ -1125,15 +1335,16 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         String docId = createApiKeyAndAuthenticateWithIt().v1();
 
         // The API key is cached by one of the node that the above request hits, find out which one
-        final ApiKeyService apiKeyService =
-            services.stream().filter(s -> s.getDocCache().count() > 0).findFirst().orElseThrow();
+        final ApiKeyService apiKeyService = services.stream().filter(s -> s.getDocCache().count() > 0).findFirst().orElseThrow();
         assertNotNull(apiKeyService.getFromCache(docId));
         assertEquals(1, apiKeyService.getDocCache().count());
         assertEquals(2, apiKeyService.getRoleDescriptorsBytesCache().count());
 
         // Close security index to trigger invalidation
-        final CloseIndexResponse closeIndexResponse = client().admin().indices().close(
-            new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7)).get();
+        final CloseIndexResponse closeIndexResponse = client().admin()
+            .indices()
+            .close(new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7))
+            .get();
         assertTrue(closeIndexResponse.isAcknowledged());
         assertBusy(() -> {
             expectThrows(NullPointerException.class, () -> apiKeyService.getFromCache(docId));
@@ -1144,71 +1355,108 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     private Tuple<String, String> createApiKeyAndAuthenticateWithIt() throws IOException {
         Client client = client().filterWithHeader(
-            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
 
-        final CreateApiKeyResponse createApiKeyResponse = new CreateApiKeyRequestBuilder(client)
-            .setName("test key")
+        final CreateApiKeyResponse createApiKeyResponse = new CreateApiKeyRequestBuilder(client).setName("test key")
             .setMetadata(ApiKeyTests.randomMetadata())
             .get();
         final String docId = createApiKeyResponse.getId();
-        final String base64ApiKeyKeyValue = Base64.getEncoder().encodeToString(
-            (docId + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8));
+        final String base64ApiKeyKeyValue = Base64.getEncoder()
+            .encodeToString((docId + ":" + createApiKeyResponse.getKey().toString()).getBytes(StandardCharsets.UTF_8));
         AuthenticateResponse authResponse = new TestRestHighLevelClient().security()
-            .authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
-                "ApiKey " + base64ApiKeyKeyValue).build());
+            .authenticate(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + base64ApiKeyKeyValue).build());
         assertEquals("api_key", authResponse.getAuthenticationType());
         return Tuple.tuple(docId, createApiKeyResponse.getKey().toString());
     }
 
     private void assertApiKeyNotCreated(Client client, String keyName) throws ExecutionException, InterruptedException {
         new RefreshRequestBuilder(client, RefreshAction.INSTANCE).setIndices(SECURITY_MAIN_ALIAS).execute().get();
-        assertEquals(0, client.execute(GetApiKeyAction.INSTANCE,
-            GetApiKeyRequest.usingApiKeyName(keyName, false)).get().getApiKeyInfos().length);
+        assertEquals(
+            0,
+            client.execute(GetApiKeyAction.INSTANCE, GetApiKeyRequest.usingApiKeyName(keyName, false)).get().getApiKeyInfos().length
+        );
     }
 
-    private void verifyGetResponse(int expectedNumberOfApiKeys, List<CreateApiKeyResponse> responses,
-                                   List<Map<String, Object>> metadatas,
-                                   GetApiKeyResponse response, Set<String> validApiKeyIds, List<String> invalidatedApiKeyIds) {
-        verifyGetResponse(TEST_SUPERUSER, expectedNumberOfApiKeys, responses, metadatas, response, validApiKeyIds,
-            invalidatedApiKeyIds);
+    private void verifyGetResponse(
+        int expectedNumberOfApiKeys,
+        List<CreateApiKeyResponse> responses,
+        List<Map<String, Object>> metadatas,
+        GetApiKeyResponse response,
+        Set<String> validApiKeyIds,
+        List<String> invalidatedApiKeyIds
+    ) {
+        verifyGetResponse(TEST_SUPERUSER, expectedNumberOfApiKeys, responses, metadatas, response, validApiKeyIds, invalidatedApiKeyIds);
     }
 
-    private void verifyGetResponse(String user, int expectedNumberOfApiKeys, List<CreateApiKeyResponse> responses,
-                                   List<Map<String, Object>> metadatas,
-                                   GetApiKeyResponse response, Set<String> validApiKeyIds, List<String> invalidatedApiKeyIds) {
+    private void verifyGetResponse(
+        String user,
+        int expectedNumberOfApiKeys,
+        List<CreateApiKeyResponse> responses,
+        List<Map<String, Object>> metadatas,
+        GetApiKeyResponse response,
+        Set<String> validApiKeyIds,
+        List<String> invalidatedApiKeyIds
+    ) {
         verifyGetResponse(
-            new String[]{user}, expectedNumberOfApiKeys, responses, metadatas, response, validApiKeyIds, invalidatedApiKeyIds);
+            new String[] { user },
+            expectedNumberOfApiKeys,
+            responses,
+            metadatas,
+            response,
+            validApiKeyIds,
+            invalidatedApiKeyIds
+        );
     }
 
-    private void verifyGetResponse(String[] user, int expectedNumberOfApiKeys, List<CreateApiKeyResponse> responses,
-                                   List<Map<String, Object>> metadatas,
-                                   GetApiKeyResponse response, Set<String> validApiKeyIds, List<String> invalidatedApiKeyIds) {
+    private void verifyGetResponse(
+        String[] user,
+        int expectedNumberOfApiKeys,
+        List<CreateApiKeyResponse> responses,
+        List<Map<String, Object>> metadatas,
+        GetApiKeyResponse response,
+        Set<String> validApiKeyIds,
+        List<String> invalidatedApiKeyIds
+    ) {
         assertThat(response.getApiKeyInfos().length, equalTo(expectedNumberOfApiKeys));
-        List<String> expectedIds = responses.stream().filter(o -> validApiKeyIds.contains(o.getId())).map(o -> o.getId())
+        List<String> expectedIds = responses.stream()
+            .filter(o -> validApiKeyIds.contains(o.getId()))
+            .map(o -> o.getId())
             .collect(Collectors.toList());
-        List<String> actualIds = Arrays.stream(response.getApiKeyInfos()).filter(o -> o.isInvalidated() == false).map(o -> o.getId())
+        List<String> actualIds = Arrays.stream(response.getApiKeyInfos())
+            .filter(o -> o.isInvalidated() == false)
+            .map(o -> o.getId())
             .collect(Collectors.toList());
         assertThat(actualIds, containsInAnyOrder(expectedIds.toArray(Strings.EMPTY_ARRAY)));
-        List<String> expectedNames = responses.stream().filter(o -> validApiKeyIds.contains(o.getId())).map(o -> o.getName())
+        List<String> expectedNames = responses.stream()
+            .filter(o -> validApiKeyIds.contains(o.getId()))
+            .map(o -> o.getName())
             .collect(Collectors.toList());
-        List<String> actualNames = Arrays.stream(response.getApiKeyInfos()).filter(o -> o.isInvalidated() == false).map(o -> o.getName())
+        List<String> actualNames = Arrays.stream(response.getApiKeyInfos())
+            .filter(o -> o.isInvalidated() == false)
+            .map(o -> o.getName())
             .collect(Collectors.toList());
         assertThat(actualNames, containsInAnyOrder(expectedNames.toArray(Strings.EMPTY_ARRAY)));
-        Set<String> expectedUsernames = (validApiKeyIds.isEmpty()) ? Collections.emptySet()
-            : Set.of(user);
-        Set<String> actualUsernames = Arrays.stream(response.getApiKeyInfos()).filter(o -> o.isInvalidated() == false)
-            .map(o -> o.getUsername()).collect(Collectors.toSet());
+        Set<String> expectedUsernames = (validApiKeyIds.isEmpty()) ? Collections.emptySet() : Set.of(user);
+        Set<String> actualUsernames = Arrays.stream(response.getApiKeyInfos())
+            .filter(o -> o.isInvalidated() == false)
+            .map(o -> o.getUsername())
+            .collect(Collectors.toSet());
         assertThat(actualUsernames, containsInAnyOrder(expectedUsernames.toArray(Strings.EMPTY_ARRAY)));
         if (invalidatedApiKeyIds != null) {
-            List<String> actualInvalidatedApiKeyIds = Arrays.stream(response.getApiKeyInfos()).filter(o -> o.isInvalidated())
-                .map(o -> o.getId()).collect(Collectors.toList());
+            List<String> actualInvalidatedApiKeyIds = Arrays.stream(response.getApiKeyInfos())
+                .filter(o -> o.isInvalidated())
+                .map(o -> o.getId())
+                .collect(Collectors.toList());
             assertThat(invalidatedApiKeyIds, containsInAnyOrder(actualInvalidatedApiKeyIds.toArray(Strings.EMPTY_ARRAY)));
         }
         if (metadatas != null) {
-            final HashMap<String, Map<String, Object>> idToMetadata = IntStream.range(0, responses.size()).collect(
-                (Supplier<HashMap<String, Map<String, Object>>>) HashMap::new,
-                (m, i) -> m.put(responses.get(i).getId(), metadatas.get(i)),
-                HashMap::putAll);
+            final HashMap<String, Map<String, Object>> idToMetadata = IntStream.range(0, responses.size())
+                .collect(
+                    (Supplier<HashMap<String, Map<String, Object>>>) HashMap::new,
+                    (m, i) -> m.put(responses.get(i).getId(), metadatas.get(i)),
+                    HashMap::putAll
+                );
             for (ApiKey apiKey : response.getApiKeyInfos()) {
                 final Map<String, Object> metadata = idToMetadata.get(apiKey.getId());
                 assertThat(apiKey.getMetadata(), equalTo(metadata == null ? Map.of() : metadata));
@@ -1221,27 +1469,50 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
     }
 
     private Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> createApiKeys(
-        String user, int noOfApiKeys, TimeValue expiration, String... clusterPrivileges) {
-        final Map<String, String> headers = Collections.singletonMap("Authorization",
-            basicAuthHeaderValue(user, TEST_PASSWORD_SECURE_STRING));
+        String user,
+        int noOfApiKeys,
+        TimeValue expiration,
+        String... clusterPrivileges
+    ) {
+        final Map<String, String> headers = Collections.singletonMap(
+            "Authorization",
+            basicAuthHeaderValue(user, TEST_PASSWORD_SECURE_STRING)
+        );
         return createApiKeys(headers, noOfApiKeys, expiration, clusterPrivileges);
     }
 
     private Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> createApiKeys(
-        String owningUser, String authenticatingUser, int noOfApiKeys, TimeValue expiration, String... clusterPrivileges) {
+        String owningUser,
+        String authenticatingUser,
+        int noOfApiKeys,
+        TimeValue expiration,
+        String... clusterPrivileges
+    ) {
         final Map<String, String> headers = Map.of(
-            "Authorization", basicAuthHeaderValue(authenticatingUser, TEST_PASSWORD_SECURE_STRING),
-            "es-security-runas-user", owningUser);
+            "Authorization",
+            basicAuthHeaderValue(authenticatingUser, TEST_PASSWORD_SECURE_STRING),
+            "es-security-runas-user",
+            owningUser
+        );
         return createApiKeys(headers, noOfApiKeys, expiration, clusterPrivileges);
     }
 
     private Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> createApiKeys(
-        Map<String, String> headers, int noOfApiKeys, TimeValue expiration, String... clusterPrivileges) {
+        Map<String, String> headers,
+        int noOfApiKeys,
+        TimeValue expiration,
+        String... clusterPrivileges
+    ) {
         return createApiKeys(headers, noOfApiKeys, "test-key-", expiration, clusterPrivileges);
     }
 
     private Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> createApiKeys(
-        Map<String, String> headers, int noOfApiKeys, String namePrefix, TimeValue expiration, String... clusterPrivileges) {
+        Map<String, String> headers,
+        int noOfApiKeys,
+        String namePrefix,
+        TimeValue expiration,
+        String... clusterPrivileges
+    ) {
         List<Map<String, Object>> metadatas = new ArrayList<>(noOfApiKeys);
         List<CreateApiKeyResponse> responses = new ArrayList<>();
         for (int i = 0; i < noOfApiKeys; i++) {
@@ -1249,10 +1520,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Client client = client().filterWithHeader(headers);
             final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
             metadatas.add(metadata);
-            final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client)
-                .setName(namePrefix + randomAlphaOfLengthBetween(5, 9) + i).setExpiration(expiration)
-                .setRoleDescriptors(Collections.singletonList(descriptor))
-                .setMetadata(metadata).get();
+            final CreateApiKeyResponse response = new CreateApiKeyRequestBuilder(client).setName(
+                namePrefix + randomAlphaOfLengthBetween(5, 9) + i
+            ).setExpiration(expiration).setRoleDescriptors(Collections.singletonList(descriptor)).setMetadata(metadata).get();
             assertNotNull(response.getId());
             assertNotNull(response.getKey());
             responses.add(response);
@@ -1273,28 +1543,37 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         putUserRequest.passwordHash(SecuritySettingsSource.TEST_PASSWORD_HASHED.toCharArray());
         PlainActionFuture<PutUserResponse> listener = new PlainActionFuture<>();
         final Client client = client().filterWithHeader(
-            Map.of("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING)));
+            Map.of("Authorization", basicAuthHeaderValue(TEST_SUPERUSER, TEST_PASSWORD_SECURE_STRING))
+        );
         client.execute(PutUserAction.INSTANCE, putUserRequest, listener);
         final PutUserResponse putUserResponse = listener.get();
         assertTrue(putUserResponse.created());
     }
 
     private Client getClientForRunAsUser() {
-        return client().filterWithHeader(Map.of(
-            "Authorization", basicAuthHeaderValue("user_with_run_as_role", TEST_PASSWORD_SECURE_STRING),
-            "es-security-runas-user", "user_with_manage_own_api_key_role"));
+        return client().filterWithHeader(
+            Map.of(
+                "Authorization",
+                basicAuthHeaderValue("user_with_run_as_role", TEST_PASSWORD_SECURE_STRING),
+                "es-security-runas-user",
+                "user_with_manage_own_api_key_role"
+            )
+        );
     }
 
     private void assertErrorMessage(final ElasticsearchSecurityException ese, String action, String userName, String apiKeyId) {
-        assertThat(ese, throwableWithMessage(
-            containsString("action [" + action + "] is unauthorized for API key id [" + apiKeyId + "] of user [" + userName + "]")));
+        assertThat(
+            ese,
+            throwableWithMessage(
+                containsString("action [" + action + "] is unauthorized for API key id [" + apiKeyId + "] of user [" + userName + "]")
+            )
+        );
         assertThat(ese, throwableWithMessage(containsString(", this action is granted by the cluster privileges [")));
         assertThat(ese, throwableWithMessage(containsString("manage_api_key,manage_security,all]")));
     }
 
     private void assertErrorMessage(final ElasticsearchSecurityException ese, String action, String userName) {
-        assertThat(ese, throwableWithMessage(
-            containsString("action [" + action + "] is unauthorized for user [" + userName + "]")));
+        assertThat(ese, throwableWithMessage(containsString("action [" + action + "] is unauthorized for user [" + userName + "]")));
         assertThat(ese, throwableWithMessage(containsString(", this action is granted by the cluster privileges [")));
         assertThat(ese, throwableWithMessage(containsString("manage_api_key,manage_security,all]")));
     }

@@ -15,6 +15,7 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.ptr.PointerByReference;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
@@ -89,6 +90,7 @@ final class SystemCallFilter {
          * maps to prctl(2)
          */
         int prctl(int option, NativeLong arg2, NativeLong arg3, NativeLong arg4, NativeLong arg5);
+
         /**
          * used to call seccomp(2), its too new...
          * this is the only way, DON'T use it on some other architecture unless you know wtf you are doing
@@ -103,7 +105,7 @@ final class SystemCallFilter {
         LinuxLibrary lib = null;
         if (Constants.LINUX) {
             try {
-                lib = (LinuxLibrary) Native.loadLibrary("c", LinuxLibrary.class);
+                lib = Native.loadLibrary("c", LinuxLibrary.class);
             } catch (UnsatisfiedLinkError e) {
                 logger.warn("unable to link C library. native methods (seccomp) will be disabled.", e);
             }
@@ -112,15 +114,15 @@ final class SystemCallFilter {
     }
 
     /** the preferred method is seccomp(2), since we can apply to all threads of the process */
-    static final int SECCOMP_SET_MODE_FILTER   =   1;   // since Linux 3.17
-    static final int SECCOMP_FILTER_FLAG_TSYNC =   1;   // since Linux 3.17
+    static final int SECCOMP_SET_MODE_FILTER = 1;   // since Linux 3.17
+    static final int SECCOMP_FILTER_FLAG_TSYNC = 1;   // since Linux 3.17
 
     /** otherwise, we can use prctl(2), which will at least protect ES application threads */
-    static final int PR_GET_NO_NEW_PRIVS       =  39;   // since Linux 3.5
-    static final int PR_SET_NO_NEW_PRIVS       =  38;   // since Linux 3.5
-    static final int PR_GET_SECCOMP            =  21;   // since Linux 2.6.23
-    static final int PR_SET_SECCOMP            =  22;   // since Linux 2.6.23
-    static final long SECCOMP_MODE_FILTER      =   2;   // since Linux Linux 3.5
+    static final int PR_GET_NO_NEW_PRIVS = 39;   // since Linux 3.5
+    static final int PR_SET_NO_NEW_PRIVS = 38;   // since Linux 3.5
+    static final int PR_GET_SECCOMP = 21;   // since Linux 2.6.23
+    static final int PR_SET_SECCOMP = 22;   // since Linux 2.6.23
+    static final long SECCOMP_MODE_FILTER = 2;   // since Linux Linux 3.5
 
     /** corresponds to struct sock_filter */
     static final class SockFilter {
@@ -139,7 +141,7 @@ final class SystemCallFilter {
 
     /** corresponds to struct sock_fprog */
     public static final class SockFProg extends Structure implements Structure.ByReference {
-        public short   len;           // number of filters
+        public short len;           // number of filters
         public Pointer filter;        // filters
 
         SockFProg(SockFilter filters[]) {
@@ -164,15 +166,15 @@ final class SystemCallFilter {
     }
 
     // BPF "macros" and constants
-    static final int BPF_LD  = 0x00;
-    static final int BPF_W   = 0x00;
+    static final int BPF_LD = 0x00;
+    static final int BPF_W = 0x00;
     static final int BPF_ABS = 0x20;
     static final int BPF_JMP = 0x05;
     static final int BPF_JEQ = 0x10;
     static final int BPF_JGE = 0x30;
     static final int BPF_JGT = 0x20;
     static final int BPF_RET = 0x06;
-    static final int BPF_K   = 0x00;
+    static final int BPF_K = 0x00;
 
     static SockFilter BPF_STMT(int code, int k) {
         return new SockFilter((short) code, (byte) 0, (byte) 0, k);
@@ -183,7 +185,7 @@ final class SystemCallFilter {
     }
 
     static final int SECCOMP_RET_ERRNO = 0x00050000;
-    static final int SECCOMP_RET_DATA  = 0x0000FFFF;
+    static final int SECCOMP_RET_DATA = 0x0000FFFF;
     static final int SECCOMP_RET_ALLOW = 0x7FFF0000;
 
     // some errno constants for error checking/handling
@@ -194,7 +196,7 @@ final class SystemCallFilter {
 
     // offsets that our BPF checks
     // check with offsetof() when adding a new arch, move to Arch if different.
-    static final int SECCOMP_DATA_NR_OFFSET   = 0x00;
+    static final int SECCOMP_DATA_NR_OFFSET = 0x00;
     static final int SECCOMP_DATA_ARCH_OFFSET = 0x04;
 
     static class Arch {
@@ -225,11 +227,14 @@ final class SystemCallFilter {
     }
 
     /** supported architectures map keyed by os.arch */
-    private static final Map<String,Arch> ARCHITECTURES;
+    private static final Map<String, Arch> ARCHITECTURES;
     static {
         ARCHITECTURES = Map.of(
-                "amd64", new Arch(0xC000003E, 0x3FFFFFFF, 57, 58, 59, 322, 317),
-                "aarch64", new Arch(0xC00000B7, 0xFFFFFFFF, 1079, 1071, 221, 281, 277));
+            "amd64",
+            new Arch(0xC000003E, 0x3FFFFFFF, 57, 58, 59, 322, 317),
+            "aarch64",
+            new Arch(0xC00000B7, 0xFFFFFFFF, 1079, 1071, 221, 281, 277)
+        );
     }
 
     /** invokes prctl() from linux libc library */
@@ -254,8 +259,10 @@ final class SystemCallFilter {
 
         // we couldn't link methods, could be some really ancient kernel (e.g. < 2.1.57) or some bug
         if (linux_libc == null) {
-            throw new UnsupportedOperationException("seccomp unavailable: could not link methods. requires kernel 3.5+ " +
-                "with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
+            throw new UnsupportedOperationException(
+                "seccomp unavailable: could not link methods. requires kernel 3.5+ "
+                    + "with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in"
+            );
         }
 
         // try to check system calls really are who they claim
@@ -269,9 +276,12 @@ final class SystemCallFilter {
         } else {
             int errno = Native.getLastError();
             switch (errno) {
-                case ENOSYS: break; // ok
-                case EINVAL: break; // ok
-                default: throw new UnsupportedOperationException("seccomp(BOGUS_OPERATION): " + JNACLibrary.strerror(errno));
+                case ENOSYS:
+                    break; // ok
+                case EINVAL:
+                    break; // ok
+                default:
+                    throw new UnsupportedOperationException("seccomp(BOGUS_OPERATION): " + JNACLibrary.strerror(errno));
             }
         }
 
@@ -282,10 +292,12 @@ final class SystemCallFilter {
         } else {
             int errno = Native.getLastError();
             switch (errno) {
-                case ENOSYS: break; // ok
-                case EINVAL: break; // ok
-                default: throw new UnsupportedOperationException("seccomp(SECCOMP_SET_MODE_FILTER, BOGUS_FLAG): "
-                                                                 + JNACLibrary.strerror(errno));
+                case ENOSYS:
+                    break; // ok
+                case EINVAL:
+                    break; // ok
+                default:
+                    throw new UnsupportedOperationException("seccomp(SECCOMP_SET_MODE_FILTER, BOGUS_FLAG): " + JNACLibrary.strerror(errno));
             }
         }
 
@@ -296,9 +308,12 @@ final class SystemCallFilter {
         } else {
             int errno = Native.getLastError();
             switch (errno) {
-                case ENOSYS: break; // ok
-                case EINVAL: break; // ok
-                default: throw new UnsupportedOperationException("prctl(BOGUS_OPTION): " + JNACLibrary.strerror(errno));
+                case ENOSYS:
+                    break; // ok
+                case EINVAL:
+                    break; // ok
+                default:
+                    throw new UnsupportedOperationException("prctl(BOGUS_OPTION): " + JNACLibrary.strerror(errno));
             }
         }
 
@@ -306,27 +321,34 @@ final class SystemCallFilter {
 
         // check for GET_NO_NEW_PRIVS
         switch (linux_prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0)) {
-            case 0: break; // not yet set
-            case 1: break; // already set by caller
+            case 0:
+                break; // not yet set
+            case 1:
+                break; // already set by caller
             default:
                 int errno = Native.getLastError();
                 if (errno == EINVAL) {
                     // friendly error, this will be the typical case for an old kernel
-                    throw new UnsupportedOperationException("seccomp unavailable: requires kernel 3.5+ with" +
-                                                            " CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
+                    throw new UnsupportedOperationException(
+                        "seccomp unavailable: requires kernel 3.5+ with" + " CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in"
+                    );
                 } else {
                     throw new UnsupportedOperationException("prctl(PR_GET_NO_NEW_PRIVS): " + JNACLibrary.strerror(errno));
                 }
         }
         // check for SECCOMP
         switch (linux_prctl(PR_GET_SECCOMP, 0, 0, 0, 0)) {
-            case 0: break; // not yet set
-            case 2: break; // already in filter mode by caller
+            case 0:
+                break; // not yet set
+            case 2:
+                break; // already in filter mode by caller
             default:
                 int errno = Native.getLastError();
                 if (errno == EINVAL) {
-                    throw new UnsupportedOperationException("seccomp unavailable: CONFIG_SECCOMP not compiled into kernel," +
-                                                            " CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed");
+                    throw new UnsupportedOperationException(
+                        "seccomp unavailable: CONFIG_SECCOMP not compiled into kernel,"
+                            + " CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed"
+                    );
                 } else {
                     throw new UnsupportedOperationException("prctl(PR_GET_SECCOMP): " + JNACLibrary.strerror(errno));
                 }
@@ -335,10 +357,15 @@ final class SystemCallFilter {
         if (linux_prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, 0, 0, 0) != 0) {
             int errno = Native.getLastError();
             switch (errno) {
-                case EFAULT: break; // available
-                case EINVAL: throw new UnsupportedOperationException("seccomp unavailable: CONFIG_SECCOMP_FILTER not" +
-                    " compiled into kernel, CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed");
-                default: throw new UnsupportedOperationException("prctl(PR_SET_SECCOMP): " + JNACLibrary.strerror(errno));
+                case EFAULT:
+                    break; // available
+                case EINVAL:
+                    throw new UnsupportedOperationException(
+                        "seccomp unavailable: CONFIG_SECCOMP_FILTER not"
+                            + " compiled into kernel, CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed"
+                    );
+                default:
+                    throw new UnsupportedOperationException("prctl(PR_SET_SECCOMP): " + JNACLibrary.strerror(errno));
             }
         }
 
@@ -349,23 +376,24 @@ final class SystemCallFilter {
 
         // check it worked
         if (linux_prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) != 1) {
-            throw new UnsupportedOperationException("seccomp filter did not really succeed: prctl(PR_GET_NO_NEW_PRIVS): " +
-                                                    JNACLibrary.strerror(Native.getLastError()));
+            throw new UnsupportedOperationException(
+                "seccomp filter did not really succeed: prctl(PR_GET_NO_NEW_PRIVS): " + JNACLibrary.strerror(Native.getLastError())
+            );
         }
 
         // BPF installed to check arch, limit, then syscall.
         // See https://www.kernel.org/doc/Documentation/prctl/seccomp_filter.txt for details.
         SockFilter insns[] = {
-          /* 1  */ BPF_STMT(BPF_LD  + BPF_W   + BPF_ABS, SECCOMP_DATA_ARCH_OFFSET),             //
-          /* 2  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K,   arch.audit,     0, 7),                 // if (arch != audit) goto fail;
-          /* 3  */ BPF_STMT(BPF_LD  + BPF_W   + BPF_ABS, SECCOMP_DATA_NR_OFFSET),               //
-          /* 4  */ BPF_JUMP(BPF_JMP + BPF_JGT + BPF_K,   arch.limit,     5, 0),                 // if (syscall > LIMIT) goto fail;
-          /* 5  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K,   arch.fork,      4, 0),                 // if (syscall == FORK) goto fail;
-          /* 6  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K,   arch.vfork,     3, 0),                 // if (syscall == VFORK) goto fail;
-          /* 7  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K,   arch.execve,    2, 0),                 // if (syscall == EXECVE) goto fail;
-          /* 8  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K,   arch.execveat,  1, 0),                 // if (syscall == EXECVEAT) goto fail;
-          /* 9  */ BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),                                // pass: return OK;
-          /* 10 */ BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ERRNO | (EACCES & SECCOMP_RET_DATA)),  // fail: return EACCES;
+            /* 1  */ BPF_STMT(BPF_LD + BPF_W + BPF_ABS, SECCOMP_DATA_ARCH_OFFSET),             //
+            /* 2  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.audit, 0, 7),                 // if (arch != audit) goto fail;
+            /* 3  */ BPF_STMT(BPF_LD + BPF_W + BPF_ABS, SECCOMP_DATA_NR_OFFSET),               //
+            /* 4  */ BPF_JUMP(BPF_JMP + BPF_JGT + BPF_K, arch.limit, 5, 0),                 // if (syscall > LIMIT) goto fail;
+            /* 5  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.fork, 4, 0),                 // if (syscall == FORK) goto fail;
+            /* 6  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.vfork, 3, 0),                 // if (syscall == VFORK) goto fail;
+            /* 7  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.execve, 2, 0),                 // if (syscall == EXECVE) goto fail;
+            /* 8  */ BPF_JUMP(BPF_JMP + BPF_JEQ + BPF_K, arch.execveat, 1, 0),                 // if (syscall == EXECVEAT) goto fail;
+            /* 9  */ BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ALLOW),                                // pass: return OK;
+            /* 10 */ BPF_STMT(BPF_RET + BPF_K, SECCOMP_RET_ERRNO | (EACCES & SECCOMP_RET_DATA)),  // fail: return EACCES;
         };
         // seccomp takes a long, so we pass it one explicitly to keep the JNA simple
         SockFProg prog = new SockFProg(insns);
@@ -379,23 +407,31 @@ final class SystemCallFilter {
             method = 0;
             int errno1 = Native.getLastError();
             if (logger.isDebugEnabled()) {
-                logger.debug("seccomp(SECCOMP_SET_MODE_FILTER): {}, falling back to prctl(PR_SET_SECCOMP)...",
-                             JNACLibrary.strerror(errno1));
+                logger.debug(
+                    "seccomp(SECCOMP_SET_MODE_FILTER): {}, falling back to prctl(PR_SET_SECCOMP)...",
+                    JNACLibrary.strerror(errno1)
+                );
             }
             if (linux_prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, pointer, 0, 0) != 0) {
                 int errno2 = Native.getLastError();
-                throw new UnsupportedOperationException("seccomp(SECCOMP_SET_MODE_FILTER): " + JNACLibrary.strerror(errno1) +
-                                                        ", prctl(PR_SET_SECCOMP): " + JNACLibrary.strerror(errno2));
+                throw new UnsupportedOperationException(
+                    "seccomp(SECCOMP_SET_MODE_FILTER): "
+                        + JNACLibrary.strerror(errno1)
+                        + ", prctl(PR_SET_SECCOMP): "
+                        + JNACLibrary.strerror(errno2)
+                );
             }
         }
 
         // now check that the filter was really installed, we should be in filter mode.
         if (linux_prctl(PR_GET_SECCOMP, 0, 0, 0, 0) != 2) {
-            throw new UnsupportedOperationException("seccomp filter installation did not really succeed. seccomp(PR_GET_SECCOMP): "
-                                                    + JNACLibrary.strerror(Native.getLastError()));
+            throw new UnsupportedOperationException(
+                "seccomp filter installation did not really succeed. seccomp(PR_GET_SECCOMP): "
+                    + JNACLibrary.strerror(Native.getLastError())
+            );
         }
 
-        logger.debug("Linux seccomp filter installation successful, threads: [{}]", method == 1 ? "all" : "app" );
+        logger.debug("Linux seccomp filter installation successful, threads: [{}]", method == 1 ? "all" : "app");
         return method;
     }
 
@@ -421,7 +457,7 @@ final class SystemCallFilter {
         MacLibrary lib = null;
         if (Constants.MAC_OS_X) {
             try {
-                lib = (MacLibrary) Native.loadLibrary("c", MacLibrary.class);
+                lib = Native.loadLibrary("c", MacLibrary.class);
             } catch (UnsatisfiedLinkError e) {
                 logger.warn("unable to link C library. native methods (seatbelt) will be disabled.", e);
             }
@@ -490,7 +526,7 @@ final class SystemCallFilter {
         SolarisLibrary lib = null;
         if (Constants.SUN_OS) {
             try {
-                lib = (SolarisLibrary) Native.loadLibrary("c", SolarisLibrary.class);
+                lib = Native.loadLibrary("c", SolarisLibrary.class);
             } catch (UnsatisfiedLinkError e) {
                 logger.warn("unable to link C library. native methods (priv_set) will be disabled.", e);
             }

@@ -91,3 +91,19 @@ setup:
                 source: "doc['geo_shape'].get(0)"
 
   - match: { error.root_cause.0.reason: "cannot write xcontent for geo_shape doc value" }
+
+---
+"diagonal length":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            width:
+              script:
+                source: "doc['geo_shape'].getMercatorWidth()"
+            height:
+              script:
+                source: "doc['geo_shape'].getMercatorHeight()"
+  - match: { hits.hits.0.fields.width.0: 389.62170283915475 }
+  - match: { hits.hits.0.fields.height.0: 333.37976840604097 }

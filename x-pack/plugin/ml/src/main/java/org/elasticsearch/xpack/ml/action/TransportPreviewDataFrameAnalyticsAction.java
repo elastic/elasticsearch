@@ -20,6 +20,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction.Request;
 import org.elasticsearch.xpack.core.ml.action.PreviewDataFrameAnalyticsAction.Response;
@@ -48,6 +49,7 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
     private final NodeClient client;
     private final SecurityContext securityContext;
     private final ThreadPool threadPool;
+    private final Settings settings;
 
     @Inject
     public TransportPreviewDataFrameAnalyticsAction(
@@ -62,6 +64,7 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
         this.client = Objects.requireNonNull(client);
         this.licenseState = licenseState;
         this.threadPool = threadPool;
+        this.settings = settings;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
@@ -75,11 +78,11 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) == false) {
+        if (MachineLearningField.ML_API_FEATURE.check(licenseState) == false) {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));
             return;
         }
-        if (licenseState.isSecurityEnabled()) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
             useSecondaryAuthIfAvailable(this.securityContext, () -> {
                 // Set the auth headers (preferring the secondary headers) to the caller's.
                 // Regardless if the config was previously stored or not.
@@ -104,13 +107,10 @@ public class TransportPreviewDataFrameAnalyticsAction extends HandledTransportAc
                 config,
                 extractedFieldsDetector.detect().v1()
             ).newExtractor(false);
-            extractor.preview(ActionListener.wrap(
-                rows -> {
-                    List<String> fieldNames = extractor.getFieldNames();
-                    listener.onResponse(new Response(rows.stream().map((r) -> mergeRow(r, fieldNames)).collect(Collectors.toList())));
-                },
-                listener::onFailure
-            ));
+            extractor.preview(ActionListener.wrap(rows -> {
+                List<String> fieldNames = extractor.getFieldNames();
+                listener.onResponse(new Response(rows.stream().map((r) -> mergeRow(r, fieldNames)).collect(Collectors.toList())));
+            }, listener::onFailure));
         }, listener::onFailure));
     }
 

@@ -34,9 +34,12 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
     private final BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier;
     private final StepKey targetNextStepKey;
 
-    public CopyExecutionStateStep(StepKey key, StepKey nextStepKey,
-                                  BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier,
-                                  StepKey targetNextStepKey) {
+    public CopyExecutionStateStep(
+        StepKey key,
+        StepKey nextStepKey,
+        BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier,
+        StepKey targetNextStepKey
+    ) {
         super(key, nextStepKey);
         this.targetIndexNameSupplier = targetIndexNameSupplier;
         this.targetNextStepKey = targetNextStepKey;
@@ -69,10 +72,15 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);
 
         if (targetIndexMetadata == null) {
-            logger.warn("[{}] index [{}] unable to copy execution state to target index [{}] as target index does not exist",
-                getKey().getAction(), index.getName(), targetIndexName);
-            throw new IllegalStateException("unable to copy execution state from [" + index.getName() +
-                "] to [" + targetIndexName + "] as target index does not exist");
+            logger.warn(
+                "[{}] index [{}] unable to copy execution state to target index [{}] as target index does not exist",
+                getKey().getAction(),
+                index.getName(),
+                targetIndexName
+            );
+            throw new IllegalStateException(
+                "unable to copy execution state from [" + index.getName() + "] to [" + targetIndexName + "] as target index does not exist"
+            );
         }
 
         String phase = targetNextStepKey.getPhase();
@@ -86,10 +94,9 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         relevantTargetCustomData.setStep(step);
 
         Metadata.Builder newMetadata = Metadata.builder(clusterState.getMetadata())
-            .put(IndexMetadata.builder(targetIndexMetadata)
-                .putCustom(ILM_CUSTOM_METADATA_KEY, relevantTargetCustomData.build().asMap()));
+            .put(IndexMetadata.builder(targetIndexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, relevantTargetCustomData.build().asMap()));
 
-        return ClusterState.builder(clusterState).metadata(newMetadata).build();
+        return ClusterState.builder(clusterState).metadata(newMetadata.build(false)).build();
     }
 
     @Override
@@ -101,8 +108,9 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
             return false;
         }
         CopyExecutionStateStep that = (CopyExecutionStateStep) o;
-        return super.equals(o) && Objects.equals(targetIndexNameSupplier, that.targetIndexNameSupplier) &&
-            Objects.equals(targetNextStepKey, that.targetNextStepKey);
+        return super.equals(o)
+            && Objects.equals(targetIndexNameSupplier, that.targetIndexNameSupplier)
+            && Objects.equals(targetNextStepKey, that.targetNextStepKey);
     }
 
     @Override

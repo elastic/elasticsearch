@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -35,11 +35,7 @@ public class RuleScopeTests extends AbstractXContentTestCase<RuleScope> {
     }
 
     public void testGetReferencedFilters_GivenMultipleFields() {
-        RuleScope scope = RuleScope.builder()
-                .include("foo", "filter1")
-                .exclude("bar", "filter2")
-                .include("foobar", "filter3")
-                .build();
+        RuleScope scope = RuleScope.builder().include("foo", "filter1").exclude("bar", "filter2").include("foobar", "filter3").build();
         assertThat(scope.getReferencedFilters(), contains("filter1", "filter2", "filter3"));
     }
 

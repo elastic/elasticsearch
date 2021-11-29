@@ -4,6 +4,7 @@
 Use ingest APIs to manage tasks and resources related to <<ingest,ingest
 pipelines>> and processors.
 
+[discrete]
 [[ingest-pipeline-apis]]
 === Ingest pipeline APIs
 
@@ -14,6 +15,7 @@ Use the following APIs to create, manage, and test ingest pipelines:
 * <<delete-pipeline-api>> to delete a pipeline
 * <<simulate-pipeline-api>> to test a pipeline
 
+[discrete]
 [[ingest-stat-apis]]
 === Stat APIs
 
@@ -24,6 +26,6 @@ the <<geoip-processor,`geoip` processor>>.
 
 include::put-pipeline.asciidoc[]
 include::delete-pipeline.asciidoc[]
-include::get-pipeline.asciidoc[]
 include::geoip-stats-api.asciidoc[]
+include::get-pipeline.asciidoc[]
 include::simulate-pipeline.asciidoc[]

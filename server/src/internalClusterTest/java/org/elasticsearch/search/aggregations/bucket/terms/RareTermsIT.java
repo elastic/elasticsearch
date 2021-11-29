@@ -14,8 +14,8 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -55,7 +55,7 @@ public class RareTermsIT extends ESSingleNodeTestCase {
         assertNumRareTerms(10, numDocs);
     }
 
-    private void assertNumRareTerms(int maxDocs, int rareTerms)  {
+    private void assertNumRareTerms(int maxDocs, int rareTerms) {
         final SearchRequestBuilder requestBuilder = client().prepareSearch(index);
         requestBuilder.addAggregation(new RareTermsAggregationBuilder("rareTerms").field("str_value.keyword").maxDocCount(maxDocs));
         final SearchResponse response = requestBuilder.get();

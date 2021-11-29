@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
@@ -25,7 +26,7 @@ import static org.elasticsearch.test.ESTestCase.assertBusy;
 public class TaskAssertions {
     private static final Logger logger = LogManager.getLogger(TaskAssertions.class);
 
-    private TaskAssertions() { }
+    private TaskAssertions() {}
 
     public static void awaitTaskWithPrefix(String actionPrefix) throws Exception {
         logger.info("--> waiting for task with prefix [{}] to start", actionPrefix);
@@ -46,12 +47,15 @@ public class TaskAssertions {
         assertBusy(() -> {
             boolean foundTask = false;
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                for (CancellableTask cancellableTask : transportService.getTaskManager().getCancellableTasks().values()) {
+                final TaskManager taskManager = transportService.getTaskManager();
+                assertTrue(taskManager.assertCancellableTaskConsistency());
+                for (CancellableTask cancellableTask : taskManager.getCancellableTasks().values()) {
                     if (cancellableTask.getAction().startsWith(actionPrefix)) {
                         foundTask = true;
                         assertTrue(
                             "task " + cancellableTask.getId() + "/" + cancellableTask.getAction() + " not cancelled",
-                            cancellableTask.isCancelled());
+                            cancellableTask.isCancelled()
+                        );
                     }
                 }
             }

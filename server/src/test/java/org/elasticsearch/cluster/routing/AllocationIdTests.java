@@ -10,13 +10,14 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.cluster.routing.RecoverySource.ExistingStoreRecoverySource;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -26,8 +27,12 @@ import static org.hamcrest.Matchers.nullValue;
 public class AllocationIdTests extends ESTestCase {
     public void testShardToStarted() {
         logger.info("-- create unassigned shard");
-        ShardRouting shard = ShardRouting.newUnassigned(new ShardId("test","_na_", 0), true,
-            ExistingStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        ShardRouting shard = ShardRouting.newUnassigned(
+            new ShardId("test", "_na_", 0),
+            true,
+            ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+        );
         assertThat(shard.allocationId(), nullValue());
 
         logger.info("-- initialize the shard");
@@ -47,8 +52,12 @@ public class AllocationIdTests extends ESTestCase {
 
     public void testSuccessfulRelocation() {
         logger.info("-- build started shard");
-        ShardRouting shard = ShardRouting.newUnassigned(new ShardId("test","_na_", 0), true,
-            ExistingStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        ShardRouting shard = ShardRouting.newUnassigned(
+            new ShardId("test", "_na_", 0),
+            true,
+            ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+        );
         shard = shard.initialize("node1", null, -1);
         shard = shard.moveToStarted();
 
@@ -71,8 +80,12 @@ public class AllocationIdTests extends ESTestCase {
 
     public void testCancelRelocation() {
         logger.info("-- build started shard");
-        ShardRouting shard = ShardRouting.newUnassigned(new ShardId("test","_na_", 0), true,
-            ExistingStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        ShardRouting shard = ShardRouting.newUnassigned(
+            new ShardId("test", "_na_", 0),
+            true,
+            ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+        );
         shard = shard.initialize("node1", null, -1);
         shard = shard.moveToStarted();
 
@@ -92,13 +105,30 @@ public class AllocationIdTests extends ESTestCase {
 
     public void testMoveToUnassigned() {
         logger.info("-- build started shard");
-        ShardRouting shard = ShardRouting.newUnassigned(new ShardId("test","_na_", 0), true,
-            ExistingStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        ShardRouting shard = ShardRouting.newUnassigned(
+            new ShardId("test", "_na_", 0),
+            true,
+            ExistingStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+        );
         shard = shard.initialize("node1", null, -1);
         shard = shard.moveToStarted();
 
         logger.info("-- move to unassigned");
-        shard = shard.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null));
+        shard = shard.moveToUnassigned(
+            new UnassignedInfo(
+                UnassignedInfo.Reason.NODE_LEFT,
+                this.getTestName(),
+                null,
+                0,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Collections.emptySet(),
+                randomAlphaOfLength(10)
+            )
+        );
         assertThat(shard.allocationId(), nullValue());
     }
 

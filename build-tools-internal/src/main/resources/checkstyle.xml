@@ -12,6 +12,16 @@
 
   <module name="SuppressWarningsFilter" />
 
+  <module name="RegexpMultiline">
+    <property name="id" value="MultipleHeaderJavadoc" />
+    <property name="format" value="^\s*\/\*\r?\n(\s\*[A-Za-z0-9 \.\/\;\,\.\-\(\)\\\x{22}\/\:\@\=\'\]\[\_\x{3E}\x{3C}]*\r?\n)+(\s\*\/)\s+package" />
+    <property name="fileExtensions" value="java" />
+    <property name="minimum" value="1" />
+    <property name="maximum" value="1" />
+    <property name="matchAcrossLines" value="true" />
+    <property name="message" value="Duplicate header javadocs are forbidden" />
+  </module>
+
   <!-- Checks Java files and forbids empty Javadoc comments. -->
   <!-- Although you can use the "JavadocStyle" rule for this, it considers Javadoc -->
   <!-- that only contains a "@return" line to be empty. -->
@@ -94,6 +104,20 @@
     <!-- Checks that all java files have a package declaration and that it
       lines up with the directory structure. -->
     <module name="PackageDeclaration" />
+
+    <!-- Checks that a local variable or a parameter does not shadow a field that is defined in the same class. -->
+    <!-- Use a forked version that understands setters that don't start with "set". -->
+    <!-- Disabled until existing violations are fixed -->
+    <!--
+    <module name="org.elasticsearch.gradle.internal.checkstyle.HiddenFieldCheck">
+        <property name="ignoreConstructorParameter" value="true" />
+        <property name="ignoreSetter" value="true" />
+        <property name="setterCanReturnItsClass" value="true"/>
+        <property name="ignoreFormat" value="^(threadPool)$"/>
+        <property name="ignoreAbstractMethods" value="true"/>
+        <message key="hidden.field" value="''{0}'' hides a field." />
+    </module>
+    -->
 
     <!-- We don't use Java's builtin serialization and we suppress all warning
       about it. The flip side of that coin is that we shouldn't _try_ to use

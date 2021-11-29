@@ -38,11 +38,13 @@ public abstract class InternalTermsTestCase extends InternalMultiBucketAggregati
         return createTestInstance(name, metadata, aggregations, showDocCount, docCountError);
     }
 
-    protected abstract InternalTerms<?, ?> createTestInstance(String name,
-                                                              Map<String, Object> metadata,
-                                                              InternalAggregations aggregations,
-                                                              boolean showTermDocCountError,
-                                                              long docCountError);
+    protected abstract InternalTerms<?, ?> createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        InternalAggregations aggregations,
+        boolean showTermDocCountError,
+        long docCountError
+    );
 
     @Override
     protected InternalTerms<?, ?> createUnmappedInstance(String name, Map<String, Object> metadata) {
@@ -56,28 +58,31 @@ public abstract class InternalTermsTestCase extends InternalMultiBucketAggregati
         Map<Object, Long> reducedCounts = toCounts(reduced.getBuckets().stream());
         Map<Object, Long> totalCounts = toCounts(inputs.stream().map(Terms::getBuckets).flatMap(List::stream));
 
-        assertEquals(reducedCounts.size() == requiredSize,
-                totalCounts.size() >= requiredSize);
+        assertEquals(reducedCounts.size() == requiredSize, totalCounts.size() >= requiredSize);
 
         Map<Object, Long> expectedReducedCounts = new HashMap<>(totalCounts);
         expectedReducedCounts.keySet().retainAll(reducedCounts.keySet());
         assertEquals(expectedReducedCounts, reducedCounts);
 
         final long minFinalcount = reduced.getBuckets().isEmpty()
-                ? -1
-                : reduced.getBuckets().get(reduced.getBuckets().size() - 1).getDocCount();
+            ? -1
+            : reduced.getBuckets().get(reduced.getBuckets().size() - 1).getDocCount();
         Map<Object, Long> evictedTerms = new HashMap<>(totalCounts);
         evictedTerms.keySet().removeAll(reducedCounts.keySet());
-        Optional<Entry<Object, Long>> missingTerm = evictedTerms.entrySet().stream()
-                .filter(e -> e.getValue() > minFinalcount).findAny();
+        Optional<Entry<Object, Long>> missingTerm = evictedTerms.entrySet().stream().filter(e -> e.getValue() > minFinalcount).findAny();
         if (missingTerm.isPresent()) {
             fail("Missed term: " + missingTerm + " from " + reducedCounts);
         }
 
-        final long reducedTotalDocCount = reduced.getSumOfOtherDocCounts()
-                + reduced.getBuckets().stream().mapToLong(Terms.Bucket::getDocCount).sum();
-        final long expectedTotalDocCount = inputs.stream().map(Terms::getBuckets)
-                .flatMap(List::stream).mapToLong(Terms.Bucket::getDocCount).sum();
+        final long reducedTotalDocCount = reduced.getSumOfOtherDocCounts() + reduced.getBuckets()
+            .stream()
+            .mapToLong(Terms.Bucket::getDocCount)
+            .sum();
+        final long expectedTotalDocCount = inputs.stream()
+            .map(Terms::getBuckets)
+            .flatMap(List::stream)
+            .mapToLong(Terms.Bucket::getDocCount)
+            .sum();
         assertEquals(expectedTotalDocCount, reducedTotalDocCount);
         for (InternalTerms<?, ?> terms : inputs) {
             assertThat(reduced.reduceOrder, equalTo(terms.order));
@@ -86,9 +91,6 @@ public abstract class InternalTermsTestCase extends InternalMultiBucketAggregati
     }
 
     private static Map<Object, Long> toCounts(Stream<? extends Terms.Bucket> buckets) {
-        return buckets.collect(Collectors.toMap(
-                Terms.Bucket::getKey,
-                Terms.Bucket::getDocCount,
-                Long::sum));
+        return buckets.collect(Collectors.toMap(Terms.Bucket::getKey, Terms.Bucket::getDocCount, Long::sum));
     }
 }

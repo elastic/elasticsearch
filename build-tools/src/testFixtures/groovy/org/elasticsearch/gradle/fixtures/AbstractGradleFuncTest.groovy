@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.fixtures
 
 import org.elasticsearch.gradle.internal.test.InternalAwareGradleRunner
+import org.elasticsearch.gradle.internal.test.NormalizeOutputGradleRunner
 import org.gradle.testkit.runner.GradleRunner
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
@@ -17,6 +18,8 @@ import spock.lang.Specification
 import java.lang.management.ManagementFactory
 import java.util.jar.JarEntry
 import java.util.jar.JarOutputStream
+
+import static org.elasticsearch.gradle.internal.test.TestUtils.normalizeString
 
 abstract class AbstractGradleFuncTest extends Specification {
 
@@ -32,10 +35,11 @@ abstract class AbstractGradleFuncTest extends Specification {
         settingsFile << "rootProject.name = 'hello-world'\n"
         buildFile = testProjectDir.newFile('build.gradle')
         propertiesFile = testProjectDir.newFile('gradle.properties')
-        propertiesFile << "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
+        propertiesFile <<
+            "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
     }
 
-    File addSubProject(String subProjectPath){
+    File addSubProject(String subProjectPath) {
         def subProjectBuild = file(subProjectPath.replace(":", "/") + "/build.gradle")
         settingsFile << "include \"${subProjectPath}\"\n"
         subProjectBuild
@@ -46,11 +50,15 @@ abstract class AbstractGradleFuncTest extends Specification {
     }
 
     GradleRunner gradleRunner(File projectDir, String... arguments) {
-        new InternalAwareGradleRunner(GradleRunner.create()
-                .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
-                .withProjectDir(projectDir)
-                .withPluginClasspath()
-                .forwardOutput()
+        return new NormalizeOutputGradleRunner(
+            new InternalAwareGradleRunner(
+                GradleRunner.create()
+                    .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0)
+                    .withProjectDir(projectDir)
+                    .withPluginClasspath()
+                    .forwardOutput()
+            ),
+            projectDir
         ).withArguments(arguments)
     }
 
@@ -63,13 +71,9 @@ abstract class AbstractGradleFuncTest extends Specification {
         assert normalized(givenOutput).contains(normalized(expected)) == false
         true
     }
+
     String normalized(String input) {
-        String normalizedPathPrefix = testProjectDir.root.canonicalPath.replace('\\', '/')
-        return input.readLines()
-                .collect { it.replace('\\', '/') }
-                .collect {it.replace(normalizedPathPrefix , '.') }
-                .collect {it.replaceAll(/Gradle Test Executor \d/ , 'Gradle Test Executor 1') }
-                .join("\n")
+        return normalizeString(input, testProjectDir.root)
     }
 
     File file(String path) {
@@ -94,23 +98,34 @@ abstract class AbstractGradleFuncTest extends Specification {
         return jarFile;
     }
 
-    File internalBuild(File buildScript = buildFile, String bugfix = "7.10.1", String staged = "7.11.0", String minor = "7.12.0") {
+    File internalBuild(
+        File buildScript = buildFile,
+        String bugfix = "7.15.2",
+        String bugfixLucene = "8.9.0",
+        String staged = "7.16.0",
+        String stagedLucene = "8.10.0",
+        String minor = "8.0.0",
+        String minorLucene = "9.0.0"
+    ) {
         buildScript << """plugins {
           id 'elasticsearch.global-build-info'
         }
         import org.elasticsearch.gradle.Architecture
         import org.elasticsearch.gradle.internal.info.BuildParams
 
+        import org.elasticsearch.gradle.internal.BwcVersions.VersionPair
         import org.elasticsearch.gradle.internal.BwcVersions
         import org.elasticsearch.gradle.Version
 
-        Version currentVersion = Version.fromString("8.0.0")
-         def versionList = []
-               versionList.addAll(
-            Arrays.asList(Version.fromString("$bugfix"), Version.fromString("$staged"), Version.fromString("$minor"), currentVersion)
-        )
+        Version currentVersion = Version.fromString("8.1.0")
+        def versionList = [
+          new VersionPair(Version.fromString("$bugfix"), Version.fromString("$bugfixLucene")),
+          new VersionPair(Version.fromString("$staged"), Version.fromString("$stagedLucene")),
+          new VersionPair(Version.fromString("$minor"), Version.fromString("$minorLucene")),
+          new VersionPair(currentVersion, Version.fromString("9.0.0"))
+        ]
 
-        BwcVersions versions = new BwcVersions(new TreeSet<>(versionList), currentVersion)
+        BwcVersions versions = new BwcVersions(currentVersion, versionList)
         BuildParams.init { it.setBwcVersions(provider(() -> versions)) }
         """
     }
@@ -126,7 +141,7 @@ abstract class AbstractGradleFuncTest extends Specification {
     void execute(String command, File workingDir = testProjectDir.root) {
         def proc = command.execute(Collections.emptyList(), workingDir)
         proc.waitFor()
-        if(proc.exitValue()) {
+        if (proc.exitValue()) {
             System.err.println("Error running command ${command}:")
             System.err.println("Syserr: " + proc.errorStream.text)
         }

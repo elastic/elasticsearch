@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
 import org.elasticsearch.gradle.internal.FixtureStop;
 import org.elasticsearch.gradle.internal.InternalTestClustersPlugin;
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
@@ -69,7 +70,9 @@ public class RestTestBasePlugin implements Plugin<Project> {
             }
         });
 
-        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(project.getTasks().withType(RestIntegTestTask.class)));
+        project.getTasks()
+            .named(JavaBasePlugin.CHECK_TASK_NAME)
+            .configure(check -> check.dependsOn(project.getTasks().withType(RestIntegTestTask.class)));
         project.getTasks()
             .withType(StandaloneRestIntegTestTask.class)
             .configureEach(t -> t.finalizedBy(project.getTasks().withType(FixtureStop.class)));

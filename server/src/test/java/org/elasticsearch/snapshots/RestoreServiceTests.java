@@ -35,12 +35,12 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
-import static org.elasticsearch.mock.orig.Mockito.doThrow;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class RestoreServiceTests extends ESTestCase {
@@ -124,7 +124,7 @@ public class RestoreServiceTests extends ESTestCase {
         final RepositoriesService repositoriesService = mock(RepositoriesService.class);
         RestoreService.refreshRepositoryUuids(false, repositoriesService, listener);
         assertTrue(listener.isDone());
-        verifyZeroInteractions(repositoriesService);
+        verifyNoMoreInteractions(repositoriesService);
     }
 
     public void testRefreshRepositoryUuidsRefreshesAsNeeded() throws Exception {
@@ -140,7 +140,7 @@ public class RestoreServiceTests extends ESTestCase {
                 case 1:
                     final Repository notBlobStoreRepo = mock(Repository.class);
                     repositories.put(repositoryName, notBlobStoreRepo);
-                    finalAssertions.add(() -> verifyZeroInteractions(notBlobStoreRepo));
+                    finalAssertions.add(() -> verifyNoMoreInteractions(notBlobStoreRepo));
                     break;
                 case 2:
                     final Repository freshBlobStoreRepo = mock(BlobStoreRepository.class);
@@ -159,7 +159,7 @@ public class RestoreServiceTests extends ESTestCase {
                     );
                     doAnswer(invocationOnMock -> {
                         assertTrue(pendingRefreshes.remove(repositoryName));
-                        // noinspection unchecked
+                        @SuppressWarnings("unchecked")
                         ActionListener<RepositoryData> repositoryDataListener = (ActionListener<RepositoryData>) invocationOnMock
                             .getArguments()[0];
                         if (randomBoolean()) {

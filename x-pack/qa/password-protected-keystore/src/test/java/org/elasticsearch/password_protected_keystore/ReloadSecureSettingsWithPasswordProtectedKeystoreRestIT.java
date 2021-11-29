@@ -11,17 +11,16 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import java.util.Map;
+
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
-
-import java.util.Map;
 
 public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESRestTestCase {
     // From build.gradle
@@ -59,9 +58,10 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
             assertThat(entry.getValue(), instanceOf(Map.class));
             final Map<String, Object> node = (Map<String, Object>) entry.getValue();
             assertThat(node.get("reload_exception"), instanceOf(Map.class));
-            assertThat(ObjectPath.eval("reload_exception.reason", node), anyOf(
-                equalTo("Provided keystore password was incorrect"),
-                equalTo("Keystore has been corrupted or tampered with")));
+            assertThat(
+                ObjectPath.eval("reload_exception.reason", node),
+                anyOf(equalTo("Provided keystore password was incorrect"), equalTo("Keystore has been corrupted or tampered with"))
+            );
             assertThat(ObjectPath.eval("reload_exception.type", node), equalTo("security_exception"));
         }
     }
@@ -79,12 +79,16 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
             assertThat(entry.getValue(), instanceOf(Map.class));
             final Map<String, Object> node = (Map<String, Object>) entry.getValue();
             assertThat(node.get("reload_exception"), instanceOf(Map.class));
-            assertThat(ObjectPath.eval("reload_exception.reason", node), anyOf(
-                equalTo("Provided keystore password was incorrect"),
-                equalTo("Keystore has been corrupted or tampered with"),
-                containsString("Error generating an encryption key from the provided password") // FIPS
-            ));
-            assertThat(ObjectPath.eval("reload_exception.type", node),
+            assertThat(
+                ObjectPath.eval("reload_exception.reason", node),
+                anyOf(
+                    equalTo("Provided keystore password was incorrect"),
+                    equalTo("Keystore has been corrupted or tampered with"),
+                    containsString("Error generating an encryption key from the provided password") // FIPS
+                )
+            );
+            assertThat(
+                ObjectPath.eval("reload_exception.type", node),
                 // Depends on exact security provider (eg Sun vs BCFIPS)
                 anyOf(equalTo("security_exception"), equalTo("general_security_exception"))
             );
@@ -94,16 +98,12 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("test-user", new SecureString("test-user-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 }

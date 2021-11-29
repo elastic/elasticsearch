@@ -8,15 +8,15 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -41,8 +41,10 @@ public class RatedDocument implements Writeable, ToXContentObject {
     static final ParseField DOC_ID_FIELD = new ParseField("_id");
     static final ParseField INDEX_FIELD = new ParseField("_index");
 
-    private static final ConstructingObjectParser<RatedDocument, Void> PARSER = new ConstructingObjectParser<>("rated_document",
-            a -> new RatedDocument((String) a[0], (String) a[1], (Integer) a[2]));
+    private static final ConstructingObjectParser<RatedDocument, Void> PARSER = new ConstructingObjectParser<>(
+        "rated_document",
+        a -> new RatedDocument((String) a[0], (String) a[1], (Integer) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INDEX_FIELD);

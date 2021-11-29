@@ -36,7 +36,7 @@ public class HyperLogLogPlusPlusSparseTests extends ESTestCase {
         final HyperLogLogPlusPlus single = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
         final int numBuckets = randomIntBetween(2, 100);
         final int numValues = randomIntBetween(1, 100000);
-        final int maxValue = randomIntBetween(1, randomBoolean() ? 1000: 1000000);
+        final int maxValue = randomIntBetween(1, randomBoolean() ? 1000 : 1000000);
         for (int i = 0; i < numValues; ++i) {
             final int n = randomInt(maxValue);
             final long hash = BitMixer.mix64(n);
@@ -68,8 +68,12 @@ public class HyperLogLogPlusPlusSparseTests extends ESTestCase {
         }
     }
 
-    private void checkEquivalence(AbstractHyperLogLogPlusPlus first, int firstBucket,
-                                  AbstractHyperLogLogPlusPlus second, int secondBucket) {
+    private void checkEquivalence(
+        AbstractHyperLogLogPlusPlus first,
+        int firstBucket,
+        AbstractHyperLogLogPlusPlus second,
+        int secondBucket
+    ) {
         assertEquals(first.hashCode(firstBucket), second.hashCode(secondBucket));
         assertEquals(first.cardinality(firstBucket), second.cardinality(0));
         assertTrue(first.equals(firstBucket, second, secondBucket));
@@ -82,6 +86,7 @@ public class HyperLogLogPlusPlusSparseTests extends ESTestCase {
         CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
         when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
             private int countDown = whenToBreak;
+
             @Override
             public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
                 if (countDown-- == 0) {

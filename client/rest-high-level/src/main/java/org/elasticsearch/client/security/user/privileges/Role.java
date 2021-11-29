@@ -8,13 +8,13 @@
 
 package org.elasticsearch.client.security.user.privileges;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Represents an aggregation of privileges.
@@ -40,33 +40,52 @@ public final class Role {
     public static final ParseField TRANSIENT_METADATA = new ParseField("transient_metadata");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Tuple<Role, Map<String, Object>>, String> PARSER =
-        new ConstructingObjectParser<>("role_descriptor", false, (constructorObjects, roleName) -> {
-                // Don't ignore unknown fields. It is dangerous if the object we parse is also
-                // part of a request that we build later on, and the fields that we now ignore
-                // will end up being implicitly set to null in that request.
-                int i = 0;
-                final Collection<String> clusterPrivileges = (Collection<String>) constructorObjects[i++];
-                final GlobalPrivileges globalApplicationPrivileges = (GlobalPrivileges) constructorObjects[i++];
-                final Collection<IndicesPrivileges> indicesPrivileges = (Collection<IndicesPrivileges>) constructorObjects[i++];
-                final Collection<ApplicationResourcePrivileges> applicationResourcePrivileges =
-                        (Collection<ApplicationResourcePrivileges>) constructorObjects[i++];
-                final Collection<String> runAsPrivilege = (Collection<String>) constructorObjects[i++];
-                final Map<String, Object> metadata = (Map<String, Object>) constructorObjects[i++];
-                final Map<String, Object> transientMetadata = (Map<String, Object>) constructorObjects[i];
-                return new Tuple<>(
-                        new Role(roleName, clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
-                                runAsPrivilege, metadata),
-                        transientMetadata != null ? Collections.unmodifiableMap(transientMetadata) : Collections.emptyMap());
-            });
+    public static final ConstructingObjectParser<Tuple<Role, Map<String, Object>>, String> PARSER = new ConstructingObjectParser<>(
+        "role_descriptor",
+        false,
+        (constructorObjects, roleName) -> {
+            // Don't ignore unknown fields. It is dangerous if the object we parse is also
+            // part of a request that we build later on, and the fields that we now ignore
+            // will end up being implicitly set to null in that request.
+            int i = 0;
+            final Collection<String> clusterPrivileges = (Collection<String>) constructorObjects[i++];
+            final GlobalPrivileges globalApplicationPrivileges = (GlobalPrivileges) constructorObjects[i++];
+            final Collection<IndicesPrivileges> indicesPrivileges = (Collection<IndicesPrivileges>) constructorObjects[i++];
+            final Collection<ApplicationResourcePrivileges> applicationResourcePrivileges = (Collection<
+                ApplicationResourcePrivileges>) constructorObjects[i++];
+            final Collection<String> runAsPrivilege = (Collection<String>) constructorObjects[i++];
+            final Map<String, Object> metadata = (Map<String, Object>) constructorObjects[i++];
+            final Map<String, Object> transientMetadata = (Map<String, Object>) constructorObjects[i];
+            return new Tuple<>(
+                new Role(
+                    roleName,
+                    clusterPrivileges,
+                    globalApplicationPrivileges,
+                    indicesPrivileges,
+                    applicationResourcePrivileges,
+                    runAsPrivilege,
+                    metadata
+                ),
+                transientMetadata != null ? Collections.unmodifiableMap(transientMetadata) : Collections.emptyMap()
+            );
+        }
+    );
 
     static {
         PARSER.declareStringArray(optionalConstructorArg(), CLUSTER);
-        PARSER.declareObject(optionalConstructorArg(), (parser,c)-> GlobalPrivileges.PARSER.parse(parser,null), GLOBAL);
-        PARSER.declareFieldArray(optionalConstructorArg(), (parser,c)->IndicesPrivileges.PARSER.parse(parser,null), INDICES,
-            ValueType.OBJECT_ARRAY);
-        PARSER.declareFieldArray(optionalConstructorArg(), (parser,c)->ApplicationResourcePrivileges.PARSER.parse(parser,null),
-            APPLICATIONS, ValueType.OBJECT_ARRAY);
+        PARSER.declareObject(optionalConstructorArg(), (parser, c) -> GlobalPrivileges.PARSER.parse(parser, null), GLOBAL);
+        PARSER.declareFieldArray(
+            optionalConstructorArg(),
+            (parser, c) -> IndicesPrivileges.PARSER.parse(parser, null),
+            INDICES,
+            ValueType.OBJECT_ARRAY
+        );
+        PARSER.declareFieldArray(
+            optionalConstructorArg(),
+            (parser, c) -> ApplicationResourcePrivileges.PARSER.parse(parser, null),
+            APPLICATIONS,
+            ValueType.OBJECT_ARRAY
+        );
         PARSER.declareStringArray(optionalConstructorArg(), RUN_AS);
         PARSER.declareObject(optionalConstructorArg(), (parser, c) -> parser.map(), METADATA);
         PARSER.declareObject(optionalConstructorArg(), (parser, c) -> parser.map(), TRANSIENT_METADATA);
@@ -80,26 +99,33 @@ public final class Role {
     private final Set<String> runAsPrivilege;
     private final Map<String, Object> metadata;
 
-    private Role(String name, @Nullable Collection<String> clusterPrivileges,
-                 @Nullable GlobalPrivileges globalPrivileges,
-                 @Nullable Collection<IndicesPrivileges> indicesPrivileges,
-                 @Nullable Collection<ApplicationResourcePrivileges> applicationPrivileges,
-                 @Nullable Collection<String> runAsPrivilege, @Nullable Map<String, Object> metadata) {
-        if (Strings.hasText(name) == false){
+    private Role(
+        String name,
+        @Nullable Collection<String> clusterPrivileges,
+        @Nullable GlobalPrivileges globalPrivileges,
+        @Nullable Collection<IndicesPrivileges> indicesPrivileges,
+        @Nullable Collection<ApplicationResourcePrivileges> applicationPrivileges,
+        @Nullable Collection<String> runAsPrivilege,
+        @Nullable Map<String, Object> metadata
+    ) {
+        if (Strings.hasText(name) == false) {
             throw new IllegalArgumentException("role name must be provided");
         } else {
             this.name = name;
         }
         // no cluster privileges are granted unless otherwise specified
-        this.clusterPrivileges = Collections
-                .unmodifiableSet(clusterPrivileges != null ? new HashSet<>(clusterPrivileges) : Collections.emptySet());
+        this.clusterPrivileges = Collections.unmodifiableSet(
+            clusterPrivileges != null ? new HashSet<>(clusterPrivileges) : Collections.emptySet()
+        );
         this.globalPrivileges = globalPrivileges;
         // no indices privileges are granted unless otherwise specified
-        this.indicesPrivileges = Collections
-                .unmodifiableSet(indicesPrivileges != null ? new HashSet<>(indicesPrivileges) : Collections.emptySet());
+        this.indicesPrivileges = Collections.unmodifiableSet(
+            indicesPrivileges != null ? new HashSet<>(indicesPrivileges) : Collections.emptySet()
+        );
         // no application resource privileges are granted unless otherwise specified
         this.applicationPrivileges = Collections.unmodifiableSet(
-                applicationPrivileges != null ? new HashSet<>(applicationPrivileges) : Collections.emptySet());
+            applicationPrivileges != null ? new HashSet<>(applicationPrivileges) : Collections.emptySet()
+        );
         // no run as privileges are granted unless otherwise specified
         this.runAsPrivilege = Collections.unmodifiableSet(runAsPrivilege != null ? new HashSet<>(runAsPrivilege) : Collections.emptySet());
         this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
@@ -149,8 +175,7 @@ public final class Role {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, clusterPrivileges, globalPrivileges, indicesPrivileges, applicationPrivileges,
-            runAsPrivilege, metadata);
+        return Objects.hash(name, clusterPrivileges, globalPrivileges, indicesPrivileges, applicationPrivileges, runAsPrivilege, metadata);
     }
 
     @Override
@@ -209,12 +234,10 @@ public final class Role {
         private @Nullable Collection<String> runAsPrivilege = null;
         private @Nullable Map<String, Object> metadata = null;
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder clone(Role role) {
-            return this
-                .name(role.name)
+            return this.name(role.name)
                 .clusterPrivileges(role.clusterPrivileges)
                 .globalApplicationPrivileges(role.globalPrivileges)
                 .indicesPrivileges(role.indicesPrivileges)
@@ -224,7 +247,7 @@ public final class Role {
         }
 
         public Builder name(String name) {
-            if (Strings.hasText(name) == false){
+            if (Strings.hasText(name) == false) {
                 throw new IllegalArgumentException("role name must be provided");
             } else {
                 this.name = name;
@@ -233,13 +256,16 @@ public final class Role {
         }
 
         public Builder clusterPrivileges(String... clusterPrivileges) {
-            return clusterPrivileges(Arrays
-                    .asList(Objects.requireNonNull(clusterPrivileges, "Cluster privileges cannot be null. Pass an empty array instead.")));
+            return clusterPrivileges(
+                Arrays.asList(Objects.requireNonNull(clusterPrivileges, "Cluster privileges cannot be null. Pass an empty array instead."))
+            );
         }
 
         public Builder clusterPrivileges(Collection<String> clusterPrivileges) {
-            this.clusterPrivileges = Objects.requireNonNull(clusterPrivileges,
-                    "Cluster privileges cannot be null. Pass an empty collection instead.");
+            this.clusterPrivileges = Objects.requireNonNull(
+                clusterPrivileges,
+                "Cluster privileges cannot be null. Pass an empty collection instead."
+            );
             return this;
         }
 
@@ -249,35 +275,49 @@ public final class Role {
         }
 
         public Builder indicesPrivileges(IndicesPrivileges... indicesPrivileges) {
-            return indicesPrivileges(Arrays
-                    .asList(Objects.requireNonNull(indicesPrivileges, "Indices privileges cannot be null. Pass an empty array instead.")));
+            return indicesPrivileges(
+                Arrays.asList(Objects.requireNonNull(indicesPrivileges, "Indices privileges cannot be null. Pass an empty array instead."))
+            );
         }
 
         public Builder indicesPrivileges(Collection<IndicesPrivileges> indicesPrivileges) {
-            this.indicesPrivileges = Objects.requireNonNull(indicesPrivileges,
-                    "Indices privileges cannot be null. Pass an empty collection instead.");
+            this.indicesPrivileges = Objects.requireNonNull(
+                indicesPrivileges,
+                "Indices privileges cannot be null. Pass an empty collection instead."
+            );
             return this;
         }
 
         public Builder applicationResourcePrivileges(ApplicationResourcePrivileges... applicationResourcePrivileges) {
-            return applicationResourcePrivileges(Arrays.asList(Objects.requireNonNull(applicationResourcePrivileges,
-                    "Application resource privileges cannot be null. Pass an empty array instead.")));
+            return applicationResourcePrivileges(
+                Arrays.asList(
+                    Objects.requireNonNull(
+                        applicationResourcePrivileges,
+                        "Application resource privileges cannot be null. Pass an empty array instead."
+                    )
+                )
+            );
         }
 
         public Builder applicationResourcePrivileges(Collection<ApplicationResourcePrivileges> applicationResourcePrivileges) {
-            this.applicationResourcePrivileges = Objects.requireNonNull(applicationResourcePrivileges,
-                    "Application resource privileges cannot be null. Pass an empty collection instead.");
+            this.applicationResourcePrivileges = Objects.requireNonNull(
+                applicationResourcePrivileges,
+                "Application resource privileges cannot be null. Pass an empty collection instead."
+            );
             return this;
         }
 
         public Builder runAsPrivilege(String... runAsPrivilege) {
-            return runAsPrivilege(Arrays
-                    .asList(Objects.requireNonNull(runAsPrivilege, "Run as privilege cannot be null. Pass an empty array instead.")));
+            return runAsPrivilege(
+                Arrays.asList(Objects.requireNonNull(runAsPrivilege, "Run as privilege cannot be null. Pass an empty array instead."))
+            );
         }
 
         public Builder runAsPrivilege(Collection<String> runAsPrivilege) {
-            this.runAsPrivilege = Objects.requireNonNull(runAsPrivilege,
-                    "Run as privilege cannot be null. Pass an empty collection instead.");
+            this.runAsPrivilege = Objects.requireNonNull(
+                runAsPrivilege,
+                "Run as privilege cannot be null. Pass an empty collection instead."
+            );
             return this;
         }
 
@@ -287,8 +327,15 @@ public final class Role {
         }
 
         public Role build() {
-            return new Role(name, clusterPrivileges, globalApplicationPrivileges, indicesPrivileges, applicationResourcePrivileges,
-                runAsPrivilege, metadata);
+            return new Role(
+                name,
+                clusterPrivileges,
+                globalApplicationPrivileges,
+                indicesPrivileges,
+                applicationResourcePrivileges,
+                runAsPrivilege,
+                metadata
+            );
         }
     }
 
@@ -326,11 +373,37 @@ public final class Role {
         public static final String MANAGE_ILM = "manage_ilm";
         public static final String READ_ILM = "read_ilm";
         public static final String MANAGE_ENRICH = "manage_enrich";
-        public static final String[] ALL_ARRAY = new String[] { NONE, ALL, MONITOR, MONITOR_TRANSFORM_DEPRECATED, MONITOR_TRANSFORM,
-            MONITOR_ML, MONITOR_TEXT_STRUCTURE, MONITOR_WATCHER, MONITOR_ROLLUP, MANAGE, MANAGE_TRANSFORM_DEPRECATED, MANAGE_TRANSFORM,
-            MANAGE_ML, MANAGE_WATCHER, MANAGE_ROLLUP, MANAGE_INDEX_TEMPLATES, MANAGE_INGEST_PIPELINES, READ_PIPELINE,
-            TRANSPORT_CLIENT, MANAGE_SECURITY, MANAGE_SAML, MANAGE_OIDC, MANAGE_TOKEN, MANAGE_PIPELINE, MANAGE_AUTOSCALING, MANAGE_CCR,
-            READ_CCR, MANAGE_ILM, READ_ILM, MANAGE_ENRICH };
+        public static final String[] ALL_ARRAY = new String[] {
+            NONE,
+            ALL,
+            MONITOR,
+            MONITOR_TRANSFORM_DEPRECATED,
+            MONITOR_TRANSFORM,
+            MONITOR_ML,
+            MONITOR_TEXT_STRUCTURE,
+            MONITOR_WATCHER,
+            MONITOR_ROLLUP,
+            MANAGE,
+            MANAGE_TRANSFORM_DEPRECATED,
+            MANAGE_TRANSFORM,
+            MANAGE_ML,
+            MANAGE_WATCHER,
+            MANAGE_ROLLUP,
+            MANAGE_INDEX_TEMPLATES,
+            MANAGE_INGEST_PIPELINES,
+            READ_PIPELINE,
+            TRANSPORT_CLIENT,
+            MANAGE_SECURITY,
+            MANAGE_SAML,
+            MANAGE_OIDC,
+            MANAGE_TOKEN,
+            MANAGE_PIPELINE,
+            MANAGE_AUTOSCALING,
+            MANAGE_CCR,
+            READ_CCR,
+            MANAGE_ILM,
+            READ_ILM,
+            MANAGE_ENRICH };
     }
 
     /**
@@ -355,9 +428,25 @@ public final class Role {
         public static final String CREATE_DOC = "create_doc";
         public static final String MAINTENANCE = "maintenance";
         public static final String AUTO_CONFIGURE = "auto_configure";
-        public static final String[] ALL_ARRAY = new String[] { NONE, ALL, READ, READ_CROSS, CREATE, INDEX, DELETE, WRITE, MONITOR, MANAGE,
-                DELETE_INDEX, CREATE_INDEX, VIEW_INDEX_METADATA, MANAGE_FOLLOW_INDEX, MANAGE_ILM, CREATE_DOC, MAINTENANCE,
-            AUTO_CONFIGURE};
+        public static final String[] ALL_ARRAY = new String[] {
+            NONE,
+            ALL,
+            READ,
+            READ_CROSS,
+            CREATE,
+            INDEX,
+            DELETE,
+            WRITE,
+            MONITOR,
+            MANAGE,
+            DELETE_INDEX,
+            CREATE_INDEX,
+            VIEW_INDEX_METADATA,
+            MANAGE_FOLLOW_INDEX,
+            MANAGE_ILM,
+            CREATE_DOC,
+            MAINTENANCE,
+            AUTO_CONFIGURE };
     }
 
 }

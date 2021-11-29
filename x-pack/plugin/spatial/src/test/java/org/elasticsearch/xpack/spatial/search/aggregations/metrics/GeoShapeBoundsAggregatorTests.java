@@ -53,12 +53,17 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
 
     public void testEmpty() throws Exception {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
-                .field("field")
-                .wrapLongitude(false);
+            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg").field("field").wrapLongitude(false);
 
-            MappedFieldType fieldType
-                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, Collections.emptyMap());
+            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldType(
+                "field",
+                true,
+                true,
+                Orientation.RIGHT,
+                null,
+                null,
+                Collections.emptyMap()
+            );
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -81,12 +86,17 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 w.addDocument(doc);
             }
 
-            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
-                .field("non_existent")
-                .wrapLongitude(false);
+            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg").field("non_existent").wrapLongitude(false);
 
-            MappedFieldType fieldType
-                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, Collections.emptyMap());
+            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldType(
+                "field",
+                true,
+                true,
+                Orientation.RIGHT,
+                null,
+                null,
+                Collections.emptyMap()
+            );
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
@@ -107,16 +117,22 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
             doc.add(new NumericDocValuesField("not_field", 1000L));
             w.addDocument(doc);
 
-            MappedFieldType fieldType
-                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, Collections.emptyMap());
+            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldType(
+                "field",
+                true,
+                true,
+                Orientation.RIGHT,
+                null,
+                null,
+                Collections.emptyMap()
+            );
 
             Point point = GeometryTestUtils.randomPoint(false);
             double lon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(point.getX()));
             double lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(point.getY()));
             Object missingVal = "POINT(" + lon + " " + lat + ")";
 
-            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
-                .field("field")
+            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg").field("field")
                 .missing(missingVal)
                 .wrapLongitude(false);
 
@@ -139,17 +155,25 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
             doc.add(new NumericDocValuesField("not_field", 1000L));
             w.addDocument(doc);
 
-            MappedFieldType fieldType
-                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, Collections.emptyMap());
+            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldType(
+                "field",
+                true,
+                true,
+                Orientation.RIGHT,
+                null,
+                null,
+                Collections.emptyMap()
+            );
 
-            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
-                .field("field")
+            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg").field("field")
                 .missing("invalid")
                 .wrapLongitude(false);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                    () -> searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType));
+                IllegalArgumentException exception = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType)
+                );
                 assertThat(exception.getMessage(), startsWith("Unknown geometry type"));
             }
         }
@@ -163,8 +187,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
         double negLeft = Double.POSITIVE_INFINITY;
         double negRight = Double.NEGATIVE_INFINITY;
         int numDocs = randomIntBetween(50, 100);
-        try (Directory dir = newDirectory();
-             RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             for (int i = 0; i < numDocs; i++) {
                 Document doc = new Document();
                 int numValues = randomIntBetween(1, 5);
@@ -195,12 +218,17 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 doc.add(GeoTestUtils.binaryGeoShapeDocValuesField("field", geometry));
                 w.addDocument(doc);
             }
-            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg")
-                .field("field")
-                .wrapLongitude(false);
+            GeoBoundsAggregationBuilder aggBuilder = new GeoBoundsAggregationBuilder("my_agg").field("field").wrapLongitude(false);
 
-            MappedFieldType fieldType
-                = new GeoShapeWithDocValuesFieldType("field", true, true, Orientation.RIGHT, null, Collections.emptyMap());
+            MappedFieldType fieldType = new GeoShapeWithDocValuesFieldType(
+                "field",
+                true,
+                true,
+                Orientation.RIGHT,
+                null,
+                null,
+                Collections.emptyMap()
+            );
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);

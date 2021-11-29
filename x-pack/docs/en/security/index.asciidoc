@@ -1,20 +1,28 @@
 [[secure-cluster]]
-= Secure the Elastic Stack
+= Secure the {stack}
 
 [partintro]
 --
 
-The Elastic Stack is comprised of many moving parts. There are the {es}
+The {stack} is comprised of many moving parts. There are the {es}
 nodes that form the cluster, plus {ls} instances, {kib} instances, {beats}
-agents, and clients all communicating with the cluster.
+agents, and clients all communicating with the cluster. To keep your cluster
+safe, adhere to the <<es-security-principles,{es} security principles>>.
 
-<<configuring-stack-security,Configure security for the Elastic Stack>> to
-secure {es} clusters and any clients that communicate with your clusters. You
-can password protect access to your data as well as enable more advanced
-security by configuring Transport Layer Security (TLS). This additional layer
-provides confidentiality and integrity protection to your communications with
-the Elastic Stack. You can also implement additional security measures, such as
-role-based access control, IP filtering, and auditing.
+The first principle is to run {es} with security enabled. Configuring security
+can be complicated, so we made it easy to
+<<configuring-stack-security,start the {stack} with security enabled>> by
+default. Run a single configuration command and then start {es} to enable the
+{stack} security features. You can then connect a {kib} instance to your
+secured {es} cluster and enroll additional nodes. You'll have password
+protection, internode communication secured with Transport Layer Security (TLS),
+and encrypted connections between {es} and {kib}.
+
+If you prefer to manage security on your own, you can
+<<manually-configure-security,manually configure security>> to secure {es}
+clusters and any clients that communicate with your clusters. You can also
+implement additional security measures, such as role-based access control, IP
+filtering, and auditing.
 
 Enabling security protects {es} clusters by:
 
@@ -71,7 +79,7 @@ of your data against tampering, while also providing _confidentiality_ by
 encrypting communications to, from, and within the cluster. For even	greater
 protection, you can increase the <<ciphers,encryption strength>>.
 
-See <<configuring-stack-security,Configure security for the Elastic Stack>>.
+See <<configuring-stack-security,Configure security for the {stack}>>.
 
 [discrete]
 [[maintaining-audit-trail]]
@@ -90,7 +98,13 @@ See <<enable-audit-logging,Enable audit logging>>.
 
 --
 
+include::es-security-principles.asciidoc[]
+
 include::configuring-stack-security.asciidoc[]
+
+include::security-manual-configuration.asciidoc[]
+
+include::securing-communications/update-tls-certificates.asciidoc[]
 
 include::authentication/overview.asciidoc[]
 

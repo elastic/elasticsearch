@@ -19,14 +19,14 @@
       create:
           index:   test_1
           id:      1
-          routing: 5
+          routing: "5"
           body:    { foo: bar }
 
  - do:
       get:
           index:   test_1
           id:      1
-          routing: 5
+          routing: "5"
           stored_fields:  [_routing]
 
  - match:   { _id:              "1"}

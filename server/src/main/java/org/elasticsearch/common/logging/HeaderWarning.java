@@ -32,23 +32,23 @@ import java.util.regex.Pattern;
 public class HeaderWarning {
     /**
      * Regular expression to test if a string matches the RFC7234 specification for warning headers. This pattern assumes that the warn code
-     * is always 299. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build hash.
+     * is always 299. Further, this pattern assumes that the warn agent represents a version of Elasticsearch including the build
+     * hash.
      */
-    public static final Pattern WARNING_HEADER_PATTERN = Pattern.compile(
-        "299 " + // warn code
-            "Elasticsearch-" + // warn agent
-            "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
-            "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
-            "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\"( " + // quoted warning value, captured
-            // quoted RFC 1123 date format
-            "\"" + // opening quote
-            "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
-            "\\d{2} " + // 2-digit day
-            "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
-            "\\d{4} " + // 4-digit year
-            "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
-            "GMT" + // GMT
-            "\")?"); // closing quote (optional, since an older version can still send a warn-date)
+    public static final Pattern WARNING_HEADER_PATTERN = Pattern.compile("299 " + // log level code
+        "Elasticsearch-" + // warn agent
+        "\\d+\\.\\d+\\.\\d+(?:-(?:alpha|beta|rc)\\d+)?(?:-SNAPSHOT)?-" + // warn agent
+        "(?:[a-f0-9]{7}(?:[a-f0-9]{33})?|unknown) " + // warn agent
+        "\"((?:\t| |!|[\\x23-\\x5B]|[\\x5D-\\x7E]|[\\x80-\\xFF]|\\\\|\\\\\")*)\"( " + // quoted warning value, captured
+        // quoted RFC 1123 date format
+        "\"" + // opening quote
+        "(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun), " + // weekday
+        "\\d{2} " + // 2-digit day
+        "(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) " + // month
+        "\\d{4} " + // 4-digit year
+        "\\d{2}:\\d{2}:\\d{2} " + // (two-digit hour):(two-digit minute):(two-digit second)
+        "GMT" + // GMT
+        "\")?"); // closing quote (optional, since an older version can still send a warn-date)
     public static final Pattern WARNING_XCONTENT_LOCATION_PATTERN = Pattern.compile("^\\[.*?]\\[-?\\d+:-?\\d+] ");
 
     /*
@@ -58,13 +58,13 @@ public class HeaderWarning {
      * arbitrary token; here we use the Elasticsearch version and build hash. The warn text must be quoted. The warn-date is an optional
      * quoted field that can be in a variety of specified date formats; here we use RFC 1123 format.
      */
-    private static final String WARNING_PREFIX =
-        String.format(
-            Locale.ROOT,
-            "299 Elasticsearch-%s%s-%s",
-            Version.CURRENT.toString(),
-            Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
-            Build.CURRENT.hash());
+    private static final String WARNING_PREFIX = String.format(
+        Locale.ROOT,
+        "299 Elasticsearch-%s%s-%s",
+        Version.CURRENT.toString(),
+        Build.CURRENT.isSnapshot() ? "-SNAPSHOT" : "",
+        Build.CURRENT.hash()
+    );
 
     private static BitSet doesNotNeedEncoding;
 
@@ -194,7 +194,7 @@ public class HeaderWarning {
      */
     public static String formatWarning(final String s) {
         // Assume that the common scenario won't have a string to escape and encode.
-        int length = WARNING_PREFIX.length() + s.length() + 3;
+        int length = WARNING_PREFIX.length() + s.length() + 6;
         final StringBuilder sb = new StringBuilder(length);
         sb.append(WARNING_PREFIX).append(" \"").append(escapeAndEncode(s)).append("\"");
         return sb.toString();
@@ -266,7 +266,7 @@ public class HeaderWarning {
         }
 
         final StringBuilder sb = new StringBuilder(s.length());
-        for (int i = 0; i < s.length(); ) {
+        for (int i = 0; i < s.length();) {
             int current = s.charAt(i);
             /*
              * Either the character does not need encoding or it does; when the character does not need encoding we append the character to
@@ -321,8 +321,7 @@ public class HeaderWarning {
             final String formattedMessage = LoggerMessageFormat.format(message, params);
             final String warningHeaderValue = formatWarning(formattedMessage);
             assert WARNING_HEADER_PATTERN.matcher(warningHeaderValue).matches();
-            assert extractWarningValueFromWarningHeader(warningHeaderValue, false)
-                .equals(escapeAndEncode(formattedMessage));
+            assert extractWarningValueFromWarningHeader(warningHeaderValue, false).equals(escapeAndEncode(formattedMessage));
             while (iterator.hasNext()) {
                 try {
                     final ThreadContext next = iterator.next();

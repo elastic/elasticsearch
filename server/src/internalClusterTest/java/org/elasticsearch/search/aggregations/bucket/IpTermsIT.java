@@ -38,12 +38,12 @@ public class IpTermsIT extends AbstractTermsTestCase {
             Map<String, Function<Map<String, Object>, Object>> scripts = super.pluginScripts();
 
             scripts.put("doc['ip'].value", vars -> {
-                Map<?, ?> doc = (Map<?,?>) vars.get("doc");
+                Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
                 return doc.get("ip");
             });
 
             scripts.put("doc['ip']", vars -> {
-                Map<?, ?> doc = (Map<?,?>) vars.get("doc");
+                Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
                 return ((ScriptDocValues<?>) doc.get("ip")).get(0);
             });
 
@@ -53,15 +53,17 @@ public class IpTermsIT extends AbstractTermsTestCase {
 
     public void testScriptValue() throws Exception {
         assertAcked(prepareCreate("index").setMapping("ip", "type=ip"));
-        indexRandom(true,
-                client().prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),
-                client().prepareIndex("index").setId("2").setSource("ip", "192.168.1.7"),
-                client().prepareIndex("index").setId("3").setSource("ip", "2001:db8::2:1"));
+        indexRandom(
+            true,
+            client().prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),
+            client().prepareIndex("index").setId("2").setSource("ip", "192.168.1.7"),
+            client().prepareIndex("index").setId("3").setSource("ip", "2001:db8::2:1")
+        );
 
-        Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
-                "doc['ip'].value", Collections.emptyMap());
-        SearchResponse response = client().prepareSearch("index").addAggregation(
-                AggregationBuilders.terms("my_terms").script(script).executionHint(randomExecutionHint())).get();
+        Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['ip'].value", Collections.emptyMap());
+        SearchResponse response = client().prepareSearch("index")
+            .addAggregation(AggregationBuilders.terms("my_terms").script(script).executionHint(randomExecutionHint()))
+            .get();
         assertSearchResponse(response);
         Terms terms = response.getAggregations().get("my_terms");
         assertEquals(2, terms.getBuckets().size());
@@ -79,15 +81,17 @@ public class IpTermsIT extends AbstractTermsTestCase {
 
     public void testScriptValues() throws Exception {
         assertAcked(prepareCreate("index").setMapping("ip", "type=ip"));
-        indexRandom(true,
-                client().prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),
-                client().prepareIndex("index").setId("2").setSource("ip", "192.168.1.7"),
-                client().prepareIndex("index").setId("3").setSource("ip", "2001:db8::2:1"));
+        indexRandom(
+            true,
+            client().prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),
+            client().prepareIndex("index").setId("2").setSource("ip", "192.168.1.7"),
+            client().prepareIndex("index").setId("3").setSource("ip", "2001:db8::2:1")
+        );
 
-        Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME,
-                "doc['ip']", Collections.emptyMap());
-        SearchResponse response = client().prepareSearch("index").addAggregation(
-                AggregationBuilders.terms("my_terms").script(script).executionHint(randomExecutionHint())).get();
+        Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['ip']", Collections.emptyMap());
+        SearchResponse response = client().prepareSearch("index")
+            .addAggregation(AggregationBuilders.terms("my_terms").script(script).executionHint(randomExecutionHint()))
+            .get();
         assertSearchResponse(response);
         Terms terms = response.getAggregations().get("my_terms");
         assertEquals(2, terms.getBuckets().size());
@@ -105,13 +109,16 @@ public class IpTermsIT extends AbstractTermsTestCase {
 
     public void testMissingValue() throws Exception {
         assertAcked(prepareCreate("index").setMapping("ip", "type=ip"));
-        indexRandom(true,
+        indexRandom(
+            true,
             client().prepareIndex("index").setId("1").setSource("ip", "192.168.1.7"),
             client().prepareIndex("index").setId("2").setSource("ip", "192.168.1.7"),
             client().prepareIndex("index").setId("3").setSource("ip", "127.0.0.1"),
-            client().prepareIndex("index").setId("4").setSource("not_ip", "something"));
-        SearchResponse response = client().prepareSearch("index").addAggregation(AggregationBuilders
-            .terms("my_terms").field("ip").missing("127.0.0.1").executionHint(randomExecutionHint())).get();
+            client().prepareIndex("index").setId("4").setSource("not_ip", "something")
+        );
+        SearchResponse response = client().prepareSearch("index")
+            .addAggregation(AggregationBuilders.terms("my_terms").field("ip").missing("127.0.0.1").executionHint(randomExecutionHint()))
+            .get();
 
         assertSearchResponse(response);
         Terms terms = response.getAggregations().get("my_terms");

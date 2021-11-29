@@ -13,11 +13,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.license.MockLicenseState;
+import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.nio.NioChannelHandler;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.Before;
@@ -51,18 +52,23 @@ public class NioIPFilterTests extends ESTestCase {
         TransportAddress address = new TransportAddress(InetAddress.getLoopbackAddress(), 9300);
         when(transport.boundAddress()).thenReturn(new BoundTransportAddress(new TransportAddress[] { address }, address));
         when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(
-            IPFilter.HTTP_FILTER_ALLOW_SETTING,
-            IPFilter.HTTP_FILTER_DENY_SETTING,
-            IPFilter.IP_FILTER_ENABLED_HTTP_SETTING,
-            IPFilter.IP_FILTER_ENABLED_SETTING,
-            IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
-            IPFilter.TRANSPORT_FILTER_DENY_SETTING,
-            IPFilter.PROFILE_FILTER_ALLOW_SETTING,
-            IPFilter.PROFILE_FILTER_DENY_SETTING)));
-        XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_IP_FILTERING)).thenReturn(true);
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(
+                Arrays.asList(
+                    IPFilter.HTTP_FILTER_ALLOW_SETTING,
+                    IPFilter.HTTP_FILTER_DENY_SETTING,
+                    IPFilter.IP_FILTER_ENABLED_HTTP_SETTING,
+                    IPFilter.IP_FILTER_ENABLED_SETTING,
+                    IPFilter.TRANSPORT_FILTER_ALLOW_SETTING,
+                    IPFilter.TRANSPORT_FILTER_DENY_SETTING,
+                    IPFilter.PROFILE_FILTER_ALLOW_SETTING,
+                    IPFilter.PROFILE_FILTER_DENY_SETTING
+                )
+            )
+        );
+        MockLicenseState licenseState = TestUtils.newMockLicenceState();
+        when(licenseState.isAllowed(Security.IP_FILTERING_FEATURE)).thenReturn(true);
         AuditTrailService auditTrailService = new AuditTrailService(Collections.emptyList(), licenseState);
         ipFilter = new IPFilter(settings, auditTrailService, clusterSettings, licenseState);
         ipFilter.setBoundTransportAddress(transport.boundAddress(), transport.profileBoundAddresses());

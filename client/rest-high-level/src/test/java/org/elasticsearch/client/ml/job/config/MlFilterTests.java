@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -54,8 +54,10 @@ public class MlFilterTests extends AbstractXContentTestCase<MlFilter> {
     }
 
     public void testNullItems() {
-        expectThrows(NullPointerException.class,
-            () -> MlFilter.builder(randomAlphaOfLength(10)).setItems((SortedSet<String>) null).build());
+        expectThrows(
+            NullPointerException.class,
+            () -> MlFilter.builder(randomAlphaOfLength(10)).setItems((SortedSet<String>) null).build()
+        );
     }
 
     public void testItemsAreSorted() {

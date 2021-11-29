@@ -30,7 +30,7 @@ public class MlRestTestStateCleaner {
         this.adminClient = adminClient;
     }
 
-    public void clearMlMetadata() throws IOException {
+    public void resetFeatures() throws IOException {
         deleteAllTrainedModelIngestPipelines();
         // This resets all features, not just ML, but they should have been getting reset between tests anyway so it shouldn't matter
         adminClient.performRequest(new Request("POST", "/_features/_reset"));

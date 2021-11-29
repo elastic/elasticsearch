@@ -8,9 +8,9 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.job.results.AnomalyRecord;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,8 +24,11 @@ public class GetRecordsResponse extends AbstractResultResponse<AnomalyRecord> {
     public static final ParseField RECORDS = new ParseField("records");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<GetRecordsResponse, Void> PARSER = new ConstructingObjectParser<>("get_records_response",
-            true, a -> new GetRecordsResponse((List<AnomalyRecord>) a[0], (long) a[1]));
+    public static final ConstructingObjectParser<GetRecordsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_records_response",
+        true,
+        a -> new GetRecordsResponse((List<AnomalyRecord>) a[0], (long) a[1])
+    );
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), AnomalyRecord.PARSER, RECORDS);

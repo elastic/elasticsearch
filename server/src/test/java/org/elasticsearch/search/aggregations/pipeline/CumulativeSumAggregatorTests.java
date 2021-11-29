@@ -19,8 +19,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -60,9 +60,10 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         "2017-01-07T13:47:43",
         "2017-01-08T16:14:34",
         "2017-01-09T17:09:50",
-        "2017-01-10T22:55:46");
+        "2017-01-10T22:55:46"
+    );
 
-    private static final List<Integer> datasetValues = Arrays.asList(1,2,3,4,5,6,7,8,9,10);
+    private static final List<Integer> datasetValues = Arrays.asList(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
 
     public void testSimple() throws IOException {
         Query query = new MatchAllDocsQuery();
@@ -73,8 +74,8 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "the_avg"));
 
         executeTestCase(query, aggBuilder, histogram -> {
-            assertEquals(10, ((Histogram)histogram).getBuckets().size());
-            List<? extends Histogram.Bucket> buckets = ((Histogram)histogram).getBuckets();
+            assertEquals(10, ((Histogram) histogram).getBuckets().size());
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
             double sum = 0.0;
             for (Histogram.Bucket bucket : buckets) {
                 sum += ((InternalAvg) (bucket.getAggregations().get("the_avg"))).value();
@@ -97,19 +98,21 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "the_deriv"));
 
         executeTestCase(query, aggBuilder, histogram -> {
-            assertEquals(10, ((Histogram)histogram).getBuckets().size());
-            List<? extends Histogram.Bucket> buckets = ((Histogram)histogram).getBuckets();
+            assertEquals(10, ((Histogram) histogram).getBuckets().size());
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
             double sum = 0.0;
             for (int i = 0; i < buckets.size(); i++) {
                 if (i == 0) {
-                    assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("cusum"))).value(), equalTo(0.0));
-                    assertTrue(AggregationInspectionHelper.hasValue(((InternalSimpleValue) (buckets.get(i)
-                        .getAggregations().get("cusum")))));
+                    assertThat(((InternalSimpleValue) (buckets.get(i).getAggregations().get("cusum"))).value(), equalTo(0.0));
+                    assertTrue(
+                        AggregationInspectionHelper.hasValue(((InternalSimpleValue) (buckets.get(i).getAggregations().get("cusum"))))
+                    );
                 } else {
                     sum += 1.0;
-                    assertThat(((InternalSimpleValue)(buckets.get(i).getAggregations().get("cusum"))).value(), equalTo(sum));
-                    assertTrue(AggregationInspectionHelper.hasValue(((InternalSimpleValue) (buckets.get(i)
-                        .getAggregations().get("cusum")))));
+                    assertThat(((InternalSimpleValue) (buckets.get(i).getAggregations().get("cusum"))).value(), equalTo(sum));
+                    assertTrue(
+                        AggregationInspectionHelper.hasValue(((InternalSimpleValue) (buckets.get(i).getAggregations().get("cusum"))))
+                    );
                 }
             }
         });
@@ -123,8 +126,8 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "_count"));
 
         executeTestCase(query, aggBuilder, histogram -> {
-            assertEquals(10, ((Histogram)histogram).getBuckets().size());
-            List<? extends Histogram.Bucket> buckets = ((Histogram)histogram).getBuckets();
+            assertEquals(10, ((Histogram) histogram).getBuckets().size());
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
             double sum = 1.0;
             for (Histogram.Bucket bucket : buckets) {
                 assertThat(((InternalSimpleValue) (bucket.getAggregations().get("cusum"))).value(), equalTo(sum));
@@ -146,14 +149,13 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         int numValueBuckets = ((maxRandomValue - minRandomValue) / interval) + 1;
         long[] valueCounts = new long[numValueBuckets];
 
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
-            .field(VALUE_FIELD)
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(VALUE_FIELD)
             .interval(interval)
             .extendedBounds(minRandomValue, maxRandomValue);
         aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "_count"));
 
         executeTestCase(query, aggBuilder, histogram -> {
-            List<? extends Histogram.Bucket> buckets = ((Histogram)histogram).getBuckets();
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
 
             assertThat(buckets.size(), equalTo(numValueBuckets));
 
@@ -196,15 +198,14 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         int numValueBuckets = ((maxRandomValue - minRandomValue) / interval) + 1;
         long[] valueCounts = new long[numValueBuckets];
 
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
-            .field(VALUE_FIELD)
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(VALUE_FIELD)
             .interval(interval)
             .extendedBounds(minRandomValue, maxRandomValue);
         aggBuilder.subAggregation(new SumAggregationBuilder("sum").field(VALUE_FIELD));
         aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "sum"));
 
         executeTestCase(query, aggBuilder, histogram -> {
-            List<? extends Histogram.Bucket> buckets = ((Histogram)histogram).getBuckets();
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
 
             assertThat(buckets.size(), equalTo(numValueBuckets));
 
@@ -249,14 +250,12 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
 
         Query query = new MatchNoDocsQuery();
 
-        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo")
-            .field(VALUE_FIELD)
-            .interval(interval);
+        HistogramAggregationBuilder aggBuilder = new HistogramAggregationBuilder("histo").field(VALUE_FIELD).interval(interval);
         aggBuilder.subAggregation(new SumAggregationBuilder("sum").field(VALUE_FIELD));
         aggBuilder.subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", "sum"));
 
         executeTestCase(query, aggBuilder, histogram -> {
-            List<? extends Histogram.Bucket> buckets = ((Histogram)histogram).getBuckets();
+            List<? extends Histogram.Bucket> buckets = ((Histogram) histogram).getBuckets();
 
             assertThat(buckets.size(), equalTo(0));
 
@@ -294,23 +293,26 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    private void executeTestCase(Query query, AggregationBuilder aggBuilder, Consumer<InternalAggregation> verify,
-                                 CheckedConsumer<RandomIndexWriter, IOException> setup) throws IOException {
+    private void executeTestCase(
+        Query query,
+        AggregationBuilder aggBuilder,
+        Consumer<InternalAggregation> verify,
+        CheckedConsumer<RandomIndexWriter, IOException> setup
+    ) throws IOException {
 
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-               setup.accept(indexWriter);
+                setup.accept(indexWriter);
             }
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(HISTO_FIELD);
-                MappedFieldType valueFieldType
-                    = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
+                MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
                 InternalAggregation histogram;
-                histogram = searchAndReduce(indexSearcher, query, aggBuilder, new MappedFieldType[]{fieldType, valueFieldType});
+                histogram = searchAndReduce(indexSearcher, query, aggBuilder, new MappedFieldType[] { fieldType, valueFieldType });
                 verify.accept(histogram);
             }
         }

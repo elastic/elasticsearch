@@ -9,38 +9,42 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.DataTier.getPreferredTiersConfiguration;
+import static org.elasticsearch.cluster.routing.allocation.DataTier.getPreferredTiersConfigurationSettings;
 
 /**
  * A {@link LifecycleAction} which enables or disables the automatic migration of data between
- * {@link org.elasticsearch.xpack.core.DataTier}s.
+ * {@link DataTier}s.
  */
 public class MigrateAction implements LifecycleAction {
     public static final String NAME = "migrate";
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
 
-    private static final Logger logger = LogManager.getLogger(MigrateAction.class);
-    static final String CONDITIONAL_SKIP_MIGRATE_STEP = BranchingStep.NAME + "-check-skip-action";
+    public static final MigrateAction ENABLED = new MigrateAction(true);
+    public static final MigrateAction DISABLED = new MigrateAction(false);
 
-    private static final ConstructingObjectParser<MigrateAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        a -> new MigrateAction(a[0] == null ? true : (boolean) a[0]));
+    private static final Logger logger = LogManager.getLogger(MigrateAction.class);
+    public static final String CONDITIONAL_SKIP_MIGRATE_STEP = BranchingStep.NAME + "-check-skip-action";
+
+    private static final ConstructingObjectParser<MigrateAction, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        a -> a[0] == null || (boolean) a[0] ? ENABLED : DISABLED
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
@@ -52,16 +56,12 @@ public class MigrateAction implements LifecycleAction {
         return PARSER.apply(parser, null);
     }
 
-    public MigrateAction() {
-        this(true);
-    }
-
-    public MigrateAction(boolean enabled) {
+    private MigrateAction(boolean enabled) {
         this.enabled = enabled;
     }
 
-    public MigrateAction(StreamInput in) throws IOException {
-        this(in.readBoolean());
+    public static MigrateAction readFrom(StreamInput in) throws IOException {
+        return in.readBoolean() ? ENABLED : DISABLED;
     }
 
     @Override
@@ -101,24 +101,35 @@ public class MigrateAction implements LifecycleAction {
             String targetTier = "data_" + phase;
             assert DataTier.validTierName(targetTier) : "invalid data tier name:" + targetTier;
 
-            BranchingStep conditionalSkipActionStep = new BranchingStep(preMigrateBranchingKey, migrationKey, nextStepKey,
+            BranchingStep conditionalSkipActionStep = new BranchingStep(
+                preMigrateBranchingKey,
+                migrationKey,
+                nextStepKey,
                 (index, clusterState) -> {
                     Settings indexSettings = clusterState.metadata().index(index).getSettings();
 
                     // partially mounted indices will already have data_frozen, and we don't want to change that if they do
                     if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(indexSettings)) {
                         String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings);
-                        logger.debug("[{}] action in policy [{}] is configured for index [{}] which is a partially mounted index. " +
-                            "skipping this action", MigrateAction.NAME, policyName, index.getName());
+                        logger.debug(
+                            "[{}] action in policy [{}] is configured for index [{}] which is a partially mounted index. "
+                                + "skipping this action",
+                            MigrateAction.NAME,
+                            policyName,
+                            index.getName()
+                        );
                         return true;
                     }
 
                     return false;
-                });
-            UpdateSettingsStep updateMigrationSettingStep = new UpdateSettingsStep(migrationKey, migrationRoutedKey, client,
-                Settings.builder()
-                    .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, getPreferredTiersConfiguration(targetTier))
-                    .build());
+                }
+            );
+            UpdateSettingsStep updateMigrationSettingStep = new UpdateSettingsStep(
+                migrationKey,
+                migrationRoutedKey,
+                client,
+                getPreferredTiersConfigurationSettings(targetTier)
+            );
             DataTierMigrationRoutedStep migrationRoutedStep = new DataTierMigrationRoutedStep(migrationRoutedKey, nextStepKey);
             return List.of(conditionalSkipActionStep, updateMigrationSettingStep, migrationRoutedStep);
         } else {

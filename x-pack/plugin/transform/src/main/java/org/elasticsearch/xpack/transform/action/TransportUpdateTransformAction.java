@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,11 +23,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,30 +37,24 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Response;
-import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
-import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
-import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
-import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
-import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.Function;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
-import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 
 public class TransportUpdateTransformAction extends TransportTasksAction<TransformTask, Request, Response, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateTransformAction.class);
-    private final XPackLicenseState licenseState;
+    private final Settings settings;
     private final Client client;
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
@@ -79,51 +70,22 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        XPackLicenseState licenseState,
-        TransformServices transformServices,
-        Client client,
-        IngestService ingestService
-    ) {
-        this(
-            UpdateTransformAction.NAME,
-            settings,
-            transportService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver,
-            clusterService,
-            licenseState,
-            transformServices,
-            client,
-            ingestService
-        );
-    }
-
-    protected TransportUpdateTransformAction(
-        String name,
-        Settings settings,
-        TransportService transportService,
-        ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterService clusterService,
-        XPackLicenseState licenseState,
         TransformServices transformServices,
         Client client,
         IngestService ingestService
     ) {
         super(
-            name,
+            UpdateTransformAction.NAME,
             clusterService,
             transportService,
             actionFilters,
-            Request::fromStreamWithBWC,
-            Response::fromStreamWithBWC,
-            Response::fromStreamWithBWC,
+            Request::new,
+            Response::new,
+            Response::new,
             ThreadPool.Names.SAME
         );
 
-        this.licenseState = licenseState;
+        this.settings = settings;
         this.client = client;
         this.transformConfigManager = transformServices.getConfigManager();
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
@@ -150,7 +112,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     nodes.getMasterNode(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, Response::fromStreamWithBWC)
+                    new ActionListenerResponseHandler<>(listener, Response::new)
                 );
             }
             return;
@@ -165,89 +127,63 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         // GET transform and attempt to update
         // We don't want the update to complete if the config changed between GET and INDEX
         transformConfigManager.getTransformConfigurationForUpdate(request.getId(), ActionListener.wrap(configAndVersion -> {
-            final TransformConfig oldConfig = configAndVersion.v1();
-            final TransformConfig config = TransformConfig.rewriteForUpdate(oldConfig);
+            TransformUpdater.updateTransform(
+                securityContext,
+                indexNameExpressionResolver,
+                clusterState,
+                settings,
+                client,
+                transformConfigManager,
+                configAndVersion.v1(),
+                update,
+                configAndVersion.v2(),
+                request.isDeferValidation(),
+                false, // dryRun
+                true, // checkAccess
+                request.getTimeout(),
+                ActionListener.wrap(updateResponse -> {
+                    TransformConfig updatedConfig = updateResponse.getConfig();
+                    auditor.info(updatedConfig.getId(), "Updated transform.");
+                    logger.debug("[{}] Updated transform [{}]", updatedConfig.getId(), updateResponse.getStatus());
 
-            // If it is a noop don't bother even writing the doc, save the cycles, just return here.
-            // skip when:
-            // - config is in the latest index
-            // - rewrite did not change the config
-            // - update is not making any changes
-            if (config.getVersion() != null
-                && config.getVersion().onOrAfter(TransformInternalIndexConstants.INDEX_VERSION_LAST_CHANGED)
-                && config.equals(oldConfig)
-                && update.isNoop(config)) {
-                listener.onResponse(new Response(config));
-                return;
-            }
-            TransformConfig updatedConfig = update.apply(config);
+                    checkTransformConfigAndLogWarnings(updatedConfig);
 
-            final ActionListener<Response> updateListener;
-            if (update.changesSettings(config)) {
-                PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
-                PersistentTasksCustomMetadata.PersistentTask<?> transformTask = tasksMetadata.getTask(request.getId());
+                    if (update.changesSettings(configAndVersion.v1())) {
+                        PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
+                            clusterState
+                        );
+                        PersistentTasksCustomMetadata.PersistentTask<?> transformTask = tasksMetadata.getTask(request.getId());
 
-                // to send a request to apply new settings at runtime, several requirements must be met:
-                // - transform must be running, meaning a task exists
-                // - transform is not failed (stopped transforms do not have a task)
-                // - the node where transform is executed on is at least 7.8.0 in order to understand the request
-                if (transformTask != null
-                    && transformTask.isAssigned()
-                    && transformTask.getState() instanceof TransformState
-                    && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED
-                    && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_7_8_0)) {
-                    request.setNodes(transformTask.getExecutorNode());
-                    updateListener = ActionListener.wrap(updateResponse -> {
-                        request.setConfig(updateResponse.getConfig());
-                        super.doExecute(task, request, listener);
-                    }, listener::onFailure);
-                } else {
-                    updateListener = listener;
-                }
-            } else {
-                updateListener = listener;
-            }
+                        // to send a request to apply new settings at runtime, several requirements must be met:
+                        // - transform must be running, meaning a task exists
+                        // - transform is not failed (stopped transforms do not have a task)
+                        // - the node where transform is executed on is at least 7.8.0 in order to understand the request
+                        if (transformTask != null
+                            && transformTask.isAssigned()
+                            && transformTask.getState() instanceof TransformState
+                            && ((TransformState) transformTask.getState()).getTaskState() != TransformTaskState.FAILED
+                            && clusterState.nodes().get(transformTask.getExecutorNode()).getVersion().onOrAfter(Version.V_7_8_0)) {
 
-            // <3> Update the transform
-            ActionListener<ValidateTransformAction.Response> validateTransformListener = ActionListener.wrap(
-                validationResponse -> {
-                    updateTransform(
-                        request,
-                        updatedConfig,
-                        validationResponse.getDestIndexMappings(),
-                        configAndVersion.v2(),
-                        clusterState,
-                        updateListener);
-                },
-                listener::onFailure
+                            request.setNodes(transformTask.getExecutorNode());
+                            request.setConfig(updatedConfig);
+                            super.doExecute(task, request, listener);
+                            return;
+                        }
+                    }
+                    listener.onResponse(new Response(updatedConfig));
+                }, listener::onFailure)
             );
-
-            // <2> Validate source and destination indices
-            ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
-                aVoid -> {
-                    client.execute(
-                        ValidateTransformAction.INSTANCE,
-                        new ValidateTransformAction.Request(updatedConfig, request.isDeferValidation()),
-                        validateTransformListener
-                    );
-                },
-                listener::onFailure);
-
-            // <1> Early check to verify that the user can create the destination index and can read from the source
-            if (licenseState.isSecurityEnabled() && request.isDeferValidation() == false) {
-                TransformPrivilegeChecker.checkPrivileges(
-                    "update",
-                    securityContext,
-                    indexNameExpressionResolver,
-                    clusterState,
-                    client,
-                    updatedConfig,
-                    true,
-                    checkPrivilegesListener);
-            } else { // No security enabled, just move on
-                checkPrivilegesListener.onResponse(null);
-            }
         }, listener::onFailure));
+    }
+
+    private void checkTransformConfigAndLogWarnings(TransformConfig config) {
+        final Function function = FunctionFactory.create(config);
+        List<String> warnings = TransformConfigLinter.getWarnings(function, config.getSource(), config.getSyncConfig());
+
+        for (String warning : warnings) {
+            logger.warn(new ParameterizedMessage("[{}] {}", config.getId(), warning));
+            auditor.warning(config.getId(), warning);
+        }
     }
 
     @Override
@@ -268,77 +204,4 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
         return tasks.get(0);
     }
 
-    private void updateTransform(
-        Request request,
-        TransformConfig config,
-        Map<String, String> mappings,
-        SeqNoPrimaryTermAndIndex seqNoPrimaryTermAndIndex,
-        ClusterState clusterState,
-        ActionListener<Response> listener
-    ) {
-        final Function function = FunctionFactory.create(config);
-
-        // <3> Return to the listener
-        ActionListener<Boolean> putTransformConfigurationListener = ActionListener.wrap(putTransformConfigurationResult -> {
-            auditor.info(config.getId(), "Updated transform.");
-            List<String> warnings = TransformConfigLinter.getWarnings(function, config.getSource(), config.getSyncConfig());
-            for (String warning : warnings) {
-                logger.warn(new ParameterizedMessage("[{}] {}", config.getId(), warning));
-                auditor.warning(config.getId(), warning);
-            }
-            transformConfigManager.deleteOldTransformConfigurations(request.getId(), ActionListener.wrap(r -> {
-                logger.trace("[{}] successfully deleted old transform configurations", request.getId());
-                listener.onResponse(new Response(config));
-            }, e -> {
-                logger.warn(LoggerMessageFormat.format("[{}] failed deleting old transform configurations.", request.getId()), e);
-                listener.onResponse(new Response(config));
-            }));
-        },
-            // If we failed to INDEX AND we created the destination index, the destination index will still be around
-            // This is a similar behavior to _start
-            listener::onFailure
-        );
-
-        // <2> Update our transform
-        ActionListener<Boolean> createDestinationListener = ActionListener.wrap(
-            createDestResponse -> transformConfigManager.updateTransformConfiguration(
-                config,
-                seqNoPrimaryTermAndIndex,
-                putTransformConfigurationListener
-            ),
-            listener::onFailure
-        );
-
-        // <1> Create destination index if necessary
-        String[] dest = indexNameExpressionResolver.concreteIndexNames(
-            clusterState,
-            IndicesOptions.lenientExpandOpen(),
-            config.getDestination().getIndex()
-        );
-        String[] src = indexNameExpressionResolver.concreteIndexNames(
-            clusterState,
-            IndicesOptions.lenientExpandOpen(),
-            true,
-            config.getSource().getIndex()
-        );
-        // If we are running, we should verify that the destination index exists and create it if it does not
-        if (PersistentTasksCustomMetadata.getTaskWithId(clusterState, request.getId()) != null && dest.length == 0
-        // Verify we have source indices. The user could defer_validations and if the task is already running
-        // we allow source indices to disappear. If the source and destination indices do not exist, don't do anything
-        // the transform will just have to dynamically create the destination index without special mapping.
-            && src.length > 0) {
-            createDestinationIndex(config, mappings, createDestinationListener);
-        } else {
-            createDestinationListener.onResponse(null);
-        }
-    }
-
-    private void createDestinationIndex(TransformConfig config, Map<String, String> mappings, ActionListener<Boolean> listener) {
-        TransformDestIndexSettings generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
-            mappings,
-            config.getId(),
-            Clock.systemUTC()
-        );
-        TransformIndex.createDestinationIndex(client, config, generatedDestIndexSettings, listener);
-    }
 }

@@ -135,6 +135,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
+     * Wait for checkpoints configured for a concrete index, will require that the search request only
+     * be executed after the checkpoints are available for search due to a refresh.
+     */
+    public SearchRequestBuilder setWaitForCheckpoints(Map<String, long[]> waitForCheckpoints) {
+        request.setWaitForCheckpoints(waitForCheckpoints);
+        return this;
+    }
+
+    /**
      * Specifies what type of requested indices to ignore and wildcard indices expressions.
      * <p>
      * For example indices that don't exist.
@@ -454,7 +463,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param window   rescore window
      * @return this for chaining
      */
-    public SearchRequestBuilder setRescorer(RescorerBuilder rescorer, int window) {
+    public SearchRequestBuilder setRescorer(RescorerBuilder<?> rescorer, int window) {
         sourceBuilder().clearRescorers();
         return addRescorer(rescorer.windowSize(window));
     }
@@ -509,7 +518,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         request.requestCache(requestCache);
         return this;
     }
-
 
     /**
      * Sets if this request should allow partial results.  (If method is not called,

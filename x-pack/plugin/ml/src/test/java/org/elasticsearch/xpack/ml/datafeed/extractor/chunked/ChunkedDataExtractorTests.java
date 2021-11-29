@@ -16,7 +16,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -31,6 +30,7 @@ import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -147,11 +147,20 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(capturedSearchRequests.size(), equalTo(1));
         String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"size\":0"));
-        assertThat(searchRequest, containsString("\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}}," +
-                "{\"range\":{\"time\":{\"from\":1000,\"to\":2300,\"include_lower\":true,\"include_upper\":false," +
-                "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
-        assertThat(searchRequest, containsString("\"aggregations\":{\"earliest_time\":{\"min\":{\"field\":\"time\"}}," +
-                "\"latest_time\":{\"max\":{\"field\":\"time\"}}}}"));
+        assertThat(
+            searchRequest,
+            containsString(
+                "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
+                    + "{\"range\":{\"time\":{\"from\":1000,\"to\":2300,\"include_lower\":true,\"include_upper\":false,"
+                    + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
+            )
+        );
+        assertThat(
+            searchRequest,
+            containsString(
+                "\"aggregations\":{\"earliest_time\":{\"min\":{\"field\":\"time\"}}," + "\"latest_time\":{\"max\":{\"field\":\"time\"}}}}"
+            )
+        );
         assertThat(searchRequest, not(containsString("\"track_total_hits\":false")));
         assertThat(searchRequest, not(containsString("\"sort\"")));
     }
@@ -159,7 +168,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     public void testExtractionGivenSpecifiedChunkAndAggs() throws IOException {
         chunkSpan = TimeValue.timeValueSeconds(1);
         TestDataExtractor extractor = new TestDataExtractor(1000L, 2300L, true, 1000L);
-        extractor.setNextResponse(createSearchResponse(0L, 1000L, 2200L));
+        // 0 hits with non-empty data is possible with rollups
+        extractor.setNextResponse(createSearchResponse(randomFrom(0L, 2L, 10000L), 1000L, 2200L));
 
         InputStream inputStream1 = mock(InputStream.class);
         InputStream inputStream2 = mock(InputStream.class);
@@ -187,11 +197,20 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         assertThat(capturedSearchRequests.size(), equalTo(1));
         String searchRequest = capturedSearchRequests.get(0).toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"size\":0"));
-        assertThat(searchRequest, containsString("\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}}," +
-            "{\"range\":{\"time\":{\"from\":1000,\"to\":2300,\"include_lower\":true,\"include_upper\":false," +
-            "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"));
-        assertThat(searchRequest, containsString("\"aggregations\":{\"earliest_time\":{\"min\":{\"field\":\"time\"}}," +
-            "\"latest_time\":{\"max\":{\"field\":\"time\"}}}}"));
+        assertThat(
+            searchRequest,
+            containsString(
+                "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
+                    + "{\"range\":{\"time\":{\"from\":1000,\"to\":2300,\"include_lower\":true,\"include_upper\":false,"
+                    + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
+            )
+        );
+        assertThat(
+            searchRequest,
+            containsString(
+                "\"aggregations\":{\"earliest_time\":{\"min\":{\"field\":\"time\"}}," + "\"latest_time\":{\"max\":{\"field\":\"time\"}}}}"
+            )
+        );
         assertThat(searchRequest, not(containsString("\"track_total_hits\":false")));
         assertThat(searchRequest, not(containsString("\"sort\"")));
     }
@@ -200,7 +219,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         chunkSpan = null;
         TestDataExtractor extractor = new TestDataExtractor(100_000L, 450_000L, true, 200L);
 
-        extractor.setNextResponse(createSearchResponse(0L, 100_000L, 400_000L));
+        // 0 hits with non-empty data is possible with rollups
+        extractor.setNextResponse(createSearchResponse(randomFrom(0L, 2L, 10000L), 100_000L, 400_000L));
 
         InputStream inputStream1 = mock(InputStream.class);
         InputStream inputStream2 = mock(InputStream.class);
@@ -504,10 +524,15 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         expectThrows(SearchPhaseExecutionException.class, extractor::next);
     }
 
+    public void testNoDataSummaryHasNoData() {
+        ChunkedDataExtractor.DataSummary summary = ChunkedDataExtractor.AggregatedDataSummary.noDataSummary(randomNonNegativeLong());
+        assertFalse(summary.hasData());
+    }
+
     private SearchResponse createSearchResponse(long totalHits, long earliestTime, long latestTime) {
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.status()).thenReturn(RestStatus.OK);
-        SearchHit[] hits = new SearchHit[(int)totalHits];
+        SearchHit[] hits = new SearchHit[(int) totalHits];
         SearchHits searchHits = new SearchHits(hits, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1);
         when(searchResponse.getHits()).thenReturn(searchHits);
 
@@ -520,7 +545,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         when(max.getValue()).thenReturn((double) latestTime);
         when(max.getName()).thenReturn("latest_time");
         aggs.add(max);
-        Aggregations aggregations = new Aggregations(aggs) {};
+        Aggregations aggregations = new Aggregations(aggs) {
+        };
         when(searchResponse.getAggregations()).thenReturn(aggregations);
         return searchResponse;
     }
@@ -541,7 +567,8 @@ public class ChunkedDataExtractorTests extends ESTestCase {
         when(max.getValue()).thenReturn(Double.POSITIVE_INFINITY);
         when(max.getName()).thenReturn("latest_time");
         aggs.add(max);
-        Aggregations aggregations = new Aggregations(aggs) {};
+        Aggregations aggregations = new Aggregations(aggs) {
+        };
         when(searchResponse.getAggregations()).thenReturn(aggregations);
         return searchResponse;
     }
@@ -551,9 +578,22 @@ public class ChunkedDataExtractorTests extends ESTestCase {
     }
 
     private ChunkedDataExtractorContext createContext(long start, long end, boolean hasAggregations, Long histogramInterval) {
-        return new ChunkedDataExtractorContext(jobId, timeField, indices, query, scrollSize, start, end, chunkSpan,
-            ChunkedDataExtractorFactory.newIdentityTimeAligner(), Collections.emptyMap(), hasAggregations, histogramInterval,
-            SearchRequest.DEFAULT_INDICES_OPTIONS, Collections.emptyMap());
+        return new ChunkedDataExtractorContext(
+            jobId,
+            timeField,
+            indices,
+            query,
+            scrollSize,
+            start,
+            end,
+            chunkSpan,
+            ChunkedDataExtractorFactory.newIdentityTimeAligner(),
+            Collections.emptyMap(),
+            hasAggregations,
+            histogramInterval,
+            SearchRequest.DEFAULT_INDICES_OPTIONS,
+            Collections.emptyMap()
+        );
     }
 
     private static class StubSubExtractor implements DataExtractor {

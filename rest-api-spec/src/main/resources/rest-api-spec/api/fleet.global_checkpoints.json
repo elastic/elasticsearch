@@ -1,10 +1,10 @@
 {
   "fleet.global_checkpoints":{
     "documentation":{
-      "url": null,
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/get-global-checkpoints.html",
       "description": "Returns the current global checkpoints for an index. This API is design for internal use by the fleet server project."
     },
-    "stability":"experimental",
+    "stability":"stable",
     "visibility":"public",
     "headers":{
       "accept": [ "application/json"],

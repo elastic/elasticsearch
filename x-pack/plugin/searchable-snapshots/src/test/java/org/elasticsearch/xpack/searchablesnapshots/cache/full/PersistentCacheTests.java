@@ -64,7 +64,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
 
     public void testCacheIndexWriter() throws Exception {
-        final NodeEnvironment.NodePath nodePath = nodeEnvironment.nodePath();
+        final NodeEnvironment.NodePath nodePath = randomFrom(nodeEnvironment.nodePaths());
 
         int docId = 0;
         final Map<String, Integer> liveDocs = new HashMap<>();
@@ -210,7 +210,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
             nodeEnvironment = newNodeEnvironment(
                 Settings.builder()
                     .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
-                    .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath())
+                    .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
                     .build()
             );
 

@@ -18,33 +18,37 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.transport.Transports;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 public class IndicesSegmentResponse extends BroadcastResponse {
 
     private final ShardSegments[] shards;
 
-    private Map<String, IndexSegments> indicesSegments;
+    private volatile Map<String, IndexSegments> indicesSegments;
 
     IndicesSegmentResponse(StreamInput in) throws IOException {
         super(in);
         shards = in.readArray(ShardSegments::new, ShardSegments[]::new);
     }
 
-    IndicesSegmentResponse(ShardSegments[] shards, int totalShards, int successfulShards, int failedShards,
-                           List<DefaultShardOperationFailedException> shardFailures) {
+    IndicesSegmentResponse(
+        ShardSegments[] shards,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> shardFailures
+    ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
     }
@@ -55,19 +59,12 @@ public class IndicesSegmentResponse extends BroadcastResponse {
         }
         Map<String, IndexSegments> indicesSegments = new HashMap<>();
 
-        Set<String> indices = new HashSet<>();
+        final Map<String, List<ShardSegments>> segmentsByIndex = new HashMap<>();
         for (ShardSegments shard : shards) {
-            indices.add(shard.getShardRouting().getIndexName());
+            segmentsByIndex.computeIfAbsent(shard.getShardRouting().getIndexName(), k -> new ArrayList<>()).add(shard);
         }
-
-        for (String indexName : indices) {
-            List<ShardSegments> shards = new ArrayList<>();
-            for (ShardSegments shard : this.shards) {
-                if (shard.getShardRouting().getIndexName().equals(indexName)) {
-                    shards.add(shard);
-                }
-            }
-            indicesSegments.put(indexName, new IndexSegments(indexName, shards.toArray(new ShardSegments[shards.size()])));
+        for (Map.Entry<String, List<ShardSegments>> entry : segmentsByIndex.entrySet()) {
+            indicesSegments.put(entry.getKey(), new IndexSegments(entry.getKey(), entry.getValue()));
         }
         this.indicesSegments = indicesSegments;
         return indicesSegments;
@@ -113,7 +110,9 @@ public class IndicesSegmentResponse extends BroadcastResponse {
                         builder.field(Fields.NUM_DOCS, segment.getNumDocs());
                         builder.field(Fields.DELETED_DOCS, segment.getDeletedDocs());
                         builder.humanReadableField(Fields.SIZE_IN_BYTES, Fields.SIZE, segment.getSize());
-                        builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, new ByteSizeValue(segment.getMemoryInBytes()));
+                        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+                            builder.humanReadableField(Fields.MEMORY_IN_BYTES, Fields.MEMORY, new ByteSizeValue(0));
+                        }
                         builder.field(Fields.COMMITTED, segment.isCommitted());
                         builder.field(Fields.SEARCH, segment.isSearch());
                         if (segment.getVersion() != null) {
@@ -127,13 +126,6 @@ public class IndicesSegmentResponse extends BroadcastResponse {
                         }
                         if (segment.getSegmentSort() != null) {
                             toXContent(builder, segment.getSegmentSort());
-                        }
-                        if (segment.ramTree != null) {
-                            builder.startArray(Fields.RAM_TREE);
-                            for (Accountable child : segment.ramTree.getChildResources()) {
-                                toXContent(builder, child);
-                            }
-                            builder.endArray();
                         }
                         if (segment.attributes != null && segment.attributes.isEmpty() == false) {
                             builder.field("attributes", segment.attributes);
@@ -160,11 +152,9 @@ public class IndicesSegmentResponse extends BroadcastResponse {
             builder.startObject();
             builder.field("field", field.getField());
             if (field instanceof SortedNumericSortField) {
-                builder.field("mode", ((SortedNumericSortField) field).getSelector()
-                    .toString().toLowerCase(Locale.ROOT));
+                builder.field("mode", ((SortedNumericSortField) field).getSelector().toString().toLowerCase(Locale.ROOT));
             } else if (field instanceof SortedSetSortField) {
-                builder.field("mode", ((SortedSetSortField) field).getSelector()
-                    .toString().toLowerCase(Locale.ROOT));
+                builder.field("mode", ((SortedSetSortField) field).getSelector().toString().toLowerCase(Locale.ROOT));
             }
             if (field.getMissingValue() != null) {
                 builder.field("missing", field.getMissingValue().toString());

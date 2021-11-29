@@ -29,7 +29,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -41,17 +40,30 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastAction<
-    AnalyzeIndexDiskUsageRequest, AnalyzeIndexDiskUsageResponse,
-    AnalyzeDiskUsageShardRequest, AnalyzeDiskUsageShardResponse> {
+    AnalyzeIndexDiskUsageRequest,
+    AnalyzeIndexDiskUsageResponse,
+    AnalyzeDiskUsageShardRequest,
+    AnalyzeDiskUsageShardResponse> {
     private final IndicesService indicesService;
 
     @Inject
-    public TransportAnalyzeIndexDiskUsageAction(ClusterService clusterService,
-                                                TransportService transportService,
-                                                IndicesService indexServices, ActionFilters actionFilters,
-                                                IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(AnalyzeIndexDiskUsageAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-            AnalyzeIndexDiskUsageRequest::new, AnalyzeDiskUsageShardRequest::new, ThreadPool.Names.ANALYZE);
+    public TransportAnalyzeIndexDiskUsageAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indexServices,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            AnalyzeIndexDiskUsageAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            AnalyzeIndexDiskUsageRequest::new,
+            AnalyzeDiskUsageShardRequest::new,
+            ThreadPool.Names.ANALYZE
+        );
         this.indicesService = indexServices;
     }
 
@@ -75,12 +87,7 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
         final ShardId shardId = request.shardId();
         assert task instanceof CancellableTask : "AnalyzeDiskUsageShardRequest must create a cancellable task";
         final CancellableTask cancellableTask = (CancellableTask) task;
-        final Runnable checkForCancellation = () -> {
-            if (cancellableTask.isCancelled()) {
-                final String reason = cancellableTask.getReasonCancelled();
-                throw new TaskCancelledException(reason != null ? reason : "Task was cancelled");
-            }
-        };
+        final Runnable checkForCancellation = cancellableTask::ensureNotCancelled;
         final IndexShard shard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
         try (Engine.IndexCommitRef commitRef = shard.acquireLastIndexCommit(request.flush)) {
             final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(shardId, commitRef.getIndexCommit(), checkForCancellation);
@@ -89,9 +96,11 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
     }
 
     @Override
-    protected AnalyzeIndexDiskUsageResponse newResponse(AnalyzeIndexDiskUsageRequest request,
-                                                        AtomicReferenceArray<?> shardsResponses,
-                                                        ClusterState clusterState) {
+    protected AnalyzeIndexDiskUsageResponse newResponse(
+        AnalyzeIndexDiskUsageRequest request,
+        AtomicReferenceArray<?> shardsResponses,
+        ClusterState clusterState
+    ) {
         int successfulShards = 0;
         final List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
         final Map<String, IndexDiskUsageStats> combined = new HashMap<>();
@@ -108,20 +117,16 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
                 throw new IllegalStateException("unknown response [" + r + "]");
             }
         }
-        return new AnalyzeIndexDiskUsageResponse(
-            shardsResponses.length(),
-            successfulShards,
-            shardFailures.size(),
-            shardFailures,
-            combined);
+        return new AnalyzeIndexDiskUsageResponse(shardsResponses.length(), successfulShards, shardFailures.size(), shardFailures, combined);
     }
 
     @Override
-    protected GroupShardsIterator<ShardIterator> shards(ClusterState clusterState,
-                                                        AnalyzeIndexDiskUsageRequest request,
-                                                        String[] concreteIndices) {
-        final GroupShardsIterator<ShardIterator> groups = clusterService
-            .operationRouting()
+    protected GroupShardsIterator<ShardIterator> shards(
+        ClusterState clusterState,
+        AnalyzeIndexDiskUsageRequest request,
+        String[] concreteIndices
+    ) {
+        final GroupShardsIterator<ShardIterator> groups = clusterService.operationRouting()
             .searchShards(clusterState, concreteIndices, null, null);
         for (ShardIterator group : groups) {
             // fails fast if any non-active groups
@@ -138,8 +143,7 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, AnalyzeIndexDiskUsageRequest request,
-                                                      String[] concreteIndices) {
+    protected ClusterBlockException checkRequestBlock(ClusterState state, AnalyzeIndexDiskUsageRequest request, String[] concreteIndices) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 }

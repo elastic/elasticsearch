@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -68,9 +70,13 @@ public class RoutingAllocation {
     private final RoutingNodesChangedObserver nodesChangedObserver = new RoutingNodesChangedObserver();
     private final RestoreInProgressUpdater restoreInProgressUpdater = new RestoreInProgressUpdater();
     private final RoutingChangesObserver routingChangesObserver = new RoutingChangesObserver.DelegatingRoutingChangesObserver(
-        nodesChangedObserver, indexMetadataUpdater, restoreInProgressUpdater
+        nodesChangedObserver,
+        indexMetadataUpdater,
+        restoreInProgressUpdater
     );
 
+    private final Map<String, SingleNodeShutdownMetadata> nodeShutdowns;
+    private final Map<String, SingleNodeShutdownMetadata> nodeReplacementTargets;
 
     /**
      * Creates a new {@link RoutingAllocation}
@@ -79,8 +85,14 @@ public class RoutingAllocation {
      * @param clusterState cluster state before rerouting
      * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      */
-    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, ClusterState clusterState, ClusterInfo clusterInfo,
-                             SnapshotShardSizeInfo shardSizeInfo, long currentNanoTime) {
+    public RoutingAllocation(
+        AllocationDeciders deciders,
+        RoutingNodes routingNodes,
+        ClusterState clusterState,
+        ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo shardSizeInfo,
+        long currentNanoTime
+    ) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.metadata = clusterState.metadata();
@@ -90,6 +102,14 @@ public class RoutingAllocation {
         this.clusterInfo = clusterInfo;
         this.shardSizeInfo = shardSizeInfo;
         this.currentNanoTime = currentNanoTime;
+        this.nodeShutdowns = metadata.nodeShutdowns();
+        Map<String, SingleNodeShutdownMetadata> targetNameToShutdown = new HashMap<>();
+        for (SingleNodeShutdownMetadata shutdown : this.nodeShutdowns.values()) {
+            if (shutdown.getType() == SingleNodeShutdownMetadata.Type.REPLACE) {
+                targetNameToShutdown.put(shutdown.getTargetNodeName(), shutdown);
+            }
+        }
+        this.nodeReplacementTargets = Collections.unmodifiableMap(targetNameToShutdown);
     }
 
     /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */
@@ -145,8 +165,23 @@ public class RoutingAllocation {
         return shardSizeInfo;
     }
 
+    /**
+     * Returns the map of node id to shutdown metadata currently in the cluster
+     */
+    public Map<String, SingleNodeShutdownMetadata> nodeShutdowns() {
+        return this.nodeShutdowns;
+    }
+
+    /**
+     * Returns a map of target node name to replacement shutdown
+     */
+    public Map<String, SingleNodeShutdownMetadata> replacementTargetShutdowns() {
+        return this.nodeReplacementTargets;
+    }
+
+    @SuppressWarnings("unchecked")
     public <T extends ClusterState.Custom> T custom(String key) {
-        return (T)customs.get(key);
+        return (T) customs.get(key);
     }
 
     public ImmutableOpenMap<String, ClusterState.Custom> getCustoms() {

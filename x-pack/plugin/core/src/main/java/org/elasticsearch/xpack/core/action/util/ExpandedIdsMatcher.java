@@ -103,7 +103,7 @@ public final class ExpandedIdsMatcher {
      * matcher is removed from {@code requiredMatchers}.
      */
     public void filterMatchedIds(Collection<String> ids) {
-        for (String id: ids) {
+        for (String id : ids) {
             Iterator<IdMatcher> itr = requiredMatches.iterator();
             if (itr.hasNext() == false) {
                 break;
@@ -135,6 +135,48 @@ public final class ExpandedIdsMatcher {
      */
     public boolean isOnlyExact() {
         return onlyExact;
+    }
+
+    /**
+     * A simple matcher with one purpose to test whether an id
+     * matches a expression that may contain wildcards.
+     * Use the {@link #idMatches(String)} function to
+     * test if the given id is matched by any of the matchers.
+     *
+     * Unlike {@link ExpandedIdsMatcher} there is no
+     * allowNoMatchForWildcards logic and the matchers
+     * are not be removed once they have been matched.
+     */
+    public static class SimpleIdsMatcher {
+
+        private final LinkedList<IdMatcher> requiredMatches;
+
+        public SimpleIdsMatcher(String[] tokens) {
+            requiredMatches = new LinkedList<>();
+
+            if (Strings.isAllOrWildcard(tokens)) {
+                requiredMatches.add(new WildcardMatcher("*"));
+                return;
+            }
+
+            for (String token : tokens) {
+                if (Regex.isSimpleMatchPattern(token)) {
+                    requiredMatches.add(new WildcardMatcher(token));
+                } else {
+                    requiredMatches.add(new EqualsIdMatcher(token));
+                }
+            }
+        }
+
+        /**
+         * Do any of the matchers match {@code id}?
+         *
+         * @param id Id to test
+         * @return True if the given id is matched by any of the matchers
+         */
+        public boolean idMatches(String id) {
+            return requiredMatches.stream().anyMatch(idMatcher -> idMatcher.matches(id));
+        }
     }
 
     private abstract static class IdMatcher {

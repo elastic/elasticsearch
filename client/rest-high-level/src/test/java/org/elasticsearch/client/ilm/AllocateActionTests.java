@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -69,19 +69,31 @@ public class AllocateActionTests extends AbstractXContentTestCase<AllocateAction
         Map<String, String> include = randomBoolean() ? null : Collections.emptyMap();
         Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
         Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> new AllocateAction(null, include, exclude, require));
-        assertEquals("At least one of " + AllocateAction.INCLUDE_FIELD.getPreferredName() + ", "
-            + AllocateAction.EXCLUDE_FIELD.getPreferredName() + " or " + AllocateAction.REQUIRE_FIELD.getPreferredName()
-            + "must contain attributes for action " + AllocateAction.NAME, exception.getMessage());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AllocateAction(null, include, exclude, require)
+        );
+        assertEquals(
+            "At least one of "
+                + AllocateAction.INCLUDE_FIELD.getPreferredName()
+                + ", "
+                + AllocateAction.EXCLUDE_FIELD.getPreferredName()
+                + " or "
+                + AllocateAction.REQUIRE_FIELD.getPreferredName()
+                + "must contain attributes for action "
+                + AllocateAction.NAME,
+            exception.getMessage()
+        );
     }
 
     public void testInvalidNumberOfReplicas() {
         Map<String, String> include = randomMap(1, 5);
         Map<String, String> exclude = randomBoolean() ? null : Collections.emptyMap();
         Map<String, String> require = randomBoolean() ? null : Collections.emptyMap();
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> new AllocateAction(randomIntBetween(-1000, -1), include, exclude, require));
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AllocateAction(randomIntBetween(-1000, -1), include, exclude, require)
+        );
         assertEquals("[" + AllocateAction.NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0", exception.getMessage());
     }
 

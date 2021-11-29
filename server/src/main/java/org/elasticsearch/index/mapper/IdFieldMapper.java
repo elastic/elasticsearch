@@ -32,6 +32,8 @@ import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -64,7 +66,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_id";
 
     public static class Defaults {
-        public static final String NAME = IdFieldMapper.NAME;
 
         public static final FieldType FIELD_TYPE = new FieldType();
         public static final FieldType NESTED_FIELD_TYPE;
@@ -85,7 +86,9 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(c.isIdFieldDataEnabled()));
+    public static final IdFieldMapper NO_FIELD_DATA = new IdFieldMapper(() -> false);
+
+    public static final TypeParser PARSER = new FixedTypeParser(MappingParserContext::idFieldMapper);
 
     static final class IdFieldType extends TermBasedFieldType {
 
@@ -109,7 +112,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            return new StoredValueFetcher(context.lookup(), NAME);
         }
 
         @Override
@@ -138,25 +141,24 @@ public class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             if (fieldDataEnabled.getAsBoolean() == false) {
-                throw new IllegalArgumentException("Fielddata access on the _id field is disallowed, "
-                    + "you can re-enable it by updating the dynamic cluster setting: "
-                    + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey());
+                throw new IllegalArgumentException(
+                    "Fielddata access on the _id field is disallowed, "
+                        + "you can re-enable it by updating the dynamic cluster setting: "
+                        + IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()
+                );
             }
             final IndexFieldData.Builder fieldDataBuilder = new PagedBytesIndexFieldData.Builder(
                 name(),
                 TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
-                CoreValuesSourceType.KEYWORD);
+                CoreValuesSourceType.KEYWORD
+            );
             return new IndexFieldData.Builder() {
                 @Override
-                public IndexFieldData<?> build(
-                    IndexFieldDataCache cache,
-                    CircuitBreakerService breakerService
-                ) {
-                    deprecationLogger.deprecate(DeprecationCategory.AGGREGATIONS, "id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
-                    final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache,
-                        breakerService);
+                public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
+                    deprecationLogger.warn(DeprecationCategory.AGGREGATIONS, "id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
+                    final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache, breakerService);
                     return new IndexFieldData<>() {
                         @Override
                         public String getFieldName() {
@@ -180,15 +182,21 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
                         @Override
                         public SortField sortField(Object missingValue, MultiValueMode sortMode, Nested nested, boolean reverse) {
-                            XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue,
-                                sortMode, nested);
+                            XFieldComparatorSource source = new BytesRefFieldComparatorSource(this, missingValue, sortMode, nested);
                             return new SortField(getFieldName(), source, reverse);
                         }
 
                         @Override
-                        public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode,
-                                                            Nested nested, SortOrder sortOrder, DocValueFormat format,
-                                                            int bucketSize, BucketedSort.ExtraData extra) {
+                        public BucketedSort newBucketedSort(
+                            BigArrays bigArrays,
+                            Object missingValue,
+                            MultiValueMode sortMode,
+                            Nested nested,
+                            SortOrder sortOrder,
+                            DocValueFormat format,
+                            int bucketSize,
+                            BucketedSort.ExtraData extra
+                        ) {
                             throw new UnsupportedOperationException("can't sort on the [" + CONTENT_TYPE + "] field");
                         }
                     };
@@ -211,8 +219,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
             }
 
             @Override
-            public ScriptDocValues<?> getScriptValues() {
-                return new ScriptDocValues.Strings(getBytesValues());
+            public DocValuesField<?> getScriptField(String name) {
+                return new DelegateDocValuesField(new ScriptDocValues.Strings(getBytesValues()), name);
             }
 
             @Override
@@ -223,8 +231,9 @@ public class IdFieldMapper extends MetadataFieldMapper {
                     @Override
                     public BytesRef nextValue() throws IOException {
                         BytesRef encoded = inValues.nextValue();
-                        return new BytesRef(Uid.decodeId(
-                            Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)));
+                        return new BytesRef(
+                            Uid.decodeId(Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length))
+                        );
                     }
 
                     @Override
@@ -245,7 +254,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    private IdFieldMapper(BooleanSupplier fieldDataEnabled) {
+    public IdFieldMapper(BooleanSupplier fieldDataEnabled) {
         super(new IdFieldType(fieldDataEnabled), Lucene.KEYWORD_ANALYZER);
     }
 

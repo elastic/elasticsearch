@@ -14,12 +14,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -70,9 +70,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
 
     public static Optional<NodesShutdownMetadata> getShutdowns(final ClusterState state) {
         assert state != null : "cluster state should never be null";
-        return Optional.ofNullable(state)
-            .map(ClusterState::metadata)
-            .map(m -> m.custom(TYPE));
+        return Optional.ofNullable(state).map(ClusterState::metadata).map(m -> m.custom(TYPE));
     }
 
     private final Map<String, SingleNodeShutdownMetadata> nodes;
@@ -180,9 +178,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
 
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
-            TreeMap<String, SingleNodeShutdownMetadata> newNodes = new TreeMap<>(
-                nodesDiff.apply(((NodesShutdownMetadata) part).nodes)
-            );
+            TreeMap<String, SingleNodeShutdownMetadata> newNodes = new TreeMap<>(nodesDiff.apply(((NodesShutdownMetadata) part).nodes));
             return new NodesShutdownMetadata(newNodes);
         }
 

@@ -39,13 +39,14 @@ public class Netty4BadRequestIT extends ESRestTestCase {
         final Setting<ByteSizeValue> httpMaxInitialLineLength = HttpTransportSettings.SETTING_HTTP_MAX_INITIAL_LINE_LENGTH;
         final String key = httpMaxInitialLineLength.getKey().substring("http.".length());
         for (Map.Entry<String, Object> entry : map.entrySet()) {
-            @SuppressWarnings("unchecked") final Map<String, Object> settings =
-                    (Map<String, Object>)((Map<String, Object>)entry.getValue()).get("settings");
-                    final int maxIntialLineLength;
+            @SuppressWarnings("unchecked")
+            final Map<String, Object> settings = (Map<String, Object>) ((Map<String, Object>) entry.getValue()).get("settings");
+            final int maxIntialLineLength;
             if (settings.containsKey("http")) {
-                @SuppressWarnings("unchecked") final Map<String, Object> httpSettings = (Map<String, Object>)settings.get("http");
+                @SuppressWarnings("unchecked")
+                final Map<String, Object> httpSettings = (Map<String, Object>) settings.get("http");
                 if (httpSettings.containsKey(key)) {
-                    maxIntialLineLength = ByteSizeValue.parseBytesSizeValue((String)httpSettings.get(key), key).bytesAsInt();
+                    maxIntialLineLength = ByteSizeValue.parseBytesSizeValue((String) httpSettings.get(key), key).bytesAsInt();
                 } else {
                     maxIntialLineLength = httpMaxInitialLineLength.getDefault(Settings.EMPTY).bytesAsInt();
                 }
@@ -56,10 +57,10 @@ public class Netty4BadRequestIT extends ESRestTestCase {
         }
 
         final String path = "/" + new String(new byte[maxMaxInitialLineLength], Charset.forName("UTF-8")).replace('\0', 'a');
-        final ResponseException e =
-                expectThrows(
-                        ResponseException.class,
-                        () -> client().performRequest(new Request(randomFrom("GET", "POST", "PUT"), path)));
+        final ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(new Request(randomFrom("GET", "POST", "PUT"), path))
+        );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(BAD_REQUEST.getStatus()));
         assertThat(e, hasToString(containsString("too_long_frame_exception")));
         assertThat(e, hasToString(matches("An HTTP line is larger than \\d+ bytes")));
@@ -88,6 +89,6 @@ public class Netty4BadRequestIT extends ESRestTestCase {
         final ObjectPath objectPath = ObjectPath.createFromResponse(response);
         final Map<String, Object> map = objectPath.evaluate("error");
         assertThat(map.get("type"), equalTo("media_type_header_exception"));
-        assertThat(map.get("reason"), equalTo("Invalid media-type value on header [Content-Type]"));
+        assertThat(map.get("reason"), equalTo("Invalid media-type value on headers [Content-Type]"));
     }
 }

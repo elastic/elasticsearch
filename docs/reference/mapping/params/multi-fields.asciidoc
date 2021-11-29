@@ -58,10 +58,12 @@ GET my-index-000001/_search
 <2> The `city` field can be used for full text search.
 <3> The `city.raw` field can be used for sorting and aggregations
 
-NOTE: Multi-fields do not change the original `_source` field.
+You can add multi-fields to an existing field using the
+<<indices-put-mapping,update mapping API>>.
 
-TIP: New multi-fields can be added to existing
-fields using the <<indices-put-mapping,update mapping API>>.
+A multi-field mapping is completely separate from the parent field's mapping. A
+multi-field doesn't inherit any mapping options from its parent field.
+Multi-fields don't change the original `_source` field.
 
 ==== Multi-fields with multiple analyzers
 

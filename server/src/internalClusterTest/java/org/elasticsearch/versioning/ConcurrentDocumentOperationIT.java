@@ -24,8 +24,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
     public void testConcurrentOperationOnSameDoc() throws Exception {
         logger.info("--> create an index with 1 shard and max replicas based on nodes");
-        assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
+        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1)));
 
         logger.info("execute concurrent updates on the same doc");
         int numberOfUpdates = 100;
@@ -54,7 +53,7 @@ public class ConcurrentDocumentOperationIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh().execute().actionGet();
 
         logger.info("done indexing, check all have the same field value");
-        Map masterSource = client().prepareGet("test", "1").execute().actionGet().getSourceAsMap();
+        Map<String, Object> masterSource = client().prepareGet("test", "1").execute().actionGet().getSourceAsMap();
         for (int i = 0; i < (cluster().size() * 5); i++) {
             assertThat(client().prepareGet("test", "1").execute().actionGet().getSourceAsMap(), equalTo(masterSource));
         }

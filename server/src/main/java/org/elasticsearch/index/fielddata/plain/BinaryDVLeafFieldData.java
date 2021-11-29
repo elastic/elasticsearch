@@ -12,11 +12,12 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -44,8 +45,8 @@ public class BinaryDVLeafFieldData implements LeafFieldData {
     }
 
     @Override
-    public Strings getScriptValues() {
-        return new ScriptDocValues.Strings(getBytesValues());
+    public DocValuesField<?> getScriptField(String name) {
+        return new DelegateDocValuesField(new ScriptDocValues.Strings(getBytesValues()), name);
     }
 
     @Override

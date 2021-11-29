@@ -14,9 +14,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,6 +43,23 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
+    @SuppressWarnings("unchecked")
+    @Override
+    protected void deleteAllNodeShutdownMetadata() throws IOException {
+        Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
+        getShutdownStatus.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
+        Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
+        List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
+        List<String> nodeIds = nodesArray.stream()
+            .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
+            .collect(Collectors.toUnmodifiableList());
+        for (String nodeId : nodeIds) {
+            Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
+            deleteRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", OPERATOR_AUTH_HEADER));
+            assertOK(adminClient().performRequest(deleteRequest));
+        }
+    }
+
     public void testNonOperatorSuperuserWillFailToCallOperatorOnlyApiWhenOperatorPrivilegesIsEnabled() throws IOException {
         final Request postVotingConfigExclusionsRequest = new Request("POST", "_cluster/voting_config_exclusions?node_names=foo");
         final ResponseException responseException = expectThrows(
@@ -50,6 +68,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         );
         assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(responseException.getMessage(), containsString("Operator privileges are required for action"));
+        assertThat(responseException.getMessage(), containsString("because it requires operator privileges"));
     }
 
     public void testOperatorUserWillSucceedToCallOperatorOnlyApi() throws IOException {

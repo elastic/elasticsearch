@@ -8,24 +8,24 @@
 package org.elasticsearch.search.suggest.term;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.SortBy;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The suggestion responses corresponding with the suggestions in the request.
@@ -97,12 +97,12 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
     @Override
     protected Comparator<Option> sortComparator() {
         switch (sort) {
-        case SCORE:
-            return SCORE;
-        case FREQUENCY:
-            return FREQUENCY;
-        default:
-            throw new ElasticsearchException("Could not resolve comparator for sort key: [" + sort + "]");
+            case SCORE:
+                return SCORE;
+            case FREQUENCY:
+                return FREQUENCY;
+            default:
+                throw new ElasticsearchException("Could not resolve comparator for sort key: [" + sort + "]");
         }
     }
 
@@ -131,8 +131,7 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
 
     @Override
     public boolean equals(Object other) {
-        return super.equals(other)
-            && Objects.equals(sort, ((TermSuggestion) other).sort);
+        return super.equals(other) && Objects.equals(sort, ((TermSuggestion) other).sort);
     }
 
     @Override
@@ -224,13 +223,15 @@ public class TermSuggestion extends Suggestion<TermSuggestion.Entry> {
             }
 
             private static final ConstructingObjectParser<Option, Void> PARSER = new ConstructingObjectParser<>(
-                    "TermSuggestionOptionParser", true,
-                    args -> {
-                        Text text = new Text((String) args[0]);
-                        int freq = (Integer) args[1];
-                        float score = (Float) args[2];
-                        return new Option(text, freq, score);
-                    });
+                "TermSuggestionOptionParser",
+                true,
+                args -> {
+                    Text text = new Text((String) args[0]);
+                    int freq = (Integer) args[1];
+                    float score = (Float) args[2];
+                    return new Option(text, freq, score);
+                }
+            );
 
             static {
                 PARSER.declareString(constructorArg(), Suggestion.Entry.Option.TEXT);

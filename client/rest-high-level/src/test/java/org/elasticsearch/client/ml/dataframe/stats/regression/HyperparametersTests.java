@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.dataframe.stats.regression;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -23,7 +23,6 @@ public class HyperparametersTests extends AbstractXContentTestCase<Hyperparamete
     protected Hyperparameters doParseInstance(XContentParser parser) throws IOException {
         return Hyperparameters.PARSER.apply(parser, null);
     }
-
 
     @Override
     protected Hyperparameters createTestInstance() {

@@ -32,12 +32,12 @@ import org.elasticsearch.xpack.idp.saml.sp.WildcardServiceProviderResolver;
 import org.elasticsearch.xpack.idp.saml.support.SamlAuthenticationState;
 import org.elasticsearch.xpack.idp.saml.support.SamlFactory;
 import org.elasticsearch.xpack.idp.saml.test.IdpSamlTestCase;
-import org.joda.time.Duration;
 import org.mockito.Mockito;
 import org.opensaml.saml.saml2.core.StatusCode;
 import org.opensaml.security.x509.X509Credential;
 
 import java.net.URL;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Set;
@@ -45,7 +45,8 @@ import java.util.Set;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayWithSize;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -131,47 +132,66 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
         final ThreadContext threadContext = new ThreadContext(settings);
         final ThreadPool threadPool = mock(ThreadPool.class);
         final SecurityContext securityContext = new SecurityContext(settings, threadContext);
-        final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
+        final TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            null,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
         final ActionFilters actionFilters = mock(ActionFilters.class);
         final Environment env = TestEnvironment.newEnvironment(settings);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        new Authentication(new User("saml_service_account", "saml_service_role"),
+        new Authentication(
+            new User("saml_service_account", "saml_service_role"),
             new Authentication.RealmRef("default_native", "native", "node_name"),
-            new Authentication.RealmRef("default_native", "native", "node_name"))
-            .writeToContext(threadContext);
+            new Authentication.RealmRef("default_native", "native", "node_name")
+        ).writeToContext(threadContext);
         if (withSecondaryAuth) {
-            new SecondaryAuthentication(securityContext,
+            new SecondaryAuthentication(
+                securityContext,
                 new Authentication(
-                    new User("saml_enduser", new String[]{"saml_enduser_role"}, "Saml Enduser", "samlenduser@elastic.co",
-                        new HashMap<>(), true),
+                    new User(
+                        "saml_enduser",
+                        new String[] { "saml_enduser_role" },
+                        "Saml Enduser",
+                        "samlenduser@elastic.co",
+                        new HashMap<>(),
+                        true
+                    ),
                     new Authentication.RealmRef("_es_api_key", "_es_api_key", "node_name"),
-                    new Authentication.RealmRef("_es_api_key", "_es_api_key", "node_name")))
-                .writeToContext(threadContext);
+                    new Authentication.RealmRef("_es_api_key", "_es_api_key", "node_name")
+                )
+            ).writeToContext(threadContext);
         }
 
         final SamlServiceProviderResolver serviceResolver = Mockito.mock(SamlServiceProviderResolver.class);
         final WildcardServiceProviderResolver wildcardResolver = Mockito.mock(WildcardServiceProviderResolver.class);
-        final CloudServiceProvider serviceProvider = new CloudServiceProvider("https://sp.some.org",
+        final CloudServiceProvider serviceProvider = new CloudServiceProvider(
+            "https://sp.some.org",
             "test sp",
             true,
             new URL("https://sp.some.org/api/security/v1/saml"),
             TRANSIENT,
-            Duration.standardMinutes(5),
+            Duration.ofMinutes(5),
             null,
             new SamlServiceProvider.AttributeNames(
                 "https://saml.elasticsearch.org/attributes/principal",
                 "https://saml.elasticsearch.org/attributes/name",
                 "https://saml.elasticsearch.org/attributes/email",
-                "https://saml.elasticsearch.org/attributes/roles"),
-            null, false, false);
+                "https://saml.elasticsearch.org/attributes/roles"
+            ),
+            null,
+            false,
+            false
+        );
         mockRegisteredServiceProvider(serviceResolver, "https://sp.some.org", serviceProvider);
         mockRegisteredServiceProvider(serviceResolver, "https://sp2.other.org", null);
-        final ServiceProviderDefaults defaults = new ServiceProviderDefaults(
-            "elastic-cloud", TRANSIENT, Duration.standardMinutes(15));
+        final ServiceProviderDefaults defaults = new ServiceProviderDefaults("elastic-cloud", TRANSIENT, Duration.ofMinutes(15));
         final X509Credential signingCredential = readCredentials("RSA", randomFrom(1024, 2048, 4096));
-        final SamlIdentityProvider idp = SamlIdentityProvider
-            .builder(serviceResolver, wildcardResolver)
+        final SamlIdentityProvider idp = SamlIdentityProvider.builder(serviceResolver, wildcardResolver)
             .fromSettings(env)
             .signingCredential(signingCredential)
             .serviceProviderDefaults(defaults)
@@ -179,24 +199,41 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
         final SamlFactory factory = new SamlFactory();
         final UserPrivilegeResolver privilegeResolver = Mockito.mock(UserPrivilegeResolver.class);
         doAnswer(inv -> {
-            final Object[] args = inv.getArguments();
-            assertThat(args, arrayWithSize(2));
-            ActionListener<UserPrivilegeResolver.UserPrivileges> listener
-                = (ActionListener<UserPrivilegeResolver.UserPrivileges>) args[args.length - 1];
+            assertThat(inv.getArguments(), arrayWithSize(2));
+            ActionListener<UserPrivilegeResolver.UserPrivileges> listener = inv.getArgument(1);
             final UserPrivilegeResolver.UserPrivileges privileges = new UserPrivilegeResolver.UserPrivileges(
-                "saml_enduser", true, Set.of(generateRandomStringArray(5, 8, false, false))
+                "saml_enduser",
+                true,
+                Set.of(generateRandomStringArray(5, 8, false, false))
             );
             listener.onResponse(privileges);
             return null;
-        }).when(privilegeResolver).resolve(any(ServiceProviderPrivileges.class), any(ActionListener.class));
-        return new TransportSamlInitiateSingleSignOnAction(transportService, actionFilters, securityContext,
-            idp, factory, privilegeResolver);
+        }).when(privilegeResolver).resolve(nullable(ServiceProviderPrivileges.class), any());
+        return new TransportSamlInitiateSingleSignOnAction(
+            transportService,
+            actionFilters,
+            securityContext,
+            idp,
+            factory,
+            privilegeResolver
+        );
     }
 
     private void assertContainsAttributeWithValue(String message, String attribute, String value) {
-        assertThat(message, containsString("<saml2:Attribute FriendlyName=\"" + attribute + "\" Name=\"https://saml.elasticsearch" +
-            ".org/attributes/" + attribute + "\" NameFormat=\"urn:oasis:names:tc:SAML:2.0:attrname-format:uri\"><saml2:AttributeValue " +
-            "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:type=\"xsd:string\">" + value + "</saml2:AttributeValue></saml2" +
-            ":Attribute>"));
+        assertThat(
+            message,
+            containsString(
+                "<saml2:Attribute FriendlyName=\""
+                    + attribute
+                    + "\" Name=\"https://saml.elasticsearch"
+                    + ".org/attributes/"
+                    + attribute
+                    + "\" NameFormat=\"urn:oasis:names:tc:SAML:2.0:attrname-format:uri\"><saml2:AttributeValue "
+                    + "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xsi:type=\"xsd:string\">"
+                    + value
+                    + "</saml2:AttributeValue></saml2"
+                    + ":Attribute>"
+            )
+        );
     }
 }

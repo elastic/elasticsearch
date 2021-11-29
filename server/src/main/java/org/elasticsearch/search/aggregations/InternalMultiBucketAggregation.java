@@ -21,9 +21,10 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-public abstract class InternalMultiBucketAggregation<A extends InternalMultiBucketAggregation,
-            B extends InternalMultiBucketAggregation.InternalBucket>
-        extends InternalAggregation implements MultiBucketsAggregation {
+@SuppressWarnings("rawtypes")
+public abstract class InternalMultiBucketAggregation<
+    A extends InternalMultiBucketAggregation,
+    B extends InternalMultiBucketAggregation.InternalBucket> extends InternalAggregation implements MultiBucketsAggregation {
 
     public InternalMultiBucketAggregation(String name, Map<String, Object> metadata) {
         super(name, metadata);
@@ -119,7 +120,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
         if (agg instanceof MultiBucketsAggregation) {
             MultiBucketsAggregation multi = (MultiBucketsAggregation) agg;
             for (MultiBucketsAggregation.Bucket bucket : multi.getBuckets()) {
-                ++ size;
+                ++size;
                 for (Aggregation bucketAgg : bucket.getAggregations().asList()) {
                     size += countInnerBucket(bucketAgg);
                 }
@@ -139,7 +140,10 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
      */
     @Override
     public final InternalAggregation reducePipelines(
-            InternalAggregation reducedAggs, ReduceContext reduceContext, PipelineTree pipelineTree) {
+        InternalAggregation reducedAggs,
+        ReduceContext reduceContext,
+        PipelineTree pipelineTree
+    ) {
         assert reduceContext.isFinalReduce();
         InternalAggregation reduced = this;
         if (pipelineTree.hasSubTrees()) {
@@ -184,7 +188,7 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             List<InternalAggregation> aggs = new ArrayList<>();
             for (Aggregation agg : bucket.getAggregations()) {
                 PipelineTree subTree = pipelineTree.subTree(agg.getName());
-                aggs.add(((InternalAggregation)agg).reducePipelines((InternalAggregation)agg, reduceContext, subTree));
+                aggs.add(((InternalAggregation) agg).reducePipelines((InternalAggregation) agg, reduceContext, subTree));
             }
             reducedBuckets.add(createBucket(InternalAggregations.from(aggs), bucket));
         }
@@ -212,8 +216,9 @@ public abstract class InternalMultiBucketAggregation<A extends InternalMultiBuck
             }
             InternalAggregation aggregation = aggregations.get(aggName);
             if (aggregation == null) {
-                throw new InvalidAggregationPathException("Cannot find an aggregation named [" + aggName + "] in [" + containingAggName
-                        + "]");
+                throw new InvalidAggregationPathException(
+                    "Cannot find an aggregation named [" + aggName + "] in [" + containingAggName + "]"
+                );
             }
             return aggregation.getProperty(path.subList(1, path.size()));
         }

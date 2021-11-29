@@ -23,8 +23,9 @@ import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 
-import javax.inject.Inject;
 import java.util.Comparator;
+
+import javax.inject.Inject;
 
 /**
  * A plugin to manage getting and extracting distributions of Elasticsearch.

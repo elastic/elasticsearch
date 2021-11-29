@@ -10,17 +10,17 @@ package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.common.TimeUtil;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -56,18 +56,24 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         PARSER.declareObject(Builder::setSource, (p, c) -> DataFrameAnalyticsSource.fromXContent(p), SOURCE);
         PARSER.declareObject(Builder::setDest, (p, c) -> DataFrameAnalyticsDest.fromXContent(p), DEST);
         PARSER.declareObject(Builder::setAnalysis, (p, c) -> parseAnalysis(p), ANALYSIS);
-        PARSER.declareField(Builder::setAnalyzedFields,
+        PARSER.declareField(
+            Builder::setAnalyzedFields,
             (p, c) -> FetchSourceContext.fromXContent(p),
             ANALYZED_FIELDS,
-            ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
-        PARSER.declareField(Builder::setModelMemoryLimit,
+            ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING
+        );
+        PARSER.declareField(
+            Builder::setModelMemoryLimit,
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MODEL_MEMORY_LIMIT.getPreferredName()),
             MODEL_MEMORY_LIMIT,
-            ValueType.VALUE);
-        PARSER.declareField(Builder::setCreateTime,
+            ValueType.VALUE
+        );
+        PARSER.declareField(
+            Builder::setCreateTime,
             p -> TimeUtil.parseTimeFieldToInstant(p, CREATE_TIME.getPreferredName()),
             CREATE_TIME,
-            ValueType.VALUE);
+            ValueType.VALUE
+        );
         PARSER.declareString(Builder::setVersion, Version::fromString, VERSION);
         PARSER.declareBoolean(Builder::setAllowLazyStart, ALLOW_LAZY_START);
         PARSER.declareInt(Builder::setMaxNumThreads, MAX_NUM_THREADS);
@@ -93,11 +99,19 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
     private final Boolean allowLazyStart;
     private final Integer maxNumThreads;
 
-    private DataFrameAnalyticsConfig(@Nullable String id, @Nullable String description, @Nullable DataFrameAnalyticsSource source,
-                                     @Nullable DataFrameAnalyticsDest dest, @Nullable DataFrameAnalysis analysis,
-                                     @Nullable FetchSourceContext analyzedFields, @Nullable ByteSizeValue modelMemoryLimit,
-                                     @Nullable Instant createTime, @Nullable Version version, @Nullable Boolean allowLazyStart,
-                                     @Nullable Integer maxNumThreads) {
+    private DataFrameAnalyticsConfig(
+        @Nullable String id,
+        @Nullable String description,
+        @Nullable DataFrameAnalyticsSource source,
+        @Nullable DataFrameAnalyticsDest dest,
+        @Nullable DataFrameAnalysis analysis,
+        @Nullable FetchSourceContext analyzedFields,
+        @Nullable ByteSizeValue modelMemoryLimit,
+        @Nullable Instant createTime,
+        @Nullable Version version,
+        @Nullable Boolean allowLazyStart,
+        @Nullable Integer maxNumThreads
+    ) {
         this.id = id;
         this.description = description;
         this.source = source;
@@ -105,7 +119,8 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         this.analysis = analysis;
         this.analyzedFields = analyzedFields;
         this.modelMemoryLimit = modelMemoryLimit;
-        this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());;
+        this.createTime = createTime == null ? null : Instant.ofEpochMilli(createTime.toEpochMilli());
+        ;
         this.version = version;
         this.allowLazyStart = allowLazyStart;
         this.maxNumThreads = maxNumThreads;
@@ -171,10 +186,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
             builder.field(DEST.getPreferredName(), dest);
         }
         if (analysis != null) {
-            builder
-                .startObject(ANALYSIS.getPreferredName())
-                .field(analysis.getName(), analysis)
-                .endObject();
+            builder.startObject(ANALYSIS.getPreferredName()).field(analysis.getName(), analysis).endObject();
         }
         if (analyzedFields != null) {
             builder.field(ANALYZED_FIELDS.getPreferredName(), analyzedFields);
@@ -219,8 +231,19 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, description, source, dest, analysis, analyzedFields, modelMemoryLimit, createTime, version, allowLazyStart,
-            maxNumThreads);
+        return Objects.hash(
+            id,
+            description,
+            source,
+            dest,
+            analysis,
+            analyzedFields,
+            modelMemoryLimit,
+            createTime,
+            version,
+            allowLazyStart,
+            maxNumThreads
+        );
     }
 
     @Override
@@ -300,8 +323,19 @@ public class DataFrameAnalyticsConfig implements ToXContentObject {
         }
 
         public DataFrameAnalyticsConfig build() {
-            return new DataFrameAnalyticsConfig(id, description, source, dest, analysis, analyzedFields, modelMemoryLimit, createTime,
-                version, allowLazyStart, maxNumThreads);
+            return new DataFrameAnalyticsConfig(
+                id,
+                description,
+                source,
+                dest,
+                analysis,
+                analyzedFields,
+                modelMemoryLimit,
+                createTime,
+                version,
+                allowLazyStart,
+                maxNumThreads
+            );
         }
     }
 }

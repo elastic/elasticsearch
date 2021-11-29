@@ -22,12 +22,11 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,6 +38,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.util.List;
@@ -49,11 +49,11 @@ import java.util.Objects;
  * We use this to find out which node holds the latest shard version and which of them used to be a primary in order to allocate
  * shards after node or cluster restarts.
  */
-public class TransportNodesListGatewayStartedShards extends
-    TransportNodesAction<TransportNodesListGatewayStartedShards.Request,
-        TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
-        TransportNodesListGatewayStartedShards.NodeRequest,
-        TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
+public class TransportNodesListGatewayStartedShards extends TransportNodesAction<
+    TransportNodesListGatewayStartedShards.Request,
+    TransportNodesListGatewayStartedShards.NodesGatewayStartedShards,
+    TransportNodesListGatewayStartedShards.NodeRequest,
+    TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
     public static final ActionType<NodesGatewayStartedShards> TYPE = new ActionType<>(ACTION_NAME, NodesGatewayStartedShards::new);
@@ -64,12 +64,27 @@ public class TransportNodesListGatewayStartedShards extends
     private final NamedXContentRegistry namedXContentRegistry;
 
     @Inject
-    public TransportNodesListGatewayStartedShards(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                                  TransportService transportService, ActionFilters actionFilters,
-                                                  NodeEnvironment env, IndicesService indicesService,
-                                                  NamedXContentRegistry namedXContentRegistry) {
-        super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters,
-            Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STARTED, NodeGatewayStartedShards.class);
+    public TransportNodesListGatewayStartedShards(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        NodeEnvironment env,
+        IndicesService indicesService,
+        NamedXContentRegistry namedXContentRegistry
+    ) {
+        super(
+            ACTION_NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            Request::new,
+            NodeRequest::new,
+            ThreadPool.Names.FETCH_SHARD_STARTED,
+            NodeGatewayStartedShards.class
+        );
         this.settings = settings;
         this.nodeEnv = env;
         this.indicesService = indicesService;
@@ -82,13 +97,18 @@ public class TransportNodesListGatewayStartedShards extends
     }
 
     @Override
-    protected NodeGatewayStartedShards newNodeResponse(StreamInput in) throws IOException {
-        return new NodeGatewayStartedShards(in);
+    protected NodeGatewayStartedShards newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
+        final NodeGatewayStartedShards response = new NodeGatewayStartedShards(in, node);
+        assert response.getNode() == node;
+        return response;
     }
 
     @Override
-    protected NodesGatewayStartedShards newResponse(Request request,
-                                                    List<NodeGatewayStartedShards> responses, List<FailedNodeException> failures) {
+    protected NodesGatewayStartedShards newResponse(
+        Request request,
+        List<NodeGatewayStartedShards> responses,
+        List<FailedNodeException> failures
+    ) {
         return new NodesGatewayStartedShards(clusterService.getClusterName(), responses, failures);
     }
 
@@ -97,8 +117,11 @@ public class TransportNodesListGatewayStartedShards extends
         try {
             final ShardId shardId = request.getShardId();
             logger.trace("{} loading local shard state info", shardId);
-            ShardStateMetadata shardStateMetadata = ShardStateMetadata.FORMAT.loadLatestState(logger, namedXContentRegistry,
-                nodeEnv.availableShardPath(request.shardId));
+            ShardStateMetadata shardStateMetadata = ShardStateMetadata.FORMAT.loadLatestState(
+                logger,
+                namedXContentRegistry,
+                nodeEnv.availableShardPaths(request.shardId)
+            );
             if (shardStateMetadata != null) {
                 if (indicesService.getShardOrNull(shardId) == null) {
                     final String customDataPath;
@@ -124,22 +147,27 @@ public class TransportNodesListGatewayStartedShards extends
                         Store.tryOpenIndex(shardPath.resolveIndex(), shardId, nodeEnv::shardLock, logger);
                     } catch (Exception exception) {
                         final ShardPath finalShardPath = shardPath;
-                        logger.trace(() -> new ParameterizedMessage(
+                        logger.trace(
+                            () -> new ParameterizedMessage(
                                 "{} can't open index for shard [{}] in path [{}]",
                                 shardId,
                                 shardStateMetadata,
-                                (finalShardPath != null) ? finalShardPath.resolveIndex() : ""),
-                            exception);
-                        String allocationId = shardStateMetadata.allocationId != null ?
-                            shardStateMetadata.allocationId.getId() : null;
-                        return new NodeGatewayStartedShards(clusterService.localNode(), allocationId, shardStateMetadata.primary,
-                            exception);
+                                (finalShardPath != null) ? finalShardPath.resolveIndex() : ""
+                            ),
+                            exception
+                        );
+                        String allocationId = shardStateMetadata.allocationId != null ? shardStateMetadata.allocationId.getId() : null;
+                        return new NodeGatewayStartedShards(
+                            clusterService.localNode(),
+                            allocationId,
+                            shardStateMetadata.primary,
+                            exception
+                        );
                     }
                 }
 
                 logger.debug("{} shard state info found: [{}]", shardId, shardStateMetadata);
-                String allocationId = shardStateMetadata.allocationId != null ?
-                    shardStateMetadata.allocationId.getId() : null;
+                String allocationId = shardStateMetadata.allocationId != null ? shardStateMetadata.allocationId.getId() : null;
                 return new NodeGatewayStartedShards(clusterService.localNode(), allocationId, shardStateMetadata.primary);
             }
             logger.trace("{} no local shard info found", shardId);
@@ -201,8 +229,11 @@ public class TransportNodesListGatewayStartedShards extends
             super(in);
         }
 
-        public NodesGatewayStartedShards(ClusterName clusterName, List<NodeGatewayStartedShards> nodes,
-                                         List<FailedNodeException> failures) {
+        public NodesGatewayStartedShards(
+            ClusterName clusterName,
+            List<NodeGatewayStartedShards> nodes,
+            List<FailedNodeException> failures
+        ) {
             super(clusterName, nodes, failures);
         }
 
@@ -216,7 +247,6 @@ public class TransportNodesListGatewayStartedShards extends
             out.writeList(nodes);
         }
     }
-
 
     public static class NodeRequest extends TransportRequest {
 
@@ -271,7 +301,11 @@ public class TransportNodesListGatewayStartedShards extends
         private final Exception storeException;
 
         public NodeGatewayStartedShards(StreamInput in) throws IOException {
-            super(in);
+            this(in, null);
+        }
+
+        public NodeGatewayStartedShards(StreamInput in, DiscoveryNode node) throws IOException {
+            super(in, node);
             allocationId = in.readOptionalString();
             primary = in.readBoolean();
             if (in.readBoolean()) {
@@ -328,7 +362,8 @@ public class TransportNodesListGatewayStartedShards extends
 
             NodeGatewayStartedShards that = (NodeGatewayStartedShards) o;
 
-            return primary == that.primary && Objects.equals(allocationId, that.allocationId)
+            return primary == that.primary
+                && Objects.equals(allocationId, that.allocationId)
                 && Objects.equals(storeException, that.storeException);
         }
 
@@ -343,9 +378,7 @@ public class TransportNodesListGatewayStartedShards extends
         @Override
         public String toString() {
             StringBuilder buf = new StringBuilder();
-            buf.append("NodeGatewayStartedShards[")
-               .append("allocationId=").append(allocationId)
-               .append(",primary=").append(primary);
+            buf.append("NodeGatewayStartedShards[").append("allocationId=").append(allocationId).append(",primary=").append(primary);
             if (storeException != null) {
                 buf.append(",storeException=").append(storeException);
             }

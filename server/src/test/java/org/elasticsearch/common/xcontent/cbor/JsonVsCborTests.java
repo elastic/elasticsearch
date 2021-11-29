@@ -9,12 +9,13 @@
 package org.elasticsearch.common.xcontent.cbor;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentGenerator;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentGenerator;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.cbor.CborXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -51,8 +52,10 @@ public class JsonVsCborTests extends ESTestCase {
 
         xsonGen.close();
         jsonGen.close();
-        try (XContentParser json0sParser = createParser(JsonXContent.jsonXContent, jsonOs.bytes());
-             XContentParser xson0sParser = createParser(CborXContent.cborXContent, xsonOs.bytes())) {
+        try (
+            XContentParser json0sParser = createParser(JsonXContent.jsonXContent, jsonOs.bytes());
+            XContentParser xson0sParser = createParser(CborXContent.cborXContent, xsonOs.bytes())
+        ) {
             verifySameTokens(json0sParser, xson0sParser);
         }
     }

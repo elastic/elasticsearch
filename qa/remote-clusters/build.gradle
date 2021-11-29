@@ -49,23 +49,23 @@ tasks.named("preProcessFixture").configure {
   doLast {
     // tests expect to have an empty repo
     project.delete(
-      "${buildDir}/repo",
-      "${buildDir}/oss-repo"
+      "${testFixturesDir}/repo",
+      "${testFixturesDir}/oss-repo"
     )
     createAndSetWritable(
-      "${buildDir}/repo",
-      "${buildDir}/oss-repo",
-      "${buildDir}/logs/default-1",
-      "${buildDir}/logs/default-2",
-      "${buildDir}/logs/oss-1",
-      "${buildDir}/logs/oss-2"
+      "${testFixturesDir}/repo",
+      "${testFixturesDir}/oss-repo",
+      "${testFixturesDir}/logs/default-1",
+      "${testFixturesDir}/logs/default-2",
+      "${testFixturesDir}/logs/oss-1",
+      "${testFixturesDir}/logs/oss-2"
     )
   }
 }
 
 dockerCompose {
   tcpPortsToIgnoreWhenWaiting = [9600, 9601]
-  if ('default'.equalsIgnoreCase(System.getProperty('tests.distribution', 'default'))) {
+  if ('default'.equalsIgnoreCase(providers.systemProperty('tests.distribution').forUseAtConfigurationTime().getOrElse('default'))) {
     useComposeFiles = ['docker-compose.yml']
   } else {
     useComposeFiles = ['docker-compose-oss.yml']

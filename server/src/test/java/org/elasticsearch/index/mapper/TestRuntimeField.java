@@ -9,14 +9,18 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.stream.Stream;
 
 public final class TestRuntimeField implements RuntimeField {
+
+    public static final String CONTENT_TYPE = "test-composite";
+
     private final String name;
     private final Collection<MappedFieldType> subfields;
 
@@ -35,13 +39,16 @@ public final class TestRuntimeField implements RuntimeField {
     }
 
     @Override
-    public Collection<MappedFieldType> asMappedFieldTypes() {
-        return subfields;
+    public Stream<MappedFieldType> asMappedFieldTypes() {
+        return subfields.stream();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        throw new UnsupportedOperationException();
+        builder.startObject(name);
+        builder.field("type", CONTENT_TYPE);
+        builder.endObject();
+        return builder;
     }
 
     public static class TestRuntimeFieldType extends MappedFieldType {

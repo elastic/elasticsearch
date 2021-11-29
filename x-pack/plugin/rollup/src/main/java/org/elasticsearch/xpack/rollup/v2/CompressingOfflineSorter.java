@@ -31,11 +31,8 @@ import java.util.zip.InflaterInputStream;
  * An {@link OfflineSorter} that compresses the values using a {@link Deflater}.
  */
 class CompressingOfflineSorter extends OfflineSorter {
-    CompressingOfflineSorter(Directory dir,
-                             String tempFileNamePrefix,
-                             Comparator<BytesRef> comparator,
-                             int ramBufferSizeMB) {
-        super(dir, tempFileNamePrefix, comparator, OfflineSorter.BufferSize.megabytes(ramBufferSizeMB/2), 2, -1, null, 1);
+    CompressingOfflineSorter(Directory dir, String tempFileNamePrefix, Comparator<BytesRef> comparator, int ramBufferSizeMB) {
+        super(dir, tempFileNamePrefix, comparator, OfflineSorter.BufferSize.megabytes(ramBufferSizeMB / 2), 2, -1, null, 1);
     }
 
     static class Writer extends ByteSequencesWriter {

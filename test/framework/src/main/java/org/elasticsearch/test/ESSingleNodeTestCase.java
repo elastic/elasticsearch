@@ -24,10 +24,8 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -45,6 +43,8 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -82,13 +82,15 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         // SERVICE_UNAVAILABLE/1/state not recovered / initialized block
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
         assertFalse(clusterHealthResponse.isTimedOut());
-        client().admin().indices()
+        client().admin()
+            .indices()
             .preparePutTemplate("one_shard_index_template")
             .setPatterns(Collections.singletonList("*"))
             .setOrder(0)
-            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)).get();
-        client().admin().indices()
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+            .get();
+        client().admin()
+            .indices()
             .preparePutTemplate("random-soft-deletes-template")
             .setPatterns(Collections.singletonList("*"))
             .setOrder(0)
@@ -108,7 +110,7 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        //the seed has to be created regardless of whether it will be used or not, for repeatability
+        // the seed has to be created regardless of whether it will be used or not, for repeatability
         long seed = random().nextLong();
         // Create the node lazily, on the first test. This is ok because we do not randomize any settings,
         // only the cluster name. This allows us to have overridden properties for plugins and the version to use.
@@ -126,25 +128,34 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertThat(searchService.getOpenScrollContexts(), equalTo(0));
         super.tearDown();
         assertAcked(
-            client().admin().indices().prepareDelete("*")
-                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-                .get());
+            client().admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN).get()
+        );
         Metadata metadata = client().admin().cluster().prepareState().get().getState().getMetadata();
-        assertThat("test leaves persistent cluster metadata behind: " + metadata.persistentSettings().keySet(),
-                metadata.persistentSettings().size(), equalTo(0));
-        assertThat("test leaves transient cluster metadata behind: " + metadata.transientSettings().keySet(),
-                metadata.transientSettings().size(), equalTo(0));
-        GetIndexResponse indices =
-            client().admin().indices().prepareGetIndex()
-                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-                .addIndices("*")
-                .get();
-        assertThat("test leaves indices that were not deleted: " + Strings.arrayToCommaDelimitedString(indices.indices()),
-            indices.indices(), equalTo(Strings.EMPTY_ARRAY));
+        assertThat(
+            "test leaves persistent cluster metadata behind: " + metadata.persistentSettings().keySet(),
+            metadata.persistentSettings().size(),
+            equalTo(0)
+        );
+        assertThat(
+            "test leaves transient cluster metadata behind: " + metadata.transientSettings().keySet(),
+            metadata.transientSettings().size(),
+            equalTo(0)
+        );
+        GetIndexResponse indices = client().admin()
+            .indices()
+            .prepareGetIndex()
+            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+            .addIndices("*")
+            .get();
+        assertThat(
+            "test leaves indices that were not deleted: " + Strings.arrayToCommaDelimitedString(indices.indices()),
+            indices.indices(),
+            equalTo(Strings.EMPTY_ARRAY)
+        );
         if (resetNodeAfterTest()) {
             assert NODE != null;
             stopNode();
-            //the seed can be created within this if as it will either be executed before every test method or will never be.
+            // the seed can be created within this if as it will either be executed before every test method or will never be.
             startNode(random().nextLong());
         }
     }
@@ -192,10 +203,13 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     @Override
     protected List<String> filteredWarnings() {
-        return Stream.concat(super.filteredWarnings().stream(),
-            List.of("[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-                    "See the breaking changes documentation for the next major version.").stream())
-            .collect(Collectors.toList());
+        return Stream.concat(
+            super.filteredWarnings().stream(),
+            List.of(
+                "[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release! "
+                    + "See the breaking changes documentation for the next major version."
+            ).stream()
+        ).collect(Collectors.toList());
     }
 
     private Node newNode() {
@@ -311,9 +325,12 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         assertAcked(createIndexRequestBuilder.get());
         // Wait for the index to be allocated so that cluster state updates don't override
         // changes that would have been done locally
-        ClusterHealthResponse health = client().admin().cluster()
-                .health(Requests.clusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID)
-                        .waitForNoRelocatingShards(true)).actionGet();
+        ClusterHealthResponse health = client().admin()
+            .cluster()
+            .health(
+                Requests.clusterHealthRequest(index).waitForYellowStatus().waitForEvents(Priority.LANGUID).waitForNoRelocatingShards(true)
+            )
+            .actionGet();
         assertThat(health.getStatus(), lessThanOrEqualTo(ClusterHealthStatus.YELLOW));
         assertThat("Cluster must be a single node cluster", health.getNumberOfDataNodes(), equalTo(1));
         IndicesService instanceFromNode = getInstanceFromNode(IndicesService.class);
@@ -351,12 +368,22 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
      * @param timeout time out value to set on {@link org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest}
      */
     public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
-        ClusterHealthResponse actionGet = client().admin().cluster()
-                .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID)
-                        .waitForNoRelocatingShards(true)).actionGet();
+        ClusterHealthResponse actionGet = client().admin()
+            .cluster()
+            .health(
+                Requests.clusterHealthRequest(indices)
+                    .timeout(timeout)
+                    .waitForGreenStatus()
+                    .waitForEvents(Priority.LANGUID)
+                    .waitForNoRelocatingShards(true)
+            )
+            .actionGet();
         if (actionGet.isTimedOut()) {
-            logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState(),
-                client().admin().cluster().preparePendingClusterTasks().get());
+            logger.info(
+                "ensureGreen timed out, cluster state:\n{}\n{}",
+                client().admin().cluster().prepareState().get().getState(),
+                client().admin().cluster().preparePendingClusterTasks().get()
+            );
             assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
         }
         assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -372,7 +399,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     protected boolean forbidPrivateIndexSettings() {
         return true;
     }
-
 
     /**
      * waits until all shard initialization is completed.

@@ -1,5 +1,5 @@
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   name 'operator-privileges-test'
@@ -23,7 +23,7 @@ tasks.named("javaRestTest").configure {
   systemProperty 'tests.path.repo', repoDir
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 3
 

@@ -10,17 +10,17 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -45,10 +45,7 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
         public static final ParseField DATAFEED_CONFIG = new ParseField("datafeed_config");
         public static final ParseField JOB_CONFIG = new ParseField("job_config");
 
-        private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(
-            "preview_datafeed_action",
-            Request.Builder::new
-        );
+        private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("preview_datafeed_action", Request.Builder::new);
         static {
             PARSER.declareObject(Builder::setDatafeedBuilder, DatafeedConfig.STRICT_PARSER, DATAFEED_CONFIG);
             PARSER.declareObject(Builder::setJobBuilder, Job.STRICT_PARSER, JOB_CONFIG);
@@ -178,8 +175,19 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
                 }
                 if (jobBuilder != null) {
                     jobBuilder.setId("preview_job_id");
-                    if (datafeedBuilder == null) {
-                        throw new IllegalArgumentException("[datafeed_config] must be present when a [job_config] is provided");
+                    if (datafeedBuilder == null && jobBuilder.getDatafeedConfig() == null) {
+                        throw new IllegalArgumentException(
+                            "[datafeed_config] must be present when a [job_config.datafeed_config] is not present"
+                        );
+                    }
+                    if (datafeedBuilder != null && jobBuilder.getDatafeedConfig() != null) {
+                        throw new IllegalArgumentException(
+                            "[datafeed_config] must not be present when a [job_config.datafeed_config] is present"
+                        );
+                    }
+                    // If the datafeed_config has been provided via the jobBuilder, set it here for easier serialization and use
+                    if (jobBuilder.getDatafeedConfig() != null) {
+                        datafeedBuilder = jobBuilder.getDatafeedConfig().setJobId(jobBuilder.getId()).setId(jobBuilder.getId());
                     }
                 }
                 if (datafeedId != null && (datafeedBuilder != null || jobBuilder != null)) {
@@ -187,9 +195,9 @@ public class PreviewDatafeedAction extends ActionType<PreviewDatafeedAction.Resp
                         "[datafeed_id] cannot be supplied when either [job_config] or [datafeed_config] is present"
                     );
                 }
-                return datafeedId != null ?
-                    new Request(datafeedId) :
-                    new Request(datafeedBuilder == null ? null : datafeedBuilder.build(), jobBuilder);
+                return datafeedId != null
+                    ? new Request(datafeedId)
+                    : new Request(datafeedBuilder == null ? null : datafeedBuilder.build(), jobBuilder);
             }
         }
     }

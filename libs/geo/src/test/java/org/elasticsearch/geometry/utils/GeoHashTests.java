@@ -11,6 +11,11 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+
+import static org.elasticsearch.geometry.utils.Geohash.addNeighbors;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+
 /**
  * Tests for {@link Geohash}
  */
@@ -18,15 +23,12 @@ public class GeoHashTests extends ESTestCase {
     public void testGeohashAsLongRoutines() {
         final GeoPoint expected = new GeoPoint();
         final GeoPoint actual = new GeoPoint();
-        //Ensure that for all points at all supported levels of precision
+        // Ensure that for all points at all supported levels of precision
         // that the long encoding of a geohash is compatible with its
         // String based counterpart
-        for (double lat=-90;lat<90;lat++)
-        {
-            for (double lng=-180;lng<180;lng++)
-            {
-                for(int p=1;p<=12;p++)
-                {
+        for (double lat = -90; lat < 90; lat++) {
+            for (double lng = -180; lng < 180; lng++) {
+                for (int p = 1; p <= 12; p++) {
                     long geoAsLong = Geohash.longEncode(lng, lat, p);
 
                     // string encode from geohashlong encoded location
@@ -80,11 +82,11 @@ public class GeoHashTests extends ESTestCase {
             // Adding some random geohash characters at the end
             String extendedGeohash = geohash + randomGeohash(1, 10);
             GeoPoint actual = GeoPoint.fromGeohash(extendedGeohash);
-            assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]" , expected, actual);
+            assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]", expected, actual);
 
             Rectangle expectedBbox = Geohash.toBoundingBox(geohash);
             Rectangle actualBbox = Geohash.toBoundingBox(extendedGeohash);
-            assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]" , expectedBbox, actualBbox);
+            assertEquals("Additional data points above 12 should be ignored [" + extendedGeohash + "]", expectedBbox, actualBbox);
         }
     }
 
@@ -101,6 +103,28 @@ public class GeoHashTests extends ESTestCase {
 
         ex = expectThrows(IllegalArgumentException.class, () -> Geohash.mortonEncode(""));
         assertEquals("empty geohash", ex.getMessage());
+    }
+
+    public void testNeighbors() {
+        // Simple root case
+        assertThat(addNeighbors("7", new ArrayList<>()), containsInAnyOrder("4", "5", "6", "d", "e", "h", "k", "s"));
+
+        // Root cases (Outer cells)
+        assertThat(addNeighbors("0", new ArrayList<>()), containsInAnyOrder("1", "2", "3", "p", "r"));
+        assertThat(addNeighbors("b", new ArrayList<>()), containsInAnyOrder("8", "9", "c", "x", "z"));
+        assertThat(addNeighbors("p", new ArrayList<>()), containsInAnyOrder("n", "q", "r", "0", "2"));
+        assertThat(addNeighbors("z", new ArrayList<>()), containsInAnyOrder("8", "b", "w", "x", "y"));
+
+        // Root crossing dateline
+        assertThat(addNeighbors("2", new ArrayList<>()), containsInAnyOrder("0", "1", "3", "8", "9", "p", "r", "x"));
+        assertThat(addNeighbors("r", new ArrayList<>()), containsInAnyOrder("0", "2", "8", "n", "p", "q", "w", "x"));
+
+        // level1: simple case
+        assertThat(addNeighbors("dk", new ArrayList<>()), containsInAnyOrder("d5", "d7", "de", "dh", "dj", "dm", "ds", "dt"));
+
+        // Level1: crossing cells
+        assertThat(addNeighbors("d5", new ArrayList<>()), containsInAnyOrder("d4", "d6", "d7", "dh", "dk", "9f", "9g", "9u"));
+        assertThat(addNeighbors("d0", new ArrayList<>()), containsInAnyOrder("d1", "d2", "d3", "9b", "9c", "6p", "6r", "3z"));
     }
 
 }

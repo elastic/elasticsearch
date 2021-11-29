@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.test.MockTextTemplateEngine;
 import org.mockito.ArgumentCaptor;
@@ -38,7 +38,7 @@ public class EmailTemplateTests extends ESTestCase {
     public void testEmailTemplateParserSelfGenerated() throws Exception {
         TextTemplate from = randomFrom(new TextTemplate("from@from.com"), null);
         List<TextTemplate> addresses = new ArrayList<>();
-        for( int i = 0; i < randomIntBetween(1, 5); ++i){
+        for (int i = 0; i < randomIntBetween(1, 5); ++i) {
             addresses.add(new TextTemplate("address" + i + "@test.com"));
         }
         TextTemplate[] possibleList = addresses.toArray(new TextTemplate[addresses.size()]);
@@ -55,8 +55,17 @@ public class EmailTemplateTests extends ESTestCase {
         String htmlBody = "Templated Html Body <script>nefarious scripting</script>";
         String sanitizedHtmlBody = "Templated Html Body";
 
-        EmailTemplate emailTemplate = new EmailTemplate(from, replyTo, priority, to, cc, bcc, subjectTemplate, textBodyTemplate,
-                htmlBodyTemplate);
+        EmailTemplate emailTemplate = new EmailTemplate(
+            from,
+            replyTo,
+            priority,
+            to,
+            cc,
+            bcc,
+            subjectTemplate,
+            textBodyTemplate,
+            htmlBodyTemplate
+        );
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         emailTemplate.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -71,7 +80,7 @@ public class EmailTemplateTests extends ESTestCase {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else  {
+            } else {
                 assertThat(emailTemplateParser.handle(currentFieldName, parser), is(true));
             }
         }
@@ -103,24 +112,21 @@ public class EmailTemplateTests extends ESTestCase {
 
     public void testParsingMultipleEmailAddresses() throws Exception {
         EmailTemplate template = EmailTemplate.builder()
-                .from("sender@example.org")
-                .to("to1@example.org, to2@example.org")
-                .cc("cc1@example.org, cc2@example.org")
-                .bcc("bcc1@example.org, bcc2@example.org")
-                .textBody("blah")
-                .build();
+            .from("sender@example.org")
+            .to("to1@example.org, to2@example.org")
+            .cc("cc1@example.org, cc2@example.org")
+            .bcc("bcc1@example.org, bcc2@example.org")
+            .textBody("blah")
+            .build();
 
         Email email = template.render(new MockTextTemplateEngine(), emptyMap(), null, emptyMap()).id("foo").build();
 
         assertThat(email.to.size(), is(2));
-        assertThat(email.to, containsInAnyOrder(new Email.Address("to1@example.org"),
-                new Email.Address("to2@example.org")));
+        assertThat(email.to, containsInAnyOrder(new Email.Address("to1@example.org"), new Email.Address("to2@example.org")));
         assertThat(email.cc.size(), is(2));
-        assertThat(email.cc, containsInAnyOrder(new Email.Address("cc1@example.org"),
-                new Email.Address("cc2@example.org")));
+        assertThat(email.cc, containsInAnyOrder(new Email.Address("cc1@example.org"), new Email.Address("cc2@example.org")));
         assertThat(email.bcc.size(), is(2));
-        assertThat(email.bcc, containsInAnyOrder(new Email.Address("bcc1@example.org"),
-                new Email.Address("bcc2@example.org")));
+        assertThat(email.bcc, containsInAnyOrder(new Email.Address("bcc1@example.org"), new Email.Address("bcc2@example.org")));
     }
 
     public void testEmailValidation() {
@@ -156,8 +162,17 @@ public class EmailTemplateTests extends ESTestCase {
         String htmlBody = "Templated Html Body <script>nefarious scripting</script>";
         String sanitizedHtmlBody = "Templated Html Body";
 
-        EmailTemplate emailTemplate = new EmailTemplate(from, replyTo, priority, to, cc, bcc, subjectTemplate, textBodyTemplate,
-            htmlBodyTemplate);
+        EmailTemplate emailTemplate = new EmailTemplate(
+            from,
+            replyTo,
+            priority,
+            to,
+            cc,
+            bcc,
+            subjectTemplate,
+            textBodyTemplate,
+            htmlBodyTemplate
+        );
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         emailTemplate.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -184,21 +199,31 @@ public class EmailTemplateTests extends ESTestCase {
         when(htmlSanitizer.sanitize(htmlBody)).thenReturn(sanitizedHtmlBody);
         ArgumentCaptor<String> htmlSanitizeArguments = ArgumentCaptor.forClass(String.class);
 
-        //4 attachments, zero warning, one warning, two warnings, and one with html that should be stripped
+        // 4 attachments, zero warning, one warning, two warnings, and one with html that should be stripped
         Map<String, Attachment> attachments = Map.of(
-            "one", new Attachment.Bytes("one", "one", randomByteArrayOfLength(100), randomAlphaOfLength(5), false, Collections.emptySet()),
-            "two", new Attachment.Bytes("two", "two", randomByteArrayOfLength(100), randomAlphaOfLength(5), false, Set.of("warning0")),
-            "thr", new Attachment.Bytes("thr", "thr", randomByteArrayOfLength(100), randomAlphaOfLength(5), false,
-                Set.of("warning1", "warning2")),
-            "for", new Attachment.Bytes("for", "for", randomByteArrayOfLength(100), randomAlphaOfLength(5), false,
-                Set.of("<script>warning3</script>")));
+            "one",
+            new Attachment.Bytes("one", "one", randomByteArrayOfLength(100), randomAlphaOfLength(5), false, Collections.emptySet()),
+            "two",
+            new Attachment.Bytes("two", "two", randomByteArrayOfLength(100), randomAlphaOfLength(5), false, Set.of("warning0")),
+            "thr",
+            new Attachment.Bytes("thr", "thr", randomByteArrayOfLength(100), randomAlphaOfLength(5), false, Set.of("warning1", "warning2")),
+            "for",
+            new Attachment.Bytes(
+                "for",
+                "for",
+                randomByteArrayOfLength(100),
+                randomAlphaOfLength(5),
+                false,
+                Set.of("<script>warning3</script>")
+            )
+        );
         Email.Builder emailBuilder = parsedEmailTemplate.render(new MockTextTemplateEngine(), model, htmlSanitizer, attachments);
 
         emailBuilder.id("_id");
         Email email = emailBuilder.build();
         assertThat(email.subject, equalTo(subjectTemplate.getTemplate()));
 
-        //text
+        // text
         int bodyStart = email.textBody.indexOf(textBodyTemplate.getTemplate());
         String warnings = email.textBody.substring(0, bodyStart);
         String[] warningLines = warnings.split("\n");
@@ -207,7 +232,7 @@ public class EmailTemplateTests extends ESTestCase {
             assertThat(warnings, containsString("warning" + i));
         }
 
-        //html - pull the arguments as it is run through the sanitizer
+        // html - pull the arguments as it is run through the sanitizer
         verify(htmlSanitizer).sanitize(htmlSanitizeArguments.capture());
         String fullHtmlBody = htmlSanitizeArguments.getValue();
         bodyStart = fullHtmlBody.indexOf(htmlBodyTemplate.getTemplate());
@@ -224,8 +249,10 @@ public class EmailTemplateTests extends ESTestCase {
     }
 
     private void assertInvalidEmail(String email) {
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-            () -> EmailTemplate.Parser.validateEmailAddresses(new TextTemplate(email)));
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> EmailTemplate.Parser.validateEmailAddresses(new TextTemplate(email))
+        );
         assertThat(e.getMessage(), startsWith("invalid email address"));
     }
 }

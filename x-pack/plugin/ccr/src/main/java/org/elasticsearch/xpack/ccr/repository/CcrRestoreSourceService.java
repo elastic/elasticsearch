@@ -13,17 +13,17 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CombinedRateLimiter;
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -190,9 +190,12 @@ public class CcrRestoreSourceService extends AbstractLifecycleComponent implemen
         private final Map<String, IndexInput> cachedInputs = new ConcurrentHashMap<>();
         private volatile boolean idle = false;
 
-        private RestoreSession(String sessionUUID, IndexShard indexShard, Engine.IndexCommitRef commitRef,
-                               Scheduler.Cancellable timeoutTask) {
-            super("restore-session");
+        private RestoreSession(
+            String sessionUUID,
+            IndexShard indexShard,
+            Engine.IndexCommitRef commitRef,
+            Scheduler.Cancellable timeoutTask
+        ) {
             this.sessionUUID = sessionUUID;
             this.indexShard = indexShard;
             this.commitRef = commitRef;

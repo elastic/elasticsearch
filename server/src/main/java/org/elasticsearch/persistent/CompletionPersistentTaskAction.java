@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -42,8 +41,6 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
     public static final CompletionPersistentTaskAction INSTANCE = new CompletionPersistentTaskAction();
     public static final String NAME = "cluster:admin/persistent/completion";
 
-    public static final Version LOCAL_ABORT_AVAILABLE_VERSION = Version.V_7_15_0;
-
     private CompletionPersistentTaskAction() {
         super(NAME, PersistentTaskResponse::new);
     }
@@ -65,9 +62,7 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
             taskId = in.readString();
             allocationId = in.readLong();
             exception = in.readException();
-            if (in.getVersion().onOrAfter(LOCAL_ABORT_AVAILABLE_VERSION)) {
-                localAbortReason = in.readOptionalString();
-            }
+            localAbortReason = in.readOptionalString();
         }
 
         public Request(String taskId, long allocationId, Exception exception, String localAbortReason) {
@@ -79,23 +74,11 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (localAbortReason != null && out.getVersion().before(LOCAL_ABORT_AVAILABLE_VERSION)) {
-                // This case cannot be handled by simply not serializing the new field, as the
-                // old master node would then treat it as a signal that the task should NOT be
-                // reassigned to a different node, i.e. completely different semantics. We
-                // should never get here in reality, as this action is for internal use only
-                // (it has no REST layer) and the places where it's called defend against this
-                // situation.
-                throw new IllegalArgumentException("attempt to abort a persistent task locally in a cluster that contains a node that is "
-                    + "too old: found node version [" + out.getVersion() + "], minimum required [" + LOCAL_ABORT_AVAILABLE_VERSION + "]");
-            }
             super.writeTo(out);
             out.writeString(taskId);
             out.writeLong(allocationId);
             out.writeException(exception);
-            if (out.getVersion().onOrAfter(LOCAL_ABORT_AVAILABLE_VERSION)) {
-                out.writeOptionalString(localAbortReason);
-            }
+            out.writeOptionalString(localAbortReason);
         }
 
         @Override
@@ -118,10 +101,10 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(taskId, request.taskId) &&
-                    allocationId == request.allocationId &&
-                    Objects.equals(exception, request.exception) &&
-                    Objects.equals(localAbortReason, request.localAbortReason);
+            return Objects.equals(taskId, request.taskId)
+                && allocationId == request.allocationId
+                && Objects.equals(exception, request.exception)
+                && Objects.equals(localAbortReason, request.localAbortReason);
         }
 
         @Override
@@ -130,8 +113,10 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<CompletionPersistentTaskAction.Request,
-            PersistentTaskResponse, CompletionPersistentTaskAction.RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
+        CompletionPersistentTaskAction.Request,
+        PersistentTaskResponse,
+        CompletionPersistentTaskAction.RequestBuilder> {
 
         protected RequestBuilder(ElasticsearchClient client, CompletionPersistentTaskAction action) {
             super(client, action, new Request());
@@ -143,12 +128,25 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         private final PersistentTasksClusterService persistentTasksClusterService;
 
         @Inject
-        public TransportAction(TransportService transportService, ClusterService clusterService,
-                               ThreadPool threadPool, ActionFilters actionFilters,
-                               PersistentTasksClusterService persistentTasksClusterService,
-                               IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(CompletionPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                Request::new, indexNameExpressionResolver, PersistentTaskResponse::new, ThreadPool.Names.GENERIC);
+        public TransportAction(
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            PersistentTasksClusterService persistentTasksClusterService,
+            IndexNameExpressionResolver indexNameExpressionResolver
+        ) {
+            super(
+                CompletionPersistentTaskAction.NAME,
+                transportService,
+                clusterService,
+                threadPool,
+                actionFilters,
+                Request::new,
+                indexNameExpressionResolver,
+                PersistentTaskResponse::new,
+                ThreadPool.Names.GENERIC
+            );
             this.persistentTasksClusterService = persistentTasksClusterService;
         }
 
@@ -159,19 +157,29 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         }
 
         @Override
-        protected final void masterOperation(Task ignoredTask, final Request request, ClusterState state,
-                                             final ActionListener<PersistentTaskResponse> listener) {
+        protected final void masterOperation(
+            Task ignoredTask,
+            final Request request,
+            ClusterState state,
+            final ActionListener<PersistentTaskResponse> listener
+        ) {
             if (request.localAbortReason != null) {
                 assert request.exception == null
                     : "request has both exception " + request.exception + " and local abort reason " + request.localAbortReason;
-                persistentTasksClusterService.unassignPersistentTask(request.taskId, request.allocationId, request.localAbortReason,
-                    listener.map(PersistentTaskResponse::new));
+                persistentTasksClusterService.unassignPersistentTask(
+                    request.taskId,
+                    request.allocationId,
+                    request.localAbortReason,
+                    listener.map(PersistentTaskResponse::new)
+                );
             } else {
-                persistentTasksClusterService.completePersistentTask(request.taskId, request.allocationId, request.exception,
-                    listener.map(PersistentTaskResponse::new));
+                persistentTasksClusterService.completePersistentTask(
+                    request.taskId,
+                    request.allocationId,
+                    request.exception,
+                    listener.map(PersistentTaskResponse::new)
+                );
             }
         }
     }
 }
-
-

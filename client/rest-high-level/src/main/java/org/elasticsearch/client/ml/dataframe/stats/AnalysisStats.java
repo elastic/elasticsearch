@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client.ml.dataframe.stats;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 /**
  * Statistics for the data frame analysis

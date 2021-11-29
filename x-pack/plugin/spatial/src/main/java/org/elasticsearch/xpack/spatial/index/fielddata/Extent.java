@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.apache.lucene.store.ByteArrayDataInput;
-import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -30,7 +30,6 @@ class Extent {
     private static final byte NEGATIVE_SET = 2;
     private static final byte CROSSES_LAT_AXIS = 3;
     private static final byte ALL_SET = 4;
-
 
     Extent() {
         this.top = Integer.MIN_VALUE;
@@ -88,7 +87,7 @@ class Extent {
         }
     }
 
-    static void readFromCompressed(ByteArrayDataInput input, Extent extent) {
+    static void readFromCompressed(StreamInput input, Extent extent) throws IOException {
         final int top = input.readInt();
         final int bottom = Math.toIntExact(top - input.readVLong());
         final int negLeft;
@@ -105,7 +104,7 @@ class Extent {
                 break;
             case POSITIVE_SET:
                 posLeft = input.readVInt();
-                posRight =  Math.toIntExact(input.readVLong() + posLeft);
+                posRight = Math.toIntExact(input.readVLong() + posLeft);
                 negLeft = Integer.MAX_VALUE;
                 negRight = Integer.MIN_VALUE;
                 break;
@@ -123,7 +122,7 @@ class Extent {
                 break;
             case ALL_SET:
                 posLeft = input.readVInt();
-                posRight =  Math.toIntExact(input.readVLong() + posLeft);
+                posRight = Math.toIntExact(input.readVLong() + posLeft);
                 negRight = -input.readVInt();
                 negLeft = Math.toIntExact(negRight - input.readVLong());
                 break;
@@ -133,7 +132,7 @@ class Extent {
         extent.reset(top, bottom, negLeft, negRight, posLeft, posRight);
     }
 
-    void writeCompressed(ByteBuffersDataOutput output) throws IOException {
+    void writeCompressed(StreamOutput output) throws IOException {
         output.writeInt(this.top);
         output.writeVLong((long) this.top - this.bottom);
         byte type;
@@ -154,7 +153,8 @@ class Extent {
         }
         output.writeByte(type);
         switch (type) {
-            case NONE_SET : break;
+            case NONE_SET:
+                break;
             case POSITIVE_SET:
                 output.writeVInt(this.posLeft);
                 output.writeVLong((long) this.posRight - this.posLeft);
@@ -185,11 +185,14 @@ class Extent {
      * @return the extent of the point
      */
     public static Extent fromPoint(int x, int y) {
-        return new Extent(y, y,
+        return new Extent(
+            y,
+            y,
             x < 0 ? x : Integer.MAX_VALUE,
             x < 0 ? x : Integer.MIN_VALUE,
             x >= 0 ? x : Integer.MAX_VALUE,
-            x >= 0 ? x : Integer.MIN_VALUE);
+            x >= 0 ? x : Integer.MIN_VALUE
+        );
     }
 
     /**
@@ -257,12 +260,12 @@ class Extent {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Extent extent = (Extent) o;
-        return top == extent.top &&
-            bottom == extent.bottom &&
-            negLeft == extent.negLeft &&
-            negRight == extent.negRight &&
-            posLeft == extent.posLeft &&
-            posRight == extent.posRight;
+        return top == extent.top
+            && bottom == extent.bottom
+            && negLeft == extent.negLeft
+            && negRight == extent.negRight
+            && posLeft == extent.posLeft
+            && posRight == extent.posRight;
     }
 
     @Override

@@ -8,9 +8,10 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
@@ -27,10 +28,12 @@ public interface TransportDecompressor extends Releasable {
 
     ReleasableBytesReference pollDecompressedPage(boolean isEOS);
 
+    Compression.Scheme getScheme();
+
     @Override
     void close();
 
-    static TransportDecompressor getDecompressor(PageCacheRecycler recycler, BytesReference bytes) throws IOException {
+    static TransportDecompressor getDecompressor(Recycler<BytesRef> recycler, BytesReference bytes) throws IOException {
         if (bytes.length() < Compression.Scheme.HEADER_LENGTH) {
             return null;
         }
@@ -46,9 +49,13 @@ public interface TransportDecompressor extends Releasable {
 
     private static IllegalStateException createIllegalState(BytesReference bytes) {
         int maxToRead = Math.min(bytes.length(), 10);
-        StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [")
-            .append(maxToRead).append("] content bytes out of [").append(bytes.length())
-            .append("] readable bytes with message size [").append(bytes.length()).append("] ").append("] are [");
+        StringBuilder sb = new StringBuilder("stream marked as compressed, but no compressor found, first [").append(maxToRead)
+            .append("] content bytes out of [")
+            .append(bytes.length())
+            .append("] readable bytes with message size [")
+            .append(bytes.length())
+            .append("] ")
+            .append("] are [");
         for (int i = 0; i < maxToRead; i++) {
             sb.append(bytes.get(i)).append(",");
         }

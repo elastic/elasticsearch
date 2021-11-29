@@ -45,8 +45,22 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
         CardinalityUpperBound cardinalityUpperBound,
         Map<String, Object> metadata
     ) throws IOException {
-        super(name, factories, interval, offset, order, keyed, minDocCount, extendedBounds, hardBounds,
-            valuesSourceConfig.format(), context, parent, cardinalityUpperBound, metadata);
+        super(
+            name,
+            factories,
+            interval,
+            offset,
+            order,
+            keyed,
+            minDocCount,
+            extendedBounds,
+            hardBounds,
+            valuesSourceConfig.format(),
+            context,
+            parent,
+            cardinalityUpperBound,
+            metadata
+        );
 
         // TODO: Stop using null here
         this.valuesSource = valuesSourceConfig.hasValues() ? (HistogramValuesSource.Histogram) valuesSourceConfig.getValuesSource() : null;
@@ -58,8 +72,7 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }

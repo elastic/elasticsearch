@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.core;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -26,10 +26,9 @@ public class TermVectorsResponseTests extends ESTestCase {
             this::createParser,
             TermVectorsResponseTests::createTestInstance,
             TermVectorsResponseTests::toXContent,
-            TermVectorsResponse::fromXContent)
-            .supportsUnknownFields(true)
-            .randomFieldsExcludeFilter(field ->
-                field.endsWith("term_vectors") || field.endsWith("terms") || field.endsWith("tokens"))
+            TermVectorsResponse::fromXContent
+        ).supportsUnknownFields(true)
+            .randomFieldsExcludeFilter(field -> field.endsWith("term_vectors") || field.endsWith("terms") || field.endsWith("tokens"))
             .test();
     }
 
@@ -89,7 +88,7 @@ public class TermVectorsResponseTests extends ESTestCase {
                     for (TermVectorsResponse.TermVector.Token token : tokens) {
                         builder.startObject();
                         if (token.getPosition() != null) builder.field("position", token.getPosition());
-                        if (token.getStartOffset()!= null) builder.field("start_offset", token.getStartOffset());
+                        if (token.getStartOffset() != null) builder.field("start_offset", token.getStartOffset());
                         if (token.getEndOffset() != null) builder.field("end_offset", token.getEndOffset());
                         if (token.getPayload() != null) builder.field("payload", token.getPayload());
                         builder.endObject();
@@ -104,15 +103,14 @@ public class TermVectorsResponseTests extends ESTestCase {
         builder.endObject();
     }
 
-
     static TermVectorsResponse createTestInstance() {
         String index = randomAlphaOfLength(5);
-        String id = String.valueOf(randomIntBetween(1,100));
+        String id = String.valueOf(randomIntBetween(1, 100));
         long version = randomNonNegativeLong();
         long tookInMillis = randomNonNegativeLong();
         boolean found = randomBoolean();
         List<TermVectorsResponse.TermVector> tvList = null;
-        if (found){
+        if (found) {
             boolean hasFieldStatistics = randomBoolean();
             boolean hasTermStatistics = randomBoolean();
             boolean hasScores = randomBoolean();
@@ -125,18 +123,24 @@ public class TermVectorsResponseTests extends ESTestCase {
             for (int i = 0; i < fieldsCount; i++) {
                 String fieldName = randomValueOtherThanMany(usedFieldNames::contains, () -> randomAlphaOfLength(7));
                 usedFieldNames.add(fieldName);
-                tvList.add(randomTermVector(
-                    fieldName, hasFieldStatistics, hasTermStatistics, hasScores, hasOffsets, hasPositions, hasPayloads));
+                tvList.add(
+                    randomTermVector(fieldName, hasFieldStatistics, hasTermStatistics, hasScores, hasOffsets, hasPositions, hasPayloads)
+                );
             }
         }
         TermVectorsResponse tvresponse = new TermVectorsResponse(index, id, version, found, tookInMillis, tvList);
         return tvresponse;
     }
 
-
-
-    private static TermVectorsResponse.TermVector randomTermVector(String fieldName, boolean hasFieldStatistics, boolean hasTermStatistics,
-            boolean hasScores, boolean hasOffsets, boolean hasPositions, boolean hasPayloads) {
+    private static TermVectorsResponse.TermVector randomTermVector(
+        String fieldName,
+        boolean hasFieldStatistics,
+        boolean hasTermStatistics,
+        boolean hasScores,
+        boolean hasOffsets,
+        boolean hasPositions,
+        boolean hasPayloads
+    ) {
         TermVectorsResponse.TermVector.FieldStatistics fs = null;
         if (hasFieldStatistics) {
             long sumDocFreq = randomNonNegativeLong();
@@ -158,10 +162,16 @@ public class TermVectorsResponseTests extends ESTestCase {
         return tv;
     }
 
-    private static TermVectorsResponse.TermVector.Term randomTerm(String termTxt, boolean hasTermStatistics, boolean hasScores,
-            boolean hasOffsets, boolean hasPositions, boolean hasPayloads) {
+    private static TermVectorsResponse.TermVector.Term randomTerm(
+        String termTxt,
+        boolean hasTermStatistics,
+        boolean hasScores,
+        boolean hasOffsets,
+        boolean hasPositions,
+        boolean hasPayloads
+    ) {
 
-        int termFreq =  randomInt(10000);
+        int termFreq = randomInt(10000);
         Integer docFreq = null;
         Long totalTermFreq = null;
         Float score = null;
@@ -171,7 +181,7 @@ public class TermVectorsResponseTests extends ESTestCase {
             totalTermFreq = randomNonNegativeLong();
         }
         if (hasScores) score = randomFloat();
-        if (hasOffsets || hasPositions || hasPayloads ){
+        if (hasOffsets || hasPositions || hasPayloads) {
             int tokensCount = randomIntBetween(1, 5);
             tokens = new ArrayList<>(tokensCount);
             for (int i = 0; i < tokensCount; i++) {
@@ -185,13 +195,23 @@ public class TermVectorsResponseTests extends ESTestCase {
                 }
                 if (hasPositions) position = randomInt(100);
                 if (hasPayloads) payload = "payload" + randomAlphaOfLength(2);
-                TermVectorsResponse.TermVector.Token token =
-                    new TermVectorsResponse.TermVector.Token(startOffset, endOffset, position, payload);
+                TermVectorsResponse.TermVector.Token token = new TermVectorsResponse.TermVector.Token(
+                    startOffset,
+                    endOffset,
+                    position,
+                    payload
+                );
                 tokens.add(token);
             }
         }
-        TermVectorsResponse.TermVector.Term term =
-            new TermVectorsResponse.TermVector.Term(termTxt, termFreq, docFreq, totalTermFreq, score, tokens);
+        TermVectorsResponse.TermVector.Term term = new TermVectorsResponse.TermVector.Term(
+            termTxt,
+            termFreq,
+            docFreq,
+            totalTermFreq,
+            score,
+            tokens
+        );
         return term;
     }
 }

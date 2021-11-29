@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 
@@ -27,7 +27,8 @@ public class RestPutTrainedModelAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(PUT, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
-                .replaces(PUT, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_8).build()
+                .replaces(PUT, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_8)
+                .build()
         );
     }
 
@@ -40,9 +41,9 @@ public class RestPutTrainedModelAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String id = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
-        PutTrainedModelAction.Request putRequest = PutTrainedModelAction.Request.parseRequest(id, parser);
+        boolean deferDefinitionDecompression = restRequest.paramAsBoolean(PutTrainedModelAction.DEFER_DEFINITION_DECOMPRESSION, false);
+        PutTrainedModelAction.Request putRequest = PutTrainedModelAction.Request.parseRequest(id, deferDefinitionDecompression, parser);
         putRequest.timeout(restRequest.paramAsTime("timeout", putRequest.timeout()));
-
         return channel -> client.execute(PutTrainedModelAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
     }
 }

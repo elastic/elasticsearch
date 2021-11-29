@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -20,6 +19,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -33,8 +33,11 @@ public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
         GeoGridAggregatorSupplier.class
     );
 
-    public static final ObjectParser<GeoHashGridAggregationBuilder, String> PARSER =
-            createParser(NAME, GeoUtils::parsePrecision, GeoHashGridAggregationBuilder::new);
+    public static final ObjectParser<GeoHashGridAggregationBuilder, String> PARSER = createParser(
+        NAME,
+        GeoUtils::parsePrecision,
+        GeoHashGridAggregationBuilder::new
+    );
 
     public GeoHashGridAggregationBuilder(String name) {
         super(name);
@@ -59,19 +62,39 @@ public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
 
     @Override
     protected ValuesSourceAggregatorFactory createFactory(
-            String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
-            GeoBoundingBox geoBoundingBox, AggregationContext context,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-            Map<String, Object> metadata) throws IOException {
+        String name,
+        ValuesSourceConfig config,
+        int precision,
+        int requiredSize,
+        int shardSize,
+        GeoBoundingBox geoBoundingBox,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
 
-        GeoGridAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
-        return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, geoBoundingBox,
-            context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
+        GeoGridAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        return new GeoHashGridAggregatorFactory(
+            name,
+            config,
+            precision,
+            requiredSize,
+            shardSize,
+            geoBoundingBox,
+            context,
+            parent,
+            subFactoriesBuilder,
+            metadata,
+            aggregatorSupplier
+        );
     }
 
-    private GeoHashGridAggregationBuilder(GeoHashGridAggregationBuilder clone, AggregatorFactories.Builder factoriesBuilder,
-                                          Map<String, Object> metadata) {
+    private GeoHashGridAggregationBuilder(
+        GeoHashGridAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 

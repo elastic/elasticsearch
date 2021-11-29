@@ -12,10 +12,10 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -66,26 +66,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         return cardinality == CardinalityUpperBound.ONE
-            ? new FromSingle(
-                name,
-                factories,
-                targetBuckets,
-                roundingInfos,
-                valuesSourceConfig,
-                context,
-                parent,
-                metadata
-            )
-            : new FromMany(
-                name,
-                factories,
-                targetBuckets,
-                roundingInfos,
-                valuesSourceConfig,
-                context,
-                parent,
-                metadata
-            );
+            ? new FromSingle(name, factories, targetBuckets, roundingInfos, valuesSourceConfig, context, parent, metadata)
+            : new FromMany(name, factories, targetBuckets, roundingInfos, valuesSourceConfig, context, parent, metadata);
     }
 
     private final ValuesSource.Numeric valuesSource;
@@ -242,16 +224,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             Aggregator parent,
             Map<String, Object> metadata
         ) throws IOException {
-            super(
-                name,
-                factories,
-                targetBuckets,
-                roundingInfos,
-                valuesSourceConfig,
-                context,
-                parent,
-                metadata
-            );
+            super(name, factories, targetBuckets, roundingInfos, valuesSourceConfig, context, parent, metadata);
 
             preparedRounding = prepareRounding(0);
             bucketOrds = new LongKeyedBucketOrds.FromSingle(bigArrays());
@@ -303,10 +276,13 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                         return;
                     }
                     do {
-                        try (LongKeyedBucketOrds oldOrds = bucketOrds) {
+                        LongKeyedBucketOrds oldOrds = bucketOrds;
+                        boolean success = false;
+                        try {
                             preparedRounding = prepareRounding(++roundingIdx);
                             long[] mergeMap = new long[Math.toIntExact(oldOrds.size())];
                             bucketOrds = new LongKeyedBucketOrds.FromSingle(bigArrays());
+                            success = true; // now it is safe to close oldOrds after we finish
                             LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = oldOrds.ordsEnum(0);
                             while (ordsEnum.next()) {
                                 long oldKey = ordsEnum.value();
@@ -315,6 +291,10 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                                 mergeMap[(int) ordsEnum.ord()] = newBucketOrd >= 0 ? newBucketOrd : -1 - newBucketOrd;
                             }
                             merge(mergeMap, bucketOrds.size());
+                        } finally {
+                            if (success) {
+                                oldOrds.close();
+                            }
                         }
                     } while (roundingIdx < roundingInfos.length - 1
                         && (bucketOrds.size() > targetBuckets * roundingInfos[roundingIdx].getMaximumInnerInterval()
@@ -446,16 +426,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             Aggregator parent,
             Map<String, Object> metadata
         ) throws IOException {
-            super(
-                name,
-                factories,
-                targetBuckets,
-                roundingInfos,
-                valuesSourceConfig,
-                context,
-                parent,
-                metadata
-            );
+            super(name, factories, targetBuckets, roundingInfos, valuesSourceConfig, context, parent, metadata);
             assert roundingInfos.length < 127 : "Rounding must fit in a signed byte";
             roundingIndices = bigArrays().newByteArray(1, true);
             mins = bigArrays().newLongArray(1, false);
@@ -563,9 +534,12 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
         private void rebucket() {
             rebucketCount++;
-            try (LongKeyedBucketOrds oldOrds = bucketOrds) {
+            LongKeyedBucketOrds oldOrds = bucketOrds;
+            boolean success = false;
+            try {
                 long[] mergeMap = new long[Math.toIntExact(oldOrds.size())];
                 bucketOrds = new LongKeyedBucketOrds.FromMany(bigArrays());
+                success = true;
                 for (long owningBucketOrd = 0; owningBucketOrd <= oldOrds.maxOwningBucketOrd(); owningBucketOrd++) {
                     LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = oldOrds.ordsEnum(owningBucketOrd);
                     Rounding.Prepared preparedRounding = preparedRoundings[roundingIndexFor(owningBucketOrd)];
@@ -579,6 +553,10 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     liveBucketCountUnderestimate.set(owningBucketOrd, Math.toIntExact(bucketOrds.bucketsInOrd(owningBucketOrd)));
                 }
                 merge(mergeMap, bucketOrds.size());
+            } finally {
+                if (success) {
+                    oldOrds.close();
+                }
             }
         }
 

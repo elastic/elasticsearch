@@ -8,7 +8,8 @@ apply plugin: 'elasticsearch.rest-resources'
 dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(xpackModule('security'))))
-  testImplementation project(path: ':modules:reindex')
+  testImplementation(project(':modules:reindex'))
+  testImplementation(project(":client:rest-high-level"))
 }
 
 tasks.named("forbiddenPatterns").configure {
@@ -35,6 +36,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.security.http.ssl.key', 'http.key'
   setting 'xpack.security.http.ssl.key_passphrase', 'http-password'
   setting 'reindex.ssl.certificate_authorities', 'ca.crt'
+  setting 'xpack.security.autoconfiguration.enabled', 'false'
 
   // Workaround for JDK-8212885
   if (BuildParams.runtimeJavaVersion.isJava12Compatible() == false) {

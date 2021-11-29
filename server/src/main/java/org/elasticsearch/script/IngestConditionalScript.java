@@ -20,8 +20,14 @@ public abstract class IngestConditionalScript {
     public static final String[] PARAMETERS = { "ctx" };
 
     /** The context used to compile {@link IngestConditionalScript} factories. */
-    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("processor_conditional", Factory.class,
-        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple(), true);
+    public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>(
+        "processor_conditional",
+        Factory.class,
+        200,
+        TimeValue.timeValueMillis(0),
+        false,
+        true
+    );
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;

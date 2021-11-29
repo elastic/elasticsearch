@@ -18,8 +18,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
 import java.io.IOException;
@@ -93,11 +93,11 @@ public class PutAutoscalingPolicyAction extends ActionType<AcknowledgedResponse>
             }
             if (in.readBoolean()) {
                 int deciderCount = in.readInt();
-                SortedMap<String, Settings> deciders = new TreeMap<>();
+                SortedMap<String, Settings> decidersMap = new TreeMap<>();
                 for (int i = 0; i < deciderCount; ++i) {
-                    deciders.put(in.readString(), Settings.readSettingsFromStream(in));
+                    decidersMap.put(in.readString(), Settings.readSettingsFromStream(in));
                 }
-                this.deciders = Collections.unmodifiableSortedMap(deciders);
+                this.deciders = Collections.unmodifiableSortedMap(decidersMap);
             } else {
                 this.deciders = null;
             }

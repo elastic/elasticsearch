@@ -9,10 +9,10 @@ package org.elasticsearch.client.ml.job.config;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -76,8 +76,7 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
             }
             if (randomBoolean()) {
                 boolean enabled = randomBoolean();
-                builder.setPerPartitionCategorizationConfig(
-                    new PerPartitionCategorizationConfig(enabled, enabled && randomBoolean()));
+                builder.setPerPartitionCategorizationConfig(new PerPartitionCategorizationConfig(enabled, enabled && randomBoolean()));
             }
         }
         if (randomBoolean()) {
@@ -85,6 +84,9 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
         }
         if (randomBoolean()) {
             builder.setMultivariateByFields(randomBoolean());
+        }
+        if (randomBoolean()) {
+            builder.setModelPruneWindow(TimeValue.timeValueSeconds(randomIntBetween(1, 1_000_000)));
         }
 
         builder.setInfluencers(Arrays.asList(generateRandomStringArray(10, 10, false)));
@@ -108,7 +110,7 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
 
     public void testBuilder_WithNullDetectors() {
         AnalysisConfig.Builder builder = new AnalysisConfig.Builder(new ArrayList<>());
-        NullPointerException ex = expectThrows(NullPointerException.class, () ->  builder.setDetectors(null));
+        NullPointerException ex = expectThrows(NullPointerException.class, () -> builder.setDetectors(null));
         assertEquals("[detectors] must not be null", ex.getMessage());
     }
 
@@ -189,6 +191,19 @@ public class AnalysisConfigTests extends AbstractXContentTestCase<AnalysisConfig
 
         builder = createConfigBuilder();
         builder.setLatency(TimeValue.timeValueSeconds(1801));
+        AnalysisConfig config2 = builder.build();
+
+        assertFalse(config1.equals(config2));
+        assertFalse(config2.equals(config1));
+    }
+
+    public void testEquals_GivenDifferentModelPruneWindow() {
+        AnalysisConfig.Builder builder = createConfigBuilder();
+        builder.setModelPruneWindow(TimeValue.timeValueDays(30));
+        AnalysisConfig config1 = builder.build();
+
+        builder = createConfigBuilder();
+        builder.setModelPruneWindow(TimeValue.timeValueDays(60));
         AnalysisConfig config2 = builder.build();
 
         assertFalse(config1.equals(config2));

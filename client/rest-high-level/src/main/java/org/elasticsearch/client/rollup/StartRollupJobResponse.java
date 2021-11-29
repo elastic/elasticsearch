@@ -9,8 +9,8 @@
 package org.elasticsearch.client.rollup;
 
 import org.elasticsearch.client.core.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -18,8 +18,11 @@ public class StartRollupJobResponse extends AcknowledgedResponse {
 
     private static final String PARSE_FIELD_NAME = "started";
 
-    private static final ConstructingObjectParser<StartRollupJobResponse, Void> PARSER = AcknowledgedResponse
-            .generateParser("start_rollup_job_response", StartRollupJobResponse::new, PARSE_FIELD_NAME);
+    private static final ConstructingObjectParser<StartRollupJobResponse, Void> PARSER = AcknowledgedResponse.generateParser(
+        "start_rollup_job_response",
+        StartRollupJobResponse::new,
+        PARSE_FIELD_NAME
+    );
 
     public StartRollupJobResponse(boolean acknowledged) {
         super(acknowledged);

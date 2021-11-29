@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -20,6 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 
 public class AppendProcessorFactoryTests extends ESTestCase {
 
@@ -53,7 +55,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[field] required property is missing"));
         }
     }
@@ -64,7 +66,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[value] required property is missing"));
         }
     }
@@ -76,20 +78,46 @@ public class AppendProcessorFactoryTests extends ESTestCase {
         try {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
-        } catch(ElasticsearchParseException e) {
+        } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[value] required property is missing"));
         }
     }
 
     public void testInvalidMustacheTemplate() throws Exception {
-        AppendProcessor.Factory factory = new AppendProcessor.Factory(TestTemplateService.instance(true));
+        factory = new AppendProcessor.Factory(TestTemplateService.instance(true));
         Map<String, Object> config = new HashMap<>();
         config.put("field", "{{field1}}");
         config.put("value", "value1");
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
-            () -> factory.create(null, processorTag, null, config));
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> factory.create(null, processorTag, null, config)
+        );
         assertThat(exception.getMessage(), equalTo("java.lang.RuntimeException: could not compile script"));
         assertThat(exception.getMetadata("es.processor_tag").get(0), equalTo(processorTag));
+    }
+
+    public void testMediaType() throws Exception {
+        // valid media type
+        String expectedMediaType = randomFrom(ConfigurationUtils.VALID_MEDIA_TYPES);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("value", "value1");
+        config.put("media_type", expectedMediaType);
+        String processorTag = randomAlphaOfLength(10);
+        AppendProcessor appendProcessor = factory.create(null, processorTag, null, config);
+        assertThat(appendProcessor.getTag(), equalTo(processorTag));
+
+        // invalid media type
+        expectedMediaType = randomValueOtherThanMany(
+            m -> Arrays.asList(ConfigurationUtils.VALID_MEDIA_TYPES).contains(m),
+            () -> randomAlphaOfLengthBetween(5, 9)
+        );
+        final Map<String, Object> config2 = new HashMap<>();
+        config2.put("field", "field1");
+        config2.put("value", "value1");
+        config2.put("media_type", expectedMediaType);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config2));
+        assertThat(e.getMessage(), containsString("property does not contain a supported media type [" + expectedMediaType + "]"));
     }
 }

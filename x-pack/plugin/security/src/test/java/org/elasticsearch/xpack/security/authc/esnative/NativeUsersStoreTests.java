@@ -10,21 +10,26 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest;
+import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
@@ -38,6 +43,7 @@ import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -45,15 +51,17 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.CoreMatchers.nullValue;
-import static org.mockito.Matchers.any;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -77,8 +85,11 @@ public class NativeUsersStoreTests extends ESTestCase {
         client = new FilterClient(mockClient) {
 
             @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse>
-            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
                 requests.add(new Tuple<>(request, listener));
             }
         };
@@ -87,8 +98,15 @@ public class NativeUsersStoreTests extends ESTestCase {
     public void testPasswordUpsertWhenSetEnabledOnReservedUser() throws Exception {
         final NativeUsersStore nativeUsersStore = startNativeUsersStore();
 
-        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
-            LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        final String user = randomFrom(
+            ElasticUser.NAME,
+            KibanaUser.NAME,
+            KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME,
+            APMSystemUser.NAME,
+            RemoteMonitoringUser.NAME
+        );
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         nativeUsersStore.setEnabled(user, true, WriteRequest.RefreshPolicy.IMMEDIATE, future);
@@ -106,20 +124,30 @@ public class NativeUsersStoreTests extends ESTestCase {
     public void testBlankPasswordInIndexImpliesDefaultPassword() throws Exception {
         final NativeUsersStore nativeUsersStore = startNativeUsersStore();
 
-        final String user = randomFrom(ElasticUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
-            LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        final String user = randomFrom(
+            ElasticUser.NAME,
+            KibanaUser.NAME,
+            KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME,
+            APMSystemUser.NAME,
+            RemoteMonitoringUser.NAME
+        );
         final Map<String, Object> values = new HashMap<>();
         values.put(ENABLED_FIELD, Boolean.TRUE);
         values.put(PASSWORD_FIELD, BLANK_PASSWORD);
 
         final GetResult result = new GetResult(
-                RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
-                NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, randomAlphaOfLength(12)),
-            0, 1, 1L,
-                true,
-                BytesReference.bytes(jsonBuilder().map(values)),
-                Collections.emptyMap(),
-                Collections.emptyMap());
+            RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
+            NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, randomAlphaOfLength(12)),
+            0,
+            1,
+            1L,
+            true,
+            BytesReference.bytes(jsonBuilder().map(values)),
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
 
         final PlainActionFuture<NativeUsersStore.ReservedUserInfo> future = new PlainActionFuture<>();
         nativeUsersStore.getReservedUserInfo(user, future);
@@ -138,15 +166,15 @@ public class NativeUsersStoreTests extends ESTestCase {
         final SecureString password = new SecureString(randomAlphaOfLengthBetween(8, 16).toCharArray());
         final String[] roles = generateRandomStringArray(4, 12, false, false);
 
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         nativeUsersStore.verifyPassword(username, password, future);
 
         respondToGetUserRequest(username, password, roles);
 
-        final AuthenticationResult result = future.get();
+        final AuthenticationResult<User> result = future.get();
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.SUCCESS));
-        final User user = result.getUser();
+        final User user = result.getValue();
         assertThat(user, notNullValue());
         assertThat(user.enabled(), equalTo(true));
         assertThat(user.principal(), equalTo(username));
@@ -161,15 +189,15 @@ public class NativeUsersStoreTests extends ESTestCase {
         final SecureString incorrectPassword = new SecureString(randomAlphaOfLengthBetween(8, 10).toCharArray());
         final String[] roles = generateRandomStringArray(4, 12, false, false);
 
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         nativeUsersStore.verifyPassword(username, incorrectPassword, future);
 
         respondToGetUserRequest(username, correctPassword, roles);
 
-        final AuthenticationResult result = future.get();
+        final AuthenticationResult<User> result = future.get();
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
-        assertThat(result.getUser(), nullValue());
+        assertThat(result.getValue(), nullValue());
         assertThat(result.getMessage(), containsString("authentication failed"));
     }
 
@@ -178,51 +206,89 @@ public class NativeUsersStoreTests extends ESTestCase {
         final String username = randomAlphaOfLengthBetween(4, 12);
         final SecureString password = new SecureString(randomAlphaOfLengthBetween(8, 16).toCharArray());
 
-        final PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        final PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
         nativeUsersStore.verifyPassword(username, password, future);
 
         final GetResult getResult = new GetResult(
-                RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
-                NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
-                UNASSIGNED_SEQ_NO, 0, 1L,
-                false,
-                null,
-                Collections.emptyMap(),
-            Collections.emptyMap());
+            RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
+            NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
+            UNASSIGNED_SEQ_NO,
+            0,
+            1L,
+            false,
+            null,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
 
         actionRespond(GetRequest.class, new GetResponse(getResult));
 
-        final AuthenticationResult result = future.get();
+        final AuthenticationResult<User> result = future.get();
         assertThat(result, notNullValue());
         assertThat(result.getStatus(), equalTo(AuthenticationResult.Status.CONTINUE));
-        assertThat(result.getUser(), nullValue());
+        assertThat(result.getValue(), nullValue());
         assertThat(result.getMessage(), nullValue());
     }
 
     public void testDefaultReservedUserInfoPasswordEmpty() {
         NativeUsersStore.ReservedUserInfo disabledUserInfo = NativeUsersStore.ReservedUserInfo.defaultDisabledUserInfo();
         NativeUsersStore.ReservedUserInfo enabledUserInfo = NativeUsersStore.ReservedUserInfo.defaultEnabledUserInfo();
-        NativeUsersStore.ReservedUserInfo constructedUserInfo =
-            new NativeUsersStore.ReservedUserInfo(Hasher.PBKDF2.hash(new SecureString(randomAlphaOfLength(14))), randomBoolean());
+        NativeUsersStore.ReservedUserInfo constructedUserInfo = new NativeUsersStore.ReservedUserInfo(
+            Hasher.PBKDF2.hash(new SecureString(randomAlphaOfLength(14))),
+            randomBoolean()
+        );
 
         assertThat(disabledUserInfo.hasEmptyPassword(), equalTo(true));
         assertThat(enabledUserInfo.hasEmptyPassword(), equalTo(true));
         assertThat(constructedUserInfo.hasEmptyPassword(), equalTo(false));
     }
 
-    private <ARequest extends ActionRequest, AResponse extends ActionResponse> ARequest actionRespond(Class<ARequest> requestClass,
-                                                                                                      AResponse response) {
+    @SuppressWarnings("unchecked")
+    public void testCreateElasticUser() throws Exception {
+        final NativeUsersStore nativeUsersStore = startNativeUsersStore();
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        char[] passwordHash = randomAlphaOfLength(4).toCharArray();
+        nativeUsersStore.createElasticUser(passwordHash, future);
+
+        Tuple<IndexRequest, ActionListener<?>> createElasticUserRequest = findRequest(IndexRequest.class);
+        assertThat(createElasticUserRequest.v1().opType(), is(DocWriteRequest.OpType.CREATE));
+        assertThat(createElasticUserRequest.v1().index(), is(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
+        assertThat(createElasticUserRequest.v1().id(), is(NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, "elastic")));
+        assertThat(createElasticUserRequest.v1().getRefreshPolicy(), is(WriteRequest.RefreshPolicy.IMMEDIATE));
+
+        if (randomBoolean()) {
+            ((ActionListener<IndexResponse>) createElasticUserRequest.v2()).onResponse(Mockito.mock(IndexResponse.class));
+            Tuple<ClearRealmCacheRequest, ActionListener<?>> clearRealmCacheRequest = findRequest(ClearRealmCacheRequest.class);
+            assertThat(clearRealmCacheRequest.v1().allRealms(), is(true));
+            assertThat(clearRealmCacheRequest.v1().usernames().length, is(1));
+            assertThat(clearRealmCacheRequest.v1().usernames()[0], is("elastic"));
+            ((ActionListener<ClearRealmCacheResponse>) clearRealmCacheRequest.v2()).onResponse(Mockito.mock(ClearRealmCacheResponse.class));
+            future.get();
+        } else {
+            Exception exception = mock(Exception.class);
+            createElasticUserRequest.v2().onFailure(exception);
+            ExecutionException executionException = expectThrows(ExecutionException.class, () -> future.get());
+            assertThat(executionException.getCause(), is(exception));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private <ARequest extends ActionRequest, AResponse extends ActionResponse> ARequest actionRespond(
+        Class<ARequest> requestClass,
+        AResponse response
+    ) {
         Tuple<ARequest, ActionListener<?>> tuple = findRequest(requestClass);
         ((ActionListener<AResponse>) tuple.v2()).onResponse(response);
         return tuple.v1();
     }
 
-    private <ARequest extends ActionRequest> Tuple<ARequest, ActionListener<?>> findRequest(
-        Class<ARequest> requestClass) {
+    private <ARequest extends ActionRequest> Tuple<ARequest, ActionListener<?>> findRequest(Class<ARequest> requestClass) {
         return this.requests.stream()
             .filter(t -> requestClass.isInstance(t.v1()))
             .map(t -> new Tuple<ARequest, ActionListener<?>>(requestClass.cast(t.v1()), t.v2()))
-            .findFirst().orElseThrow(() -> new RuntimeException("Cannot find request of type " + requestClass));
+            .findFirst()
+            .orElseThrow(() -> new RuntimeException("Cannot find request of type " + requestClass));
     }
 
     private void respondToGetUserRequest(String username, SecureString password, String[] roles) throws IOException {
@@ -235,17 +301,21 @@ public class NativeUsersStoreTests extends ESTestCase {
         values.put(User.Fields.TYPE.getPreferredName(), NativeUsersStore.USER_DOC_TYPE);
         final BytesReference source = BytesReference.bytes(jsonBuilder().map(values));
         final GetResult getResult = new GetResult(
-                RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
-                NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
-                0, 1, 1L,
-                true,
-                source,
-                Collections.emptyMap(),
-                Collections.emptyMap());
+            RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
+            NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
+            0,
+            1,
+            1L,
+            true,
+            source,
+            Collections.emptyMap(),
+            Collections.emptyMap()
+        );
 
         actionRespond(GetRequest.class, new GetResponse(getResult));
     }
 
+    @SuppressWarnings("unchecked")
     private NativeUsersStore startNativeUsersStore() {
         SecurityIndexManager securityIndex = mock(SecurityIndexManager.class);
         when(securityIndex.isAvailable()).thenReturn(true);

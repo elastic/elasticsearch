@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
@@ -37,17 +36,17 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
         Settings settings = instance.getSettings();
 
         switch (between(0, 2)) {
-        case 0:
-            key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        case 1:
-            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        case 2:
-            settings = Settings.builder().put(settings).put(randomAlphaOfLength(10), randomInt()).build();
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            case 1:
+                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            case 2:
+                settings = Settings.builder().put(settings).put(randomAlphaOfLength(10), randomInt()).build();
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
 
         return new UpdateSettingsStep(key, nextKey, client, settings);
@@ -59,8 +58,11 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
     }
 
     private static IndexMetadata getIndexMetadata() {
-        return IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        return IndexMetadata.builder(randomAlphaOfLength(10))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
     }
 
     public void testPerformAction() {
@@ -73,12 +75,12 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
             @SuppressWarnings("unchecked")
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
             assertThat(request.settings(), equalTo(step.getSettings()));
-            assertThat(request.indices(), equalTo(new String[] {indexMetadata.getIndex().getName()}));
+            assertThat(request.indices(), equalTo(new String[] { indexMetadata.getIndex().getName() }));
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+        assertNull(PlainActionFuture.<Void, RuntimeException>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -95,13 +97,18 @@ public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettings
             @SuppressWarnings("unchecked")
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
             assertThat(request.settings(), equalTo(step.getSettings()));
-            assertThat(request.indices(), equalTo(new String[] {indexMetadata.getIndex().getName()}));
+            assertThat(request.indices(), equalTo(new String[] { indexMetadata.getIndex().getName() }));
             listener.onFailure(exception);
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        assertSame(exception, expectThrows(Exception.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
+        assertSame(
+            exception,
+            expectThrows(
+                Exception.class,
+                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))
+            )
+        );
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();

@@ -21,14 +21,14 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterServiceTests;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import java.io.ByteArrayInputStream;
@@ -65,14 +66,15 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.ml.MachineLearning.DELAYED_DATA_CHECK_FREQ;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.atMost;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -84,6 +86,10 @@ import static org.mockito.Mockito.when;
 public class DatafeedJobTests extends ESTestCase {
 
     private static final String jobId = "_job_id";
+
+    private static final long DELAYED_DATA_WINDOW = TimeValue.timeValueMinutes(15).millis();
+    private static final long DELAYED_DATA_FREQ = TimeValue.timeValueMinutes(2).millis();
+    private static final long DELAYED_DATA_FREQ_HALF = TimeValue.timeValueMinutes(1).millis();
 
     private AnomalyDetectionAuditor auditor;
     private DataExtractorFactory dataExtractorFactory;
@@ -113,23 +119,40 @@ public class DatafeedJobTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        resultsPersisterService =
-            ResultsPersisterServiceTests.buildResultsPersisterService(new OriginSettingClient(client, ClientHelper.ML_ORIGIN));
+        resultsPersisterService = ResultsPersisterServiceTests.buildResultsPersisterService(
+            new OriginSettingClient(client, ClientHelper.ML_ORIGIN)
+        );
         dataDescription = new DataDescription.Builder();
         postDataFuture = mock(ActionFuture.class);
         flushJobFuture = mock(ActionFuture.class);
         annotationDocId = "AnnotationDocId";
         flushJobResponse = new FlushJobAction.Response(true, Instant.now());
         delayedDataDetector = mock(DelayedDataDetector.class);
-        when(delayedDataDetector.getWindow()).thenReturn(DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS);
+        when(delayedDataDetector.getWindow()).thenReturn(DELAYED_DATA_WINDOW);
         currentTime = 0;
-
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
         InputStream inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
-        DataCounts dataCounts = new DataCounts(jobId, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0),
-                new Date(0), new Date(0), new Date(0), Instant.now());
+        DataCounts dataCounts = new DataCounts(
+            jobId,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            new Date(0),
+            new Date(0),
+            new Date(0),
+            new Date(0),
+            new Date(0),
+            Instant.now()
+        );
 
         PostDataAction.Request expectedRequest = new PostDataAction.Request(jobId);
         expectedRequest.setDataDescription(dataDescription.build());
@@ -141,8 +164,8 @@ public class DatafeedJobTests extends ESTestCase {
         when(flushJobFuture.actionGet()).thenReturn(flushJobResponse);
         when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
 
-        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[]{ bulkItemSuccess(annotationDocId) }, 0L)))
-            .when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { bulkItemSuccess(annotationDocId) }, 0L))).when(client)
+            .execute(eq(BulkAction.INSTANCE), any(), any());
     }
 
     public void testLookBackRunWithEndTime() throws Exception {
@@ -246,12 +269,13 @@ public class DatafeedJobTests extends ESTestCase {
         when(bucket.getBucketSpan()).thenReturn(4L);
         when(flushJobFuture.actionGet()).thenReturn(flushJobResponse);
         when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
-        when(delayedDataDetector.detectMissingData(2000))
-            .thenReturn(Collections.singletonList(BucketWithMissingData.fromMissingAndBucket(10, bucket)));
-        currentTime = 60000L;
+        when(delayedDataDetector.detectMissingData(2000)).thenReturn(
+            Collections.singletonList(BucketWithMissingData.fromMissingAndBucket(10, bucket))
+        );
+        currentTime = DELAYED_DATA_FREQ_HALF;
         long frequencyMs = 100;
         long queryDelayMs = 1000;
-        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, 1000, -1, false);
+        DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, 1000, -1, false, DELAYED_DATA_FREQ);
         long next = datafeedJob.runRealtime();
         assertEquals(currentTime + frequencyMs + 100, next);
 
@@ -264,7 +288,7 @@ public class DatafeedJobTests extends ESTestCase {
         verify(client, never()).execute(same(PersistJobAction.INSTANCE), any());
 
         // Execute a second valid time, but do so in a smaller window than the interval
-        currentTime = 62000L;
+        currentTime = currentTime + DELAYED_DATA_FREQ_HALF - 1;
         byte[] contentBytes = "content".getBytes(StandardCharsets.UTF_8);
         InputStream inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
@@ -274,21 +298,22 @@ public class DatafeedJobTests extends ESTestCase {
 
         // Execute a third time, but this time make sure we exceed the data check interval, but keep the delayedDataDetector response
         // the same
-        currentTime = 62000L + DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS + 1;
+        currentTime = currentTime + DELAYED_DATA_FREQ_HALF;
         inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         datafeedJob.runRealtime();
 
-        String msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA,
+        String msg = Messages.getMessage(
+            Messages.JOB_AUDIT_DATAFEED_MISSING_DATA,
             10,
-            XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(2000));
+            XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(2000))
+        );
 
         long annotationCreateTime = currentTime;
         {  // What we expect the created annotation to be indexed as
-            Annotation expectedAnnotation = new Annotation.Builder()
-                .setAnnotation(msg)
+            Annotation expectedAnnotation = new Annotation.Builder().setAnnotation(msg)
                 .setCreateTime(new Date(annotationCreateTime))
                 .setCreateUsername(XPackUser.NAME)
                 .setTimestamp(bucket.getTimestamp())
@@ -299,8 +324,9 @@ public class DatafeedJobTests extends ESTestCase {
                 .setType(Annotation.Type.ANNOTATION)
                 .setEvent(Annotation.Event.DELAYED_DATA)
                 .build();
-            BytesReference expectedSource =
-                BytesReference.bytes(expectedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
+            BytesReference expectedSource = BytesReference.bytes(
+                expectedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
+            );
 
             ArgumentCaptor<BulkRequest> bulkRequestArgumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
             verify(client, atMost(2)).execute(eq(BulkAction.INSTANCE), bulkRequestArgumentCaptor.capture(), any());
@@ -309,7 +335,7 @@ public class DatafeedJobTests extends ESTestCase {
             IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
             assertThat(indexRequest.index(), equalTo(AnnotationIndex.WRITE_ALIAS_NAME));
             assertThat(indexRequest.id(), nullValue());
-            assertThat(indexRequest.source(), equalTo(expectedSource));
+            assertThat(indexRequest.source().utf8ToString(), equalTo(expectedSource.utf8ToString()));
             assertThat(indexRequest.opType(), equalTo(DocWriteRequest.OpType.INDEX));
         }
 
@@ -318,24 +344,25 @@ public class DatafeedJobTests extends ESTestCase {
         when(bucket2.getTimestamp()).thenReturn(new Date(6000));
         when(bucket2.getEpoch()).thenReturn(6L);
         when(bucket2.getBucketSpan()).thenReturn(4L);
-        when(delayedDataDetector.detectMissingData(2000))
-            .thenReturn(Arrays.asList(BucketWithMissingData.fromMissingAndBucket(10, bucket),
-                BucketWithMissingData.fromMissingAndBucket(5, bucket2)));
-        currentTime = currentTime + DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS + 1;
+        when(delayedDataDetector.detectMissingData(2000)).thenReturn(
+            Arrays.asList(BucketWithMissingData.fromMissingAndBucket(10, bucket), BucketWithMissingData.fromMissingAndBucket(5, bucket2))
+        );
+        currentTime = currentTime + DELAYED_DATA_WINDOW + 1;
         inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
         when(dataExtractorFactory.newExtractor(anyLong(), anyLong())).thenReturn(dataExtractor);
         datafeedJob.runRealtime();
 
-        msg = Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_MISSING_DATA,
+        msg = Messages.getMessage(
+            Messages.JOB_AUDIT_DATAFEED_MISSING_DATA,
             15,
-            XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(6000));
+            XContentElasticsearchExtension.DEFAULT_FORMATTER.format(Instant.ofEpochMilli(6000))
+        );
 
         long annotationUpdateTime = currentTime;
         {  // What we expect the updated annotation to be indexed as
-            Annotation expectedUpdatedAnnotation = new Annotation.Builder()
-                .setAnnotation(msg)
+            Annotation expectedUpdatedAnnotation = new Annotation.Builder().setAnnotation(msg)
                 .setCreateTime(new Date(annotationCreateTime))
                 .setCreateUsername(XPackUser.NAME)
                 .setTimestamp(bucket.getTimestamp())
@@ -346,8 +373,9 @@ public class DatafeedJobTests extends ESTestCase {
                 .setType(Annotation.Type.ANNOTATION)
                 .setEvent(Annotation.Event.DELAYED_DATA)
                 .build();
-            BytesReference expectedSource =
-                BytesReference.bytes(expectedUpdatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS));
+            BytesReference expectedSource = BytesReference.bytes(
+                expectedUpdatedAnnotation.toXContent(XContentFactory.jsonBuilder(), ToXContent.EMPTY_PARAMS)
+            );
 
             ArgumentCaptor<BulkRequest> bulkRequestArgumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
             verify(client, atMost(2)).execute(eq(BulkAction.INSTANCE), bulkRequestArgumentCaptor.capture(), any());
@@ -361,7 +389,7 @@ public class DatafeedJobTests extends ESTestCase {
         }
 
         // Execute a fifth time, no changes should occur as annotation is the same
-        currentTime = currentTime + DatafeedJob.MISSING_DATA_CHECK_INTERVAL_MS + 1;
+        currentTime = currentTime + DELAYED_DATA_WINDOW + 1;
         inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.hasNext()).thenReturn(true).thenReturn(false);
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
@@ -414,8 +442,10 @@ public class DatafeedJobTests extends ESTestCase {
         when(dataExtractor.getEndTime()).thenReturn(1000L);
 
         DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, randomBoolean());
-        DatafeedJob.AnalysisProblemException analysisProblemException =
-                expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+        DatafeedJob.AnalysisProblemException analysisProblemException = expectThrows(
+            DatafeedJob.AnalysisProblemException.class,
+            () -> datafeedJob.runLookBack(0L, 1000L)
+        );
         assertThat(analysisProblemException.shouldStop, is(false));
 
         currentTime = 3001;
@@ -443,8 +473,10 @@ public class DatafeedJobTests extends ESTestCase {
         when(dataExtractor.getEndTime()).thenReturn(1000L);
 
         DatafeedJob datafeedJob = createDatafeedJob(1000, 500, -1, -1, randomBoolean());
-        DatafeedJob.AnalysisProblemException analysisProblemException =
-                expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runLookBack(0L, 1000L));
+        DatafeedJob.AnalysisProblemException analysisProblemException = expectThrows(
+            DatafeedJob.AnalysisProblemException.class,
+            () -> datafeedJob.runLookBack(0L, 1000L)
+        );
         assertThat(analysisProblemException.shouldStop, is(true));
 
         currentTime = 3001;
@@ -468,8 +500,10 @@ public class DatafeedJobTests extends ESTestCase {
         long frequencyMs = 100;
         long queryDelayMs = 1000;
         DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, 1000, -1, randomBoolean());
-        DatafeedJob.AnalysisProblemException analysisProblemException =
-                expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runRealtime());
+        DatafeedJob.AnalysisProblemException analysisProblemException = expectThrows(
+            DatafeedJob.AnalysisProblemException.class,
+            () -> datafeedJob.runRealtime()
+        );
         assertThat(analysisProblemException.shouldStop, is(false));
     }
 
@@ -480,17 +514,57 @@ public class DatafeedJobTests extends ESTestCase {
         long frequencyMs = 100;
         long queryDelayMs = 1000;
         DatafeedJob datafeedJob = createDatafeedJob(frequencyMs, queryDelayMs, 1000, -1, randomBoolean());
-        DatafeedJob.AnalysisProblemException analysisProblemException =
-                expectThrows(DatafeedJob.AnalysisProblemException.class, () -> datafeedJob.runRealtime());
+        DatafeedJob.AnalysisProblemException analysisProblemException = expectThrows(
+            DatafeedJob.AnalysisProblemException.class,
+            () -> datafeedJob.runRealtime()
+        );
         assertThat(analysisProblemException.shouldStop, is(true));
     }
 
-    private DatafeedJob createDatafeedJob(long frequencyMs, long queryDelayMs, long latestFinalBucketEndTimeMs,
-                                          long latestRecordTimeMs, boolean haveSeenDataPreviously) {
+    private DatafeedJob createDatafeedJob(
+        long frequencyMs,
+        long queryDelayMs,
+        long latestFinalBucketEndTimeMs,
+        long latestRecordTimeMs,
+        boolean haveSeenDataPreviously
+    ) {
+        return createDatafeedJob(
+            frequencyMs,
+            queryDelayMs,
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs,
+            haveSeenDataPreviously,
+            DELAYED_DATA_CHECK_FREQ.get(Settings.EMPTY).millis()
+        );
+    }
+
+    private DatafeedJob createDatafeedJob(
+        long frequencyMs,
+        long queryDelayMs,
+        long latestFinalBucketEndTimeMs,
+        long latestRecordTimeMs,
+        boolean haveSeenDataPreviously,
+        long delayedDataFreq
+    ) {
         Supplier<Long> currentTimeSupplier = () -> currentTime;
-        return new DatafeedJob(jobId, dataDescription.build(), frequencyMs, queryDelayMs, dataExtractorFactory, timingStatsReporter,
-            client, auditor, new AnnotationPersister(resultsPersisterService), currentTimeSupplier,
-            delayedDataDetector, null, latestFinalBucketEndTimeMs, latestRecordTimeMs, haveSeenDataPreviously);
+        return new DatafeedJob(
+            jobId,
+            dataDescription.build(),
+            frequencyMs,
+            queryDelayMs,
+            dataExtractorFactory,
+            timingStatsReporter,
+            client,
+            auditor,
+            new AnnotationPersister(resultsPersisterService),
+            currentTimeSupplier,
+            delayedDataDetector,
+            null,
+            latestFinalBucketEndTimeMs,
+            latestRecordTimeMs,
+            haveSeenDataPreviously,
+            delayedDataFreq
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -503,9 +577,10 @@ public class DatafeedJobTests extends ESTestCase {
     }
 
     private static BulkItemResponse bulkItemSuccess(String docId) {
-        return new BulkItemResponse(
+        return BulkItemResponse.success(
             1,
             DocWriteRequest.OpType.INDEX,
-            new IndexResponse(new ShardId(AnnotationIndex.WRITE_ALIAS_NAME, "uuid", 1), docId, 0, 0, 1, true));
+            new IndexResponse(new ShardId(AnnotationIndex.WRITE_ALIAS_NAME, "uuid", 1), docId, 0, 0, 1, true)
+        );
     }
 }

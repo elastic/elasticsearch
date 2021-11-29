@@ -9,18 +9,18 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.time.ZoneId;
@@ -41,16 +41,19 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
 
     protected final Script script;
     private final Function<SearchLookup, LeafFactory> factory;
+    private final boolean isResultDeterministic;
 
     AbstractScriptFieldType(
         String name,
         Function<SearchLookup, LeafFactory> factory,
         Script script,
+        boolean isResultDeterministic,
         Map<String, String> meta
     ) {
         super(name, false, false, false, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
         this.factory = factory;
         this.script = Objects.requireNonNull(script);
+        this.isResultDeterministic = isResultDeterministic;
     }
 
     @Override
@@ -156,11 +159,14 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         );
     }
 
-    protected final void checkAllowExpensiveQueries(SearchExecutionContext context) {
+    protected final void applyScriptContext(SearchExecutionContext context) {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException(
                 "queries cannot be executed against runtime fields while [" + ALLOW_EXPENSIVE_QUERIES.getKey() + "] is set to [false]."
             );
+        }
+        if (isResultDeterministic == false) {
+            context.disableCache();
         }
     }
 
@@ -188,35 +194,68 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
         return leafFactory(context.lookup().forkAndTrackFieldReferences(name()));
     }
 
+    @Override
+    public void validateMatchedRoutingPath() {
+        throw new IllegalArgumentException(
+            "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                + "and without the [script] parameter. ["
+                + name()
+                + "] was a runtime ["
+                + typeName()
+                + "]."
+        );
+    }
+
     // Placeholder Script for source-only fields
     // TODO rework things so that we don't need this
     protected static final Script DEFAULT_SCRIPT = new Script("");
 
     abstract static class Builder<Factory> extends RuntimeField.Builder {
         private final ScriptContext<Factory> scriptContext;
-        private final Factory parseFromSourceFactory;
 
         final FieldMapper.Parameter<Script> script = new FieldMapper.Parameter<>(
             "script",
             true,
             () -> null,
-            Builder::parseScript,
-            initializerNotSupported()
+            RuntimeField::parseScript,
+            RuntimeField.initializerNotSupported()
         ).setSerializerCheck((id, ic, v) -> ic);
 
-        Builder(String name, ScriptContext<Factory> scriptContext, Factory parseFromSourceFactory) {
+        Builder(String name, ScriptContext<Factory> scriptContext) {
             super(name);
             this.scriptContext = scriptContext;
-            this.parseFromSourceFactory = parseFromSourceFactory;
         }
+
+        abstract Factory getParseFromSourceFactory();
+
+        abstract Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory);
 
         @Override
         protected final RuntimeField createRuntimeField(MappingParserContext parserContext) {
             if (script.get() == null) {
-                return createRuntimeField(parseFromSourceFactory);
+                return createRuntimeField(getParseFromSourceFactory());
             }
             Factory factory = parserContext.scriptCompiler().compile(script.getValue(), scriptContext);
             return createRuntimeField(factory);
+        }
+
+        @Override
+        protected final RuntimeField createChildRuntimeField(
+            MappingParserContext parserContext,
+            String parent,
+            Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory
+        ) {
+            if (script.isConfigured()) {
+                throw new IllegalArgumentException(
+                    "Cannot use [script] parameter on sub-field [" + name + "] of composite field [" + parent + "]"
+                );
+            }
+            String fullName = parent + "." + name;
+            return new LeafRuntimeField(
+                name,
+                createFieldType(fullName, getCompositeLeafFactory(parentScriptFactory), getScript(), meta()),
+                getParameters()
+            );
         }
 
         final RuntimeField createRuntimeField(Factory scriptFactory) {
@@ -239,17 +278,5 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType {
             }
             return script.get();
         }
-
-        private static Script parseScript(String name, MappingParserContext parserContext, Object scriptObject) {
-            Script script = Script.parse(scriptObject);
-            if (script.getType() == ScriptType.STORED) {
-                throw new IllegalArgumentException("stored scripts are not supported for runtime field [" + name + "]");
-            }
-            return script;
-        }
-    }
-
-    static <T> Function<FieldMapper, T> initializerNotSupported() {
-        return mapper -> { throw new UnsupportedOperationException(); };
     }
 }

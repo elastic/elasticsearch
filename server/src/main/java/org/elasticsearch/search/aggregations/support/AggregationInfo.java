@@ -10,8 +10,8 @@ package org.elasticsearch.search.aggregations.support;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -43,7 +43,7 @@ public class AggregationInfo implements ReportingService.Info {
             String key = in.readString();
             final int keys = in.readVInt();
             final Set<String> types = new TreeSet<>();
-            for (int j = 0; j < keys; j ++) {
+            for (int j = 0; j < keys; j++) {
                 types.add(in.readString());
             }
             aggs.put(key, types);

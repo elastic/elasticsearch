@@ -8,15 +8,18 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 public class ParsedGeoHashGrid extends ParsedGeoGrid {
 
-    private static final ObjectParser<ParsedGeoGrid, Void> PARSER = createParser(ParsedGeoHashGrid::new,
-        ParsedGeoHashGridBucket::fromXContent, ParsedGeoHashGridBucket::fromXContent);
+    private static final ObjectParser<ParsedGeoGrid, Void> PARSER = createParser(
+        ParsedGeoHashGrid::new,
+        ParsedGeoHashGridBucket::fromXContent,
+        ParsedGeoHashGridBucket::fromXContent
+    );
 
     public static ParsedGeoGrid fromXContent(XContentParser parser, String name) throws IOException {
         ParsedGeoGrid aggregation = PARSER.parse(parser, null);

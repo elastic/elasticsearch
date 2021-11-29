@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[update-transform]]
 = Update {transform} API
 
@@ -98,6 +97,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=dest-pipeline]
 (Optional, <<time-units, time units>>)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=frequency]
 
+//Begin _meta
+`_meta`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-metadata]
+//End _meta
+
 //Begin retention policy
 `retention_policy`::
 (Optional, object)
@@ -138,6 +143,9 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-dat
 `docs_per_second`:::
 (Optional, float)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-docs-per-second]
+`align_checkpoints`:::
+(Optional, boolean)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-align-checkpoints]
 `max_page_search_size`:::
 (Optional, integer)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max-page-search-size]

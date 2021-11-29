@@ -9,22 +9,30 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SnapshotDeletionsInProgressTests extends ESTestCase {
     public void testXContent() throws IOException {
-        SnapshotDeletionsInProgress sdip =
-            SnapshotDeletionsInProgress.of(List.of(new SnapshotDeletionsInProgress.Entry(Collections.emptyList(),
-                "repo", 736694267638L, 0, SnapshotDeletionsInProgress.State.STARTED)));
+        SnapshotDeletionsInProgress sdip = SnapshotDeletionsInProgress.of(
+            List.of(
+                new SnapshotDeletionsInProgress.Entry(
+                    Collections.emptyList(),
+                    "repo",
+                    736694267638L,
+                    0,
+                    SnapshotDeletionsInProgress.State.STARTED
+                )
+            )
+        );
 
         try (XContentBuilder builder = jsonBuilder()) {
             builder.humanReadable(true);
@@ -32,10 +40,14 @@ public class SnapshotDeletionsInProgressTests extends ESTestCase {
             sdip.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             String json = Strings.toString(builder);
-            assertThat(json,
-                equalTo("{\"snapshot_deletions\":[{\"repository\":\"repo\",\"snapshots\":[]," +
-                    "\"start_time\":\"1993-05-06T13:17:47.638Z\",\"start_time_millis\":736694267638,\"repository_state_id\":0," +
-                        "\"state\":\"STARTED\"}]}"));
+            assertThat(
+                json,
+                equalTo(
+                    "{\"snapshot_deletions\":[{\"repository\":\"repo\",\"snapshots\":[],"
+                        + "\"start_time\":\"1993-05-06T13:17:47.638Z\",\"start_time_millis\":736694267638,\"repository_state_id\":0,"
+                        + "\"state\":\"STARTED\"}]}"
+                )
+            );
         }
     }
 }

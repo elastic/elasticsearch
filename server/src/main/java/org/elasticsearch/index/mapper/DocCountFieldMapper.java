@@ -8,10 +8,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -22,7 +22,9 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_doc_count";
     public static final String CONTENT_TYPE = "_doc_count";
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new DocCountFieldMapper());
+    private static final DocCountFieldMapper INSTANCE = new DocCountFieldMapper();
+
+    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
     public static final class DocCountFieldType extends MappedFieldType {
 
@@ -31,7 +33,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         public static final int DEFAULT_VALUE = 1;
 
         public DocCountFieldType() {
-            super(NAME, false, false, false, TextSearchInfo.NONE,  Collections.emptyMap());
+            super(NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override
@@ -89,8 +91,9 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
         int value = parser.intValue(false);
         if (value <= 0) {
-            throw new IllegalArgumentException("Field [" + fieldType().name() + "] must be a positive integer. Value ["
-                + value + "] is not allowed.");
+            throw new IllegalArgumentException(
+                "Field [" + fieldType().name() + "] must be a positive integer. Value [" + value + "] is not allowed."
+            );
         }
         context.doc().addWithKey(NAME, new CustomTermFreqField(NAME, NAME, value));
     }

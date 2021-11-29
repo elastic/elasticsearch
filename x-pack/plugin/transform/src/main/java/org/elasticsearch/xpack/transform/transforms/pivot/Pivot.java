@@ -16,19 +16,20 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
+import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.xpack.transform.Transform;
@@ -44,7 +45,7 @@ import java.util.Set;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * The pivot transform function. This continually searches and pivots results according to the passed {@link PivotConfig}
@@ -127,7 +128,8 @@ public class Pivot extends AbstractCompositeAggFunction {
     protected Stream<Map<String, Object>> extractResults(
         CompositeAggregation agg,
         Map<String, String> fieldTypeMap,
-        TransformIndexerStats transformIndexerStats
+        TransformIndexerStats transformIndexerStats,
+        TransformProgress transformProgress
     ) {
         // defines how dates are written, if not specified in settings
         // < 7.11 as epoch millis
@@ -144,6 +146,7 @@ public class Pivot extends AbstractCompositeAggFunction {
             config.getAggregationConfig().getPipelineAggregatorFactories(),
             fieldTypeMap,
             transformIndexerStats,
+            transformProgress,
             datesAsEpoch
         );
     }

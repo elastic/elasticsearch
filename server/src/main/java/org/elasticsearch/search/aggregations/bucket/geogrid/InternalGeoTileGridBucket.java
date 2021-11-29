@@ -14,7 +14,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.io.IOException;
 
-public class InternalGeoTileGridBucket extends InternalGeoGridBucket<InternalGeoTileGridBucket> {
+public class InternalGeoTileGridBucket extends InternalGeoGridBucket {
     InternalGeoTileGridBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         super(hashAsLong, docCount, aggregations);
     }

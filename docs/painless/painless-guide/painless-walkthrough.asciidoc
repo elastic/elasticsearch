@@ -110,16 +110,23 @@ GET hockey/_search
 }
 ----------------------------------------------------------------
 
+[discrete]
+==== Missing keys
+
+`doc['myfield'].value` throws an exception if
+the field is missing in a document.
+
+For more dynamic index mappings, you may consider writting a catch equation
+
+```
+if (!doc.containsKey('myfield') || doc['myfield'].empty) { return "unavailable" } else { return doc['myfield'].value }
+```
 
 [discrete]
 ==== Missing values
 
-`doc['field'].value` throws an exception if
-the field is missing in a document.
-
 To check if a document is missing a value, you can call
-`doc['field'].size() == 0`.
-
+`doc['myfield'].size() == 0`.
 
 [discrete]
 ==== Updating Fields with Painless

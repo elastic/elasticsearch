@@ -23,7 +23,6 @@ import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.ShuffleForcedMergePolicy;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -45,8 +44,11 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
     public void testPruneAll() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
-            RecoverySourcePruneMergePolicy mp = new RecoverySourcePruneMergePolicy("extra_source", MatchNoDocsQuery::new,
-                newLogMergePolicy());
+            RecoverySourcePruneMergePolicy mp = new RecoverySourcePruneMergePolicy(
+                "extra_source",
+                MatchNoDocsQuery::new,
+                newLogMergePolicy()
+            );
             iwc.setMergePolicy(new ShuffleForcedMergePolicy(mp));
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int i = 0; i < 20; i++) {
@@ -77,28 +79,30 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                         CodecReader codecReader = (CodecReader) leafReader;
                         StandardDirectoryReader sdr = (StandardDirectoryReader) reader;
                         SegmentInfos segmentInfos = sdr.getSegmentInfos();
-                        MergePolicy.MergeSpecification forcedMerges = mp.findForcedDeletesMerges(segmentInfos,
+                        MergePolicy.MergeSpecification forcedMerges = mp.findForcedDeletesMerges(
+                            segmentInfos,
                             new MergePolicy.MergeContext() {
-                            @Override
-                            public int numDeletesToMerge(SegmentCommitInfo info) {
-                                return info.info.maxDoc() - 1;
-                            }
+                                @Override
+                                public int numDeletesToMerge(SegmentCommitInfo info) {
+                                    return info.info.maxDoc() - 1;
+                                }
 
-                            @Override
-                            public int numDeletedDocs(SegmentCommitInfo info) {
-                                return info.info.maxDoc() - 1;
-                            }
+                                @Override
+                                public int numDeletedDocs(SegmentCommitInfo info) {
+                                    return info.info.maxDoc() - 1;
+                                }
 
-                            @Override
-                            public InfoStream getInfoStream() {
-                                return new NullInfoStream();
-                            }
+                                @Override
+                                public InfoStream getInfoStream() {
+                                    return new NullInfoStream();
+                                }
 
-                            @Override
-                            public Set<SegmentCommitInfo> getMergingSegments() {
-                                return Collections.emptySet();
+                                @Override
+                                public Set<SegmentCommitInfo> getMergingSegments() {
+                                    return Collections.emptySet();
+                                }
                             }
-                        });
+                        );
                         // don't wrap if there is nothing to do
                         assertSame(codecReader, forcedMerges.merges.get(0).wrapForMerge(codecReader));
                     }
@@ -107,12 +111,12 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
         }
     }
 
-
     public void testPruneSome() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
-            iwc.setMergePolicy(new RecoverySourcePruneMergePolicy("extra_source",
-                () -> new TermQuery(new Term("even", "true")), iwc.getMergePolicy()));
+            iwc.setMergePolicy(
+                new RecoverySourcePruneMergePolicy("extra_source", () -> new TermQuery(new Term("even", "true")), iwc.getMergePolicy())
+            );
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int i = 0; i < 20; i++) {
                     if (i > 0 && randomBoolean()) {
@@ -153,8 +157,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
     public void testPruneNone() throws IOException {
         try (Directory dir = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig();
-            iwc.setMergePolicy(new RecoverySourcePruneMergePolicy("extra_source",
-                () -> new MatchAllDocsQuery(), iwc.getMergePolicy()));
+            iwc.setMergePolicy(new RecoverySourcePruneMergePolicy("extra_source", () -> new MatchAllDocsQuery(), iwc.getMergePolicy()));
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 for (int i = 0; i < 20; i++) {
                     if (i > 0 && randomBoolean()) {

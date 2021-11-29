@@ -34,8 +34,8 @@ public abstract class Command implements Closeable {
 
     private final OptionSpec<Void> helpOption = parser.acceptsAll(Arrays.asList("h", "help"), "Show help").forHelp();
     private final OptionSpec<Void> silentOption = parser.acceptsAll(Arrays.asList("s", "silent"), "Show minimal output");
-    private final OptionSpec<Void> verboseOption =
-        parser.acceptsAll(Arrays.asList("v", "verbose"), "Show verbose output").availableUnless(silentOption);
+    private final OptionSpec<Void> verboseOption = parser.acceptsAll(Arrays.asList("v", "verbose"), "Show verbose output")
+        .availableUnless(silentOption);
 
     /**
      * Construct the command with the specified command description and runnable to execute before main is invoked.
@@ -58,9 +58,7 @@ public abstract class Command implements Closeable {
                 try {
                     this.close();
                 } catch (final IOException e) {
-                    try (
-                        StringWriter sw = new StringWriter();
-                        PrintWriter pw = new PrintWriter(sw)) {
+                    try (StringWriter sw = new StringWriter(); PrintWriter pw = new PrintWriter(sw)) {
                         e.printStackTrace(pw);
                         terminal.errorPrintln(sw.toString());
                     } catch (final IOException impossible) {
@@ -86,9 +84,7 @@ public abstract class Command implements Closeable {
             if (e.exitCode == ExitCodes.USAGE) {
                 printHelp(terminal, true);
             }
-            if (e.getMessage() != null) {
-                terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
-            }
+            printUserException(terminal, e);
             return e.exitCode;
         }
         return ExitCodes.OK;
@@ -97,7 +93,7 @@ public abstract class Command implements Closeable {
     /**
      * Executes the command, but all errors are thrown.
      */
-    void mainWithoutErrorHandling(String[] args, Terminal terminal) throws Exception {
+    protected void mainWithoutErrorHandling(String[] args, Terminal terminal) throws Exception {
         final OptionSet options = parser.parse(args);
 
         if (options.has(helpOption)) {
@@ -132,6 +128,13 @@ public abstract class Command implements Closeable {
 
     /** Prints additional help information, specific to the command */
     protected void printAdditionalHelp(Terminal terminal) {}
+
+    protected void printUserException(Terminal terminal, UserException e) {
+        if (e.getMessage() != null) {
+            terminal.errorPrintln("");
+            terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
+        }
+    }
 
     @SuppressForbidden(reason = "Allowed to exit explicitly from #main()")
     protected static void exit(int status) {

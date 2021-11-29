@@ -11,8 +11,8 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.ml.job.config.AnalysisConfig;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -92,8 +92,8 @@ public class EstimateModelMemoryRequest implements Validatable, ToXContentObject
         }
 
         EstimateModelMemoryRequest that = (EstimateModelMemoryRequest) other;
-        return Objects.equals(analysisConfig, that.analysisConfig) &&
-            Objects.equals(overallCardinality, that.overallCardinality) &&
-            Objects.equals(maxBucketCardinality, that.maxBucketCardinality);
+        return Objects.equals(analysisConfig, that.analysisConfig)
+            && Objects.equals(overallCardinality, that.overallCardinality)
+            && Objects.equals(maxBucketCardinality, that.maxBucketCardinality);
     }
 }

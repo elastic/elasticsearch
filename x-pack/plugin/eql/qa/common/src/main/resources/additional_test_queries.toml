@@ -228,19 +228,35 @@ sequence by unique_pid
   [any where true]
   [any where serial_event_id < 72]
 '''
-expected_event_ids  = [
-                       54, 55, 59,
-                       55, 59, 61,
-                       59, 61, 65,
-                       16, 60, 66,
-                       61, 65, 67,
-                       65, 67, 70,
-                       60, 66, 71]
+expected_event_ids = [
+                      54, 55, 59,
+                      55, 59, 61,
+                      59, 61, 65,
+                      16, 60, 66,
+                      61, 65, 67,
+                      65, 67, 70,
+                      60, 66, 71]
+
+[[queries]]
+name = "sequenceWithMoreThan10Results-Runs"
+query = '''
+sequence by unique_pid
+  [any where true] with runs=2
+  [any where serial_event_id < 72]
+'''
+expected_event_ids = [
+                      54, 55, 59,
+                      55, 59, 61,
+                      59, 61, 65,
+                      16, 60, 66,
+                      61, 65, 67,
+                      65, 67, 70,
+                      60, 66, 71]
 
 [[queries]]
 name = "seqSingleArg"
 query = 'process where string(serial_event_id) : ("1")'
-expected_event_ids  = [1]
+expected_event_ids = [1]
 
 [[queries]]
 name = "seqSingleArgPattern"
@@ -270,20 +286,6 @@ expected_event_ids  = [65, 86]
 name = "seqMultipleArgsWildcardPatternQuestionMark"
 query = '''
 file where file_name : ("winini?.exe", "lsass.e?e") and opcode == 2
-'''
-expected_event_ids  = [65, 86]
-
-[[queries]]
-name = "wildcardFunctionWildcardPattern"
-query = '''
-file where wildcard(file_name, "winini*.exe", "lsass.*") and opcode == 2
-'''
-expected_event_ids  = [65, 86]
-
-[[queries]]
-name = "wildcardFunctionQuestionMarkPattern"
-query = '''
-file where wildcard(file_name, "winini?.exe", "lsass.e?e") and opcode == 2
 '''
 expected_event_ids  = [65, 86]
 
@@ -428,3 +430,63 @@ query = '''
 process where substring(command_line, 5) regex (".*?net[1]?  localgroup.*?", ".*? myappserver.py .*?")
 '''
 
+[[queries]]
+description = "This query has an important meaning when considering its pair - sequenceWithRequiredUserDomain - it shows that when using '?' for a key field, this one becomes null-aware, meaning a null value can be used as a join key"
+name = "sequenceWithOptionalUserDomain"
+expected_event_ids  = [1, 57]
+join_keys = ["null"]
+query = '''
+sequence by ?user_domain [process where true] [registry where true]
+'''
+
+[[queries]]
+name = "sequenceWithRequiredUserDomain"
+expected_event_ids  = []
+join_keys = []
+query = '''
+sequence by user_domain [process where true] [registry where true]
+'''
+
+[[queries]]
+description = "An equivalent (without optional keys) query can be found in test_queries.toml - twoSequencesWithTwoKeys"
+name = "twoSequencesWithTwoKeys_AndOptionals"
+query = '''
+sequence by ?x
+  [process where true]        by unique_pid,  process_path,        ?z
+  [process where opcode == 1] by unique_ppid, parent_process_path, ?w
+'''
+expected_event_ids  = [48, 53,
+                       53, 54,
+                       54, 56,
+                       97, 98]
+join_keys = ["null", "48", "C:\\Python27\\python.exe", "null",
+             "null", "53", "C:\\Windows\\System32\\cmd.exe", "null",
+             "null", "54", "C:\\Python27\\python.exe", "null",
+             "null", "750058", "C:\\Windows\\System32\\net.exe", "null"]
+
+[[queries]]
+name = "sequenceOnOneNullKey"
+query = '''
+sequence
+  [process where parent_process_path == null] by parent_process_path
+  [any where true] by parent_process_path
+'''
+expected_event_ids = []
+
+[[queries]]
+name = "sequenceOnTwoNullKeys"
+query = '''
+sequence by ppid 
+  [process where parent_process_path == null] by parent_process_path
+  [any where true] by parent_process_path
+'''
+expected_event_ids = []
+
+[[queries]]
+name = "sequenceOnImplicitNullKeys"
+query = '''
+sequence by ppid, parent_process_path
+  [process where parent_process_path == null]
+  [any where true]
+'''
+expected_event_ids = []

@@ -80,40 +80,45 @@ public class SearchStatsIT extends ESIntegTestCase {
         final int shardsIdx1 = randomIntBetween(1, 10); // we make sure each node gets at least a single shard...
         final int shardsIdx2 = Math.max(numNodes - shardsIdx1, randomIntBetween(1, 10));
         assertThat(numNodes, lessThanOrEqualTo(shardsIdx1 + shardsIdx2));
-        assertAcked(prepareCreate("test1").setSettings(Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, shardsIdx1)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)));
-        int docsTest1 = scaledRandomIntBetween(3*shardsIdx1, 5*shardsIdx1);
+        assertAcked(
+            prepareCreate("test1").setSettings(
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardsIdx1).put(SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+        );
+        int docsTest1 = scaledRandomIntBetween(3 * shardsIdx1, 5 * shardsIdx1);
         for (int i = 0; i < docsTest1; i++) {
             client().prepareIndex("test1").setId(Integer.toString(i)).setSource("field", "value").get();
             if (rarely()) {
                 refresh();
             }
         }
-        assertAcked(prepareCreate("test2").setSettings(Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, shardsIdx2)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)));
-        int docsTest2 = scaledRandomIntBetween(3*shardsIdx2, 5*shardsIdx2);
+        assertAcked(
+            prepareCreate("test2").setSettings(
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardsIdx2).put(SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+        );
+        int docsTest2 = scaledRandomIntBetween(3 * shardsIdx2, 5 * shardsIdx2);
         for (int i = 0; i < docsTest2; i++) {
             client().prepareIndex("test2").setId(Integer.toString(i)).setSource("field", "value").get();
             if (rarely()) {
                 refresh();
             }
         }
-        assertThat(shardsIdx1+shardsIdx2, equalTo(numAssignedShards("test1", "test2")));
+        assertThat(shardsIdx1 + shardsIdx2, equalTo(numAssignedShards("test1", "test2")));
         assertThat(numAssignedShards("test1", "test2"), greaterThanOrEqualTo(2));
         // THERE WILL BE AT LEAST 2 NODES HERE SO WE CAN WAIT FOR GREEN
         ensureGreen();
         refresh();
         int iters = scaledRandomIntBetween(100, 150);
         for (int i = 0; i < iters; i++) {
-            SearchResponse searchResponse = internalCluster().coordOnlyNodeClient().prepareSearch()
-                    .setQuery(QueryBuilders.termQuery("field", "value")).setStats("group1", "group2")
-                    .highlighter(new HighlightBuilder().field("field"))
-                    .addScriptField("script1",
-                        new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.field", Collections.emptyMap()))
-                    .setSize(100)
-                    .get();
+            SearchResponse searchResponse = internalCluster().coordOnlyNodeClient()
+                .prepareSearch()
+                .setQuery(QueryBuilders.termQuery("field", "value"))
+                .setStats("group1", "group2")
+                .highlighter(new HighlightBuilder().field("field"))
+                .addScriptField("script1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_source.field", Collections.emptyMap()))
+                .setSize(100)
+                .get();
             assertHitCount(searchResponse, docsTest1 + docsTest2);
             assertAllSuccessful(searchResponse);
         }
@@ -178,11 +183,11 @@ public class SearchStatsIT extends ESIntegTestCase {
         final int docs = scaledRandomIntBetween(20, 50);
         for (int s = 0; s < numAssignedShards(index); s++) {
             for (int i = 0; i < docs; i++) {
-                client()
-                        .prepareIndex(index).setId(Integer.toString(s * docs + i))
-                        .setSource("field", "value")
-                        .setRouting(Integer.toString(s))
-                        .get();
+                client().prepareIndex(index)
+                    .setId(Integer.toString(s * docs + i))
+                    .setSource("field", "value")
+                    .setRouting(Integer.toString(s))
+                    .get();
             }
         }
         client().admin().indices().prepareRefresh(index).get();
@@ -192,10 +197,10 @@ public class SearchStatsIT extends ESIntegTestCase {
 
         int size = scaledRandomIntBetween(1, docs);
         SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .setSize(size)
-                .setScroll(TimeValue.timeValueMinutes(2))
-                .get();
+            .setQuery(matchAllQuery())
+            .setSize(size)
+            .setScroll(TimeValue.timeValueMinutes(2))
+            .get();
         assertSearchResponse(searchResponse);
 
         // refresh the stats now that scroll contexts are opened
@@ -210,16 +215,14 @@ public class SearchStatsIT extends ESIntegTestCase {
                 break;
             }
             hits += searchResponse.getHits().getHits().length;
-            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId())
-                    .setScroll(TimeValue.timeValueMinutes(2))
-                    .get();
+            searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
         }
         long expected = 0;
 
         // the number of queries executed is equal to at least the sum of number of pages in shard over all shards
         IndicesStatsResponse r = client().admin().indices().prepareStats(index).get();
         for (int s = 0; s < numAssignedShards(index); s++) {
-            expected += (long)Math.ceil(r.getShards()[s].getStats().getDocs().getCount() / size);
+            expected += (long) Math.ceil(r.getShards()[s].getStats().getDocs().getCount() / size);
         }
         indicesStats = client().admin().indices().prepareStats().get();
         Stats stats = indicesStats.getTotal().getSearch().getTotal();
@@ -231,13 +234,13 @@ public class SearchStatsIT extends ESIntegTestCase {
         indicesStats = client().admin().indices().prepareStats().get();
         stats = indicesStats.getTotal().getSearch().getTotal();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0L));
-        assertThat(stats.getScrollCount(), equalTo((long)numAssignedShards(index)));
+        assertThat(stats.getScrollCount(), equalTo((long) numAssignedShards(index)));
         assertThat(stats.getScrollTimeInMillis(), greaterThan(0L));
     }
 
     protected int numAssignedShards(String... indices) {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        GroupShardsIterator allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
+        GroupShardsIterator<?> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         return allAssignedShardsGrouped.size();
     }
 }

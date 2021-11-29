@@ -24,49 +24,66 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
-import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleTask;
+import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 
 import java.util.Optional;
 
-public class TransportExecuteSnapshotLifecycleAction
-    extends TransportMasterNodeAction<ExecuteSnapshotLifecycleAction.Request, ExecuteSnapshotLifecycleAction.Response> {
+public class TransportExecuteSnapshotLifecycleAction extends TransportMasterNodeAction<
+    ExecuteSnapshotLifecycleAction.Request,
+    ExecuteSnapshotLifecycleAction.Response> {
 
     private final Client client;
     private final SnapshotHistoryStore historyStore;
 
     @Inject
-    public TransportExecuteSnapshotLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                                   Client client, SnapshotHistoryStore historyStore) {
-        super(ExecuteSnapshotLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                ExecuteSnapshotLifecycleAction.Request::new, indexNameExpressionResolver, ExecuteSnapshotLifecycleAction.Response::new,
-                ThreadPool.Names.GENERIC);
+    public TransportExecuteSnapshotLifecycleAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client,
+        SnapshotHistoryStore historyStore
+    ) {
+        super(
+            ExecuteSnapshotLifecycleAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            ExecuteSnapshotLifecycleAction.Request::new,
+            indexNameExpressionResolver,
+            ExecuteSnapshotLifecycleAction.Response::new,
+            ThreadPool.Names.GENERIC
+        );
         this.client = client;
         this.historyStore = historyStore;
     }
 
     @Override
-    protected void masterOperation(final Task task, final ExecuteSnapshotLifecycleAction.Request request,
-                                   final ClusterState state,
-                                   final ActionListener<ExecuteSnapshotLifecycleAction.Response> listener) {
+    protected void masterOperation(
+        final Task task,
+        final ExecuteSnapshotLifecycleAction.Request request,
+        final ClusterState state,
+        final ActionListener<ExecuteSnapshotLifecycleAction.Response> listener
+    ) {
         try {
             final String policyId = request.getLifecycleId();
-            SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE);
-            if (snapMeta == null) {
-                listener.onFailure(new IllegalArgumentException("no such snapshot lifecycle policy [" + policyId + "]"));
-                return;
-            }
-
+            SnapshotLifecycleMetadata snapMeta = state.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
             SnapshotLifecyclePolicyMetadata policyMetadata = snapMeta.getSnapshotConfigurations().get(policyId);
             if (policyMetadata == null) {
                 listener.onFailure(new IllegalArgumentException("no such snapshot lifecycle policy [" + policyId + "]"));
                 return;
             }
 
-            final Optional<String> snapshotName = SnapshotLifecycleTask.maybeTakeSnapshot(SnapshotLifecycleService.getJobId(policyMetadata),
-                client, clusterService, historyStore);
+            final Optional<String> snapshotName = SnapshotLifecycleTask.maybeTakeSnapshot(
+                SnapshotLifecycleService.getJobId(policyMetadata),
+                client,
+                clusterService,
+                historyStore
+            );
             if (snapshotName.isPresent()) {
                 listener.onResponse(new ExecuteSnapshotLifecycleAction.Response(snapshotName.get()));
             } else {

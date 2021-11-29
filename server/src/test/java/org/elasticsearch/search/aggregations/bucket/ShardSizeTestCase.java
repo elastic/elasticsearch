@@ -16,10 +16,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.is;
 
 public abstract class ShardSizeTestCase extends ESIntegTestCase {
@@ -31,8 +31,7 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
     }
 
     protected void createIdx(String keyFieldMapping) {
-        assertAcked(prepareCreate("idx")
-                .setMapping("key", keyFieldMapping));
+        assertAcked(prepareCreate("idx").setMapping("key", keyFieldMapping));
     }
 
     protected static String routing1; // routing key to shard 1
@@ -75,7 +74,7 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
         docs.addAll(indexDoc(routing2, "4", 2));
         docs.addAll(indexDoc(routing2, "5", 1));
 
-        // total docs in shard "2"  = 12
+        // total docs in shard "2" = 12
 
         indexRandom(true, docs);
 
@@ -92,11 +91,9 @@ public abstract class ShardSizeTestCase extends ESIntegTestCase {
     protected List<IndexRequestBuilder> indexDoc(String shard, String key, int times) throws Exception {
         IndexRequestBuilder[] builders = new IndexRequestBuilder[times];
         for (int i = 0; i < times; i++) {
-            builders[i] = client().prepareIndex("idx").setRouting(shard).setSource(jsonBuilder()
-                    .startObject()
-                    .field("key", key)
-                    .field("value", 1)
-                    .endObject());
+            builders[i] = client().prepareIndex("idx")
+                .setRouting(shard)
+                .setSource(jsonBuilder().startObject().field("key", key).field("value", 1).endObject());
         }
         return Arrays.asList(builders);
     }

@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.ilm.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.StepKeyTests;
 import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction.Request;

@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -28,7 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.is;
@@ -109,8 +109,7 @@ public class ArrayCompareConditionTests extends ESTestCase {
         logger.debug("quantifier [{}]", quantifier);
         logger.debug("met [{}]", met);
 
-        ArrayCompareCondition condition = new ArrayCompareCondition("ctx.payload.value", "", op, value, quantifier,
-                Clock.systemUTC());
+        ArrayCompareCondition condition = new ArrayCompareCondition("ctx.payload.value", "", op, value, quantifier, Clock.systemUTC());
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.Simple("value", values));
         assertThat(condition.execute(ctx).met(), is(met));
     }
@@ -139,8 +138,14 @@ public class ArrayCompareConditionTests extends ESTestCase {
         logger.debug("quantifier [{}]", quantifier);
         logger.debug("met [{}]", met);
 
-        ArrayCompareCondition condition = new ArrayCompareCondition("ctx.payload.value", "doc_count", op, value, quantifier,
-                Clock.systemUTC());
+        ArrayCompareCondition condition = new ArrayCompareCondition(
+            "ctx.payload.value",
+            "doc_count",
+            op,
+            value,
+            quantifier,
+            Clock.systemUTC()
+        );
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.Simple("value", values));
         assertThat(condition.execute(ctx).met(), is(met));
     }
@@ -148,12 +153,14 @@ public class ArrayCompareConditionTests extends ESTestCase {
     public void testExecuteDateMath() {
         ClockMock clock = ClockMock.frozen();
         boolean met = randomBoolean();
-        ArrayCompareCondition.Op op = met ?
-                randomFrom(ArrayCompareCondition.Op.GT, ArrayCompareCondition.Op.GTE, ArrayCompareCondition.Op.NOT_EQ) :
-                randomFrom(ArrayCompareCondition.Op.LT, ArrayCompareCondition.Op.LTE, ArrayCompareCondition.Op.EQ);
+        ArrayCompareCondition.Op op = met
+            ? randomFrom(ArrayCompareCondition.Op.GT, ArrayCompareCondition.Op.GTE, ArrayCompareCondition.Op.NOT_EQ)
+            : randomFrom(ArrayCompareCondition.Op.LT, ArrayCompareCondition.Op.LTE, ArrayCompareCondition.Op.EQ);
 
-        ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.ALL,
-                ArrayCompareCondition.Quantifier.SOME);
+        ArrayCompareCondition.Quantifier quantifier = randomFrom(
+            ArrayCompareCondition.Quantifier.ALL,
+            ArrayCompareCondition.Quantifier.SOME
+        );
         String value = "<{now-1d}>";
         int numberOfValues = randomIntBetween(1, 10);
         List<Object> values = new ArrayList<>(numberOfValues);
@@ -171,16 +178,15 @@ public class ArrayCompareConditionTests extends ESTestCase {
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
         Object value = randomFrom("value", 1, null);
-        XContentBuilder builder =
-                jsonBuilder().startObject()
-                    .startObject("key1.key2")
-                        .field("path", "key3.key4")
-                        .startObject(op.id())
-                            .field("value", value)
-                            .field("quantifier", quantifier.id())
-                        .endObject()
-                    .endObject()
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startObject("key1.key2")
+            .field("path", "key3.key4")
+            .startObject(op.id())
+            .field("value", value)
+            .field("quantifier", quantifier.id())
+            .endObject()
+            .endObject()
+            .endObject();
 
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken();
@@ -198,16 +204,15 @@ public class ArrayCompareConditionTests extends ESTestCase {
     public void testParseContainsUnknownOperator() throws IOException {
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
         Object value = randomFrom("value", 1, null);
-        XContentBuilder builder =
-                jsonBuilder().startObject()
-                    .startObject("key1.key2")
-                        .field("path", "key3.key4")
-                        .startObject("unknown")
-                            .field("value", value)
-                            .field("quantifier", quantifier.id())
-                        .endObject()
-                    .endObject()
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startObject("key1.key2")
+            .field("path", "key3.key4")
+            .startObject("unknown")
+            .field("value", value)
+            .field("quantifier", quantifier.id())
+            .endObject()
+            .endObject()
+            .endObject();
 
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken();
@@ -221,16 +226,15 @@ public class ArrayCompareConditionTests extends ESTestCase {
     public void testParseContainsUnknownQuantifier() throws IOException {
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         Object value = randomFrom("value", 1, null);
-        XContentBuilder builder =
-                jsonBuilder().startObject()
-                    .startObject("key1.key2")
-                        .field("path", "key3.key4")
-                        .startObject(op.id())
-                            .field("value", value)
-                            .field("quantifier", "unknown")
-                        .endObject()
-                    .endObject()
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startObject("key1.key2")
+            .field("path", "key3.key4")
+            .startObject(op.id())
+            .field("value", value)
+            .field("quantifier", "unknown")
+            .endObject()
+            .endObject()
+            .endObject();
 
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken();
@@ -245,17 +249,16 @@ public class ArrayCompareConditionTests extends ESTestCase {
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
         Object value = randomFrom("value", 1, null);
-        XContentBuilder builder =
-                jsonBuilder().startObject()
-                    .startObject("key1.key2")
-                        .field("path", "key3.key4")
-                        .startObject(op.id())
-                            .field("value", value)
-                            .field("quantifier", quantifier.id())
-                            .field("unexpected", "unexpected")
-                        .endObject()
-                    .endObject()
-                .endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startObject("key1.key2")
+            .field("path", "key3.key4")
+            .startObject(op.id())
+            .field("value", value)
+            .field("quantifier", quantifier.id())
+            .field("unexpected", "unexpected")
+            .endObject()
+            .endObject()
+            .endObject();
 
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         parser.nextToken();

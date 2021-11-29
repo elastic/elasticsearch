@@ -58,17 +58,19 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
     }
 
     @Override
-    protected InternalBinaryRange createTestInstance(String name,
-                                                     Map<String, Object> metadata,
-                                                     InternalAggregations aggregations,
-                                                     boolean keyed) {
+    protected InternalBinaryRange createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        InternalAggregations aggregations,
+        boolean keyed
+    ) {
         DocValueFormat format = DocValueFormat.RAW;
         List<InternalBinaryRange.Bucket> buckets = new ArrayList<>();
 
-        int nullKey = randomBoolean() ? randomIntBetween(0, ranges.size() -1) : -1;
+        int nullKey = randomBoolean() ? randomIntBetween(0, ranges.size() - 1) : -1;
         for (int i = 0; i < ranges.size(); ++i) {
             final int docCount = randomIntBetween(1, 100);
-            final String key = (i == nullKey) ? null: randomAlphaOfLength(10);
+            final String key = (i == nullKey) ? null : randomAlphaOfLength(10);
             buckets.add(new InternalBinaryRange.Bucket(format, keyed, key, ranges.get(i).v1(), ranges.get(i).v2(), docCount, aggregations));
         }
         return new InternalBinaryRange(name, format, keyed, buckets, metadata);
@@ -91,7 +93,7 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
                 expectedCount += input.getBuckets().get(pos).getDocCount();
             }
             assertEquals(expectedCount, bucket.getDocCount());
-            pos ++;
+            pos++;
         }
     }
 
@@ -113,27 +115,36 @@ public class InternalBinaryRangeTests extends InternalRangeTestCase<InternalBina
         List<InternalBinaryRange.Bucket> buckets = instance.getBuckets();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            keyed = keyed == false;
-            break;
-        case 2:
-            buckets = new ArrayList<>(buckets);
-            buckets.add(new InternalBinaryRange.Bucket(format, keyed, "range_a", new BytesRef(randomAlphaOfLengthBetween(1, 20)),
-                    new BytesRef(randomAlphaOfLengthBetween(1, 20)), randomNonNegativeLong(), InternalAggregations.EMPTY));
-            break;
-        case 3:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                keyed = keyed == false;
+                break;
+            case 2:
+                buckets = new ArrayList<>(buckets);
+                buckets.add(
+                    new InternalBinaryRange.Bucket(
+                        format,
+                        keyed,
+                        "range_a",
+                        new BytesRef(randomAlphaOfLengthBetween(1, 20)),
+                        new BytesRef(randomAlphaOfLengthBetween(1, 20)),
+                        randomNonNegativeLong(),
+                        InternalAggregations.EMPTY
+                    )
+                );
+                break;
+            case 3:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalBinaryRange(name, format, keyed, buckets, metadata);
     }

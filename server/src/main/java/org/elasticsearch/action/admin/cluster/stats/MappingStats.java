@@ -15,8 +15,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,7 +59,8 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             Set<String> indexRuntimeFieldTypes = new HashSet<>();
             MappingMetadata mappingMetadata = indexMetadata.mapping();
             if (mappingMetadata != null) {
-                MappingVisitor.visitMapping(mappingMetadata.getSourceAsMap(), (field, fieldMapping) -> {
+                final Map<String, Object> map = mappingMetadata.getSourceAsMap();
+                MappingVisitor.visitMapping(map, (field, fieldMapping) -> {
                     concreteFieldNames.add(field);
                     String type = null;
                     Object typeO = fieldMapping.get("type");
@@ -88,7 +89,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
                     }
                 });
 
-                MappingVisitor.visitRuntimeMapping(mappingMetadata.getSourceAsMap(), (field, fieldMapping) -> {
+                MappingVisitor.visitRuntimeMapping(map, (field, fieldMapping) -> {
                     Object typeObject = fieldMapping.get("type");
                     if (typeObject == null) {
                         return;
@@ -205,8 +206,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             return false;
         }
         MappingStats that = (MappingStats) o;
-        return fieldTypeStats.equals(that.fieldTypeStats) &&
-            runtimeFieldStats.equals(that.runtimeFieldStats);
+        return fieldTypeStats.equals(that.fieldTypeStats) && runtimeFieldStats.equals(that.runtimeFieldStats);
     }
 
     @Override

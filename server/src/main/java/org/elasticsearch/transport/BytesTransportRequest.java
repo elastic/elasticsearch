@@ -32,8 +32,8 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
         version = in.getVersion();
     }
 
-    public BytesTransportRequest(BytesReference bytes, Version version) {
-        this.bytes = ReleasableBytesReference.wrap(bytes);
+    public BytesTransportRequest(ReleasableBytesReference bytes, Version version) {
+        this.bytes = bytes;
         this.version = version;
     }
 
@@ -73,5 +73,10 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
     @Override
     public boolean decRef() {
         return bytes.decRef();
+    }
+
+    @Override
+    public boolean hasReferences() {
+        return bytes.hasReferences();
     }
 }

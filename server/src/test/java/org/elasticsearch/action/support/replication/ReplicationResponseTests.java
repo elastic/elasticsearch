@@ -15,13 +15,13 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -46,18 +46,33 @@ public class ReplicationResponseTests extends ESTestCase {
             assertEquals("{\"total\":5,\"successful\":3,\"failed\":0}", output);
         }
         {
-            ShardInfo shardInfo = new ShardInfo(6, 4,
-                    new ShardInfo.Failure(new ShardId("index", "_uuid", 3),
-                            "_node_id", new IllegalArgumentException("Wrong"), RestStatus.BAD_REQUEST, false),
-                    new ShardInfo.Failure(new ShardId("index", "_uuid", 1),
-                            "_node_id", new CircuitBreakingException("Wrong", 12, 21, CircuitBreaker.Durability.PERMANENT),
-                        RestStatus.NOT_ACCEPTABLE, true));
+            ShardInfo shardInfo = new ShardInfo(
+                6,
+                4,
+                new ShardInfo.Failure(
+                    new ShardId("index", "_uuid", 3),
+                    "_node_id",
+                    new IllegalArgumentException("Wrong"),
+                    RestStatus.BAD_REQUEST,
+                    false
+                ),
+                new ShardInfo.Failure(
+                    new ShardId("index", "_uuid", 1),
+                    "_node_id",
+                    new CircuitBreakingException("Wrong", 12, 21, CircuitBreaker.Durability.PERMANENT),
+                    RestStatus.NOT_ACCEPTABLE,
+                    true
+                )
+            );
             String output = Strings.toString(shardInfo);
-            assertEquals("{\"total\":6,\"successful\":4,\"failed\":2,\"failures\":[{\"_index\":\"index\",\"_shard\":3," +
-                    "\"_node\":\"_node_id\",\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"Wrong\"}," +
-                    "\"status\":\"BAD_REQUEST\",\"primary\":false},{\"_index\":\"index\",\"_shard\":1,\"_node\":\"_node_id\"," +
-                    "\"reason\":{\"type\":\"circuit_breaking_exception\",\"reason\":\"Wrong\",\"bytes_wanted\":12,\"bytes_limit\":21" +
-                    ",\"durability\":\"PERMANENT\"},\"status\":\"NOT_ACCEPTABLE\",\"primary\":true}]}", output);
+            assertEquals(
+                "{\"total\":6,\"successful\":4,\"failed\":2,\"failures\":[{\"_index\":\"index\",\"_shard\":3,"
+                    + "\"_node\":\"_node_id\",\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"Wrong\"},"
+                    + "\"status\":\"BAD_REQUEST\",\"primary\":false},{\"_index\":\"index\",\"_shard\":1,\"_node\":\"_node_id\","
+                    + "\"reason\":{\"type\":\"circuit_breaking_exception\",\"reason\":\"Wrong\",\"bytes_wanted\":12,\"bytes_limit\":21"
+                    + ",\"durability\":\"PERMANENT\"},\"status\":\"NOT_ACCEPTABLE\",\"primary\":true}]}",
+                output
+            );
         }
     }
 

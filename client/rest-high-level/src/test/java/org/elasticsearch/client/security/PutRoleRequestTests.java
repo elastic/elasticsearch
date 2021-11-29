@@ -17,8 +17,8 @@ import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,8 +26,8 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.is;
 
 public class PutRoleRequestTests extends AbstractXContentTestCase<PutRoleRequest> {
 
@@ -51,17 +51,29 @@ public class PutRoleRequestTests extends AbstractXContentTestCase<PutRoleRequest
         return false;
     }
 
-    private static Role randomRole(String roleName) {
-        final Role.Builder roleBuilder = Role.builder().name(roleName)
-                .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ALL_ARRAY))
-                .indicesPrivileges(
-                        randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom(randomAlphaOfLength(3))))
-                .applicationResourcePrivileges(randomArray(3, ApplicationResourcePrivileges[]::new,
-                        () -> ApplicationResourcePrivilegesTests.createNewRandom(randomAlphaOfLength(3).toLowerCase(Locale.ROOT))))
-                .runAsPrivilege(randomArray(3, String[]::new, () -> randomAlphaOfLength(3)));
+    private static Role randomRole(String name) {
+        final Role.Builder roleBuilder = Role.builder()
+            .name(name)
+            .clusterPrivileges(randomSubsetOf(randomInt(3), Role.ClusterPrivilegeName.ALL_ARRAY))
+            .indicesPrivileges(
+                randomArray(3, IndicesPrivileges[]::new, () -> IndicesPrivilegesTests.createNewRandom(randomAlphaOfLength(3)))
+            )
+            .applicationResourcePrivileges(
+                randomArray(
+                    3,
+                    ApplicationResourcePrivileges[]::new,
+                    () -> ApplicationResourcePrivilegesTests.createNewRandom(randomAlphaOfLength(3).toLowerCase(Locale.ROOT))
+                )
+            )
+            .runAsPrivilege(randomArray(3, String[]::new, () -> randomAlphaOfLength(3)));
         if (randomBoolean()) {
-            roleBuilder.globalApplicationPrivileges(new GlobalPrivileges(Arrays.asList(
-                    randomArray(1, 3, GlobalOperationPrivilege[]::new, () -> GlobalPrivilegesTests.buildRandomGlobalScopedPrivilege()))));
+            roleBuilder.globalApplicationPrivileges(
+                new GlobalPrivileges(
+                    Arrays.asList(
+                        randomArray(1, 3, GlobalOperationPrivilege[]::new, () -> GlobalPrivilegesTests.buildRandomGlobalScopedPrivilege())
+                    )
+                )
+            );
         }
         if (randomBoolean()) {
             final Map<String, Object> metadata = new HashMap<>();

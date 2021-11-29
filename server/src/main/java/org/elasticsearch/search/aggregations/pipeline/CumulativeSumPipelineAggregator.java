@@ -28,17 +28,19 @@ import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resol
 public class CumulativeSumPipelineAggregator extends PipelineAggregator {
     private final DocValueFormat formatter;
 
-    CumulativeSumPipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter,
-                                    Map<String, Object> metadata) {
+    CumulativeSumPipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
     }
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends InternalMultiBucketAggregation.InternalBucket>
-                histo = (InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends
-                InternalMultiBucketAggregation.InternalBucket>) aggregation;
+        @SuppressWarnings("rawtypes")
+        InternalMultiBucketAggregation<
+            ? extends InternalMultiBucketAggregation,
+            ? extends InternalMultiBucketAggregation.InternalBucket> histo = (InternalMultiBucketAggregation<
+                ? extends InternalMultiBucketAggregation,
+                ? extends InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
         List<Bucket> newBuckets = new ArrayList<>(buckets.size());

@@ -8,7 +8,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -46,6 +46,8 @@ dependencies {
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and whitelist this hack in JarHell
   api 'javax.xml.bind:jaxb-api:2.2.2'
+
+  runtimeOnly "joda-time:joda-time:2.10.10"
 }
 
 restResources {

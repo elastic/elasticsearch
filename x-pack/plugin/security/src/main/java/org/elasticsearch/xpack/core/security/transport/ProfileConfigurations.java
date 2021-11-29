@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.security.transport;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
 import java.util.HashMap;
@@ -21,9 +21,9 @@ public final class ProfileConfigurations {
 
     private ProfileConfigurations() {}
 
-    public static Map<String, SSLConfiguration> get(Settings settings, SSLService sslService, SSLConfiguration defaultConfiguration) {
+    public static Map<String, SslConfiguration> get(Settings settings, SSLService sslService, SslConfiguration defaultConfiguration) {
         Set<String> profileNames = settings.getGroups("transport.profiles.", true).keySet();
-        Map<String, SSLConfiguration> profileConfiguration = new HashMap<>(profileNames.size() + 1);
+        Map<String, SslConfiguration> profileConfiguration = new HashMap<>(profileNames.size() + 1);
         for (String profileName : profileNames) {
             if (profileName.equals(TransportSettings.DEFAULT_PROFILE)) {
                 // don't attempt to parse ssl settings from the profile;
@@ -31,11 +31,13 @@ public final class ProfileConfigurations {
                 if (settings.getByPrefix("transport.profiles.default.xpack.security.ssl.").isEmpty()) {
                     continue;
                 } else {
-                    throw new IllegalArgumentException("SSL settings should not be configured for the default profile. " +
-                        "Use the [xpack.security.transport.ssl] settings instead.");
+                    throw new IllegalArgumentException(
+                        "SSL settings should not be configured for the default profile. "
+                            + "Use the [xpack.security.transport.ssl] settings instead."
+                    );
                 }
             }
-            SSLConfiguration configuration = sslService.getSSLConfiguration("transport.profiles." + profileName + "." + setting("ssl"));
+            SslConfiguration configuration = sslService.getSSLConfiguration("transport.profiles." + profileName + "." + setting("ssl"));
             profileConfiguration.put(profileName, configuration);
         }
 

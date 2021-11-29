@@ -117,7 +117,7 @@ public abstract class HistoBackedRangeAggregator extends RangeAggregator {
         if ((valuesSource instanceof HistogramValuesSource.Histogram) == false) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final HistogramValuesSource.Histogram valuesSource = (HistogramValuesSource.Histogram)this.valuesSource;
+        final HistogramValuesSource.Histogram valuesSource = (HistogramValuesSource.Histogram) this.valuesSource;
         final HistogramValues values = valuesSource.getHistogramValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
@@ -141,14 +141,8 @@ public abstract class HistoBackedRangeAggregator extends RangeAggregator {
         };
     }
 
-    abstract int collect(
-        LeafBucketCollector sub,
-        int doc,
-        double value,
-        long owningBucketOrdinal,
-        int lowBound,
-        int count
-    ) throws IOException;
+    abstract int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound, int count)
+        throws IOException;
 
     private static class NoOverlap extends HistoBackedRangeAggregator {
 
@@ -183,14 +177,8 @@ public abstract class HistoBackedRangeAggregator extends RangeAggregator {
         }
 
         @Override
-        public int collect(
-            LeafBucketCollector sub,
-            int doc,
-            double value,
-            long owningBucketOrdinal,
-            int lowBound,
-            int count
-        ) throws IOException {
+        public int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound, int count)
+            throws IOException {
             int lo = lowBound, hi = ranges.length - 1;
             while (lo <= hi) {
                 final int mid = (lo + hi) >>> 1;
@@ -214,6 +202,7 @@ public abstract class HistoBackedRangeAggregator extends RangeAggregator {
     private static class Overlap extends HistoBackedRangeAggregator {
 
         private final double[] maxTo;
+
         Overlap(
             String name,
             AggregatorFactories factories,
@@ -250,14 +239,8 @@ public abstract class HistoBackedRangeAggregator extends RangeAggregator {
         }
 
         @Override
-        public int collect(
-            LeafBucketCollector sub,
-            int doc,
-            double value,
-            long owningBucketOrdinal,
-            int lowBound,
-            int count
-        ) throws IOException {
+        public int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound, int count)
+            throws IOException {
             int lo = lowBound, hi = ranges.length - 1; // all candidates are between these indexes
             int mid = (lo + hi) >>> 1;
             while (lo <= hi) {

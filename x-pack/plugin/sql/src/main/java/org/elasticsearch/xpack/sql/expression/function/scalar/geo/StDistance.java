@@ -50,9 +50,11 @@ public class StDistance extends BinaryOperator<Object, Object, Double, StDistanc
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript("{sql}.geoDocValue(doc,{})"),
+        return new ScriptTemplate(
+            processScript("{sql}.geoDocValue(doc,{})"),
             paramsBuilder().variable(field.exactAttribute().name()).build(),
-            dataType());
+            dataType()
+        );
     }
 
     @Override

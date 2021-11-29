@@ -37,6 +37,7 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
         SearchSourceBuilder searchSourceBuilder = createTestSearchSourceBuilder();
         SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest(searchSourceBuilder, indices);
 
+        expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
         // the following parameters might be overwritten by random ones later,
         // but we need to set these since they are the default we send over http
         setRandomSearchParams(submitRequest, expectedParams);
@@ -72,7 +73,6 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
     }
 
     private static void setRandomSearchParams(SubmitAsyncSearchRequest request, Map<String, String> expectedParams) {
-        expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
         if (randomBoolean()) {
             request.setRouting(randomAlphaOfLengthBetween(3, 10));
             expectedParams.put("routing", request.getRouting());
@@ -107,6 +107,7 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
         String id = randomAlphaOfLengthBetween(5, 10);
         Map<String, String> expectedParams = new HashMap<>();
         GetAsyncSearchRequest submitRequest = new GetAsyncSearchRequest(id);
+        expectedParams.put(RestSearchAction.TYPED_KEYS_PARAM, "true");
         if (randomBoolean()) {
             TimeValue keepAlive = TimeValue.parseTimeValue(randomTimeValue(), "test");
             submitRequest.setKeepAlive(keepAlive);

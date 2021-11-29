@@ -6,12 +6,16 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.aggregations.bucket.composite.MissingOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.querydsl.container.AttributeSort;
+import org.elasticsearch.xpack.ql.querydsl.container.Sort;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.analysis.analyzer.Analyzer;
@@ -30,6 +34,7 @@ import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -195,8 +200,8 @@ public class QueryFolderTests extends ESTestCase {
         PhysicalPlan p = plan("SELECT COUNT(10), COUNT(DISTINCT 20) WHERE 1 = 2" + randomOrderByAndLimit(2));
         assertEquals(LocalExec.class, p.getClass());
         LocalExec le = (LocalExec) p;
-        assertEquals(EmptyExecutable.class, le.executable().getClass());
-        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("COUNT(10){r}#"));
         assertThat(ee.output().get(1).toString(), startsWith("COUNT(DISTINCT 20){r}#"));
@@ -230,8 +235,8 @@ public class QueryFolderTests extends ESTestCase {
         PhysicalPlan p = plan("SELECT MIN(10), MAX(123), SUM(20), AVG(30) WHERE 2 > 3" + randomOrderByAndLimit(4));
         assertEquals(LocalExec.class, p.getClass());
         LocalExec le = (LocalExec) p;
-        assertEquals(EmptyExecutable.class, le.executable().getClass());
-        EmptyExecutable ee = (EmptyExecutable) le.executable();
+        assertEquals(SingletonExecutable.class, le.executable().getClass());
+        SingletonExecutable ee = (SingletonExecutable) le.executable();
         assertEquals(4, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("MIN(10){r}#"));
         assertThat(ee.output().get(1).toString(), startsWith("MAX(123){r}#"));
@@ -285,8 +290,10 @@ public class QueryFolderTests extends ESTestCase {
         PhysicalPlan p = plan("SELECT keyword FROM test WHERE int > 10 OR null OR false");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
-        assertEquals("{\"range\":{\"int\":{\"from\":10,\"to\":null,\"include_lower\":false,\"include_upper\":false,\"boost\":1.0}}}",
-            ee.queryContainer().query().asBuilder().toString().replaceAll("\\s+", ""));
+        assertEquals(
+            "{\"range\":{\"int\":{\"from\":10,\"to\":null,\"include_lower\":false,\"include_upper\":false,\"boost\":1.0}}}",
+            ee.queryContainer().query().asBuilder().toString().replaceAll("\\s+", "")
+        );
         assertEquals(1, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("test.keyword{f}#"));
     }
@@ -295,10 +302,18 @@ public class QueryFolderTests extends ESTestCase {
         PhysicalPlan p = plan("SELECT keyword, max(int) FROM test GROUP BY keyword HAVING max(int) > 10 OR null");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
-        assertTrue(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", "").contains(
-                "\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(" +
-                    "InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0),params.v1))\"," +
-                    "\"lang\":\"painless\",\"params\":{\"v0\":\"INTEGER\",\"v1\":10}},"));
+        assertTrue(
+            ee.queryContainer()
+                .aggs()
+                .asAggBuilder()
+                .toString()
+                .replaceAll("\\s+", "")
+                .contains(
+                    "\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt("
+                        + "InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0),params.v1))\","
+                        + "\"lang\":\"painless\",\"params\":{\"v0\":\"INTEGER\",\"v1\":10}},"
+                )
+        );
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("test.keyword{f}#"));
         assertThat(ee.output().get(1).toString(), startsWith("max(int){r}"));
@@ -368,11 +383,15 @@ public class QueryFolderTests extends ESTestCase {
         PhysicalPlan p = plan("SELECT count(*), int > 10 AS a FROM test GROUP BY a");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
-        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("{\"script\":{" +
-                "\"source\":\"InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
-                "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":10}},\"missing_bucket\":true," +
-                "\"value_type\":\"boolean\",\"order\":\"asc\"}}}]}}}"));
+        assertThat(
+            ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith(
+                "{\"script\":{"
+                    + "\"source\":\"InternalQlScriptUtils.gt(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\","
+                    + "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":10}},\"missing_bucket\":true,"
+                    + "\"value_type\":\"boolean\",\"order\":\"asc\"}}}]}}}"
+            )
+        );
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("count(*){r}"));
         assertThat(ee.output().get(1).toString(), startsWith("a{r}"));
@@ -382,11 +401,15 @@ public class QueryFolderTests extends ESTestCase {
         PhysicalPlan p = plan("SELECT count(*), int + 10 AS a FROM test GROUP BY a");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
-        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("{\"script\":{" +
-                "\"source\":\"InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
-                "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":10}},\"missing_bucket\":true," +
-                "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}"));
+        assertThat(
+            ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith(
+                "{\"script\":{"
+                    + "\"source\":\"InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\","
+                    + "\"lang\":\"painless\",\"params\":{\"v0\":\"int\",\"v1\":10}},\"missing_bucket\":true,"
+                    + "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}"
+            )
+        );
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("count(*){r}"));
         assertThat(ee.output().get(1).toString(), startsWith("a{r}"));
@@ -396,11 +419,15 @@ public class QueryFolderTests extends ESTestCase {
         PhysicalPlan p = plan("SELECT count(*), sin(int) AS a FROM test GROUP BY a");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
-        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("{\"script\":{" +
-                "\"source\":\"InternalSqlScriptUtils.sin(InternalQlScriptUtils.docValue(doc,params.v0))\"," +
-                "\"lang\":\"painless\",\"params\":{\"v0\":\"int\"}},\"missing_bucket\":true," +
-                "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}"));
+        assertThat(
+            ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith(
+                "{\"script\":{"
+                    + "\"source\":\"InternalSqlScriptUtils.sin(InternalQlScriptUtils.docValue(doc,params.v0))\","
+                    + "\"lang\":\"painless\",\"params\":{\"v0\":\"int\"}},\"missing_bucket\":true,"
+                    + "\"value_type\":\"double\",\"order\":\"asc\"}}}]}}}"
+            )
+        );
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("count(*){r}"));
         assertThat(ee.output().get(1).toString(), startsWith("a{r}"));
@@ -410,11 +437,15 @@ public class QueryFolderTests extends ESTestCase {
         PhysicalPlan p = plan("SELECT count(*), LCASE(keyword) AS a FROM test GROUP BY a");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
-        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("{\"script\":{" +
-                "\"source\":\"InternalSqlScriptUtils.lcase(InternalQlScriptUtils.docValue(doc,params.v0))\"," +
-                "\"lang\":\"painless\",\"params\":{\"v0\":\"keyword\"}},\"missing_bucket\":true," +
-                "\"value_type\":\"string\",\"order\":\"asc\"}}}]}}}"));
+        assertThat(
+            ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith(
+                "{\"script\":{"
+                    + "\"source\":\"InternalSqlScriptUtils.lcase(InternalQlScriptUtils.docValue(doc,params.v0))\","
+                    + "\"lang\":\"painless\",\"params\":{\"v0\":\"keyword\"}},\"missing_bucket\":true,"
+                    + "\"value_type\":\"string\",\"order\":\"asc\"}}}]}}}"
+            )
+        );
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("count(*){r}#"));
         assertThat(ee.output().get(1).toString(), startsWith("a{r}"));
@@ -424,11 +455,15 @@ public class QueryFolderTests extends ESTestCase {
         PhysicalPlan p = plan("SELECT count(*), CAST(keyword AS IP) AS a FROM test GROUP BY a");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
-        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.cast(" +
-                    "InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
-                    "\"lang\":\"painless\",\"params\":{\"v0\":\"keyword\",\"v1\":\"IP\"}}," +
-                    "\"missing_bucket\":true,\"value_type\":\"ip\",\"order\":\"asc\"}}}]}}}"));
+        assertThat(
+            ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith(
+                "{\"script\":{\"source\":\"InternalSqlScriptUtils.cast("
+                    + "InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\","
+                    + "\"lang\":\"painless\",\"params\":{\"v0\":\"keyword\",\"v1\":\"IP\"}},"
+                    + "\"missing_bucket\":true,\"value_type\":\"ip\",\"order\":\"asc\"}}}]}}}"
+            )
+        );
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("count(*){r}#"));
         assertThat(ee.output().get(1).toString(), startsWith("a{r}"));
@@ -438,12 +473,16 @@ public class QueryFolderTests extends ESTestCase {
         PhysicalPlan p = plan("SELECT count(*), date + INTERVAL '1-2' YEAR TO MONTH AS a FROM test GROUP BY a");
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
-        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            endsWith("{\"script\":{" +
-                "\"source\":\"InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0)," +
-                "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2))\",\"lang\":\"painless\",\"params\":{" +
-                "\"v0\":\"date\",\"v1\":\"P1Y2M\",\"v2\":\"INTERVAL_YEAR_TO_MONTH\"}},\"missing_bucket\":true," +
-                "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}"));
+        assertThat(
+            ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            endsWith(
+                "{\"script\":{"
+                    + "\"source\":\"InternalSqlScriptUtils.add(InternalQlScriptUtils.docValue(doc,params.v0),"
+                    + "InternalSqlScriptUtils.intervalYearMonth(params.v1,params.v2))\",\"lang\":\"painless\",\"params\":{"
+                    + "\"v0\":\"date\",\"v1\":\"P1Y2M\",\"v2\":\"INTERVAL_YEAR_TO_MONTH\"}},\"missing_bucket\":true,"
+                    + "\"value_type\":\"long\",\"order\":\"asc\"}}}]}}}"
+            )
+        );
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("count(*){r}#"));
         assertThat(ee.output().get(1).toString(), startsWith("a{r}"));
@@ -455,16 +494,20 @@ public class QueryFolderTests extends ESTestCase {
         EsQueryExec ee = (EsQueryExec) p;
         assertEquals(2, ee.output().size());
         assertEquals(asList("1", "MAX(int)"), Expressions.names(ee.output()));
-        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-                containsString("\"max\":{\"field\":\"int\""));
+        assertThat(
+            ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            containsString("\"max\":{\"field\":\"int\"")
+        );
 
         p = plan("SELECT 1, count(*) FROM test GROUP BY int");
         assertEquals(EsQueryExec.class, p.getClass());
         ee = (EsQueryExec) p;
         assertEquals(2, ee.output().size());
         assertEquals(asList("1", "count(*)"), Expressions.names(ee.output()));
-        assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-                containsString("\"terms\":{\"field\":\"int\""));
+        assertThat(
+            ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
+            containsString("\"terms\":{\"field\":\"int\"")
+        );
     }
 
     public void testConcatIsNotFoldedForNull() {
@@ -511,19 +554,29 @@ public class QueryFolderTests extends ESTestCase {
 
     public void testPivotHasSameQueryAsGroupBy() {
         final Map<String, String> aggFnsWithMultipleArguments = Map.of(
-            "PERCENTILE", "PERCENTILE(int, 0)",
-            "PERCENTILE_RANK", "PERCENTILE_RANK(int, 0)"
+            "PERCENTILE",
+            "PERCENTILE(int, 0)",
+            "PERCENTILE_RANK",
+            "PERCENTILE_RANK(int, 0)"
         );
         List<String> aggregations = new SqlFunctionRegistry().listFunctions()
-                .stream()
-                .filter(def -> AggregateFunction.class.isAssignableFrom(def.clazz()))
-                .map(def -> aggFnsWithMultipleArguments.getOrDefault(def.name(), def.name() + "(int)"))
-                .collect(toList());
+            .stream()
+            .filter(def -> AggregateFunction.class.isAssignableFrom(def.clazz()))
+            .map(def -> aggFnsWithMultipleArguments.getOrDefault(def.name(), def.name() + "(int)"))
+            .collect(toList());
         for (String aggregationStr : aggregations) {
-            PhysicalPlan pivotPlan = plan("SELECT * FROM (SELECT some.dotted.field, bool, keyword, int FROM test) " +
-                "PIVOT(" + aggregationStr + " FOR keyword IN ('A', 'B'))");
-            PhysicalPlan groupByPlan = plan("SELECT some.dotted.field, bool, keyword, " + aggregationStr + " " +
-                "FROM test WHERE keyword IN ('A', 'B') GROUP BY some.dotted.field, bool, keyword");
+            PhysicalPlan pivotPlan = plan(
+                "SELECT * FROM (SELECT some.dotted.field, bool, keyword, int FROM test) "
+                    + "PIVOT("
+                    + aggregationStr
+                    + " FOR keyword IN ('A', 'B'))"
+            );
+            PhysicalPlan groupByPlan = plan(
+                "SELECT some.dotted.field, bool, keyword, "
+                    + aggregationStr
+                    + " "
+                    + "FROM test WHERE keyword IN ('A', 'B') GROUP BY some.dotted.field, bool, keyword"
+            );
             assertEquals(EsQueryExec.class, pivotPlan.getClass());
             assertEquals(EsQueryExec.class, groupByPlan.getClass());
             QueryContainer pivotQueryContainer = ((EsQueryExec) pivotPlan).queryContainer();
@@ -531,6 +584,73 @@ public class QueryFolderTests extends ESTestCase {
             assertEquals(pivotQueryContainer.query(), groupByQueryContainer.query());
             assertEquals(pivotQueryContainer.aggs(), groupByQueryContainer.aggs());
             assertEquals(pivotPlan.toString(), groupByPlan.toString());
+        }
+    }
+
+    public void testFoldShadowedOrderBy() {
+        PhysicalPlan p = plan(
+            "SELECT * FROM (SELECT * FROM test ORDER BY int ASC, keyword NULLS LAST) ORDER BY keyword NULLS FIRST, int DESC"
+        );
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+
+        Sort[] sort = ee.queryContainer().sort().values().toArray(new Sort[0]);
+        assertEquals(2, sort.length);
+
+        AttributeSort as1 = (AttributeSort) sort[0];
+        assertEquals("test.keyword", as1.attribute().qualifiedName());
+        assertEquals(Sort.Missing.FIRST, as1.missing());
+
+        AttributeSort as2 = (AttributeSort) sort[1];
+        assertEquals("test.int", as2.attribute().qualifiedName());
+        assertEquals(Sort.Direction.DESC, as2.direction());
+    }
+
+    public void testFoldGroupByWithNullsOrdering() {
+        for (Tuple<String, MissingOrder> orderDirectiveWithExpectedMissing : Arrays.asList(
+            Tuple.tuple("", MissingOrder.DEFAULT),
+            Tuple.tuple("ASC", MissingOrder.DEFAULT),
+            Tuple.tuple("ASC NULLS FIRST", MissingOrder.FIRST),
+            Tuple.tuple("ASC NULLS LAST", MissingOrder.LAST),
+            Tuple.tuple("DESC", MissingOrder.DEFAULT),
+            Tuple.tuple("DESC NULLS FIRST", MissingOrder.FIRST),
+            Tuple.tuple("DESC NULLS LAST", MissingOrder.LAST)
+        )) {
+            PhysicalPlan p = plan(
+                "SELECT MAX(int), keyword FROM test GROUP BY keyword ORDER BY keyword " + orderDirectiveWithExpectedMissing.v1()
+            );
+
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec ee = (EsQueryExec) p;
+
+            assertEquals(
+                "Order directive [" + orderDirectiveWithExpectedMissing.v1() + "]",
+                orderDirectiveWithExpectedMissing.v2(),
+                ee.queryContainer().aggs().groups().get(0).asValueSource().missingOrder()
+            );
+        }
+    }
+
+    public void testFoldGroupByHistogramWithNullsOrdering() {
+        for (Tuple<String, MissingOrder> orderDirectiveWithExpectedMissing : Arrays.asList(
+            Tuple.tuple("", MissingOrder.DEFAULT),
+            Tuple.tuple("ASC", MissingOrder.DEFAULT),
+            Tuple.tuple("ASC NULLS FIRST", MissingOrder.FIRST),
+            Tuple.tuple("ASC NULLS LAST", MissingOrder.LAST),
+            Tuple.tuple("DESC", MissingOrder.DEFAULT),
+            Tuple.tuple("DESC NULLS FIRST", MissingOrder.FIRST),
+            Tuple.tuple("DESC NULLS LAST", MissingOrder.LAST)
+        )) {
+            PhysicalPlan p = plan("SELECT HISTOGRAM(int, 100) h FROM test GROUP BY h ORDER BY h " + orderDirectiveWithExpectedMissing.v1());
+
+            assertEquals(EsQueryExec.class, p.getClass());
+            EsQueryExec ee = (EsQueryExec) p;
+
+            assertEquals(
+                "Order directive [" + orderDirectiveWithExpectedMissing.v1() + "]",
+                orderDirectiveWithExpectedMissing.v2(),
+                ee.queryContainer().aggs().groups().get(0).asValueSource().missingOrder()
+            );
         }
     }
 

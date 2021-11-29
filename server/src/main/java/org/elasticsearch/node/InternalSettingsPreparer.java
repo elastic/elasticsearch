@@ -42,8 +42,12 @@ public class InternalSettingsPreparer {
      * @param defaultNodeName supplier for the default node.name if the setting isn't defined
      * @return the {@link Environment}
      */
-    public static Environment prepareEnvironment(Settings input, Map<String, String> properties,
-            Path configPath, Supplier<String> defaultNodeName) {
+    public static Environment prepareEnvironment(
+        Settings input,
+        Map<String, String> properties,
+        Path configPath,
+        Supplier<String> defaultNodeName
+    ) {
         // just create enough settings to build the environment, to get the config dir
         Settings.Builder output = Settings.builder();
         initializeSettings(output, input, properties);

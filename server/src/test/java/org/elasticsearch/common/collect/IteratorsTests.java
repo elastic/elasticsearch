@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.collect;
 
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -16,6 +17,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class IteratorsTests extends ESTestCase {
     public void testConcatentation() {
@@ -50,7 +52,6 @@ public class IteratorsTests extends ESTestCase {
         assertSingleton(value, empty(), singletonIterator(value));
     }
 
-
     public void testEmptyAfterSingleton() {
         int value = randomInt();
         assertSingleton(value, singletonIterator(value), empty());
@@ -60,6 +61,7 @@ public class IteratorsTests extends ESTestCase {
         int numberOfIterators = randomIntBetween(1, 1000);
         int singletonIndex = randomIntBetween(0, numberOfIterators - 1);
         int value = randomInt();
+        @SuppressWarnings({ "rawtypes", "unchecked" })
         Iterator<Integer>[] iterators = new Iterator[numberOfIterators];
         for (int i = 0; i < numberOfIterators; i++) {
             iterators[i] = i != singletonIndex ? empty() : singletonIterator(value);
@@ -69,6 +71,7 @@ public class IteratorsTests extends ESTestCase {
 
     public void testRandomIterators() {
         int numberOfIterators = randomIntBetween(1, 1000);
+        @SuppressWarnings({ "rawtypes", "unchecked" })
         Iterator<Integer>[] iterators = new Iterator[numberOfIterators];
         List<Integer> values = new ArrayList<>();
         for (int i = 0; i < numberOfIterators; i++) {
@@ -93,7 +96,7 @@ public class IteratorsTests extends ESTestCase {
 
     public void testNull() {
         try {
-            Iterators.concat((Iterator<?>)null);
+            Iterators.concat((Iterator<?>) null);
             fail("expected " + NullPointerException.class.getSimpleName());
         } catch (NullPointerException e) {
 
@@ -109,10 +112,57 @@ public class IteratorsTests extends ESTestCase {
         }
     }
 
+    public void testArrayIterator() {
+        Integer[] array = randomIntegerArray();
+        Iterator<Integer> iterator = Iterators.forArray(array);
+
+        int i = 0;
+        while (iterator.hasNext()) {
+            assertEquals(array[i++], iterator.next());
+        }
+        assertEquals(array.length, i);
+    }
+
+    public void testArrayIteratorForEachRemaining() {
+        Integer[] array = randomIntegerArray();
+        Iterator<Integer> iterator = Iterators.forArray(array);
+
+        AtomicInteger index = new AtomicInteger();
+        iterator.forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
+        assertEquals(array.length, index.get());
+    }
+
+    public void testArrayIteratorIsUnmodifiable() {
+        Integer[] array = randomIntegerArray();
+        Iterator<Integer> iterator = Iterators.forArray(array);
+
+        expectThrows(UnsupportedOperationException.class, iterator::remove);
+    }
+
+    public void testArrayIteratorThrowsNoSuchElementExceptionWhenDepleted() {
+        Integer[] array = randomIntegerArray();
+        Iterator<Integer> iterator = Iterators.forArray(array);
+        for (int i = 0; i < array.length; i++) {
+            iterator.next();
+        }
+
+        expectThrows(NoSuchElementException.class, iterator::next);
+    }
+
+    public void testArrayIteratorOnNull() {
+        expectThrows(NullPointerException.class, "Unable to iterate over a null array", () -> Iterators.forArray(null));
+    }
+
+    private static Integer[] randomIntegerArray() {
+        return Randomness.get().ints(randomIntBetween(0, 1000)).boxed().toArray(Integer[]::new);
+    }
+
     private <T> Iterator<T> singletonIterator(T value) {
         return Collections.singleton(value).iterator();
     }
 
+    @SafeVarargs
+    @SuppressWarnings({ "unchecked", "varargs" })
     private <T> void assertSingleton(T value, Iterator<T>... iterators) {
         Iterator<T> concat = Iterators.concat(iterators);
         assertContainsInOrder(concat, value);
@@ -132,6 +182,8 @@ public class IteratorsTests extends ESTestCase {
         };
     }
 
+    @SafeVarargs
+    @SuppressWarnings({ "varargs" })
     private <T> void assertContainsInOrder(Iterator<T> iterator, T... values) {
         for (T value : values) {
             assertTrue(iterator.hasNext());

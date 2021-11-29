@@ -9,9 +9,9 @@
 package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -30,16 +30,16 @@ public final class PutAutoFollowPatternRequest extends FollowConfig implements V
     private final List<String> leaderIndexExclusionPatterns;
     private String followIndexNamePattern;
 
-    public PutAutoFollowPatternRequest(String name,
-                                       String remoteCluster,
-                                       List<String> leaderIndexPatterns) {
+    public PutAutoFollowPatternRequest(String name, String remoteCluster, List<String> leaderIndexPatterns) {
         this(name, remoteCluster, leaderIndexPatterns, Collections.emptyList());
     }
 
-    public PutAutoFollowPatternRequest(String name,
-                                       String remoteCluster,
-                                       List<String> leaderIndexPatterns,
-                                       List<String> leaderIndexExclusionPatterns) {
+    public PutAutoFollowPatternRequest(
+        String name,
+        String remoteCluster,
+        List<String> leaderIndexPatterns,
+        List<String> leaderIndexExclusionPatterns
+    ) {
         this.name = Objects.requireNonNull(name);
         this.remoteCluster = Objects.requireNonNull(remoteCluster);
         this.leaderIndexPatterns = Objects.requireNonNull(leaderIndexPatterns);
@@ -74,9 +74,9 @@ public final class PutAutoFollowPatternRequest extends FollowConfig implements V
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(PutFollowRequest.REMOTE_CLUSTER_FIELD.getPreferredName(), remoteCluster);
-        builder.field(LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns);
+        builder.stringListField(LEADER_PATTERNS_FIELD.getPreferredName(), leaderIndexPatterns);
         if (leaderIndexExclusionPatterns.isEmpty() == false) {
-            builder.field(LEADER_EXCLUSION_PATTERNS_FIELD.getPreferredName(), leaderIndexExclusionPatterns);
+            builder.stringListField(LEADER_EXCLUSION_PATTERNS_FIELD.getPreferredName(), leaderIndexExclusionPatterns);
         }
         if (followIndexNamePattern != null) {
             builder.field(FOLLOW_PATTERN_FIELD.getPreferredName(), followIndexNamePattern);
@@ -92,11 +92,11 @@ public final class PutAutoFollowPatternRequest extends FollowConfig implements V
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         PutAutoFollowPatternRequest that = (PutAutoFollowPatternRequest) o;
-        return Objects.equals(name, that.name) &&
-            Objects.equals(remoteCluster, that.remoteCluster) &&
-            Objects.equals(leaderIndexPatterns, that.leaderIndexPatterns) &&
-            Objects.equals(leaderIndexExclusionPatterns, that.leaderIndexExclusionPatterns) &&
-            Objects.equals(followIndexNamePattern, that.followIndexNamePattern);
+        return Objects.equals(name, that.name)
+            && Objects.equals(remoteCluster, that.remoteCluster)
+            && Objects.equals(leaderIndexPatterns, that.leaderIndexPatterns)
+            && Objects.equals(leaderIndexExclusionPatterns, that.leaderIndexExclusionPatterns)
+            && Objects.equals(followIndexNamePattern, that.followIndexNamePattern);
     }
 
     @Override

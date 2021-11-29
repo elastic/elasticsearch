@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.action.support.tasks;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
@@ -17,10 +17,9 @@ import org.elasticsearch.tasks.TaskId;
  * Builder for task-based requests
  */
 public class TasksRequestBuilder<
-            Request extends BaseTasksRequest<Request>,
-            Response extends BaseTasksResponse,
-            RequestBuilder extends TasksRequestBuilder<Request, Response, RequestBuilder>
-        > extends ActionRequestBuilder<Request, Response> {
+    Request extends BaseTasksRequest<Request>,
+    Response extends BaseTasksResponse,
+    RequestBuilder extends TasksRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<Request, Response> {
 
     protected TasksRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);
@@ -30,8 +29,8 @@ public class TasksRequestBuilder<
      * Set the task to lookup.
      */
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setTaskId(TaskId taskId) {
-        request.setTaskId(taskId);
+    public final RequestBuilder setTargetTaskId(TaskId taskId) {
+        request.setTargetTaskId(taskId);
         return (RequestBuilder) this;
     }
 
@@ -57,9 +56,8 @@ public class TasksRequestBuilder<
      * Match all children of the provided task.
      */
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setParentTaskId(TaskId taskId) {
-        request.setParentTaskId(taskId);
+    public final RequestBuilder setTargetParentTaskId(TaskId taskId) {
+        request.setTargetParentTaskId(taskId);
         return (RequestBuilder) this;
     }
 }
-

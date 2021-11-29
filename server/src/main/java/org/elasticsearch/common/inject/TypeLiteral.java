@@ -148,8 +148,7 @@ public class TypeLiteral<T> {
 
     @Override
     public final boolean equals(Object o) {
-        return o instanceof TypeLiteral<?>
-                && MoreTypes.equals(type, ((TypeLiteral) o).type);
+        return o instanceof TypeLiteral<?> && MoreTypes.equals(type, ((TypeLiteral<?>) o).type);
     }
 
     @Override
@@ -170,7 +169,6 @@ public class TypeLiteral<T> {
     public static <T> TypeLiteral<T> get(Class<T> type) {
         return new TypeLiteral<>(type);
     }
-
 
     /**
      * Returns an immutable list of the resolved types.
@@ -194,7 +192,7 @@ public class TypeLiteral<T> {
         // this implementation is made a little more complicated in an attempt to avoid object-creation
         while (true) {
             if (toResolve instanceof TypeVariable) {
-                TypeVariable original = (TypeVariable) toResolve;
+                TypeVariable<?> original = (TypeVariable<?>) toResolve;
                 toResolve = MoreTypes.resolveTypeVariable(type, rawType, original);
                 if (toResolve == original) {
                     return toResolve;
@@ -204,9 +202,7 @@ public class TypeLiteral<T> {
                 GenericArrayType original = (GenericArrayType) toResolve;
                 Type componentType = original.getGenericComponentType();
                 Type newComponentType = resolveType(componentType);
-                return componentType == newComponentType
-                        ? original
-                        : Types.arrayOf(newComponentType);
+                return componentType == newComponentType ? original : Types.arrayOf(newComponentType);
 
             } else if (toResolve instanceof ParameterizedType) {
                 ParameterizedType original = (ParameterizedType) toResolve;
@@ -226,9 +222,7 @@ public class TypeLiteral<T> {
                     }
                 }
 
-                return changed
-                        ? Types.newParameterizedTypeWithOwner(newOwnerType, original.getRawType(), args)
-                        : original;
+                return changed ? Types.newParameterizedTypeWithOwner(newOwnerType, original.getRawType(), args) : original;
 
             } else if (toResolve instanceof WildcardType) {
                 WildcardType original = (WildcardType) toResolve;
@@ -299,7 +293,7 @@ public class TypeLiteral<T> {
             genericParameterTypes = method.getGenericParameterTypes();
 
         } else if (methodOrConstructor instanceof Constructor) {
-            Constructor constructor = (Constructor) methodOrConstructor;
+            Constructor<?> constructor = (Constructor<?>) methodOrConstructor;
             if (constructor.getDeclaringClass().isAssignableFrom(rawType) == false) {
                 throw new IllegalArgumentException(constructor + " does not construct a supertype of " + type);
             }

@@ -24,9 +24,13 @@ public class StartDataFrameAnalyticsRequestTests extends ESTestCase {
     }
 
     public void testValidate_Failure() {
-        assertThat(new StartDataFrameAnalyticsRequest(null).validate().get().getMessage(),
-            containsString("data frame analytics id must not be null"));
-        assertThat(new StartDataFrameAnalyticsRequest(null).setTimeout(TimeValue.ZERO).validate().get().getMessage(),
-            containsString("data frame analytics id must not be null"));
+        assertThat(
+            new StartDataFrameAnalyticsRequest(null).validate().get().getMessage(),
+            containsString("data frame analytics id must not be null")
+        );
+        assertThat(
+            new StartDataFrameAnalyticsRequest(null).setTimeout(TimeValue.ZERO).validate().get().getMessage(),
+            containsString("data frame analytics id must not be null")
+        );
     }
 }

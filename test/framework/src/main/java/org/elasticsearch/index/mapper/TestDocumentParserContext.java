@@ -9,9 +9,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.function.Function;
 
@@ -31,18 +31,20 @@ public class TestDocumentParserContext extends DocumentParserContext {
      * Use with caution as it can cause {@link NullPointerException}s down the line.
      */
     public TestDocumentParserContext() {
-        super(null, null, null, null, null);
+        super(MappingLookup.EMPTY, null, null, null, null);
     }
 
     /**
      * More verbose way to create a context, to be used when one or more constructor arguments are needed as final methods
      * that depend on them are called while executing tests.
      */
-    public TestDocumentParserContext(MappingLookup mappingLookup,
-                                     IndexSettings indexSettings,
-                                     IndexAnalyzers indexAnalyzers,
-                                     Function<DateFormatter, MappingParserContext> parserContextFunction,
-                                     SourceToParse source) {
+    public TestDocumentParserContext(
+        MappingLookup mappingLookup,
+        IndexSettings indexSettings,
+        IndexAnalyzers indexAnalyzers,
+        Function<DateFormatter, MappingParserContext> parserContextFunction,
+        SourceToParse source
+    ) {
         super(mappingLookup, indexSettings, indexAnalyzers, parserContextFunction, source);
     }
 

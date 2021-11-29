@@ -6,31 +6,39 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
+
 dependencies {
   testImplementation project(":client:rest-high-level")
 }
+
+testClusters.register('remote-cluster')
 
 tasks.register('remote-cluster', RestIntegTestTask) {
   mustRunAfter("precommit")
   systemProperty 'tests.rest.suite', 'remote_cluster'
 }
 
-testClusters {
-    'remote-cluster' {
-        numberOfNodes = 2
-        setting 'node.roles', '[data,ingest,master]'
-        setting 'xpack.security.enabled', 'false'
-    }
+testClusters.configureEach {
+  if (BuildParams.isSnapshotBuild() == false) {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+}
+
+testClusters.matching{ it.name == 'remote-cluster' }.configureEach {
+  numberOfNodes = 2
+  setting 'node.roles', '[data,ingest,master]'
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.register("mixedClusterTest", RestIntegTestTask) {
-    useCluster testClusters.'remote-cluster'
+    useCluster testClusters.named('remote-cluster')
     dependsOn 'remote-cluster'
     systemProperty 'tests.rest.suite', 'multi_cluster'
 }

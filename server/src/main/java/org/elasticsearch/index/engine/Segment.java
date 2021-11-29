@@ -14,19 +14,15 @@ import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSelector;
 import org.apache.lucene.search.SortedSetSortField;
-import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.Accountables;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -42,9 +38,7 @@ public class Segment implements Writeable {
     public org.apache.lucene.util.Version version = null;
     public Boolean compound = null;
     public String mergeId;
-    public long memoryInBytes;
     public Sort segmentSort;
-    public Accountable ramTree = null;
     public Map<String, String> attributes;
 
     public Segment(StreamInput in) throws IOException {
@@ -58,10 +52,11 @@ public class Segment implements Writeable {
         version = Lucene.parseVersionLenient(in.readOptionalString(), null);
         compound = in.readOptionalBoolean();
         mergeId = in.readOptionalString();
-        memoryInBytes = in.readLong();
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.readLong(); // memoryInBytes
+        }
         if (in.readBoolean()) {
-            // verbose mode
-            ramTree = readRamTree(in);
+            readRamTree(in);
         }
         segmentSort = readSegmentSort(in);
         if (in.readBoolean()) {
@@ -123,13 +118,6 @@ public class Segment implements Writeable {
     }
 
     /**
-     * Estimation of the memory usage used by a segment.
-     */
-    public long getMemoryInBytes() {
-        return this.memoryInBytes;
-    }
-
-    /**
      * Return the sort order of this segment, or null if the segment has no sort.
      */
     public Sort getSegmentSort() {
@@ -171,13 +159,11 @@ public class Segment implements Writeable {
         out.writeOptionalString(version.toString());
         out.writeOptionalBoolean(compound);
         out.writeOptionalString(mergeId);
-        out.writeLong(memoryInBytes);
-
-        boolean verbose = ramTree != null;
-        out.writeBoolean(verbose);
-        if (verbose) {
-            writeRamTree(out, ramTree);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            out.writeLong(0); // memoryInBytes
         }
+
+        out.writeBoolean(false);
         writeSegmentSort(out, segmentSort);
         boolean hasAttributes = attributes != null;
         out.writeBoolean(hasAttributes);
@@ -199,11 +185,9 @@ public class Segment implements Writeable {
                 Boolean missingFirst = in.readOptionalBoolean();
                 boolean max = in.readBoolean();
                 boolean reverse = in.readBoolean();
-                fields[i] = new SortedSetSortField(field, reverse,
-                    max ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN);
+                fields[i] = new SortedSetSortField(field, reverse, max ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN);
                 if (missingFirst != null) {
-                    fields[i].setMissingValue(missingFirst ?
-                        SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
+                    fields[i].setMissingValue(missingFirst ? SortedSetSortField.STRING_FIRST : SortedSetSortField.STRING_LAST);
                 }
             } else {
                 Object missing = in.readGenericValue();
@@ -224,11 +208,14 @@ public class Segment implements Writeable {
                         numericType = SortField.Type.LONG;
                         break;
                     default:
-                        throw new IOException("invalid index sort type:[" + type +
-                            "] for numeric field:[" + field + "]");
+                        throw new IOException("invalid index sort type:[" + type + "] for numeric field:[" + field + "]");
                 }
-                fields[i] = new SortedNumericSortField(field, numericType, reverse, max ?
-                    SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN);
+                fields[i] = new SortedNumericSortField(
+                    field,
+                    numericType,
+                    reverse,
+                    max ? SortedNumericSelector.Type.MAX : SortedNumericSelector.Type.MIN
+                );
                 if (missing != null) {
                     fields[i].setMissingValue(missing);
                 }
@@ -247,8 +234,7 @@ public class Segment implements Writeable {
             out.writeString(field.getField());
             if (field instanceof SortedSetSortField) {
                 out.writeByte((byte) 0);
-                out.writeOptionalBoolean(field.getMissingValue() == null ?
-                    null : field.getMissingValue() == SortField.STRING_FIRST);
+                out.writeOptionalBoolean(field.getMissingValue() == null ? null : field.getMissingValue() == SortField.STRING_FIRST);
                 out.writeBoolean(((SortedSetSortField) field).getSelector() == SortedSetSelector.Type.MAX);
                 out.writeBoolean(field.getReverse());
             } else if (field instanceof SortedNumericSortField) {
@@ -277,47 +263,44 @@ public class Segment implements Writeable {
         }
     }
 
-    private Accountable readRamTree(StreamInput in) throws IOException {
-        final String name = in.readString();
-        final long bytes = in.readVLong();
+    private static void readRamTree(StreamInput in) throws IOException {
+        in.readString();
+        in.readVLong();
         int numChildren = in.readVInt();
-        if (numChildren == 0) {
-            return Accountables.namedAccountable(name, bytes);
-        }
-        List<Accountable> children = new ArrayList<>(numChildren);
-        while (numChildren-- > 0) {
-            children.add(readRamTree(in));
-        }
-        return Accountables.namedAccountable(name, children, bytes);
-    }
-
-    // the ram tree is written recursively since the depth is fairly low (5 or 6)
-    private void writeRamTree(StreamOutput out, Accountable tree) throws IOException {
-        out.writeString(tree.toString());
-        out.writeVLong(tree.ramBytesUsed());
-        Collection<Accountable> children = tree.getChildResources();
-        out.writeVInt(children.size());
-        for (Accountable child : children) {
-            writeRamTree(out, child);
+        for (int i = 0; i < numChildren; i++) {
+            readRamTree(in);
         }
     }
 
     @Override
     public String toString() {
-        return "Segment{" +
-                "name='" + name + '\'' +
-                ", generation=" + generation +
-                ", committed=" + committed +
-                ", search=" + search +
-                ", sizeInBytes=" + sizeInBytes +
-                ", docCount=" + docCount +
-                ", delDocCount=" + delDocCount +
-                ", version='" + version + '\'' +
-                ", compound=" + compound +
-                ", mergeId='" + mergeId + '\'' +
-                ", memoryInBytes=" + memoryInBytes +
-                (segmentSort != null ? ", sort=" + segmentSort : "") +
-                ", attributes=" + attributes +
-                '}';
+        return "Segment{"
+            + "name='"
+            + name
+            + '\''
+            + ", generation="
+            + generation
+            + ", committed="
+            + committed
+            + ", search="
+            + search
+            + ", sizeInBytes="
+            + sizeInBytes
+            + ", docCount="
+            + docCount
+            + ", delDocCount="
+            + delDocCount
+            + ", version='"
+            + version
+            + '\''
+            + ", compound="
+            + compound
+            + ", mergeId='"
+            + mergeId
+            + '\''
+            + (segmentSort != null ? ", sort=" + segmentSort : "")
+            + ", attributes="
+            + attributes
+            + '}';
     }
 }

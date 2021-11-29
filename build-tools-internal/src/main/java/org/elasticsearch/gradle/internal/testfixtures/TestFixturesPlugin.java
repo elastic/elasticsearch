@@ -13,11 +13,12 @@ import com.avast.gradle.dockercompose.ServiceInfo;
 import com.avast.gradle.dockercompose.tasks.ComposeDown;
 import com.avast.gradle.dockercompose.tasks.ComposePull;
 import com.avast.gradle.dockercompose.tasks.ComposeUp;
-import org.elasticsearch.gradle.internal.test.SystemPropertyCommandLineArgumentProvider;
+
 import org.elasticsearch.gradle.internal.docker.DockerSupportPlugin;
 import org.elasticsearch.gradle.internal.docker.DockerSupportService;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.precommit.TestingConventionsTasks;
+import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Action;
 import org.gradle.api.DefaultTask;
@@ -34,13 +35,14 @@ import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.util.Collections;
 import java.util.function.BiConsumer;
+
+import javax.inject.Inject;
 
 public class TestFixturesPlugin implements Plugin<Project> {
 
@@ -77,12 +79,14 @@ public class TestFixturesPlugin implements Plugin<Project> {
             project.getPluginManager().apply(DockerComposePlugin.class);
 
             TaskProvider<Task> preProcessFixture = project.getTasks().register("preProcessFixture", t -> {
-                t.getOutputs().dir(testfixturesDir);
-                t.doFirst(t2 -> {
-                    try {
-                        Files.createDirectories(testfixturesDir.toPath());
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
+                t.doFirst(new Action<Task>() {
+                    @Override
+                    public void execute(Task task) {
+                        try {
+                            Files.createDirectories(testfixturesDir.toPath());
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
                     }
                 });
             });

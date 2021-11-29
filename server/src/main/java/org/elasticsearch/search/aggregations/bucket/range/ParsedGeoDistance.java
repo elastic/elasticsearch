@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -20,12 +20,17 @@ public class ParsedGeoDistance extends ParsedRange {
         return GeoDistanceAggregationBuilder.NAME;
     }
 
-    private static final ObjectParser<ParsedGeoDistance, Void> PARSER =
-            new ObjectParser<>(ParsedGeoDistance.class.getSimpleName(), true, ParsedGeoDistance::new);
+    private static final ObjectParser<ParsedGeoDistance, Void> PARSER = new ObjectParser<>(
+        ParsedGeoDistance.class.getSimpleName(),
+        true,
+        ParsedGeoDistance::new
+    );
     static {
-        declareParsedRangeFields(PARSER,
-                parser -> ParsedBucket.fromXContent(parser, false),
-                parser -> ParsedBucket.fromXContent(parser, true));
+        declareParsedRangeFields(
+            PARSER,
+            parser -> ParsedBucket.fromXContent(parser, false),
+            parser -> ParsedBucket.fromXContent(parser, true)
+        );
     }
 
     public static ParsedGeoDistance fromXContent(XContentParser parser, String name) throws IOException {

@@ -41,9 +41,7 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
         InternalTopMetrics first = buildFilled(1, top(SortValue.from(2.0), randomDouble()));
         InternalTopMetrics min = buildFilled(2, top(SortValue.from(1.0), randomDouble()));
         InternalTopMetrics max = buildFilled(3, top(SortValue.from(7.0), randomDouble()));
-        InternalTopMetrics[] metrics = new InternalTopMetrics[] {
-                first, max, min, buildEmpty(), buildEmpty(),
-        };
+        InternalTopMetrics[] metrics = new InternalTopMetrics[] { first, max, min, buildEmpty(), buildEmpty(), };
         InternalTopMetrics winner = first.getSortOrder() == SortOrder.ASC ? min : max;
         InternalTopMetrics reduced = reduce(metrics);
         assertThat(reduced.getName(), equalTo("test"));
@@ -57,16 +55,16 @@ public class InternalTopMetricsReduceTests extends ESTestCase {
         InternalTopMetrics first = buildFilled(SortOrder.DESC, 3, top(SortValue.from(2.0), 1));
         InternalTopMetrics second = buildFilled(2, top(SortValue.from(3.0), 2), top(SortValue.from(1.0), 2));
         InternalTopMetrics third = buildFilled(3, top(SortValue.from(8.0), 4), top(SortValue.from(7.0), 5));
-        InternalTopMetrics[] metrics = new InternalTopMetrics[] {
-                first, second, third, buildEmpty(), buildEmpty(),
-        };
+        InternalTopMetrics[] metrics = new InternalTopMetrics[] { first, second, third, buildEmpty(), buildEmpty(), };
         InternalTopMetrics reduced = reduce(metrics);
         assertThat(reduced.getName(), equalTo("test"));
         assertThat(reduced.getMetricNames(), equalTo(singletonList("test")));
         assertThat(reduced.getSortOrder(), equalTo(first.getSortOrder()));
         assertThat(reduced.getSize(), equalTo(first.getSize()));
-        assertThat(reduced.getTopMetrics(), equalTo(List.of(
-                third.getTopMetrics().get(0), third.getTopMetrics().get(1), second.getTopMetrics().get(0))));
+        assertThat(
+            reduced.getTopMetrics(),
+            equalTo(List.of(third.getTopMetrics().get(0), third.getTopMetrics().get(1), second.getTopMetrics().get(0)))
+        );
     }
 
     public void testDifferentTypes() {

@@ -11,7 +11,7 @@
         body:
           type: hdfs
           settings:
-            uri: "hdfs://localhost:9998"
+            uri: "hdfs://localhost:@secure_hdfs_port@"
             path: "/user/elasticsearch/test/snapshot_get"
             security:
               principal: "elasticsearch@BUILD.ELASTIC.CO"
@@ -61,7 +61,7 @@
   - match: { snapshots.0.snapshot : test_snapshot_get }
 
   # Remove our snapshot
-  - do: 
+  - do:
       snapshot.delete:
         repository: test_snapshot_get_repository
         snapshot: test_snapshot_get

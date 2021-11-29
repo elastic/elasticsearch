@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -32,6 +33,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
@@ -47,7 +49,6 @@ import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
-import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -185,7 +186,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
         );
 
-        // <7> load next checkpoint
+        // <6> load next checkpoint
         ActionListener<TransformCheckpoint> getTransformNextCheckpointListener = ActionListener.wrap(nextCheckpoint -> {
 
             if (nextCheckpoint.isEmpty()) {
@@ -208,7 +209,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             markAsFailed(buildTask, msg);
         });
 
-        // <6> load last checkpoint
+        // <5> load last checkpoint
         ActionListener<TransformCheckpoint> getTransformLastCheckpointListener = ActionListener.wrap(lastCheckpoint -> {
             indexerBuilder.setLastCheckpoint(lastCheckpoint);
 
@@ -221,7 +222,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             markAsFailed(buildTask, msg);
         });
 
-        // <5> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
+        // <4> Set the previous stats (if they exist), initialize the indexer, start the task (If it is STOPPED)
         // Since we don't create the task until `_start` is called, if we see that the task state is stopped, attempt to start
         // Schedule execution regardless
         ActionListener<Tuple<TransformStoredDoc, SeqNoPrimaryTermAndIndex>> transformStatsActionListener = ActionListener.wrap(
@@ -269,29 +270,26 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
         );
 
-        // <4> set fieldmappings for the indexer, get the previous stats (if they exist)
-        ActionListener<Map<String, String>> getFieldMappingsListener = ActionListener.wrap(fieldMappings -> {
-            indexerBuilder.setFieldMappings(fieldMappings);
-            transformServices.getConfigManager().getTransformStoredDoc(transformId, transformStatsActionListener);
-        }, error -> {
-            String msg = TransformMessages.getMessage(
-                TransformMessages.UNABLE_TO_GATHER_FIELD_MAPPINGS,
-                indexerBuilder.getTransformConfig().getDestination().getIndex()
-            );
-            logger.error(msg, error);
-            markAsFailed(buildTask, msg);
-        });
-
-        // <3> Validate the transform, assigning it to the indexer, and get the field mappings
+        // <3> Validate the transform, assigning it to the indexer, and get the previous stats (if they exist)
         ActionListener<TransformConfig> getTransformConfigListener = ActionListener.wrap(config -> {
+
+            // fail if a transform is too old, this can only happen on a rolling upgrade
+            if (config.getVersion() == null || config.getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
+                String transformTooOldError = new ParameterizedMessage(
+                    "Transform configuration is too old [{}], use the upgrade API to fix your transform. "
+                        + "Minimum required version is [{}]",
+                    config.getVersion(),
+                    TransformDeprecations.MIN_TRANSFORM_VERSION
+                ).getFormattedMessage();
+                auditor.error(transformId, transformTooOldError);
+                markAsFailed(buildTask, transformTooOldError);
+                return;
+            }
+
             ValidationException validationException = config.validate(null);
             if (validationException == null) {
                 indexerBuilder.setTransformConfig(config);
-                SchemaUtil.getDestinationFieldMappings(
-                    buildTask.getParentTaskClient(),
-                    config.getDestination().getIndex(),
-                    getFieldMappingsListener
-                );
+                transformServices.getConfigManager().getTransformStoredDoc(transformId, false, transformStatsActionListener);
             } else {
                 auditor.error(transformId, validationException.getMessage());
                 markAsFailed(
@@ -320,12 +318,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
         );
 
-        // <1> Check the index templates are installed
-        TransformInternalIndex.ensureLatestIndexAndTemplateInstalled(
-            clusterService,
-            buildTask.getParentTaskClient(),
-            templateCheckListener
-        );
+        // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, buildTask.getParentTaskClient(), templateCheckListener);
     }
 
     private static IndexerState currentIndexerState(TransformState previousState) {

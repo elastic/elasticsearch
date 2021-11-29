@@ -33,7 +33,7 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
         IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
 
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
-        contexts.put(NumberSortScript.CONTEXT, Whitelist.BASE_WHITELISTS);
+        contexts.put(NumberSortScript.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
         PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts);
 
         SearchExecutionContext searchExecutionContext = index.newSearchExecutionContext(0, 0, null, () -> 0, null, emptyMap());

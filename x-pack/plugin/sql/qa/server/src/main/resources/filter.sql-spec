@@ -131,6 +131,8 @@ whereWithInAndNullHandling1
 SELECT last_name l FROM "test_emp" WHERE languages in (2, 10)AND (emp_no = 10018 OR emp_no = 10019 OR emp_no = 10020) ORDER BY emp_no;
 whereWithInAndNullHandling2
 SELECT last_name l FROM "test_emp" WHERE languages in (2, null, 10) AND (emp_no = 10018 OR emp_no = 10019 OR emp_no = 10020) ORDER BY emp_no;
+whereWithInNull
+SELECT last_name l FROM test_emp WHERE languages in (null);
 
 whereWithInAndMultipleValueTypes
 SELECT last_name l FROM test_emp WHERE hire_date in('1986-06-26T00:00:00.000Z'::datetime, '1986-08-28T00:00:00.000Z');

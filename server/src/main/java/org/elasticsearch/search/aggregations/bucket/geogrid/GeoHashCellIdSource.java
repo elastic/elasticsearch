@@ -43,9 +43,9 @@ public class GeoHashCellIdSource extends ValuesSource.Numeric {
 
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-        return geoBoundingBox.isUnbounded() ?
-            new UnboundedCellValues(valuesSource.geoPointValues(ctx), precision) :
-            new BoundedCellValues(valuesSource.geoPointValues(ctx), precision, geoBoundingBox);
+        return geoBoundingBox.isUnbounded()
+            ? new UnboundedCellValues(valuesSource.geoPointValues(ctx), precision)
+            : new BoundedCellValues(valuesSource.geoPointValues(ctx), precision, geoBoundingBox);
     }
 
     @Override

@@ -13,10 +13,10 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -117,10 +117,9 @@ public class Strings {
         return lst;
     }
 
-
-    //---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
     // General convenience methods for working with Strings
-    //---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
 
     /**
      * Check that the given CharSequence is neither <code>null</code> nor of length 0.
@@ -164,7 +163,6 @@ public class Strings {
         return hasLength((CharSequence) str);
     }
 
-
     /**
      * Check that the given CharSequence is either <code>null</code> or of length 0.
      * Note: Will return <code>false</code> for a CharSequence that purely consists of whitespace.
@@ -181,7 +179,6 @@ public class Strings {
     public static boolean isEmpty(CharSequence str) {
         return hasLength(str) == false;
     }
-
 
     /**
      * Check whether the given CharSequence has actual text.
@@ -325,10 +322,9 @@ public class Strings {
         return sb.toString();
     }
 
-
-    //---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
     // Convenience methods for working with formatted Strings
-    //---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
 
     /**
      * Quote the given String with single quotes.
@@ -368,7 +364,8 @@ public class Strings {
     }
 
     public static final Set<Character> INVALID_FILENAME_CHARS = unmodifiableSet(
-            newHashSet('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ','));
+        newHashSet('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')
+    );
 
     public static boolean validFileName(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
@@ -467,7 +464,7 @@ public class Strings {
         }
         String beforeDelimiter = toSplit.substring(0, offset);
         String afterDelimiter = toSplit.substring(offset + delimiter.length());
-        return new String[]{beforeDelimiter, afterDelimiter};
+        return new String[] { beforeDelimiter, afterDelimiter };
     }
 
     /**
@@ -505,7 +502,10 @@ public class Strings {
      * @see java.util.StringTokenizer
      */
     private static <T extends Collection<String>> T tokenizeToCollection(
-            final String s, final String delimiters, final Supplier<T> supplier) {
+        final String s,
+        final String delimiters,
+        final Supplier<T> supplier
+    ) {
         if (s == null) {
             return null;
         }
@@ -555,7 +555,7 @@ public class Strings {
             return EMPTY_ARRAY;
         }
         if (delimiter == null) {
-            return new String[]{str};
+            return new String[] { str };
         }
         List<String> result = new ArrayList<>();
         if ("".equals(delimiter)) {
@@ -623,6 +623,45 @@ public class Strings {
             sb.append(prefix).append(it.next()).append(suffix);
             if (it.hasNext()) {
                 sb.append(delim);
+            }
+        }
+    }
+
+    /**
+     * Converts a collection of items to a string like {@link #collectionToDelimitedString(Iterable, String, String, String, StringBuilder)}
+     * except that it stops if the string gets too long and just indicates how many items were omitted.
+     *
+     * @param coll        the collection of items to display
+     * @param delim       the delimiter to write between the items (usually {@code ","})
+     * @param prefix      a string to write before each item (usually {@code ""} or {@code "["})
+     * @param suffix      a string to write after each item (usually {@code ""} or {@code "]"})
+     * @param appendLimit if this many characters have been appended to the string and there are still items to display then the remaining
+     *                    items are omitted
+     */
+    public static void collectionToDelimitedStringWithLimit(
+        Iterable<?> coll,
+        String delim,
+        String prefix,
+        String suffix,
+        int appendLimit,
+        StringBuilder sb
+    ) {
+        final Iterator<?> it = coll.iterator();
+        final long lengthLimit = sb.length() + appendLimit; // long to avoid overflow
+        int count = 0;
+        while (it.hasNext()) {
+            sb.append(prefix).append(it.next()).append(suffix);
+            count += 1;
+            if (it.hasNext()) {
+                sb.append(delim);
+                if (sb.length() > lengthLimit) {
+                    int omitted = 0;
+                    while (it.hasNext()) {
+                        it.next();
+                        omitted += 1;
+                    }
+                    sb.append("... (").append(count + omitted).append(" in total, ").append(omitted).append(" omitted)");
+                }
             }
         }
     }
@@ -720,8 +759,7 @@ public class Strings {
         return (array == null || array.length == 0);
     }
 
-    private Strings() {
-    }
+    private Strings() {}
 
     public static byte[] toUTF8Bytes(CharSequence charSequence) {
         return toUTF8Bytes(charSequence, new BytesRefBuilder());
@@ -731,7 +769,6 @@ public class Strings {
         spare.copyChars(charSequence);
         return Arrays.copyOf(spare.bytes(), spare.length());
     }
-
 
     /**
      * Return substring(beginIndex, endIndex) that is impervious to string length.

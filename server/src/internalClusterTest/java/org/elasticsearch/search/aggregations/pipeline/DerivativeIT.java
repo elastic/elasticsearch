@@ -12,7 +12,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -23,13 +22,13 @@ import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.filters;
@@ -39,6 +38,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -133,8 +133,7 @@ public class DerivativeIT extends ESIntegTestCase {
         for (int i = 0; i < numBuckets_empty_rnd; i++) {
             valueCounts_empty_rnd[i] = (long) randomIntBetween(1, 10);
             // make approximately half of the buckets empty
-            if (randomBoolean())
-                valueCounts_empty_rnd[i] = 0L;
+            if (randomBoolean()) valueCounts_empty_rnd[i] = 0L;
             for (int docs = 0; docs < valueCounts_empty_rnd[i]; docs++) {
                 builders.add(client().prepareIndex("empty_bucket_idx_rnd").setSource(newDocBuilder(i)));
                 numDocsEmptyIdx_rnd++;
@@ -157,12 +156,14 @@ public class DerivativeIT extends ESIntegTestCase {
      */
     public void testDocCountDerivative() {
 
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .subAggregation(derivative("deriv", "_count"))
-                                .subAggregation(derivative("2nd_deriv", "deriv"))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                    .interval(interval)
+                    .subAggregation(derivative("deriv", "_count"))
+                    .subAggregation(derivative("2nd_deriv", "deriv"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -196,12 +197,15 @@ public class DerivativeIT extends ESIntegTestCase {
      * test first and second derivative on the sing
      */
     public void testSingleValuedField_normalised() {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
-                                .subAggregation(derivative("deriv", "_count").unit("1ms"))
-                                .subAggregation(derivative("2nd_deriv", "deriv").unit("10ms"))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                    .interval(interval)
+                    .minDocCount(0)
+                    .subAggregation(derivative("deriv", "_count").unit("1ms"))
+                    .subAggregation(derivative("2nd_deriv", "deriv").unit("10ms"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -234,12 +238,14 @@ public class DerivativeIT extends ESIntegTestCase {
     }
 
     public void testSingleValueAggDerivative() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
-                                .subAggregation(derivative("deriv", "sum"))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                    .interval(interval)
+                    .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                    .subAggregation(derivative("deriv", "sum"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -247,9 +253,9 @@ public class DerivativeIT extends ESIntegTestCase {
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         assertThat(deriv.getBuckets().size(), equalTo(numValueBuckets));
-        Object[] propertiesKeys = (Object[]) ((InternalAggregation)deriv).getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)deriv).getProperty("_count");
-        Object[] propertiesSumCounts = (Object[]) ((InternalAggregation)deriv).getProperty("sum.value");
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation) deriv).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation) deriv).getProperty("_count");
+        Object[] propertiesSumCounts = (Object[]) ((InternalAggregation) deriv).getProperty("sum.value");
 
         List<Bucket> buckets = new ArrayList<>(deriv.getBuckets());
         Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
@@ -266,9 +272,13 @@ public class DerivativeIT extends ESIntegTestCase {
                 assertThat(sumDeriv, notNullValue());
                 long sumDerivValue = expectedSum - expectedSumPreviousBucket;
                 assertThat(sumDeriv.value(), equalTo((double) sumDerivValue));
-                assertThat(((InternalMultiBucketAggregation.InternalBucket)bucket).getProperty("histo",
-                        AggregationPath.parse("deriv.value").getPathElementsAsStringList()),
-                        equalTo((double) sumDerivValue));
+                assertThat(
+                    ((InternalMultiBucketAggregation.InternalBucket) bucket).getProperty(
+                        "histo",
+                        AggregationPath.parse("deriv.value").getPathElementsAsStringList()
+                    ),
+                    equalTo((double) sumDerivValue)
+                );
             } else {
                 assertThat(sumDeriv, nullValue());
             }
@@ -280,12 +290,14 @@ public class DerivativeIT extends ESIntegTestCase {
     }
 
     public void testMultiValueAggDerivative() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx")
-                .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
-                                .subAggregation(derivative("deriv", "stats.sum"))).get();
+        SearchResponse response = client().prepareSearch("idx")
+            .addAggregation(
+                histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                    .interval(interval)
+                    .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME))
+                    .subAggregation(derivative("deriv", "stats.sum"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -293,9 +305,9 @@ public class DerivativeIT extends ESIntegTestCase {
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         assertThat(deriv.getBuckets().size(), equalTo(numValueBuckets));
-        Object[] propertiesKeys = (Object[]) ((InternalAggregation)deriv).getProperty("_key");
-        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation)deriv).getProperty("_count");
-        Object[] propertiesSumCounts = (Object[]) ((InternalAggregation)deriv).getProperty("stats.sum");
+        Object[] propertiesKeys = (Object[]) ((InternalAggregation) deriv).getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) ((InternalAggregation) deriv).getProperty("_count");
+        Object[] propertiesSumCounts = (Object[]) ((InternalAggregation) deriv).getProperty("stats.sum");
 
         List<Bucket> buckets = new ArrayList<>(deriv.getBuckets());
         Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
@@ -312,9 +324,13 @@ public class DerivativeIT extends ESIntegTestCase {
                 assertThat(sumDeriv, notNullValue());
                 long sumDerivValue = expectedSum - expectedSumPreviousBucket;
                 assertThat(sumDeriv.value(), equalTo((double) sumDerivValue));
-                assertThat(((InternalMultiBucketAggregation.InternalBucket)bucket).getProperty("histo",
-                        AggregationPath.parse("deriv.value").getPathElementsAsStringList()),
-                        equalTo((double) sumDerivValue));
+                assertThat(
+                    ((InternalMultiBucketAggregation.InternalBucket) bucket).getProperty(
+                        "histo",
+                        AggregationPath.parse("deriv.value").getPathElementsAsStringList()
+                    ),
+                    equalTo((double) sumDerivValue)
+                );
             } else {
                 assertThat(sumDeriv, nullValue());
             }
@@ -326,11 +342,11 @@ public class DerivativeIT extends ESIntegTestCase {
     }
 
     public void testUnmapped() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx_unmapped")
-                .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .subAggregation(derivative("deriv", "_count"))).get();
+        SearchResponse response = client().prepareSearch("idx_unmapped")
+            .addAggregation(
+                histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).subAggregation(derivative("deriv", "_count"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -341,11 +357,11 @@ public class DerivativeIT extends ESIntegTestCase {
     }
 
     public void testPartiallyUnmapped() throws Exception {
-        SearchResponse response = client()
-                .prepareSearch("idx", "idx_unmapped")
-                .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .subAggregation(derivative("deriv", "_count"))).get();
+        SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
+            .addAggregation(
+                histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).subAggregation(derivative("deriv", "_count"))
+            )
+            .get();
 
         assertSearchResponse(response);
 
@@ -369,12 +385,10 @@ public class DerivativeIT extends ESIntegTestCase {
     }
 
     public void testDocCountDerivativeWithGaps() throws Exception {
-        SearchResponse searchResponse = client()
-                .prepareSearch("empty_bucket_idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
-                                .subAggregation(derivative("deriv", "_count"))).get();
+        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
+            .setQuery(matchAllQuery())
+            .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).subAggregation(derivative("deriv", "_count")))
+            .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx));
 
@@ -397,14 +411,15 @@ public class DerivativeIT extends ESIntegTestCase {
     }
 
     public void testDocCountDerivativeWithGaps_random() throws Exception {
-        SearchResponse searchResponse = client()
-                .prepareSearch("empty_bucket_idx_rnd")
-                .setQuery(matchAllQuery())
-                .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
-                                .extendedBounds(0L, numBuckets_empty_rnd - 1)
-                                .subAggregation(derivative("deriv", "_count").gapPolicy(randomFrom(GapPolicy.values()))))
-                .get();
+        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx_rnd")
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                    .interval(1)
+                    .extendedBounds(0L, numBuckets_empty_rnd - 1)
+                    .subAggregation(derivative("deriv", "_count").gapPolicy(randomFrom(GapPolicy.values())))
+            )
+            .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx_rnd));
 
@@ -427,12 +442,14 @@ public class DerivativeIT extends ESIntegTestCase {
     }
 
     public void testDocCountDerivativeWithGaps_insertZeros() throws Exception {
-        SearchResponse searchResponse = client()
-                .prepareSearch("empty_bucket_idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
-                                .subAggregation(derivative("deriv", "_count").gapPolicy(GapPolicy.INSERT_ZEROS))).get();
+        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                    .interval(1)
+                    .subAggregation(derivative("deriv", "_count").gapPolicy(GapPolicy.INSERT_ZEROS))
+            )
+            .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx));
 
@@ -455,13 +472,15 @@ public class DerivativeIT extends ESIntegTestCase {
     }
 
     public void testSingleValueAggDerivativeWithGaps() throws Exception {
-        SearchResponse searchResponse = client()
-                .prepareSearch("empty_bucket_idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
-                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
-                                .subAggregation(derivative("deriv", "sum"))).get();
+        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                    .interval(1)
+                    .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                    .subAggregation(derivative("deriv", "sum"))
+            )
+            .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx));
 
@@ -496,13 +515,15 @@ public class DerivativeIT extends ESIntegTestCase {
     }
 
     public void testSingleValueAggDerivativeWithGaps_insertZeros() throws Exception {
-        SearchResponse searchResponse = client()
-                .prepareSearch("empty_bucket_idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
-                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
-                                .subAggregation(derivative("deriv", "sum").gapPolicy(GapPolicy.INSERT_ZEROS))).get();
+        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                    .interval(1)
+                    .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                    .subAggregation(derivative("deriv", "sum").gapPolicy(GapPolicy.INSERT_ZEROS))
+            )
+            .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx));
 
@@ -534,14 +555,16 @@ public class DerivativeIT extends ESIntegTestCase {
 
     public void testSingleValueAggDerivativeWithGaps_random() throws Exception {
         GapPolicy gapPolicy = randomFrom(GapPolicy.values());
-        SearchResponse searchResponse = client()
-                .prepareSearch("empty_bucket_idx_rnd")
-                .setQuery(matchAllQuery())
-                .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1)
-                                .extendedBounds(0L, (long) numBuckets_empty_rnd - 1)
-                                .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
-                                .subAggregation(derivative("deriv", "sum").gapPolicy(gapPolicy))).get();
+        SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx_rnd")
+            .setQuery(matchAllQuery())
+            .addAggregation(
+                histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                    .interval(1)
+                    .extendedBounds(0L, (long) numBuckets_empty_rnd - 1)
+                    .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
+                    .subAggregation(derivative("deriv", "sum").gapPolicy(gapPolicy))
+            )
+            .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numDocsEmptyIdx_rnd));
 
@@ -578,14 +601,17 @@ public class DerivativeIT extends ESIntegTestCase {
     public void testSingleValueAggDerivative_invalidPath() throws Exception {
         try {
             client().prepareSearch("idx")
-                    .addAggregation(
-                            histogram("histo")
-                                    .field(SINGLE_VALUED_FIELD_NAME)
-                                    .interval(interval)
-                                    .subAggregation(
-                                            filters("filters", QueryBuilders.termQuery("tag", "foo")).subAggregation(
-                                                    sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
-                                    .subAggregation(derivative("deriv", "filters>get>sum"))).get();
+                .addAggregation(
+                    histogram("histo").field(SINGLE_VALUED_FIELD_NAME)
+                        .interval(interval)
+                        .subAggregation(
+                            filters("filters", QueryBuilders.termQuery("tag", "foo")).subAggregation(
+                                sum("sum").field(SINGLE_VALUED_FIELD_NAME)
+                            )
+                        )
+                        .subAggregation(derivative("deriv", "filters>get>sum"))
+                )
+                .get();
             fail("Expected an Exception but didn't get one");
         } catch (Exception e) {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
@@ -612,29 +638,31 @@ public class DerivativeIT extends ESIntegTestCase {
                 value = null;
             }
 
-            XContentBuilder doc = jsonBuilder()
-                    .startObject()
-                    .field("tick", i)
-                    .field("value", value)
-                    .endObject();
+            XContentBuilder doc = jsonBuilder().startObject().field("tick", i).field("value", value).endObject();
             client().prepareIndex("deriv_npe").setSource(doc).get();
         }
 
         refresh();
 
-        SearchResponse response = client()
-                .prepareSearch("deriv_npe")
-                .addAggregation(
-                        histogram("histo").field("tick").interval(1)
-                                .subAggregation(avg("avg").field("value"))
-                                .subAggregation(derivative("deriv1", "avg"))
-                                .subAggregation(derivative("deriv2", "deriv1"))).get();
+        SearchResponse response = client().prepareSearch("deriv_npe")
+            .addAggregation(
+                histogram("histo").field("tick")
+                    .interval(1)
+                    .subAggregation(avg("avg").field("value"))
+                    .subAggregation(derivative("deriv1", "avg"))
+                    .subAggregation(derivative("deriv2", "deriv1"))
+            )
+            .get();
 
         assertSearchResponse(response);
     }
 
-    private void checkBucketKeyAndDocCount(final String msg, final Histogram.Bucket bucket, final long expectedKey,
-            final long expectedDocCount) {
+    private void checkBucketKeyAndDocCount(
+        final String msg,
+        final Histogram.Bucket bucket,
+        final long expectedKey,
+        final long expectedDocCount
+    ) {
         assertThat(msg, bucket, notNullValue());
         assertThat(msg + " key", ((Number) bucket.getKey()).longValue(), equalTo(expectedKey));
         assertThat(msg + " docCount", bucket.getDocCount(), equalTo(expectedDocCount));

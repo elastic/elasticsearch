@@ -16,17 +16,16 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.Instant;
 import java.time.OffsetTime;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -100,7 +99,7 @@ public class BytesStreamsTests extends ESTestCase {
         BytesStreamOutput out = new BytesStreamOutput();
 
         // bulk-write with wrong args
-        expectThrows(IllegalArgumentException.class, () -> out.writeBytes(new byte[]{}, 0, 1));
+        expectThrows(IllegalArgumentException.class, () -> out.writeBytes(new byte[] {}, 0, 1));
         out.close();
     }
 
@@ -278,38 +277,37 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeOptionalVLong(null);
         out.writeFloat(1.1f);
         out.writeDouble(2.2);
-        int[] intArray = {1, 2, 3};
+        int[] intArray = { 1, 2, 3 };
         out.writeGenericValue(intArray);
-        int[] vIntArray = {4, 5, 6};
+        int[] vIntArray = { 4, 5, 6 };
         out.writeVIntArray(vIntArray);
-        long[] longArray = {1, 2, 3};
+        long[] longArray = { 1, 2, 3 };
         out.writeGenericValue(longArray);
-        long[] vLongArray = {4, 5, 6};
+        long[] vLongArray = { 4, 5, 6 };
         out.writeVLongArray(vLongArray);
-        float[] floatArray = {1.1f, 2.2f, 3.3f};
+        float[] floatArray = { 1.1f, 2.2f, 3.3f };
         out.writeGenericValue(floatArray);
-        double[] doubleArray = {1.1, 2.2, 3.3};
+        double[] doubleArray = { 1.1, 2.2, 3.3 };
         out.writeGenericValue(doubleArray);
         out.writeString("hello");
         out.writeString("goodbye");
         out.writeGenericValue(BytesRefs.toBytesRef("bytesref"));
-        out.writeStringArray(new String[] {"a", "b", "cat"});
+        out.writeStringArray(new String[] { "a", "b", "cat" });
         out.writeBytesReference(new BytesArray("test"));
         out.writeOptionalBytesReference(new BytesArray("test"));
         out.writeOptionalDouble(null);
         out.writeOptionalDouble(1.2);
-        out.writeTimeZone(DateTimeZone.forID("CET"));
-        out.writeOptionalTimeZone(DateTimeZone.getDefault());
-        out.writeOptionalTimeZone(null);
-        out.writeGenericValue(new DateTime(123456, DateTimeZone.forID("America/Los_Angeles")));
+        out.writeZoneId(ZoneId.of("CET"));
+        out.writeOptionalZoneId(ZoneId.systemDefault());
+        out.writeGenericValue(ZonedDateTime.ofInstant(Instant.ofEpochMilli(123456), ZoneId.of("America/Los_Angeles")));
         final OffsetTime offsetNow = OffsetTime.now(randomZone());
         out.writeGenericValue(offsetNow);
         final byte[] bytes = BytesReference.toBytes(out.bytes());
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         assertEquals(in.available(), bytes.length);
         assertThat(in.readBoolean(), equalTo(false));
-        assertThat(in.readByte(), equalTo((byte)1));
-        assertThat(in.readShort(), equalTo((short)-1));
+        assertThat(in.readByte(), equalTo((byte) 1));
+        assertThat(in.readShort(), equalTo((short) -1));
         assertThat(in.readInt(), equalTo(-1));
         assertThat(in.readVInt(), equalTo(2));
         assertThat(in.readLong(), equalTo(-3L));
@@ -317,30 +315,29 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(in.readOptionalLong(), equalTo(11234234L));
         assertThat(in.readOptionalVLong(), equalTo(5L));
         assertThat(in.readOptionalVLong(), nullValue());
-        assertThat((double)in.readFloat(), closeTo(1.1, 0.0001));
+        assertThat((double) in.readFloat(), closeTo(1.1, 0.0001));
         assertThat(in.readDouble(), closeTo(2.2, 0.0001));
         assertThat(in.readGenericValue(), equalTo((Object) intArray));
         assertThat(in.readVIntArray(), equalTo(vIntArray));
-        assertThat(in.readGenericValue(), equalTo((Object)longArray));
+        assertThat(in.readGenericValue(), equalTo((Object) longArray));
         assertThat(in.readVLongArray(), equalTo(vLongArray));
-        assertThat(in.readGenericValue(), equalTo((Object)floatArray));
-        assertThat(in.readGenericValue(), equalTo((Object)doubleArray));
+        assertThat(in.readGenericValue(), equalTo((Object) floatArray));
+        assertThat(in.readGenericValue(), equalTo((Object) doubleArray));
         assertThat(in.readString(), equalTo("hello"));
         assertThat(in.readString(), equalTo("goodbye"));
-        assertThat(in.readGenericValue(), equalTo((Object)BytesRefs.toBytesRef("bytesref")));
-        assertThat(in.readStringArray(), equalTo(new String[] {"a", "b", "cat"}));
+        assertThat(in.readGenericValue(), equalTo((Object) BytesRefs.toBytesRef("bytesref")));
+        assertThat(in.readStringArray(), equalTo(new String[] { "a", "b", "cat" }));
         assertThat(in.readBytesReference(), equalTo(new BytesArray("test")));
         assertThat(in.readOptionalBytesReference(), equalTo(new BytesArray("test")));
         assertNull(in.readOptionalDouble());
         assertThat(in.readOptionalDouble(), closeTo(1.2, 0.0001));
-        assertEquals(DateTimeZone.forID("CET"), in.readTimeZone());
-        assertEquals(DateTimeZone.getDefault(), in.readOptionalTimeZone());
-        assertNull(in.readOptionalTimeZone());
+        assertEquals(ZoneId.of("CET"), in.readZoneId());
+        assertEquals(ZoneId.systemDefault(), in.readOptionalZoneId());
         Object dt = in.readGenericValue();
-        assertThat(dt, instanceOf(JodaCompatibleZonedDateTime.class));
-        JodaCompatibleZonedDateTime jdt = (JodaCompatibleZonedDateTime) dt;
-        assertThat(jdt.getZonedDateTime().toInstant().toEpochMilli(), equalTo(123456L));
-        assertThat(jdt.getZonedDateTime().getZone(), equalTo(ZoneId.of("America/Los_Angeles")));
+        assertThat(dt, instanceOf(ZonedDateTime.class));
+        ZonedDateTime zdt = (ZonedDateTime) dt;
+        assertThat(zdt.toInstant().toEpochMilli(), equalTo(123456L));
+        assertThat(zdt.getZone(), equalTo(ZoneId.of("America/Los_Angeles")));
         assertThat(in.readGenericValue(), equalTo(offsetNow));
         assertEquals(0, in.available());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> out.writeGenericValue(new Object() {
@@ -356,10 +353,15 @@ public class BytesStreamsTests extends ESTestCase {
 
     public void testNamedWriteable() throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.singletonList(
-                    new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new)));
-            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10),
-                    randomAlphaOfLengthBetween(1, 10));
+            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
+                Collections.singletonList(
+                    new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new)
+                )
+            );
+            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(
+                randomAlphaOfLengthBetween(1, 10),
+                randomAlphaOfLengthBetween(1, 10)
+            );
             out.writeNamedWriteable(namedWriteableIn);
             byte[] bytes = BytesReference.toBytes(out.bytes());
 
@@ -373,9 +375,11 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testNamedWriteableList() throws IOException {
-        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.singletonList(
-            new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new)
-        ));
+        NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
+            Collections.singletonList(
+                new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, TestNamedWriteable::new)
+            )
+        );
         int size = between(0, 100);
         List<BaseNamedWriteable> expected = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -403,10 +407,15 @@ public class BytesStreamsTests extends ESTestCase {
 
     public void testNamedWriteableReaderReturnsNull() throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.singletonList(
-                    new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, (StreamInput in) -> null)));
-            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10),
-                    randomAlphaOfLengthBetween(1, 10));
+            NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
+                Collections.singletonList(
+                    new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME, (StreamInput in) -> null)
+                )
+            );
+            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(
+                randomAlphaOfLengthBetween(1, 10),
+                randomAlphaOfLengthBetween(1, 10)
+            );
             out.writeNamedWriteable(namedWriteableIn);
             byte[] bytes = BytesReference.toBytes(out.bytes());
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry)) {
@@ -429,22 +438,32 @@ public class BytesStreamsTests extends ESTestCase {
     public void testWriteableReaderReturnsWrongName() throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
-                    Collections.singletonList(new NamedWriteableRegistry.Entry(BaseNamedWriteable.class, TestNamedWriteable.NAME,
-                            (StreamInput in) -> new TestNamedWriteable(in) {
-                                @Override
-                                public String getWriteableName() {
-                                    return "intentionally-broken";
-                                }
-                            })));
-            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10),
-                    randomAlphaOfLengthBetween(1, 10));
+                Collections.singletonList(
+                    new NamedWriteableRegistry.Entry(
+                        BaseNamedWriteable.class,
+                        TestNamedWriteable.NAME,
+                        (StreamInput in) -> new TestNamedWriteable(in) {
+                            @Override
+                            public String getWriteableName() {
+                                return "intentionally-broken";
+                            }
+                        }
+                    )
+                )
+            );
+            TestNamedWriteable namedWriteableIn = new TestNamedWriteable(
+                randomAlphaOfLengthBetween(1, 10),
+                randomAlphaOfLengthBetween(1, 10)
+            );
             out.writeNamedWriteable(namedWriteableIn);
             byte[] bytes = BytesReference.toBytes(out.bytes());
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry)) {
                 assertEquals(in.available(), bytes.length);
                 AssertionError e = expectThrows(AssertionError.class, () -> in.readNamedWriteable(BaseNamedWriteable.class));
-                assertThat(e.getMessage(),
-                        endsWith(" claims to have a different name [intentionally-broken] than it was read from [test-named-writeable]."));
+                assertThat(
+                    e.getMessage(),
+                    endsWith(" claims to have a different name [intentionally-broken] than it was read from [test-named-writeable].")
+                );
             }
         }
     }
@@ -603,8 +622,7 @@ public class BytesStreamsTests extends ESTestCase {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             TestNamedWriteable that = (TestNamedWriteable) o;
-            return Objects.equals(field1, that.field1) &&
-                    Objects.equals(field2, that.field2);
+            return Objects.equals(field1, that.field1) && Objects.equals(field2, that.field2);
         }
 
         @Override
@@ -667,10 +685,12 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testWriteMapWithConsistentOrder() throws IOException {
-        Map<String, String> map =
-            randomMap(new TreeMap<>(), randomIntBetween(2, 20),
-                () -> randomAlphaOfLength(5),
-                () -> randomAlphaOfLength(5));
+        Map<String, String> map = randomMap(
+            new TreeMap<>(),
+            randomIntBetween(2, 20),
+            () -> randomAlphaOfLength(5),
+            () -> randomAlphaOfLength(5)
+        );
 
         Map<String, Object> reverseMap = new TreeMap<>(Collections.reverseOrder());
         reverseMap.putAll(map);
@@ -689,10 +709,12 @@ public class BytesStreamsTests extends ESTestCase {
     }
 
     public void testReadMapByUsingWriteMapWithConsistentOrder() throws IOException {
-        Map<String, String> streamOutMap =
-            randomMap(new HashMap<>(), randomIntBetween(2, 20),
-                () -> randomAlphaOfLength(5),
-                () -> randomAlphaOfLength(5));
+        Map<String, String> streamOutMap = randomMap(
+            new HashMap<>(),
+            randomIntBetween(2, 20),
+            () -> randomAlphaOfLength(5),
+            () -> randomAlphaOfLength(5)
+        );
         try (BytesStreamOutput streamOut = new BytesStreamOutput()) {
             streamOut.writeMapWithConsistentOrder(streamOutMap);
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(streamOut.bytes()));
@@ -754,17 +776,17 @@ public class BytesStreamsTests extends ESTestCase {
     public void testReadTooLargeArraySize() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput(0)) {
             output.writeVInt(10);
-            for (int i = 0; i < 10; i ++) {
+            for (int i = 0; i < 10; i++) {
                 output.writeInt(i);
             }
 
             output.writeVInt(Integer.MAX_VALUE);
-            for (int i = 0; i < 10; i ++) {
+            for (int i = 0; i < 10; i++) {
                 output.writeInt(i);
             }
             try (StreamInput streamInput = output.bytes().streamInput()) {
                 int[] ints = streamInput.readIntArray();
-                for (int i = 0; i < 10; i ++) {
+                for (int i = 0; i < 10; i++) {
                     assertEquals(i, ints[i]);
                 }
                 expectThrows(IllegalStateException.class, () -> streamInput.readIntArray());
@@ -775,17 +797,17 @@ public class BytesStreamsTests extends ESTestCase {
     public void testReadCorruptedArraySize() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput(0)) {
             output.writeVInt(10);
-            for (int i = 0; i < 10; i ++) {
+            for (int i = 0; i < 10; i++) {
                 output.writeInt(i);
             }
 
             output.writeVInt(100);
-            for (int i = 0; i < 10; i ++) {
+            for (int i = 0; i < 10; i++) {
                 output.writeInt(i);
             }
             try (StreamInput streamInput = output.bytes().streamInput()) {
                 int[] ints = streamInput.readIntArray();
-                for (int i = 0; i < 10; i ++) {
+                for (int i = 0; i < 10; i++) {
                     assertEquals(i, ints[i]);
                 }
                 EOFException eofException = expectThrows(EOFException.class, () -> streamInput.readIntArray());
@@ -797,17 +819,17 @@ public class BytesStreamsTests extends ESTestCase {
     public void testReadNegativeArraySize() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput(0)) {
             output.writeVInt(10);
-            for (int i = 0; i < 10; i ++) {
+            for (int i = 0; i < 10; i++) {
                 output.writeInt(i);
             }
 
             output.writeVInt(Integer.MIN_VALUE);
-            for (int i = 0; i < 10; i ++) {
+            for (int i = 0; i < 10; i++) {
                 output.writeInt(i);
             }
             try (StreamInput streamInput = output.bytes().streamInput()) {
                 int[] ints = streamInput.readIntArray();
-                for (int i = 0; i < 10; i ++) {
+                for (int i = 0; i < 10; i++) {
                     assertEquals(i, ints[i]);
                 }
                 NegativeArraySizeException exception = expectThrows(NegativeArraySizeException.class, () -> streamInput.readIntArray());

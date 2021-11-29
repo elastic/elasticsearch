@@ -11,8 +11,12 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class StringMatcherTests extends ESTestCase {
 
@@ -21,6 +25,31 @@ public class StringMatcherTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             assertNoMatch(matcher, randomAlphaOfLengthBetween(i, 20));
         }
+    }
+
+    public void testMatchAllWildcard() throws Exception {
+        Supplier<String> randomPattern = () -> {
+            final String s = randomAlphaOfLengthBetween(3, 5);
+            switch (randomIntBetween(1, 4)) {
+                case 1:
+                    return s;
+                case 2:
+                    return s + "*";
+                case 3:
+                    return "*" + s;
+                default:
+                    return "*" + s + "*";
+            }
+        };
+        final List<String> patterns = Stream.of(randomList(0, 3, randomPattern), List.of("*"), randomList(0, 3, randomPattern))
+            .flatMap(List::stream)
+            .collect(Collectors.toList());
+        final StringMatcher matcher = StringMatcher.of(patterns);
+        for (int i = 0; i < 10; i++) {
+            assertMatch(matcher, randomAlphaOfLengthBetween(i, 20));
+        }
+
+        assertThat(matcher.getPredicate(), sameInstance(StringMatcher.ALWAYS_TRUE_PREDICATE));
     }
 
     public void testSingleWildcard() throws Exception {
@@ -47,7 +76,8 @@ public class StringMatcherTests extends ESTestCase {
         // Lucene automatons don't work correctly on strings with high surrogates
         final String prefix = randomValueOtherThanMany(
             s -> StringMatcherTests.hasHighSurrogate(s) || s.contains("\\") || s.startsWith("/"),
-            () -> randomRealisticUnicodeOfLengthBetween(3, 5));
+            () -> randomRealisticUnicodeOfLengthBetween(3, 5)
+        );
         final StringMatcher matcher = StringMatcher.of(prefix + "*");
         for (int i = 0; i < 10; i++) {
             assertMatch(matcher, prefix + randomRealisticUnicodeOfLengthBetween(i, 20));
@@ -87,17 +117,20 @@ public class StringMatcherTests extends ESTestCase {
         final String suffix2 = randomAlphaOfLengthBetween(8, 12);
         final String exact1 = randomValueOtherThanMany(
             s -> s.startsWith(prefix1) || s.startsWith(prefix2) || s.startsWith(prefix3) || s.endsWith(suffix1) || s.endsWith(suffix2),
-            () -> randomAlphaOfLengthBetween(5, 9));
+            () -> randomAlphaOfLengthBetween(5, 9)
+        );
         final String exact2 = randomValueOtherThanMany(
             s -> s.startsWith(prefix1) || s.startsWith(prefix2) || s.startsWith(prefix3) || s.endsWith(suffix1) || s.endsWith(suffix2),
-            () -> randomAlphaOfLengthBetween(10, 12));
+            () -> randomAlphaOfLengthBetween(10, 12)
+        );
         final String exact3 = randomValueOtherThanMany(
             s -> s.startsWith(prefix1) || s.startsWith(prefix2) || s.startsWith(prefix3) || s.endsWith(suffix1) || s.endsWith(suffix2),
-            () -> randomAlphaOfLengthBetween(15, 20));
+            () -> randomAlphaOfLengthBetween(15, 20)
+        );
 
-        final StringMatcher matcher = StringMatcher.of(List.of(
-            prefix1 + "*", prefix2 + "?", "/" + prefix3 + "@/", "*" + suffix1, "/@" + suffix2 + "/", exact1, exact2, exact3
-        ));
+        final StringMatcher matcher = StringMatcher.of(
+            List.of(prefix1 + "*", prefix2 + "?", "/" + prefix3 + "@/", "*" + suffix1, "/@" + suffix2 + "/", exact1, exact2, exact3)
+        );
 
         assertMatch(matcher, exact1);
         assertMatch(matcher, exact2);
@@ -157,6 +190,5 @@ public class StringMatcherTests extends ESTestCase {
         }
         return false;
     }
-
 
 }

@@ -1646,22 +1646,19 @@ public class DataStreamIT extends ESIntegTestCase {
         }
         {
             assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet());
-            DataStreamIT.putComposableIndexTemplate(
-                "my-template",
-                null,
-                List.of("logs-*"),
-                null,
-                null,
-                Map.of("logs", AliasMetadata.builder("logs").build())
-            );
-
-            var request = new CreateDataStreamAction.Request("logs-es");
             var e = expectThrows(
-                InvalidAliasNameException.class,
-                () -> client().execute(CreateDataStreamAction.INSTANCE, request).actionGet()
+                IllegalArgumentException.class,
+                () -> DataStreamIT.putComposableIndexTemplate(
+                    "my-template",
+                    null,
+                    List.of("logs-*"),
+                    null,
+                    null,
+                    Map.of("logs", AliasMetadata.builder("logs").build())
+                )
             );
             assertThat(
-                e.getMessage(),
+                e.getCause().getMessage(),
                 equalTo("Invalid alias name [logs]: an index or data stream exists with the same name as the alias")
             );
         }

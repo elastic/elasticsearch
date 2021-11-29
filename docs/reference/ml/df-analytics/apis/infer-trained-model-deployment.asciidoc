@@ -121,7 +121,7 @@ The API returns in this case:
 ----
 // NOTCONSOLE
 
-Zero-shot Classification tasks require extra configuration defining the class labels.
+Zero-shot classification tasks require extra configuration defining the class labels.
 These labels are passed in the zero-shot inference config.
 
 [source,console]

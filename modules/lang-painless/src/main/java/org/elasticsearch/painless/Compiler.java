@@ -219,7 +219,17 @@ final class Compiler {
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
-        if (settings.getCollectArguments() && painlessLookup.collectArgumentsTargetMethods().isEmpty() == false) {
+        if (settings.getShouldCollectArguments()) {
+            /*
+             * It'd be reasonable to do this is there are are any methods in the
+             * that actually need their arguments collected. But we use a compiler
+             * setting so we can:
+             * 1. Turn it on randomly during testing to get some extra coverage,
+             *    even if we aren't collecting arguments.
+             * 2. Turn it off in production if the user doesn't ask for it
+             *    explicitly. We don't think it'll take a long time or anything,
+             *    but we're being paranoid just in case. 
+             */
             new CollectArgumentsPhase().visitClass(classNode, scriptScope.getQueryableExpressionScope());
         }
         new DefaultIRTreeToASMBytesPhase().visitScript(classNode);

@@ -10,7 +10,6 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
@@ -494,7 +493,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
             value = copy.remove(CompilerSettings.COLLECT_ARGUMENTS);
             if (value != null) {
-                compilerSettings.setCollectArguments(Booleans.parseBoolean(value));
+                compilerSettings.setShouldCollectArguments(Boolean.parseBoolean(value));
             }
 
             value = copy.remove(CompilerSettings.REGEX_ENABLED.getKey());

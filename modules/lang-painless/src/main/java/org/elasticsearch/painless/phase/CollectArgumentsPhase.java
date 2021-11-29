@@ -14,6 +14,7 @@ import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.CastNode;
 import org.elasticsearch.painless.ir.ConstantNode;
 import org.elasticsearch.painless.ir.DeclarationNode;
+import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.IRNode;
 import org.elasticsearch.painless.ir.InvokeCallDefNode;
@@ -204,11 +205,14 @@ public class CollectArgumentsPhase extends IRTreeBaseVisitor<CollectArgumentsSco
 
         if (irDeclarationNode.getExpressionNode() instanceof BinaryImplNode) {
             BinaryImplNode irBinaryImplNode = (BinaryImplNode) irDeclarationNode.getExpressionNode();
-            ConstantNode docLookupKeyNode = lookupKeyForMapAccessOnVariable("doc", (BinaryImplNode) irBinaryImplNode.getLeftNode(), scope);
-            if (docLookupKeyNode != null && rightChildIsValueAccess(irBinaryImplNode)) {
-                Object value = docLookupKeyNode.getDecorationValue(IRDecorations.IRDConstant.class);
-                if (value instanceof String) {
-                    scope.putVariableField(name, (String) value);
+            ExpressionNode left = irBinaryImplNode.getLeftNode();
+            if (left instanceof BinaryImplNode) {
+                ConstantNode docLookupKeyNode = lookupKeyForMapAccessOnVariable("doc", (BinaryImplNode) left, scope);
+                if (docLookupKeyNode != null && rightChildIsValueAccess(irBinaryImplNode)) {
+                    Object value = docLookupKeyNode.getDecorationValue(IRDecorations.IRDConstant.class);
+                    if (value instanceof String) {
+                        scope.putVariableField(name, (String) value);
+                    }
                 }
             }
         }

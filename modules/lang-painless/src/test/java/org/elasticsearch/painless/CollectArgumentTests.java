@@ -18,7 +18,6 @@ import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.StringFieldScript;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -48,7 +47,7 @@ public class CollectArgumentTests extends ScriptTestCase {
     }
 
     public QueryableExpression qe(String script, Function<String, QueryableExpression> lookup, Function<String, Object> params) {
-        return scriptEngine.compile("qe_test", script, LongFieldScript.CONTEXT, Collections.emptyMap())
+        return scriptEngine.compile("qe_test", script, LongFieldScript.CONTEXT, Map.of(CompilerSettings.COLLECT_ARGUMENTS, "true"))
             .emitExpression()
             .build(lookup, params);
     }
@@ -192,10 +191,12 @@ public class CollectArgumentTests extends ScriptTestCase {
     public void testSubstring() {
         assertEquals(
             "a.substring()",
-            scriptEngine.compile("qe_test", "emit(doc.a.value.substring(0, 5))", StringFieldScript.CONTEXT, Collections.emptyMap())
-                .emitExpression()
-                .build(STRING_LOOKUP, null)
-                .toString()
+            scriptEngine.compile(
+                "qe_test",
+                "emit(doc.a.value.substring(0, 5))",
+                StringFieldScript.CONTEXT,
+                Map.of(CompilerSettings.COLLECT_ARGUMENTS, "true")
+            ).emitExpression().build(STRING_LOOKUP, null).toString()
         );
     }
 

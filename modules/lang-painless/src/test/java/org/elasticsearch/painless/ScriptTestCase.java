@@ -11,6 +11,7 @@ package org.elasticsearch.painless;
 import junit.framework.AssertionFailedError;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
@@ -25,7 +26,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -73,6 +73,10 @@ public abstract class ScriptTestCase extends ESTestCase {
     public Object exec(String script, Map<String, Object> vars, boolean picky) {
         Map<String, String> compilerSettings = new HashMap<>();
         compilerSettings.put(CompilerSettings.INITIAL_CALL_SITE_DEPTH, random().nextBoolean() ? "0" : "10");
+        boolean shouldCollectArguments = randomBoolean();
+        if (shouldCollectArguments == false || randomBoolean()) {
+            compilerSettings.put("collect_arguments", Boolean.toString(shouldCollectArguments));
+        }
         return exec(script, vars, compilerSettings, picky);
     }
 

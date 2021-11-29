@@ -79,7 +79,7 @@ public final class CompilerSettings {
     /**
      * Should painless collect arguments to methods annotated with {@link CollectArgumentAnnotation}?
      */
-    private boolean collectArguments = false;
+    private boolean shouldCollectArguments = false;
 
     /**
      * For testing. Do not use.
@@ -180,15 +180,15 @@ public final class CompilerSettings {
     /**
      * Should painless collect arguments to methods annotated with {@link CollectArgumentAnnotation}?
      */
-    public void setCollectArguments(boolean collectArguments) {
-        this.collectArguments = collectArguments;
+    public void setShouldCollectArguments(boolean shouldCollectArguments) {
+        this.shouldCollectArguments = shouldCollectArguments;
     }
 
     /**
      * Should painless collect arguments to methods annotated with {@link CollectArgumentAnnotation}?
      */
-    public boolean getCollectArguments() {
-        return collectArguments;
+    public boolean getShouldCollectArguments() {
+        return shouldCollectArguments;
     }
 
     /**

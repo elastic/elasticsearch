@@ -5,7 +5,7 @@
       "description":"Validates an anomaly detection job."
     },
     "stability":"stable",
-    "visibility":"public",
+    "visibility":"private",
     "headers":{
       "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"],
       "content_type": ["application/json"]

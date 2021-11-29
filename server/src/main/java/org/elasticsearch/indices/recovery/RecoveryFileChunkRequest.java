@@ -146,7 +146,7 @@ public final class RecoveryFileChunkRequest extends RecoveryTransportRequest imp
     }
 
     @Override
-    public int refCount() {
-        return content.refCount();
+    public boolean hasReferences() {
+        return content.hasReferences();
     }
 }

@@ -61,13 +61,5 @@ public interface RefCounted {
      *
      * @return whether there are currently any active references to this object.
      */
-    default boolean hasReferences() {
-        return refCount() > 0;
-    }
-
-    /**
-     * Returns the current reference count.
-     */
-    int refCount();
-
+    boolean hasReferences();
 }

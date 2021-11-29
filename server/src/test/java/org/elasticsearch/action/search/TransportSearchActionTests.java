@@ -377,8 +377,8 @@ public class TransportSearchActionTests extends ESTestCase {
             }
 
             @Override
-            public int refCount() {
-                return 1;
+            public boolean hasReferences() {
+                return true;
             }
 
             @Override

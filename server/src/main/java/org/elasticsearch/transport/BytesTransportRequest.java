@@ -76,7 +76,7 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
     }
 
     @Override
-    public int refCount() {
-        return bytes.refCount();
+    public boolean hasReferences() {
+        return bytes.hasReferences();
     }
 }

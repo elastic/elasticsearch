@@ -125,8 +125,8 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
         }
 
         @Override
-        public int refCount() {
-            return chunk.refCount();
+        public boolean hasReferences() {
+            return chunk.hasReferences();
         }
     }
 }

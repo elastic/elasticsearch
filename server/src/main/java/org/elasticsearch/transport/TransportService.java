@@ -148,8 +148,8 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
-        public int refCount() {
-            return 1;
+        public boolean hasReferences() {
+            return true;
         }
 
         @Override

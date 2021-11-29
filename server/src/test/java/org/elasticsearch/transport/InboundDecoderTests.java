@@ -80,7 +80,7 @@ public class InboundDecoderTests extends ESTestCase {
             final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(totalBytes);
             int bytesConsumed = decoder.decode(releasable1, fragments::add);
             assertEquals(totalHeaderSize, bytesConsumed);
-            assertEquals(1, releasable1.refCount());
+            assertTrue(releasable1.hasReferences());
 
             final Header header = (Header) fragments.get(0);
             assertEquals(requestId, header.getRequestId());
@@ -107,8 +107,6 @@ public class InboundDecoderTests extends ESTestCase {
             final Object endMarker = fragments.get(1);
 
             assertEquals(messageBytes, content);
-            // Ref count is incremented since the bytes are forwarded as a fragment
-            assertEquals(2, releasable2.refCount());
             assertEquals(InboundDecoder.END_CONTENT, endMarker);
         }
 
@@ -141,7 +139,7 @@ public class InboundDecoderTests extends ESTestCase {
             final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(totalBytes);
             int bytesConsumed = decoder.decode(releasable1, fragments::add);
             assertEquals(partialHeaderSize, bytesConsumed);
-            assertEquals(1, releasable1.refCount());
+            assertTrue(releasable1.hasReferences());
 
             final Header header = (Header) fragments.get(0);
             assertEquals(requestId, header.getRequestId());
@@ -198,7 +196,7 @@ public class InboundDecoderTests extends ESTestCase {
             final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(bytes);
             int bytesConsumed = decoder.decode(releasable1, fragments::add);
             assertEquals(totalHeaderSize, bytesConsumed);
-            assertEquals(1, releasable1.refCount());
+            assertTrue(releasable1.hasReferences());
 
             final Header header = (Header) fragments.get(0);
             assertEquals(requestId, header.getRequestId());
@@ -247,7 +245,7 @@ public class InboundDecoderTests extends ESTestCase {
             final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(totalBytes);
             int bytesConsumed = decoder.decode(releasable1, fragments::add);
             assertEquals(totalHeaderSize, bytesConsumed);
-            assertEquals(1, releasable1.refCount());
+            assertTrue(releasable1.hasReferences());
 
             final Header header = (Header) fragments.get(0);
             assertEquals(requestId, header.getRequestId());
@@ -279,7 +277,7 @@ public class InboundDecoderTests extends ESTestCase {
             assertThat(content, instanceOf(ReleasableBytesReference.class));
             ((ReleasableBytesReference) content).close();
             // Ref count is not incremented since the bytes are immediately consumed on decompression
-            assertEquals(1, releasable2.refCount());
+            assertTrue(releasable2.hasReferences());
             assertEquals(InboundDecoder.END_CONTENT, endMarker);
         }
 
@@ -311,7 +309,7 @@ public class InboundDecoderTests extends ESTestCase {
             final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(bytes);
             int bytesConsumed = decoder.decode(releasable1, fragments::add);
             assertEquals(totalHeaderSize, bytesConsumed);
-            assertEquals(1, releasable1.refCount());
+            assertTrue(releasable1.hasReferences());
 
             final Header header = (Header) fragments.get(0);
             assertEquals(requestId, header.getRequestId());
@@ -339,16 +337,19 @@ public class InboundDecoderTests extends ESTestCase {
             Compression.Scheme.DEFLATE
         );
 
+        final ReleasableBytesReference releasable1;
         try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
             final BytesReference bytes = message.serialize(os);
 
             InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);
             final ArrayList<Object> fragments = new ArrayList<>();
-            final ReleasableBytesReference releasable1 = ReleasableBytesReference.wrap(bytes);
-            expectThrows(IllegalStateException.class, () -> decoder.decode(releasable1, fragments::add));
-            // No bytes are retained
-            assertEquals(1, releasable1.refCount());
+            try (ReleasableBytesReference r = ReleasableBytesReference.wrap(bytes)) {
+                releasable1 = r;
+                expectThrows(IllegalStateException.class, () -> decoder.decode(releasable1, fragments::add));
+            }
         }
+        // No bytes are retained
+        assertFalse(releasable1.hasReferences());
     }
 
     public void testEnsureVersionCompatibility() throws IOException {

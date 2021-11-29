@@ -228,13 +228,13 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
 
         @Override
         public boolean tryIncRef() {
-            if (refCount() == 0) {
+            if (hasReferences() == false) {
                 return false;
             }
             try {
                 buffer.retain();
             } catch (RuntimeException e) {
-                assert refCount() == 0 : "should only fail if fully released but ref count was [" + refCount() + "]";
+                assert hasReferences() == false;
                 return false;
             }
             return true;
@@ -246,8 +246,8 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
         }
 
         @Override
-        public int refCount() {
-            return buffer.refCnt();
+        public boolean hasReferences() {
+            return buffer.refCnt() > 0;
         }
     }
 

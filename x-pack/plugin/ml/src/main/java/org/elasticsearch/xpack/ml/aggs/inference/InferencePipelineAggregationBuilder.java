@@ -264,10 +264,10 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
         SetOnce<LocalModel> loadedModel = new SetOnce<>();
         BiConsumer<Client, ActionListener<?>> modelLoadAction = (client, listener) -> modelLoadingService.get()
-            .getModelForSearch(modelId, listener.delegateFailure((delegate, model) -> {
-                loadedModel.set(model);
+            .getModelForSearch(modelId, listener.delegateFailure((delegate, localModel) -> {
+                loadedModel.set(localModel);
 
-                boolean isLicensed = model.getLicenseLevel() == License.OperationMode.BASIC
+                boolean isLicensed = localModel.getLicenseLevel() == License.OperationMode.BASIC
                     || MachineLearningField.ML_API_FEATURE.check(licenseState);
                 if (isLicensed) {
                     delegate.onResponse(null);

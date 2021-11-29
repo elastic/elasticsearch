@@ -54,17 +54,17 @@ public class NativeMemoryCapacity {
 
     public AutoscalingCapacity autoscalingCapacity(int maxMemoryPercent, boolean useAuto) {
         // We calculate the JVM size here first to ensure it stays the same given the rest of the calculations
-        final Long jvmSize = useAuto
+        final Long targetJvmSize = useAuto
             ? Optional.ofNullable(this.jvmSize).orElse(dynamicallyCalculateJvmSizeFromNativeMemorySize(node))
             : null;
         // We first need to calculate the actual node size given the current native memory size.
         // This way we can accurately determine the required node size AND what the overall memory percentage will be
-        long actualNodeSize = NativeMemoryCalculator.calculateApproxNecessaryNodeSize(node, jvmSize, maxMemoryPercent, useAuto);
+        long actualNodeSize = NativeMemoryCalculator.calculateApproxNecessaryNodeSize(node, targetJvmSize, maxMemoryPercent, useAuto);
         // We make the assumption that the JVM size is the same across the entire tier
         // This simplifies calculating the tier as it means that each node in the tier
         // will have the same dynamic memory calculation. And thus the tier is simply the sum of the memory necessary
         // times that scaling factor.
-        double memoryPercentForMl = NativeMemoryCalculator.modelMemoryPercent(actualNodeSize, jvmSize, maxMemoryPercent, useAuto);
+        double memoryPercentForMl = NativeMemoryCalculator.modelMemoryPercent(actualNodeSize, targetJvmSize, maxMemoryPercent, useAuto);
         double inverseScale = memoryPercentForMl <= 0 ? 0 : 100.0 / memoryPercentForMl;
         long actualTier = Math.round(tier * inverseScale);
         return new AutoscalingCapacity(

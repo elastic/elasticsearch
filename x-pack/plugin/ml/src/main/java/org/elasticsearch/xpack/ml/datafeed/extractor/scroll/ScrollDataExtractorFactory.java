@@ -77,11 +77,11 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         ActionListener<DataExtractorFactory> listener
     ) {
 
-        // Step 2. Contruct the factory and notify listener
+        // Step 2. Construct the factory and notify listener
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(fieldCapabilitiesResponse -> {
-            TimeBasedExtractedFields extractedFields = TimeBasedExtractedFields.build(job, datafeed, fieldCapabilitiesResponse);
+            TimeBasedExtractedFields fields = TimeBasedExtractedFields.build(job, datafeed, fieldCapabilitiesResponse);
             listener.onResponse(
-                new ScrollDataExtractorFactory(client, datafeed, job, extractedFields, xContentRegistry, timingStatsReporter)
+                new ScrollDataExtractorFactory(client, datafeed, job, fields, xContentRegistry, timingStatsReporter)
             );
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);

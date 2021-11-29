@@ -61,7 +61,7 @@ public class FloatDocValuesField implements DocValuesField<Float>, ScriptDocValu
      * through the {@code doc} variable.
      */
     @Override
-    public ScriptDocValues<?> getScriptDocValues() {
+    public ScriptDocValues<Double> getScriptDocValues() {
         if (doubles == null) {
             doubles = new ScriptDocValues.Doubles(this);
         }

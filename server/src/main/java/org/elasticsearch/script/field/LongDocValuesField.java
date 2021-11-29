@@ -61,7 +61,7 @@ public class LongDocValuesField implements DocValuesField<Long>, ScriptDocValues
      * through the {@code doc} variable.
      */
     @Override
-    public ScriptDocValues<?> getScriptDocValues() {
+    public ScriptDocValues<Long> getScriptDocValues() {
         if (longs == null) {
             longs = new ScriptDocValues.Longs(this);
         }

@@ -61,7 +61,7 @@ public class DoubleDocValuesField implements DocValuesField<Double>, ScriptDocVa
      * through the {@code doc} variable.
      */
     @Override
-    public ScriptDocValues<?> getScriptDocValues() {
+    public ScriptDocValues<Double> getScriptDocValues() {
         if (doubles == null) {
             doubles = new ScriptDocValues.Doubles(this);
         }

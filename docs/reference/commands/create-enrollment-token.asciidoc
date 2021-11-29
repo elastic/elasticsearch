@@ -48,7 +48,7 @@ option. For more information about debugging connection failures, see
 
 `-s, --scope`:: Specifies the scope of the generated token. Supported values are `node` and `kibana`.
 
-`--url`:: Specifies the base URL (hostname and port) that the tool uses to submit API
+`--url`:: Specifies the base URL (hostname and port of the local node) that the tool uses to submit API
 requests to {es}. The default value is determined from the settings in your
 `elasticsearch.yml` file. If `xpack.security.http.ssl.enabled`  is set to `true`,
 you must specify an HTTPS URL.
@@ -61,4 +61,12 @@ The following command creates an enrollment token for enrolling an {es} node int
 [source,shell]
 ----
 bin/elasticsearch-create-enrollment-token -s node
+----
+
+The following command creates an enrollment token for enrolling a kibana instance into a cluster, 
+while overriding the url where the local elasticsearch node is reachable:
+
+[source,shell]
+----
+bin/elasticsearch-create-enrollment-token -s kibana --url "https://172.0.0.3:9200"
 ----

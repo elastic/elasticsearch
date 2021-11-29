@@ -228,7 +228,7 @@ final class Compiler {
              *    even if we aren't collecting arguments.
              * 2. Turn it off in production if the user doesn't ask for it
              *    explicitly. We don't think it'll take a long time or anything,
-             *    but we're being paranoid just in case. 
+             *    but we're being paranoid just in case.
              */
             new CollectArgumentsPhase().visitClass(classNode, scriptScope.getQueryableExpressionScope());
         }

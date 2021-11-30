@@ -28,7 +28,6 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -67,7 +66,10 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
             CoreValuesSourceType.KEYWORD,
             circuitBreakerService,
             // TODO(stu): get from KeywordFieldMapper
-            (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))), n)
+            (dv, n) -> new DelegateDocValuesField(
+                new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                n
+            )
         );
         pagedBytesIndexFieldData = new PagedBytesIndexFieldData(
             name,
@@ -78,7 +80,10 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
             TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
             TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
             // TODO(stu): get from TextFieldMapper
-            (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))), n)
+            (dv, n) -> new DelegateDocValuesField(
+                new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                n
+            )
         );
 
         dir = newDirectory();

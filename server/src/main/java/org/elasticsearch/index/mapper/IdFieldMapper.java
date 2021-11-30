@@ -154,7 +154,10 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
                 CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))), n)
+                (dv, n) -> new DelegateDocValuesField(
+                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                    n
+                )
             );
             return new IndexFieldData.Builder() {
                 @Override

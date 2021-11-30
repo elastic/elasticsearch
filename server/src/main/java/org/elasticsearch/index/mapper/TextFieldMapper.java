@@ -879,7 +879,10 @@ public class TextFieldMapper extends FieldMapper {
                 filter.maxFreq,
                 filter.minSegmentSize,
                 CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))), n)
+                (dv, n) -> new DelegateDocValuesField(
+                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                    n
+                )
             );
         }
 

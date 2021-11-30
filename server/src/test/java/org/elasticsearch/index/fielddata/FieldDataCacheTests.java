@@ -20,7 +20,6 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -80,7 +79,10 @@ public class FieldDataCacheTests extends ESTestCase {
             CoreValuesSourceType.KEYWORD,
             new NoneCircuitBreakerService(),
             // TODO(stu): get from KeywordFieldMapper
-            (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))), n)
+            (dv, n) -> new DelegateDocValuesField(
+                new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                n
+            )
         );
     }
 
@@ -94,7 +96,10 @@ public class FieldDataCacheTests extends ESTestCase {
             TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
             TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
             // TODO(stu): get from TextFieldMapper
-            (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))), n)
+            (dv, n) -> new DelegateDocValuesField(
+                new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                n
+            )
         );
     }
 

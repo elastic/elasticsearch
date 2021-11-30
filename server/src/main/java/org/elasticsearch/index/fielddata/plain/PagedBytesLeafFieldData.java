@@ -25,7 +25,12 @@ public class PagedBytesLeafFieldData extends AbstractLeafOrdinalsFieldData {
     private final PackedLongValues termOrdToBytesOffset;
     protected final Ordinals ordinals;
 
-    public PagedBytesLeafFieldData(PagedBytes.Reader bytes, PackedLongValues termOrdToBytesOffset, Ordinals ordinals, ToScriptField<SortedSetDocValues> toScriptField) {
+    public PagedBytesLeafFieldData(
+        PagedBytes.Reader bytes,
+        PackedLongValues termOrdToBytesOffset,
+        Ordinals ordinals,
+        ToScriptField<SortedSetDocValues> toScriptField
+    ) {
         super(toScriptField);
         this.bytes = bytes;
         this.termOrdToBytesOffset = termOrdToBytesOffset;

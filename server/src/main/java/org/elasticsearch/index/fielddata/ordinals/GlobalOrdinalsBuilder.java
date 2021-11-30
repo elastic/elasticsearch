@@ -75,7 +75,11 @@ public enum GlobalOrdinalsBuilder {
         );
     }
 
-    public static IndexOrdinalsFieldData buildEmpty(IndexReader indexReader, IndexOrdinalsFieldData indexFieldData, ToScriptField<SortedSetDocValues> toScriptField) throws IOException {
+    public static IndexOrdinalsFieldData buildEmpty(
+        IndexReader indexReader,
+        IndexOrdinalsFieldData indexFieldData,
+        ToScriptField<SortedSetDocValues> toScriptField
+    ) throws IOException {
         assert indexReader.leaves().size() > 1;
 
         final LeafOrdinalsFieldData[] atomicFD = new LeafOrdinalsFieldData[indexReader.leaves().size()];

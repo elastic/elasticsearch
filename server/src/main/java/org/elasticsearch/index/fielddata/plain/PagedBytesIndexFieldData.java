@@ -54,7 +54,14 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         private final ValuesSourceType valuesSourceType;
         private final ToScriptField<SortedSetDocValues> toScriptField;
 
-        public Builder(String name, double minFrequency, double maxFrequency, int minSegmentSize, ValuesSourceType valuesSourceType, ToScriptField<SortedSetDocValues> toScriptField) {
+        public Builder(
+            String name,
+            double minFrequency,
+            double maxFrequency,
+            int minSegmentSize,
+            ValuesSourceType valuesSourceType,
+            ToScriptField<SortedSetDocValues> toScriptField
+        ) {
             this.name = name;
             this.minFrequency = minFrequency;
             this.maxFrequency = maxFrequency;
@@ -65,7 +72,16 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
         @Override
         public IndexOrdinalsFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new PagedBytesIndexFieldData(name, valuesSourceType, cache, breakerService, minFrequency, maxFrequency, minSegmentSize, toScriptField);
+            return new PagedBytesIndexFieldData(
+                name,
+                valuesSourceType,
+                cache,
+                breakerService,
+                minFrequency,
+                maxFrequency,
+                minSegmentSize,
+                toScriptField
+            );
         }
     }
 

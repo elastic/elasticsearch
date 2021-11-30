@@ -170,8 +170,10 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
         }
     }
 
-    private final static ToScriptField<SortedSetDocValues> MOCK_TO_SCRIPT_FIELD =
-        (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))), n);
+    private final static ToScriptField<SortedSetDocValues> MOCK_TO_SCRIPT_FIELD = (dv, n) -> new DelegateDocValuesField(
+        new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+        n
+    );
 
     private static class MockSortedSetDocValues extends AbstractSortedSetDocValues {
         private final BytesRef[] allTerms;

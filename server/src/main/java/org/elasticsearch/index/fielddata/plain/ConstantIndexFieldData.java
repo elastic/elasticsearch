@@ -45,7 +45,12 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
         private final ValuesSourceType valuesSourceType;
         private final ToScriptField<SortedSetDocValues> toScriptField;
 
-        public Builder(String constantValue, String name, ValuesSourceType valuesSourceType, ToScriptField<SortedSetDocValues> toScriptField) {
+        public Builder(
+            String constantValue,
+            String name,
+            ValuesSourceType valuesSourceType,
+            ToScriptField<SortedSetDocValues> toScriptField
+        ) {
             this.constantValue = constantValue;
             this.name = name;
             this.valuesSourceType = valuesSourceType;
@@ -123,7 +128,12 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     private final ConstantLeafFieldData atomicFieldData;
 
-    private ConstantIndexFieldData(String name, String value, ValuesSourceType valuesSourceType, ToScriptField<SortedSetDocValues> toScriptField) {
+    private ConstantIndexFieldData(
+        String name,
+        String value,
+        ValuesSourceType valuesSourceType,
+        ToScriptField<SortedSetDocValues> toScriptField
+    ) {
         super(name, valuesSourceType, null, null, toScriptField);
         atomicFieldData = new ConstantLeafFieldData(value, toScriptField);
     }

@@ -388,7 +388,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             MapperParsingException.class,
             () -> mapper.parse(source(b -> b.field("field", randomAlphaOfLengthBetween(1025, 2048))))
         );
-        assertThat(e.getCause().getMessage(), containsString("Dimension field [field] cannot be more than [1024] bytes long."));
+        assertThat(e.getCause().getMessage(), containsString("Dimension fields must be less than [1024] bytes but was"));
     }
 
     public void testConfigureSimilarity() throws IOException {

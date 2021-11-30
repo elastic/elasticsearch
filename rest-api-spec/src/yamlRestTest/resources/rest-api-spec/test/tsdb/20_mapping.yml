@@ -219,6 +219,9 @@ runtime field matching routing path:
               properties:
                 "@timestamp":
                   type: date
+                dim_kw:
+                    type: "keyword"
+                    time_series_dimension: true
                 dim:
                   type: object
                   dynamic: runtime
@@ -229,7 +232,7 @@ runtime field matching routing path:
         index: test
         body:
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim": {"foo": "a"}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim_kw": "dim", "dim": {"foo": "a"}}'
   - match: {items.0.index.error.reason: "All fields that match routing_path must be keywords with [time_series_dimension: true] and without the [script] parameter. [dim.foo] was a runtime [keyword]."}
 
 ---

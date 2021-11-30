@@ -1,8 +1,8 @@
 ---
 add dimensions with put_mapping:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.00.99"
+      reason: _tsid support introduced in 8.1.0
 
   - do:
       indices.create:
@@ -44,18 +44,18 @@ add dimensions with put_mapping:
         index: test
         body:
           fields:
-            # TODO fetch the tsid
+            - field: _tsid
             - field: "@timestamp"
 
   - match: {hits.total.value: 1}
-  # TODO Fetch the tsid
+  - match: {hits.hits.0.fields._tsid: [ { metricset: cat } ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
 add dimensions to no dims with dynamic_template over index:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.00.99"
+      reason: _tsid support introduced in 8.1.0
 
   - do:
       indices.create:
@@ -93,17 +93,17 @@ add dimensions to no dims with dynamic_template over index:
         index: test
         body:
           fields:
-            # TODO fetch the tsid
+            - field: _tsid
             - field: "@timestamp"
   - match: {hits.total.value: 1}
-  # TODO fetch the tsid
+  - match: {hits.hits.0.fields._tsid: [ { metricset: cat } ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
 add dimensions to no dims with dynamic_template over bulk:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.00.99"
+      reason: _tsid support introduced in 8.1.0
 
   - do:
       indices.create:
@@ -141,17 +141,17 @@ add dimensions to no dims with dynamic_template over bulk:
        index: test
        body:
          fields:
-            # TODO fetch tsid
+            - field: _tsid
             - field: "@timestamp"
   - match: {hits.total.value: 1}
-  # TODO fetch tsid
+  - match: {hits.hits.0.fields._tsid: [ { metricset: cat } ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
 add dimensions to some dims with dynamic_template over index:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.00.99"
+      reason: _tsid support introduced in 8.1.0
 
   - do:
       indices.create:
@@ -193,17 +193,17 @@ add dimensions to some dims with dynamic_template over index:
        index: test
        body:
          fields:
-          # TODO fetch tsid
+           - field: _tsid
            - field: "@timestamp"
   - match: {hits.total.value: 1}
-  # TODO fetch tsid
+  - match: {hits.hits.0.fields._tsid: [ { metricset: cat, other_dim: cat } ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
 add dimensions to some dims with dynamic_template over bulk:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.00.99"
+      reason: _tsid support introduced in 8.1.0
 
   - do:
       indices.create:
@@ -244,8 +244,8 @@ add dimensions to some dims with dynamic_template over bulk:
        index: test
        body:
          fields:
-            # TODO fetch tsid
+            - field: _tsid
             - field: "@timestamp"
   - match: {hits.total.value: 1}
-  # TODO fetch tsid
+  - match: {hits.hits.0.fields._tsid: [ { metricset: cat, other_dim: cat } ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}

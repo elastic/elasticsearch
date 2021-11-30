@@ -216,7 +216,7 @@ public class IndexResolver {
 
         String[] indexWildcards = Strings.commaDelimitedListToStringArray(indexWildcard);
         Set<IndexInfo> indexInfos = new HashSet<>();
-        if (retrieveAliases) {
+        if (retrieveAliases && (clusterWildcard == null || simpleMatch(clusterWildcard, clusterName))) {
             GetAliasesRequest aliasRequest = new GetAliasesRequest().local(true)
                 .aliases(indexWildcards)
                 .indicesOptions(IndicesOptions.lenientExpandOpen());

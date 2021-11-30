@@ -13,23 +13,20 @@ import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class BooleanDocValuesField implements DocValuesField<Boolean>, ScriptDocValues.Supplier<Boolean> {
+public class LongDocValuesField implements DocValuesField<Long>, ScriptDocValues.Supplier<Long> {
 
-    private final SortedNumericDocValues input;
-    private final String name;
+    protected final SortedNumericDocValues input;
+    protected final String name;
 
-    private boolean[] values = new boolean[0];
-    private int count;
+    protected long[] values = new long[0];
+    protected int count;
 
-    // used for backwards compatibility for old-style "doc" access
-    // as a delegate to this field class
-    private ScriptDocValues.Booleans booleans = null;
+    private ScriptDocValues.Longs longs = null;
 
-    public BooleanDocValuesField(SortedNumericDocValues input, String name) {
+    public LongDocValuesField(SortedNumericDocValues input, String name) {
         this.input = input;
         this.name = name;
     }
@@ -39,68 +36,66 @@ public class BooleanDocValuesField implements DocValuesField<Boolean>, ScriptDoc
         if (input.advanceExact(docId)) {
             resize(input.docValueCount());
             for (int i = 0; i < count; i++) {
-                values[i] = input.nextValue() == 1;
+                values[i] = input.nextValue();
             }
         } else {
             resize(0);
         }
     }
 
-    private void resize(int newSize) {
+    protected void resize(int newSize) {
         count = newSize;
 
         assert count >= 0 : "size must be positive (got " + count + "): likely integer overflow?";
-        if (values.length < count) {
-            values = Arrays.copyOf(values, ArrayUtil.oversize(count, 1));
+        values = ArrayUtil.grow(values, count);
+    }
+
+    /**
+     * Returns a {@code ScriptDocValues} of the appropriate type for this field.
+     * This is used to support backwards compatibility for accessing field values
+     * through the {@code doc} variable.
+     */
+    @Override
+    public ScriptDocValues<Long> getScriptDocValues() {
+        if (longs == null) {
+            longs = new ScriptDocValues.Longs(this);
         }
+
+        return longs;
     }
 
     @Override
-    public ScriptDocValues<Boolean> getScriptDocValues() {
-        if (booleans == null) {
-            booleans = new ScriptDocValues.Booleans(this);
-        }
-
-        return booleans;
-    }
-
-    // this method is required to support the Boolean return values
-    // for the old-style "doc" access in ScriptDocValues
-    @Override
-    public Boolean getInternal(int index) {
+    public Long getInternal(int index) {
         return values[index];
     }
 
+    /**
+     * Returns the name of this field.
+     */
     @Override
     public String getName() {
         return name;
     }
 
+    /**
+     * Returns {@code true} if this field has no values, otherwise {@code false}.
+     */
     @Override
     public boolean isEmpty() {
         return count == 0;
     }
 
+    /**
+     * Returns the number of values this field has.
+     */
     @Override
     public int size() {
         return count;
     }
 
-    public boolean get(boolean defaultValue) {
-        return get(0, defaultValue);
-    }
-
-    public boolean get(int index, boolean defaultValue) {
-        if (isEmpty() || index < 0 || index >= count) {
-            return defaultValue;
-        }
-
-        return values[index];
-    }
-
     @Override
-    public Iterator<Boolean> iterator() {
-        return new Iterator<Boolean>() {
+    public Iterator<Long> iterator() {
+        return new Iterator<Long>() {
             private int index = 0;
 
             @Override
@@ -109,12 +104,24 @@ public class BooleanDocValuesField implements DocValuesField<Boolean>, ScriptDoc
             }
 
             @Override
-            public Boolean next() {
+            public Long next() {
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
                 return values[index++];
             }
         };
+    }
+
+    public long get(long defaultValue) {
+        return get(0, defaultValue);
+    }
+
+    public long get(int index, long defaultValue) {
+        if (isEmpty() || index < 0 || index >= count) {
+            return defaultValue;
+        }
+
+        return values[index];
     }
 }

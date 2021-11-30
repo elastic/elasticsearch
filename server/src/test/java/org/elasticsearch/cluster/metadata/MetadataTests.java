@@ -48,6 +48,7 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
@@ -1231,9 +1232,7 @@ public class MetadataTests extends ESTestCase {
             .numberOfReplicas(1)
             .build();
         b.put(ds2Index1, false);
-        b.put(
-            new DataStream(dataStreamName2, createTimestampField("@timestamp"), Collections.singletonList(ds2Index1.getIndex()), 1, null)
-        );
+        b.put(new DataStream(dataStreamName2, createTimestampField("@timestamp"), singletonList(ds2Index1.getIndex()), 1, null));
 
         Metadata metadata = b.build();
         assertThat(metadata.dataStreams().size(), equalTo(2));
@@ -1314,6 +1313,74 @@ public class MetadataTests extends ESTestCase {
         assertThat(value.getAliases(), nullValue());
     }
 
+    public void testDataStreamAliasValidation() {
+        Metadata.Builder b = Metadata.builder();
+        addDataStream("my-alias", b);
+        b.put("my-alias", "my-alias", null, null);
+        Exception e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
+
+        b = Metadata.builder();
+        addDataStream("d1", b);
+        addDataStream("my-alias", b);
+        b.put("my-alias", "d1", null, null);
+        e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
+
+        b = Metadata.builder();
+        b.put(
+            IndexMetadata.builder("index1")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .putAlias(new AliasMetadata.Builder("my-alias"))
+        );
+
+        addDataStream("d1", b);
+        b.put("my-alias", "d1", null, null);
+        e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (my-alias)"));
+    }
+
+    public void testDataStreamAliasValidationRestoreScenario() {
+        Metadata.Builder b = Metadata.builder();
+        b.dataStreams(
+            org.elasticsearch.core.Map.of("my-alias", createDataStream("my-alias")),
+            org.elasticsearch.core.Map.of("my-alias", new DataStreamAlias("my-alias", singletonList("my-alias"), null, null))
+        );
+        Exception e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
+
+        b = Metadata.builder();
+        b.dataStreams(
+            org.elasticsearch.core.Map.of("d1", createDataStream("d1"), "my-alias", createDataStream("my-alias")),
+            org.elasticsearch.core.Map.of("my-alias", new DataStreamAlias("my-alias", singletonList("d1"), null, null))
+        );
+        e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
+
+        b = Metadata.builder();
+        b.put(
+            IndexMetadata.builder("index1")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .putAlias(new AliasMetadata.Builder("my-alias"))
+        );
+        b.dataStreams(
+            org.elasticsearch.core.Map.of("d1", createDataStream("d1")),
+            org.elasticsearch.core.Map.of("my-alias", new DataStreamAlias("my-alias", singletonList("d1"), null, null))
+        );
+        e = expectThrows(IllegalStateException.class, b::build);
+        assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (my-alias)"));
+    }
+
     private void addDataStream(String name, Metadata.Builder b) {
         int numBackingIndices = randomIntBetween(1, 4);
         List<Index> indices = new ArrayList<>(numBackingIndices);
@@ -1323,6 +1390,16 @@ public class MetadataTests extends ESTestCase {
             b.put(idx, true);
         }
         b.put(new DataStream(name, createTimestampField("@timestamp"), indices));
+    }
+
+    private DataStream createDataStream(String name) {
+        int numBackingIndices = randomIntBetween(1, 4);
+        List<Index> indices = new ArrayList<>(numBackingIndices);
+        for (int j = 1; j <= numBackingIndices; j++) {
+            IndexMetadata idx = createBackingIndex(name, j).build();
+            indices.add(idx.getIndex());
+        }
+        return new DataStream(name, createTimestampField("@timestamp"), indices);
     }
 
     public void testIndicesLookupRecordsDataStreamForBackingIndices() {
@@ -1772,7 +1849,7 @@ public class MetadataTests extends ESTestCase {
             DataStream dataStream = new DataStream(
                 dataStreamName,
                 new DataStream.TimestampField("@timestamp"),
-                Collections.singletonList(idx.getIndex())
+                singletonList(idx.getIndex())
             );
             builder.put(dataStream);
             Metadata metadata = builder.build();

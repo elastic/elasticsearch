@@ -183,8 +183,9 @@ public class FieldFetcher {
     private void collectUnmapped(Map<String, DocumentField> documentFields, Map<String, Object> source, String parentPath, int lastState) {
         // lookup field patterns containing wildcards
         if (this.unmappedFieldsFetchAutomaton != null) {
-            for (String key : source.keySet()) {
-                Object value = source.get(key);
+            for (Map.Entry<String, Object> sourceEntry : source.entrySet()) {
+                String key = sourceEntry.getKey();
+                Object value = sourceEntry.getValue();
                 String currentPath = parentPath + key;
                 if (this.fieldContexts.containsKey(currentPath)) {
                     continue;

@@ -357,7 +357,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
                         .startObject()
                         .field("min", 10.0)
                         .field("max", 50.0)
-                        .field("value_count", 3)
+                        .field("value_count", 2)
                         .endObject()
                         .startObject()
                         .field("min", 11.0)
@@ -368,7 +368,12 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
                 )
             )
         );
-        assertThat(e.getCause().getMessage(), containsString("field [field.value_count] cannot be a multi-valued field."));
+        assertThat(
+            e.getCause().getMessage(),
+            containsString(
+                "failed to parse field [field.value_count] of type [integer] in document with id '1'. Preview of field's value: '3'"
+            )
+        );
     }
 
     /**

@@ -160,7 +160,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         boolean allowCustomRouting
     ) {
         this.name = name;
-        this.type = type;
+        this.type = type != null ? type : Type.DEFAULT;
         this.timeStampField = timeStampField;
         this.indices = Collections.unmodifiableList(indices);
         this.generation = generation;
@@ -521,7 +521,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public DataStream(StreamInput in) throws IOException {
         this(
             in.readString(),
-            in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readEnum(Type.class) : Type.DEFAULT,
+            in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readEnum(Type.class) : null,
             new TimestampField(in),
             in.readList(Index::new),
             in.readVLong(),
@@ -585,7 +585,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
-        PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TYPE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), TimestampField.PARSER, TIMESTAMP_FIELD_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> Index.fromXContent(p), INDICES_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);

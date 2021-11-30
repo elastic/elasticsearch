@@ -170,13 +170,15 @@ public class ForceMergeAction implements LifecycleAction {
                 return false;
             }
         );
-        CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex, readOnlyKey);
-        UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(
-            readOnlyKey,
-            codecChange ? closeKey : forceMergeKey,
-            client,
-            READ_ONLY_SETTINGS
+
+        StepKey readOnlyNextStepKey = codecChange ? closeKey : forceMergeKey;
+        StepKey checkNotWriteIndexNextStepKey = readOnly ? readOnlyKey : readOnlyNextStepKey;
+
+        CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(
+            checkNotWriteIndex,
+            checkNotWriteIndexNextStepKey
         );
+        UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, readOnlyNextStepKey, client, READ_ONLY_SETTINGS);
 
         CloseIndexStep closeIndexStep = new CloseIndexStep(closeKey, updateCompressionKey, client);
         UpdateSettingsStep updateBestCompressionSettings = new UpdateSettingsStep(

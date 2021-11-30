@@ -1265,6 +1265,11 @@ See <<eql-syntax-limitations>>.
 
 See <<eql-required-fields>>.
 
+[role="exclude",id="sql-client-apps-tableau"]
+=== Tableau Desktop
+
+See <<sql-client-apps-tableau-desktop>> and <<sql-client-apps-tableau-server>>.
+
 [role="exclude",id="search-request-body"]
 === Request body search
 

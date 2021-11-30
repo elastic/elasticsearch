@@ -473,7 +473,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/" + snapName)));
     }
 
-    public void forceMergeActionWithCodec(String codec) throws Exception {
+    public void checkForceMergeAction(String codec, boolean readOnly) throws Exception {
         createIndexWithSettings(
             client(),
             index,
@@ -494,18 +494,27 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> {
             assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
             Map<String, Object> settings = getOnlyIndexSettings(client(), index);
+            Object expectedWriteSetting = readOnly ? "true" : null;
             assertThat(settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(codec));
-            assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
+            assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo(expectedWriteSetting));
         }, 30, TimeUnit.SECONDS);
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
     }
 
     public void testForceMergeAction() throws Exception {
-        forceMergeActionWithCodec(null);
+        checkForceMergeAction(null, true);
     }
 
     public void testForceMergeActionWithCompressionCodec() throws Exception {
-        forceMergeActionWithCodec("best_compression");
+        checkForceMergeAction("best_compression", true);
+    }
+
+    public void testForceMergeActionNonReadOnly() throws Exception {
+        checkForceMergeAction(null, false);
+    }
+
+    public void testForceMergeActionWithCompressionCodecNonReadOnly() throws Exception {
+        checkForceMergeAction("best_compression", false);
     }
 
     public void testSetPriority() throws Exception {

@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -122,6 +123,11 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         if (sourceMetadata == null) {
             listener.onFailure(new IndexNotFoundException(sourceIndex));
             return;
+        }
+
+        // Index splits are not allowed for time-series indices
+        if (resizeRequest.getResizeType() == ResizeType.SPLIT) {
+            IndexRouting.fromIndexMetadata(sourceMetadata).checkIndexSplitAllowed();
         }
 
         IndicesStatsRequestBuilder statsRequestBuilder = client.admin()

@@ -14,13 +14,16 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -1074,5 +1077,41 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         GetDataStreamAction.Request getRequest = new GetDataStreamAction.Request(new String[] { "*" });
         assertThat(client.execute(GetDataStreamAction.INSTANCE, getRequest).get().getDataStreams(), hasSize(2));
         assertNotNull(client.admin().indices().prepareGetIndex().setIndices(indexName).get());
+    }
+
+    public void testRestoreDataStreamAliasWithConflictingDataStream() throws Exception {
+        var snapshotName = "test-snapshot";
+        createFullSnapshot(REPO, snapshotName);
+        client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet();
+        DataStreamIT.putComposableIndexTemplate("my-template", List.of("my-*"));
+        try {
+            var request = new CreateDataStreamAction.Request("my-alias");
+            assertAcked(client.execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+            var e = expectThrows(
+                IllegalStateException.class,
+                () -> client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true).get()
+            );
+            assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
+        } finally {
+            // Need to remove data streams in order to remove template
+            client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet();
+            // Need to remove template, because base class doesn't remove composable index templates after each test (only legacy templates)
+            client.execute(DeleteComposableIndexTemplateAction.INSTANCE, new DeleteComposableIndexTemplateAction.Request("my-template"))
+                .actionGet();
+        }
+    }
+
+    public void testRestoreDataStreamAliasWithConflictingIndicesAlias() throws Exception {
+        var snapshotName = "test-snapshot";
+        createFullSnapshot(REPO, snapshotName);
+        client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet();
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index").alias(new Alias("my-alias"));
+        assertAcked(client.admin().indices().create(createIndexRequest).actionGet());
+
+        var e = expectThrows(
+            IllegalStateException.class,
+            () -> client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true).get()
+        );
+        assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (my-alias)"));
     }
 }

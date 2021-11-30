@@ -1298,9 +1298,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private final Set<SnapshotId> ongoingSnapshotsDeletions = ConcurrentCollections.newConcurrentSet();
 
     /**
-     * Set of pending snapshots deletions whose deletion is conflicting with on-going restores, clones or repository statuses
+     * Set of pending snapshots deletions whose deletion is conflicting with on-going restores/clones/repository clean up or repository
+     * missing or read-only. Those sets are used to identify the cluster state updates to process in case they resolve some conflict.
      */
     private final Set<SnapshotId> pendingDeletionsWithConflictingRestores = ConcurrentCollections.newConcurrentSet();
+    private final Set<SnapshotId> pendingDeletionsWithConflictingCleanUps = ConcurrentCollections.newConcurrentSet();
     private final Set<SnapshotId> pendingDeletionsWithConflictingClones = ConcurrentCollections.newConcurrentSet();
     private final Set<SnapshotId> pendingDeletionsWithConflictingRepos = ConcurrentCollections.newConcurrentSet();
 
@@ -1335,6 +1337,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
 
             final RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+            final RepositoryCleanupInProgress cleanUps = state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY);
 
             final Set<SnapshotId> currentDeletions = deletionsSources(state);
             final Set<SnapshotId> currentRestores = restoreSources(state);
@@ -1360,20 +1363,21 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
                 pendingDeletionsWithConflictingClones.remove(snapshotId);
 
-                if (currentDeletions.contains(snapshotId)) {
-                    logger.trace("snapshot to delete [{}] is already queued", snapshotId);
-                    pendingDeletionsWithConflictingRepos.remove(snapshotId);
-                    continue;
-                }
-
-                if (state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress()) {
-                    if (pendingDeletionsWithConflictingRepos.add(snapshotId)) {
+                if (cleanUps.hasCleanupInProgress()) {
+                    if (pendingDeletionsWithConflictingCleanUps.add(snapshotId)) {
                         logger.debug(
                             "a repository clean-up is in progress, cannot delete pending snapshot [{}] created at {}",
                             snapshotId,
                             Instant.ofEpochMilli(snapshot.getIndexDeletionTime()).atZone(ZoneOffset.UTC)
                         );
                     }
+                    continue;
+                }
+                pendingDeletionsWithConflictingCleanUps.remove(snapshotId);
+
+                if (currentDeletions.contains(snapshotId)) {
+                    logger.trace("snapshot to delete [{}] is already queued", snapshotId);
+                    pendingDeletionsWithConflictingRepos.remove(snapshotId);
                     continue;
                 }
 
@@ -1424,6 +1428,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private void clearPendingDeletionsWithConflicts() {
         pendingDeletionsWithConflictingRestores.clear();
+        pendingDeletionsWithConflictingCleanUps.clear();
         pendingDeletionsWithConflictingClones.clear();
         pendingDeletionsWithConflictingRepos.clear();
     }
@@ -1458,21 +1463,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         }
         if (pendingDeletionsWithConflictingRepos.isEmpty() == false) {
+            RepositoriesMetadata previous = event.previousState().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+            RepositoriesMetadata current = event.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+            if (previous.equals(current) == false) {
+                return true;
+            }
+        }
+        if (pendingDeletionsWithConflictingCleanUps.isEmpty() == false) {
             boolean previousCleanUp = event.previousState()
                 .custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY)
                 .hasCleanupInProgress();
             boolean currentCleanUp = event.state()
                 .custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY)
                 .hasCleanupInProgress();
-            if (previousCleanUp != currentCleanUp) {
-                return true;
-            }
-
-            RepositoriesMetadata previous = event.previousState().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-            RepositoriesMetadata current = event.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-            if (previous.equals(current) == false) {
-                return true;
-            }
+            return previousCleanUp != currentCleanUp;
         }
         return false;
     }

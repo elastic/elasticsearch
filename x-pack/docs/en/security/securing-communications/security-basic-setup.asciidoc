@@ -4,9 +4,8 @@
 <titleabbrev>Set up basic security</titleabbrev>
 ++++
 
-After adding password protection in the <<security-minimal-setup,minimal security configuration>>, you'll need to configure Transport Layer Security
-(TLS). The transport layer handles all internal communication between nodes in
-your cluster.
+You can configure Transport Layer Security (TLS) on the transport layer, which
+handles all internal communication between nodes in your cluster.
 
 IMPORTANT: If your cluster has multiple nodes, then you must configure
 TLS between nodes. <<dev-vs-prod-mode,Production mode>> clusters will not start
@@ -41,15 +40,6 @@ this scenario we're applying TLS to the {es} transport port. In
 <<security-basic-setup-https,the next scenario>>, we'll apply TLS to the {es}
 HTTP port.
 ****
-
-[[basic-setup-prerequisites]]
-==== Prerequisites
-
-Complete the steps in <<security-minimal-setup,Minimal security for the Elastic Stack>> to enable {es} security features on every node in your cluster. You can
-then encrypt communications between your nodes with TLS.
-
-NOTE: You only need to create passwords for the built-in users one time for the
-entire cluster.
 
 [[generate-certificates]]
 ==== Generate the certificate authority

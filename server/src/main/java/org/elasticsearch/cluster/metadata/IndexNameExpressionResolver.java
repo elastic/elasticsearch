@@ -238,6 +238,18 @@ public class IndexNameExpressionResolver {
             if (ia == null) {
                 throw new IndexNotFoundException(expressions.get(0));
             }
+            if (ia.getType() == IndexAbstraction.Type.ALIAS) {
+                Index writeIndex = ia.getWriteIndex();
+                if (writeIndex == null) {
+                    throw new IllegalArgumentException(
+                        "no write index is defined for alias ["
+                            + ia.getName()
+                            + "]."
+                            + " The write index may be explicitly disabled using is_write_index=false or the alias points to multiple"
+                            + " indices without one being designated as a write index"
+                    );
+                }
+            }
             checkSystemAccess(context, ia);
             return ia;
         } else {

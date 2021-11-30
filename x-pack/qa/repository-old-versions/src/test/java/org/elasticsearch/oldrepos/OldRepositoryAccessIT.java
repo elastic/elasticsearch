@@ -167,10 +167,12 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                     restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards);
 
                     // close indices
-                    assertTrue(client.indices().close(new CloseIndexRequest("restored_test"), RequestOptions.DEFAULT)
-                        .isShardsAcknowledged());
-                    assertTrue(client.indices().close(new CloseIndexRequest("mounted_test"), RequestOptions.DEFAULT)
-                        .isShardsAcknowledged());
+                    assertTrue(
+                        client.indices().close(new CloseIndexRequest("restored_test"), RequestOptions.DEFAULT).isShardsAcknowledged()
+                    );
+                    assertTrue(
+                        client.indices().close(new CloseIndexRequest("mounted_test"), RequestOptions.DEFAULT).isShardsAcknowledged()
+                    );
 
                     // restore / mount again
                     restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards);
@@ -181,7 +183,8 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         }
     }
 
-    private void restoreMountAndVerify(int numDocs, Set<String> expectedIds, RestHighLevelClient client, int numberOfShards) throws IOException {
+    private void restoreMountAndVerify(int numDocs, Set<String> expectedIds, RestHighLevelClient client, int numberOfShards)
+        throws IOException {
         // restore index
         RestoreSnapshotResponse restoreSnapshotResponse = client.snapshot()
             .restore(

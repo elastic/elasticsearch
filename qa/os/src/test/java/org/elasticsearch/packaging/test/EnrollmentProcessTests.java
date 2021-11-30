@@ -98,9 +98,12 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         verifySecurityAutoConfigured(installation);
         // Allow some time for the second node to join the cluster, we can probably do this more elegantly in
         // https://github.com/elastic/elasticsearch/issues/79688
-        assertBusy(() ->
-        // verify that the two nodes formed a cluster
-        assertThat(makeRequestAsElastic("https://localhost:9200/_cluster/health", "password"), containsString("\"number_of_nodes\":2")),
+        // Then verify that the two nodes formed a cluster
+        assertBusy(
+            () -> assertThat(
+                makeRequestAsElastic("https://localhost:9200/_cluster/health", "password"),
+                containsString("\"number_of_nodes\":2")
+            ),
             20,
             TimeUnit.SECONDS
         );

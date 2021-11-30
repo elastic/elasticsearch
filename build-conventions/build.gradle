@@ -16,6 +16,7 @@ plugins {
 
 group = "org.elasticsearch"
 
+// This project contains Checkstyle rule implementations used by IDEs which use a Java 11 runtime
 targetCompatibility = 11
 sourceCompatibility = 11
 

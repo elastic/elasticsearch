@@ -207,6 +207,11 @@ use the <<indices-get-settings,get index settings API>>.
 (Boolean)
 If `true`, the data stream is created and managed by an Elastic stack component
 and cannot be modified through normal user interaction.
+
+`replicated`::
+(Boolean)
+If `true`, the data stream is created and managed by {ccr} and the local
+cluster can not write into this data stream or change its mappings.
 ====
 
 [[get-data-stream-api-example]]
@@ -246,7 +251,8 @@ The API returns the following response:
       "template": "my-index-template",
       "ilm_policy": "my-lifecycle-policy",
       "hidden": false,
-      "system": false
+      "system": false,
+      "replicated": false
     },
     {
       "name": "my-data-stream-two",
@@ -267,7 +273,8 @@ The API returns the following response:
       "template": "my-index-template",
       "ilm_policy": "my-lifecycle-policy",
       "hidden": false,
-      "system": false
+      "system": false,
+      "replicated": false
     }
   ]
 }

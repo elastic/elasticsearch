@@ -162,6 +162,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
 
     // these tests are all relying on a call to refresh all indices, when they could easily be changed
     // in 7.x to call the specific index they want to refresh.
+    // See https://github.com/elastic/elasticsearch/issues/81188
     task.skipTest("delete_by_query/70_throttle/Rethrottle to -1 which turns off throttling", "test relies on system index being non-hidden")
     task.skipTest("delete_by_query/80_slices/Multiple slices with rethrottle", "test relies on system index being non-hidden")
     task.skipTest("delete_by_query/80_slices/Multiple slices with wait_for_completion=false", "test relies on system index being non-hidden")

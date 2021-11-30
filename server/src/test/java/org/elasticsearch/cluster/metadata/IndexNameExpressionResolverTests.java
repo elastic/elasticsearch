@@ -2301,7 +2301,6 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testFullWildcardSystemIndicesAreHidden() {
-        threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
 
@@ -2345,7 +2344,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         );
     }
 
-    public void testWildcardSystemIndexReslutionSingleMatchDeprecated() {
+    public void testWildcardSystemIndexResolutionSingleMatchDeprecated() {
         threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(".w*");

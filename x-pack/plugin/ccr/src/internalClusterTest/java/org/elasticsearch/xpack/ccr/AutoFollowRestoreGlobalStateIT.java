@@ -34,41 +34,54 @@ public class AutoFollowRestoreGlobalStateIT extends CcrIntegTestCase {
 
     public void testShouldHandleRestoringGlobalState() {
 
-        var timeout = TimeValue.MAX_VALUE;
-
         var repoName = "test-repository";
         var repoPath = UUIDs.randomBase64UUID();
         var snapshotName = "test-snapshot-with-global-state";
 
-        //unregister remote
+        // unregister remote
         var remote = followerClient().settings().get("cluster.remote.leader_cluster.seeds");
 
-        followerClient().admin().cluster().updateSettings(
-            new ClusterUpdateSettingsRequest().persistentSettings(Settings.builder().putNull("cluster.remote.leader_cluster.seeds")).masterNodeTimeout(timeout)
-        ).actionGet();
+        followerClient().admin()
+            .cluster()
+            .updateSettings(
+                new ClusterUpdateSettingsRequest().persistentSettings(Settings.builder().putNull("cluster.remote.leader_cluster.seeds"))
+                    .masterNodeTimeout(TIMEOUT)
+            )
+            .actionGet();
 
-        assertThat(
-            getClusterSettings(followerClient()).get("cluster.remote.leader_cluster.seeds"),
-            nullValue()
-        );
+        assertThat(getClusterSettings(followerClient()).get("cluster.remote.leader_cluster.seeds"), nullValue());
         assertThat(getAutoFollowerPatterns(followerClient()).keySet(), equalTo(Set.of()));
 
-        //create repository
-        followerClient().admin().cluster().putRepository(
-            new PutRepositoryRequest(repoName).type("fs").settings(Settings.builder().put("location", repoPath)).masterNodeTimeout(timeout)
-        ).actionGet();
+        // create repository
+        followerClient().admin()
+            .cluster()
+            .putRepository(
+                new PutRepositoryRequest(repoName).type("fs")
+                    .settings(Settings.builder().put("location", repoPath))
+                    .masterNodeTimeout(TIMEOUT)
+            )
+            .actionGet();
 
-        //make snapshot with a global state
-        followerClient().admin().cluster().createSnapshot(
-            new CreateSnapshotRequest(repoName, snapshotName).includeGlobalState(true).waitForCompletion(true).masterNodeTimeout(timeout)
-        ).actionGet();
+        // make snapshot with a global state
+        followerClient().admin()
+            .cluster()
+            .createSnapshot(
+                new CreateSnapshotRequest(repoName, snapshotName).includeGlobalState(true)
+                    .waitForCompletion(true)
+                    .masterNodeTimeout(TIMEOUT)
+            )
+            .actionGet();
 
-        //register remote
-        followerClient().admin().cluster().updateSettings(
-            new ClusterUpdateSettingsRequest().persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", remote)).masterNodeTimeout(timeout)
-        ).actionGet();
+        // register remote
+        followerClient().admin()
+            .cluster()
+            .updateSettings(
+                new ClusterUpdateSettingsRequest().persistentSettings(Settings.builder().put("cluster.remote.leader_cluster.seeds", remote))
+                    .masterNodeTimeout(TIMEOUT)
+            )
+            .actionGet();
 
-        //create auto-follow pattern
+        // create auto-follow pattern
         var putAutoFollowerRequest = new PutAutoFollowPatternAction.Request();
         putAutoFollowerRequest.setName("pattern-1");
         putAutoFollowerRequest.setRemoteCluster("leader_cluster");
@@ -77,25 +90,28 @@ public class AutoFollowRestoreGlobalStateIT extends CcrIntegTestCase {
         putAutoFollowerRequest.setFollowIndexNamePattern("copy-{{leader_index}}");
         assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, putAutoFollowerRequest).actionGet().isAcknowledged());
 
-        //restore from a snapshot with global state
-        followerClient().admin().cluster().restoreSnapshot(
-            new RestoreSnapshotRequest(repoName, snapshotName).includeGlobalState(true).waitForCompletion(true).masterNodeTimeout(timeout)
-        ).actionGet();
+        // restore from a snapshot with global state
+        followerClient().admin()
+            .cluster()
+            .restoreSnapshot(
+                new RestoreSnapshotRequest(repoName, snapshotName).includeGlobalState(true)
+                    .waitForCompletion(true)
+                    .masterNodeTimeout(TIMEOUT)
+            )
+            .actionGet();
 
-        //assert remote is present
-//        assertThat(
-//            getClusterSettings(followerClient()).get("cluster.remote.leader_cluster.seeds"),
-//            equalTo(remote)
-//        );
+        // assert remote is present
+        // assertThat(
+        // getClusterSettings(followerClient()).get("cluster.remote.leader_cluster.seeds"),
+        // equalTo(remote)
+        // );
 
-        //assert auto-follow is present
+        // assert auto-follow is present
         assertThat(getAutoFollowerPatterns(followerClient()).keySet(), equalTo(Set.of("pattern-1")));
     }
 
     private Settings getClusterSettings(Client client) {
-        var response = client.admin().cluster().state(
-            new ClusterStateRequest().masterNodeTimeout(TIMEOUT)
-        ).actionGet();
+        var response = client.admin().cluster().state(new ClusterStateRequest().masterNodeTimeout(TIMEOUT)).actionGet();
         return response.getState().metadata().persistentSettings();
     }
 

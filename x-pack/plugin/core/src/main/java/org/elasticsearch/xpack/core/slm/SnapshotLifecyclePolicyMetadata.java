@@ -247,13 +247,13 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
             return this;
         }
 
-        public Builder setLastSuccess(SnapshotInvocationRecord lastSuccessDate) {
-            this.lastSuccessDate = lastSuccessDate;
+        public Builder setLastSuccess(SnapshotInvocationRecord lastSuccess) {
+            this.lastSuccessDate = lastSuccess;
             return this;
         }
 
-        public Builder setLastFailure(SnapshotInvocationRecord lastFailureDate) {
-            this.lastFailureDate = lastFailureDate;
+        public Builder setLastFailure(SnapshotInvocationRecord lastFailure) {
+            this.lastFailureDate = lastFailure;
             return this;
         }
 

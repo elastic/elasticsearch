@@ -74,7 +74,7 @@ public class GetRollupIndexCapsAction extends ActionType<GetRollupIndexCapsActio
         }
 
         @Override
-        public IndicesRequest indices(String... indices) {
+        public IndicesRequest indices(@SuppressWarnings("HiddenField") String... indices) {
             Objects.requireNonNull(indices, "indices must not be null");
             for (String index : indices) {
                 Objects.requireNonNull(index, "index must not be null");

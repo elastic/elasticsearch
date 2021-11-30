@@ -13,6 +13,7 @@ import org.apache.lucene.search.Sort;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -179,6 +180,8 @@ public class IndexSortSettingsTests extends ESTestCase {
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "time_series")
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some_dimension")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), 1L)
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateUtils.MAX_MILLIS_BEFORE_9999 - 1)
                 .build()
         );
         Sort sort = buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE, new DateFieldMapper.DateFieldType("@timestamp"));
@@ -192,6 +195,8 @@ public class IndexSortSettingsTests extends ESTestCase {
             Settings.builder()
                 .put(IndexSettings.MODE.getKey(), "time_series")
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "some_dimension")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), 1L)
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateUtils.MAX_MILLIS_BEFORE_9999 - 1)
                 .build()
         );
         Exception e = expectThrows(IllegalArgumentException.class, () -> buildIndexSort(indexSettings, TimeSeriesIdFieldMapper.FIELD_TYPE));

@@ -56,8 +56,12 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         installation = installArchive(sh, distribution(), getRootTempDir().resolve("elasticsearch-node2"), getCurrentVersion(), true);
 
         // Try to start the node with an invalid enrollment token and verify it fails to start
-        Shell.Result startSecondNodeWithInvalidToken = awaitElasticsearchStartupWithResult(
-            Archives.startElasticsearchWithTty(installation, sh, null, List.of("--enrollment-token", "some-invalid-token-here"), false)
+        Shell.Result startSecondNodeWithInvalidToken = Archives.startElasticsearchWithTty(
+            installation,
+            sh,
+            null,
+            List.of("--enrollment-token", "some-invalid-token-here"),
+            false
         );
         assertThat(startSecondNodeWithInvalidToken.isSuccess(), is(false));
         verifySecurityNotAutoConfigured(installation);
@@ -69,14 +73,13 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             Version.CURRENT.toString(),
             List.of("10.1.3.4:9200")
         );
-        Shell.Result startSecondNodeWithInvalidAddress = awaitElasticsearchStartupWithResult(
-            Archives.startElasticsearchWithTty(
-                installation,
-                sh,
-                null,
-                List.of("--enrollment-token", tokenWithWrongAddress.getEncoded()),
-                false
-            )
+        Shell.Result startSecondNodeWithInvalidAddress = Archives.startElasticsearchWithTty(
+            installation,
+            sh,
+            null,
+            List.of("--enrollment-token", tokenWithWrongAddress.getEncoded()),
+            false
+
         );
         assertThat(startSecondNodeWithInvalidAddress.isSuccess(), is(false));
         verifySecurityNotAutoConfigured(installation);

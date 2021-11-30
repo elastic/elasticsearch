@@ -39,7 +39,8 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                     ClusterHealthStatus.GREEN,
                     randomAlphaOfLengthBetween(2, 10),
                     randomAlphaOfLengthBetween(2, 10),
-                    dataStream.getIndices().stream().map(GetDataStreamsResponseTests::createIndexMetadata).collect(Collectors.toList()))
+                    dataStream.getIndices().stream().map(GetDataStreamsResponseTests::createIndexMetadata).collect(Collectors.toList())
+                )
             );
         }
         return new Response(dataStreams);

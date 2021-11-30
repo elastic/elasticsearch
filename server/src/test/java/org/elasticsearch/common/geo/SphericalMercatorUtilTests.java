@@ -42,13 +42,13 @@ public class SphericalMercatorUtilTests extends ESTestCase {
             assertThat(lat, Matchers.lessThanOrEqualTo(MERCATOR_BOUNDS));
         }
         {
-            // out of bounds error
+            // out of bounds values
             final double lat = latToSphericalMercator(randomDoubleBetween(GeoTileUtils.LATITUDE_MASK, 90, false));
             assertThat(lat, Matchers.greaterThan(MERCATOR_BOUNDS));
             assertTrue(Double.isFinite(latToSphericalMercator(90)));
         }
         {
-            // out of bounds error
+            // out of bounds values
             final double lat = latToSphericalMercator(-randomDoubleBetween(GeoTileUtils.LATITUDE_MASK, 90, false));
             assertThat(lat, Matchers.lessThan(-MERCATOR_BOUNDS));
             assertTrue(Double.isFinite(latToSphericalMercator(-90)));

@@ -116,7 +116,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
                 request.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
             } else if (false == request.settings().hasValue(SETTING_INDEX_HIDDEN)) {
                 request.settings(Settings.builder().put(request.settings()).put(SETTING_INDEX_HIDDEN, true).build());
-            } else if ("false".equals(request.settings().get(SETTING_INDEX_HIDDEN))) {
+            } else if (Boolean.FALSE.toString().equalsIgnoreCase(request.settings().get(SETTING_INDEX_HIDDEN))) {
                 final String message = "Cannot create system index [" + indexName + "] with [index.hidden] set to 'false'";
                 logger.warn(message);
                 listener.onFailure(new IllegalStateException(message));

@@ -1093,6 +1093,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/81040")
     public void testRestoreDataStreamAliasWithConflictingIndicesAlias() throws Exception {
         var snapshotName = "test-snapshot";
         createFullSnapshot(REPO, snapshotName);

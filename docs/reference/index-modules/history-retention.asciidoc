@@ -1,6 +1,8 @@
 [[index-modules-history-retention]]
 == History retention
 
+NOTE: {ccr-cap} will not function if soft deletes are disabled.
+
 {es} sometimes needs to replay some of the operations that were performed on a
 shard. For instance, if a replica is briefly offline then it may be much more
 efficient to replay the few operations it missed while it was offline than to
@@ -50,11 +52,11 @@ of a retention lease defaults to `12h` which should be long enough for most
 reasonable recovery scenarios.
 
 Soft deletes are enabled by default on indices created in recent versions, but
-they can be explicitly enabled or disabled at index creation time. If soft
-deletes are disabled then peer recoveries can still sometimes take place by
-copying just the missing operations from the translog
+they can be explicitly enabled or disabled at index creation time as a static 
+setting. If soft deletes are disabled then peer recoveries can still sometimes 
+take place by copying just the missing operations from the translog
 <<index-modules-translog-retention,as long as those operations are retained
-there>>. {ccr-cap} will not function if soft deletes are disabled.
+there>>.
 
 [discrete]
 === History retention settings

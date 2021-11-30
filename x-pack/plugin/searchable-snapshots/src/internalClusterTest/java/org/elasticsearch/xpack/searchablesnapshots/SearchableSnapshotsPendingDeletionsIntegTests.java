@@ -27,6 +27,7 @@ import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.ConcurrentSnapshotExecutionException;
@@ -35,6 +36,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
@@ -57,6 +59,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 
 public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
@@ -415,6 +418,83 @@ public class SearchableSnapshotsPendingDeletionsIntegTests extends BaseFrozenSea
             } catch (Exception e) {
                 throw new AssertionError(e);
             }
+        });
+    }
+
+    public void testSearchableSnapshotIsDeletedAfterExpiration() throws Exception {
+        mountIndexThenExecute((repository, snapshot, index) -> {
+            try {
+                assertAcked(
+                    clusterAdmin().prepareUpdateSettings()
+                        .setTransientSettings(
+                            Settings.builder()
+                                .put(
+                                    SnapshotsService.PENDING_SNAPSHOT_DELETIONS_RETRY_INTERVAL_SETTING.getKey(),
+                                    TimeValue.timeValueMillis(randomLongBetween(100L, 1000L))
+                                )
+                                .build()
+                        )
+                );
+
+                assertAcked(
+                    clusterAdmin().preparePutRepository(repository)
+                        .setVerify(false)
+                        .setType("mock")
+                        .setSettings(
+                            Settings.builder()
+                                .put(getRepositorySettings(repository).build())
+                                .put("random_control_io_exception_rate", 1.0)
+                                .build()
+                        )
+                );
+
+                assertAcked(client().admin().indices().prepareDelete(mountedIndex(index)));
+                awaitSnapshotPendingDeletion(snapshot);
+
+                final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
+                assertBusy(() -> assertTrue(snapshotsService.hasOngoingSnapshotsDeletions(snapshot)));
+
+                assertAcked(
+                    clusterAdmin().prepareUpdateSettings()
+                        .setTransientSettings(
+                            Settings.builder()
+                                .put(SnapshotsService.PENDING_SNAPSHOT_DELETIONS_EXPIRATION_INTERVAL_SETTING.getKey(), TimeValue.ZERO)
+                                .build()
+                        )
+                );
+
+                assertBusy(() -> assertFalse(snapshotsService.hasOngoingSnapshotsDeletions(snapshot)));
+                awaitNoMoreSnapshotsDeletions();
+
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            } finally {
+                assertAcked(
+                    clusterAdmin().prepareUpdateSettings()
+                        .setTransientSettings(
+                            Settings.builder()
+                                .putNull(SnapshotsService.PENDING_SNAPSHOT_DELETIONS_EXPIRATION_INTERVAL_SETTING.getKey())
+                                .putNull(SnapshotsService.PENDING_SNAPSHOT_DELETIONS_RETRY_INTERVAL_SETTING.getKey())
+                                .build()
+                        )
+                );
+                assertAcked(
+                    clusterAdmin().preparePutRepository(repository)
+                        .setVerify(false)
+                        .setType("mock")
+                        .setSettings(
+                            Settings.builder()
+                                .put(getRepositorySettings(repository).build())
+                                .put("random_control_io_exception_rate", 0.0)
+                                .build()
+                        )
+                );
+            }
+
+            assertThat(
+                client().admin().cluster().prepareGetSnapshots(repository).setSnapshots(snapshot.getName()).get().getSnapshots(),
+                hasSize(1)
+            );
         });
     }
 

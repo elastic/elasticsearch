@@ -261,17 +261,18 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         rolloverMaxOneDocCondition(client(), dataStream);
 
         assertBusy(
-            () -> assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME)),
+            () -> {
+                assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME));
+                Map<String, Object> indexSettings = getOnlyIndexSettings(client(), backingIndexName);
+                if (readOnly) {
+                    assertThat(indexSettings.get("index.blocks.write"), is("true"));
+                } else {
+                    assertThat(indexSettings.containsKey("index.blocks.write"), is(false));
+                }
+            },
             30,
             TimeUnit.SECONDS
         );
-
-        Map<String, Object> indexSettings = getOnlyIndexSettings(client(), backingIndexName);
-        if (readOnly) {
-            assertThat(indexSettings.get("index.blocks.write"), is("true"));
-        } else {
-            assertThat(indexSettings.containsKey("index.blocks.write"), is(false));
-        }
     }
 
     public void testForceMergeAction() throws Exception {

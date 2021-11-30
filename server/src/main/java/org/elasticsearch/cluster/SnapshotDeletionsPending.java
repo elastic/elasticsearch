@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -171,7 +172,7 @@ public class SnapshotDeletionsPending extends AbstractNamedDiffable<Custom> impl
 
         public Entry(String repositoryName, String repositoryUuid, SnapshotId snapshotId, long indexDeletionTime) {
             this.repositoryName = Objects.requireNonNull(repositoryName);
-            this.repositoryUuid = Objects.requireNonNull(repositoryUuid);
+            this.repositoryUuid = Objects.requireNonNullElse(repositoryUuid, RepositoryData.MISSING_UUID);
             this.snapshotId = Objects.requireNonNull(snapshotId);
             this.indexDeletionTime = indexDeletionTime;
         }

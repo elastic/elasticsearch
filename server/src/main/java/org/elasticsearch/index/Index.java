@@ -27,8 +27,8 @@ import java.util.Objects;
 public class Index implements Writeable, ToXContentObject {
 
     public static final Index[] EMPTY_ARRAY = new Index[0];
-    private static final String INDEX_UUID_KEY = "index_uuid";
-    private static final String INDEX_NAME_KEY = "index_name";
+    public static final String INDEX_UUID_KEY = "index_uuid";
+    public static final String INDEX_NAME_KEY = "index_name";
     private static final ObjectParser<Builder, Void> INDEX_PARSER = new ObjectParser<>("index", Builder::new);
     static {
         INDEX_PARSER.declareString(Builder::name, new ParseField(INDEX_NAME_KEY));

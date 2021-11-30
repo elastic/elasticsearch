@@ -15,9 +15,12 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -129,20 +132,30 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             @Nullable
             String ilmPolicyName;
 
+            final List<IndexMetadata> indexMetadatas;
+
             public DataStreamInfo(
                 DataStream dataStream,
                 ClusterHealthStatus dataStreamStatus,
                 @Nullable String indexTemplate,
-                @Nullable String ilmPolicyName
+                @Nullable String ilmPolicyName,
+                List<IndexMetadata> indexMetadatas
             ) {
                 this.dataStream = dataStream;
                 this.dataStreamStatus = dataStreamStatus;
                 this.indexTemplate = indexTemplate;
                 this.ilmPolicyName = ilmPolicyName;
+                this.indexMetadatas = indexMetadatas;
             }
 
             public DataStreamInfo(StreamInput in) throws IOException {
-                this(new DataStream(in), ClusterHealthStatus.readFrom(in), in.readOptionalString(), in.readOptionalString());
+                this(
+                    new DataStream(in),
+                    ClusterHealthStatus.readFrom(in),
+                    in.readOptionalString(),
+                    in.readOptionalString(),
+                    in.readList(IndexMetadata::readFrom)
+                );
             }
 
             public DataStream getDataStream() {
@@ -169,6 +182,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 dataStreamStatus.writeTo(out);
                 out.writeOptionalString(indexTemplate);
                 out.writeOptionalString(ilmPolicyName);
+                out.writeList(indexMetadatas);
             }
 
             @Override
@@ -177,7 +191,24 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(DataStream.NAME_FIELD.getPreferredName(), dataStream.getName());
                 builder.field(DataStream.TYPE_FIELD.getPreferredName(), dataStream.getType().toString());
                 builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName(), dataStream.getTimeStampField());
-                builder.xContentList(DataStream.INDICES_FIELD.getPreferredName(), dataStream.getIndices());
+                builder.startArray(DataStream.INDICES_FIELD.getPreferredName());
+                for (IndexMetadata im : indexMetadatas) {
+                    builder.startObject();
+                    builder.field(Index.INDEX_NAME_KEY, im.getIndex().getName());
+                    builder.field(Index.INDEX_UUID_KEY, im.getIndex().getUUID());
+                    if (dataStream.getType() == DataStream.Type.TSDB) {
+                        builder.field(
+                            IndexSettings.TIME_SERIES_START_TIME.getKey(),
+                            im.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey())
+                        );
+                        builder.field(
+                            IndexSettings.TIME_SERIES_END_TIME.getKey(),
+                            im.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey())
+                        );
+                    }
+                    builder.endObject();
+                }
+                builder.endArray();
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
                 if (dataStream.getMetadata() != null) {
                     builder.field(DataStream.METADATA_FIELD.getPreferredName(), dataStream.getMetadata());

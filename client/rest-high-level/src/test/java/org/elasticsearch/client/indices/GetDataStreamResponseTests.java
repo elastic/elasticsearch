@@ -8,10 +8,12 @@
 
 package org.elasticsearch.client.indices;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
@@ -31,8 +33,15 @@ public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetData
             dataStream,
             ClusterHealthStatus.YELLOW,
             randomAlphaOfLengthBetween(2, 10),
-            randomAlphaOfLengthBetween(2, 10)
+            randomAlphaOfLengthBetween(2, 10),
+            dataStream.getIndices().stream().map(GetDataStreamResponseTests::createIndexMetadata).collect(Collectors.toList())
         );
+    }
+
+    private static IndexMetadata createIndexMetadata(Index index) {
+        return new IndexMetadata.Builder(index.getName()).settings(
+            settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+        ).numberOfShards(1).numberOfReplicas(0).build();
     }
 
     @Override

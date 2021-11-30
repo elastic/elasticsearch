@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -59,6 +60,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
     private final NamedXContentRegistry xContentRegistry;
     private final IndicesService indicesService;
     private final AliasValidator aliasValidator;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportSimulateIndexTemplateAction(
@@ -69,8 +71,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
-        IndicesService indicesService
-    ) {
+        IndicesService indicesService,
+        SystemIndices systemIndices) {
         super(
             SimulateIndexTemplateAction.NAME,
             transportService,
@@ -86,6 +88,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         this.xContentRegistry = xContentRegistry;
         this.indicesService = indicesService;
         this.aliasValidator = new AliasValidator();
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -131,7 +134,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             stateWithTemplate,
             xContentRegistry,
             indicesService,
-            aliasValidator
+            aliasValidator,
+            systemIndices
         );
 
         final Map<String, List<String>> overlapping = new HashMap<>();
@@ -182,8 +186,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         final ClusterState simulatedState,
         final NamedXContentRegistry xContentRegistry,
         final IndicesService indicesService,
-        final AliasValidator aliasValidator
-    ) throws Exception {
+        final AliasValidator aliasValidator,
+        final SystemIndices systemIndices) throws Exception {
         Settings settings = resolveSettings(simulatedState.metadata(), matchingTemplate);
 
         List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(
@@ -218,10 +222,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 // shard id and the current timestamp
                 tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
                 tempIndexService.dateMathExpressionResolverAt(),
-                // we don't have a system indices object here, so we assume
-                // the alias is not a system name.
-                // TODO: any way to get system names here?
-                aliasName -> false
+                systemIndices::isSystemName
             )
         );
 

@@ -38,14 +38,14 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin {
 
     @Override
     public void onIndexModule(IndexModule indexModule) {
-        indexModule.addIndexEventListener(new IndexEventListener() {
-            @Override
-            public void afterFilesRestoredFromRepository(IndexShard indexShard) {
-                if (Build.CURRENT.isSnapshot()) {
+        if (Build.CURRENT.isSnapshot()) {
+            indexModule.addIndexEventListener(new IndexEventListener() {
+                @Override
+                public void afterFilesRestoredFromRepository(IndexShard indexShard) {
                     maybeConvertToNewFormat(indexShard);
                 }
-            }
-        });
+            });
+        }
     }
 
     private static void maybeConvertToNewFormat(IndexShard indexShard) {

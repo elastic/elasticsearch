@@ -23,6 +23,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.settings.SecureString;
@@ -162,41 +163,55 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
                 // so far only added basic infrastructure for reading 6.0.0+ indices
                 if (Build.CURRENT.isSnapshot() && oldVersion.onOrAfter(Version.fromString("6.0.0"))) {
-                    // restore index
-                    RestoreSnapshotResponse restoreSnapshotResponse = client.snapshot()
-                        .restore(
-                            new RestoreSnapshotRequest("testrepo", "snap1").indices("test")
-                                .renamePattern("(.+)")
-                                .renameReplacement("restored_$1")
-                                .waitForCompletion(true),
-                            RequestOptions.DEFAULT
-                        );
-                    assertNotNull(restoreSnapshotResponse.getRestoreInfo());
-                    assertEquals(numberOfShards, restoreSnapshotResponse.getRestoreInfo().totalShards());
-                    assertEquals(numberOfShards, restoreSnapshotResponse.getRestoreInfo().successfulShards());
+                    // restore / mount and check whether searches work
+                    restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards);
 
-                    // run a search against the index
-                    assertDocs("restored_test", numDocs, expectedIds, client);
+                    // close indices
+                    assertTrue(client.indices().close(new CloseIndexRequest("restored_test"), RequestOptions.DEFAULT)
+                        .isShardsAcknowledged());
+                    assertTrue(client.indices().close(new CloseIndexRequest("mounted_test"), RequestOptions.DEFAULT)
+                        .isShardsAcknowledged());
 
-                    // mount as searchable snapshot
-                    RestoreSnapshotResponse mountSnapshotResponse = client.searchableSnapshots()
-                        .mountSnapshot(
-                            new MountSnapshotRequest("testrepo", "snap1", "test").storage(MountSnapshotRequest.Storage.FULL_COPY)
-                                .renamedIndex("mounted_test")
-                                .waitForCompletion(true),
-                            RequestOptions.DEFAULT
-                        );
-                    assertNotNull(mountSnapshotResponse.getRestoreInfo());
-                    assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().totalShards());
-                    assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().successfulShards());
-
-                    // run a search against the index
-                    assertDocs("mounted_test", numDocs, expectedIds, client);
+                    // restore / mount again
+                    restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards);
                 }
             } finally {
                 oldEs.performRequest(new Request("DELETE", "/test"));
             }
         }
+    }
+
+    private void restoreMountAndVerify(int numDocs, Set<String> expectedIds, RestHighLevelClient client, int numberOfShards) throws IOException {
+        // restore index
+        RestoreSnapshotResponse restoreSnapshotResponse = client.snapshot()
+            .restore(
+                new RestoreSnapshotRequest("testrepo", "snap1").indices("test")
+                    .renamePattern("(.+)")
+                    .renameReplacement("restored_$1")
+                    .waitForCompletion(true),
+                RequestOptions.DEFAULT
+            );
+        assertNotNull(restoreSnapshotResponse.getRestoreInfo());
+        assertEquals(numberOfShards, restoreSnapshotResponse.getRestoreInfo().totalShards());
+        assertEquals(numberOfShards, restoreSnapshotResponse.getRestoreInfo().successfulShards());
+
+        // run a search against the index
+        assertDocs("restored_test", numDocs, expectedIds, client);
+
+        // mount as searchable snapshot
+        RestoreSnapshotResponse mountSnapshotResponse = client.searchableSnapshots()
+            .mountSnapshot(
+                new MountSnapshotRequest("testrepo", "snap1", "test").storage(MountSnapshotRequest.Storage.FULL_COPY)
+                    .renamedIndex("mounted_test")
+                    .waitForCompletion(true),
+                RequestOptions.DEFAULT
+            );
+        assertNotNull(mountSnapshotResponse.getRestoreInfo());
+        assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().totalShards());
+        assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().successfulShards());
+
+        // run a search against the index
+        assertDocs("mounted_test", numDocs, expectedIds, client);
     }
 
     @SuppressWarnings("removal")

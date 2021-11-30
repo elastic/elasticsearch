@@ -71,6 +71,7 @@ public abstract class FileRestoreContext {
             final List<BlobStoreIndexShardSnapshot.FileInfo> filesToRecover = new ArrayList<>();
             if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
                 for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : snapshotFiles.indexFiles()) {
+                    assert store.directory().fileLength(fileInfo.physicalName()) == fileInfo.length();
                     recoveryState.getIndex().addFileDetail(fileInfo.physicalName(), fileInfo.length(), true);
                 }
             } else {

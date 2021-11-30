@@ -278,7 +278,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
             } catch (Exception e) {
                 logger.warn(
                     () -> new ParameterizedMessage(
-                        "failed to invoke the listener after files restored from repo for {}",
+                        "[{}] failed to invoke after files restored from repository",
                         indexShard.shardId()
                     ),
                     e

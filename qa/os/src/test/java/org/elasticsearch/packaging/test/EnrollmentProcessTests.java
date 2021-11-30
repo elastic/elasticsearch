@@ -19,6 +19,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.packaging.util.Archives.installArchive;
@@ -63,7 +64,11 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             List.of("--enrollment-token", "some-invalid-token-here"),
             false
         );
-        assertThat(startSecondNodeWithInvalidToken.isSuccess(), is(false));
+        assertElasticsearchFailure(
+            startSecondNodeWithInvalidToken,
+            List.of("Failed to parse enrollment token : some-invalid-token-here . Error was: Illegal base64 character 2d"),
+            null
+        );
         verifySecurityNotAutoConfigured(installation);
 
         // Try to start the node with an enrollment token with an address that we can't connect to and verify it fails to start
@@ -81,7 +86,14 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             false
 
         );
-        assertThat(startSecondNodeWithInvalidAddress.isSuccess(), is(false));
+        assertElasticsearchFailure(
+            startSecondNodeWithInvalidAddress,
+            List.of("Aborting enrolling to cluster. "
+                + "Could not communicate with the node on any of the addresses from the enrollment token. All of "
+                + tokenWithWrongAddress.getBoundAddress()
+                + " where attempted."),
+            null
+        );
         verifySecurityNotAutoConfigured(installation);
 
         // auto-configure security using the enrollment token

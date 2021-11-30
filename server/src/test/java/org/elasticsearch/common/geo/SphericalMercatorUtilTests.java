@@ -36,7 +36,10 @@ public class SphericalMercatorUtilTests extends ESTestCase {
         assertThat(latToSphericalMercator(0.0), Matchers.closeTo(0, 1e-7));
         {
             final double lat = latToSphericalMercator(
-                randomValueOtherThanMany(l -> l >= GeoTileUtils.LATITUDE_MASK || l <= -GeoTileUtils.LATITUDE_MASK, GeometryTestUtils::randomLat)
+                randomValueOtherThanMany(
+                    l -> l >= GeoTileUtils.LATITUDE_MASK || l <= -GeoTileUtils.LATITUDE_MASK,
+                    GeometryTestUtils::randomLat
+                )
             );
             assertThat(lat, Matchers.greaterThanOrEqualTo(-MERCATOR_BOUNDS));
             assertThat(lat, Matchers.lessThanOrEqualTo(MERCATOR_BOUNDS));

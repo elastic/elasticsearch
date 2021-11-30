@@ -106,7 +106,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
             equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeAction.CONDITIONAL_SKIP_FORCE_MERGE_STEP))
         );
         assertThat(secondStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, CheckNotDataStreamWriteIndexStep.NAME)));
-        assertThat(secondStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME)));
+        assertThat(secondStep.getNextStepKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
         assertThat(thirdStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, ForceMergeStep.NAME)));
         assertThat(thirdStep.getNextStepKey(), equalTo(fourthStep.getKey()));
         assertThat(fourthStep.getKey(), equalTo(new StepKey(phase, ForceMergeAction.NAME, SegmentCountStep.NAME)));
@@ -171,7 +171,6 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
             .map(s -> new Tuple<>(s.getKey(), s.getNextStepKey()))
             .collect(Collectors.toList());
         StepKey checkNotWriteIndex = new StepKey(phase, ForceMergeAction.NAME, CheckNotDataStreamWriteIndexStep.NAME);
-        StepKey readOnly = new StepKey(phase, ForceMergeAction.NAME, ReadOnlyAction.NAME);
         StepKey closeIndex = new StepKey(phase, ForceMergeAction.NAME, CloseIndexStep.NAME);
         StepKey updateCodec = new StepKey(phase, ForceMergeAction.NAME, UpdateSettingsStep.NAME);
         StepKey openIndex = new StepKey(phase, ForceMergeAction.NAME, OpenIndexStep.NAME);
@@ -185,7 +184,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
         assertThat(
             stepKeys,
             contains(
-                new Tuple<>(checkNotWriteIndex, readOnly),
+                new Tuple<>(checkNotWriteIndex, closeIndex),
                 new Tuple<>(closeIndex, updateCodec),
                 new Tuple<>(updateCodec, openIndex),
                 new Tuple<>(openIndex, waitForGreen),

@@ -376,17 +376,19 @@ public class XPackLicenseState {
 
     /** Return the current license type. */
     public OperationMode getOperationMode() {
-        return executeAgainstStatus(_status -> _status.mode);
+        return executeAgainstStatus(statusToCheck -> statusToCheck.mode);
     }
 
     // Package private for tests
     /** Return true if the license is currently within its time boundaries, false otherwise. */
     public boolean isActive() {
-        return checkAgainstStatus(_status -> _status.active);
+        return checkAgainstStatus(statusToCheck -> statusToCheck.active);
     }
 
     public String statusDescription() {
-        return executeAgainstStatus(_status -> (_status.active ? "active" : "expired") + ' ' + _status.mode.description() + " license");
+        return executeAgainstStatus(
+            statusToCheck -> (statusToCheck.active ? "active" : "expired") + ' ' + statusToCheck.mode.description() + " license"
+        );
     }
 
     void featureUsed(LicensedFeature feature) {
@@ -458,7 +460,7 @@ public class XPackLicenseState {
      * is needed for multiple interactions with the license state.
      */
     public XPackLicenseState copyCurrentLicenseState() {
-        return executeAgainstStatus(_status -> new XPackLicenseState(listeners, _status, usage, epochMillisProvider));
+        return executeAgainstStatus(statusToCheck -> new XPackLicenseState(listeners, statusToCheck, usage, epochMillisProvider));
     }
 
     /**
@@ -471,11 +473,11 @@ public class XPackLicenseState {
      */
     @Deprecated
     public boolean isAllowedByLicense(OperationMode minimumMode, boolean needActive) {
-        return checkAgainstStatus(_status -> {
-            if (needActive && false == _status.active) {
+        return checkAgainstStatus(statusToCheck -> {
+            if (needActive && false == statusToCheck.active) {
                 return false;
             }
-            return isAllowedByOperationMode(_status.mode, minimumMode);
+            return isAllowedByOperationMode(statusToCheck.mode, minimumMode);
         });
     }
 

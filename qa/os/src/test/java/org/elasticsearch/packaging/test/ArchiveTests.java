@@ -274,10 +274,14 @@ public class ArchiveTests extends PackagingTestCase {
         Platforms.onWindows(
             () -> sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + "" + "'} | " + bin.keystoreTool + " passwd")
         );
+        logger.info("FAILING TEST TEMPORARY OUTPUT OF CONFIGURATION BEFORE REMOVING SETTING: ");
+        logger.info(String.join("\n", Files.readAllLines(installation.config("elasticsearch.yml"))));
         if (useNodeName) {
             // Cleanup node.name so that following tests can set it if need be.
             ServerUtils.removeSettingFromExistingConfiguration(installation, "node.name");
         }
+        logger.info("FAILING TEST TEMPORARY OUTPUT OF CONFIGURATION AFTER REMOVING SETTING: ");
+        logger.info(String.join("\n", Files.readAllLines(installation.config("elasticsearch.yml"))));
     }
 
     public void test52AutoConfigurationOnWindows() throws Exception {

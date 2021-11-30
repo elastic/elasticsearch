@@ -54,8 +54,8 @@ import java.util.Optional;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION;
-import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.checkAssignmentState;
 
 /*

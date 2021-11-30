@@ -36,7 +36,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
+import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
+import org.elasticsearch.index.fielddata.ScriptDocValues.LongsSupplier;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
@@ -335,7 +337,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedDoublesIndexFieldData.Builder(
                     name,
                     numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
+                    (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
                 );
             }
 
@@ -446,7 +448,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedDoublesIndexFieldData.Builder(
                     name,
                     numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
+                    (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
                 );
             }
 
@@ -540,7 +542,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedDoublesIndexFieldData.Builder(
                     name,
                     numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
+                    (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
                 );
             }
 
@@ -621,7 +623,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedNumericIndexFieldData.Builder(
                     name,
                     numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
+                    (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
                 );
             }
         },
@@ -692,7 +694,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedNumericIndexFieldData.Builder(
                     name,
                     numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
+                    (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
                 );
             }
         },
@@ -822,7 +824,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedNumericIndexFieldData.Builder(
                     name,
                     numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
+                    (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
                 );
             }
         },
@@ -922,7 +924,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedNumericIndexFieldData.Builder(
                     name,
                     numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
+                    (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
                 );
             }
         };

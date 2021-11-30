@@ -238,6 +238,7 @@ public class IndexNameExpressionResolver {
             if (ia == null) {
                 throw new IndexNotFoundException(expressions.get(0));
             }
+            checkSystemAccess(context, ia);
             return ia;
         } else {
             throw new IllegalArgumentException(
@@ -474,6 +475,50 @@ public class IndexNameExpressionResolver {
             } else {
                 resolvedSystemIndices.add(idxMetadata.getIndex().getName());
             }
+        }
+
+        if (resolvedSystemIndices.isEmpty() == false) {
+            Collections.sort(resolvedSystemIndices);
+            deprecationLogger.warn(
+                DeprecationCategory.API,
+                "open_system_index_access",
+                "this request accesses system indices: {}, but in a future major version, direct access to system "
+                    + "indices will be prevented by default",
+                resolvedSystemIndices
+            );
+        }
+        if (resolvedSystemDataStreams.isEmpty() == false) {
+            throw systemIndices.dataStreamAccessException(threadContext, resolvedSystemDataStreams);
+        }
+        if (resolvedNetNewSystemIndices.isEmpty() == false) {
+            throw systemIndices.netNewSystemIndexAccessException(threadContext, resolvedNetNewSystemIndices);
+        }
+    }
+
+    // TODO: re-think
+    private void checkSystemAccess(Context context, IndexAbstraction ia) {
+        final Metadata metadata = context.getState().metadata();
+        final Predicate<String> systemIndexAccessPredicate = context.getSystemIndexAccessPredicate().negate();
+        if (ia.isSystem() == false) {
+            return;
+        }
+        IndexMetadata systemIndexThatShouldBeAccessed = metadata.getIndexSafe(ia.getWriteIndex());
+        if (systemIndexAccessPredicate.test(systemIndexThatShouldBeAccessed.getIndex().getName()) == false) {
+            return;
+        }
+
+        final List<String> resolvedSystemIndices = new ArrayList<>();
+        final List<String> resolvedNetNewSystemIndices = new ArrayList<>();
+        final Set<String> resolvedSystemDataStreams = new HashSet<>();
+        final SortedMap<String, IndexAbstraction> indicesLookup = metadata.getIndicesLookup();
+
+        IndexAbstraction abstraction = indicesLookup.get(systemIndexThatShouldBeAccessed.getIndex().getName());
+        if (abstraction.getParentDataStream() != null) {
+            resolvedSystemDataStreams.add(abstraction.getParentDataStream().getName());
+        } else if (systemIndices.isNetNewSystemIndex(systemIndexThatShouldBeAccessed.getIndex().getName())) {
+            resolvedNetNewSystemIndices.add(systemIndexThatShouldBeAccessed.getIndex().getName());
+        } else {
+            resolvedSystemIndices.add(systemIndexThatShouldBeAccessed.getIndex().getName());
         }
 
         if (resolvedSystemIndices.isEmpty() == false) {

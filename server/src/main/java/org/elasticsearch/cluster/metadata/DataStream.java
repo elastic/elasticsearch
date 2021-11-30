@@ -604,7 +604,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(NAME_FIELD.getPreferredName(), name);
-        builder.field(TYPE_FIELD.getPreferredName(), type);
+        builder.field(TYPE_FIELD.getPreferredName(), type.name());
         builder.field(TIMESTAMP_FIELD_FIELD.getPreferredName(), timeStampField);
         builder.xContentList(INDICES_FIELD.getPreferredName(), indices);
         builder.field(GENERATION_FIELD.getPreferredName(), generation);

@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 public final class DataStream {
 
     private final String name;
+    private final String type;
     private final String timeStampField;
     private final List<String> indices;
     private final long generation;
@@ -38,6 +39,7 @@ public final class DataStream {
 
     public DataStream(
         String name,
+        String type,
         String timeStampField,
         List<String> indices,
         long generation,
@@ -50,6 +52,7 @@ public final class DataStream {
         boolean allowCustomRouting
     ) {
         this.name = name;
+        this.type = type;
         this.timeStampField = timeStampField;
         this.indices = indices;
         this.generation = generation;
@@ -64,6 +67,10 @@ public final class DataStream {
 
     public String getName() {
         return name;
+    }
+
+    public String getType() {
+        return type;
     }
 
     public String getTimeStampField() {
@@ -107,6 +114,7 @@ public final class DataStream {
     }
 
     public static final ParseField NAME_FIELD = new ParseField("name");
+    public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField TIMESTAMP_FIELD_FIELD = new ParseField("timestamp_field");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
     public static final ParseField GENERATION_FIELD = new ParseField("generation");
@@ -121,19 +129,21 @@ public final class DataStream {
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
         String dataStreamName = (String) args[0];
-        String timeStampField = (String) ((Map<?, ?>) args[1]).get("name");
-        List<String> indices = ((List<Map<String, String>>) args[2]).stream().map(m -> m.get("index_name")).collect(Collectors.toList());
-        Long generation = (Long) args[3];
-        String statusStr = (String) args[4];
+        String type = (String) args[1];
+        String timeStampField = (String) ((Map<?, ?>) args[2]).get("name");
+        List<String> indices = ((List<Map<String, String>>) args[3]).stream().map(m -> m.get("index_name")).collect(Collectors.toList());
+        Long generation = (Long) args[4];
+        String statusStr = (String) args[5];
         ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
-        String indexTemplate = (String) args[5];
-        String ilmPolicy = (String) args[6];
-        Map<String, Object> metadata = (Map<String, Object>) args[7];
-        boolean hidden = args[8] != null && (boolean) args[8];
-        boolean system = args[9] != null && (boolean) args[9];
-        boolean allowCustomRouting = args[10] != null && (boolean) args[10];
+        String indexTemplate = (String) args[6];
+        String ilmPolicy = (String) args[7];
+        Map<String, Object> metadata = (Map<String, Object>) args[8];
+        boolean hidden = args[9] != null && (boolean) args[9];
+        boolean system = args[10] != null && (boolean) args[10];
+        boolean allowCustomRouting = args[11] != null && (boolean) args[11];
         return new DataStream(
             dataStreamName,
+            type,
             timeStampField,
             indices,
             generation,
@@ -149,6 +159,7 @@ public final class DataStream {
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME_FIELD);
+        PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> p.map(), TIMESTAMP_FIELD_FIELD);
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> p.mapStrings(), INDICES_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), GENERATION_FIELD);
@@ -172,6 +183,7 @@ public final class DataStream {
         DataStream that = (DataStream) o;
         return generation == that.generation
             && name.equals(that.name)
+            && type.equals(that.type)
             && timeStampField.equals(that.timeStampField)
             && indices.equals(that.indices)
             && dataStreamStatus == that.dataStreamStatus
@@ -187,6 +199,7 @@ public final class DataStream {
     public int hashCode() {
         return Objects.hash(
             name,
+            type,
             timeStampField,
             indices,
             generation,

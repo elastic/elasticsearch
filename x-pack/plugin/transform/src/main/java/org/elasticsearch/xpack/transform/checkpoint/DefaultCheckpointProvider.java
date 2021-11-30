@@ -162,7 +162,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             if (unwrappedException instanceof ActionNotFoundTransportException) {
                 // this is an implementation detail, so not necessary to audit or warn, but only report as debug
                 logger.debug(
-                    "[{}] Cluster [{}] does not support transform checkpoint API, falling back to ordinary checkpointing (more resource intensive)",
+                    "[{}] Cluster [{}] does not support transform checkpoint API, falling back to legacy checkpointing",
                     transformConfig.getId(),
                     cluster
                 );

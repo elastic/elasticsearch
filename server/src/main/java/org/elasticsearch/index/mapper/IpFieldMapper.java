@@ -421,7 +421,7 @@ public class IpFieldMapper extends FieldMapper {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
-                (dv, n) -> new DelegateDocValuesField(new IpScriptDocValues(dv), n),
+                (dv, n) -> new DelegateDocValuesField(new IpScriptDocValues(new IpSupplier(dv)), n),
                 CoreValuesSourceType.IP
             );
         }

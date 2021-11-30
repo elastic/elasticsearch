@@ -63,6 +63,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
+import static org.elasticsearch.xpack.versionfield.VersionScriptDocValues.VersionScriptSupplier;
 
 /**
  * A {@link FieldMapper} for indexing fields with version strings.
@@ -282,7 +283,7 @@ public class VersionStringFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
-                (dv, n) -> new DelegateDocValuesField(new VersionScriptDocValues(dv), n),
+                (dv, n) -> new DelegateDocValuesField(new VersionScriptDocValues(new VersionScriptSupplier(dv)), n),
                 CoreValuesSourceType.KEYWORD
             );
         }

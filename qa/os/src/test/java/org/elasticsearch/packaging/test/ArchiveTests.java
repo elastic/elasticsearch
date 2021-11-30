@@ -181,23 +181,25 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test44AutoConfigurationNotTriggeredOnNotWriteableConfDir() throws Exception {
-        Platforms.onWindows(() -> {
-            // auto-config requires that the archive owner and the process user be the same
-            sh.chown(installation.config, installation.getOwner());
-            // prevent modifications to the config directory
-            sh.run(
-                String.format(
-                    Locale.ROOT,
-                    "$ACL = Get-ACL -Path '%s'; "
-                        + "$AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule('%s','Write','Deny'); "
-                        + "$ACL.SetAccessRule($AccessRule); "
-                        + "$ACL | Set-Acl -Path '%s';",
-                    installation.config,
-                    installation.getOwner(),
-                    installation.config
-                )
-            );
-        });
+        Platforms.onWindows(
+            () -> {
+                // auto-config requires that the archive owner and the process user be the same
+                sh.chown(installation.config, installation.getOwner());
+                // prevent modifications to the config directory
+                sh.run(
+                    String.format(
+                        Locale.ROOT,
+                        "$ACL = Get-ACL -Path '%s'; "
+                            + "$AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule('%s','Write','Deny'); "
+                            + "$ACL.SetAccessRule($AccessRule); "
+                            + "$ACL | Set-Acl -Path '%s';",
+                        installation.config,
+                        installation.getOwner(),
+                        installation.config
+                    )
+                );
+            }
+        );
         Platforms.onLinux(() -> { sh.run("chmod u-w " + installation.config); });
         try {
             startElasticsearch();
@@ -260,8 +262,7 @@ public class ArchiveTests extends PackagingTestCase {
         Shell.Result result = runElasticsearchStartCommand("some-wrong-password-here", false, false);
         assertElasticsearchFailure(result, "Provided keystore password was incorrect", null);
         verifySecurityNotAutoConfigured(installation);
-        final boolean useNodeName = RandomizedTest.randomBoolean();
-        if (useNodeName) {
+        if (RandomizedTest.randomBoolean()) {
             ServerUtils.addSettingToExistingConfiguration(installation, "node.name", "my-custom-random-node-name-here");
         }
         awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, true));
@@ -274,14 +275,6 @@ public class ArchiveTests extends PackagingTestCase {
         Platforms.onWindows(
             () -> sh.run("Invoke-Command -ScriptBlock {echo '" + password + "'; echo '" + "" + "'} | " + bin.keystoreTool + " passwd")
         );
-        logger.info("FAILING TEST TEMPORARY OUTPUT OF CONFIGURATION BEFORE REMOVING SETTING: ");
-        logger.info(String.join("\n", Files.readAllLines(installation.config("elasticsearch.yml"))));
-        if (useNodeName) {
-            // Cleanup node.name so that following tests can set it if need be.
-            ServerUtils.removeSettingFromExistingConfiguration(installation, "node.name");
-        }
-        logger.info("FAILING TEST TEMPORARY OUTPUT OF CONFIGURATION AFTER REMOVING SETTING: ");
-        logger.info(String.join("\n", Files.readAllLines(installation.config("elasticsearch.yml"))));
     }
 
     public void test52AutoConfigurationOnWindows() throws Exception {
@@ -291,18 +284,13 @@ public class ArchiveTests extends PackagingTestCase {
         );
         sh.chown(installation.config, installation.getOwner());
         FileUtils.assertPathsDoNotExist(installation.data);
-        final boolean useNodeName = RandomizedTest.randomBoolean();
-        if (useNodeName) {
+        if (RandomizedTest.randomBoolean()) {
             ServerUtils.addSettingToExistingConfiguration(installation, "node.name", "my-custom-random-node-name-here");
         }
         startElasticsearch();
         verifySecurityAutoConfigured(installation);
         stopElasticsearch();
         sh.chown(installation.config);
-        if (useNodeName) {
-            // Cleanup node.name so that following tests can set it if need be.
-            ServerUtils.removeSettingFromExistingConfiguration(installation, "node.name");
-        }
     }
 
     public void test60StartAndStop() throws Exception {
@@ -554,7 +542,8 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test80RelativePathConf() throws Exception {
         withCustomConfig(tempConf -> {
-            append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
+            ServerUtils.removeSettingFromExistingConfiguration(tempConf, "node.name");
+            ServerUtils.addSettingToExistingConfiguration(tempConf, "node.name", "relative");
             startElasticsearch();
 
             final String nodesResponse = makeRequest("https://localhost:9200/_nodes");

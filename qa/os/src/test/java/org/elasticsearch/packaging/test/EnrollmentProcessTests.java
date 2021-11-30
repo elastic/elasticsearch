@@ -8,10 +8,12 @@
 
 package org.elasticsearch.packaging.test;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Shell;
+import org.elasticsearch.xpack.core.security.EnrollmentToken;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -52,6 +54,33 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         final String enrollmentToken = createTokenResult.stdout;
         // installation now points to the second node
         installation = installArchive(sh, distribution(), getRootTempDir().resolve("elasticsearch-node2"), getCurrentVersion(), true);
+
+        // Try to start the node with an invalid enrollment token and verify it fails to start
+        Shell.Result startSecondNodeWithInvalidToken = awaitElasticsearchStartupWithResult(
+            Archives.startElasticsearchWithTty(installation, sh, null, List.of("--enrollment-token", "some-invalid-token-here"), false)
+        );
+        assertThat(startSecondNodeWithInvalidToken.isSuccess(), is(false));
+        verifySecurityNotAutoConfigured(installation);
+
+        // Try to start the node with an enrollment token with an address that we can't connect to and verify it fails to start
+        EnrollmentToken tokenWithWrongAddress = new EnrollmentToken(
+            "some-api-key",
+            "some-fingerprint",
+            Version.CURRENT.toString(),
+            List.of("10.1.3.4:9200")
+        );
+        Shell.Result startSecondNodeWithInvalidAddress = awaitElasticsearchStartupWithResult(
+            Archives.startElasticsearchWithTty(
+                installation,
+                sh,
+                null,
+                List.of("--enrollment-token", tokenWithWrongAddress.getEncoded()),
+                false
+            )
+        );
+        assertThat(startSecondNodeWithInvalidAddress.isSuccess(), is(false));
+        verifySecurityNotAutoConfigured(installation);
+
         // auto-configure security using the enrollment token
         Shell.Result startSecondNode = awaitElasticsearchStartupWithResult(
             Archives.startElasticsearchWithTty(installation, sh, null, List.of("--enrollment-token", enrollmentToken), false)

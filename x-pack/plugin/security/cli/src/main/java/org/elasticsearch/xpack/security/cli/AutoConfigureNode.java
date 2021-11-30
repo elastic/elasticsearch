@@ -293,11 +293,12 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         () -> null,
                         CommandLineHttpClient::responseBuilder
                     );
-                    if (enrollResponse.getHttpStatus() == 200) {
-                        break;
-                    }
+                    break;
                 } catch (Exception e) {
-                    terminal.errorPrint(Terminal.Verbosity.NORMAL, "Unable to communicate with the initial node on " + enrollNodeUrl);
+                    terminal.errorPrint(
+                        Terminal.Verbosity.NORMAL,
+                        "Unable to communicate with the node on " + enrollNodeUrl + ". Error was " + e.getMessage()
+                    );
                 }
             }
             if (enrollResponse == null || enrollResponse.getHttpStatus() != 200) {
@@ -305,7 +306,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 throw new UserException(
                     ExitCodes.UNAVAILABLE,
                     "Aborting enrolling to cluster. "
-                        + "Could not communicate with the initial node on any of the addresses from the enrollment token. All of "
+                        + "Could not communicate with the node on any of the addresses from the enrollment token. All of "
                         + enrollmentToken.getBoundAddress()
                         + " where attempted."
                 );

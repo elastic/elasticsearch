@@ -326,5 +326,10 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         public SnapshotShardSizeInfo snapshotShardSizeInfo() {
             return snapshotShardSizeInfo;
         }
+
+        @Override
+        public AutoscalingMemoryInfo autoscalingMemoryInfo() {
+            return memoryInfo;
+        }
     }
 }

@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
+import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryInfo;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -122,6 +123,11 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
             @Override
             public SnapshotShardSizeInfo snapshotShardSizeInfo() {
+                return null;
+            }
+
+            @Override
+            public AutoscalingMemoryInfo autoscalingMemoryInfo() {
                 return null;
             }
         };

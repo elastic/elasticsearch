@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryInfoService;
 import org.elasticsearch.xpack.autoscaling.existence.FrozenExistenceDeciderService;
+import org.elasticsearch.xpack.autoscaling.master.DedicatedMasterNodesDeciderService;
 import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
@@ -119,8 +120,12 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         return List.of(
             new AutoscalingCalculateCapacityService.Holder(this),
             autoscalingLicenseChecker,
-            new AutoscalingMemoryInfoService(clusterService, client)
+            createAutoscalingMemoryInfoService(clusterService, client)
         );
+    }
+
+    protected AutoscalingMemoryInfoService createAutoscalingMemoryInfoService(ClusterService clusterService, Client client) {
+        return new AutoscalingMemoryInfoService(clusterService, client);
     }
 
     @Override
@@ -190,6 +195,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 AutoscalingDeciderResult.Reason.class,
                 FrozenExistenceDeciderService.NAME,
                 FrozenExistenceDeciderService.FrozenExistenceReason::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderResult.Reason.class,
+                DedicatedMasterNodesDeciderService.NAME,
+                DedicatedMasterNodesDeciderService.DedicatedMasterNodesReason::new
             )
         );
     }
@@ -216,7 +226,8 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
             new ProactiveStorageDeciderService(clusterService.getSettings(), clusterService.getClusterSettings(), allocationDeciders.get()),
             new FrozenShardsDeciderService(),
             new FrozenStorageDeciderService(),
-            new FrozenExistenceDeciderService()
+            new FrozenExistenceDeciderService(),
+            new DedicatedMasterNodesDeciderService()
         );
     }
 

@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryInfo;
 
 import java.util.Set;
 
@@ -47,4 +48,9 @@ public interface AutoscalingDeciderContext {
      * shards
      */
     SnapshotShardSizeInfo snapshotShardSizeInfo();
+
+    /**
+     * Provides a service to fetch nodes memory
+     */
+    AutoscalingMemoryInfo autoscalingMemoryInfo();
 }

@@ -18,18 +18,13 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
-import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
-import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
 import java.util.Set;
-import java.util.SortedSet;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -54,7 +49,6 @@ public class AutoscalingMemoryInfoService {
 
     @Inject
     public AutoscalingMemoryInfoService(ClusterService clusterService, Client client) {
-
         this.client = client;
         this.fetchTimeout = FETCH_TIMEOUT.get(clusterService.getSettings());
         if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
@@ -70,7 +64,7 @@ public class AutoscalingMemoryInfoService {
     void onClusterChanged(ClusterChangedEvent event) {
         boolean master = event.localNodeMaster();
         final ClusterState state = event.state();
-        final Set<DiscoveryNode> currentNodes = master ? relevantNodes(state) : Set.of();
+        final Set<DiscoveryNode> currentNodes = master ? Set.copyOf(state.nodes().getAllNodes()) : Set.of();
         Set<DiscoveryNode> missingNodes = null;
         synchronized (mutex) {
             retainAliveNodes(currentNodes);
@@ -81,13 +75,6 @@ public class AutoscalingMemoryInfoService {
         if (missingNodes != null) {
             sendToMissingNodes(state.nodes()::get, missingNodes);
         }
-    }
-
-    Set<DiscoveryNode> relevantNodes(ClusterState state) {
-        final Set<Set<DiscoveryNodeRole>> roleSets = calculateAutoscalingRoleSets(state);
-        return StreamSupport.stream(state.nodes().spliterator(), false)
-            .filter(n -> roleSets.contains(n.getRoles()))
-            .collect(Collectors.toSet());
     }
 
     private Set<DiscoveryNode> addMissingNodes(Set<DiscoveryNode> nodes) {
@@ -144,24 +131,6 @@ public class AutoscalingMemoryInfoService {
                     }
                 }
             );
-    }
-
-    private Set<Set<DiscoveryNodeRole>> calculateAutoscalingRoleSets(ClusterState state) {
-        AutoscalingMetadata autoscalingMetadata = state.metadata().custom(AutoscalingMetadata.NAME);
-        if (autoscalingMetadata != null) {
-            return autoscalingMetadata.policies()
-                .values()
-                .stream()
-                .map(AutoscalingPolicyMetadata::policy)
-                .map(AutoscalingPolicy::roles)
-                .map(this::toRoles)
-                .collect(Collectors.toSet());
-        }
-        return Set.of();
-    }
-
-    private Set<DiscoveryNodeRole> toRoles(SortedSet<String> roleNames) {
-        return roleNames.stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Collectors.toSet());
     }
 
     private void retainAliveNodes(Set<DiscoveryNode> currentNodes) {

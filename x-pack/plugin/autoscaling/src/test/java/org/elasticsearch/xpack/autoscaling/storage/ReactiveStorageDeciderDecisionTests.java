@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
+import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryInfo;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.junit.Before;
 
@@ -549,6 +550,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         @Override
         public SnapshotShardSizeInfo snapshotShardSizeInfo() {
+            return null;
+        }
+
+        @Override
+        public AutoscalingMemoryInfo autoscalingMemoryInfo() {
             return null;
         }
     }

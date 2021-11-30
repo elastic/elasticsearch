@@ -35,8 +35,6 @@ import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
-import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
-import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -289,41 +287,13 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         threads.forEach(t -> assertThat(t.isAlive(), is(false)));
     }
 
-    public void testRelevantNodes() {
-        Set<DiscoveryNode> nodes = IntStream.range(0, between(1, 10)).mapToObj(n -> newNode("test_" + n)).collect(Collectors.toSet());
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodesBuilder(nodes, true)).metadata(metadata).build();
-        Set<DiscoveryNode> relevantNodes = service.relevantNodes(state);
-        assertThat(relevantNodes, equalTo(nodes));
-    }
-
     private DiscoveryNodes.Builder discoveryNodesBuilder(Set<DiscoveryNode> nodes, boolean master) {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         String masterNodeId = randomAlphaOfLength(10);
         nodesBuilder.localNodeId(masterNodeId);
         nodesBuilder.masterNodeId(master ? masterNodeId : null);
         nodes.forEach(nodesBuilder::add);
-        addIrrelevantNodes(nodesBuilder);
         return nodesBuilder;
-    }
-
-    /**
-     * Add irrelevant nodes. NodeStatsClient will validate that they are not asked for.
-     */
-    private void addIrrelevantNodes(DiscoveryNodes.Builder nodesBuilder) {
-        Set<Set<String>> relevantRoleSets = autoscalingMetadata.policies()
-            .values()
-            .stream()
-            .map(AutoscalingPolicyMetadata::policy)
-            .map(AutoscalingPolicy::roles)
-            .collect(Collectors.toSet());
-
-        IntStream.range(0, 5).mapToObj(i -> newNode("irrelevant_" + i, randomIrrelevantRoles(relevantRoleSets))).forEach(nodesBuilder::add);
-    }
-
-    private Set<DiscoveryNodeRole> randomIrrelevantRoles(Set<Set<String>> relevantRoleSets) {
-        return randomValueOtherThanMany(relevantRoleSets::contains, AutoscalingTestCase::randomRoles).stream()
-            .map(DiscoveryNodeRole::getRoleFromRoleName)
-            .collect(Collectors.toSet());
     }
 
     public void assertMatchesResponse(Set<DiscoveryNode> nodes, NodesStatsResponse response) {

@@ -27,6 +27,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
+import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryInfo;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -1190,6 +1191,11 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
 
         @Override
         public SnapshotShardSizeInfo snapshotShardSizeInfo() {
+            return null;
+        }
+
+        @Override
+        public AutoscalingMemoryInfo autoscalingMemoryInfo() {
             return null;
         }
     }

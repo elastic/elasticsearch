@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -258,7 +257,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                                 remoteAliases,
                                 (cn) -> remoteClusterService.getConnection(cn).getVersion()
                             );
-                            createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
+                            createDataExtractor(job, datafeedConfigHolder.get(), params, waitForTaskListener);
                         }
                     },
                         e -> listener.onFailure(
@@ -271,7 +270,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     )
                 );
             } else {
-                createDataExtractor(task, job, datafeedConfigHolder.get(), params, waitForTaskListener);
+                createDataExtractor(job, datafeedConfigHolder.get(), params, waitForTaskListener);
             }
         };
 
@@ -350,14 +349,13 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
 
     /** Creates {@link DataExtractorFactory} solely for the purpose of validation i.e. verifying that it can be created. */
     private void createDataExtractor(
-        Task task,
         Job job,
         DatafeedConfig datafeed,
         StartDatafeedAction.DatafeedParams params,
         ActionListener<PersistentTasksCustomMetadata.PersistentTask<StartDatafeedAction.DatafeedParams>> listener
     ) {
         DataExtractorFactory.create(
-            new ParentTaskAssigningClient(client, clusterService.localNode(), task),
+            client,
             datafeed,
             job,
             xContentRegistry,

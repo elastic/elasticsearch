@@ -44,7 +44,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
-import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -539,40 +538,28 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final AggregationBuilder aggregationBuilder = AggregationBuilders.global("global")
             .subAggregation(AggregationBuilders.cardinality("cardinality").field("number"));
 
-        final Directory directory = newDirectory();
-        final RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
         final int numDocs = 10;
-        for (int i = 0; i < numDocs; i++) {
-            indexWriter.addDocument(singleton(new NumericDocValuesField("number", (i + 1))));
-            indexWriter.addDocument(singleton(new NumericDocValuesField("number", (i + 1))));
-        }
-        indexWriter.close();
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            for (int i = 0; i < numDocs; i++) {
+                iw.addDocument(singleton(new NumericDocValuesField("number", (i + 1))));
+                iw.addDocument(singleton(new NumericDocValuesField("number", (i + 1))));
+            }
+        }, topLevelAgg -> {
+            final Global global = (Global) topLevelAgg;
+            assertNotNull(global);
+            assertEquals("global", global.getName());
+            assertEquals(numDocs * 2, global.getDocCount());
+            assertNotNull(global.getAggregations());
+            assertEquals(1, global.getAggregations().asMap().size());
 
-        final IndexReader indexReader = DirectoryReader.open(directory);
-        final IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
-        final GlobalAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType);
-        aggregator.preCollection();
-        indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
-
-        final Global global = (Global) aggregator.buildTopLevel();
-        assertNotNull(global);
-        assertEquals("global", global.getName());
-        assertEquals(numDocs * 2, global.getDocCount());
-        assertNotNull(global.getAggregations());
-        assertEquals(1, global.getAggregations().asMap().size());
-
-        final Cardinality cardinality = global.getAggregations().get("cardinality");
-        assertNotNull(cardinality);
-        assertEquals("cardinality", cardinality.getName());
-        assertEquals(numDocs, cardinality.getValue(), 0);
-        assertEquals(cardinality, ((InternalAggregation) global).getProperty("cardinality"));
-        assertEquals(numDocs, (double) ((InternalAggregation) global).getProperty("cardinality.value"), 0);
-        assertEquals(numDocs, (double) ((InternalAggregation) cardinality).getProperty("value"), 0);
-
-        indexReader.close();
-        directory.close();
+            final Cardinality cardinality = global.getAggregations().get("cardinality");
+            assertNotNull(cardinality);
+            assertEquals("cardinality", cardinality.getName());
+            assertEquals(numDocs, cardinality.getValue(), 0);
+            assertEquals(cardinality, ((InternalAggregation) global).getProperty("cardinality"));
+            assertEquals(numDocs, (double) ((InternalAggregation) global).getProperty("cardinality.value"), 0);
+            assertEquals(numDocs, (double) ((InternalAggregation) cardinality).getProperty("value"), 0);
+        }, fieldType);
     }
 
     public void testUnmappedMissingGeoPoint() throws IOException {

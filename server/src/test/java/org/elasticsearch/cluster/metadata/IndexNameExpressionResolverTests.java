@@ -2962,11 +2962,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     private ClusterState systemIndexTestClusterState() {
-        Settings settings = Settings.builder().put("index.hidden", "true").build();
         Metadata.Builder mdBuilder = Metadata.builder()
-            .put(indexBuilder(".ml-meta", settings).state(State.OPEN).system(true))
-            .put(indexBuilder(".watches", settings).state(State.OPEN).system(true))
-            .put(indexBuilder(".ml-stuff", settings).state(State.OPEN).system(true))
+            .put(indexBuilder(".ml-meta", SystemIndexDescriptor.DEFAULT_SETTINGS).state(State.OPEN).system(true))
+            .put(indexBuilder(".watches", SystemIndexDescriptor.DEFAULT_SETTINGS).state(State.OPEN).system(true))
+            .put(indexBuilder(".ml-stuff", SystemIndexDescriptor.DEFAULT_SETTINGS).state(State.OPEN).system(true))
             .put(indexBuilder("some-other-index").state(State.OPEN));
         SystemIndices systemIndices = new SystemIndices(
             Map.of(

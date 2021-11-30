@@ -183,6 +183,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         }
     }
 
+    @SuppressWarnings("removal")
     private void restoreMountAndVerify(int numDocs, Set<String> expectedIds, RestHighLevelClient client, int numberOfShards)
         throws IOException {
         // restore index

@@ -4,8 +4,10 @@
 <titleabbrev>Set up basic security</titleabbrev>
 ++++
 
-You can configure Transport Layer Security (TLS) on the transport layer, which
-handles all internal communication between nodes in your cluster.
+When you start {es} for the first time, Transport Layer Security (TLS) is
+automatically configured for you. If you would rather configure TLS manually,
+make sure that you configure security _before_ you start your {es} nodes and
+the auto-configuration process will respect your security configuration.
 
 IMPORTANT: If your cluster has multiple nodes, then you must configure
 TLS between nodes. <<dev-vs-prod-mode,Production mode>> clusters will not start

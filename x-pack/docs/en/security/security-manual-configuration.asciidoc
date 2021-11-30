@@ -15,11 +15,14 @@ If you want to use your own Certificate Authority (CA) or would rather manually
 configure security, the following scenarios provide steps for configuring TLS
 on the transport layer, plus securing HTTPS traffic if you want it.
 
+NOTE: Make sure that you configure security _before_ you start your {es} nodes
+and the auto-configuration process will respect your security configuration.
+
 image::images/elastic-security-overview.png[Elastic Security layers]
 
 [discrete]
 [[security-basic-overview]]
-=== Basic security ({es} Production)
+=== Basic security ({es} + {kib})
 
 This scenario configures Transport Layer Security (TLS) for communication between
 nodes. This security layer requires that nodes verify security certificates,

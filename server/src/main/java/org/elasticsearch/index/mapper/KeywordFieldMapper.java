@@ -671,6 +671,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexAnalyzers, scriptCompiler, null).dimension(dimension).init(this);
+        return new Builder(simpleName(), indexAnalyzers, scriptCompiler, DEFAULT_TO_SCRIPT_FIELD).dimension(dimension).init(this);
     }
 }

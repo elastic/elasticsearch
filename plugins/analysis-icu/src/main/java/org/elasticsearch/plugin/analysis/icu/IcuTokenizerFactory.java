@@ -78,7 +78,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
                     breakers[code] = parseRules(resourcePath, env);
                 }
                 // cjkAsWords nor myanmarAsWords are not configurable yet.
-                ICUTokenizerConfig config = new DefaultICUTokenizerConfig(true, true) {
+                ICUTokenizerConfig tokenizerConfig = new DefaultICUTokenizerConfig(true, true) {
                     @Override
                     public RuleBasedBreakIterator getBreakIterator(int script) {
                         if (breakers[script] != null) {
@@ -88,7 +88,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
                         }
                     }
                 };
-                return config;
+                return tokenizerConfig;
             }
         } catch (Exception e) {
             throw new ElasticsearchException("failed to load ICU rule files", e);

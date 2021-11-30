@@ -10,6 +10,7 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -20,14 +21,19 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
@@ -50,10 +56,27 @@ public class MlInitializationService implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(MlInitializationService.class);
 
+    public static final List<String> LEGACY_ML_INDEX_TEMPLATES = List.of(
+        ".ml-anomalies-",
+        ".ml-config",
+        ".ml-inference-000001",
+        ".ml-inference-000002",
+        ".ml-inference-000003",
+        ".ml-meta",
+        ".ml-notifications",
+        ".ml-notifications-000001",
+        ".ml-notifications-000002",
+        ".ml-state",
+        ".ml-stats"
+    );
+
     private final Client client;
     private final ThreadPool threadPool;
     private final AtomicBoolean isIndexCreationInProgress = new AtomicBoolean(false);
     private final AtomicBoolean mlInternalIndicesHidden = new AtomicBoolean(false);
+    private final AtomicBoolean mlLegacyTemplateDeletionInProgress = new AtomicBoolean(false);
+    private final AtomicBoolean checkForLegacyMlTemplates = new AtomicBoolean(true);
+    private volatile String previousException;
 
     private final MlDailyMaintenanceService mlDailyMaintenanceService;
 
@@ -143,11 +166,66 @@ public class MlInitializationService implements ClusterStateListener {
                 event.state(),
                 MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
                 ActionListener.wrap(r -> isIndexCreationInProgress.set(false), e -> {
+                    if (e.getMessage().equals(previousException)) {
+                        logger.debug("Error creating ML annotations index or aliases", e);
+                    } else {
+                        previousException = e.getMessage();
+                        logger.error("Error creating ML annotations index or aliases", e);
+                    }
                     isIndexCreationInProgress.set(false);
-                    logger.error("Error creating ML annotations index or aliases", e);
                 })
             );
         }
+
+        // The atomic flag shortcircuits the check after no legacy templates have been found to exist.
+        if (this.isMaster && checkForLegacyMlTemplates.get()) {
+            if (deleteOneMlLegacyTemplateIfNecessary(client, event.state()) == false) {
+                checkForLegacyMlTemplates.set(false);
+            }
+        }
+    }
+
+    /**
+     * @return <code>true</code> if further calls to this method are worthwhile.
+     *         <code>false</code> if this method never needs to be called again.
+     */
+    private boolean deleteOneMlLegacyTemplateIfNecessary(Client client, ClusterState state) {
+
+        String templateToDelete = nextTemplateToDelete(state.getMetadata().getTemplates());
+        if (templateToDelete != null) {
+            // This atomic flag prevents multiple simultaneous attempts to delete a legacy index
+            // template if there is a flurry of cluster state updates in quick succession.
+            if (mlLegacyTemplateDeletionInProgress.compareAndSet(false, true) == false) {
+                return true;
+            }
+            executeAsyncWithOrigin(
+                client,
+                ML_ORIGIN,
+                DeleteIndexTemplateAction.INSTANCE,
+                new DeleteIndexTemplateRequest(templateToDelete),
+                ActionListener.wrap(r -> {
+                    mlLegacyTemplateDeletionInProgress.set(false);
+                    logger.debug("Deleted legacy ML index template [{}]", templateToDelete);
+                }, e -> {
+                    mlLegacyTemplateDeletionInProgress.set(false);
+                    logger.debug(new ParameterizedMessage("Error deleting legacy ML index template [{}]", templateToDelete), e);
+                })
+            );
+
+            return true;
+        }
+
+        // We should never need to check again
+        return false;
+    }
+
+    private String nextTemplateToDelete(ImmutableOpenMap<String, IndexTemplateMetadata> legacyTemplates) {
+        for (String mlLegacyTemplate : LEGACY_ML_INDEX_TEMPLATES) {
+            if (legacyTemplates.containsKey(mlLegacyTemplate)) {
+                return mlLegacyTemplate;
+            }
+        }
+        return null;
     }
 
     /** For testing */
@@ -158,6 +236,11 @@ public class MlInitializationService implements ClusterStateListener {
     /** For testing */
     public boolean areMlInternalIndicesHidden() {
         return mlInternalIndicesHidden.get();
+    }
+
+    /** For testing */
+    public boolean checkForLegacyMlTemplates() {
+        return checkForLegacyMlTemplates.get();
     }
 
     private void makeMlInternalIndicesHidden() {
@@ -177,19 +260,12 @@ public class MlInitializationService implements ClusterStateListener {
             IndicesAliasesRequest indicesAliasesRequest = new IndicesAliasesRequest();
             for (ObjectObjectCursor<String, List<AliasMetadata>> entry : getAliasesResponse.getAliases()) {
                 String index = entry.key;
-                String[] nonHiddenAliases = entry.value.stream()
-                    .filter(metadata -> metadata.isHidden() == null || metadata.isHidden() == false)
-                    .map(AliasMetadata::alias)
-                    .toArray(String[]::new);
-                if (nonHiddenAliases.length == 0) {
-                    continue;
+                for (AliasMetadata existingAliasMetadata : entry.value) {
+                    if (existingAliasMetadata.isHidden() != null && existingAliasMetadata.isHidden()) {
+                        continue;
+                    }
+                    indicesAliasesRequest.addAliasAction(aliasReplacementAction(index, existingAliasMetadata));
                 }
-                indicesAliasesRequest.addAliasAction(
-                    IndicesAliasesRequest.AliasActions.add()
-                        .index(index)
-                        .aliases(entry.value.stream().map(AliasMetadata::alias).toArray(String[]::new))
-                        .isHidden(true)
-                );
             }
             if (indicesAliasesRequest.getAliasActions().isEmpty()) {
                 logger.debug("There are no ML internal aliases that need to be made hidden, [{}]", getAliasesResponse.getAliases());
@@ -239,5 +315,26 @@ public class MlInitializationService implements ClusterStateListener {
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(mlHiddenIndexPatterns)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN);
         client.admin().indices().getSettings(getSettingsRequest, getSettingsListener);
+    }
+
+    private static IndicesAliasesRequest.AliasActions aliasReplacementAction(String index, AliasMetadata existingAliasMetadata) {
+        IndicesAliasesRequest.AliasActions addReplacementAliasAction = IndicesAliasesRequest.AliasActions.add()
+            .index(index)
+            .aliases(existingAliasMetadata.getAlias())
+            .isHidden(true);
+        // Be sure to preserve all attributes apart from is_hidden
+        if (existingAliasMetadata.writeIndex() != null) {
+            addReplacementAliasAction.writeIndex(existingAliasMetadata.writeIndex());
+        }
+        if (existingAliasMetadata.filteringRequired()) {
+            addReplacementAliasAction.filter(existingAliasMetadata.filter().string());
+        }
+        if (existingAliasMetadata.indexRouting() != null) {
+            addReplacementAliasAction.indexRouting(existingAliasMetadata.indexRouting());
+        }
+        if (existingAliasMetadata.searchRouting() != null) {
+            addReplacementAliasAction.searchRouting(existingAliasMetadata.searchRouting());
+        }
+        return addReplacementAliasAction;
     }
 }

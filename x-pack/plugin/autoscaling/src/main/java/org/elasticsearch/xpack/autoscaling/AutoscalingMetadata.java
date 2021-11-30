@@ -74,12 +74,12 @@ public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
 
     public AutoscalingMetadata(final StreamInput in) throws IOException {
         final int size = in.readVInt();
-        final SortedMap<String, AutoscalingPolicyMetadata> policies = new TreeMap<>();
+        final SortedMap<String, AutoscalingPolicyMetadata> policiesMap = new TreeMap<>();
         for (int i = 0; i < size; i++) {
             final AutoscalingPolicyMetadata policyMetadata = new AutoscalingPolicyMetadata(in);
-            policies.put(policyMetadata.policy().name(), policyMetadata);
+            policiesMap.put(policyMetadata.policy().name(), policyMetadata);
         }
-        this.policies = policies;
+        this.policies = policiesMap;
     }
 
     @Override

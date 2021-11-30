@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -65,6 +66,7 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.action.ResetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.SetResetModeAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
@@ -76,6 +78,7 @@ import org.elasticsearch.xpack.transform.action.TransportGetTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformStatsAction;
 import org.elasticsearch.xpack.transform.action.TransportPreviewTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportPutTransformAction;
+import org.elasticsearch.xpack.transform.action.TransportResetTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportSetTransformResetModeAction;
 import org.elasticsearch.xpack.transform.action.TransportStartTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportStopTransformAction;
@@ -93,6 +96,7 @@ import org.elasticsearch.xpack.transform.rest.action.RestGetTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestGetTransformStatsAction;
 import org.elasticsearch.xpack.transform.rest.action.RestPreviewTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestPutTransformAction;
+import org.elasticsearch.xpack.transform.rest.action.RestResetTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStartTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestStopTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestUpdateTransformAction;
@@ -106,7 +110,9 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.FAILED_TO_UNSET_RESET_MODE;
@@ -167,7 +173,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new RestPreviewTransformAction(),
             new RestUpdateTransformAction(),
             new RestCatTransformAction(),
-            new RestUpgradeTransformsAction()
+            new RestUpgradeTransformsAction(),
+            new RestResetTransformAction()
         );
     }
 
@@ -186,6 +193,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetTransformResetModeAction.class),
             new ActionHandler<>(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),
             new ActionHandler<>(UpgradeTransformsAction.INSTANCE, TransportUpgradeTransformsAction.class),
+            new ActionHandler<>(ResetTransformAction.INSTANCE, TransportResetTransformAction.class),
 
             // usage and info
             new ActionHandler<>(XPackUsageFeatureAction.TRANSFORM, TransformUsageTransportAction.class),
@@ -280,6 +288,23 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public List<Entry> getNamedXContent() {
         return new TransformNamedXContentProvider().getNamedXContentParsers();
+    }
+
+    @Override
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
+        return templates -> {
+            // These are all legacy templates that were created in old versions. None are needed now.
+            // The "internal" indices became system indices and the "notifications" indices now use composable templates.
+            templates.remove(".data-frame-internal-1");
+            templates.remove(".data-frame-internal-2");
+            templates.remove(".transform-internal-003");
+            templates.remove(".transform-internal-004");
+            templates.remove(".transform-internal-005");
+            templates.remove(".data-frame-notifications-1");
+            templates.remove(".transform-notifications-000001");
+            templates.remove(".transform-notifications-000002");
+            return templates;
+        };
     }
 
     @Override

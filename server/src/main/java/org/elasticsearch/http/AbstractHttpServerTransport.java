@@ -355,11 +355,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
         httpClientStatsTracker.updateClientStats(httpRequest, httpChannel);
-        final long startTime = threadPool.relativeTimeInMillis();
+        final long startTime = threadPool.rawRelativeTimeInMillis();
         try {
             handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
         } finally {
-            final long took = threadPool.relativeTimeInMillis() - startTime;
+            final long took = threadPool.rawRelativeTimeInMillis() - startTime;
+            networkService.getHandlingTimeTracker().addHandlingTime(took);
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
                 logger.warn(
@@ -413,7 +414,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 innerRestRequest = RestRequest.request(parserConfig, httpRequest, httpChannel);
             } catch (final RestRequest.MediaTypeHeaderException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
-                innerRestRequest = requestWithoutFailedHeader(httpRequest, httpChannel, badRequestCause, e.getFailedHeaderName());
+                innerRestRequest = requestWithoutFailedHeader(httpRequest, httpChannel, badRequestCause, e.getFailedHeaderNames());
             } catch (final RestRequest.BadParameterException e) {
                 badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
                 innerRestRequest = RestRequest.requestWithoutParameters(parserConfig, httpRequest, httpChannel);
@@ -468,11 +469,18 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         HttpRequest httpRequest,
         HttpChannel httpChannel,
         Exception badRequestCause,
-        String failedHeaderName
+        Set<String> failedHeaderNames
     ) {
-        HttpRequest httpRequestWithoutContentType = httpRequest.removeHeader(failedHeaderName);
+        assert failedHeaderNames.size() > 0;
+        HttpRequest httpRequestWithoutContentType = httpRequest;
+        for (String failedHeaderName : failedHeaderNames) {
+            httpRequestWithoutContentType = httpRequestWithoutContentType.removeHeader(failedHeaderName);
+        }
         try {
             return RestRequest.request(parserConfig, httpRequestWithoutContentType, httpChannel);
+        } catch (final RestRequest.MediaTypeHeaderException e) {
+            badRequestCause = ExceptionsHelper.useOrSuppress(badRequestCause, e);
+            return requestWithoutFailedHeader(httpRequest, httpChannel, badRequestCause, e.getFailedHeaderNames());
         } catch (final RestRequest.BadParameterException e) {
             badRequestCause.addSuppressed(e);
             return RestRequest.requestWithoutParameters(parserConfig, httpRequestWithoutContentType, httpChannel);

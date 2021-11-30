@@ -109,8 +109,8 @@ public class TrainedModelIT extends ESRestTestCase {
 
         response = EntityUtils.toString(getModel.getEntity());
         assertThat(response, containsString("\"model_id\":\"a_test_regression_model\""));
-        assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\""));
-        assertThat(response, containsString("\"estimated_heap_memory_usage\""));
+        assertThat(response, containsString("\"model_size_bytes\""));
+        assertThat(response, containsString("\"model_size\""));
         assertThat(response, containsString("\"model_type\":\"tree_ensemble\""));
         assertThat(response, containsString("\"definition\""));
         assertThat(response, not(containsString("\"compressed_definition\"")));
@@ -126,7 +126,7 @@ public class TrainedModelIT extends ESRestTestCase {
 
         response = EntityUtils.toString(getModel.getEntity());
         assertThat(response, containsString("\"model_id\":\"a_test_regression_model\""));
-        assertThat(response, containsString("\"estimated_heap_memory_usage_bytes\""));
+        assertThat(response, containsString("\"model_size_bytes\""));
         assertThat(response, containsString("\"compressed_definition\""));
         assertThat(response, not(containsString("\"definition\"")));
         assertThat(response, containsString("\"count\":1"));
@@ -318,6 +318,60 @@ public class TrainedModelIT extends ESRestTestCase {
             .setTrainedModels(Arrays.asList(tree1, tree2, tree3))
             .setOutputAggregator(new WeightedSum(Arrays.asList(0.5, 0.5, 0.5)))
             .build();
+    }
+
+    public void testStartDeploymentWithInconsistentTotalLengths() throws IOException {
+        String modelId = "inconsistent-size-model";
+        putPyTorchModel(modelId);
+
+        putModelDefinitionPart(modelId, 500, 3, 0);
+        putModelDefinitionPart(modelId, 500, 3, 1);
+        putModelDefinitionPart(modelId, 600, 3, 2);
+
+        ResponseException responseException = expectThrows(ResponseException.class, () -> startDeployment(modelId));
+        assertThat(
+            responseException.getMessage(),
+            containsString(
+                "[total_definition_length] must be the same in all model definition parts. "
+                    + "The value [600] in model definition part [2] does not match the value [500] in part [0]"
+            )
+        );
+
+    }
+
+    private void putPyTorchModel(String modelId) throws IOException {
+        Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
+        request.setJsonEntity(
+            "{  "
+                + "    \"description\": \"simple model for testing\",\n"
+                + "    \"model_type\": \"pytorch\",\n"
+                + "    \"inference_config\": {\n"
+                + "        \"pass_through\": {\n"
+                + "        }\n"
+                + "    }\n"
+                + "}"
+        );
+        client().performRequest(request);
+    }
+
+    private void putModelDefinitionPart(String modelId, int totalSize, int numParts, int partNumber) throws IOException {
+        Request request = new Request("PUT", "_ml/trained_models/" + modelId + "/definition/" + partNumber);
+        request.setJsonEntity(
+            "{  "
+                + "\"total_definition_length\": "
+                + totalSize
+                + ","
+                + "\"definition\": \"UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZW==\","
+                + "\"total_parts\": "
+                + numParts
+                + "}"
+        );
+        client().performRequest(request);
+    }
+
+    private void startDeployment(String modelId) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_start?timeout=40s");
+        client().performRequest(request);
     }
 
     @After

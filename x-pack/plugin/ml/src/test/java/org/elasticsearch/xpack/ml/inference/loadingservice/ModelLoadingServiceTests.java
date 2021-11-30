@@ -69,6 +69,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.MachineLearning.UTILITY_THREAD_POOL_NAME;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -357,7 +358,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             future.get();
             fail("Should not have succeeded");
         } catch (Exception ex) {
-            assertThat(ex.getCause().getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
+            assertThat(ex.getCause().getMessage(), containsString(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, model)));
         }
         assertFalse(modelLoadingService.isModelCached(model));
     }
@@ -659,7 +660,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
         when(trainedModelConfig.getModelId()).thenReturn(modelId);
         when(trainedModelConfig.getInferenceConfig()).thenReturn(ClassificationConfig.EMPTY_PARAMS);
         when(trainedModelConfig.getInput()).thenReturn(new TrainedModelInput(Arrays.asList("foo", "bar", "baz")));
-        when(trainedModelConfig.getEstimatedHeapMemory()).thenReturn(size);
+        when(trainedModelConfig.getModelSize()).thenReturn(size);
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("rawtypes")
             ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
@@ -685,7 +686,7 @@ public class ModelLoadingServiceTests extends ESTestCase {
             }).when(trainedModelProvider).getTrainedModel(eq(modelId), eq(GetTrainedModelsAction.Includes.empty()), any());
         } else {
             TrainedModelConfig trainedModelConfig = mock(TrainedModelConfig.class);
-            when(trainedModelConfig.getEstimatedHeapMemory()).thenReturn(0L);
+            when(trainedModelConfig.getModelSize()).thenReturn(0L);
             doAnswer(invocationOnMock -> {
                 @SuppressWarnings("rawtypes")
                 ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];

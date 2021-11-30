@@ -211,7 +211,7 @@ dependencies {
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:5.0.1'
   api 'com.netflix.nebula:gradle-info-plugin:9.2.0'
   api 'org.apache.rat:apache-rat:0.11'
-  api "org.elasticsearch:jna:5.7.0-1"
+  api "net.java.dev.jna:jna:${versions.getProperty('jna')}"
   api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
   // for our ide tweaking
   api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.7'

@@ -7,12 +7,17 @@
 
 package org.elasticsearch.xpack.enrich;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
@@ -20,14 +25,20 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class EnrichPolicyExecutorTests extends ESTestCase {
 
@@ -165,6 +176,29 @@ public class EnrichPolicyExecutorTests extends ESTestCase {
             new LatchedActionListener<>(noOpListener, finalTaskComplete)
         );
         finalTaskComplete.await();
+    }
+
+    public void testRunPolicyLocallyMissingPolicy() {
+        EnrichPolicy enrichPolicy = EnrichPolicyTests.randomEnrichPolicy(XContentType.JSON);
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().putCustom(EnrichMetadata.TYPE, new EnrichMetadata(Map.of("id", enrichPolicy))).build())
+            .build();
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(clusterState);
+
+        final EnrichPolicyExecutor testExecutor = new EnrichPolicyExecutor(
+            Settings.EMPTY,
+            clusterService,
+            null,
+            testThreadPool,
+            TestIndexNameExpressionResolver.newInstance(testThreadPool.getThreadContext()),
+            new EnrichPolicyLocks(),
+            ESTestCase::randomNonNegativeLong
+        );
+
+        ExecuteEnrichPolicyTask task = mock(ExecuteEnrichPolicyTask.class);
+        Exception e = expectThrows(ResourceNotFoundException.class, () -> testExecutor.runPolicyLocally(task, "my-policy", null));
+        assertThat(e.getMessage(), equalTo("policy [my-policy] does not exist"));
     }
 
     private Client getClient(CountDownLatch latch) {

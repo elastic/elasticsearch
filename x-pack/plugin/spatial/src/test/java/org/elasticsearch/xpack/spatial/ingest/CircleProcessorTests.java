@@ -237,8 +237,8 @@ public class CircleProcessorTests extends ESTestCase {
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
             Document doc = new Document();
-            GeoShapeIndexer indexer = new GeoShapeIndexer(true, fieldName);
-            for (IndexableField field : indexer.indexShape(indexer.prepareForIndexing(geometry))) {
+            GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, fieldName);
+            for (IndexableField field : indexer.indexShape(geometry)) {
                 doc.add(field);
             }
             w.addDocument(doc);

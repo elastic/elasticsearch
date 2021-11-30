@@ -218,8 +218,8 @@ public class Netty4HttpRequest implements HttpRequest {
     }
 
     @Override
-    public Netty4HttpResponse createResponse(RestStatus status, BytesReference content) {
-        return new Netty4HttpResponse(request.headers(), request.protocolVersion(), status, content);
+    public Netty4HttpResponse createResponse(RestStatus status, BytesReference contentRef) {
+        return new Netty4HttpResponse(request.headers(), request.protocolVersion(), status, contentRef);
     }
 
     @Override

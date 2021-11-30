@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
@@ -54,7 +55,7 @@ public class NlpTask {
             int apply(TokenizationResult.Tokenization tokenization, int index);
         }
 
-        Request buildRequest(List<String> inputs, String requestId) throws IOException;
+        Request buildRequest(List<String> inputs, String requestId, Tokenization.Truncate truncate) throws IOException;
 
         Request buildRequest(TokenizationResult tokenizationResult, String requestId) throws IOException;
 

@@ -31,11 +31,6 @@ public class ShortDocValuesField implements DocValuesField<Short>, ScriptDocValu
         this.name = name;
     }
 
-    /**
-     * Set the current document ID.
-     *
-     * @param docId
-     */
     @Override
     public void setNextDocId(int docId) throws IOException {
         if (input.advanceExact(docId)) {
@@ -98,11 +93,6 @@ public class ShortDocValuesField implements DocValuesField<Short>, ScriptDocValu
         return count;
     }
 
-    /**
-     * Returns an iterator over elements of type {@code T}.
-     *
-     * @return an Iterator.
-     */
     @Override
     public Iterator<Short> iterator() {
         return new Iterator<Short>() {
@@ -127,9 +117,11 @@ public class ShortDocValuesField implements DocValuesField<Short>, ScriptDocValu
         return get(0, defaultValue);
     }
 
-    // constants in java and painless are ints, so letting the defaultValue be an int allows users to
-    // call this without casting. A short variable will be automatically widened to an int.
-    // If the user does pass a value outside the range, it will be cast down to a short.
+    /**
+     * Note: Constants in java and painless are ints, so letting the defaultValue be an int allows users to
+     *       call this without casting. A short variable will be automatically widened to an int.
+     *       If the user does pass a value outside the range, it will be cast down to a short.
+     */
     public short get(int index, int defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
             return (short) defaultValue;

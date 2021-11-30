@@ -758,7 +758,7 @@ setup:
             script_fields:
               field:
                 script:
-                  source: "Float.toString(field('float').get(-1))"
+                  source: "field('float').get(-1).toString()" # toString to avoid making this a double
     - match: { hits.hits.0.fields.field.0: "3.1415927" }
     - match: { hits.hits.1.fields.field.0: "-1.0" }
     - match: { hits.hits.2.fields.field.0: "1.123" }
@@ -771,7 +771,7 @@ setup:
             script_fields:
               field:
                 script:
-                  source: "float defaultFloat = 7.8f; Float.toString(field('float').get(1, defaultFloat))"
+                  source: "float defaultFloat = 7.8f; field('float').get(1, defaultFloat).toString()"
     - match: { hits.hits.0.fields.field.0: "7.8" }
     - match: { hits.hits.1.fields.field.0: "7.8" }
     - match: { hits.hits.2.fields.field.0: "2.234" }
@@ -784,7 +784,7 @@ setup:
             script_fields:
               field:
                 script:
-                  source: "Float.toString(field('float').get(1, 9.2f))"
+                  source: "field('float').get(1, 9.2f).toString()"
     - match: { hits.hits.0.fields.field.0: "9.2" }
     - match: { hits.hits.1.fields.field.0: "9.2" }
     - match: { hits.hits.2.fields.field.0: "2.234" }

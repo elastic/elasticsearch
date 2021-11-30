@@ -31,11 +31,6 @@ public class IntegerDocValuesField implements DocValuesField<Integer>, ScriptDoc
         this.name = name;
     }
 
-    /**
-     * Set the current document ID.
-     *
-     * @param docId
-     */
     @Override
     public void setNextDocId(int docId) throws IOException {
         if (input.advanceExact(docId)) {
@@ -98,11 +93,6 @@ public class IntegerDocValuesField implements DocValuesField<Integer>, ScriptDoc
         return count;
     }
 
-    /**
-     * Returns an iterator over elements of type {@code T}.
-     *
-     * @return an Iterator.
-     */
     @Override
     public Iterator<Integer> iterator() {
         return new Iterator<Integer>() {

@@ -31,11 +31,6 @@ public class ByteDocValuesField implements DocValuesField<Byte>, ScriptDocValues
         this.name = name;
     }
 
-    /**
-     * Set the current document ID.
-     *
-     * @param docId
-     */
     @Override
     public void setNextDocId(int docId) throws IOException {
         if (input.advanceExact(docId)) {
@@ -98,11 +93,6 @@ public class ByteDocValuesField implements DocValuesField<Byte>, ScriptDocValues
         return count;
     }
 
-    /**
-     * Returns an iterator over elements of type {@code T}.
-     *
-     * @return an Iterator.
-     */
     @Override
     public Iterator<Byte> iterator() {
         return new Iterator<Byte>() {
@@ -127,9 +117,11 @@ public class ByteDocValuesField implements DocValuesField<Byte>, ScriptDocValues
         return get(0, defaultValue);
     }
 
-    // constants in java and painless are ints, so letting the defaultValue be an int allows users to
-    // call this without casting. A byte variable will be automatically widened to an int.
-    // If the user does pass a value outside the range, it will be cast down to a byte.
+    /**
+     * Note: Constants in java and painless are ints, so letting the defaultValue be an int allows users to
+     *       call this without casting. A byte variable will be automatically widened to an int.
+     *       If the user does pass a value outside the range, it will be cast down to a byte.
+     */
     public byte get(int index, int defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
             return (byte) defaultValue;

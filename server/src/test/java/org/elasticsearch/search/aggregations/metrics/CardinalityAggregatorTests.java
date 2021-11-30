@@ -25,7 +25,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.hash.Murmur3Hasher;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -56,7 +55,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -596,29 +594,6 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    public void testSingleValuedStringHashed() throws IOException {
-        final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_value.hash");
-        final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_value.hash");
-
-        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(
-                singleton(new SortedDocValuesField("str_value.hash", new BytesRef(hash("one".getBytes(StandardCharsets.UTF_8)))))
-            );
-            iw.addDocument(
-                singleton(new SortedDocValuesField("unrelatedField.hash", new BytesRef(hash("two".getBytes(StandardCharsets.UTF_8)))))
-            );
-            iw.addDocument(
-                singleton(new SortedDocValuesField("str_value.hash", new BytesRef(hash("three".getBytes(StandardCharsets.UTF_8)))))
-            );
-            iw.addDocument(
-                singleton(new SortedDocValuesField("str_value.hash", new BytesRef(hash("four".getBytes(StandardCharsets.UTF_8)))))
-            );
-        }, card -> {
-            assertEquals(3, card.getValue(), 0);
-            assertTrue(AggregationInspectionHelper.hasValue(card));
-        }, mappedFieldTypes);
-    }
-
     public void testAsSubAggregation() throws IOException {
         final MappedFieldType mappedFieldTypes[] = {
             new KeywordFieldMapper.KeywordFieldType("str_value"),
@@ -711,12 +686,6 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         multiReader.close();
         directory.close();
         unmappedDirectory.close();
-    }
-
-    private static byte[] hash(final byte[] value) {
-        final Murmur3Hasher hasher = new Murmur3Hasher(HASHER_DEFAULT_SEED);
-        hasher.update(value);
-        return hasher.digest();
     }
 
     private void testAggregation(

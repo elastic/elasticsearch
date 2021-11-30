@@ -157,6 +157,9 @@
         },
         "notable": {
           "type": "boolean"
+        },
+        "ess_setting_change": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -179,6 +182,9 @@
         "body": {
           "type": "string",
           "minLength": 1
+        },
+        "ess_setting_change": {
+          "type": "boolean"
         }
       },
       "required": [

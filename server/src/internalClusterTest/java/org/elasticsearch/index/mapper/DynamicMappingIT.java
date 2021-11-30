@@ -447,10 +447,13 @@ public class DynamicMappingIT extends ESIntegTestCase {
         );
 
         // the parent object has been mapped dynamic:true, hence the field gets indexed
+        // we use a fixed doc id here to make sure this document and the one we sent later with a conflicting type
+        // target the same shard where we are sure the mapping update has been applied
         assertEquals(
             RestStatus.CREATED,
             client().prepareIndex("test")
                 .setSource("obj.runtime.dynamic.number", 1)
+                .setId("id")
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .get()
                 .status()

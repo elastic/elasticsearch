@@ -153,8 +153,8 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
         GetModelSnapshotsResponse modelSnapshots = getModelSnapshots(job.getId());
         assertThat(modelSnapshots.snapshots(), hasSize(2));
-        assertThat(modelSnapshots.snapshots().get(0).getMinVersion().major, equalTo((byte) 7));
-        assertThat(modelSnapshots.snapshots().get(1).getMinVersion().major, equalTo((byte) 7));
+        assertThat(modelSnapshots.snapshots().get(0).getMinVersion().major, equalTo(UPGRADE_FROM_VERSION.major));
+        assertThat(modelSnapshots.snapshots().get(1).getMinVersion().major, equalTo(UPGRADE_FROM_VERSION.major));
 
         ModelSnapshot snapshot = modelSnapshots.snapshots()
             .stream()
@@ -237,8 +237,8 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
         GetModelSnapshotsResponse modelSnapshots = getModelSnapshots(job.getId());
         assertThat(modelSnapshots.snapshots(), hasSize(2));
-        assertThat(modelSnapshots.snapshots().get(0).getMinVersion().major, equalTo((byte) 7));
-        assertThat(modelSnapshots.snapshots().get(1).getMinVersion().major, equalTo((byte) 7));
+        assertThat(modelSnapshots.snapshots().get(0).getMinVersion().major, equalTo(UPGRADE_FROM_VERSION.major));
+        assertThat(modelSnapshots.snapshots().get(1).getMinVersion().major, equalTo(UPGRADE_FROM_VERSION.major));
     }
 
     private PutJobResponse buildAndPutJob(String jobId, TimeValue bucketSpan) throws Exception {

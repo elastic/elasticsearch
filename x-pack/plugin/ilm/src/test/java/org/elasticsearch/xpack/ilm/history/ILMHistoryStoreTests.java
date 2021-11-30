@@ -22,7 +22,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
@@ -33,16 +32,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
-import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -82,20 +77,6 @@ public class ILMHistoryStoreTests extends ESTestCase {
         historyStore = new ILMHistoryStore(Settings.EMPTY, client, clusterService, threadPool);
     }
 
-    private ComposableIndexTemplate parseIndexTemplate(IndexTemplateConfig c) {
-        try {
-            return ComposableIndexTemplate.parse(
-                JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    c.loadBytes()
-                )
-            );
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
     @After
     public void setdown() {
         historyStore.close();
@@ -122,7 +103,6 @@ public class ILMHistoryStoreTests extends ESTestCase {
         }
     }
 
-    @SuppressWarnings("unchecked")
     public void testPut() throws Exception {
         String policyId = randomAlphaOfLength(5);
         final long timestamp = randomNonNegativeLong();

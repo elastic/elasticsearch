@@ -68,12 +68,12 @@ public class MockScriptEngine implements ScriptEngine {
         Map<ScriptContext<?>, ContextCompiler> contexts
     ) {
 
-        Map<String, MockDeterministicScript> scripts = new HashMap<>(deterministicScripts.size() + nonDeterministicScripts.size());
-        deterministicScripts.forEach((key, value) -> scripts.put(key, MockDeterministicScript.asDeterministic(value)));
-        nonDeterministicScripts.forEach((key, value) -> scripts.put(key, MockDeterministicScript.asNonDeterministic(value)));
+        Map<String, MockDeterministicScript> scriptMap = new HashMap<>(deterministicScripts.size() + nonDeterministicScripts.size());
+        deterministicScripts.forEach((key, value) -> scriptMap.put(key, MockDeterministicScript.asDeterministic(value)));
+        nonDeterministicScripts.forEach((key, value) -> scriptMap.put(key, MockDeterministicScript.asNonDeterministic(value)));
 
         this.type = type;
-        this.scripts = Collections.unmodifiableMap(scripts);
+        this.scripts = Collections.unmodifiableMap(scriptMap);
         this.contexts = Collections.unmodifiableMap(contexts);
     }
 

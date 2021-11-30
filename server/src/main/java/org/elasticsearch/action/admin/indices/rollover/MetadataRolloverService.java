@@ -38,7 +38,9 @@ import org.elasticsearch.snapshots.SnapshotInProgressException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.TemporalAmount;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -305,7 +307,8 @@ public class MetadataRolloverService {
             IndexMetadata previousHeadIndex = metadata.indices().get(originalWriteIndex.getName());
             long previousEnd = dateFormatter.parseMillis(previousHeadIndex.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey()));
             Instant start = Instant.ofEpochMilli(previousEnd);
-            Instant end = start.plus(DataStream.DEFAULT_LOOK_AHEAD_TIME);
+            TemporalAmount pollInterval = Duration.ofSeconds(5); // This is an ILM setting... not available here...
+            Instant end = Instant.now().plus(DataStream.DEFAULT_LOOK_AHEAD_TIME).plus(pollInterval);
 
             Settings.Builder indexSettingsBuilder = Settings.builder();
             indexSettingsBuilder.put(createIndexClusterStateRequest.settings());

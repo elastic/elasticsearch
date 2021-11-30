@@ -74,7 +74,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         }
     }).reversed();
 
-    public static final TemporalAmount DEFAULT_LOOK_AHEAD_TIME = Duration.ofMinutes(30);
+    public static final TemporalAmount DEFAULT_LOOK_AHEAD_TIME = Duration.ofMinutes(10);
 
     private final LongSupplier timeProvider;
     private final String name;

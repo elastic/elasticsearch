@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -21,20 +22,28 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
+import org.elasticsearch.xpack.security.authc.TokenService;
+import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.mockito.invocation.InvocationOnMock;
+import org.mockito.stubbing.Answer;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -57,14 +66,35 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
 
     private Environment environment;
     private Client client;
+    private static ThreadPool threadPool;
+    private static int nodeInfoApiCalls;
 
     @BeforeClass
     public static void muteInFips() {
         assumeFalse("Enrollment is not supported in FIPS 140-2 as we are using PKCS#12 keystores", inFipsJvm());
     }
 
+    @BeforeClass
+    public static void startThreadPool() throws IOException {
+        final Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "InternalEnrollmentTokenGeneratorTests").build();
+        threadPool = new ThreadPool(
+            settings,
+            new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000, "xpack.security.enrollment.thread_pool", false)
+        );
+        new Authentication(new User("foo"), new Authentication.RealmRef("realm", "type", "node"), null).writeToContext(
+            threadPool.getThreadContext()
+        );
+    }
+
+    @AfterClass
+    public static void shutdownThreadpool() {
+        terminate(threadPool);
+        threadPool = null;
+    }
+
     @Before
     public void setup() throws Exception {
+        nodeInfoApiCalls = 0;
         final Path tempDir = createTempDir();
         final Path httpCaPath = tempDir.resolve("httpCa.p12");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/httpCa.p12"), httpCaPath);
@@ -80,9 +110,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
             .build();
         environment = new Environment(settings, tempDir);
         client = mock(Client.class);
-        final ThreadPool threadPool = mock(ThreadPool.class);
         when(client.threadPool()).thenReturn(threadPool);
-        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(settings));
         doAnswer(invocationOnMock -> {
             CreateApiKeyRequest request = (CreateApiKeyRequest) invocationOnMock.getArguments()[1];
             @SuppressWarnings("unchecked")
@@ -98,50 +126,16 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
             );
             return null;
         }).when(client).execute(eq(CreateApiKeyAction.INSTANCE), any(CreateApiKeyRequest.class), anyActionListener());
-        doAnswer(invocationOnMock -> {
-            @SuppressWarnings("unchecked")
-            ActionListener<NodesInfoResponse> responseActionListener = (ActionListener<NodesInfoResponse>) invocationOnMock
-                .getArguments()[2];
-            responseActionListener.onResponse(
-                new NodesInfoResponse(
-                    new ClusterName("cluster_name"),
-                    List.of(
-                        new NodeInfo(
-                            Version.CURRENT,
-                            null,
-                            new DiscoveryNode("node-name", "1", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT),
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            null,
-                            new HttpInfo(
-                                new BoundTransportAddress(
-                                    new TransportAddress[] { new TransportAddress(InetAddress.getByName("0.0.0.0"), 9200) },
-                                    new TransportAddress(InetAddress.getByName("192.168.1.2"), 9200)
-                                ),
-                                0L
-                            ),
-                            null,
-                            null,
-                            null,
-                            null
-                        )
-                    ),
-                    List.of()
-                )
-            );
-            return null;
-        }).when(client).execute(eq(NodesInfoAction.INSTANCE), any(), any());
+        doAnswer(this::answerWithInfo).when(client).execute(eq(NodesInfoAction.INSTANCE), any(), any());
     }
 
     public void testCreationSuccess() {
         final SSLService sslService = new TestsSSLService(environment);
         final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
         PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
-        generator.createKibanaEnrollmentToken(token -> future.onResponse(token));
+        generator.createKibanaEnrollmentToken(token -> future.onResponse(token), BackoffPolicy.exponentialBackoff().iterator());
         EnrollmentToken token = future.actionGet();
+        assertThat(nodeInfoApiCalls, equalTo(1));
         assertThat(token.getApiKey(), equalTo("api-key-id:api-key-secret"));
         assertThat(token.getBoundAddress().size(), equalTo(1));
         assertThat(token.getBoundAddress().get(0), equalTo("192.168.1.2:9200"));
@@ -160,8 +154,9 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
         final SSLService sslService = new TestsSSLService(environment);
         final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
         PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
-        generator.createKibanaEnrollmentToken(token -> future.onResponse(token));
+        generator.createKibanaEnrollmentToken(token -> future.onResponse(token), BackoffPolicy.exponentialBackoff().iterator());
         EnrollmentToken token = future.actionGet();
+        assertThat(nodeInfoApiCalls, equalTo(1));
         assertThat(token, nullValue());
     }
 
@@ -170,14 +165,115 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<NodesInfoResponse> responseActionListener = (ActionListener<NodesInfoResponse>) invocationOnMock
                 .getArguments()[2];
+            nodeInfoApiCalls += 1;
             responseActionListener.onFailure(new Exception("error"));
             return null;
         }).when(client).execute(eq(NodesInfoAction.INSTANCE), any(), any());
         final SSLService sslService = new TestsSSLService(environment);
         final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
         PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
-        generator.createKibanaEnrollmentToken(token -> future.onResponse(token));
+        generator.createKibanaEnrollmentToken(token -> future.onResponse(token), BackoffPolicy.exponentialBackoff().iterator());
         EnrollmentToken token = future.actionGet();
+        assertThat(nodeInfoApiCalls, equalTo(1));
         assertThat(token, nullValue());
+    }
+
+    public void testRetryToGetNodesHttpInfo() {
+        // Answer with null http info twice, and then answer with filled in http info
+        doAnswer(this::answerNullHttpInfo).doAnswer(this::answerNullHttpInfo)
+            .doAnswer(this::answerWithInfo)
+            .when(client)
+            .execute(eq(NodesInfoAction.INSTANCE), any(), any());
+        final SSLService sslService = new TestsSSLService(environment);
+        final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
+        PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
+        generator.createKibanaEnrollmentToken(token -> future.onResponse(token), BackoffPolicy.exponentialBackoff().iterator());
+        EnrollmentToken token = future.actionGet();
+        assertThat(nodeInfoApiCalls, equalTo(3));
+        assertThat(token.getApiKey(), equalTo("api-key-id:api-key-secret"));
+        assertThat(token.getBoundAddress().size(), equalTo(1));
+        assertThat(token.getBoundAddress().get(0), equalTo("192.168.1.2:9200"));
+        assertThat(token.getVersion(), equalTo(Version.CURRENT.toString()));
+        assertThat(token.getFingerprint(), equalTo("ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d"));
+    }
+
+    public void testRetryButFailToGetNodesHttpInfo() {
+        // Answer with null HTTP info every time
+        doAnswer(this::answerNullHttpInfo).when(client).execute(eq(NodesInfoAction.INSTANCE), any(), any());
+        final SSLService sslService = new TestsSSLService(environment);
+        final InternalEnrollmentTokenGenerator generator = new InternalEnrollmentTokenGenerator(environment, sslService, client);
+        PlainActionFuture<EnrollmentToken> future = new PlainActionFuture<>();
+        generator.createKibanaEnrollmentToken(token -> future.onResponse(token), BackoffPolicy.exponentialBackoff().iterator());
+        EnrollmentToken token = future.actionGet();
+        assertThat(nodeInfoApiCalls, equalTo(9));
+        assertThat(token, nullValue());
+    }
+
+    public Answer<NodesInfoResponse> answerNullHttpInfo(InvocationOnMock invocationOnMock) {
+        @SuppressWarnings("unchecked")
+        ActionListener<NodesInfoResponse> responseActionListener = (ActionListener<NodesInfoResponse>) invocationOnMock.getArguments()[2];
+        nodeInfoApiCalls += 1;
+        responseActionListener.onResponse(
+            new NodesInfoResponse(
+                new ClusterName("cluster_name"),
+                List.of(
+                    new NodeInfo(
+                        Version.CURRENT,
+                        null,
+                        new DiscoveryNode("node-name", "1", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                ),
+                List.of()
+            )
+        );
+        return null;
+    }
+
+    private Answer<NodesInfoResponse> answerWithInfo(InvocationOnMock invocationOnMock) throws Exception {
+        @SuppressWarnings("unchecked")
+        ActionListener<NodesInfoResponse> responseActionListener = (ActionListener<NodesInfoResponse>) invocationOnMock.getArguments()[2];
+        nodeInfoApiCalls += 1;
+        responseActionListener.onResponse(
+            new NodesInfoResponse(
+                new ClusterName("cluster_name"),
+                List.of(
+                    new NodeInfo(
+                        Version.CURRENT,
+                        null,
+                        new DiscoveryNode("node-name", "1", buildNewFakeTransportAddress(), Map.of(), Set.of(), Version.CURRENT),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        new HttpInfo(
+                            new BoundTransportAddress(
+                                new TransportAddress[] { new TransportAddress(InetAddress.getByName("0.0.0.0"), 9200) },
+                                new TransportAddress(InetAddress.getByName("192.168.1.2"), 9200)
+                            ),
+                            0L
+                        ),
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                ),
+                List.of()
+            )
+        );
+        return null;
     }
 }

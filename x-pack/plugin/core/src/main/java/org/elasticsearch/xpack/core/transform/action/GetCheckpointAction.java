@@ -62,6 +62,31 @@ public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response
         public IndicesOptions indicesOptions() {
             return indicesOptions;
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == this) {
+                return true;
+            }
+            if (obj == null || obj.getClass() != getClass()) {
+                return false;
+            }
+            Request that = (Request) obj;
+
+            return Arrays.equals(indices, that.indices) && Objects.equals(indicesOptions, that.indicesOptions);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(Arrays.hashCode(indices), indicesOptions);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeStringArrayNullable(indices);
+            indicesOptions.writeIndicesOptions(out);
+        }
     }
 
     public static class Response extends ActionResponse {

@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
@@ -59,6 +60,9 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     protected final TransformConfigManager transformConfigManager;
     protected final TransformAuditor transformAuditor;
     protected final TransformConfig transformConfig;
+
+    // set of clusters that do not support 8.1+ checkpoint actions
+    private final Set<String> fallbackToBWC = new HashSet<>();
 
     DefaultCheckpointProvider(
         final Clock clock,
@@ -103,17 +107,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
 
         try {
             ResolvedIndices resolvedIndexes = remoteClusterResolver.resolve(transformConfig.getSource().getIndex());
-            ActionListener<Map<String, long[]>> groupedListener = ActionListener.wrap(r -> {
-                getCheckpointsFromOneClusterV2(
-                    client,
-                    transformConfig.getHeaders(),
-                    resolvedIndexes.getLocalIndices().toArray(new String[0]),
-                    RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
-                    r,
-                    listener
-
-                );
-            }, listener::onFailure);
+            ActionListener<Map<String, long[]>> groupedListener = listener;
 
             if (resolvedIndexes.numClusters() > 1) {
                 ActionListener<Collection<Map<String, long[]>>> mergeMapsListener = ActionListener.wrap(indexCheckpoints -> {
@@ -152,12 +146,31 @@ class DefaultCheckpointProvider implements CheckpointProvider {
         }
     }
 
+    private void getCheckpointsFromOneCluster(
+        Client client,
+        Map<String, String> headers,
+        String[] indices,
+        String prefix,
+        ActionListener<Map<String, long[]>> listener
+    ) {
+        if (fallbackToBWC.contains(prefix)) {
+            getCheckpointsFromOneClusterBWC(client, headers, indices, prefix, listener);
+        }
+        getCheckpointsFromOneClusterV2(client, headers, indices, prefix, ActionListener.wrap(listener::onResponse, e -> {
+            if (e instanceof ActionNotFoundTransportException) {
+                fallbackToBWC.add(prefix);
+                getCheckpointsFromOneClusterBWC(client, headers, indices, prefix, listener);
+            } else {
+                listener.onFailure(e);
+            }
+        }));
+    }
+
     private static void getCheckpointsFromOneClusterV2(
         Client client,
         Map<String, String> headers,
         String[] indices,
         String prefix,
-        Map<String, long[]> toCompare,
         ActionListener<Map<String, long[]>> listener
     ) {
         GetCheckpointAction.Request getCheckpointRequest = new GetCheckpointAction.Request(indices, IndicesOptions.LENIENT_EXPAND_OPEN);
@@ -169,31 +182,14 @@ class DefaultCheckpointProvider implements CheckpointProvider {
             client,
             GetCheckpointAction.INSTANCE,
             getCheckpointRequest,
-            ActionListener.wrap(checkpointResponse -> {
-
-                logger.info("got response for checkpoint indexes {}", checkpointResponse.getCheckpoints().size());
-
-                if (toCompare.size() != checkpointResponse.getCheckpoints().size()) {
-                    listener.onFailure(new RuntimeException("checkpoints differ!"));
-                    return;
-                }
-
-                if (checkpointResponse.getCheckpoints()
-                    .entrySet()
-                    .stream()
-                    .allMatch(e -> Arrays.equals(e.getValue(), toCompare.get(e.getKey()))) == false) {
-                    listener.onFailure(new RuntimeException("checkpoints differ!"));
-                    return;
-                }
-
-                logger.info("both checkpoints are equal");
-                listener.onResponse(toCompare);
-            }, listener::onFailure)
+            ActionListener.wrap(checkpointResponse -> listener.onResponse(checkpointResponse.getCheckpoints()), listener::onFailure)
         );
-
     }
 
-    private static void getCheckpointsFromOneCluster(
+    /**
+     * BWC version for <8.1
+     */
+    private static void getCheckpointsFromOneClusterBWC(
         Client client,
         Map<String, String> headers,
         String[] indices,

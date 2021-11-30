@@ -104,18 +104,18 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
     }
 
     public void testAdvanceExact() throws IOException {
-        LeafOrdinalsFieldData avocadoFieldData = new KeyedFlattenedLeafFieldData("avocado", delegate);
+        LeafOrdinalsFieldData avocadoFieldData = new KeyedFlattenedLeafFieldData("avocado", delegate, MOCK_TO_SCRIPT_FIELD);
         assertFalse(avocadoFieldData.getOrdinalsValues().advanceExact(0));
 
-        LeafOrdinalsFieldData bananaFieldData = new KeyedFlattenedLeafFieldData("banana", delegate);
+        LeafOrdinalsFieldData bananaFieldData = new KeyedFlattenedLeafFieldData("banana", delegate, MOCK_TO_SCRIPT_FIELD);
         assertTrue(bananaFieldData.getOrdinalsValues().advanceExact(0));
 
-        LeafOrdinalsFieldData nonexistentFieldData = new KeyedFlattenedLeafFieldData("berry", delegate);
+        LeafOrdinalsFieldData nonexistentFieldData = new KeyedFlattenedLeafFieldData("berry", delegate, MOCK_TO_SCRIPT_FIELD);
         assertFalse(nonexistentFieldData.getOrdinalsValues().advanceExact(0));
     }
 
     public void testNextOrd() throws IOException {
-        LeafOrdinalsFieldData fieldData = new KeyedFlattenedLeafFieldData("banana", delegate);
+        LeafOrdinalsFieldData fieldData = new KeyedFlattenedLeafFieldData("banana", delegate, MOCK_TO_SCRIPT_FIELD);
         SortedSetDocValues docValues = fieldData.getOrdinalsValues();
         docValues.advanceExact(0);
 
@@ -133,15 +133,15 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
     }
 
     public void testLookupOrd() throws IOException {
-        LeafOrdinalsFieldData appleFieldData = new KeyedFlattenedLeafFieldData("apple", delegate);
+        LeafOrdinalsFieldData appleFieldData = new KeyedFlattenedLeafFieldData("apple", delegate, MOCK_TO_SCRIPT_FIELD);
         SortedSetDocValues appleDocValues = appleFieldData.getOrdinalsValues();
         assertEquals(new BytesRef("value0"), appleDocValues.lookupOrd(0));
 
-        LeafOrdinalsFieldData cantaloupeFieldData = new KeyedFlattenedLeafFieldData("cantaloupe", delegate);
+        LeafOrdinalsFieldData cantaloupeFieldData = new KeyedFlattenedLeafFieldData("cantaloupe", delegate, MOCK_TO_SCRIPT_FIELD);
         SortedSetDocValues cantaloupeDocValues = cantaloupeFieldData.getOrdinalsValues();
         assertEquals(new BytesRef("value40"), cantaloupeDocValues.lookupOrd(0));
 
-        LeafOrdinalsFieldData cucumberFieldData = new KeyedFlattenedLeafFieldData("cucumber", delegate);
+        LeafOrdinalsFieldData cucumberFieldData = new KeyedFlattenedLeafFieldData("cucumber", delegate, MOCK_TO_SCRIPT_FIELD);
         SortedSetDocValues cucumberDocValues = cucumberFieldData.getOrdinalsValues();
         assertEquals(new BytesRef("value41"), cucumberDocValues.lookupOrd(0));
     }

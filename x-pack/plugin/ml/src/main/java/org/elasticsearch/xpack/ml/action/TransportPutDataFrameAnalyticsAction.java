@@ -50,11 +50,13 @@ import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.ml.dataframe.SourceDestValidations;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
+import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
@@ -70,9 +72,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
     private final Client client;
     private final DataFrameAnalyticsAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
-    private final Settings settings;
-
-    private volatile ByteSizeValue maxModelMemoryLimit;
+    private final Supplier<ByteSizeValue> maxModelMemoryLimitSupplier;
 
     @Inject
     public TransportPutDataFrameAnalyticsAction(
@@ -105,11 +105,7 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             : null;
         this.client = client;
         this.auditor = Objects.requireNonNull(auditor);
-        this.settings = settings;
-
-        maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(MachineLearningField.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
+        this.maxModelMemoryLimitSupplier = () -> NativeMemoryCalculator.getMaxModelMemoryLimit(clusterService);
 
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
@@ -119,10 +115,6 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
-    }
-
-    private void setMaxModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
-        this.maxModelMemoryLimit = maxModelMemoryLimit;
     }
 
     @Override
@@ -160,11 +152,12 @@ public class TransportPutDataFrameAnalyticsAction extends TransportMasterNodeAct
         TimeValue masterNodeTimeout,
         ActionListener<PutDataFrameAnalyticsAction.Response> listener
     ) {
-        DataFrameAnalyticsConfig preparedForPutConfig = new DataFrameAnalyticsConfig.Builder(config, maxModelMemoryLimit).setCreateTime(
-            Instant.now()
-        ).setVersion(Version.CURRENT).build();
+        DataFrameAnalyticsConfig preparedForPutConfig = new DataFrameAnalyticsConfig.Builder(config, maxModelMemoryLimitSupplier.get())
+            .setCreateTime(Instant.now())
+            .setVersion(Version.CURRENT)
+            .build();
 
-        if (XPackSettings.SECURITY_ENABLED.get(settings)) {
+        if (securityContext != null) {
             useSecondaryAuthIfAvailable(securityContext, () -> {
                 final String username = securityContext.getUser().principal();
                 RoleDescriptor.IndicesPrivileges sourceIndexPrivileges = RoleDescriptor.IndicesPrivileges.builder()

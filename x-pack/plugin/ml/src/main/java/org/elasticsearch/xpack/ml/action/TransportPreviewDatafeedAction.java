@@ -119,7 +119,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy) -> {}),
                 listener.delegateFailure((l, dataExtractorFactory) -> {
                     isDateNanos(
-                        previewDatafeedConfig.getHeaders(),
+                        previewDatafeedConfig,
                         job.getDataDescription().getTimeField(),
                         listener.delegateFailure((l2, isDateNanos) -> {
                             DataExtractor dataExtractor = dataExtractorFactory.newExtractor(
@@ -151,13 +151,16 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         return previewDatafeed;
     }
 
-    private void isDateNanos(Map<String, String> headers, String timeField, ActionListener<Boolean> listener) {
+    private void isDateNanos(DatafeedConfig datafeed, String timeField, ActionListener<Boolean> listener) {
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
+        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
+        fieldCapabilitiesRequest.fields(timeField);
         executeWithHeadersAsync(
-            headers,
+            datafeed.getHeaders(),
             ML_ORIGIN,
             client,
             FieldCapabilitiesAction.INSTANCE,
-            new FieldCapabilitiesRequest().fields(timeField),
+            fieldCapabilitiesRequest,
             ActionListener.wrap(fieldCapsResponse -> {
                 Map<String, FieldCapabilities> timeFieldCaps = fieldCapsResponse.getField(timeField);
                 listener.onResponse(timeFieldCaps.keySet().contains(DateFieldMapper.DATE_NANOS_CONTENT_TYPE));

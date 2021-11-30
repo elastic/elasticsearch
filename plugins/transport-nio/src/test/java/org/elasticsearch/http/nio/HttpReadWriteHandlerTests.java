@@ -196,10 +196,10 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         HttpHandlingSettings httpHandlingSettings = HttpHandlingSettings.fromSettings(settings);
 
         CorsHandler corsHandler = CorsHandler.disabled();
-        TaskScheduler taskScheduler = new TaskScheduler();
+        TaskScheduler realScheduler = new TaskScheduler();
 
         Iterator<Integer> timeValues = Arrays.asList(0, 2, 4, 6, 8).iterator();
-        handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, taskScheduler, timeValues::next);
+        handler = new HttpReadWriteHandler(channel, transport, httpHandlingSettings, realScheduler, timeValues::next);
         handler.channelActive();
 
         prepareHandlerForResponse(handler);
@@ -207,31 +207,31 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         HttpWriteOperation writeOperation0 = new HttpWriteOperation(context, emptyGetResponse(0), mock(BiConsumer.class));
         ((ChannelPromise) handler.writeToBytes(writeOperation0).get(0).getListener()).setSuccess();
 
-        taskScheduler.pollTask(timeValue.getNanos() + 1).run();
+        realScheduler.pollTask(timeValue.getNanos() + 1).run();
         // There was a read. Do not close.
         verify(transport, times(0)).onException(eq(channel), any(HttpReadTimeoutException.class));
 
         prepareHandlerForResponse(handler);
         prepareHandlerForResponse(handler);
 
-        taskScheduler.pollTask(timeValue.getNanos() + 3).run();
+        realScheduler.pollTask(timeValue.getNanos() + 3).run();
         // There was a read. Do not close.
         verify(transport, times(0)).onException(eq(channel), any(HttpReadTimeoutException.class));
 
         HttpWriteOperation writeOperation1 = new HttpWriteOperation(context, emptyGetResponse(1), mock(BiConsumer.class));
         ((ChannelPromise) handler.writeToBytes(writeOperation1).get(0).getListener()).setSuccess();
 
-        taskScheduler.pollTask(timeValue.getNanos() + 5).run();
+        realScheduler.pollTask(timeValue.getNanos() + 5).run();
         // There has not been a read, however there is still an inflight request. Do not close.
         verify(transport, times(0)).onException(eq(channel), any(HttpReadTimeoutException.class));
 
         HttpWriteOperation writeOperation2 = new HttpWriteOperation(context, emptyGetResponse(2), mock(BiConsumer.class));
         ((ChannelPromise) handler.writeToBytes(writeOperation2).get(0).getListener()).setSuccess();
 
-        taskScheduler.pollTask(timeValue.getNanos() + 7).run();
+        realScheduler.pollTask(timeValue.getNanos() + 7).run();
         // No reads and no inflight requests, close
         verify(transport, times(1)).onException(eq(channel), any(HttpReadTimeoutException.class));
-        assertNull(taskScheduler.pollTask(timeValue.getNanos() + 9));
+        assertNull(realScheduler.pollTask(timeValue.getNanos() + 9));
     }
 
     private static HttpPipelinedResponse emptyGetResponse(int sequence) {
@@ -242,7 +242,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         return httpResponse;
     }
 
-    private void prepareHandlerForResponse(HttpReadWriteHandler handler) throws IOException {
+    private void prepareHandlerForResponse(HttpReadWriteHandler readWriteHandler) throws IOException {
         HttpMethod method = randomBoolean() ? HttpMethod.GET : HttpMethod.HEAD;
         HttpVersion version = randomBoolean() ? HttpVersion.HTTP_1_0 : HttpVersion.HTTP_1_1;
         String uri = "http://localhost:9090/" + randomAlphaOfLength(8);
@@ -250,7 +250,7 @@ public class HttpReadWriteHandlerTests extends ESTestCase {
         io.netty.handler.codec.http.HttpRequest request = new DefaultFullHttpRequest(version, method, uri);
         ByteBuf buf = requestEncoder.encode(request);
         try {
-            handler.consumeReads(toChannelBuffer(buf));
+            readWriteHandler.consumeReads(toChannelBuffer(buf));
         } finally {
             buf.release();
         }

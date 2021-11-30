@@ -51,6 +51,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -100,7 +101,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
@@ -206,7 +206,7 @@ public class MetadataCreateIndexService {
             } else if (isHidden) {
                 logger.trace("index [{}] is a hidden index", index);
             } else {
-                deprecationLogger.critical(
+                deprecationLogger.warn(
                     DeprecationCategory.INDICES,
                     "index_name_starts_with_dot",
                     "index name [{}] starts with a dot '.', in the next major version, index names "
@@ -394,7 +394,7 @@ public class MetadataCreateIndexService {
                 );
 
                 if (v1Templates.size() > 1) {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.TEMPLATES,
                         "index_template_multiple_match",
                         "index [{}] matches multiple legacy templates [{}], composable templates will only match a single template",
@@ -478,7 +478,10 @@ public class MetadataCreateIndexService {
             );
 
             indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetadata.getIndex(), indexMetadata.getSettings());
-            return clusterStateCreateIndex(currentState, request.blocks(), indexMetadata, allocationService::reroute, metadataTransformer);
+            BiFunction<ClusterState, String, ClusterState> rerouteFunction = request.performReroute()
+                ? allocationService::reroute
+                : (cs, reason) -> cs;
+            return clusterStateCreateIndex(currentState, request.blocks(), indexMetadata, rerouteFunction, metadataTransformer);
         });
     }
 
@@ -701,8 +704,7 @@ public class MetadataCreateIndexService {
         List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(
             composableIndexTemplate,
             componentTemplates,
-            indexName,
-            xContentRegistry
+            indexName
         );
         return collectV2Mappings("{}", templateMappings, xContentRegistry);
     }
@@ -714,12 +716,7 @@ public class MetadataCreateIndexService {
         final NamedXContentRegistry xContentRegistry,
         final String indexName
     ) throws Exception {
-        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(
-            currentState,
-            templateName,
-            indexName,
-            xContentRegistry
-        );
+        List<CompressedXContent> templateMappings = MetadataIndexTemplateService.collectMappings(currentState, templateName, indexName);
         return collectV2Mappings(requestMappings, templateMappings, xContentRegistry);
     }
 
@@ -731,7 +728,7 @@ public class MetadataCreateIndexService {
         List<Map<String, Object>> result = new ArrayList<>();
 
         for (CompressedXContent templateMapping : templateMappings) {
-            Map<String, Object> parsedTemplateMapping = MapperService.parseMapping(xContentRegistry, templateMapping.string());
+            Map<String, Object> parsedTemplateMapping = MapperService.parseMapping(xContentRegistry, templateMapping);
             result.add(parsedTemplateMapping);
         }
 
@@ -811,7 +808,7 @@ public class MetadataCreateIndexService {
         // apply templates, merging the mappings into the request mapping if exists
         for (CompressedXContent mapping : templateMappings) {
             if (mapping != null) {
-                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mapping.string());
+                Map<String, Object> templateMapping = MapperService.parseMapping(xContentRegistry, mapping);
                 if (templateMapping.isEmpty()) {
                     // Someone provided an empty '{}' for mappings, which is okay, but to avoid
                     // tripping the below assertion, we can safely ignore it
@@ -1198,18 +1195,23 @@ public class MetadataCreateIndexService {
         return blocksBuilder;
     }
 
-    private static void updateIndexMappingsAndBuildSortOrder(
+    private void updateIndexMappingsAndBuildSortOrder(
         IndexService indexService,
         CreateIndexClusterStateUpdateRequest request,
         List<Map<String, Object>> mappings,
         @Nullable IndexMetadata sourceMetadata
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
-        for (Map<String, Object> mapping : mappings) {
+        IndexMode indexMode = indexService.getIndexSettings() != null ? indexService.getIndexSettings().getMode() : IndexMode.STANDARD;
+        List<Map<String, Object>> mergedMappings = new ArrayList<>(1 + mappings.size());
+        mergedMappings.add(indexMode.getDefaultMapping());
+        mergedMappings.addAll(mappings);
+        for (Map<String, Object> mapping : mergedMappings) {
             if (mapping.isEmpty() == false) {
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
             }
         }
+        indexMode.validateTimestampFieldMapping(request.dataStreamName() != null, mapperService.mappingLookup());
 
         if (sourceMetadata == null) {
             // now that the mapping is merged we can validate the index sort.
@@ -1217,9 +1219,6 @@ public class MetadataCreateIndexService {
             // at this point. The validation will take place later in the process
             // (when all shards are copied in a single place).
             indexService.getIndexSortSupplier().get();
-        }
-        if (request.dataStreamName() != null) {
-            validateTimestampFieldMapping(mapperService.mappingLookup());
         }
     }
 
@@ -1494,7 +1493,7 @@ public class MetadataCreateIndexService {
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings)
             && (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.SETTINGS,
                 "translog_retention",
                 "Translog retention settings [index.translog.retention.age] and [index.translog.retention.size] are deprecated and "
@@ -1506,7 +1505,7 @@ public class MetadataCreateIndexService {
     public static void validateStoreTypeSetting(Settings indexSettings) {
         final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexSettings);
         if (IndexModule.Type.SIMPLEFS.match(storeType)) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.SETTINGS,
                 "store_type_setting",
                 "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. "

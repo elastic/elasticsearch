@@ -448,9 +448,9 @@ class S3BlobContainer extends AbstractBlobContainer {
         return results;
     }
 
-    private ListObjectsRequest listObjectsRequest(String keyPath) {
+    private ListObjectsRequest listObjectsRequest(String pathPrefix) {
         return new ListObjectsRequest().withBucketName(blobStore.bucket())
-            .withPrefix(keyPath)
+            .withPrefix(pathPrefix)
             .withDelimiter("/")
             .withRequestMetricCollector(blobStore.listMetricCollector);
     }
@@ -462,28 +462,28 @@ class S3BlobContainer extends AbstractBlobContainer {
     /**
      * Uploads a blob using a single upload request
      */
-    void executeSingleUpload(final S3BlobStore blobStore, final String blobName, final InputStream input, final long blobSize)
+    void executeSingleUpload(final S3BlobStore s3BlobStore, final String blobName, final InputStream input, final long blobSize)
         throws IOException {
 
         // Extra safety checks
         if (blobSize > MAX_FILE_SIZE.getBytes()) {
             throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than " + MAX_FILE_SIZE);
         }
-        if (blobSize > blobStore.bufferSizeInBytes()) {
+        if (blobSize > s3BlobStore.bufferSizeInBytes()) {
             throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than buffer size");
         }
 
         final ObjectMetadata md = new ObjectMetadata();
         md.setContentLength(blobSize);
-        if (blobStore.serverSideEncryption()) {
+        if (s3BlobStore.serverSideEncryption()) {
             md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
         }
-        final PutObjectRequest putRequest = new PutObjectRequest(blobStore.bucket(), blobName, input, md);
-        putRequest.setStorageClass(blobStore.getStorageClass());
-        putRequest.setCannedAcl(blobStore.getCannedACL());
-        putRequest.setRequestMetricCollector(blobStore.putMetricCollector);
+        final PutObjectRequest putRequest = new PutObjectRequest(s3BlobStore.bucket(), blobName, input, md);
+        putRequest.setStorageClass(s3BlobStore.getStorageClass());
+        putRequest.setCannedAcl(s3BlobStore.getCannedACL());
+        putRequest.setRequestMetricCollector(s3BlobStore.putMetricCollector);
 
-        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+        try (AmazonS3Reference clientReference = s3BlobStore.clientReference()) {
             SocketAccess.doPrivilegedVoid(() -> { clientReference.client().putObject(putRequest); });
         } catch (final AmazonClientException e) {
             throw new IOException("Unable to upload object [" + blobName + "] using a single upload", e);
@@ -493,11 +493,11 @@ class S3BlobContainer extends AbstractBlobContainer {
     /**
      * Uploads a blob using multipart upload requests.
      */
-    void executeMultipartUpload(final S3BlobStore blobStore, final String blobName, final InputStream input, final long blobSize)
+    void executeMultipartUpload(final S3BlobStore s3BlobStore, final String blobName, final InputStream input, final long blobSize)
         throws IOException {
 
         ensureMultiPartUploadSize(blobSize);
-        final long partSize = blobStore.bufferSizeInBytes();
+        final long partSize = s3BlobStore.bufferSizeInBytes();
         final Tuple<Long, Long> multiparts = numberOfMultiparts(blobSize, partSize);
 
         if (multiparts.v1() > Integer.MAX_VALUE) {
@@ -509,9 +509,9 @@ class S3BlobContainer extends AbstractBlobContainer {
         assert blobSize == (((nbParts - 1) * partSize) + lastPartSize) : "blobSize does not match multipart sizes";
 
         final SetOnce<String> uploadId = new SetOnce<>();
-        final String bucketName = blobStore.bucket();
+        final String bucketName = s3BlobStore.bucket();
         boolean success = false;
-        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+        try (AmazonS3Reference clientReference = s3BlobStore.clientReference()) {
 
             uploadId.set(
                 SocketAccess.doPrivileged(
@@ -553,7 +553,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 uploadId.get(),
                 parts
             );
-            complRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
+            complRequest.setRequestMetricCollector(s3BlobStore.multiPartUploadMetricCollector);
             SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
             success = true;
 

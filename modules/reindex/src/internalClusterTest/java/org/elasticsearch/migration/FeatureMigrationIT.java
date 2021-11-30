@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -84,11 +85,60 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         return plugins;
     }
 
+    public void testStartMigrationAndImmediatelyCheckStatus() throws Exception {
+        createSystemIndexForDescriptor(INTERNAL_MANAGED);
+        createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
+        createSystemIndexForDescriptor(EXTERNAL_MANAGED);
+        createSystemIndexForDescriptor(EXTERNAL_UNMANAGED);
+
+        TestPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
+        TestPlugin.postMigrationHook.set((state, metadata) -> {});
+
+        ensureGreen();
+
+        PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest();
+        GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest();
+
+        // Start the migration and *immediately* request the status. We're trying to detect a race condition with this test, so we need to
+        // do this as fast as possible, but not before the request to start the migration completes.
+        PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, migrationRequest).get();
+        GetFeatureUpgradeStatusResponse statusResponse = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest).get();
+
+        // Make sure we actually started the migration
+        final Set<String> migratingFeatures = migrationResponse.getFeatures()
+            .stream()
+            .map(PostFeatureUpgradeResponse.Feature::getFeatureName)
+            .collect(Collectors.toSet());
+        assertThat(migratingFeatures, hasItem(FEATURE_NAME));
+
+        // We should see that the migration is in progress even though we just started the migration.
+        assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.IN_PROGRESS));
+
+        // Now wait for the migration to finish (otherwise the test infra explodes)
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
+        });
+    }
+
     public void testMigrateInternalManagedSystemIndex() throws Exception {
         createSystemIndexForDescriptor(INTERNAL_MANAGED);
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
         createSystemIndexForDescriptor(EXTERNAL_MANAGED);
         createSystemIndexForDescriptor(EXTERNAL_UNMANAGED);
+
+        CreateIndexRequestBuilder createRequest = prepareCreate(ASSOCIATED_INDEX_NAME);
+        createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
+        createRequest.setSettings(
+            Settings.builder()
+                .put("index.version.created", NEEDS_UPGRADE_VERSION)
+                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                .put("index.hidden", true) // So we don't get a warning
+                .build()
+        );
+        CreateIndexResponse response = createRequest.get();
+        assertTrue(response.isShardsAcknowledged());
 
         ensureGreen();
 
@@ -192,6 +242,30 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         );
     }
 
+    public void testMigrateIndexWithWriteBlock() throws Exception {
+        createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
+
+        String indexName = Optional.ofNullable(INTERNAL_UNMANAGED.getPrimaryIndex())
+            .orElse(INTERNAL_UNMANAGED.getIndexPattern().replace("*", "old"));
+        client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put("index.blocks.write", true)).get();
+
+        TestPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
+        TestPlugin.postMigrationHook.set((state, metadata) -> {});
+
+        ensureGreen();
+
+        client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest()).get();
+
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(
+                GetFeatureUpgradeStatusAction.INSTANCE,
+                new GetFeatureUpgradeStatusRequest()
+            ).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
+        });
+    }
+
     public void assertIndexHasCorrectProperties(
         Metadata metadata,
         String indexName,
@@ -226,11 +300,16 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         CreateIndexRequestBuilder createRequest = prepareCreate(indexName);
         createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
         if (descriptor.getSettings() != null) {
-            createRequest.setSettings(Settings.builder().put("index.version.created", Version.CURRENT).build());
+            createRequest.setSettings(
+                Settings.builder()
+                    .put("index.version.created", Version.CURRENT)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                    .build()
+            );
         } else {
             createRequest.setSettings(
                 createSimpleSettings(
-                    Version.V_7_0_0,
+                    NEEDS_UPGRADE_VERSION,
                     descriptor.isInternal() ? INTERNAL_UNMANAGED_FLAG_VALUE : EXTERNAL_UNMANAGED_FLAG_VALUE
                 )
             );
@@ -258,6 +337,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
     static final String ORIGIN = FeatureMigrationIT.class.getSimpleName();
     static final String FlAG_SETTING_KEY = IndexMetadata.INDEX_PRIORITY_SETTING.getKey();
     static final int INDEX_DOC_COUNT = 100; // arbitrarily chosen
+    public static final Version NEEDS_UPGRADE_VERSION = Version.V_7_0_0;
 
     static final int INTERNAL_MANAGED_FLAG_VALUE = 1;
     static final int INTERNAL_UNMANAGED_FLAG_VALUE = 2;
@@ -268,12 +348,12 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setAliasName(".internal-managed-alias")
         .setPrimaryIndex(".int-man-old")
         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-        .setSettings(createSimpleSettings(Version.V_7_0_0, INTERNAL_MANAGED_FLAG_VALUE))
+        .setSettings(createSimpleSettings(NEEDS_UPGRADE_VERSION, INTERNAL_MANAGED_FLAG_VALUE))
         .setMappings(createSimpleMapping(true, true))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
-        .setMinimumNodeVersion(Version.V_7_0_0)
+        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
     static final SystemIndexDescriptor INTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
@@ -282,7 +362,7 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
-        .setMinimumNodeVersion(Version.V_7_0_0)
+        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
     static final SystemIndexDescriptor EXTERNAL_MANAGED = SystemIndexDescriptor.builder()
@@ -290,12 +370,12 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setAliasName(".external-managed-alias")
         .setPrimaryIndex(".ext-man-old")
         .setType(SystemIndexDescriptor.Type.EXTERNAL_MANAGED)
-        .setSettings(createSimpleSettings(Version.V_7_0_0, EXTERNAL_MANAGED_FLAG_VALUE))
+        .setSettings(createSimpleSettings(NEEDS_UPGRADE_VERSION, EXTERNAL_MANAGED_FLAG_VALUE))
         .setMappings(createSimpleMapping(true, false))
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
-        .setMinimumNodeVersion(Version.V_7_0_0)
+        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
     static final SystemIndexDescriptor EXTERNAL_UNMANAGED = SystemIndexDescriptor.builder()
@@ -304,9 +384,10 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         .setOrigin(ORIGIN)
         .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.singletonList(ORIGIN))
-        .setMinimumNodeVersion(Version.V_7_0_0)
+        .setMinimumNodeVersion(NEEDS_UPGRADE_VERSION)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
+    static final String ASSOCIATED_INDEX_NAME = ".my-associated-idx";
 
     static Settings createSimpleSettings(Version creationVersion, int flagSettingValue) {
         return Settings.builder()
@@ -365,6 +446,12 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
             return Arrays.asList(INTERNAL_MANAGED, INTERNAL_UNMANAGED, EXTERNAL_MANAGED, EXTERNAL_UNMANAGED);
+        }
+
+        @Override
+        public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+
+            return Collections.singletonList(new AssociatedIndexDescriptor(ASSOCIATED_INDEX_NAME, TestPlugin.class.getCanonicalName()));
         }
 
         @Override

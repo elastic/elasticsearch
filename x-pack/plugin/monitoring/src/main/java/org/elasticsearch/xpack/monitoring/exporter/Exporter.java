@@ -34,7 +34,7 @@ public abstract class Exporter implements AutoCloseable {
     private static final Setting.AffixSetting<Boolean> ENABLED_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "enabled",
-        key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope, Property.Deprecated),
+        key -> Setting.boolSetting(key, true, Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
         TYPE_DEPENDENCY
     );
 
@@ -80,7 +80,7 @@ public abstract class Exporter implements AutoCloseable {
                 return settings.iterator();
             }
 
-        }, Property.Dynamic, Property.NodeScope, Property.Deprecated)
+        }, Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning)
     );
     /**
      * Every {@code Exporter} allows users to explicitly disable cluster alerts.
@@ -88,7 +88,7 @@ public abstract class Exporter implements AutoCloseable {
     public static final Setting.AffixSetting<Boolean> CLUSTER_ALERTS_MANAGEMENT_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "cluster_alerts.management.enabled",
-        key -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope, Property.Deprecated),
+        key -> Setting.boolSetting(key, false, Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
         TYPE_DEPENDENCY
     );
     /**
@@ -105,7 +105,7 @@ public abstract class Exporter implements AutoCloseable {
             Function.identity(),
             Property.Dynamic,
             Property.NodeScope,
-            Property.Deprecated
+            Property.DeprecatedWarning
         ),
         TYPE_DEPENDENCY
     );
@@ -122,7 +122,7 @@ public abstract class Exporter implements AutoCloseable {
             DateFormatter::forPattern,
             Property.Dynamic,
             Property.NodeScope,
-            Property.Deprecated
+            Property.DeprecatedWarning
         ),
         TYPE_DEPENDENCY
     );

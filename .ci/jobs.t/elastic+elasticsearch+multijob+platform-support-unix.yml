@@ -15,7 +15,7 @@
           values:
             - "centos-7&&immutable"
             - "centos-8&&immutable"
-            - "debian-9&&immutable"
+            - "amazon&&immutable"
             - "debian-10&&immutable"
             - "debian-11&&immutable"
             - "opensuse-15-1&&immutable"
@@ -26,6 +26,9 @@
             - "ubuntu-18.04&&immutable"
             - "ubuntu-20.04&&immutable"
             - "rocky-linux-8&&immutable"
+            - "rhel-7&&immutable"
+            - "rhel-8&&immutable"
+            - "almalinux-8&&immutable"
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'
@@ -33,7 +36,7 @@
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             JAVA11_HOME=$HOME/.java/java11
-            JAVA15_HOME=$HOME/.java/openjdk15
+            JAVA16_HOME=$HOME/.java/openjdk16
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
           $WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check

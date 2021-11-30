@@ -232,11 +232,14 @@ public class CollectArgumentsPhase extends IRTreeBaseVisitor<CollectArgumentsSco
 
         if (irStoreVariableNode.getChildNode() instanceof BinaryImplNode) {
             BinaryImplNode irBinaryImplNode = (BinaryImplNode) irStoreVariableNode.getChildNode();
-            ConstantNode docLookupKeyNode = lookupKeyForMapAccessOnVariable("doc", (BinaryImplNode) irBinaryImplNode.getLeftNode(), scope);
-            if (docLookupKeyNode != null && rightChildIsValueAccess(irBinaryImplNode)) {
-                Object value = docLookupKeyNode.getDecorationValue(IRDecorations.IRDConstant.class);
-                if (value instanceof String) {
-                    scope.putVariableField(name, (String) value);
+            ExpressionNode left = irBinaryImplNode.getLeftNode();
+            if (left instanceof BinaryImplNode) {
+                ConstantNode docLookupKeyNode = lookupKeyForMapAccessOnVariable("doc", (BinaryImplNode) left, scope);
+                if (docLookupKeyNode != null && rightChildIsValueAccess(irBinaryImplNode)) {
+                    Object value = docLookupKeyNode.getDecorationValue(IRDecorations.IRDConstant.class);
+                    if (value instanceof String) {
+                        scope.putVariableField(name, (String) value);
+                    }
                 }
             }
         }

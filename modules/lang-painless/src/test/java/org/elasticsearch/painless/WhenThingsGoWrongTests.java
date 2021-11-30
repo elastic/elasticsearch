@@ -103,7 +103,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
                 return;
             }
         }
-        fail("didn't find script stack element");
+        throw new AssertionError("didn't find script stack element. attaching original exeption as the cause", exception);
     }
 
     public void testInvalidShift() {

@@ -95,9 +95,9 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
                 } catch (IllegalArgumentException e) {
                     validationException = addValidationError(e.getMessage(), validationException);
                 }
-                for (String name : privilege.getPrivileges()) {
+                for (String privilegeName : privilege.getPrivileges()) {
                     try {
-                        ApplicationPrivilege.validatePrivilegeOrActionName(name);
+                        ApplicationPrivilege.validatePrivilegeOrActionName(privilegeName);
                     } catch (IllegalArgumentException e) {
                         validationException = addValidationError(e.getMessage(), validationException);
                     }
@@ -117,12 +117,12 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         this.name = name;
     }
 
-    public void cluster(String... clusterPrivileges) {
-        this.clusterPrivileges = clusterPrivileges;
+    public void cluster(String... clusterPrivilegesArray) {
+        this.clusterPrivileges = clusterPrivilegesArray;
     }
 
-    public void conditionalCluster(ConfigurableClusterPrivilege... configurableClusterPrivileges) {
-        this.configurableClusterPrivileges = configurableClusterPrivileges;
+    public void conditionalCluster(ConfigurableClusterPrivilege... configurableClusterPrivilegesArray) {
+        this.configurableClusterPrivileges = configurableClusterPrivilegesArray;
     }
 
     public void addIndex(RoleDescriptor.IndicesPrivileges... privileges) {

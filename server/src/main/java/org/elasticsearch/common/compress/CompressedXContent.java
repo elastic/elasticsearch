@@ -169,7 +169,7 @@ public final class CompressedXContent {
     public static CompressedXContent readCompressedString(StreamInput in) throws IOException {
         final String sha256;
         final byte[] compressedData;
-        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             sha256 = in.readString();
             compressedData = in.readByteArray();
         } else {
@@ -181,7 +181,7 @@ public final class CompressedXContent {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeString(sha256);
         } else {
             int crc32 = crc32FromCompressed(bytes);

@@ -87,10 +87,12 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         );
         assertElasticsearchFailure(
             startSecondNodeWithInvalidAddress,
-            List.of("Aborting enrolling to cluster. "
+            List.of(
+                "Aborting enrolling to cluster. "
                 + "Could not communicate with the node on any of the addresses from the enrollment token. All of "
                 + tokenWithWrongAddress.getBoundAddress()
-                + " where attempted."),
+                + " where attempted."
+            ),
             null
         );
         verifySecurityNotAutoConfigured(installation);

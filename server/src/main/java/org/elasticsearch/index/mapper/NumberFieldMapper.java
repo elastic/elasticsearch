@@ -28,6 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -35,7 +36,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
+import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
+import org.elasticsearch.index.fielddata.ScriptDocValues.LongsSupplier;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
@@ -345,7 +348,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedDoublesIndexFieldData.Builder(
                     name,
                     numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
+                    (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
                 );
             }
 
@@ -456,7 +459,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedDoublesIndexFieldData.Builder(
                     name,
                     numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
+                    (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
                 );
             }
 
@@ -550,7 +553,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedDoublesIndexFieldData.Builder(
                     name,
                     numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
+                    (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
                 );
             }
 
@@ -631,7 +634,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedNumericIndexFieldData.Builder(
                     name,
                     numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
+                    (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
                 );
             }
         },
@@ -702,7 +705,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedNumericIndexFieldData.Builder(
                     name,
                     numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
+                    (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
                 );
             }
         },
@@ -832,7 +835,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedNumericIndexFieldData.Builder(
                     name,
                     numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
+                    (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
                 );
             }
         },
@@ -932,7 +935,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedNumericIndexFieldData.Builder(
                     name,
                     numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
+                    (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
                 );
             }
         };
@@ -1367,7 +1370,7 @@ public class NumberFieldMapper extends FieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         Number value;
         try {
-            value = value(context.parser(), type, nullValue, coerce.value());
+            value = value(context.parser(), type, nullValue, coerce());
         } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
             if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
                 context.addIgnoredField(mappedFieldType.name());
@@ -1397,12 +1400,26 @@ public class NumberFieldMapper extends FieldMapper {
         if (coerce && parser.currentToken() == Token.VALUE_STRING && parser.textLength() == 0) {
             return nullValue;
         }
+        if (parser.currentToken() == Token.START_OBJECT) {
+            throw new IllegalArgumentException("Cannot parse object as number");
+        }
         return numberType.parse(parser, coerce);
     }
 
     private void indexValue(DocumentParserContext context, Number numericValue) {
+        if (dimension && numericValue != null) {
+            // Dimension can only be one of byte, short, int, long. So, we encode the tsid
+            // part of the dimension field by using the long value.
+            // Also, there is no point in encoding the tsid value if we do not generate
+            // the _tsid field.
+            BytesReference bytes = context.getMetadataMapper(TimeSeriesIdFieldMapper.NAME) != null
+                ? TimeSeriesIdFieldMapper.encodeTsidValue(numericValue.longValue())
+                : null;
+            context.doc().addDimensionBytes(fieldType().name(), bytes);
+        }
+
         List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
-        if (dimension || singleValue) {
+        if (singleValue) {
             // Check that field is single-valued and not an array
             if (context.doc().getByKey(fieldType().name()) != null) {
                 throw new IllegalArgumentException("field [" + fieldType().name() + "] cannot be a multi-valued field.");

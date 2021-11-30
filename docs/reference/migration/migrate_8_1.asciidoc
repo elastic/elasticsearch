@@ -11,6 +11,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 coming[8.1.0]
 
+////
 [discrete]
 [[breaking-changes-8.1]]
 === Breaking changes
@@ -32,7 +33,8 @@ enable <<deprecation-logging, deprecation logging>>.
 
 //tag::notable-breaking-changes[]
 
-// end::notable-breaking-changes[]
+//end::notable-breaking-changes[]
+////
 
 [discrete]
 [[deprecated-8.1]]
@@ -49,9 +51,11 @@ the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
+//tag::notable-breaking-changes[]
+
 [discrete]
-[[breaking_8.1_settings_deprecation]]
-==== Settings deprecations
+[[breaking_8.1_cluster_node_setting_deprecations]]
+==== Cluster and node setting deprecations
 
 [[deprecate-legacy-discovery-type-setting]]
 .Legacy values for the `discovery.type` setting are deprecated.
@@ -69,8 +73,8 @@ discovery type.
 ====
 
 [discrete]
-[[breaking_8.1_crud_deprecation]]
-==== CRUD deprecations
+[[breaking_8.1_rest_api_deprecations]]
+==== REST API deprecations
 
 [[deprecate-lenient-parsing-of-bulk-actions]]
 .Lenient parsing of bulk actions is deprecated.
@@ -86,3 +90,4 @@ actions.
 Ensure that bulk actions are well-formed JSON objects containing a single entry
 with the correct key.
 ====
+//end::notable-breaking-changes[]

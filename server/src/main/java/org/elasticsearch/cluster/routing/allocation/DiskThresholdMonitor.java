@@ -453,6 +453,7 @@ public class DiskThresholdMonitor {
             .indices()
             .prepareUpdateSettings(indicesToUpdate.toArray(Strings.EMPTY_ARRAY))
             .setSettings(readOnlySettings)
+            .origin("disk-threshold-monitor")
             .execute(wrappedListener.map(r -> null));
     }
 

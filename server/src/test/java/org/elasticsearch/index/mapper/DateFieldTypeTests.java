@@ -32,6 +32,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
+import org.elasticsearch.index.fielddata.ScriptDocValues.DatesSupplier;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -338,7 +339,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData(
             "my_date",
             IndexNumericFieldData.NumericType.DATE_NANOSECONDS,
-            (dv, n) -> new DelegateDocValuesField(new Dates(dv, true), n)
+            (dv, n) -> new DelegateDocValuesField(new Dates(new DatesSupplier(dv, true)), n)
         );
         // Read index and check the doc values
         DirectoryReader reader = DirectoryReader.open(w);

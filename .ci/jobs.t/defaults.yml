@@ -53,6 +53,7 @@
           url: https://github.com/elastic/elasticsearch/
       - inject:
           properties-content: |
+            COMPOSE_HTTP_TIMEOUT=120
             JOB_BRANCH=%BRANCH%
             HOME=$JENKINS_HOME
             GRADLEW=./gradlew --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/

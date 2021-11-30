@@ -199,6 +199,7 @@ public class InternalStringStats extends InternalAggregation {
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     public InternalStringStats reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long count = 0;
         long totalLength = 0;

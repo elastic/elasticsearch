@@ -71,8 +71,14 @@ public class HiddenFieldCheck extends AbstractCheck {
     /** Control whether to ignore constructor parameters. */
     private boolean ignoreConstructorParameter;
 
+    /** Control whether to ignore variables in constructor bodies. */
+    private boolean ignoreConstructorBody;
+
     /** Control whether to ignore parameters of abstract methods. */
     private boolean ignoreAbstractMethods;
+
+    /** If set, specifies a regex of method names that should be ignored */
+    private String ignoredMethodNames;
 
     @Override
     public int[] getDefaultTokens() {
@@ -224,7 +230,8 @@ public class HiddenFieldCheck extends AbstractCheck {
 
             if ((frame.containsStaticField(name) || isInstanceField(ast, name))
                 && isMatchingRegexp(name) == false
-                && isIgnoredParam(ast, name) == false) {
+                && isIgnoredParam(ast, name) == false
+                && isIgnoredVariable(ast, name) == false) {
                 log(nameAST, MSG_KEY, name);
             }
         }
@@ -238,7 +245,14 @@ public class HiddenFieldCheck extends AbstractCheck {
      * @return true if parameter is ignored.
      */
     private boolean isIgnoredParam(DetailAST ast, String name) {
-        return isIgnoredSetterParam(ast, name) || isIgnoredConstructorParam(ast) || isIgnoredParamOfAbstractMethod(ast);
+        return isVariableInIgnoredMethod(ast, name)
+            || isIgnoredSetterParam(ast, name)
+            || isIgnoredConstructorParam(ast)
+            || isIgnoredParamOfAbstractMethod(ast);
+    }
+
+    private boolean isIgnoredVariable(DetailAST ast, String name) {
+        return isIgnoredVariableInConstructorBody(ast, name);
     }
 
     /**
@@ -365,7 +379,8 @@ public class HiddenFieldCheck extends AbstractCheck {
         // we should not capitalize the first character if the second
         // one is a capital one, since according to JavaBeans spec
         // setXYzz() is a setter for XYzz property, not for xYzz one.
-        if (name.length() == 1 || Character.isUpperCase(name.charAt(1)) == false) {
+        // @pugnascotia: unless the first char is 'x'.
+        if (name.length() == 1 || (Character.isUpperCase(name.charAt(1)) == false || name.charAt(0) == 'x')) {
             setterName = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1);
         }
         return setterName;
@@ -406,6 +421,42 @@ public class HiddenFieldCheck extends AbstractCheck {
                 result = mods.findFirstToken(TokenTypes.ABSTRACT) != null;
             }
         }
+        return result;
+    }
+
+    /**
+     * Decides whether to ignore an AST node that is the parameter of a method whose
+     * name matches the {@link #ignoredMethodNames} regex, if set.
+     * @param ast the AST to check
+     * @return true is the ast should be ignored because the parameter belongs to a
+     *      method whose name matches the regex.
+     */
+    private boolean isVariableInIgnoredMethod(DetailAST ast, String name) {
+        boolean result = false;
+        if (ignoredMethodNames != null && (ast.getType() == TokenTypes.PARAMETER_DEF || ast.getType() == TokenTypes.VARIABLE_DEF)) {
+            DetailAST method = ast.getParent();
+            while (method != null && method.getType() != TokenTypes.METHOD_DEF) {
+                method = method.getParent();
+            }
+            if (method != null && method.getType() == TokenTypes.METHOD_DEF) {
+                final String methodName = method.findFirstToken(TokenTypes.IDENT).getText();
+                result = methodName.matches(ignoredMethodNames);
+            }
+        }
+        return result;
+    }
+
+    private boolean isIgnoredVariableInConstructorBody(DetailAST ast, String name) {
+        boolean result = false;
+
+        if (ignoreConstructorBody && ast.getType() == TokenTypes.VARIABLE_DEF) {
+            DetailAST method = ast.getParent();
+            while (method != null && method.getType() != TokenTypes.CTOR_DEF) {
+                method = method.getParent();
+            }
+            result = method != null && method.getType() == TokenTypes.CTOR_DEF;
+        }
+
         return result;
     }
 
@@ -460,6 +511,14 @@ public class HiddenFieldCheck extends AbstractCheck {
      */
     public void setIgnoreAbstractMethods(boolean ignoreAbstractMethods) {
         this.ignoreAbstractMethods = ignoreAbstractMethods;
+    }
+
+    public void setIgnoredMethodNames(String ignoredMethodNames) {
+        this.ignoredMethodNames = ignoredMethodNames;
+    }
+
+    public void setIgnoreConstructorBody(boolean ignoreConstructorBody) {
+        this.ignoreConstructorBody = ignoreConstructorBody;
     }
 
     /**

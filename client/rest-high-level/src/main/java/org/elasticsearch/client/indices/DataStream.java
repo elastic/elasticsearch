@@ -34,6 +34,8 @@ public final class DataStream {
     String ilmPolicyName;
     @Nullable
     private final Map<String, Object> metadata;
+    private final boolean allowCustomRouting;
+    private final boolean replicated;
 
     public DataStream(
         String name,
@@ -45,7 +47,9 @@ public final class DataStream {
         @Nullable String ilmPolicyName,
         @Nullable Map<String, Object> metadata,
         boolean hidden,
-        boolean system
+        boolean system,
+        boolean allowCustomRouting,
+        boolean replicated
     ) {
         this.name = name;
         this.timeStampField = timeStampField;
@@ -57,6 +61,8 @@ public final class DataStream {
         this.metadata = metadata;
         this.hidden = hidden;
         this.system = system;
+        this.allowCustomRouting = allowCustomRouting;
+        this.replicated = replicated;
     }
 
     public String getName() {
@@ -99,6 +105,14 @@ public final class DataStream {
         return system;
     }
 
+    public boolean allowsCustomRouting() {
+        return allowCustomRouting;
+    }
+
+    public boolean isReplicated() {
+        return replicated;
+    }
+
     public static final ParseField NAME_FIELD = new ParseField("name");
     public static final ParseField TIMESTAMP_FIELD_FIELD = new ParseField("timestamp_field");
     public static final ParseField INDICES_FIELD = new ParseField("indices");
@@ -109,6 +123,8 @@ public final class DataStream {
     public static final ParseField METADATA_FIELD = new ParseField("_meta");
     public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
     public static final ParseField SYSTEM_FIELD = new ParseField("system");
+    public static final ParseField ALLOW_CUSTOM_ROUTING = new ParseField("allow_custom_routing");
+    public static final ParseField REPLICATED = new ParseField("replicated");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
@@ -123,6 +139,8 @@ public final class DataStream {
         Map<String, Object> metadata = (Map<String, Object>) args[7];
         boolean hidden = args[8] != null && (boolean) args[8];
         boolean system = args[9] != null && (boolean) args[9];
+        boolean allowCustomRouting = args[10] != null && (boolean) args[10];
+        boolean replicated = args[11] != null && (boolean) args[11];
         return new DataStream(
             dataStreamName,
             timeStampField,
@@ -133,7 +151,9 @@ public final class DataStream {
             ilmPolicy,
             metadata,
             hidden,
-            system
+            system,
+            allowCustomRouting,
+            replicated
         );
     });
 
@@ -148,6 +168,8 @@ public final class DataStream {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), METADATA_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN_FIELD);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), SYSTEM_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), REPLICATED);
     }
 
     public static DataStream fromXContent(XContentParser parser) throws IOException {
@@ -168,7 +190,9 @@ public final class DataStream {
             && system == that.system
             && Objects.equals(indexTemplate, that.indexTemplate)
             && Objects.equals(ilmPolicyName, that.ilmPolicyName)
-            && Objects.equals(metadata, that.metadata);
+            && Objects.equals(metadata, that.metadata)
+            && allowCustomRouting == that.allowCustomRouting
+            && replicated == that.replicated;
     }
 
     @Override
@@ -183,7 +207,9 @@ public final class DataStream {
             ilmPolicyName,
             metadata,
             hidden,
-            system
+            system,
+            allowCustomRouting,
+            replicated
         );
     }
 }

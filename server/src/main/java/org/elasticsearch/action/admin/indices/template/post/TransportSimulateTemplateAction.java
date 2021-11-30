@@ -61,7 +61,8 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
-        SystemIndices systemIndices) {
+        SystemIndices systemIndices
+    ) {
         super(
             SimulateTemplateAction.NAME,
             transportService,

@@ -72,7 +72,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
         IndicesService indicesService,
-        SystemIndices systemIndices) {
+        SystemIndices systemIndices
+    ) {
         super(
             SimulateIndexTemplateAction.NAME,
             transportService,
@@ -187,7 +188,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         final NamedXContentRegistry xContentRegistry,
         final IndicesService indicesService,
         final AliasValidator aliasValidator,
-        final SystemIndices systemIndices) throws Exception {
+        final SystemIndices systemIndices
+    ) throws Exception {
         Settings settings = resolveSettings(simulatedState.metadata(), matchingTemplate);
 
         List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(

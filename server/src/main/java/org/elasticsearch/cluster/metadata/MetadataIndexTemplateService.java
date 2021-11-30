@@ -127,7 +127,8 @@ public class MetadataIndexTemplateService {
         IndicesService indicesService,
         IndexScopedSettings indexScopedSettings,
         NamedXContentRegistry xContentRegistry,
-        SystemIndices systemIndices) {
+        SystemIndices systemIndices
+    ) {
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
         this.indicesService = indicesService;
@@ -1317,7 +1318,8 @@ public class MetadataIndexTemplateService {
         final ComposableIndexTemplate template,
         final IndicesService indicesService,
         final NamedXContentRegistry xContentRegistry,
-        final SystemIndices systemIndices) throws Exception {
+        final SystemIndices systemIndices
+    ) throws Exception {
         final ClusterState stateWithTemplate = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata()).put(templateName, template))
             .build();

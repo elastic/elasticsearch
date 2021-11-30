@@ -48,6 +48,7 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
@@ -1231,9 +1232,7 @@ public class MetadataTests extends ESTestCase {
             .numberOfReplicas(1)
             .build();
         b.put(ds2Index1, false);
-        b.put(
-            new DataStream(dataStreamName2, createTimestampField("@timestamp"), Collections.singletonList(ds2Index1.getIndex()), 1, null)
-        );
+        b.put(new DataStream(dataStreamName2, createTimestampField("@timestamp"), singletonList(ds2Index1.getIndex()), 1, null));
 
         Metadata metadata = b.build();
         assertThat(metadata.dataStreams().size(), equalTo(2));
@@ -1318,7 +1317,7 @@ public class MetadataTests extends ESTestCase {
         Metadata.Builder b = Metadata.builder();
         addDataStream("my-alias", b);
         b.put("my-alias", "my-alias", null, null);
-        var e = expectThrows(IllegalStateException.class, b::build);
+        Exception e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
 
         b = Metadata.builder();
@@ -1349,16 +1348,16 @@ public class MetadataTests extends ESTestCase {
     public void testDataStreamAliasValidationRestoreScenario() {
         Metadata.Builder b = Metadata.builder();
         b.dataStreams(
-            Map.of("my-alias", createDataStream("my-alias")),
-            Map.of("my-alias", new DataStreamAlias("my-alias", List.of("my-alias"), null, null))
+            org.elasticsearch.core.Map.of("my-alias", createDataStream("my-alias")),
+            org.elasticsearch.core.Map.of("my-alias", new DataStreamAlias("my-alias", singletonList("my-alias"), null, null))
         );
-        var e = expectThrows(IllegalStateException.class, b::build);
+        Exception e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
 
         b = Metadata.builder();
         b.dataStreams(
-            Map.of("d1", createDataStream("d1"), "my-alias", createDataStream("my-alias")),
-            Map.of("my-alias", new DataStreamAlias("my-alias", List.of("d1"), null, null))
+            org.elasticsearch.core.Map.of("d1", createDataStream("d1"), "my-alias", createDataStream("my-alias")),
+            org.elasticsearch.core.Map.of("my-alias", new DataStreamAlias("my-alias", singletonList("d1"), null, null))
         );
         e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
@@ -1374,7 +1373,10 @@ public class MetadataTests extends ESTestCase {
                 )
                 .putAlias(new AliasMetadata.Builder("my-alias"))
         );
-        b.dataStreams(Map.of("d1", createDataStream("d1")), Map.of("my-alias", new DataStreamAlias("my-alias", List.of("d1"), null, null)));
+        b.dataStreams(
+            org.elasticsearch.core.Map.of("d1", createDataStream("d1")),
+            org.elasticsearch.core.Map.of("my-alias", new DataStreamAlias("my-alias", singletonList("d1"), null, null))
+        );
         e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (my-alias)"));
     }
@@ -1847,7 +1849,7 @@ public class MetadataTests extends ESTestCase {
             DataStream dataStream = new DataStream(
                 dataStreamName,
                 new DataStream.TimestampField("@timestamp"),
-                Collections.singletonList(idx.getIndex())
+                singletonList(idx.getIndex())
             );
             builder.put(dataStream);
             Metadata metadata = builder.build();

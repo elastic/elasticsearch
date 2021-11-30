@@ -1084,14 +1084,14 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRestoreDataStreamAliasWithConflictingDataStream() throws Exception {
-        var snapshotName = "test-snapshot";
+        String snapshotName = "test-snapshot";
         createFullSnapshot(REPO, snapshotName);
         client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet();
         DataStreamIT.putComposableIndexTemplate("my-template", List.of("my-*"));
-        var request = new CreateDataStreamAction.Request("my-alias");
+        CreateDataStreamAction.Request request = new CreateDataStreamAction.Request("my-alias");
         assertAcked(client.execute(CreateDataStreamAction.INSTANCE, request).actionGet());
 
-        var e = expectThrows(
+        Exception e = expectThrows(
             IllegalStateException.class,
             () -> client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true).get()
         );
@@ -1099,13 +1099,13 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testRestoreDataStreamAliasWithConflictingIndicesAlias() throws Exception {
-        var snapshotName = "test-snapshot";
+        String snapshotName = "test-snapshot";
         createFullSnapshot(REPO, snapshotName);
         client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet();
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index").alias(new Alias("my-alias"));
         assertAcked(client.admin().indices().create(createIndexRequest).actionGet());
 
-        var e = expectThrows(
+        Exception e = expectThrows(
             IllegalStateException.class,
             () -> client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true).get()
         );

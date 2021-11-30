@@ -83,30 +83,21 @@ public class TSDBDataStreamService extends AbstractLifecycleComponent implements
             Instant currentEnd = Instant.ofEpochMilli(
                 DEFAULT_DATE_TIME_FORMATTER.parseMillis(im.getSettings().get(IndexSettings.TIME_SERIES_END_TIME.getKey()))
             );
-            if (Instant.now().plus(pollInterval.getMillis() * 2, ChronoUnit.MILLIS).compareTo(currentEnd) >= 0) {
-                Instant newEnd = currentEnd.plus(DataStream.DEFAULT_LOOK_AHEAD_TIME).plus(pollInterval.getMillis(), ChronoUnit.MILLIS);
-                Settings settings = Settings.builder()
-                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DEFAULT_DATE_TIME_FORMATTER.format(newEnd))
-                    .build();
-                LOGGER.info(
-                    "updating [{}] setting from [{}] to [{}] for index [{}]",
-                    IndexSettings.TIME_SERIES_END_TIME.getKey(),
-                    currentEnd,
-                    newEnd,
-                    head
-                );
-                if (mBuilder == null) {
-                    mBuilder = Metadata.builder(current.metadata());
-                }
-                mBuilder.updateSettings(settings, head);
-            } else {
-                LOGGER.info(
-                    "not updating [{}] setting with value [{}] for index [{}]",
-                    IndexSettings.TIME_SERIES_END_TIME.getKey(),
-                    currentEnd,
-                    head
-                );
+            Instant newEnd = Instant.now().plus(DataStream.DEFAULT_LOOK_AHEAD_TIME).plus(pollInterval.getMillis(), ChronoUnit.MILLIS);
+            Settings settings = Settings.builder()
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DEFAULT_DATE_TIME_FORMATTER.format(newEnd))
+                .build();
+            LOGGER.info(
+                "updating [{}] setting from [{}] to [{}] for index [{}]",
+                IndexSettings.TIME_SERIES_END_TIME.getKey(),
+                currentEnd,
+                newEnd,
+                head
+            );
+            if (mBuilder == null) {
+                mBuilder = Metadata.builder(current.metadata());
             }
+            mBuilder.updateSettings(settings, head);
         }
 
         if (mBuilder != null) {

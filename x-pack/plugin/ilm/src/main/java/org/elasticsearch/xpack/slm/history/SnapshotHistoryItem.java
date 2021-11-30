@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.slm.history;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -19,15 +17,12 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.slm.SnapshotLifecycleTask;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 
 /**
  * Represents the record of a Snapshot Lifecycle Management action, so that it
@@ -138,7 +133,7 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
         String snapshotName,
         Exception exception
     ) throws IOException {
-        String exceptionString = exceptionToString(exception);
+        String exceptionString = SnapshotLifecycleTask.exceptionToString(exception);
         return new SnapshotHistoryItem(
             timeStamp,
             policy.getId(),
@@ -162,7 +157,7 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
         String repository,
         Exception exception
     ) throws IOException {
-        String exceptionString = exceptionToString(exception);
+        String exceptionString = SnapshotLifecycleTask.exceptionToString(exception);
         return new SnapshotHistoryItem(timestamp, policyId, repository, snapshotName, DELETE_OPERATION, false, null, exceptionString);
     }
 
@@ -243,19 +238,14 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        boolean result;
-        if (this == o) result = true;
-        if (o == null || getClass() != o.getClass()) result = false;
-        SnapshotHistoryItem that1 = (SnapshotHistoryItem) o;
-        result = isSuccess() == that1.isSuccess()
-            && timestamp == that1.getTimestamp()
-            && Objects.equals(getPolicyId(), that1.getPolicyId())
-            && Objects.equals(getRepository(), that1.getRepository())
-            && Objects.equals(getSnapshotName(), that1.getSnapshotName())
-            && Objects.equals(getOperation(), that1.getOperation());
-        if (result == false) return false;
         SnapshotHistoryItem that = (SnapshotHistoryItem) o;
-        return Objects.equals(getSnapshotConfiguration(), that.getSnapshotConfiguration())
+        return isSuccess() == that.isSuccess()
+            && timestamp == that.getTimestamp()
+            && Objects.equals(getPolicyId(), that.getPolicyId())
+            && Objects.equals(getRepository(), that.getRepository())
+            && Objects.equals(getSnapshotName(), that.getSnapshotName())
+            && Objects.equals(getOperation(), that.getOperation())
+            && Objects.equals(getSnapshotConfiguration(), that.getSnapshotConfiguration())
             && Objects.equals(getErrorDetails(), that.getErrorDetails());
     }
 
@@ -278,15 +268,4 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
         return Strings.toString(this);
     }
 
-    private static String exceptionToString(Exception exception) throws IOException {
-        Params stacktraceParams = new MapParams(Collections.singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"));
-        String exceptionString;
-        try (XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder()) {
-            causeXContentBuilder.startObject();
-            ElasticsearchException.generateThrowableXContent(causeXContentBuilder, stacktraceParams, exception);
-            causeXContentBuilder.endObject();
-            exceptionString = BytesReference.bytes(causeXContentBuilder).utf8ToString();
-        }
-        return exceptionString;
-    }
 }

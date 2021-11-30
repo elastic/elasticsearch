@@ -90,9 +90,14 @@ public final class NetworkService {
     }
 
     private final List<CustomNameResolver> customNameResolvers;
+    private final HandlingTimeTracker handlingTimeTracker = new HandlingTimeTracker();
 
     public NetworkService(List<CustomNameResolver> customNameResolvers) {
         this.customNameResolvers = Objects.requireNonNull(customNameResolvers, "customNameResolvers must be non null");
+    }
+
+    public HandlingTimeTracker getHandlingTimeTracker() {
+        return handlingTimeTracker;
     }
 
     /**

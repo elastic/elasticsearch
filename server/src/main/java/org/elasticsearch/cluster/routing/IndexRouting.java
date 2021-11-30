@@ -110,6 +110,12 @@ public abstract class IndexRouting {
         return Murmur3HashFunction.hash(effectiveRouting);
     }
 
+    /**
+     * Check if the _split index operation is allowed for an index
+     * @throws IllegalArgumentException if the operation is not allowed
+     */
+    public void checkIndexSplitAllowed() {}
+
     private abstract static class IdAndRoutingOnly extends IndexRouting {
         private final boolean routingRequired;
 
@@ -293,6 +299,11 @@ public abstract class IndexRouting {
         @Override
         public int getShard(String id, @Nullable String routing) {
             throw new IllegalArgumentException(error("get"));
+        }
+
+        @Override
+        public void checkIndexSplitAllowed() {
+            throw new IllegalArgumentException(error("index-split"));
         }
 
         @Override

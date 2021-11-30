@@ -52,7 +52,15 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
         this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newObjectArray(Math.min(size, 100));
-        this.valueBuilders = bigArrays.newObjectArray(Math.min(size, 100));
+        boolean success = false;
+        try {
+            this.valueBuilders = bigArrays.newObjectArray(Math.min(size, 100));
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     @Override

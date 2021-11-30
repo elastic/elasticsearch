@@ -109,8 +109,8 @@ public final class IndicesPermission {
         } else {
             matcher = StringMatcher.of(ordinaryIndices);
             if (restrictedNamesAutomaton != null) {
-                CharacterRunAutomaton characterRunAutomaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
-                matcher = matcher.and("<not-restricted>", name -> characterRunAutomaton.run(name) == false);
+                CharacterRunAutomaton automaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
+                matcher = matcher.and("<not-restricted>", name -> automaton.run(name) == false);
             }
             if (restrictedIndices.isEmpty() == false) {
                 matcher = StringMatcher.of(restrictedIndices).or(matcher);
@@ -331,11 +331,11 @@ public final class IndicesPermission {
                 return List.of(indexAbstraction.getName());
             } else {
                 final List<Index> indices = indexAbstraction.getIndices();
-                final List<String> concreteIndices = new ArrayList<>(indices.size());
+                final List<String> concreteIndexNames = new ArrayList<>(indices.size());
                 for (var idx : indices) {
-                    concreteIndices.add(idx.getName());
+                    concreteIndexNames.add(idx.getName());
                 }
-                return concreteIndices;
+                return concreteIndexNames;
             }
         }
 

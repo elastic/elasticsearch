@@ -65,7 +65,7 @@ Identifier for the {transform}.
 `timeout`::
 (Optional, time)
 Period to wait for a response. If no response is received before the timeout
-expires, the request fails and returns an error.
+expires, the request fails and returns an error. Defaults to `30s`.
    
 
 [[start-transform-example]]

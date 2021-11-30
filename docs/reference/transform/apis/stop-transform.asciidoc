@@ -54,7 +54,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transfo
   more than `timeout` time has passed, the API throws a timeout exception. Even
   if a timeout exception is thrown, the stop request is still processing and
   eventually moves the {transform} to `STOPPED`. The timeout simply means the API
-  call itself timed out while waiting for the status change. Defaults to `30s`
+  call itself timed out while waiting for the status change. Defaults to `30s`.
 
 `wait_for_checkpoint`::
   (Optional, Boolean) If set to `true`, the transform will not completely stop

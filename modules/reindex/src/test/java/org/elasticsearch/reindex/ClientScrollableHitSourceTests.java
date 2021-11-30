@@ -203,18 +203,18 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             this.listener = listener;
         }
 
-        public void respond(ActionType<Response> action, Function<Request, Response> response) {
-            assertEquals(action, this.action);
+        public void respond(ActionType<Response> actionType, Function<Request, Response> response) {
+            assertEquals(actionType, this.action);
             listener.onResponse(response.apply(request));
         }
 
-        public void fail(ActionType<Response> action, Exception response) {
-            assertEquals(action, this.action);
+        public void fail(ActionType<Response> actionType, Exception response) {
+            assertEquals(actionType, this.action);
             listener.onFailure(response);
         }
 
-        public void validateRequest(ActionType<Response> action, Consumer<? super Request> validator) {
-            assertEquals(action, this.action);
+        public void validateRequest(ActionType<Response> actionType, Consumer<? super Request> validator) {
+            assertEquals(actionType, this.action);
             validator.accept(request);
         }
     }
@@ -242,12 +242,12 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             ActionType<Response> action,
             Function<Request, Response> response
         ) {
-            ExecuteRequest<?, ?> executeRequest;
+            ExecuteRequest<?, ?> executeRequestCopy;
             synchronized (this) {
-                executeRequest = this.executeRequest;
+                executeRequestCopy = this.executeRequest;
                 this.executeRequest = null;
             }
-            ((ExecuteRequest<Request, Response>) executeRequest).respond(action, response);
+            ((ExecuteRequest<Request, Response>) executeRequestCopy).respond(action, response);
         }
 
         public <Response extends ActionResponse> void respond(ActionType<Response> action, Response response) {
@@ -256,12 +256,12 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
 
         @SuppressWarnings("unchecked")
         public <Response extends ActionResponse> void fail(ActionType<Response> action, Exception response) {
-            ExecuteRequest<?, ?> executeRequest;
+            ExecuteRequest<?, ?> executeRequestCopy;
             synchronized (this) {
-                executeRequest = this.executeRequest;
+                executeRequestCopy = this.executeRequest;
                 this.executeRequest = null;
             }
-            ((ExecuteRequest<?, Response>) executeRequest).fail(action, response);
+            ((ExecuteRequest<?, Response>) executeRequestCopy).fail(action, response);
         }
 
         @SuppressWarnings("unchecked")

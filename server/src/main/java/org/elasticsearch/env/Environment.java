@@ -8,6 +8,7 @@
 
 package org.elasticsearch.env;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -304,12 +305,48 @@ public class Environment {
 
     /** Ensure the configured temp directory is a valid directory */
     public void validateTmpFile() throws IOException {
-        if (Files.exists(tmpFile) == false) {
-            throw new FileNotFoundException("Temporary file directory [" + tmpFile + "] does not exist or is not accessible");
+        validateTemporaryDirectory("Temporary directory", tmpFile);
+    }
+
+    /**
+     * Ensure the temp directories needed for JNA are set up correctly.
+     */
+    public void validateNativesConfig() throws IOException {
+        validateTmpFile();
+        if (Constants.LINUX) {
+            validateTemporaryDirectory(LIBFFI_TMPDIR_ENVIRONMENT_VARIABLE + " environment variable", getLibffiTemporaryDirectory());
         }
-        if (Files.isDirectory(tmpFile) == false) {
-            throw new IOException("Configured temporary file directory [" + tmpFile + "] is not a directory");
+    }
+
+    private static void validateTemporaryDirectory(String description, Path path) throws IOException {
+        if (path == null) {
+            throw new NullPointerException(description + " was not specified");
         }
+        if (Files.exists(path) == false) {
+            throw new FileNotFoundException(description + " [" + path + "] does not exist or is not accessible");
+        }
+        if (Files.isDirectory(path) == false) {
+            throw new IOException(description + " [" + path + "] is not a directory");
+        }
+    }
+
+    private static final String LIBFFI_TMPDIR_ENVIRONMENT_VARIABLE = "LIBFFI_TMPDIR";
+
+    @SuppressForbidden(reason = "using PathUtils#get since libffi resolves paths without interference from the JVM")
+    private static Path getLibffiTemporaryDirectory() {
+        final String environmentVariable = System.getenv(LIBFFI_TMPDIR_ENVIRONMENT_VARIABLE);
+        if (environmentVariable == null) {
+            return null;
+        }
+        // Explicitly resolve into an absolute path since the working directory might be different from the one in which we were launched
+        // and it would be confusing to report that the given relative path doesn't exist simply because it's being resolved relative to a
+        // different location than the one the user expects.
+        final String workingDirectory = System.getProperty("user.dir");
+        if (workingDirectory == null) {
+            assert false;
+            return null;
+        }
+        return PathUtils.get(workingDirectory).resolve(environmentVariable);
     }
 
     /** Returns true if the data path is a list, false otherwise */

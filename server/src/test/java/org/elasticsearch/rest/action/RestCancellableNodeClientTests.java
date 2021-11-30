@@ -170,7 +170,7 @@ public class RestCancellableNodeClientTests extends ESTestCase {
             switch (action.name()) {
                 case CancelTasksAction.NAME:
                     CancelTasksRequest cancelTasksRequest = (CancelTasksRequest) request;
-                    assertTrue("tried to cancel the same task more than once", cancelledTasks.add(cancelTasksRequest.getTaskId()));
+                    assertTrue("tried to cancel the same task more than once", cancelledTasks.add(cancelTasksRequest.getTargetTaskId()));
                     Task task = request.createTask(counter.getAndIncrement(), "cancel_task", action.name(), null, Collections.emptyMap());
                     if (randomBoolean()) {
                         listener.onResponse(null);

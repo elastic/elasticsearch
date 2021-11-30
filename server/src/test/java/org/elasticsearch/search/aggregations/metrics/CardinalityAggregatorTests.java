@@ -55,7 +55,6 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -193,8 +192,8 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
     public void testQueryFiltering() throws IOException {
         testAggregation(IntPoint.newRangeQuery("number", 0, 5), iw -> {
-            iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
+            iw.addDocument(List.of(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
+            iw.addDocument(List.of(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
         }, card -> {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
@@ -203,8 +202,8 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
     public void testQueryFiltersAll() throws IOException {
         testAggregation(IntPoint.newRangeQuery("number", -1, 0), iw -> {
-            iw.addDocument(Arrays.asList(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
+            iw.addDocument(List.of(new IntPoint("number", 7), new SortedNumericDocValuesField("number", 7)));
+            iw.addDocument(List.of(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
         }, card -> {
             assertEquals(0.0, card.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(card));
@@ -267,31 +266,31 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(
-                Arrays.asList(
+                List.of(
                     new SortedSetDocValuesField("str_values", new BytesRef("one")),
                     new SortedSetDocValuesField("str_values", new BytesRef("two"))
                 )
             );
             iw.addDocument(
-                Arrays.asList(
+                List.of(
                     new SortedSetDocValuesField("unrelatedField", new BytesRef("two")),
                     new SortedSetDocValuesField("unrelatedField", new BytesRef("three"))
                 )
             );
             iw.addDocument(
-                Arrays.asList(
+                List.of(
                     new SortedSetDocValuesField("str_values", new BytesRef("two")),
                     new SortedSetDocValuesField("str_values", new BytesRef("three"))
                 )
             );
             iw.addDocument(
-                Arrays.asList(
+                List.of(
                     new SortedSetDocValuesField("str_values", new BytesRef("one")),
                     new SortedSetDocValuesField("str_values", new BytesRef("three"))
                 )
             );
             iw.addDocument(
-                Arrays.asList(
+                List.of(
                     new SortedSetDocValuesField("str_values", new BytesRef("one")),
                     new SortedSetDocValuesField("str_values", new BytesRef("three"))
                 )
@@ -309,31 +308,31 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(
-                Arrays.asList(
+                List.of(
                     new SortedSetDocValuesField("str_values", new BytesRef("one")),
                     new SortedSetDocValuesField("str_values", new BytesRef("two"))
                 )
             );
             iw.addDocument(
-                Arrays.asList(
+                List.of(
                     new SortedSetDocValuesField("unrelatedField", new BytesRef("two")),
                     new SortedSetDocValuesField("unrelatedField", new BytesRef("three"))
                 )
             );
             iw.addDocument(
-                Arrays.asList(
+                List.of(
                     new SortedSetDocValuesField("str_values", new BytesRef("two")),
                     new SortedSetDocValuesField("str_values", new BytesRef("three"))
                 )
             );
             iw.addDocument(
-                Arrays.asList(
+                List.of(
                     new SortedSetDocValuesField("str_values", new BytesRef("one")),
                     new SortedSetDocValuesField("str_values", new BytesRef("three"))
                 )
             );
             iw.addDocument(
-                Arrays.asList(
+                List.of(
                     new SortedSetDocValuesField("str_values", new BytesRef("one")),
                     new SortedSetDocValuesField("str_values", new BytesRef("three"))
                 )
@@ -350,31 +349,31 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(
-                Arrays.asList(
+                List.of(
                     new SortedSetDocValuesField("str_values", new BytesRef("one")),
                     new SortedSetDocValuesField("str_values", new BytesRef("two"))
                 )
             );
             iw.addDocument(
-                Arrays.asList(
+                List.of(
                     new SortedSetDocValuesField("str_values", new BytesRef("one")),
                     new SortedSetDocValuesField("str_values", new BytesRef("three"))
                 )
             );
             iw.addDocument(
-                Arrays.asList(
+                List.of(
                     new SortedSetDocValuesField("str_values", new BytesRef("three")),
                     new SortedSetDocValuesField("str_values", new BytesRef("two"))
                 )
             );
             iw.addDocument(
-                Arrays.asList(
+                List.of(
                     new SortedSetDocValuesField("str_values", new BytesRef("three")),
                     new SortedSetDocValuesField("str_values", new BytesRef("two"))
                 )
             );
             iw.addDocument(
-                Arrays.asList(
+                List.of(
                     new SortedSetDocValuesField("str_values", new BytesRef("two")),
                     new SortedSetDocValuesField("str_values", new BytesRef("three"))
                 )
@@ -487,14 +486,14 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final MappedFieldType mappedFieldTypes = new NumberFieldMapper.NumberFieldType("numbers", NumberFieldMapper.NumberType.INTEGER);
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("numbers", 10), new SortedNumericDocValuesField("numbers", 12)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("numbers", 10), new SortedNumericDocValuesField("numbers", 12)));
             iw.addDocument(
-                Arrays.asList(new SortedNumericDocValuesField("unrelatedField", 11), new SortedNumericDocValuesField("unrelatedField", 12))
+                List.of(new SortedNumericDocValuesField("unrelatedField", 11), new SortedNumericDocValuesField("unrelatedField", 12))
             );
-            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("numbers", 11), new SortedNumericDocValuesField("numbers", 12)));
-            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("numbers", 12), new SortedNumericDocValuesField("numbers", 13)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("numbers", 11), new SortedNumericDocValuesField("numbers", 12)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("numbers", 12), new SortedNumericDocValuesField("numbers", 13)));
             iw.addDocument(
-                Arrays.asList(new SortedNumericDocValuesField("numbers", 12), new SortedNumericDocValuesField("numbers", 13))
+                List.of(new SortedNumericDocValuesField("numbers", 12), new SortedNumericDocValuesField("numbers", 13))
 
             );
         }, card -> {
@@ -510,13 +509,13 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final MappedFieldType mappedFieldTypes = new NumberFieldMapper.NumberFieldType("numbers", NumberFieldMapper.NumberType.INTEGER);
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("numbers", 10), new SortedNumericDocValuesField("numbers", 12)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("numbers", 10), new SortedNumericDocValuesField("numbers", 12)));
             iw.addDocument(
-                Arrays.asList(new SortedNumericDocValuesField("unrelatedField", 11), new SortedNumericDocValuesField("unrelatedField", 12))
+                List.of(new SortedNumericDocValuesField("unrelatedField", 11), new SortedNumericDocValuesField("unrelatedField", 12))
             );
-            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("numbers", 11), new SortedNumericDocValuesField("numbers", 12)));
-            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("numbers", 12), new SortedNumericDocValuesField("numbers", 13)));
-            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("numbers", 12), new SortedNumericDocValuesField("numbers", 13)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("numbers", 11), new SortedNumericDocValuesField("numbers", 12)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("numbers", 12), new SortedNumericDocValuesField("numbers", 13)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("numbers", 12), new SortedNumericDocValuesField("numbers", 13)));
         }, card -> {
             assertEquals(4, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
@@ -528,10 +527,10 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final MappedFieldType mappedFieldTypes = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("number", 7), new SortedNumericDocValuesField("number", 8)));
-            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("number", 7), new SortedNumericDocValuesField("number", 9)));
-            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("number", 9), new SortedNumericDocValuesField("number", 8)));
-            iw.addDocument(Arrays.asList(new SortedNumericDocValuesField("number", 8), new SortedNumericDocValuesField("number", 7)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("number", 7), new SortedNumericDocValuesField("number", 8)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("number", 7), new SortedNumericDocValuesField("number", 9)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("number", 9), new SortedNumericDocValuesField("number", 8)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("number", 8), new SortedNumericDocValuesField("number", 7)));
         }, card -> {
             assertEquals(3, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
@@ -608,7 +607,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         final int numDocs = 10;
         for (int i = 0; i < numDocs; i++) {
             indexWriter.addDocument(
-                Arrays.asList(
+                List.of(
                     new SortedDocValuesField("str_value", new BytesRef((((i + 1) % 2 == 0) ? "even" : "odd"))),
                     new NumericDocValuesField("number", i + 1)
                 )

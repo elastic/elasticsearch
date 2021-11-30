@@ -145,9 +145,9 @@ GET my-approx-knn-index/_knn_search
 
 To gather results, the kNN search API finds a `num_candidates` number of
 approximate nearest neighbor candidates on each shard. The search computes the
-similarity of each shard's candidate vectors to the query vector, selecting the
-`k` most similar results from each shard. The search then merges the results
-from each shard to return the global top `k` nearest neighbors.
+similarity of these candidate vectors to the query vector, selecting the `k`
+most similar results from each shard. The search then merges the results from
+each shard to return the global top `k` nearest neighbors.
 
 You can increase `num_candidates` for more accurate results at the cost of
 slower search speeds. A search with a high number of `num_candidates` considers

@@ -268,7 +268,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
         Map<String, Object> indexSettings = getOnlyIndexSettings(client(), backingIndexName);
         if (readOnly) {
-            assertThat(indexSettings.get("index.blocks.write"), is(true));
+            assertThat(indexSettings.get("index.blocks.write"), is("true"));
         } else {
             assertThat(indexSettings.containsKey("index.blocks.write"), is(false));
         }

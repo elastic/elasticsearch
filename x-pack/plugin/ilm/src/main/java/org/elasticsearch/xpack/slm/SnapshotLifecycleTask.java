@@ -20,13 +20,10 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.slm.SnapshotInvocationRecord;
@@ -39,12 +36,9 @@ import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-
-import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 
 public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
@@ -135,11 +129,6 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
                             request.snapshot(),
                             "failed to create snapshot successfully, " + failures + " out of " + total + " total shards failed"
                         );
-                        // Add each failed shard's exception as suppressed, the exception contains
-                        // information about which shard failed
-                        // TODO: this seems wrong, investigate whether we actually need all the shard level exception here given that we
-                        // could be dealing with tens of thousands of them at a time
-                        snapInfo.shardFailures().forEach(e::addSuppressed);
                         // Call the failure handler to register this as a failure and persist it
                         onFailure(e);
                     }
@@ -194,13 +183,17 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
             );
     }
 
+    public static String exceptionToString(Exception ex) {
+        return Strings.toString((builder, params) -> {
+            ElasticsearchException.generateThrowableXContent(builder, params, ex);
+            return builder;
+        }, ToXContent.EMPTY_PARAMS);
+    }
+
     /**
      * A cluster state update task to write the result of a snapshot job to the cluster metadata for the associated policy.
      */
     private static class WriteJobStatus extends ClusterStateUpdateTask {
-        private static final ToXContent.Params STACKTRACE_PARAMS = new ToXContent.MapParams(
-            Collections.singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false")
-        );
 
         private final String policyName;
         private final String snapshotName;
@@ -228,18 +221,6 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
         static WriteJobStatus failure(String policyId, String snapshotName, long timestamp, Exception exception) {
             return new WriteJobStatus(policyId, snapshotName, timestamp, timestamp, Optional.of(exception));
-        }
-
-        private String exceptionToString() throws IOException {
-            if (exception.isPresent()) {
-                try (XContentBuilder causeXContentBuilder = JsonXContent.contentBuilder()) {
-                    causeXContentBuilder.startObject();
-                    ElasticsearchException.generateThrowableXContent(causeXContentBuilder, STACKTRACE_PARAMS, exception.get());
-                    causeXContentBuilder.endObject();
-                    return BytesReference.bytes(causeXContentBuilder).utf8ToString();
-                }
-            }
-            return null;
         }
 
         @Override
@@ -274,7 +255,14 @@ public class SnapshotLifecycleTask implements SchedulerEngine.Listener {
 
             if (exception.isPresent()) {
                 stats.snapshotFailed(policyName);
-                newPolicyMetadata.setLastFailure(new SnapshotInvocationRecord(snapshotName, null, snapshotFinishTime, exceptionToString()));
+                newPolicyMetadata.setLastFailure(
+                    new SnapshotInvocationRecord(
+                        snapshotName,
+                        null,
+                        snapshotFinishTime,
+                        exception.map(SnapshotLifecycleTask::exceptionToString).orElse(null)
+                    )
+                );
             } else {
                 stats.snapshotTaken(policyName);
                 newPolicyMetadata.setLastSuccess(new SnapshotInvocationRecord(snapshotName, snapshotStartTime, snapshotFinishTime, null));

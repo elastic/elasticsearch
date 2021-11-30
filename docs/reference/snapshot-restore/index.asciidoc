@@ -23,9 +23,9 @@ repository. Before you can take or restore snapshots, you must
 * Microsoft Azure
 
 After you register a snapshot repository, you can use
-<<snapshot-lifecycle-management,{slm} ({slm-init})>> to automatically take and
-manage snapshots. You can then <<snapshots-restore-snapshot,restore a snapshot>>
-to recover or transfer its data.
+<<automate-snapshots-slm,{slm} ({slm-init})>> to automatically take and manage
+snapshots. You can then <<snapshots-restore-snapshot,restore a snapshot>> to
+recover or transfer its data.
 
 [discrete]
 [[snapshot-contents]]

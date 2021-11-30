@@ -22,7 +22,6 @@ import org.elasticsearch.painless.node.SBlock;
 import org.elasticsearch.painless.node.SExpression;
 import org.elasticsearch.painless.node.SFunction;
 import org.elasticsearch.painless.node.SReturn;
-import org.elasticsearch.painless.spi.annotation.NonDeterministicAnnotation;
 import org.elasticsearch.painless.symbol.Decorations;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.ExpressionPainlessCast;
@@ -250,9 +249,10 @@ public class PainlessSemanticAnalysisPhase extends DefaultSemanticAnalysisPhase 
             semanticScope.setUsesInstanceMethod();
             semanticScope.putDecoration(userCallLocalNode, new ThisPainlessMethod(thisMethod));
 
-            scriptScope.markNonDeterministic(thisMethod.annotations.containsKey(NonDeterministicAnnotation.class));
+            // we specify the parameters here as String for the field name, and def for the default value
+            // we don't know the type of field at compile-time or the method since we use duck-typing
+            // so the default value has to be def
             Class<?>[] typeParameters = new Class<?>[] { String.class, def.class };
-
             List<AExpression> userArgumentNodes = userCallLocalNode.getArgumentNodes();
             int userArgumentsSize = userArgumentNodes.size();
 

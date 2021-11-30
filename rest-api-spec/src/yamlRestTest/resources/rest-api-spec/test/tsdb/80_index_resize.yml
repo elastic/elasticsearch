@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.00.99"
+      reason: introduced in 8.1.0
       features: "arbitrary_key"
 
   # Force allocating all shards to a single node so that we can shrink later.
@@ -85,11 +85,11 @@ setup:
 ---
 split:
   - skip:
-      version: all
-      reason: shard splitting doesn't work yet
-      features: "arbitrary_key"
+      version: " - 8.00.99"
+      reason: index-split check introduced in 8.1.0
 
   - do:
+      catch: /index-split is not supported because the destination index \[test\] is in time series mode/
       indices.split:
         index: test
         target: test_split
@@ -97,19 +97,6 @@ split:
           settings:
             index.number_of_replicas: 0
             index.number_of_shards: 6
-
-  - do:
-      search:
-        index: test_split
-        body:
-          fields:
-            - field: _tsid
-          query:
-            query_string:
-              query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
-
-  - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
 
 ---
 shrink:

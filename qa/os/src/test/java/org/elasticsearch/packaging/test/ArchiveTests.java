@@ -181,25 +181,23 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test44AutoConfigurationNotTriggeredOnNotWriteableConfDir() throws Exception {
-        Platforms.onWindows(
-            () -> {
-                // auto-config requires that the archive owner and the process user be the same
-                sh.chown(installation.config, installation.getOwner());
-                // prevent modifications to the config directory
-                sh.run(
-                    String.format(
-                        Locale.ROOT,
-                        "$ACL = Get-ACL -Path '%s'; "
-                            + "$AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule('%s','Write','Deny'); "
-                            + "$ACL.SetAccessRule($AccessRule); "
-                            + "$ACL | Set-Acl -Path '%s';",
-                        installation.config,
-                        installation.getOwner(),
-                        installation.config
-                    )
-                );
-            }
-        );
+        Platforms.onWindows(() -> {
+            // auto-config requires that the archive owner and the process user be the same
+            sh.chown(installation.config, installation.getOwner());
+            // prevent modifications to the config directory
+            sh.run(
+                String.format(
+                    Locale.ROOT,
+                    "$ACL = Get-ACL -Path '%s'; "
+                        + "$AccessRule = New-Object System.Security.AccessControl.FileSystemAccessRule('%s','Write','Deny'); "
+                        + "$ACL.SetAccessRule($AccessRule); "
+                        + "$ACL | Set-Acl -Path '%s';",
+                    installation.config,
+                    installation.getOwner(),
+                    installation.config
+                )
+            );
+        });
         Platforms.onLinux(() -> { sh.run("chmod u-w " + installation.config); });
         try {
             startElasticsearch();

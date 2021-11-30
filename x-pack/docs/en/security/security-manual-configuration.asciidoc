@@ -5,19 +5,21 @@
 ++++
 
 Security needs vary depending on whether you're developing locally on your
-laptop or securing all communications in a production environment. Because
-security needs vary, the following scenarios provide options for configuring
-the Elastic Stack.
+laptop or securing all communications in a production environment. Regardless
+of where you're deploying the {stack} ("ELK"), running a secure cluster is
+incredibly important to protect your data. That's why security is
+<<<<configuring-stack-security,enabled and configured by default>> in {es} 8.0
+and later.
+
+If you want to use your own Certificate Authority (CA) or would rather manually
+configure security, the following scenarios provide steps for configuring TLS
+on the transport layer, and securing HTTPS traffic if you need it.
 
 Each subsequent scenario builds on the previous one so that you can add
 additional security by building on the existing layer.
 
 These scenarios don't cover every situation, but provide a framework for
 securing {es} and the Elastic Stack based on typical use cases.
-
-NOTE: If you want to enable security by default when you start {es} for the
-first time without manually configuring security, refer to
-<<configuring-stack-security,Starting the Elastic Stack with security enabled>>.
 
 image::images/elastic-security-overview.png[Elastic Security layers]
 

@@ -578,7 +578,8 @@ stream's oldest backing index.
       "template": "my-data-stream-template",
       "hidden": false,
       "system": false,
-      "allow_custom_routing": false
+      "allow_custom_routing": false,
+      "replicated": false
     }
   ]
 }

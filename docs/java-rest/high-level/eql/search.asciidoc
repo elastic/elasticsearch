@@ -17,7 +17,7 @@ A +{request}+ allows to submit an EQL search request. Required arguments are the
 --------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
-<1> Comma-separated list of data streams, indices, or aliases used to limit the request.
+<1> Comma-separated list of data streams, indices, or aliases targeting the local cluster or a remote one, used to limit the request.
 Supports wildcards (`*`). To search all data streams and indices, use `*` or `_all`.
 <2> The query to execute
 
@@ -33,7 +33,7 @@ include-tagged::{doc-tests-file}[{api}-request-arguments]
 <3> For basic queries, the maximum number of matching events to return.
 For sequence queries, the maximum number of matching sequences to return. Defaults to 10.
 <4> Field used to sort hits with the same timestamp in ascending order.
-<5> Field containing event timestamp. Defaults to `@timestamp`, as defined in the Elastic Common Schema (ECS).
+<5> Field containing the event timestamp. Defaults to `@timestamp`, as defined in the Elastic Common Schema (ECS).
 <6> Query, written in Query DSL, used to filter the events on which the EQL query runs.
 <7> Set of matching events or sequences to return. Accepts `tail` (default, return the most recent matches) or `head` (return the earliest matches). 
 <8> Array of wildcard (*) patterns. The response returns values for field names matching these patterns in the fields property of each hit.

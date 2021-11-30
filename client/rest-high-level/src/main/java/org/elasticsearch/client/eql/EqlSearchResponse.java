@@ -186,13 +186,19 @@ public class EqlSearchResponse {
         private Map<String, Object> sourceAsMap;
         private final Map<String, DocumentField> fetchFields;
 
-        public Event(String index, String id, BytesReference source, Map<String, DocumentField> fetchFields) {
+        @Deprecated
+        public Event(String index, String id, BytesReference source) {
+            this(index, id, source, null);
+        }
+
+        private Event(String index, String id, BytesReference source, Map<String, DocumentField> fetchFields) {
             this.index = index;
             this.id = id;
             this.source = source;
             this.fetchFields = fetchFields;
         }
 
+        @Deprecated
         public static Event fromXContent(XContentParser parser) throws IOException {
             return PARSER.apply(parser, null);
         }
@@ -284,11 +290,13 @@ public class EqlSearchResponse {
         private final List<Object> joinKeys;
         private final List<Event> events;
 
+        @Deprecated
         public Sequence(List<Object> joinKeys, List<Event> events) {
             this.joinKeys = joinKeys == null ? Collections.emptyList() : joinKeys;
             this.events = events == null ? Collections.emptyList() : events;
         }
 
+        @Deprecated
         public static Sequence fromXContent(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
@@ -333,6 +341,7 @@ public class EqlSearchResponse {
             static final String SEQUENCES = "sequences";
         }
 
+        @Deprecated
         public Hits(@Nullable List<Event> events, @Nullable List<Sequence> sequences, @Nullable TotalHits totalHits) {
             this.events = events;
             this.sequences = sequences;
@@ -367,6 +376,7 @@ public class EqlSearchResponse {
             );
         }
 
+        @Deprecated
         public static Hits fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }

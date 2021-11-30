@@ -26,6 +26,7 @@ import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -42,16 +43,18 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
         private final String constantValue;
         private final String name;
         private final ValuesSourceType valuesSourceType;
+        private final ToScriptField<SortedSetDocValues> toScriptField;
 
-        public Builder(String constantValue, String name, ValuesSourceType valuesSourceType) {
+        public Builder(String constantValue, String name, ValuesSourceType valuesSourceType, ToScriptField<SortedSetDocValues> toScriptField) {
             this.constantValue = constantValue;
             this.name = name;
             this.valuesSourceType = valuesSourceType;
+            this.toScriptField = toScriptField;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new ConstantIndexFieldData(name, constantValue, valuesSourceType);
+            return new ConstantIndexFieldData(name, constantValue, valuesSourceType, toScriptField);
         }
     }
 
@@ -59,8 +62,8 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
         private final String value;
 
-        ConstantLeafFieldData(String value) {
-            super(DEFAULT_TO_SCRIPT_FIELD);
+        ConstantLeafFieldData(String value, ToScriptField<SortedSetDocValues> toScriptField) {
+            super(toScriptField);
             this.value = value;
         }
 
@@ -120,9 +123,9 @@ public class ConstantIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
     private final ConstantLeafFieldData atomicFieldData;
 
-    private ConstantIndexFieldData(String name, String value, ValuesSourceType valuesSourceType) {
-        super(name, valuesSourceType, null, null, AbstractLeafOrdinalsFieldData.DEFAULT_TO_SCRIPT_FIELD);
-        atomicFieldData = new ConstantLeafFieldData(value);
+    private ConstantIndexFieldData(String name, String value, ValuesSourceType valuesSourceType, ToScriptField<SortedSetDocValues> toScriptField) {
+        super(name, valuesSourceType, null, null, toScriptField);
+        atomicFieldData = new ConstantLeafFieldData(value, toScriptField);
     }
 
     @Override

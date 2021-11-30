@@ -75,13 +75,13 @@ public enum GlobalOrdinalsBuilder {
         );
     }
 
-    public static IndexOrdinalsFieldData buildEmpty(IndexReader indexReader, IndexOrdinalsFieldData indexFieldData) throws IOException {
+    public static IndexOrdinalsFieldData buildEmpty(IndexReader indexReader, IndexOrdinalsFieldData indexFieldData, ToScriptField<SortedSetDocValues> toScriptField) throws IOException {
         assert indexReader.leaves().size() > 1;
 
         final LeafOrdinalsFieldData[] atomicFD = new LeafOrdinalsFieldData[indexReader.leaves().size()];
         final SortedSetDocValues[] subs = new SortedSetDocValues[indexReader.leaves().size()];
         for (int i = 0; i < indexReader.leaves().size(); ++i) {
-            atomicFD[i] = new AbstractLeafOrdinalsFieldData(AbstractLeafOrdinalsFieldData.DEFAULT_TO_SCRIPT_FIELD) {
+            atomicFD[i] = new AbstractLeafOrdinalsFieldData(toScriptField) {
                 @Override
                 public SortedSetDocValues getOrdinalsValues() {
                     return DocValues.emptySortedSet();
@@ -109,7 +109,7 @@ public enum GlobalOrdinalsBuilder {
             atomicFD,
             ordinalMap,
             0,
-            AbstractLeafOrdinalsFieldData.DEFAULT_TO_SCRIPT_FIELD
+            toScriptField
         );
     }
 

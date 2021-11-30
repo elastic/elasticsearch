@@ -21,11 +21,13 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -33,6 +35,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
@@ -63,7 +66,8 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
             name,
             CoreValuesSourceType.KEYWORD,
             circuitBreakerService,
-            AbstractLeafOrdinalsFieldData.DEFAULT_TO_SCRIPT_FIELD
+            // TODO(stu): get from KeywordFieldMapper
+            (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))), n)
         );
         pagedBytesIndexFieldData = new PagedBytesIndexFieldData(
             name,
@@ -72,7 +76,9 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
             circuitBreakerService,
             TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
             TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
-            TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE
+            TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
+            // TODO(stu): get from TextFieldMapper
+            (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))), n)
         );
 
         dir = newDirectory();

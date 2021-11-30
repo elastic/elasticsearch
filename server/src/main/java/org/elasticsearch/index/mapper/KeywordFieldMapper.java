@@ -34,13 +34,16 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
@@ -54,8 +57,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
-
-import static org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData.DEFAULT_TO_SCRIPT_FIELD;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -139,13 +140,11 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private final IndexAnalyzers indexAnalyzers;
         private final ScriptCompiler scriptCompiler;
-        private final ToScriptField<?> toScriptField;
 
-        public Builder(String name, IndexAnalyzers indexAnalyzers, ScriptCompiler scriptCompiler, ToScriptField<?> toScriptField) {
+        public Builder(String name, IndexAnalyzers indexAnalyzers, ScriptCompiler scriptCompiler) {
             super(name);
             this.indexAnalyzers = indexAnalyzers;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
-            this.toScriptField = toScriptField;
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);
 
@@ -165,7 +164,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         public Builder(String name) {
-            this(name, null, ScriptCompiler.NONE, DEFAULT_TO_SCRIPT_FIELD);
+            this(name, null, ScriptCompiler.NONE);
         }
 
         public Builder ignoreAbove(int ignoreAbove) {
@@ -265,7 +264,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler(), DEFAULT_TO_SCRIPT_FIELD)
+        (n, c) -> new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler())
     );
 
     public static final class KeywordFieldType extends StringFieldType {
@@ -407,7 +406,10 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(),
+                (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                n
+            ), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
@@ -671,6 +673,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexAnalyzers, scriptCompiler, DEFAULT_TO_SCRIPT_FIELD).dimension(dimension).init(this);
+        return new Builder(simpleName(), indexAnalyzers, scriptCompiler).dimension(dimension).init(this);
     }
 }

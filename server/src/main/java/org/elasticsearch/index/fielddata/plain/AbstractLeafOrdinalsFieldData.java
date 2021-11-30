@@ -24,11 +24,6 @@ import java.util.Collections;
 
 public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsFieldData {
 
-    public static final ToScriptField<SortedSetDocValues> DEFAULT_TO_SCRIPT_FIELD = (dv, n) -> new DelegateDocValuesField(
-        new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-        n
-    );
-
     private final ToScriptField<SortedSetDocValues> toScriptField;
 
     protected AbstractLeafOrdinalsFieldData(ToScriptField<SortedSetDocValues> toScriptField) {
@@ -45,8 +40,8 @@ public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsField
         return FieldData.toString(getOrdinalsValues());
     }
 
-    public static LeafOrdinalsFieldData empty() {
-        return new AbstractLeafOrdinalsFieldData(DEFAULT_TO_SCRIPT_FIELD) {
+    public static LeafOrdinalsFieldData empty(ToScriptField<SortedSetDocValues> toScriptField) {
+        return new AbstractLeafOrdinalsFieldData(toScriptField) {
 
             @Override
             public long ramBytesUsed() {

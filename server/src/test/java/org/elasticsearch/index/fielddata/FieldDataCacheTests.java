@@ -26,6 +26,7 @@ import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.FieldMaskingReader;
@@ -78,7 +79,8 @@ public class FieldDataCacheTests extends ESTestCase {
             fieldName,
             CoreValuesSourceType.KEYWORD,
             new NoneCircuitBreakerService(),
-            AbstractLeafOrdinalsFieldData.DEFAULT_TO_SCRIPT_FIELD
+            // TODO(stu): get from KeywordFieldMapper
+            (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))), n)
         );
     }
 
@@ -90,7 +92,9 @@ public class FieldDataCacheTests extends ESTestCase {
             new NoneCircuitBreakerService(),
             TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
             TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
-            TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE
+            TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
+            // TODO(stu): get from TextFieldMapper
+            (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))), n)
         );
     }
 

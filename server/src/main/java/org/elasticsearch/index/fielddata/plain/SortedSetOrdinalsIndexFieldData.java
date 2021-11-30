@@ -39,10 +39,6 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
         private final ToScriptField<SortedSetDocValues> toScriptField;
         private final ValuesSourceType valuesSourceType;
 
-        public Builder(String name, ValuesSourceType valuesSourceType) {
-            this(name, AbstractLeafOrdinalsFieldData.DEFAULT_TO_SCRIPT_FIELD, valuesSourceType);
-        }
-
         public Builder(String name, ToScriptField<SortedSetDocValues> toScriptField, ValuesSourceType valuesSourceType) {
             this.name = name;
             this.toScriptField = toScriptField;

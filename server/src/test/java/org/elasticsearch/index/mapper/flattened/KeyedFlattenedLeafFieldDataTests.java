@@ -11,8 +11,12 @@ package org.elasticsearch.index.mapper.flattened;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.AbstractSortedSetDocValues;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -146,7 +150,7 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
         private final SortedSetDocValues docValues;
 
         MockLeafOrdinalsFieldData(BytesRef[] allTerms, long[] documentOrds) {
-            super(AbstractLeafOrdinalsFieldData.DEFAULT_TO_SCRIPT_FIELD);
+            super(MOCK_TO_SCRIPT_FIELD);
             this.docValues = new MockSortedSetDocValues(allTerms, documentOrds);
         }
 
@@ -165,6 +169,9 @@ public class KeyedFlattenedLeafFieldDataTests extends ESTestCase {
             // Nothing to do.
         }
     }
+
+    private final static ToScriptField<SortedSetDocValues> MOCK_TO_SCRIPT_FIELD =
+        (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))), n);
 
     private static class MockSortedSetDocValues extends AbstractSortedSetDocValues {
         private final BytesRef[] allTerms;

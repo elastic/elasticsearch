@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -41,6 +42,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         public static final String SERIALIZE_WRITER_UUID = "serialize_writer_uuid";
 
         private final String name;
+        @Nullable
         private final ByteSizeValue partSize;
         private final long partBytes;
         private final int numberOfParts;
@@ -53,7 +55,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
          * @param metadata  the files meta data
          * @param partSize     size of the single chunk
          */
-        public FileInfo(String name, StoreFileMetadata metadata, ByteSizeValue partSize) {
+        public FileInfo(String name, StoreFileMetadata metadata, @Nullable ByteSizeValue partSize) {
             this.name = Objects.requireNonNull(name);
             this.metadata = metadata;
 

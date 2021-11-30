@@ -211,6 +211,13 @@ public final class IndexModule {
     }
 
     /**
+     * Returns the {@link IndexSettings} for this index
+     */
+    public IndexSettings indexSettings() {
+        return indexSettings;
+    }
+
+    /**
      * Returns the index this module is associated with
      */
     public Index getIndex() {

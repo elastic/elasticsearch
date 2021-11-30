@@ -32,7 +32,7 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
     public TransportGetCheckpointNodeAction(
         final TransportService transportService,
         final ActionFilters actionFilters,
-        IndicesService indicesService
+        final IndicesService indicesService
     ) {
         super(GetCheckpointNodeAction.NAME, transportService, actionFilters, Request::new);
         this.indicesService = indicesService;
@@ -40,10 +40,10 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-        getGlobalCheckpoints(request.getShards(), listener);
+        getGlobalCheckpoints(indicesService, request.getShards(), listener);
     }
 
-    private void getGlobalCheckpoints(Set<ShardId> shards, ActionListener<Response> listener) {
+    static void getGlobalCheckpoints(IndicesService indicesService, Set<ShardId> shards, ActionListener<Response> listener) {
         Map<String, long[]> checkpointsByIndexOfThisNode = new HashMap<>();
         for (ShardId shardId : shards) {
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());

@@ -6,27 +6,33 @@
  */
 package org.elasticsearch.xpack.transform.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction.Response;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -36,20 +42,23 @@ import java.util.TreeMap;
 
 public class TransportGetCheckpointAction extends HandledTransportAction<Request, Response> {
 
-    private final Client client;
+    private static final Logger logger = LogManager.getLogger(TransportGetCheckpointAction.class);
     private final ClusterService clusterService;
+    private final IndicesService indicesService;
+    private final TransportService transportService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportGetCheckpointAction(
         final TransportService transportService,
         final ActionFilters actionFilters,
-        final Client client,
+        final IndicesService indicesService,
         final ClusterService clusterService,
         final IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(GetCheckpointAction.NAME, transportService, actionFilters, Request::new);
-        this.client = client;
+        this.transportService = transportService;
+        this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
@@ -58,7 +67,6 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState state = clusterService.state();
 
-        // TODO: does this action respect user headers?
         String[] concreteIndices = this.indexNameExpressionResolver.concreteIndexNames(
             state,
             request.indicesOptions(),
@@ -89,6 +97,8 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
         private final Task task;
         private final ActionListener<Response> listener;
         private final Map<String, Set<ShardId>> nodesAndShards;
+        private final DiscoveryNodes nodes;
+        private final String localNodeId;
 
         protected AsyncGetCheckpointsFromNodesAction(
             Task task,
@@ -98,6 +108,9 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             this.task = task;
             this.listener = listener;
             this.nodesAndShards = nodesAndShards;
+            ClusterState clusterState = clusterService.state();
+            nodes = clusterState.nodes();
+            localNodeId = clusterService.localNode().getId();
         }
 
         public void start() {
@@ -118,7 +131,6 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
                             } else {
                                 checkpointsByIndexReduced.put(index, checkpoint);
                             }
-
                         });
                     }
 
@@ -128,20 +140,39 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
             );
 
             for (Entry<String, Set<ShardId>> oneNodeAndItsShards : nodesAndShards.entrySet()) {
+                if (localNodeId.equals(oneNodeAndItsShards.getKey())) {
+                    TransportGetCheckpointNodeAction.getGlobalCheckpoints(indicesService, oneNodeAndItsShards.getValue(), groupedListener);
+                    continue;
+                }
+
                 GetCheckpointNodeAction.Request nodeCheckpointsRequest = new GetCheckpointNodeAction.Request(
                     oneNodeAndItsShards.getValue()
                 );
                 nodeCheckpointsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-
-                // TODO: shortcut if shard is on the local node
-
-                // execute it with transform origin
-                ClientHelper.executeAsyncWithOrigin(
-                    client,
-                    ClientHelper.TRANSFORM_ORIGIN,
-                    GetCheckpointNodeAction.INSTANCE,
+                DiscoveryNode node = nodes.get(oneNodeAndItsShards.getKey());
+                logger.trace("get checkpoints from node {}", node);
+                transportService.sendRequest(
+                    node,
+                    GetCheckpointNodeAction.NAME,
                     nodeCheckpointsRequest,
-                    groupedListener
+                    new TransportResponseHandler<GetCheckpointNodeAction.Response>() {
+
+                        @Override
+                        public GetCheckpointNodeAction.Response read(StreamInput in) throws IOException {
+                            return new GetCheckpointNodeAction.Response(in);
+                        }
+
+                        @Override
+                        public void handleResponse(GetCheckpointNodeAction.Response response) {
+                            groupedListener.onResponse(response);
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            groupedListener.onFailure(exp);
+                        }
+
+                    }
                 );
             }
         }

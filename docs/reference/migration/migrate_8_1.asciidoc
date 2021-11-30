@@ -52,6 +52,17 @@ To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
 
 //tag::notable-breaking-changes[]
+[discrete]
+[[breaking_81_fields_api]]
+=== Fields API changes
+
+Fields API for geo_shape field returns the normalized geometry.
+[%collapsible]
+====
+*Details* +
+In 8.1, when retrieving a geo_shape field, the geometry will be normalized if
+it crosses the dateline. For example if a polygon crosses the dateline, it will be
+returned as two polygons. The original polygon can still be retrieved from `_source`.
 
 [discrete]
 [[breaking_8.1_cluster_node_setting_deprecations]]

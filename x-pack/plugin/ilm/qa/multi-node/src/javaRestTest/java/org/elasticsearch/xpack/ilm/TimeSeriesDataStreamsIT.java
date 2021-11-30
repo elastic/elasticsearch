@@ -241,8 +241,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         assertNull(settings.get("index.frozen"));
     }
 
-    public void testForceMergeAction() throws Exception {
-        createNewSingletonPolicy(client(), policyName, "warm", new ForceMergeAction(1, true, null));
+    public void checkForceMergeAction(boolean readOnly) throws Exception {
+        createNewSingletonPolicy(client(), policyName, "warm", new ForceMergeAction(1, readOnly, null));
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
@@ -265,6 +265,21 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
             30,
             TimeUnit.SECONDS
         );
+
+        Map<String, Object> indexSettings = getOnlyIndexSettings(client(), backingIndexName);
+        if (readOnly) {
+            assertThat(indexSettings.get("index.blocks.write"), is(true));
+        } else {
+            assertThat(indexSettings.containsKey("index.blocks.write"), is(false));
+        }
+    }
+
+    public void testForceMergeAction() throws Exception {
+        checkForceMergeAction(true);
+    }
+
+    public void testForceMergeActionNonReadOnly() throws Exception {
+        checkForceMergeAction(false);
     }
 
     @SuppressWarnings("unchecked")

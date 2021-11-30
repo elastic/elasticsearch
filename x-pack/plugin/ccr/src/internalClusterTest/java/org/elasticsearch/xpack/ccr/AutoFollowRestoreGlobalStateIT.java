@@ -16,6 +16,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
@@ -32,25 +33,16 @@ public class AutoFollowRestoreGlobalStateIT extends CcrIntegTestCase {
 
     private static final TimeValue TIMEOUT = TimeValue.MAX_VALUE;
 
+    @Override
+    protected boolean configureRemoteClusterViaNodeSettings() {
+        return false;
+    }
+
     public void testShouldHandleRestoringGlobalState() {
 
         var repoName = "test-repository";
         var repoPath = UUIDs.randomBase64UUID();
         var snapshotName = "test-snapshot-with-global-state";
-
-        // unregister remote
-        var remote = followerClient().settings().get("cluster.remote.leader_cluster.seeds");
-
-        followerClient().admin()
-            .cluster()
-            .updateSettings(
-                new ClusterUpdateSettingsRequest().persistentSettings(Settings.builder().putNull("cluster.remote.leader_cluster.seeds"))
-                    .masterNodeTimeout(TIMEOUT)
-            )
-            .actionGet();
-
-        assertThat(getClusterSettings(followerClient()).get("cluster.remote.leader_cluster.seeds"), nullValue());
-        assertThat(getAutoFollowerPatterns(followerClient()).keySet(), equalTo(Set.of()));
 
         // create repository
         followerClient().admin()
@@ -72,7 +64,12 @@ public class AutoFollowRestoreGlobalStateIT extends CcrIntegTestCase {
             )
             .actionGet();
 
-        // register remote
+        //ensure no remotes and auto-follow patterns
+        assertThat(getClusterSettings(followerClient()).get("cluster.remote.leader_cluster.seeds"), nullValue());
+        assertThat(getAutoFollowerPatterns(followerClient()).keySet(), equalTo(Set.of()));
+
+        // create remote
+        var remote = getLeaderCluster().getMasterNodeInstance(TransportService.class).boundAddress().publishAddress().toString();
         followerClient().admin()
             .cluster()
             .updateSettings(
@@ -90,6 +87,10 @@ public class AutoFollowRestoreGlobalStateIT extends CcrIntegTestCase {
         putAutoFollowerRequest.setFollowIndexNamePattern("copy-{{leader_index}}");
         assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, putAutoFollowerRequest).actionGet().isAcknowledged());
 
+        //ensure remote and auto-follow pattern configured
+        assertThat(getClusterSettings(followerClient()).get("cluster.remote.leader_cluster.seeds"), equalTo(remote));
+        assertThat(getAutoFollowerPatterns(followerClient()).keySet(), equalTo(Set.of("pattern-1")));
+
         // restore from a snapshot with global state
         followerClient().admin()
             .cluster()
@@ -100,14 +101,9 @@ public class AutoFollowRestoreGlobalStateIT extends CcrIntegTestCase {
             )
             .actionGet();
 
-        // assert remote is present
-        // assertThat(
-        // getClusterSettings(followerClient()).get("cluster.remote.leader_cluster.seeds"),
-        // equalTo(remote)
-        // );
-
-        // assert auto-follow is present
-        assertThat(getAutoFollowerPatterns(followerClient()).keySet(), equalTo(Set.of("pattern-1")));
+        // assert remote and auto-follow patterns are cleared
+        assertThat(getClusterSettings(followerClient()).get("cluster.remote.leader_cluster.seeds"), nullValue());
+        assertThat(getAutoFollowerPatterns(followerClient()).keySet(), equalTo(Set.of()));
     }
 
     private Settings getClusterSettings(Client client) {

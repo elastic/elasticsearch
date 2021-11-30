@@ -30,7 +30,9 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -89,7 +91,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                     expectedIds.add(id);
                     Request doc = new Request("PUT", "/test/doc/" + id);
                     doc.addParameter("refresh", "true");
-                    doc.setJsonEntity("{\"test\":\"test" + i + "\", \"val\":" + i + "}");
+                    doc.setJsonEntity(sourceForDoc(i));
                     oldEs.performRequest(doc);
                 }
 
@@ -183,6 +185,10 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         }
     }
 
+    private static String sourceForDoc(int i) {
+        return "{\"test\":\"test" + i + "\",\"val\":" + i + "}";
+    }
+
     @SuppressWarnings("removal")
     private void restoreMountAndVerify(int numDocs, Set<String> expectedIds, RestHighLevelClient client, int numberOfShards)
         throws IOException {
@@ -220,10 +226,34 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
     @SuppressWarnings("removal")
     private void assertDocs(String index, int numDocs, Set<String> expectedIds, RestHighLevelClient client) throws IOException {
+        // run a search against the index
         SearchResponse searchResponse = client.search(new SearchRequest(index), RequestOptions.DEFAULT);
         logger.info(searchResponse);
+        // check hit count
         assertEquals(numDocs, searchResponse.getHits().getTotalHits().value);
+        // check that _index is properly set
+        assertTrue(Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).allMatch(index::equals));
+        // check that all _ids are there
         assertEquals(expectedIds, Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getId).collect(Collectors.toSet()));
-    }
+        // check that _source is present
+        assertTrue(Arrays.stream(searchResponse.getHits().getHits()).allMatch(SearchHit::hasSource));
+        // check that correct _source present for each document
+        for (SearchHit h : searchResponse.getHits().getHits()) {
+            assertEquals(sourceForDoc(Integer.parseInt(h.getId().substring("testdoc".length()))), h.getSourceAsString());
+        }
 
+        // run a search using runtime fields against the index
+        searchResponse = client.search(
+            new SearchRequest(index).source(
+                SearchSourceBuilder.searchSource()
+                    .query(QueryBuilders.matchQuery("val", 2))
+                    .runtimeMappings(Map.of("val", Map.of("type", "long")))
+            ),
+            RequestOptions.DEFAULT
+        );
+        logger.info(searchResponse);
+        assertEquals(1, searchResponse.getHits().getTotalHits().value);
+        assertEquals("testdoc2", searchResponse.getHits().getHits()[0].getId());
+        assertEquals(sourceForDoc(2), searchResponse.getHits().getHits()[0].getSourceAsString());
+    }
 }

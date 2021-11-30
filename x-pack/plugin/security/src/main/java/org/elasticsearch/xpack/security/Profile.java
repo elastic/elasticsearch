@@ -149,10 +149,7 @@ public class Profile {
             final Map<String, Object> kibanaMap = (Map<String, Object>) m.get("kibana");
             final List<String> kibanaSpaces = (List<String>) kibanaMap.get("spaces");
 
-            return new Access(
-                roles.toArray(String[]::new),
-                kibanaSpaces.toArray(String[]::new)
-            );
+            return new Access(roles.toArray(String[]::new), kibanaSpaces.toArray(String[]::new));
         }
     }
 

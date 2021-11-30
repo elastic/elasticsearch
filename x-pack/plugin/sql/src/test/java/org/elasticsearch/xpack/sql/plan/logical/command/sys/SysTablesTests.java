@@ -354,9 +354,7 @@ public class SysTablesTests extends ESTestCase {
     }
 
     public void testSysTablesWithNonExistentCatalogOnlyAliases() throws Exception {
-        executeCommand("SYS TABLES CATALOG LIKE 'bogus' LIKE '%' TYPE 'VIEW'", r -> {
-            assertEquals(0, r.size());
-        });
+        executeCommand("SYS TABLES CATALOG LIKE 'bogus' LIKE '%' TYPE 'VIEW'", r -> { assertEquals(0, r.size()); });
     }
 
     public void testSysTablesWithInvalidType() throws Exception {

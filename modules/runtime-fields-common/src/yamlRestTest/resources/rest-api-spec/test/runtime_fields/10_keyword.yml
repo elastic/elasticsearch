@@ -202,7 +202,7 @@ setup:
             term:
               day_of_week: Monday
   - match: {hits.hits.0._explanation.value: 1.0}
-  - match: {hits.hits.0._explanation.description: "day_of_week:Monday"}
+  - match: {hits.hits.0._explanation.description: "day_of_week:Monday approximated by *:*"}
   - match: {hits.hits.0._explanation.details.0.value: 1.0}
   - match: {hits.hits.0._explanation.details.0.description: 'boost * runtime_field_score'}
   - match: {hits.hits.0._explanation.details.0.details.0.value: 1.0}
@@ -223,7 +223,7 @@ setup:
                 value: Monday
                 boost: 7
   - match: {hits.hits.0._explanation.value: 7.0}
-  - match: {hits.hits.0._explanation.description: "day_of_week:Monday^7.0"}
+  - match: {hits.hits.0._explanation.description: "day_of_week:Monday approximated by *:*^7.0"}
   - match: {hits.hits.0._explanation.details.0.value: 7.0}
   - match: {hits.hits.0._explanation.details.0.description: 'boost * runtime_field_score'}
   - match: {hits.hits.0._explanation.details.0.details.0.value: 7.0}
@@ -252,7 +252,7 @@ setup:
   - match: {hits.hits.0._explanation.details.0.value: 7.0}
   - match: {hits.hits.0._explanation.details.0.description: '_score: '}
   - match: {hits.hits.0._explanation.details.0.details.0.value: 7.0}
-  - match: {hits.hits.0._explanation.details.0.details.0.description: "day_of_week:Monday^7.0"}
+  - match: {hits.hits.0._explanation.details.0.details.0.description: "day_of_week:Monday approximated by *:*^7.0"}
   - match: {hits.hits.0._explanation.details.0.details.0.details.0.value: 7.0}
   - match: {hits.hits.0._explanation.details.0.details.0.details.0.description: 'boost * runtime_field_score'}
   - match: {hits.hits.0._explanation.details.0.details.0.details.0.details.0.value: 7.0}

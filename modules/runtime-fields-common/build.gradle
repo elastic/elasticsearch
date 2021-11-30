@@ -24,3 +24,31 @@ dependencies {
 
 //this plugin is here only for the painless extension, there are no unit tests
 tasks.named("testingConventions").configure { enabled = false }
+
+tasks.named("yamlRestTestV7CompatTransform").configure { task ->
+  task.replaceValueTextByKeyValue(
+    "hits.hits.0._explanation.description",
+    "day_of_week:Monday",
+    "day_of_week:Monday approximated by *:*"
+  )
+  task.replaceValueTextByKeyValue(
+    "hits.hits.0._explanation.description",
+    "day_of_week:Monday^7.0",
+    "day_of_week:Monday approximated by *:*^7.0"
+  )
+  task.replaceValueTextByKeyValue(
+    "hits.hits.0._explanation.details.0.details.0.description",
+    "day_of_week:Monday^7.0",
+    "day_of_week:Monday approximated by *:*^7.0"
+  )
+  task.replaceValueTextByKeyValue(
+    "hits.hits.0._explanation.description",
+    "voltage_times_ten:58",
+    "voltage_times_ten:58 approximated by *:*"
+  )
+  task.replaceValueTextByKeyValue(
+    "hits.hits.0._explanation.description",
+    "tomorrow:1516383694000",
+    "tomorrow:1516383694000 approximated by *:*"
+  )
+}

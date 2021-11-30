@@ -654,7 +654,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                                 + "it's reasonable to serve requests on the local network too"
                         );
                         bw.newLine();
-                        bw.write(HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": [_local_, _site_]");
+                        bw.write(
+                            HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": " + httpHostSettingValue(NetworkUtils.getAllAddresses())
+                        );
                         bw.newLine();
                     }
                     bw.write(AUTO_CONFIGURATION_END_MARKER);
@@ -686,6 +688,14 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
         // only delete the backed up file if all went well
         Files.deleteIfExists(keystoreBackupPath);
+    }
+
+    protected String httpHostSettingValue(InetAddress[] allAddresses) {
+        if (Arrays.stream(allAddresses).anyMatch(InetAddress::isSiteLocalAddress)) {
+            return "[_local_, _site_]";
+        } else {
+            return "[_local_]";
+        }
     }
 
     private Environment possibleReconfigureNode(Environment env, Terminal terminal) throws UserException {

@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -44,8 +43,8 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
                 .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), 200) // Increase dimension limit
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
-                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), 1L)
-                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), DateUtils.MAX_MILLIS_BEFORE_9999 - 1)
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2999-04-28T00:00:00Z")
                 .build(),
             mappings
         ).documentMapper();

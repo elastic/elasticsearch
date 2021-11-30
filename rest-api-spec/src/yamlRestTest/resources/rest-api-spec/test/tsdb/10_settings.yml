@@ -12,8 +12,8 @@ enable:
                 mode: time_series
                 routing_path: [metricset, k8s.pod.uid]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -57,8 +57,8 @@ no sort field:
                 mode: time_series
                 routing_path: foo
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
                 sort.field: ['a']
 
 ---
@@ -77,8 +77,8 @@ no sort order:
                 mode: time_series
                 routing_path: foo
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
                 sort.order: ['DESC']
 
 ---
@@ -97,8 +97,8 @@ no sort mode:
                 mode: time_series
                 routing_path: foo
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
                 sort.mode: ['MIN']
 
 ---
@@ -117,8 +117,8 @@ no sort missing:
                 mode: time_series
                 routing_path: foo
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
                 sort.missing: ['_last']
 
 ---
@@ -137,8 +137,8 @@ no partitioning:
                 mode: time_series
                 routing_path: foo
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
                 shards: 5
                 routing_partition_size: 2
 
@@ -157,8 +157,8 @@ routing_path required:
               index:
                 mode: time_series
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
                 number_of_shards: 5
 
 ---
@@ -192,8 +192,8 @@ routing required:
                 mode: time_series
                 routing_path: foo
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
             mappings:
               _routing:
                 required: true

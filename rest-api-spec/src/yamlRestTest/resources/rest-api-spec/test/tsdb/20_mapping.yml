@@ -12,8 +12,8 @@ ecs style:
                 mode: time_series
                 routing_path: [metricset, k8s.pod.uid]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -68,8 +68,8 @@ top level dim object:
                 mode: time_series
                 routing_path: [dim.*]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -127,8 +127,8 @@ non keyword matches routing_path:
                 mode: time_series
                 routing_path: [metricset, k8s.pod.uid, "@timestamp"]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -171,8 +171,8 @@ runtime field matching routing path:
                 mode: time_series
                 routing_path: [dim.*]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
             mappings:
               properties:
                 "@timestamp":
@@ -213,8 +213,8 @@ runtime field matching routing path:
                 mode: time_series
                 routing_path: [dim.*]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
             mappings:
               properties:
                 "@timestamp":
@@ -250,8 +250,8 @@ runtime field matching routing path:
                 mode: time_series
                 routing_path: [dim.*]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
             mappings:
               properties:
                 "@timestamp":

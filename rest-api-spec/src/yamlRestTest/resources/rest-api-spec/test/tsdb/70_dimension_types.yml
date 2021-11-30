@@ -13,8 +13,8 @@ keyword dimension:
                 mode: time_series
                 routing_path: [uid]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
             mappings:
               properties:
                 "@timestamp":
@@ -86,8 +86,8 @@ long dimension:
                 mode: time_series
                 routing_path: [metricset]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
             mappings:
               properties:
                 "@timestamp":
@@ -161,8 +161,8 @@ ip dimension:
                 mode: time_series
                 routing_path: [metricset]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
             mappings:
               properties:
                 "@timestamp":

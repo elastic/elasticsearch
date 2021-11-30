@@ -14,8 +14,8 @@ date:
                 mode: time_series
                 routing_path: [metricset]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -63,8 +63,8 @@ date_nanos:
                 mode: time_series
                 routing_path: [metricset]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -112,8 +112,8 @@ automatically add with date:
                 mode: time_series
                 routing_path: [metricset]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -160,8 +160,8 @@ reject @timestamp with wrong type:
                 mode: time_series
                 routing_path: [metricset]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -185,8 +185,8 @@ reject timestamp meta field with wrong type:
               mode: time_series
               routing_path: [metricset]
               time_series:
-                start_time: 1
-                end_time: 253402300799998
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2999-04-28T00:00:00Z
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -208,8 +208,8 @@ enable timestamp meta field:
               mode: time_series
               routing_path: [metricset]
               time_series:
-                start_time: 1
-                end_time: 253402300799998
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2999-04-28T00:00:00Z
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -238,8 +238,8 @@ reject bad timestamp meta field:
               mode: time_series
               routing_path: [metricset]
               time_series:
-                start_time: 1
-                end_time: 253402300799998
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2999-04-28T00:00:00Z
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -260,8 +260,8 @@ write without timestamp:
               mode: time_series
               routing_path: [metricset]
               time_series:
-                start_time: 1
-                end_time: 253402300799998
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2999-04-28T00:00:00Z
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -300,8 +300,8 @@ explicitly enable timestamp meta field:
               mode: time_series
               routing_path: [metricset]
               time_series:
-                start_time: 1
-                end_time: 253402300799998
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2999-04-28T00:00:00Z
               number_of_replicas: 0
               number_of_shards: 2
           mappings:

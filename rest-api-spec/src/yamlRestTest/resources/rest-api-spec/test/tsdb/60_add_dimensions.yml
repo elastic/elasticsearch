@@ -13,8 +13,8 @@ add dimensions with put_mapping:
                 mode: time_series
                 routing_path: [metricset, k8s.pod.uid]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
             mappings:
               properties:
                 "@timestamp":
@@ -66,8 +66,8 @@ add dimensions to no dims with dynamic_template over index:
                 mode: time_series
                 routing_path: [metricset]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
             mappings:
               dynamic_templates:
                 - keywords:
@@ -114,8 +114,8 @@ add dimensions to no dims with dynamic_template over bulk:
                 mode: time_series
                 routing_path: [metricset]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
             mappings:
               dynamic_templates:
                 - keywords:
@@ -162,8 +162,8 @@ add dimensions to some dims with dynamic_template over index:
                 mode: time_series
                 routing_path: [metricset]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
             mappings:
               dynamic_templates:
                 - keywords:
@@ -214,8 +214,8 @@ add dimensions to some dims with dynamic_template over bulk:
                 mode: time_series
                 routing_path: [metricset]
                 time_series:
-                  start_time: 1
-                  end_time: 253402300799998
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2999-04-28T00:00:00Z
             mappings:
               dynamic_templates:
                 - keywords:

@@ -10,7 +10,6 @@ package org.elasticsearch.index;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -201,14 +200,14 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     private Settings getSettings() {
-        return getSettings(randomAlphaOfLength(5), 1, DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
+        return getSettings(randomAlphaOfLength(5), "2021-04-28T00:00:00Z", "2999-04-28T00:00:00Z");
     }
 
     private Settings getSettings(String routingPath) {
-        return getSettings(routingPath, 1, DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
+        return getSettings(routingPath, "2021-04-28T00:00:00Z", "2999-04-28T00:00:00Z");
     }
 
-    private Settings getSettings(String routingPath, long startTime, long endTime) {
+    private Settings getSettings(String routingPath, String startTime, String endTime) {
         return Settings.builder()
             .put(IndexSettings.MODE.getKey(), "time_series")
             .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)

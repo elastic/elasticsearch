@@ -498,7 +498,13 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             assertThat(settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(codec));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo(expectedWriteSetting));
         }, 30, TimeUnit.SECONDS);
-        expectThrows(ResponseException.class, () -> indexDocument(client(), index));
+
+        if (readOnly) {
+            expectThrows(ResponseException.class, () -> indexDocument(client(), index));
+        } else {
+            // No exception should be thrown here as writes were not blocked
+            indexDocument(client(), index);
+        }
     }
 
     public void testForceMergeAction() throws Exception {

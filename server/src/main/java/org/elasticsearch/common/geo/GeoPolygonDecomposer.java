@@ -88,7 +88,7 @@ class GeoPolygonDecomposer {
         int numPoints = linearRing.length();
         int count = 2;
         for (int i = 1; i < numPoints - 1; i++) {
-            if (skipPoint(linearRing, i) == false)  {
+            if (skipPoint(linearRing, i) == false) {
                 count++;
             }
         }

@@ -132,7 +132,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertTrue(indexExists(PRIMARY_INDEX_NAME));
         assertFalse(indexExists(INDEX_NAME + "-2"));
 
-        assertAliasesAddedByTemplate(Set.of(".test-index", ".test-index-legacy-alias"));
+        assertHasAliases(Set.of(".test-index", ".test-index-legacy-alias"));
 
         assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
@@ -167,7 +167,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertTrue(indexExists(PRIMARY_INDEX_NAME));
         assertFalse(indexExists(INDEX_NAME + "-2"));
 
-        assertAliasesAddedByTemplate(Set.of(".test-index", ".test-index-composable-alias"));
+        assertHasAliases(Set.of(".test-index", ".test-index-composable-alias"));
 
         assertAcked(
             client().execute(
@@ -215,7 +215,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertThat(getAliasesResponse.getAliases().get(concreteIndex).get(0).isHidden(), equalTo(true));
     }
 
-    private void assertAliasesAddedByTemplate(Set<String> aliasNames) throws InterruptedException, java.util.concurrent.ExecutionException {
+    private void assertHasAliases(Set<String> aliasNames) throws InterruptedException, java.util.concurrent.ExecutionException {
         final GetAliasesResponse getAliasesResponse = client().admin()
             .indices()
             .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))

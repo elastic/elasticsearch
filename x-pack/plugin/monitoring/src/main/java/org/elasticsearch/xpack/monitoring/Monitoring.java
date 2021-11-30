@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -72,6 +73,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
@@ -235,5 +237,18 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
             final Settings settingsForChangedExporter = settings.filter(x -> x.startsWith("xpack.monitoring.exporters." + changedExporter));
             exporters.setExportersSetting(settingsForChangedExporter);
         }
+    }
+
+    @Override
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
+        return map -> {
+            // this template was not migrated to typeless due to the possibility of the old /_monitoring/bulk API being used
+            // see {@link org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils#OLD_TEMPLATE_VERSION}
+            // however the bulk API is not typed (the type field is for the docs, a field inside the docs) so it's safe to remove this
+            // old template and rely on the updated, typeless, .monitoring-alerts-7 template
+            map.remove(".monitoring-alerts");
+            return map;
+        };
+
     }
 }

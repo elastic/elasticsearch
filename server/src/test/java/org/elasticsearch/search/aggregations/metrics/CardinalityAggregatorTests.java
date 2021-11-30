@@ -300,7 +300,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         }, mappedFieldTypes);
     }
 
-    public void testMultiValuedStringVaalueScript() throws IOException {
+    public void testMultiValuedStringValueScript() throws IOException {
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("name").field("str_values")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_value", emptyMap()));
         final MappedFieldType mappedFieldTypes = new KeywordFieldMapper.KeywordFieldType("str_values");
@@ -491,10 +491,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             );
             iw.addDocument(List.of(new SortedNumericDocValuesField("numbers", 11), new SortedNumericDocValuesField("numbers", 12)));
             iw.addDocument(List.of(new SortedNumericDocValuesField("numbers", 12), new SortedNumericDocValuesField("numbers", 13)));
-            iw.addDocument(
-                List.of(new SortedNumericDocValuesField("numbers", 12), new SortedNumericDocValuesField("numbers", 13))
-
-            );
+            iw.addDocument(List.of(new SortedNumericDocValuesField("numbers", 12), new SortedNumericDocValuesField("numbers", 13)));
         }, card -> {
             assertEquals(4, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
@@ -601,42 +598,36 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             .missing("unknown")
             .subAggregation(AggregationBuilders.cardinality("cardinality").field("number"));
 
-        testCase(
-            aggregationBuilder,
-            new MatchAllDocsQuery(),
-            iw -> {
-                final int numDocs = 10;
-                for (int i = 0; i < numDocs; i++) {
-                    iw.addDocument(
-                        List.of(
-                            new SortedDocValuesField("str_value", new BytesRef((((i + 1) % 2 == 0) ? "even" : "odd"))),
-                            new NumericDocValuesField("number", i + 1)
-                        )
-                    );
-                }
-            },
-            topLevelAgg -> {
-                int expectedTermBucketsCount = 2; // ("even", "odd")
-                final Terms terms = (StringTerms) topLevelAgg;
-                assertNotNull(terms);
-                List<? extends Terms.Bucket> buckets = terms.getBuckets();
-                assertNotNull(buckets);
-                assertEquals(expectedTermBucketsCount, buckets.size());
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            final int numDocs = 10;
+            for (int i = 0; i < numDocs; i++) {
+                iw.addDocument(
+                    List.of(
+                        new SortedDocValuesField("str_value", new BytesRef((((i + 1) % 2 == 0) ? "even" : "odd"))),
+                        new NumericDocValuesField("number", i + 1)
+                    )
+                );
+            }
+        }, topLevelAgg -> {
+            int expectedTermBucketsCount = 2; // ("even", "odd")
+            final Terms terms = (StringTerms) topLevelAgg;
+            assertNotNull(terms);
+            List<? extends Terms.Bucket> buckets = terms.getBuckets();
+            assertNotNull(buckets);
+            assertEquals(expectedTermBucketsCount, buckets.size());
 
-                for (int i = 0; i < expectedTermBucketsCount; i++) {
-                    final Terms.Bucket bucket = buckets.get(i);
-                    assertNotNull(bucket);
-                    assertEquals(((i + 1) % 2 == 0) ? "odd" : "even", bucket.getKey());
-                    assertEquals(5L, bucket.getDocCount());
+            for (int i = 0; i < expectedTermBucketsCount; i++) {
+                final Terms.Bucket bucket = buckets.get(i);
+                assertNotNull(bucket);
+                assertEquals(((i + 1) % 2 == 0) ? "odd" : "even", bucket.getKey());
+                assertEquals(5L, bucket.getDocCount());
 
-                    final InternalCardinality cardinality = bucket.getAggregations().get("cardinality");
-                    assertNotNull(cardinality);
-                    assertEquals("cardinality", cardinality.getName());
-                    assertEquals(5, cardinality.getValue());
-                }
-            },
-            mappedFieldTypes
-        );
+                final InternalCardinality cardinality = bucket.getAggregations().get("cardinality");
+                assertNotNull(cardinality);
+                assertEquals("cardinality", cardinality.getName());
+                assertEquals(5, cardinality.getValue());
+            }
+        }, mappedFieldTypes);
     }
 
     public void testCacheAggregation() throws IOException {

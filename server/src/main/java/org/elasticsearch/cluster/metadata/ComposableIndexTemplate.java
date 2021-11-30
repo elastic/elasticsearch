@@ -275,12 +275,25 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         ComposableIndexTemplate other = (ComposableIndexTemplate) obj;
         return Objects.equals(this.indexPatterns, other.indexPatterns)
             && Objects.equals(this.template, other.template)
-            && Objects.equals(this.componentTemplates, other.componentTemplates)
+            && componentTemplatesEquals(this.componentTemplates, other.componentTemplates)
             && Objects.equals(this.priority, other.priority)
             && Objects.equals(this.version, other.version)
             && Objects.equals(this.metadata, other.metadata)
             && Objects.equals(this.dataStreamTemplate, other.dataStreamTemplate)
             && Objects.equals(this.allowAutoCreate, other.allowAutoCreate);
+    }
+
+    static boolean componentTemplatesEquals(List<String> c1, List<String> c2) {
+        if (Objects.equals(c1, c2)) {
+            return true;
+        }
+        if (c1 == null && c2.isEmpty()) {
+            return true;
+        }
+        if (c2 == null && c1.isEmpty()) {
+            return true;
+        }
+        return false;
     }
 
     @Override

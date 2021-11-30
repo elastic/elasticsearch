@@ -1591,17 +1591,23 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 indexMetadata.getAliases().keysIt().forEachRemaining(allAliases::add);
             }
 
+            final ArrayList<String> duplicates = new ArrayList<>();
             final Set<String> allDataStreams = new HashSet<>();
             DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
             if (dataStreamMetadata != null) {
                 for (DataStream dataStream : dataStreamMetadata.dataStreams().values()) {
                     allDataStreams.add(dataStream.getName());
                 }
+                // Adding data stream aliases:
+                for (String dataStreamAlias : dataStreamMetadata.getDataStreamAliases().keySet()) {
+                    if (allAliases.add(dataStreamAlias) == false) {
+                        duplicates.add("data stream alias and indices alias have the same name (" + dataStreamAlias + ")");
+                    }
+                }
             }
 
             final Set<String> aliasDuplicatesWithIndices = new HashSet<>(allAliases);
             aliasDuplicatesWithIndices.retainAll(allIndices);
-            ArrayList<String> duplicates = new ArrayList<>();
             if (aliasDuplicatesWithIndices.isEmpty() == false) {
                 // iterate again and constructs a helpful message
                 for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
@@ -1617,11 +1623,18 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             aliasDuplicatesWithDataStreams.retainAll(allDataStreams);
             if (aliasDuplicatesWithDataStreams.isEmpty() == false) {
                 // iterate again and constructs a helpful message
-                for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
-                    for (String alias : aliasDuplicatesWithDataStreams) {
+                for (String alias : aliasDuplicatesWithDataStreams) {
+                    // reported var avoids adding a message twice if an index alias has the same name as a data stream.
+                    boolean reported = false;
+                    for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
                         if (cursor.value.getAliases().containsKey(alias)) {
                             duplicates.add(alias + " (alias of " + cursor.value.getIndex() + ") conflicts with data stream");
+                            reported = true;
                         }
+                    }
+                    // This is for adding an error message for when a data steam alias has the same name as a data stream.
+                    if (reported == false && dataStreamMetadata != null && dataStreamMetadata.dataStreams().containsKey(alias)) {
+                        duplicates.add("data stream alias and data stream have the same name (" + alias + ")");
                     }
                 }
             }

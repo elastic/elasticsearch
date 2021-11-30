@@ -9,6 +9,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
+import org.elasticsearch.index.fielddata.ScriptDocValues.LongsSupplier;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -27,7 +28,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
 
         for (int round = 0; round < 10; round++) {
             int d = between(0, values.length - 1);
-            longs.setNextDocId(d);
+            longs.getSupplier().setNextDocId(d);
             if (values[d].length > 0) {
                 assertEquals(values[d][0], longs.getValue());
                 assertEquals(values[d][0], (long) longs.get(0));
@@ -56,7 +57,7 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
     }
 
     private Longs wrap(long[][] values) {
-        return new Longs(new AbstractSortedNumericDocValues() {
+        return new Longs(new LongsSupplier(new AbstractSortedNumericDocValues() {
             long[] current;
             int i;
 
@@ -76,6 +77,6 @@ public class ScriptDocValuesLongsTests extends ESTestCase {
             public long nextValue() {
                 return current[i++];
             }
-        });
+        }));
     }
 }

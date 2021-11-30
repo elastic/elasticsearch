@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -197,6 +198,6 @@ public class AutoFollowRestoreGlobalStateIT extends CcrIntegTestCase {
     }
 
     private static String randomName() {
-        return randomAlphaOfLengthBetween(5, 25).toLowerCase();
+        return randomAlphaOfLengthBetween(5, 25).toLowerCase(Locale.ROOT);
     }
 }

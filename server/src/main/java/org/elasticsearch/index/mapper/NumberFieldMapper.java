@@ -55,7 +55,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
-import java.lang.reflect.Parameter;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1419,16 +1418,10 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
-        if (singleValue) {
-            // Check that field is single-valued and not an array
-            if (context.doc().getByKey(fieldType().name()) != null) {
-                throw new IllegalArgumentException("field [" + fieldType().name() + "] cannot be a multi-valued field.");
-            }
-            if (fields.size() > 0) {
-                // Add the first field by key so that we can validate if it has been added
-                context.doc().addWithKey(fieldType().name(), fields.get(0));
-                context.doc().addAll(fields.subList(1, fields.size()));
-            }
+        if (singleValue && fields.size() > 0) {
+            // Add the first field by key so that we can validate if it has been added
+            context.doc().addWithKey(fieldType().name(), fields.get(0));
+            context.doc().addAll(fields.subList(1, fields.size()));
         } else {
             context.doc().addAll(fields);
         }

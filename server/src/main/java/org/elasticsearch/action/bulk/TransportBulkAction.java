@@ -511,6 +511,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, metadata)) {
                     continue;
                 }
+                if (addFailureIfIndexCannotBeCreated(docWriteRequest, i)) {
+                    continue;
+                }
 
                 IndexAbstraction ia = null;
                 boolean includeDataStreams = docWriteRequest.opType() == DocWriteRequest.OpType.CREATE;
@@ -536,7 +539,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     docWriteRequest.process();
 
                     final Index concreteIndex = ia.getWriteIndex(docWriteRequest, metadata);
-                    if (addFailureIfIndexIsUnavailable(docWriteRequest, concreteIndex, i, metadata)) {
+                    if (addFailureIfIndexIsClosed(docWriteRequest, concreteIndex, i, metadata)) {
                         continue;
                     }
                     IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
@@ -685,15 +688,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return false;
         }
 
-        private boolean addFailureIfIndexIsUnavailable(DocWriteRequest<?> request, Index concreteIndex, int idx, final Metadata metadata) {
-            IndexNotFoundException cannotCreate = indicesThatCannotBeCreated.get(request.index());
-            if (cannotCreate != null) {
-                addFailure(request, idx, cannotCreate);
-                return true;
-            }
+        private boolean addFailureIfIndexIsClosed(DocWriteRequest<?> request, Index concreteIndex, int idx, final Metadata metadata) {
             IndexMetadata indexMetadata = metadata.getIndexSafe(concreteIndex);
             if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
                 addFailure(request, idx, new IndexClosedException(concreteIndex));
+                return true;
+            }
+            return false;
+        }
+
+        private boolean addFailureIfIndexCannotBeCreated(DocWriteRequest<?> request, int idx) {
+            IndexNotFoundException cannotCreate = indicesThatCannotBeCreated.get(request.index());
+            if (cannotCreate != null) {
+                addFailure(request, idx, cannotCreate);
                 return true;
             }
             return false;

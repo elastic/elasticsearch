@@ -77,7 +77,6 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
@@ -518,7 +517,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 IndexAbstraction ia = null;
                 boolean includeDataStreams = docWriteRequest.opType() == DocWriteRequest.OpType.CREATE;
                 try {
-                    ia = concreteIndices.resolveIfAbsent1(docWriteRequest);
+                    ia = concreteIndices.resolveIfAbsent(docWriteRequest);
                     if (ia.isDataStreamRelated() && includeDataStreams == false) {
                         throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
                     }
@@ -730,7 +729,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private static class ConcreteIndices {
         private final ClusterState state;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
-        private final Map<String, Index> indices = new HashMap<>();
         private final Map<String, IndexAbstraction> indexAbstractions = new HashMap<>();
         private final Map<Index, IndexRouting> routings = new HashMap<>();
 
@@ -739,39 +737,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             this.indexNameExpressionResolver = indexNameExpressionResolver;
         }
 
-        Index getConcreteIndex(String indexOrAlias) {
-            return indices.get(indexOrAlias);
-        }
-
-        IndexAbstraction resolveIfAbsent1(DocWriteRequest<?> request) {
+        IndexAbstraction resolveIfAbsent(DocWriteRequest<?> request) {
             return indexAbstractions.computeIfAbsent(
                 request.index(),
                 key -> indexNameExpressionResolver.resolveWriteIndexAbstraction(state, request)
             );
-        }
-
-        Index resolveIfAbsent(DocWriteRequest<?> request) {
-            Index concreteIndex = indices.get(request.index());
-            if (concreteIndex == null) {
-                boolean includeDataStreams = request.opType() == DocWriteRequest.OpType.CREATE;
-                try {
-                    concreteIndex = indexNameExpressionResolver.concreteWriteIndex(
-                        state,
-                        request.indicesOptions(),
-                        request.indices()[0],
-                        false,
-                        includeDataStreams
-                    );
-                } catch (IndexNotFoundException e) {
-                    if (includeDataStreams == false && e.getMetadataKeys().contains(EXCLUDED_DATA_STREAMS_KEY)) {
-                        throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
-                    } else {
-                        throw e;
-                    }
-                }
-                indices.put(request.index(), concreteIndex);
-            }
-            return concreteIndex;
         }
 
         IndexRouting routing(Index index) {

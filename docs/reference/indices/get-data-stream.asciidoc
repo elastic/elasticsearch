@@ -265,6 +265,7 @@ The API returns the following response:
       "timestamp_field": {
         "name": "@timestamp"
       },
+      "type" : "DEFAULT",
       "indices": [
         {
           "index_name": ".ds-my-data-stream-two-2099.03.08-000001",

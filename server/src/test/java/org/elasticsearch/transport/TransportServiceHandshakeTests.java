@@ -36,6 +36,7 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.transport.TcpTransport.IGNORE_DESERIALIZATION_ERRORS_SETTING_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -221,7 +222,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
     }
 
     public void testRejectsMismatchedBuildHash() {
-        final Settings settings = Settings.builder().put("cluster.name", "a").build();
+        final Settings settings = Settings.builder().put("cluster.name", "a").put(IGNORE_DESERIALIZATION_ERRORS_SETTING_KEY, true).build();
         final NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
         final NetworkHandle handleB = startServices("TS_B", settings, Version.CURRENT);
         final DiscoveryNode discoveryNode = new DiscoveryNode(

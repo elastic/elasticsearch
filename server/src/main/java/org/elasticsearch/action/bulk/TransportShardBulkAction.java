@@ -139,13 +139,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
-        // Recycling Instance
-        try {
-            request.inflateItems(recycler);
-        } catch (IOException e) {
-            listener.onFailure(e);
-            return;
-        }
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
             assert update != null;
@@ -293,13 +286,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         Consumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<Void> itemDoneListener
     ) throws Exception {
-        DocWriteRequest<?> currentRequest = context.getCurrent();
-        final DocWriteRequest.OpType opType = currentRequest.opType();
+        final DocWriteRequest.OpType opType = context.getCurrent().opType();
 
         // Translate update requests into index or delete requests which can be executed directly
         final UpdateHelper.Result updateResult;
         if (opType == DocWriteRequest.OpType.UPDATE) {
-            final UpdateRequest updateRequest = (UpdateRequest) currentRequest;
+            final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
             try {
                 updateResult = updateHelper.prepare(updateRequest, context.getPrimary(), nowInMillisSupplier);
             } catch (Exception failure) {
@@ -320,7 +312,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             translated.process();
             context.setRequestToExecute(translated);
         } else {
-            context.setRequestToExecute(currentRequest);
+            context.setRequestToExecute(context.getCurrent());
             updateResult = null;
         }
 
@@ -569,9 +561,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     public static Translog.Location performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
-        BulkItemRequest[] inflatedItems = request.inflatedItems();
-        for (int i = 0; i < inflatedItems.length; i++) {
-            final BulkItemRequest item = inflatedItems[i];
+        for (int i = 0; i < request.items().length; i++) {
+            final BulkItemRequest item = request.items()[i];
             final BulkItemResponse response = item.getPrimaryResponse();
             final Engine.Result operationResult;
             if (item.getPrimaryResponse().isFailed()) {

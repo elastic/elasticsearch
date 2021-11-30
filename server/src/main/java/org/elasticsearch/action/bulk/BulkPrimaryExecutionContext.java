@@ -167,7 +167,7 @@ class BulkPrimaryExecutionContext {
     }
 
     private BulkItemRequest getCurrentItem() {
-        return request.inflatedItems()[currentIndex];
+        return request.items()[currentIndex];
     }
 
     /** returns the primary shard */

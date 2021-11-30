@@ -65,6 +65,7 @@ In 8.1, when retrieving a geo_shape field using the fields API, the geometry wil
 normalized if it crosses the dateline. For example if a polygon crosses the dateline,
 it will be returned as two polygons. The original polygon can still be retrieved
 from `_source`.
+====
 
 [discrete]
 [[breaking_8.1_cluster_node_setting_deprecations]]

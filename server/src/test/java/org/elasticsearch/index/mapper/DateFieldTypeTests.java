@@ -31,6 +31,8 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Dates;
+import org.elasticsearch.index.fielddata.ScriptDocValues.DatesSupplier;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -38,6 +40,7 @@ import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -53,7 +56,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     private static final long nowInMillis = 0;
 
     public void testIsFieldWithinRangeEmptyReader() throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
+        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), writableRegistry(), null, () -> nowInMillis);
         IndexReader reader = new MultiReader();
         DateFieldType ft = new DateFieldType("my_date");
         assertEquals(
@@ -90,7 +93,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         doTestIsFieldWithinQuery(ft, reader, ZoneOffset.UTC, null);
         doTestIsFieldWithinQuery(ft, reader, ZoneOffset.UTC, alternateFormat);
 
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
+        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), writableRegistry(), null, () -> nowInMillis);
 
         // Fields with no value indexed.
         DateFieldType ft2 = new DateFieldType("my_date2");
@@ -102,7 +105,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private void doTestIsFieldWithinQuery(DateFieldType ft, DirectoryReader reader, ZoneId zone, DateMathParser alternateFormat)
         throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
+        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), writableRegistry(), null, () -> nowInMillis);
         assertEquals(
             Relation.INTERSECTS,
             ft.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", randomBoolean(), randomBoolean(), zone, null, context)
@@ -335,7 +338,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         // Create the doc values reader
         SortedNumericIndexFieldData fieldData = new SortedNumericIndexFieldData(
             "my_date",
-            IndexNumericFieldData.NumericType.DATE_NANOSECONDS
+            IndexNumericFieldData.NumericType.DATE_NANOSECONDS,
+            (dv, n) -> new DelegateDocValuesField(new Dates(new DatesSupplier(dv, true)), n)
         );
         // Read index and check the doc values
         DirectoryReader reader = DirectoryReader.open(w);

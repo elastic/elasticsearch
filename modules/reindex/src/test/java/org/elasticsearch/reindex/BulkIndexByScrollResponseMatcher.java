@@ -19,6 +19,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressWarnings("HiddenField")
 public class BulkIndexByScrollResponseMatcher extends TypeSafeMatcher<BulkByScrollResponse> {
 
     private Matcher<Long> createdMatcher = equalTo(0L);

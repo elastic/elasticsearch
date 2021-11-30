@@ -46,7 +46,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
                         + "] index level setting."
                 );
             } else {
-                DEPRECATION_LOGGER.critical(
+                DEPRECATION_LOGGER.warn(
                     DeprecationCategory.ANALYSIS,
                     "excessive_shingle_diff",
                     "Deprecated big difference between maxShingleSize and minShingleSize"
@@ -81,7 +81,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
         if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
             throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
         } else {
-            DEPRECATION_LOGGER.critical(
+            DEPRECATION_LOGGER.warn(
                 DeprecationCategory.ANALYSIS,
                 "synonym_tokenfilters",
                 "Token filter " + name() + "] will not be usable to parse synonym after v7.0"

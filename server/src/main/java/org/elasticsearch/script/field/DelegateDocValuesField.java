@@ -11,25 +11,28 @@ package org.elasticsearch.script.field;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Iterator;
 
 /**
  * A default {@link Field} to provide {@code ScriptDocValues} for fields
  * that are not supported by the script fields api.
  */
-public class DelegateDocValuesField implements DocValuesField {
+public class DelegateDocValuesField implements DocValuesField<Object> {
 
     private final ScriptDocValues<?> scriptDocValues;
     private final String name;
 
     public DelegateDocValuesField(ScriptDocValues<?> scriptDocValues, String name) {
+        // Suppliers provided via ScriptDocValues should never be a DocValuesField
+        // as we expect DelegateDocValuesField to only support old-style ScriptDocValues
+        assert scriptDocValues.getSupplier() instanceof DocValuesField == false;
         this.scriptDocValues = scriptDocValues;
         this.name = name;
     }
 
     @Override
     public void setNextDocId(int docId) throws IOException {
-        scriptDocValues.setNextDocId(docId);
+        scriptDocValues.getSupplier().setNextDocId(docId);
     }
 
     @Override
@@ -39,24 +42,21 @@ public class DelegateDocValuesField implements DocValuesField {
 
     @Override
     public String getName() {
-        throw new UnsupportedOperationException("field [" + name + "] is not supported through the fields api, use [doc] instead");
+        return name;
     }
 
     @Override
     public boolean isEmpty() {
-        throw new UnsupportedOperationException("field [" + name + "] is not supported through the fields api, use [doc] instead");
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public int size() {
-        throw new UnsupportedOperationException("field [" + name + "] is not supported through the fields api, use [doc] instead");
+        throw new UnsupportedOperationException();
     }
 
-    public Object getValue(Object defaultValue) {
-        throw new UnsupportedOperationException("field [" + name + "] is not supported through the fields api, use [doc] instead");
-    }
-
-    public List<?> getValues() {
-        throw new UnsupportedOperationException("field [" + name + "] is not supported through the fields api, use [doc] instead");
+    @Override
+    public Iterator<Object> iterator() {
+        throw new UnsupportedOperationException();
     }
 }

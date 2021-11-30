@@ -37,7 +37,7 @@ public final class SessionFactorySettings {
 
     public static final Function<String, Setting.AffixSetting<TimeValue>> TIMEOUT_TCP_READ_SETTING = RealmSettings.affixSetting(
         "timeout.tcp_read",
-        key -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Setting.Property.NodeScope, Setting.Property.Deprecated)
+        key -> Setting.timeSetting(key, TimeValue.MINUS_ONE, Setting.Property.NodeScope, Setting.Property.DeprecatedWarning)
     );
 
     public static final Function<String, Setting.AffixSetting<TimeValue>> TIMEOUT_RESPONSE_SETTING = RealmSettings.affixSetting(

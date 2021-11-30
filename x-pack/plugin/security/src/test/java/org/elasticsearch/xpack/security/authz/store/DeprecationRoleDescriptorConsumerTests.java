@@ -368,7 +368,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
     }
 
     private void verifyLogger(DeprecationLogger deprecationLogger, String roleName, String aliasName, String indexNames) {
-        verify(deprecationLogger).critical(
+        verify(deprecationLogger).warn(
             DeprecationCategory.SECURITY,
             "index_permissions_on_alias",
             "Role ["

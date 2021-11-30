@@ -52,6 +52,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
@@ -164,7 +165,7 @@ public class IndexModuleTests extends ESTestCase {
         circuitBreakerService = new NoneCircuitBreakerService();
         PageCacheRecycler pageCacheRecycler = new PageCacheRecycler(settings);
         bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.REQUEST);
-        scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());
+        scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         nodeEnvironment = new NodeEnvironment(settings, environment);
         mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
@@ -194,7 +195,7 @@ public class IndexModuleTests extends ESTestCase {
             mapperRegistry,
             new IndicesFieldDataCache(settings, listener),
             writableRegistry(),
-            () -> false,
+            IdFieldMapper.NO_FIELD_DATA,
             null,
             indexDeletionListener,
             emptyMap()

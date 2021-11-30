@@ -33,7 +33,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.FilterClient;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -103,35 +102,39 @@ public class EnrichPolicyRunner implements Runnable {
         int fetchSize,
         int maxForceMergeAttempts
     ) {
-        this.policyName = policyName;
-        this.policy = policy;
-        this.task = task;
-        this.listener = listener;
-        this.clusterService = clusterService;
+        this.policyName = Objects.requireNonNull(policyName);
+        this.policy = Objects.requireNonNull(policy);
+        this.task = Objects.requireNonNull(task);
+        this.listener = Objects.requireNonNull(listener);
+        this.clusterService = Objects.requireNonNull(clusterService);
         this.client = wrapClient(client, policyName, task, clusterService);
-        this.indexNameExpressionResolver = indexNameExpressionResolver;
-        this.nowSupplier = nowSupplier;
+        this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
+        this.nowSupplier = Objects.requireNonNull(nowSupplier);
         this.fetchSize = fetchSize;
         this.maxForceMergeAttempts = maxForceMergeAttempts;
     }
 
     @Override
     public void run() {
-        logger.info("Policy [{}]: Running enrich policy", policyName);
-        task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.RUNNING));
-        // Collect the source index information
-        final String[] sourceIndices = policy.getIndices().toArray(new String[0]);
-        logger.debug("Policy [{}]: Checking source indices [{}]", policyName, sourceIndices);
-        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(sourceIndices);
-        // This call does not set the origin to ensure that the user executing the policy has permission to access the source index
-        client.admin().indices().getIndex(getIndexRequest, listener.delegateFailure((l, getIndexResponse) -> {
-            try {
-                validateMappings(getIndexResponse);
-                prepareAndCreateEnrichIndex(toMappings(getIndexResponse));
-            } catch (Exception e) {
-                l.onFailure(e);
-            }
-        }));
+        try {
+            logger.info("Policy [{}]: Running enrich policy", policyName);
+            task.setStatus(new ExecuteEnrichPolicyStatus(ExecuteEnrichPolicyStatus.PolicyPhases.RUNNING));
+            // Collect the source index information
+            final String[] sourceIndices = policy.getIndices().toArray(new String[0]);
+            logger.debug("Policy [{}]: Checking source indices [{}]", policyName, sourceIndices);
+            GetIndexRequest getIndexRequest = new GetIndexRequest().indices(sourceIndices);
+            // This call does not set the origin to ensure that the user executing the policy has permission to access the source index
+            client.admin().indices().getIndex(getIndexRequest, listener.delegateFailure((l, getIndexResponse) -> {
+                try {
+                    validateMappings(getIndexResponse);
+                    prepareAndCreateEnrichIndex(toMappings(getIndexResponse));
+                } catch (Exception e) {
+                    l.onFailure(e);
+                }
+            }));
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     private List<Map<String, Object>> toMappings(GetIndexResponse response) {
@@ -565,9 +568,9 @@ public class EnrichPolicyRunner implements Runnable {
         GetAliasesRequest aliasRequest = new GetAliasesRequest(enrichIndexBase);
         ClusterState clusterState = clusterService.state();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(clusterState, aliasRequest);
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases = clusterState.metadata().findAliases(aliasRequest, concreteIndices);
+        String[] aliases = aliasRequest.aliases();
         IndicesAliasesRequest aliasToggleRequest = new IndicesAliasesRequest();
-        String[] indices = aliases.keys().toArray(String.class);
+        String[] indices = clusterState.metadata().findAliases(aliases, concreteIndices).keys().toArray(String.class);
         if (indices.length > 0) {
             aliasToggleRequest.addAliasAction(IndicesAliasesRequest.AliasActions.remove().indices(indices).alias(enrichIndexBase));
         }

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[start-trained-model-deployment]]
 = Start trained model deployment API
 [subs="attributes"]
@@ -7,12 +6,14 @@
 <titleabbrev>Start trained model deployment</titleabbrev>
 ++++
 
+experimental::[]
+
 Starts a new trained model deployment.
 
 [[start-trained-model-deployment-request]]
 == {api-request-title}
 
-`POST _ml/trained_models/<model_id>/deployent/_start`
+`POST _ml/trained_models/<model_id>/deployment/_start`
 
 [[start-trained-model-deployment-prereq]]
 == {api-prereq-title}
@@ -35,6 +36,26 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 [[start-trained-model-deployment-query-params]]
 == {api-query-parms-title}
 
+`inference_threads`::
+(Optional, integer)
+Sets the number of threads used by the inference process. This generally increases
+the inference speed. The inference process is a compute-bound process; any number 
+greater than the number of available CPU cores on the machine does not increase the 
+inference speed.
+Defaults to 1.
+
+`model_threads`::
+(Optional, integer)
+Indicates how many threads are used when sending inference requests to
+the model. Increasing this value generally increases the throughput. Defaults to
+1.
+
+`queue_capacity`::
+(Optional, integer)
+Controls how many inference requests are allowed in the queue at a time. Once the
+number of requests exceeds this value, new requests are rejected with a 429 error.
+Defaults to 1024.
+
 `timeout`::
 (Optional, time)
 Controls the amount of time to wait for the model to deploy. Defaults
@@ -47,26 +68,6 @@ Specifies the allocation status to wait for before returning. Defaults to
 any node. The value `started` indicates the model has started on at least one
 node. The value `fully_allocated` indicates the deployment has started on all
 valid nodes.
-
-`model_threads`::
-(Optional, integer)
-Indicates how many threads are used when sending inference requests to
-the model. Increasing this value generally increases the throughput. Defaults to
-1.
-
-`inference_threads`::
-(Optional, integer)
-Sets the number of threads used by the inference process. This generally increases
-the inference speed. The inference process is a compute-bound process; any number 
-greater than the number of available CPU cores on the machine does not increase the 
-inference speed.
-Defaults to 1.
-
-`queue_capacity`::
-(Optional, integer)
-Controls how many inference requests are allowed in the queue at a time. Once the
-number of requests exceeds this value, new requests are rejected with a 429 error.
-Defaults to 1024.
 
 [[start-trained-model-deployment-example]]
 == {api-examples-title}
@@ -96,7 +97,8 @@ The API returns the following results:
                 "reason": ""
             }
         },
-        "allocation_state": "started"
+        "allocation_state": "started",
+        "start_time": "2021-11-02T11:50:34.766591Z"
     }
 }
 ----

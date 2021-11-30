@@ -215,9 +215,9 @@ include a port. For example, the endpoint may be `172.17.0.2` or
 `172.17.0.2:9000`. You may also need to set `s3.client.CLIENT_NAME.protocol` to
 `http` if the endpoint does not support HTTPS.
 
-https://minio.io[Minio] is an example of a storage system that provides an
+https://minio.io[MinIO] is an example of a storage system that provides an
 S3-compatible API. The `repository-s3` plugin allows {es} to work with
-Minio-backed repositories as well as repositories stored on AWS S3. Other
+MinIO-backed repositories as well as repositories stored on AWS S3. Other
 S3-compatible storage systems may also work with {es}, but these are not
 covered by the {es} test suite.
 

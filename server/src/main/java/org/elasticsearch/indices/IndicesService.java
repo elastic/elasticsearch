@@ -131,6 +131,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.Closeable;
@@ -203,6 +204,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
     private final NamedXContentRegistry xContentRegistry;
+    private final XContentParserConfiguration parserConfig;
     private final TimeValue shardsClosedTimeout;
     private final AnalysisRegistry analysisRegistry;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -235,6 +237,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
     private volatile boolean allowExpensiveQueries;
+
+    private final IdFieldMapper idFieldMapper = new IdFieldMapper(() -> idFieldDataEnabled);
 
     @Nullable
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
@@ -283,6 +287,8 @@ public class IndicesService extends AbstractLifecycleComponent
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
         this.xContentRegistry = xContentRegistry;
+        this.parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
+            .withRegistry(xContentRegistry);
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
         this.analysisRegistry = analysisRegistry;
@@ -728,7 +734,7 @@ public class IndicesService extends AbstractLifecycleComponent
             mapperRegistry,
             indicesFieldDataCache,
             namedWriteableRegistry,
-            this::isIdFieldDataEnabled,
+            idFieldMapper,
             valuesSourceRegistry,
             indexFoldersDeletionListeners,
             snapshotCommitSuppliers
@@ -1683,12 +1689,12 @@ public class IndicesService extends AbstractLifecycleComponent
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
-        return new QueryRewriteContext(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
+        return new QueryRewriteContext(parserConfig, namedWriteableRegistry, client, nowInMillis);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
         return new CoordinatorRewriteContextProvider(
-            xContentRegistry,
+            parserConfig,
             namedWriteableRegistry,
             client,
             nowInMillis,
@@ -1734,13 +1740,6 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public Set<String> getAllMetadataFields() {
         return mapperRegistry.getAllMetadataMapperParsers().keySet();
-    }
-
-    /**
-     * Returns <code>true</code> if fielddata is enabled for the {@link IdFieldMapper} field, <code>false</code> otherwise.
-     */
-    public boolean isIdFieldDataEnabled() {
-        return idFieldDataEnabled;
     }
 
     private void setIdFieldDataEnabled(boolean value) {

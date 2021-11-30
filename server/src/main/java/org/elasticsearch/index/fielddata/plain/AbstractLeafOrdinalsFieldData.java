@@ -26,7 +26,7 @@ public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsField
 
     public static final Function<SortedSetDocValues, ScriptDocValues<?>> DEFAULT_SCRIPT_FUNCTION = ((Function<
         SortedSetDocValues,
-        SortedBinaryDocValues>) FieldData::toString).andThen(ScriptDocValues.Strings::new);
+        SortedBinaryDocValues>) FieldData::toString).andThen(ScriptDocValues.StringsSupplier::new).andThen(ScriptDocValues.Strings::new);
 
     private final Function<SortedSetDocValues, ScriptDocValues<?>> scriptFunction;
 
@@ -35,7 +35,7 @@ public abstract class AbstractLeafOrdinalsFieldData implements LeafOrdinalsField
     }
 
     @Override
-    public final DocValuesField getScriptField(String name) {
+    public final DocValuesField<?> getScriptField(String name) {
         return new DelegateDocValuesField(scriptFunction.apply(getOrdinalsValues()), name);
     }
 

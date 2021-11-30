@@ -17,7 +17,6 @@ The simplest way to set up {es} is to create a managed deployment with {ess} on
 {ecloud}. If you prefer to manage your own test environment, you can install and
 run {es} using Docker.
 
-include::{es-repo-dir}/tab-widgets/code.asciidoc[]
 include::{es-repo-dir}/tab-widgets/quick-start-install-widget.asciidoc[]
 
 [discrete]

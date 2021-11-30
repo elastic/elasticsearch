@@ -261,17 +261,13 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         // Manual rollover the original index such that it's not the write index in the data stream anymore
         rolloverMaxOneDocCondition(client(), dataStream);
 
-        assertBusy(
-            () -> {
-                assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME));
-                Map<String, Object> settings = getOnlyIndexSettings(client(), backingIndexName);
-                Object expectedWriteSetting = readOnly ? "true" : null;
-                assertThat(settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(codec));
-                assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo(expectedWriteSetting));
-            },
-            30,
-            TimeUnit.SECONDS
-        );
+        assertBusy(() -> {
+            assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME));
+            Map<String, Object> settings = getOnlyIndexSettings(client(), backingIndexName);
+            Object expectedWriteSetting = readOnly ? "true" : null;
+            assertThat(settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(codec));
+            assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo(expectedWriteSetting));
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testForceMergeAction() throws Exception {

@@ -200,11 +200,11 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
     }
 
     private Settings getSettings() {
-        return getSettings(randomAlphaOfLength(5), "2021-04-28T00:00:00Z", "2999-04-28T00:00:00Z");
+        return getSettings(randomAlphaOfLength(5), "2021-04-28T00:00:00Z", "2021-04-29T00:00:00Z");
     }
 
     private Settings getSettings(String routingPath) {
-        return getSettings(routingPath, "2021-04-28T00:00:00Z", "2999-04-28T00:00:00Z");
+        return getSettings(routingPath, "2021-04-28T00:00:00Z", "2021-04-29T00:00:00Z");
     }
 
     private Settings getSettings(String routingPath, String startTime, String endTime) {

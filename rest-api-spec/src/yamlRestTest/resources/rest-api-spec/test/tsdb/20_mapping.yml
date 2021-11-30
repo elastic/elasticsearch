@@ -13,7 +13,7 @@ ecs style:
                 routing_path: [metricset, k8s.pod.uid]
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
-                  end_time: 2999-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -69,7 +69,7 @@ top level dim object:
                 routing_path: [dim.*]
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
-                  end_time: 2999-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -128,7 +128,7 @@ non keyword matches routing_path:
                 routing_path: [metricset, k8s.pod.uid, "@timestamp"]
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
-                  end_time: 2999-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -172,7 +172,7 @@ runtime field matching routing path:
                 routing_path: [dim.*]
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
-                  end_time: 2999-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
             mappings:
               properties:
                 "@timestamp":
@@ -214,7 +214,7 @@ runtime field matching routing path:
                 routing_path: [dim.*]
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
-                  end_time: 2999-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
             mappings:
               properties:
                 "@timestamp":
@@ -251,7 +251,7 @@ runtime field matching routing path:
                 routing_path: [dim.*]
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
-                  end_time: 2999-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
             mappings:
               properties:
                 "@timestamp":

@@ -187,7 +187,7 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     }
 
     /**
-     * BWC version for <8.1
+     * BWC fallback for nodes/cluster older than 8.1
      */
     private static void getCheckpointsFromOneClusterBWC(
         Client client,

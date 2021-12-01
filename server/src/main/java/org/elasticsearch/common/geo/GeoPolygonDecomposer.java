@@ -137,7 +137,7 @@ class GeoPolygonDecomposer {
             }
             if (linearRing.getLon(i - 1) == linearRing.getLon(i + 1)
                 && linearRing.getLat(i - 1) > linearRing.getLat(i) != linearRing.getLat(i + 1) > linearRing.getLat(i)) {
-                // coplanar
+                // collinear
                 return true;
             }
         }

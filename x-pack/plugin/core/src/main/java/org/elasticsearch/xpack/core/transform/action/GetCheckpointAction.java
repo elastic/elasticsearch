@@ -26,7 +26,9 @@ import java.util.Objects;
 public class GetCheckpointAction extends ActionType<GetCheckpointAction.Response> {
 
     public static final GetCheckpointAction INSTANCE = new GetCheckpointAction();
-    public static final String NAME = "cluster:internal/transform/checkpoint";
+
+    // note: this is an admin action, it must be called with user headers
+    public static final String NAME = "cluster:admin/transform/checkpoint";
 
     private GetCheckpointAction() {
         super(NAME, GetCheckpointAction.Response::new);

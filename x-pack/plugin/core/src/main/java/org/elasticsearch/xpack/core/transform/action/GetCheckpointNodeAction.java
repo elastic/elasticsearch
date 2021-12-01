@@ -26,6 +26,8 @@ import java.util.Set;
 public class GetCheckpointNodeAction extends ActionType<GetCheckpointNodeAction.Response> {
 
     public static final GetCheckpointNodeAction INSTANCE = new GetCheckpointNodeAction();
+
+    // note: this is an internal action
     public static final String NAME = "cluster:internal/transform/checkpoint[s]";
 
     private GetCheckpointNodeAction() {

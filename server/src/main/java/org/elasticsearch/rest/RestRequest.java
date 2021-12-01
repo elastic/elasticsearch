@@ -163,6 +163,13 @@ public class RestRequest implements ToXContent.Params {
     }
 
     /**
+     * Releases the underlying http request content. Only to be used by implementations that are sure they are finished with the content.
+     */
+    public void unsafeRelease() {
+        httpRequest.release();
+    }
+
+    /**
      * Creates a new REST request.
      *
      * @throws BadParameterException if the parameters can not be decoded

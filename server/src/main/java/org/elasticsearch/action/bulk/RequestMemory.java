@@ -33,8 +33,8 @@ public class RequestMemory {
         this.needToReleaseNetworkMemory = new AtomicBoolean(false);
     }
 
-    public RequestMemory(Releasable coordinatingMemory) {
-        this.networkMemory = coordinatingMemory;
+    public RequestMemory(Releasable networkMemory) {
+        this.networkMemory = networkMemory;
         this.needToReleaseNetworkMemory = new AtomicBoolean(true);
     }
 

@@ -4,10 +4,11 @@
 <titleabbrev>Set up basic security</titleabbrev>
 ++++
 
-When you start {es} for the first time, Transport Layer Security (TLS) is
-automatically configured for you. If you would rather configure TLS manually,
-make sure that you configure security _before_ you start your {es} nodes and
-the auto-configuration process will respect your security configuration.
+When you start {es} for the first time, passwords are generated for the `elastic`
+user and Transport Layer Security (TLS) is automatically configured for you. If 
+you would rather configure TLS manually, make sure that you configure security 
+_before_ you start your {es} nodes and the auto-configuration process will 
+respect your security configuration.
 
 IMPORTANT: If your cluster has multiple nodes, then you must configure
 TLS between nodes. <<dev-vs-prod-mode,Production mode>> clusters will not start
@@ -64,8 +65,8 @@ For the transport layer, we recommend using a separate, dedicated CA instead
 of an existing, possibly shared CA so that node membership is tightly controlled. Use the `elasticsearch-certutil` tool to
 generate a CA for your cluster.
 
-. On any single node, use the `elasticsearch-certutil` tool to generate a CA for
-your cluster.
+. Before starting {es}, use the `elasticsearch-certutil` tool on any single node
+to generate a CA for your cluster.
 +
 [source,shell]
 ----
@@ -173,7 +174,7 @@ matches the DNS or IP address. See the
 
 . Complete the previous steps for each node in your cluster.
 
-. On *every* node in your cluster, restart {es}. The method for
+. On *every* node in your cluster, start {es}. The method for
 <<starting-elasticsearch,starting>> and <<starting-elasticsearch,stopping>> {es}
 varies depending on how you installed it.
 +

@@ -306,9 +306,26 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 ensureNoCleanupInProgress(currentState, repositoryName, snapshotName, "create snapshot");
                 ensureBelowConcurrencyLimit(repositoryName, snapshotName, snapshots, deletionsInProgress);
                 // Store newSnapshot here to be processed in clusterStateProcessed
-                List<String> indices = Arrays.stream(indexNameExpressionResolver.concreteIndexNames(currentState, request))
-                    .filter(indexName -> systemIndices.isSystemIndex(indexName) == false) // Only resolve system indices via Features
-                    .collect(Collectors.toList());
+                Map<Boolean, List<String>> requestedIndices = Arrays.stream(
+                    indexNameExpressionResolver.concreteIndexNames(currentState, request)
+                ).collect(Collectors.partitioningBy(systemIndices::isSystemIndex));
+
+                List<String> requestedSystemIndices = requestedIndices.get(true);
+                if (requestedSystemIndices.isEmpty() == false) {
+                    Set<String> explicitlyRequestedSystemIndices = new HashSet<>(requestedSystemIndices);
+                    explicitlyRequestedSystemIndices.retainAll(Arrays.asList(request.indices()));
+                    if (explicitlyRequestedSystemIndices.isEmpty() == false) {
+                        throw new IllegalArgumentException(
+                            new ParameterizedMessage(
+                                "system indices [{}] were explicitly requested, but snapshots should use the "
+                                    + "[include_global_state] or [feature_states] parameters to control inclusion of system indices",
+                                explicitlyRequestedSystemIndices
+                            ).getFormattedMessage()
+                        );
+                    }
+                }
+
+                List<String> indices = requestedIndices.get(false);
 
                 final Set<SnapshotFeatureInfo> featureStates = new HashSet<>();
                 final Set<String> systemDataStreamNames = new HashSet<>();

@@ -82,20 +82,16 @@ GET _snapshot/my_repository/*?verbose=false
 You can restore a snapshot using {kib}'s *Snapshot and Restore* feature or the
 <<restore-snapshot-api,restore snapshot API>>.
 
-By default, a restore request attempts to restore all indices and data streams
-in a snapshot, including <<system-indices,system indices and system data
-streams>>. In most cases, you only need to restore a specific index or data
-stream from a snapshot. However, you can't restore an existing open index.
+By default, a restore request attempts to restore all regular indices and
+regular data streams in a snapshot. In most cases, you only need to restore a
+specific index or data stream from a snapshot. However, you can't restore an
+existing open index.
 
 If you're restoring data to a pre-existing cluster, use one of the
 following methods to avoid conflicts with existing indices and data streams:
 
 * <<delete-restore>>
 * <<rename-on-restore>>
-
-Some {es} features automatically create system indices on cluster startup. To
-avoid conflicts with these system indices when restoring data to a new cluster,
-see <<restore-exclude-system-indices>>.
 
 [discrete]
 [[delete-restore]]
@@ -211,36 +207,11 @@ POST _reindex
 // TEST[continued]
 
 [discrete]
-[[restore-exclude-system-indices]]
-==== Exclude system indices
-
-Some {es} features, such as the <<geoip-processor,GeoIP processor>>,
-automatically create system indices at startup. To avoid naming conflicts with
-these indices, use the `-.*` wildcard pattern to exclude system indices and
-other dot (`.`) indices from your restore request.
-
-For example, the following request uses the `*,-.*` wildcard pattern to restore
-all indices and data streams except dot indices.
-
-[source,console]
-----
-POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
-{
-  "indices": "*,-.*"
-}
-----
-// TEST[setup:setup-snapshots]
-// TEST[s/^/DELETE my-index\nDELETE _data_stream\/logs-my_app-default\n/]
-// TEST[s/_restore/_restore?wait_for_completion=true/]
-
-[discrete]
 [[restore-feature-state]]
 === Restore a feature state
 
 You can restore a <<feature-state,feature state>> to recover system indices,
 system data streams, and other configuration data for a feature from a snapshot.
-Restoring a feature state is the preferred way to restore system indices and
-system data streams.
 
 If you restore a snapshot's cluster state, the operation restores all feature
 states in the snapshot by default. Similarly, if you don't restore a snapshot's
@@ -271,21 +242,16 @@ Console before restoring the `security` feature state. If you run {es} on your
 own hardware, <<restore-create-file-realm-user,create a superuser in the file
 realm>> to ensure you'll still be able to access your cluster.
 
-To avoid accidentally restoring system indices, system data streams, and other
-dot indices, append the `-.*` wildcard pattern to the `indices` value.
-
 [source,console]
 ----
 POST _snapshot/my_repository/my_snapshot_2099.05.06/_restore
 {
-  "indices": "*,-.*",
   "feature_states": [ "geoip" ]
 }
 ----
 // TEST[setup:setup-snapshots]
 // TEST[s/^/DELETE my-index\nDELETE _data_stream\/logs-my_app-default\n/]
 // TEST[s/_restore/_restore?wait_for_completion=true/]
-// TEST[s/",/"/]
 // TEST[s/"feature_states": \[ "geoip" \]//]
 
 [discrete]

@@ -53,14 +53,8 @@ POST /index_4/_close
 [source,console]
 ----
 POST /_snapshot/my_repository/my_snapshot/_restore
-{
-  "indices": "*,-.*",
-  "feature_states": [ "geoip" ]
-}
 ----
 // TEST[s/_restore/_restore?wait_for_completion=true/]
-// TEST[s/",/"/]
-// TEST[s/"feature_states": \[ "geoip" \]//]
 
 [[restore-snapshot-api-request]]
 ==== {api-request-title}
@@ -198,7 +192,13 @@ For data streams, this option only applies to restored backing indices. New
 backing indices are configured using the data stream's matching index template.
 
 `indices`::
-(Optional, string or array of strings) Comma-separated list of indices and data streams to restore. Supports <<api-multi-index,multi-target syntax>>. Defaults to all indices and data streams in the snapshot, including system indices.
+(Optional, string or array of strings) Comma-separated list of indices and data
+streams to restore. Supports <<api-multi-index,multi-target syntax>>. Defaults
+to all regular indices and regular data streams in the snapshot.
++
+You can't use this parameter to restore <<system-indices,system indices or
+system data streams>>. Use
+<<restore-snapshot-api-feature-states,`feature_states`>> instead.
 
 [[restore-snapshot-api-partial]]
 `partial`::

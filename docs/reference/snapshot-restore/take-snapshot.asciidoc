@@ -207,9 +207,7 @@ PUT _slm/policy/nightly-snapshots
     naming conflicts, the policy also appends a UUID to each snapshot name.
 <3> <<snapshots-register-repository,Registered snapshot repository>> used to
     store the policy's snapshots.
-<4> Data streams and indices to include in the policy's snapshots. This
-    configuration includes all data streams and indices, including system
-    indices.
+<4> Data streams and indices to include in the policy's snapshots.
 <5> If `true`, the policy's snapshots include the cluster state. This also
     includes all feature states by default. To only include specific feature
     states, see <<back-up-specific-feature-state>>.
@@ -498,7 +496,7 @@ PUT _slm/policy/nightly-cluster-state-snapshots
 <2> Excludes regular data streams and indices.
 
 If you take dedicated snapshots of the cluster state, you'll need to exclude the
-cluster state and system indices from your other snapshots. For example:
+cluster state from your other snapshots. For example:
 
 [source,console]
 ----
@@ -509,7 +507,7 @@ PUT _slm/policy/nightly-snapshots
   "repository": "my_repository",
   "config": {
     "include_global_state": false,    <1>
-    "indices": "*,-.*"                <2>
+    "indices": "*"                    <2>
   },
   "retention": {
     "expire_after": "30d",
@@ -521,8 +519,7 @@ PUT _slm/policy/nightly-snapshots
 
 <1> Excludes the cluster state. This also excludes all feature states by
     default.
-<2> Includes all data streams and indices except system indices and other
-    indices that begin with a dot (`.`).
+<2> Includes all regular data streams and indices.
 
 [discrete]
 [[create-snapshots-different-time-intervals]]

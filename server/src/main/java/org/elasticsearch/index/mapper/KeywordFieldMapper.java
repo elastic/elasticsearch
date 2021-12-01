@@ -405,11 +405,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
+                CoreValuesSourceType.KEYWORD,
                 (dv, n) -> new DelegateDocValuesField(
                     new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
                     n
-                ),
-                CoreValuesSourceType.KEYWORD
+                )
             );
         }
 

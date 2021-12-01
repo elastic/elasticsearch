@@ -218,7 +218,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
     public static final class KeyedFlattenedFieldType extends StringFieldType {
         private final String key;
         private final String rootName;
-        private final ToScriptField<SortedSetDocValues> toScriptField;
 
         KeyedFlattenedFieldType(
             String rootName,
@@ -226,8 +225,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean hasDocValues,
             String key,
             boolean splitQueriesOnWhitespace,
-            Map<String, String> meta,
-            ToScriptField<SortedSetDocValues> toScriptField
+            Map<String, String> meta
         ) {
             super(
                 rootName + KEYED_FIELD_SUFFIX,
@@ -239,11 +237,10 @@ public final class FlattenedFieldMapper extends FieldMapper {
             );
             this.key = key;
             this.rootName = rootName;
-            this.toScriptField = toScriptField;
         }
 
         private KeyedFlattenedFieldType(String rootName, String key, RootFlattenedFieldType ref) {
-            this(rootName, ref.isSearchable(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta(), ref.toScriptField);
+            this(rootName, ref.isSearchable(), ref.hasDocValues(), key, ref.splitQueriesOnWhitespace, ref.meta());
         }
 
         @Override
@@ -370,7 +367,14 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new KeyedFlattenedFieldData.Builder(name(), key, toScriptField);
+            return new KeyedFlattenedFieldData.Builder(
+                name(),
+                key,
+                (dv, n) -> new DelegateDocValuesField(
+                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                    n
+                )
+            );
         }
 
         @Override
@@ -584,10 +588,8 @@ public final class FlattenedFieldMapper extends FieldMapper {
                     fieldName,
                     CoreValuesSourceType.KEYWORD,
                     breakerService,
-                    (dv, n) -> new DelegateDocValuesField(
-                        new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-                        n
-                    )
+                    // The delegate should never be accessed
+                    (dv, n) -> { throw new UnsupportedOperationException(); }
                 );
                 return new KeyedFlattenedFieldData(key, delegate, toScriptField);
             }
@@ -647,7 +649,14 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), toScriptField, CoreValuesSourceType.KEYWORD);
+            return new SortedSetOrdinalsIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new DelegateDocValuesField(
+                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                    n
+                )
+            );
         }
 
         @Override

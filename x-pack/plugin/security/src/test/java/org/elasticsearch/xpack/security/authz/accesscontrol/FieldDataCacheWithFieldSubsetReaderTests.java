@@ -15,6 +15,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
@@ -35,6 +36,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
@@ -45,6 +47,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
+    private static final ToScriptField<SortedSetDocValues> MOCK_TO_SCRIPT_FIELD = (dv, n) -> new DelegateDocValuesField(
+        new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+        n
+    );
 
     private SortedSetOrdinalsIndexFieldData sortedSetOrdinalsIndexFieldData;
     private PagedBytesIndexFieldData pagedBytesIndexFieldData;
@@ -65,11 +71,7 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
             name,
             CoreValuesSourceType.KEYWORD,
             circuitBreakerService,
-            // TODO(stu): get from KeywordFieldMapper
-            (dv, n) -> new DelegateDocValuesField(
-                new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-                n
-            )
+            MOCK_TO_SCRIPT_FIELD
         );
         pagedBytesIndexFieldData = new PagedBytesIndexFieldData(
             name,
@@ -79,11 +81,7 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
             TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
             TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
             TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
-            // TODO(stu): get from TextFieldMapper
-            (dv, n) -> new DelegateDocValuesField(
-                new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-                n
-            )
+            MOCK_TO_SCRIPT_FIELD
         );
 
         dir = newDirectory();

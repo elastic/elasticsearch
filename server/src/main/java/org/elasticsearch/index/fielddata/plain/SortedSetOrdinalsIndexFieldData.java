@@ -39,7 +39,7 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
         private final ToScriptField<SortedSetDocValues> toScriptField;
         private final ValuesSourceType valuesSourceType;
 
-        public Builder(String name, ToScriptField<SortedSetDocValues> toScriptField, ValuesSourceType valuesSourceType) {
+        public Builder(String name, ValuesSourceType valuesSourceType, ToScriptField<SortedSetDocValues> toScriptField) {
             this.name = name;
             this.toScriptField = toScriptField;
             this.valuesSourceType = valuesSourceType;

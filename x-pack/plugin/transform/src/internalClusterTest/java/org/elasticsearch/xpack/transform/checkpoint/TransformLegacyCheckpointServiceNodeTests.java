@@ -118,9 +118,7 @@ public class TransformLegacyCheckpointServiceNodeTests extends TransformSingleNo
 
             // fallback to legacy checkpointing
             if (request instanceof GetCheckpointAction.Request) {
-                listener.onFailure(
-                    new ActionNotFoundTransportException(GetCheckpointAction.NAME)
-                );
+                listener.onFailure(new ActionNotFoundTransportException(GetCheckpointAction.NAME));
                 return;
             }
 

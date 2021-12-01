@@ -68,32 +68,9 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             containsString("Failed to parse enrollment token : some-invalid-token-here . Error was: Illegal base64 character 2d")
         );
         verifySecurityNotAutoConfigured(installation);
-
-        // Try to start the node with an enrollment token with an address that we can't connect to and verify it fails to start
-        EnrollmentToken tokenWithWrongAddress = new EnrollmentToken(
-            "some-api-key",
-            "some-fingerprint",
-            Version.CURRENT.toString(),
-            List.of("10.1.3.4:9200")
-        );
-        Shell.Result startSecondNodeWithInvalidAddress = Archives.startElasticsearchWithTty(
-            installation,
-            sh,
-            null,
-            List.of("--enrollment-token", tokenWithWrongAddress.getEncoded()),
-            false
-
-        );
-        assertThat(
-            startSecondNodeWithInvalidAddress.stdout,
-            containsString(
-                "Aborting enrolling to cluster. "
-                    + "Could not communicate with the node on any of the addresses from the enrollment token. All of "
-                    + tokenWithWrongAddress.getBoundAddress()
-                    + " where attempted."
-            )
-        );
-        verifySecurityNotAutoConfigured(installation);
+        //TODO Wait for a set amount of time for stdout to contain the actual error and then check the output. If we try to
+        // use an enrollment token with an invalid address, it will eventually fail and print the appropriate error message, but we would
+        // have read the result (and stdout) from Archives#startElasticsearchWithTty earlier than that
 
         // auto-configure security using the enrollment token
         Shell.Result startSecondNode = awaitElasticsearchStartupWithResult(

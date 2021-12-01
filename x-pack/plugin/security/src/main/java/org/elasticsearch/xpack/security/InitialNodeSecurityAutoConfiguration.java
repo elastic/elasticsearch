@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.security;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.PrintStream;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.XPackSettings.ENROLLMENT_ENABLED;
@@ -33,6 +36,7 @@ import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePasswor
 public class InitialNodeSecurityAutoConfiguration {
 
     private static final Logger LOGGER = LogManager.getLogger(InitialNodeSecurityAutoConfiguration.class);
+    private static final BackoffPolicy BACKOFF_POLICY = BackoffPolicy.exponentialBackoff();
 
     private InitialNodeSecurityAutoConfiguration() {
         throw new IllegalStateException("Class should not be instantiated");
@@ -135,9 +139,10 @@ public class InitialNodeSecurityAutoConfiguration {
                                 + "] in order to authenticate as elastic"
                         );
                     }
-                    // empty password in case password generation is skyped
+                    // empty password in case password generation is skipped
                     groupedActionListener.onResponse(Map.of("generated_elastic_user_password", ""));
                 }
+                final Iterator<TimeValue> backoff = BACKOFF_POLICY.iterator();
                 enrollmentTokenGenerator.createKibanaEnrollmentToken(kibanaToken -> {
                     if (kibanaToken != null) {
                         try {
@@ -150,14 +155,14 @@ public class InitialNodeSecurityAutoConfiguration {
                     } else {
                         groupedActionListener.onResponse(Map.of());
                     }
-                });
+                }, backoff);
                 enrollmentTokenGenerator.maybeCreateNodeEnrollmentToken(encodedNodeToken -> {
                     if (encodedNodeToken != null) {
                         groupedActionListener.onResponse(Map.of("node_enrollment_token", encodedNodeToken));
                     } else {
                         groupedActionListener.onResponse(Map.of());
                     }
-                });
+                }, backoff);
             }
         });
     }

@@ -153,8 +153,8 @@ public class TransformMetadata implements Metadata.Custom {
             }
         }
 
-        public TransformMetadata.Builder isResetMode(boolean resetMode) {
-            this.resetMode = resetMode;
+        public TransformMetadata.Builder isResetMode(boolean isResetMode) {
+            this.resetMode = isResetMode;
             return this;
         }
 

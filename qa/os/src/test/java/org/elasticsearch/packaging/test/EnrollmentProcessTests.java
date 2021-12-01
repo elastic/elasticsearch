@@ -63,10 +63,9 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             List.of("--enrollment-token", "some-invalid-token-here"),
             false
         );
-        assertElasticsearchFailure(
-            startSecondNodeWithInvalidToken,
-            List.of("Failed to parse enrollment token : some-invalid-token-here . Error was: Illegal base64 character 2d"),
-            null
+        assertThat(
+            startSecondNodeWithInvalidToken.stdout,
+            containsString("Failed to parse enrollment token : some-invalid-token-here . Error was: Illegal base64 character 2d")
         );
         verifySecurityNotAutoConfigured(installation);
 
@@ -85,15 +84,14 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             false
 
         );
-        assertElasticsearchFailure(
-            startSecondNodeWithInvalidAddress,
-            List.of(
+        assertThat(
+            startSecondNodeWithInvalidAddress.stdout,
+            containsString(
                 "Aborting enrolling to cluster. "
-                + "Could not communicate with the node on any of the addresses from the enrollment token. All of "
-                + tokenWithWrongAddress.getBoundAddress()
-                + " where attempted."
-            ),
-            null
+                    + "Could not communicate with the node on any of the addresses from the enrollment token. All of "
+                    + tokenWithWrongAddress.getBoundAddress()
+                    + " where attempted."
+            )
         );
         verifySecurityNotAutoConfigured(installation);
 

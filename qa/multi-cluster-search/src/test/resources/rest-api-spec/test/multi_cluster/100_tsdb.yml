@@ -2,8 +2,8 @@
 setup:
   # Create a local tsdb index with a tsid the doesn't overlap with the remote cluster.
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       indices.create:

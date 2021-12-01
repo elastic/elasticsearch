@@ -244,7 +244,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
     public void testFollowTsdbIndex() throws Exception {
         final int numDocs = 128;
         final String leaderIndexName = "tsdb_leader";
-        long basetime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2021-01-01T00:00:00Z");
+        long basetime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2021-04-28T18:35:24.467Z");
         if ("leader".equals(targetCluster)) {
             logger.info("Running against leader cluster");
             createIndex(

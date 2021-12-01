@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       indices.create:
@@ -66,8 +66,8 @@ setup:
 ---
 index with specified routing:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       catch: /indexing with a specified routing is not supported because the destination index \[test\] is in time series mode/
@@ -90,8 +90,8 @@ index with specified routing:
 ---
 index with specified routing over _bulk:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
   - do:
       bulk:
         refresh: true
@@ -104,8 +104,8 @@ index with specified routing over _bulk:
 ---
 delete:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       catch: /delete is not supported because the destination index \[test\] is in time series mode/
@@ -116,8 +116,8 @@ delete:
 ---
 delete over _bulk:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       bulk:
@@ -130,8 +130,8 @@ delete over _bulk:
 ---
 noop update:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       search:
@@ -152,8 +152,8 @@ noop update:
 ---
 update:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   # We fail even though the document isn't found.
   - do:
@@ -177,8 +177,8 @@ update:
 ---
 update over _bulk:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       bulk:
@@ -191,8 +191,8 @@ update over _bulk:
 ---
 search with routing:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   # We fail even though the document isn't found.
   - do:
@@ -204,8 +204,8 @@ search with routing:
 ---
 alias with routing:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       catch: /routing is forbidden on CRUD operations that target indices in \[index.mode=time_series\]/
@@ -218,8 +218,8 @@ alias with routing:
 ---
 alias with search_routing:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       catch: /routing is forbidden on CRUD operations that target indices in \[index.mode=time_series\]/

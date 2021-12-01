@@ -134,8 +134,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         try (
             XContentParser parser = xContentType.xContent()
                 .createParser(
-                    XContentParserConfiguration.EMPTY
-                        .withRegistry(NamedXContentRegistry.EMPTY)
+                    XContentParserConfiguration.EMPTY.withRegistry(NamedXContentRegistry.EMPTY)
                         .withDeprecationHandler(DeprecationHandler.THROW_UNSUPPORTED_OPERATION),
                     response.getEntity().getContent()
                 )
@@ -153,8 +152,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         try (
             XContentParser parser = xContentType.xContent()
                 .createParser(
-                    XContentParserConfiguration.EMPTY
-                        .withRegistry(NamedXContentRegistry.EMPTY)
+                    XContentParserConfiguration.EMPTY.withRegistry(NamedXContentRegistry.EMPTY)
                         .withDeprecationHandler(DeprecationHandler.THROW_UNSUPPORTED_OPERATION),
                     response.getEntity().getContent()
                 )

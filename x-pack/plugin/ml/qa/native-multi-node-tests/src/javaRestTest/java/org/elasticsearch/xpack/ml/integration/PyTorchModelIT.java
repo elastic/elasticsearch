@@ -247,18 +247,26 @@ public class PyTorchModelIT extends ESRestTestCase {
             String statusState = (String) XContentMapValues.extractValue("deployment_stats.allocation_status.state", stats.get(0));
             assertThat(responseMap.toString(), statusState, is(not(nullValue())));
             assertThat(AllocationStatus.State.fromString(statusState), greaterThanOrEqualTo(state));
-            Integer byteSize = (Integer) XContentMapValues.extractValue("deployment_stats.model_size_bytes", stats.get(0));
-            assertThat(responseMap.toString(), byteSize, is(not(nullValue())));
-            assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
 
-            Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
-            var humanResponseMap = entityAsMap(humanResponse);
-            stats = (List<Map<String, Object>>) humanResponseMap.get("trained_model_stats");
-            assertThat(stats, hasSize(1));
-            String stringBytes = (String) XContentMapValues.extractValue("deployment_stats.model_size", stats.get(0));
-            assertThat("stats response: " + responseMap + " human stats response" + humanResponseMap, stringBytes, is(not(nullValue())));
-            assertThat(stringBytes, equalTo("1.5kb"));
-            stopDeployment(model);
+            // starting models do not know their model size yet
+            if (state.isAnyOf(AllocationStatus.State.STARTED, AllocationStatus.State.FULLY_ALLOCATED)) {
+                Integer byteSize = (Integer) XContentMapValues.extractValue("deployment_stats.model_size_bytes", stats.get(0));
+                assertThat(responseMap.toString(), byteSize, is(not(nullValue())));
+                assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
+
+                Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
+                var humanResponseMap = entityAsMap(humanResponse);
+                stats = (List<Map<String, Object>>) humanResponseMap.get("trained_model_stats");
+                assertThat(stats, hasSize(1));
+                String stringBytes = (String) XContentMapValues.extractValue("deployment_stats.model_size", stats.get(0));
+                assertThat(
+                    "stats response: " + responseMap + " human stats response" + humanResponseMap,
+                    stringBytes,
+                    is(not(nullValue()))
+                );
+                assertThat(stringBytes, equalTo("1.5kb"));
+            }
+            stopDeployment(modelId);
         };
 
         assertAtLeast.accept(model, AllocationStatus.State.STARTING);

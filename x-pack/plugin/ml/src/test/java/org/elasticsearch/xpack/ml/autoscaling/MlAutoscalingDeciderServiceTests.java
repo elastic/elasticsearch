@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
@@ -173,7 +174,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             null,
             new NativeMemoryCapacity(432013312, 432013312, 432013312L),
             reasonBuilder
-        ).orElseThrow();
+        ).orElseThrow(() -> new ElasticsearchException("unexpected empty result for scale up"));
 
         assertThat(
             scaleUpResult.requiredCapacity().total().memory().getBytes(),
@@ -205,7 +206,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             ByteSizeValue.ofMb(256).getBytes() + Job.PROCESS_MEMORY_OVERHEAD.getBytes(),
             new NativeMemoryCapacity(bytesForML, bytesForML, 536870912L),
             reasonBuilder
-        ).orElseThrow();
+        ).orElseThrow(() -> new ElasticsearchException("unexpected empty result for scale down"));
         assertThat(
             result.requiredCapacity().total().memory().getBytes(),
             allOf(greaterThan(ByteSizeValue.ofGb(1).getBytes()), lessThan(ByteSizeValue.ofGb(2).getBytes()))
@@ -261,7 +262,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                     new NativeMemoryCapacity(memoryForMl, memoryForMl, lowerTier.v2()),
                     new MlScalingReason.Builder().setPassedConfiguration(Settings.EMPTY)
                         .setCurrentMlCapacity(AutoscalingCapacity.builder().node(null, lowerTier.v1()).total(null, lowerTier.v1()).build())
-                ).orElseThrow();
+                ).orElseThrow(() -> new ElasticsearchException("unexpected empty result for scale down"));
 
                 assertThat(scaleUpResult.requiredCapacity().total().memory().getBytes(), greaterThan(lowerTier.v1()));
                 assertThat(scaleUpResult.requiredCapacity().node().memory().getBytes(), greaterThanOrEqualTo(lowerTier.v1()));
@@ -968,7 +969,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             ),
             30,
             true
-        ).orElseThrow();
+        ).orElseThrow(() -> new ElasticsearchException("Unexpected null for calculating bytes for ML"));
     }
 
 }

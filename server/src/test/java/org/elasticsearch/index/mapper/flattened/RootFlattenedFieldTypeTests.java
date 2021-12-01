@@ -35,13 +35,13 @@ import java.util.List;
 import java.util.Map;
 
 public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
-    private static final ToScriptField<SortedSetDocValues> TO_SCRIPT_FIELD = (dv, n) -> new DelegateDocValuesField(
+    private static final ToScriptField<SortedSetDocValues> MOCK_TO_SCRIPT_FIELD = (dv, n) -> new DelegateDocValuesField(
         new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
         n
     );
 
     private static RootFlattenedFieldType createDefaultFieldType() {
-        return new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false, false, TO_SCRIPT_FIELD);
+        return new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false, false, MOCK_TO_SCRIPT_FIELD);
     }
 
     public void testValueForDisplay() {
@@ -68,14 +68,22 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            TO_SCRIPT_FIELD
+            MOCK_TO_SCRIPT_FIELD
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testExistsQuery() {
-        RootFlattenedFieldType ft = new RootFlattenedFieldType("field", true, false, Collections.emptyMap(), false, false, TO_SCRIPT_FIELD);
+        RootFlattenedFieldType ft = new RootFlattenedFieldType(
+            "field",
+            true,
+            false,
+            Collections.emptyMap(),
+            false,
+            false,
+            MOCK_TO_SCRIPT_FIELD
+        );
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), ft.existsQuery(null));
 
         RootFlattenedFieldType withDv = new RootFlattenedFieldType(
@@ -85,7 +93,7 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap(),
             false,
             false,
-            TO_SCRIPT_FIELD
+            MOCK_TO_SCRIPT_FIELD
         );
         assertEquals(new DocValuesFieldExistsQuery("field"), withDv.existsQuery(null));
     }

@@ -7,19 +7,19 @@
 package org.elasticsearch.xpack.ml.dataframe.process.results;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStatsTests;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsageTests;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStatsTests;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaselineTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.HyperparametersTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
@@ -70,13 +70,15 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
             builder.setTrainedModelDefinitionChunk(new TrainedModelDefinitionChunk(def, randomIntBetween(0, 10), randomBoolean()));
         }
         if (randomBoolean()) {
-            builder.setModelMetadata(new ModelMetadata(Stream.generate(TotalFeatureImportanceTests::randomInstance)
-                .limit(randomIntBetween(1, 10))
-                .collect(Collectors.toList()),
-                FeatureImportanceBaselineTests.randomInstance(),
-                Stream.generate(HyperparametersTests::randomInstance)
-                .limit(randomIntBetween(1, 10))
-                .collect(Collectors.toList())));
+            builder.setModelMetadata(
+                new ModelMetadata(
+                    Stream.generate(TotalFeatureImportanceTests::randomInstance)
+                        .limit(randomIntBetween(1, 10))
+                        .collect(Collectors.toList()),
+                    FeatureImportanceBaselineTests.randomInstance(),
+                    Stream.generate(HyperparametersTests::randomInstance).limit(randomIntBetween(1, 10)).collect(Collectors.toList())
+                )
+            );
         }
         return builder.build();
     }

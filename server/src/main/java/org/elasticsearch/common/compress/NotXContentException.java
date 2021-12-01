@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.compress;
 
-import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.xcontent.XContent;
 
 /** Exception indicating that we were expecting some {@link XContent} but could
  *  not detect its type. */

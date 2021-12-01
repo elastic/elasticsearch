@@ -13,10 +13,10 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -40,7 +40,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * </ul>
  */
 public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQueryRequest>
-    implements IndicesRequest.Replaceable, ToXContentObject {
+    implements
+        IndicesRequest.Replaceable,
+        ToXContentObject {
 
     public DeleteByQueryRequest() {
         this(new SearchRequest());
@@ -148,8 +150,8 @@ public class DeleteByQueryRequest extends AbstractBulkByScrollRequest<DeleteByQu
         return b.toString();
     }
 
-    //delete by query deletes all documents that match a query. The indices and indices options that affect how
-    //indices are resolved depend entirely on the inner search request. That's why the following methods delegate to it.
+    // delete by query deletes all documents that match a query. The indices and indices options that affect how
+    // indices are resolved depend entirely on the inner search request. That's why the following methods delegate to it.
     @Override
     public DeleteByQueryRequest indices(String... indices) {
         assert getSearchRequest() != null;

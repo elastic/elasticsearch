@@ -10,10 +10,10 @@ package org.elasticsearch.client.security;
 import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -29,17 +29,22 @@ public class CreateTokenResponseTests extends ESTestCase {
         final String scope = randomBoolean() ? null : randomAlphaOfLength(4);
         final String type = randomAlphaOfLength(6);
         final String kerberosAuthenticationResponseToken = randomBoolean() ? null : randomAlphaOfLength(7);
-        final AuthenticateResponse authentication = new AuthenticateResponse(new User(randomAlphaOfLength(7),
-            Arrays.asList( randomAlphaOfLength(9) )),
-            true, new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(7) ),
-            new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5) ), "realm");
+        final AuthenticateResponse authentication = new AuthenticateResponse(
+            new User(randomAlphaOfLength(7), Arrays.asList(randomAlphaOfLength(9))),
+            true,
+            new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(7)),
+            new AuthenticateResponse.RealmInfo(randomAlphaOfLength(5), randomAlphaOfLength(5)),
+            "realm",
+            null,
+            new AuthenticateResponse.ApiKeyInfo(
+                randomAlphaOfLength(16),                         // mandatory
+                randomBoolean() ? randomAlphaOfLength(20) : null // optional
+            )
+        );
 
         final XContentType xContentType = randomFrom(XContentType.values());
         final XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
-        builder.startObject()
-            .field("access_token", accessToken)
-            .field("type", type)
-            .field("expires_in", expiresIn.seconds());
+        builder.startObject().field("access_token", accessToken).field("type", type).field("expires_in", expiresIn.seconds());
         if (refreshToken != null || randomBoolean()) {
             builder.field("refresh_token", refreshToken);
         }

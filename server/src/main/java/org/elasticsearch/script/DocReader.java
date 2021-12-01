@@ -9,6 +9,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.script.field.Field;
 
 import java.util.Map;
 import java.util.stream.Stream;

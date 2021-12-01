@@ -51,12 +51,10 @@ public class JvmMonitorTests extends ESTestCase {
             }
 
             @Override
-            void onSlowGc(final Threshold threshold, final long seq, final SlowGcEvent slowGcEvent) {
-            }
+            void onSlowGc(final Threshold threshold, final long seq, final SlowGcEvent slowGcEvent) {}
 
             @Override
-            void onGcOverhead(Threshold threshold, long total, long elapsed, long seq) {
-            }
+            void onGcOverhead(Threshold threshold, long total, long elapsed, long seq) {}
         };
 
         monitor.run();
@@ -93,7 +91,8 @@ public class JvmMonitorTests extends ESTestCase {
         final int youngDebugThreshold = randomIntBetween(1, 10) * 100;
         gcThresholds.put(
             "young",
-            new JvmGcMonitorService.GcThreshold("young", youngDebugThreshold * 3, youngDebugThreshold * 2, youngDebugThreshold));
+            new JvmGcMonitorService.GcThreshold("young", youngDebugThreshold * 3, youngDebugThreshold * 2, youngDebugThreshold)
+        );
 
         final boolean youngGcThreshold = randomBoolean();
         final JvmGcMonitorService.JvmMonitor.Threshold youngThresholdLevel = randomFrom(JvmGcMonitorService.JvmMonitor.Threshold.values());
@@ -126,7 +125,8 @@ public class JvmMonitorTests extends ESTestCase {
         final int oldDebugThreshold = randomIntBetween(1, 10) * 100;
         gcThresholds.put(
             "old",
-            new JvmGcMonitorService.GcThreshold("old", oldDebugThreshold * 3, oldDebugThreshold * 2, oldDebugThreshold));
+            new JvmGcMonitorService.GcThreshold("old", oldDebugThreshold * 3, oldDebugThreshold * 2, oldDebugThreshold)
+        );
 
         final boolean oldGcThreshold = randomBoolean();
         final JvmGcMonitorService.JvmMonitor.Threshold oldThresholdLevel = randomFrom(JvmGcMonitorService.JvmMonitor.Threshold.values());
@@ -163,8 +163,7 @@ public class JvmMonitorTests extends ESTestCase {
 
         JvmGcMonitorService.JvmMonitor monitor = new JvmGcMonitorService.JvmMonitor(gcThresholds, IGNORE) {
             @Override
-            void onMonitorFailure(Exception e) {
-            }
+            void onMonitorFailure(Exception e) {}
 
             @Override
             void onSlowGc(final Threshold threshold, final long seq, final SlowGcEvent slowGcEvent) {
@@ -180,7 +179,8 @@ public class JvmMonitorTests extends ESTestCase {
                         initialYoungCollectionCount,
                         youngCollections,
                         initialYoungCollectionTime,
-                        youngIncrement);
+                        youngIncrement
+                    );
                 } else if ("old".equals(slowGcEvent.currentGc.getName())) {
                     assertCollection(
                         threshold,
@@ -189,13 +189,13 @@ public class JvmMonitorTests extends ESTestCase {
                         initialOldCollectionCount,
                         oldCollections,
                         initialOldCollectionTime,
-                        oldIncrement);
+                        oldIncrement
+                    );
                 }
             }
 
             @Override
-            void onGcOverhead(Threshold threshold, long total, long elapsed, long seq) {
-            }
+            void onGcOverhead(Threshold threshold, long total, long elapsed, long seq) {}
 
             @Override
             long now() {
@@ -224,7 +224,8 @@ public class JvmMonitorTests extends ESTestCase {
         final int initialCollectionCount,
         final int collections,
         final int initialCollectionTime,
-        final int increment) {
+        final int increment
+    ) {
         assertThat(actualThreshold, equalTo(expectedThreshold));
         assertThat(slowGcEvent.currentGc.getCollectionCount(), equalTo((long) (initialCollectionCount + collections)));
         assertThat(slowGcEvent.collectionCount, equalTo((long) collections));
@@ -258,36 +259,39 @@ public class JvmMonitorTests extends ESTestCase {
         final JvmStats.GarbageCollector lastOldCollector = collector("old", oldCollectionCount, oldCollectionTime);
         final JvmStats lastjvmStats = jvmStats(lastYoungCollector, lastOldCollector);
 
-        final JvmStats.GarbageCollector currentYoungCollector =
-            collector("young", youngCollectionCount + youngCollectionIncrement, youngCollectionTime + youngCollectionTimeIncrement);
-        final JvmStats.GarbageCollector currentOldCollector =
-            collector("old", oldCollectionCount + oldCollectionIncrement, oldCollectionTime + oldCollectionTimeIncrement);
+        final JvmStats.GarbageCollector currentYoungCollector = collector(
+            "young",
+            youngCollectionCount + youngCollectionIncrement,
+            youngCollectionTime + youngCollectionTimeIncrement
+        );
+        final JvmStats.GarbageCollector currentOldCollector = collector(
+            "old",
+            oldCollectionCount + oldCollectionIncrement,
+            oldCollectionTime + oldCollectionTimeIncrement
+        );
         final JvmStats currentJvmStats = jvmStats(currentYoungCollector, currentOldCollector);
-        final long expectedElapsed =
-            randomIntBetween(
-                Math.max(youngCollectionTime + youngCollectionTimeIncrement, oldCollectionTime + oldCollectionTimeIncrement),
-                Integer.MAX_VALUE);
+        final long expectedElapsed = randomIntBetween(
+            Math.max(youngCollectionTime + youngCollectionTimeIncrement, oldCollectionTime + oldCollectionTimeIncrement),
+            Integer.MAX_VALUE
+        );
 
         final AtomicBoolean invoked = new AtomicBoolean();
 
         final JvmGcMonitorService.JvmMonitor monitor = new JvmGcMonitorService.JvmMonitor(Collections.emptyMap(), IGNORE) {
 
             @Override
-            void onMonitorFailure(Exception e) {
-            }
+            void onMonitorFailure(Exception e) {}
 
             @Override
-            void onSlowGc(Threshold threshold, long seq, SlowGcEvent slowGcEvent) {
-            }
+            void onSlowGc(Threshold threshold, long seq, SlowGcEvent slowGcEvent) {}
 
             @Override
-            void onGcOverhead(Threshold threshold, long total, long elapsed, long seq) {
-            }
+            void onGcOverhead(Threshold threshold, long total, long elapsed, long seq) {}
 
             @Override
             void checkGcOverhead(long current, long elapsed, long seq) {
                 invoked.set(true);
-                assertThat(current, equalTo((long)(youngCollectionTimeIncrement + oldCollectionTimeIncrement)));
+                assertThat(current, equalTo((long) (youngCollectionTimeIncrement + oldCollectionTimeIncrement)));
                 assertThat(elapsed, equalTo(expectedElapsed));
             }
 
@@ -304,7 +308,7 @@ public class JvmMonitorTests extends ESTestCase {
     private JvmStats.GarbageCollector collector(final String name, final int collectionCount, final int collectionTime) {
         final JvmStats.GarbageCollector gc = mock(JvmStats.GarbageCollector.class);
         when(gc.getName()).thenReturn(name);
-        when(gc.getCollectionCount()).thenReturn((long)collectionCount);
+        when(gc.getCollectionCount()).thenReturn((long) collectionCount);
         when(gc.getCollectionTime()).thenReturn(TimeValue.timeValueMillis(collectionTime));
         return gc;
     }
@@ -313,8 +317,11 @@ public class JvmMonitorTests extends ESTestCase {
         final int debugThreshold = randomIntBetween(1, 98);
         final int infoThreshold = randomIntBetween(debugThreshold + 1, 99);
         final int warnThreshold = randomIntBetween(infoThreshold + 1, 100);
-        final JvmGcMonitorService.GcOverheadThreshold gcOverheadThreshold =
-            new JvmGcMonitorService.GcOverheadThreshold(warnThreshold, infoThreshold, debugThreshold);
+        final JvmGcMonitorService.GcOverheadThreshold gcOverheadThreshold = new JvmGcMonitorService.GcOverheadThreshold(
+            warnThreshold,
+            infoThreshold,
+            debugThreshold
+        );
 
         final JvmGcMonitorService.JvmMonitor.Threshold expectedThreshold;
         int fraction = 0;
@@ -347,12 +354,10 @@ public class JvmMonitorTests extends ESTestCase {
         final JvmGcMonitorService.JvmMonitor monitor = new JvmGcMonitorService.JvmMonitor(Collections.emptyMap(), gcOverheadThreshold) {
 
             @Override
-            void onMonitorFailure(final Exception e) {
-            }
+            void onMonitorFailure(final Exception e) {}
 
             @Override
-            void onSlowGc(Threshold threshold, long seq, SlowGcEvent slowGcEvent) {
-            }
+            void onSlowGc(Threshold threshold, long seq, SlowGcEvent slowGcEvent) {}
 
             @Override
             void onGcOverhead(final Threshold threshold, final long current, final long elapsed, final long seq) {

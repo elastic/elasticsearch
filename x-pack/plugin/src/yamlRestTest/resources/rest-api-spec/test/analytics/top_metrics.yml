@@ -668,3 +668,42 @@
   - match: { aggregations.tm.top.1.sort: [2] }
   - match: { aggregations.tm.top.2.metrics.animal\.keyword: null}
   - match: { aggregations.tm.top.2.sort: [3] }
+
+---
+"with flattened":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              host:
+                type: flattened
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"host": {"hostname": "abc", "name": "x"}, "v": 1}'
+          - '{"index": {}}'
+          - '{"host": {"hostname": "foo", "name": "y"}, "v": 2}'
+          - '{"index": {}}'
+          - '{"host": {"hostname": "bar", "name": "z"}, "v": 3}'
+
+  - do:
+      search:
+        index: test
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: host.hostname
+                sort:
+                  v: asc
+                size: 3
+  - match: { aggregations.tm.top.0.sort: [1] }
+  - match: { aggregations.tm.top.0.metrics.host\.hostname: abc }

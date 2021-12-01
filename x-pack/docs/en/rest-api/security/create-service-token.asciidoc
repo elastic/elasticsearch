@@ -25,7 +25,6 @@ authentication.
 
 [[security-api-create-service-token-desc]]
 ==== {api-description-title}
-include::../../security/authentication/service-accounts.asciidoc[tag=service-accounts-tls]
 
 A successful create service account token API call returns a JSON structure
 that contains the service account token, its name, and its secret value.

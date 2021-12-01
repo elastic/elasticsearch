@@ -11,13 +11,13 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -50,25 +50,20 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("null_value", b -> b.field("null_value", 1));
-        checker.registerUpdateCheck(b -> b.field("coerce", false),
-            m -> assertFalse(((NumberFieldMapper) m).coerce()));
-        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true),
-            m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed()));
+        checker.registerUpdateCheck(b -> b.field("coerce", false), m -> assertFalse(((NumberFieldMapper) m).coerce()));
+        checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> assertTrue(((NumberFieldMapper) m).ignoreMalformed()));
 
         if (allowsIndexTimeScript()) {
             checker.registerConflictCheck("script", b -> b.field("script", "foo"));
-            checker.registerUpdateCheck(
-                b -> {
-                    minimalMapping(b);
-                    b.field("script", "test");
-                    b.field("on_script_error", "fail");
-                },
-                b -> {
-                    minimalMapping(b);
-                    b.field("script", "test");
-                    b.field("on_script_error", "continue");
-                },
-                m -> assertThat((m).onScriptError, equalTo("continue")));
+            checker.registerUpdateCheck(b -> {
+                minimalMapping(b);
+                b.field("script", "test");
+                b.field("on_script_error", "fail");
+            }, b -> {
+                minimalMapping(b);
+                b.field("script", "test");
+                b.field("on_script_error", "continue");
+            }, m -> assertThat((m).onScriptError, equalTo("continue")));
         }
     }
 
@@ -176,7 +171,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             minimalMapping(b);
             b.field("ignore_malformed", true);
         }));
-        for (Object malformedValue : new Object[]{"a", Boolean.FALSE}) {
+        for (Object malformedValue : new Object[] { "a", Boolean.FALSE }) {
             SourceToParse source = source(b -> b.field("field", malformedValue));
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> notIgnoring.parse(source));
             if (malformedValue instanceof String) {
@@ -189,7 +184,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
             ParsedDocument doc = ignoring.parse(source);
             IndexableField[] fields = doc.rootDoc().getFields("field");
             assertEquals(0, fields.length);
-            assertArrayEquals(new String[]{"field"}, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
+            assertArrayEquals(new String[] { "field" }, TermVectorsService.getValues(doc.rootDoc().getFields("_ignored")));
         }
     }
 
@@ -198,16 +193,13 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
      */
     public void testIgnoreMalformedWithObject() throws Exception {
         SourceToParse malformed = source(b -> b.startObject("field").field("foo", "bar").endObject());
-        for (Boolean ignoreMalformed : new Boolean[]{true, false}) {
-            DocumentMapper mapper = createDocumentMapper(
-                fieldMapping(b -> {
-                    minimalMapping(b);
-                    b.field("ignore_malformed", ignoreMalformed);
-                })
-            );
+        for (Boolean ignoreMalformed : new Boolean[] { true, false }) {
+            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("ignore_malformed", ignoreMalformed);
+            }));
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(malformed));
-            assertThat(e.getCause().getMessage(), containsString("Current token"));
-            assertThat(e.getCause().getMessage(), containsString("not numeric, can not use numeric value accessors"));
+            assertThat(e.getCause().getMessage(), containsString("Cannot parse object as number"));
         }
     }
 
@@ -235,11 +227,14 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     public void testOutOfRangeValues() throws IOException {
-        for(OutOfRangeSpec item : outOfRangeSpecs()) {
+        for (OutOfRangeSpec item : outOfRangeSpecs()) {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", item.type.typeName())));
             Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(item::write)));
-            assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
-                e.getCause().getMessage(), containsString(item.message));
+            assertThat(
+                "Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
+                e.getCause().getMessage(),
+                containsString(item.message)
+            );
         }
     }
 
@@ -255,9 +250,50 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         // dimension = true is not allowed
         Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
-            b.field("dimension", true);
+            b.field("time_series_dimension", true);
         })));
-        assertThat(e.getCause().getMessage(), containsString("Parameter [dimension] cannot be set"));
+        assertThat(e.getCause().getMessage(), containsString("Parameter [time_series_dimension] cannot be set"));
+    }
+
+    public void testMetricType() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
+        assertNull(ft.getMetricType());
+
+        assertMetricType("gauge", NumberFieldMapper.NumberFieldType::getMetricType);
+        assertMetricType("counter", NumberFieldMapper.NumberFieldType::getMetricType);
+
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "histogram");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [histogram] for field [time_series_metric] - accepted values are [gauge, counter]")
+            );
+        }
+        {
+            // Test invalid metric type for this field type
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("time_series_metric", "unknown");
+            })));
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("Unknown value [unknown] for field [time_series_metric] - accepted values are [gauge, counter]")
+            );
+        }
+    }
+
+    public void testMetricAndDocvalues() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("time_series_metric", "counter").field("doc_values", false);
+        })));
+        assertThat(e.getCause().getMessage(), containsString("Field [time_series_metric] requires that [doc_values] is true"));
     }
 
     @Override

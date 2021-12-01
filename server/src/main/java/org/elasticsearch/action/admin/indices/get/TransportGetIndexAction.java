@@ -30,8 +30,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 /**
  * Get index action.
@@ -43,47 +43,71 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
     private final SettingsFilter settingsFilter;
 
     @Inject
-    public TransportGetIndexAction(TransportService transportService, ClusterService clusterService,
-                                   ThreadPool threadPool, SettingsFilter settingsFilter, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService,
-                                   IndexScopedSettings indexScopedSettings) {
-        super(GetIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, GetIndexRequest::new,
-                indexNameExpressionResolver, GetIndexResponse::new);
+    public TransportGetIndexAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        SettingsFilter settingsFilter,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        IndicesService indicesService,
+        IndexScopedSettings indexScopedSettings
+    ) {
+        super(
+            GetIndexAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetIndexRequest::new,
+            indexNameExpressionResolver,
+            GetIndexResponse::new
+        );
         this.indicesService = indicesService;
         this.settingsFilter = settingsFilter;
         this.indexScopedSettings = indexScopedSettings;
     }
 
     @Override
-    protected void doMasterOperation(Task task, final GetIndexRequest request, String[] concreteIndices, final ClusterState state,
-                                     final ActionListener<GetIndexResponse> listener) {
+    protected void doMasterOperation(
+        Task task,
+        final GetIndexRequest request,
+        String[] concreteIndices,
+        final ClusterState state,
+        final ActionListener<GetIndexResponse> listener
+    ) {
         ImmutableOpenMap<String, MappingMetadata> mappingsResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, List<AliasMetadata>> aliasesResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.<String, String>builder()
-            .putAll(StreamSupport.stream(state.metadata().findDataStreams(concreteIndices).spliterator(), false)
-                .collect(Collectors.toMap(k -> k.key, v -> v.value.getName()))).build();
+            .putAll(
+                state.metadata()
+                    .findDataStreams(concreteIndices)
+                    .stream()
+                    .collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().getName()))
+            )
+            .build();
         Feature[] features = request.features();
         boolean doneAliases = false;
         boolean doneMappings = false;
         boolean doneSettings = false;
         for (Feature feature : features) {
             switch (feature) {
-            case MAPPINGS:
+                case MAPPINGS:
                     if (doneMappings == false) {
                         mappingsResult = state.metadata()
                             .findMappings(concreteIndices, indicesService.getFieldFilter(), Metadata.ON_NEXT_INDEX_FIND_MAPPINGS_NOOP);
                         doneMappings = true;
                     }
                     break;
-            case ALIASES:
+                case ALIASES:
                     if (doneAliases == false) {
                         aliasesResult = state.metadata().findAllAliases(concreteIndices);
                         doneAliases = true;
                     }
                     break;
-            case SETTINGS:
+                case SETTINGS:
                     if (doneSettings == false) {
                         ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
                         ImmutableOpenMap.Builder<String, Settings> defaultSettingsMapBuilder = ImmutableOpenMap.builder();
@@ -94,8 +118,9 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                             }
                             settingsMapBuilder.put(index, indexSettings);
                             if (request.includeDefaults()) {
-                                Settings defaultIndexSettings =
-                                    settingsFilter.filter(indexScopedSettings.diff(indexSettings, Settings.EMPTY));
+                                Settings defaultIndexSettings = settingsFilter.filter(
+                                    indexScopedSettings.diff(indexSettings, Settings.EMPTY)
+                                );
                                 defaultSettingsMapBuilder.put(index, defaultIndexSettings);
                             }
                         }

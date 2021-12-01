@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.client.enrich;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.TaskInfo;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.List;
 import java.util.Objects;
@@ -88,11 +88,13 @@ public final class StatsResponse {
         private final long remoteRequestsTotal;
         private final long executedSearchesTotal;
 
-        public CoordinatorStats(String nodeId,
-                                int queueSize,
-                                int remoteRequestsCurrent,
-                                long remoteRequestsTotal,
-                                long executedSearchesTotal) {
+        public CoordinatorStats(
+            String nodeId,
+            int queueSize,
+            int remoteRequestsCurrent,
+            long remoteRequestsTotal,
+            long executedSearchesTotal
+        ) {
             this.nodeId = nodeId;
             this.queueSize = queueSize;
             this.remoteRequestsCurrent = remoteRequestsCurrent;
@@ -125,11 +127,11 @@ public final class StatsResponse {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             CoordinatorStats stats = (CoordinatorStats) o;
-            return Objects.equals(nodeId, stats.nodeId) &&
-                queueSize == stats.queueSize &&
-                remoteRequestsCurrent == stats.remoteRequestsCurrent &&
-                remoteRequestsTotal == stats.remoteRequestsTotal &&
-                executedSearchesTotal == stats.executedSearchesTotal;
+            return Objects.equals(nodeId, stats.nodeId)
+                && queueSize == stats.queueSize
+                && remoteRequestsCurrent == stats.remoteRequestsCurrent
+                && remoteRequestsTotal == stats.remoteRequestsTotal
+                && executedSearchesTotal == stats.executedSearchesTotal;
         }
 
         @Override
@@ -175,8 +177,7 @@ public final class StatsResponse {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             ExecutingPolicy that = (ExecutingPolicy) o;
-            return name.equals(that.name) &&
-                taskInfo.equals(that.taskInfo);
+            return name.equals(that.name) && taskInfo.equals(that.taskInfo);
         }
 
         @Override
@@ -246,8 +247,11 @@ public final class StatsResponse {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             CacheStats that = (CacheStats) o;
-            return count == that.count && hits == that.hits && misses == that.misses &&
-                evictions == that.evictions && nodeId.equals(that.nodeId);
+            return count == that.count
+                && hits == that.hits
+                && misses == that.misses
+                && evictions == that.evictions
+                && nodeId.equals(that.nodeId);
         }
 
         @Override

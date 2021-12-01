@@ -12,6 +12,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.ssl.SslHandler;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
@@ -24,22 +25,23 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.transport.ProfileConfigurations;
 import org.elasticsearch.xpack.core.security.transport.SecurityTransportExceptionHandler;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
-import javax.net.ssl.SNIHostName;
-import javax.net.ssl.SNIServerName;
-import javax.net.ssl.SSLEngine;
-import javax.net.ssl.SSLParameters;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.Collections;
 import java.util.Map;
+
+import javax.net.ssl.SNIHostName;
+import javax.net.ssl.SNIServerName;
+import javax.net.ssl.SSLEngine;
+import javax.net.ssl.SSLParameters;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 
@@ -56,17 +58,26 @@ public class SecurityNetty4Transport extends Netty4Transport {
     private final boolean sslEnabled;
 
     public SecurityNetty4Transport(
-            final Settings settings,
-            final Version version,
-            final ThreadPool threadPool,
-            final NetworkService networkService,
-            final PageCacheRecycler pageCacheRecycler,
-            final NamedWriteableRegistry namedWriteableRegistry,
-            final CircuitBreakerService circuitBreakerService,
-            final SSLService sslService,
-            final SharedGroupFactory sharedGroupFactory) {
-        super(settings, version, threadPool, networkService, pageCacheRecycler, namedWriteableRegistry, circuitBreakerService,
-            sharedGroupFactory);
+        final Settings settings,
+        final Version version,
+        final ThreadPool threadPool,
+        final NetworkService networkService,
+        final PageCacheRecycler pageCacheRecycler,
+        final NamedWriteableRegistry namedWriteableRegistry,
+        final CircuitBreakerService circuitBreakerService,
+        final SSLService sslService,
+        final SharedGroupFactory sharedGroupFactory
+    ) {
+        super(
+            settings,
+            version,
+            threadPool,
+            networkService,
+            pageCacheRecycler,
+            namedWriteableRegistry,
+            circuitBreakerService,
+            sharedGroupFactory
+        );
         this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);
@@ -163,8 +174,8 @@ public class SecurityNetty4Transport extends Netty4Transport {
         protected void initChannel(Channel ch) throws Exception {
             super.initChannel(ch);
             if (sslEnabled) {
-                ch.pipeline().addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled,
-                    serverName));
+                ch.pipeline()
+                    .addFirst(new ClientSslHandlerInitializer(sslConfiguration, sslService, hostnameVerificationEnabled, serverName));
             }
         }
     }
@@ -176,8 +187,12 @@ public class SecurityNetty4Transport extends Netty4Transport {
         private final SSLService sslService;
         private final SNIServerName serverName;
 
-        private ClientSslHandlerInitializer(SslConfiguration sslConfiguration, SSLService sslService, boolean hostnameVerificationEnabled,
-                                            SNIServerName serverName) {
+        private ClientSslHandlerInitializer(
+            SslConfiguration sslConfiguration,
+            SSLService sslService,
+            boolean hostnameVerificationEnabled,
+            SNIServerName serverName
+        ) {
             this.sslConfiguration = sslConfiguration;
             this.hostnameVerificationEnabled = hostnameVerificationEnabled;
             this.sslService = sslService;
@@ -185,14 +200,13 @@ public class SecurityNetty4Transport extends Netty4Transport {
         }
 
         @Override
-        public void connect(ChannelHandlerContext ctx, SocketAddress remoteAddress,
-                            SocketAddress localAddress, ChannelPromise promise) throws Exception {
+        public void connect(ChannelHandlerContext ctx, SocketAddress remoteAddress, SocketAddress localAddress, ChannelPromise promise)
+            throws Exception {
             final SSLEngine sslEngine;
             if (hostnameVerificationEnabled) {
                 InetSocketAddress inetSocketAddress = (InetSocketAddress) remoteAddress;
                 // we create the socket based on the name given. don't reverse DNS
-                sslEngine = sslService.createSSLEngine(sslConfiguration, inetSocketAddress.getHostString(),
-                        inetSocketAddress.getPort());
+                sslEngine = sslService.createSSLEngine(sslConfiguration, inetSocketAddress.getHostString(), inetSocketAddress.getPort());
             } else {
                 sslEngine = sslService.createSSLEngine(sslConfiguration, null, -1);
             }

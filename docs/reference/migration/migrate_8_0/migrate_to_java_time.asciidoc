@@ -210,9 +210,6 @@ In java time, `z` outputs 'Z' for Zulu when given a UTC timezone.
 We strongly recommend you test any date format changes using real data before
 deploying in production.
 
-For help with date debugging, consider using
-https://esddd.herokuapp.com/[https://esddd.herokuapp.com/.]
-
 [discrete]
 [[java-time-migrate-update-mappings]]
 === Update index mappings

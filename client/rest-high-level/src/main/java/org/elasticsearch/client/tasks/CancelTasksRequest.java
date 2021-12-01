@@ -24,7 +24,7 @@ public class CancelTasksRequest implements Validatable {
     private Optional<TaskId> taskId = Optional.empty();
     private Boolean waitForCompletion;
 
-    CancelTasksRequest(){}
+    CancelTasksRequest() {}
 
     void setNodes(List<String> nodes) {
         this.nodes.addAll(nodes);
@@ -79,12 +79,12 @@ public class CancelTasksRequest implements Validatable {
         if (this == o) return true;
         if ((o instanceof CancelTasksRequest) == false) return false;
         CancelTasksRequest that = (CancelTasksRequest) o;
-        return Objects.equals(getNodes(), that.getNodes()) &&
-            Objects.equals(getActions(), that.getActions()) &&
-            Objects.equals(getTimeout(), that.getTimeout()) &&
-            Objects.equals(getParentTaskId(), that.getParentTaskId()) &&
-            Objects.equals(getTaskId(), that.getTaskId()) &&
-            Objects.equals(waitForCompletion, that.waitForCompletion);
+        return Objects.equals(getNodes(), that.getNodes())
+            && Objects.equals(getActions(), that.getActions())
+            && Objects.equals(getTimeout(), that.getTimeout())
+            && Objects.equals(getParentTaskId(), that.getParentTaskId())
+            && Objects.equals(getTaskId(), that.getTaskId())
+            && Objects.equals(waitForCompletion, that.waitForCompletion);
     }
 
     @Override
@@ -94,16 +94,23 @@ public class CancelTasksRequest implements Validatable {
 
     @Override
     public String toString() {
-        return "CancelTasksRequest{" +
-            "nodes=" + nodes +
-            ", actions=" + actions +
-            ", timeout=" + timeout +
-            ", parentTaskId=" + parentTaskId +
-            ", taskId=" + taskId +
-            ", waitForCompletion=" + waitForCompletion +
-            '}';
+        return "CancelTasksRequest{"
+            + "nodes="
+            + nodes
+            + ", actions="
+            + actions
+            + ", timeout="
+            + timeout
+            + ", parentTaskId="
+            + parentTaskId
+            + ", taskId="
+            + taskId
+            + ", waitForCompletion="
+            + waitForCompletion
+            + '}';
     }
 
+    @SuppressWarnings("HiddenField")
     public static class Builder {
         private Optional<TimeValue> timeout = Optional.empty();
         private Optional<TaskId> taskId = Optional.empty();
@@ -112,28 +119,28 @@ public class CancelTasksRequest implements Validatable {
         private List<String> nodesFilter = new ArrayList<>();
         private Boolean waitForCompletion;
 
-        public Builder withTimeout(TimeValue timeout){
+        public Builder withTimeout(TimeValue timeout) {
             this.timeout = Optional.of(timeout);
             return this;
         }
 
-        public Builder withTaskId(TaskId taskId){
+        public Builder withTaskId(TaskId taskId) {
             this.taskId = Optional.of(taskId);
             return this;
         }
 
-        public Builder withParentTaskId(TaskId taskId){
+        public Builder withParentTaskId(TaskId taskId) {
             this.parentTaskId = Optional.of(taskId);
             return this;
         }
 
-        public Builder withActionsFiltered(List<String> actions){
+        public Builder withActionsFiltered(List<String> actions) {
             this.actionsFilter.clear();
             this.actionsFilter.addAll(actions);
             return this;
         }
 
-        public Builder withNodesFiltered(List<String> nodes){
+        public Builder withNodesFiltered(List<String> nodes) {
             this.nodesFilter.clear();
             this.nodesFilter.addAll(nodes);
             return this;

@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.core.watcher.transform.chain;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.transform.Transform;
 import org.elasticsearch.xpack.core.watcher.transform.TransformRegistry;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -62,9 +62,7 @@ public class ChainTransform implements Transform {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray();
         for (Transform transform : transforms) {
-            builder.startObject()
-                    .field(transform.type(), transform, params)
-                    .endObject();
+            builder.startObject().field(transform.type(), transform, params).endObject();
         }
         return builder.endArray();
     }
@@ -72,8 +70,12 @@ public class ChainTransform implements Transform {
     static ChainTransform parse(String watchId, XContentParser parser, TransformRegistry transformRegistry) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token != XContentParser.Token.START_ARRAY) {
-            throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. expected an array of transform objects," +
-                    " but found [{}] instead", TYPE, watchId, token);
+            throw new ElasticsearchParseException(
+                "could not parse [{}] transform for watch [{}]. expected an array of transform objects," + " but found [{}] instead",
+                TYPE,
+                watchId,
+                token
+            );
         }
 
         List<Transform> transforms = new ArrayList<>();
@@ -81,8 +83,12 @@ public class ChainTransform implements Transform {
         String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new ElasticsearchParseException("could not parse [{}] transform for watch [{}]. expected a transform object, but " +
-                        "found [{}] instead", TYPE, watchId, token);
+                throw new ElasticsearchParseException(
+                    "could not parse [{}] transform for watch [{}]. expected a transform object, but " + "found [{}] instead",
+                    TYPE,
+                    watchId,
+                    token
+                );
             }
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
@@ -145,13 +151,13 @@ public class ChainTransform implements Transform {
             add(transforms);
         }
 
-        public Builder add(Transform... transforms) {
-            Collections.addAll(this.transforms, transforms);
+        public Builder add(Transform... transformsToAdd) {
+            Collections.addAll(this.transforms, transformsToAdd);
             return this;
         }
 
-        public Builder add(Transform.Builder<?>... transforms) {
-            for (Transform.Builder<?> transform: transforms) {
+        public Builder add(Transform.Builder<?>... transformsToAdd) {
+            for (Transform.Builder<?> transform : transformsToAdd) {
                 this.transforms.add(transform.build());
             }
             return this;

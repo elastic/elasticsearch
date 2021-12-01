@@ -9,12 +9,12 @@ package org.elasticsearch.license;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -33,10 +33,7 @@ class SelfGeneratedLicense {
     }
 
     public static License create(License.Builder specBuilder, int version) {
-        License spec = specBuilder
-                .issuer("elasticsearch")
-                .version(version)
-                .build();
+        License spec = specBuilder.issuer("elasticsearch").version(version).build();
         final String signature;
         try {
             XContentBuilder contentBuilder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -50,9 +47,7 @@ class SelfGeneratedLicense {
             byte[] bytes = new byte[4 + 4 + encrypt.length];
             ByteBuffer byteBuffer = ByteBuffer.wrap(bytes);
             // Set -version in signature
-            byteBuffer.putInt(-version)
-                    .putInt(encrypt.length)
-                    .put(encrypt);
+            byteBuffer.putInt(-version).putInt(encrypt.length).put(encrypt);
             signature = Base64.getEncoder().encodeToString(bytes);
         } catch (IOException e) {
             throw new IllegalStateException(e);
@@ -72,11 +67,15 @@ class SelfGeneratedLicense {
             // Version in signature is -version, so check for -(-version) < 4
             byte[] decryptedContent = (-version < License.VERSION_CRYPTO_ALGORITHMS) ? decryptV3Format(content) : decrypt(content);
             // EMPTY is safe here because we don't call namedObject
-            try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, decryptedContent)) {
+            try (
+                XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, decryptedContent)
+            ) {
                 parser.nextToken();
-                expectedLicense = License.builder().fromLicenseSpec(License.fromXContent(parser),
-                        license.signature()).version(-version).build();
+                expectedLicense = License.builder()
+                    .fromLicenseSpec(License.fromXContent(parser), license.signature())
+                    .version(-version)
+                    .build();
             }
             return license.equals(expectedLicense);
         } catch (IOException e) {
@@ -90,7 +89,14 @@ class SelfGeneratedLicense {
             case TRIAL:
                 return type;
         }
-        throw new IllegalArgumentException("invalid self generated license type [" + type + "], only " +
-            License.LicenseType.BASIC + " and " + License.LicenseType.TRIAL + " are accepted");
+        throw new IllegalArgumentException(
+            "invalid self generated license type ["
+                + type
+                + "], only "
+                + License.LicenseType.BASIC
+                + " and "
+                + License.LicenseType.TRIAL
+                + " are accepted"
+        );
     }
 }

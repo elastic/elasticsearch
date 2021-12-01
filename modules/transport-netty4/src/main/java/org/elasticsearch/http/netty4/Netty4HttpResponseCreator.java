@@ -17,8 +17,9 @@ import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpResponse;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpResponse;
+
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.transport.NettyAllocator;
+import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.util.List;
 
@@ -26,7 +27,11 @@ import java.util.List;
  * Split up large responses to prevent batch compression {@link JdkZlibEncoder} down the pipeline.
  */
 @ChannelHandler.Sharable
-class Netty4HttpResponseCreator extends MessageToMessageEncoder<Netty4HttpResponse> {
+final class Netty4HttpResponseCreator extends MessageToMessageEncoder<Netty4HttpResponse> {
+
+    static final Netty4HttpResponseCreator INSTANCE = new Netty4HttpResponseCreator();
+
+    private Netty4HttpResponseCreator() {}
 
     private static final String DO_NOT_SPLIT = "es.unsafe.do_not_split_http_responses";
 

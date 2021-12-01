@@ -8,10 +8,10 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,11 +23,11 @@ public class StartDataFrameAnalyticsResponse extends AcknowledgedResponse {
 
     private static final ParseField NODE = new ParseField("node");
 
-    public static final ConstructingObjectParser<StartDataFrameAnalyticsResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "start_data_frame_analytics_response",
-            true,
-            (a) -> new StartDataFrameAnalyticsResponse((Boolean) a[0], (String) a[1]));
+    public static final ConstructingObjectParser<StartDataFrameAnalyticsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "start_data_frame_analytics_response",
+        true,
+        (a) -> new StartDataFrameAnalyticsResponse((Boolean) a[0], (String) a[1])
+    );
 
     static {
         declareAcknowledgedField(PARSER);
@@ -68,8 +68,7 @@ public class StartDataFrameAnalyticsResponse extends AcknowledgedResponse {
         }
 
         StartDataFrameAnalyticsResponse that = (StartDataFrameAnalyticsResponse) other;
-        return isAcknowledged() == that.isAcknowledged()
-            && Objects.equals(node, that.node);
+        return isAcknowledged() == that.isAcknowledged() && Objects.equals(node, that.node);
     }
 
     @Override

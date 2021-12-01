@@ -21,8 +21,9 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -37,13 +38,19 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
     private static final Logger logger = LogManager.getLogger(HandshakingTransportAddressConnector.class);
 
     // connection timeout for probes
-    public static final Setting<TimeValue> PROBE_CONNECT_TIMEOUT_SETTING =
-        Setting.timeSetting("discovery.probe.connect_timeout",
-            TimeValue.timeValueSeconds(30), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> PROBE_CONNECT_TIMEOUT_SETTING = Setting.timeSetting(
+        "discovery.probe.connect_timeout",
+        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
     // handshake timeout for probes
-    public static final Setting<TimeValue> PROBE_HANDSHAKE_TIMEOUT_SETTING =
-        Setting.timeSetting("discovery.probe.handshake_timeout",
-            TimeValue.timeValueSeconds(30), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> PROBE_HANDSHAKE_TIMEOUT_SETTING = Setting.timeSetting(
+        "discovery.probe.handshake_timeout",
+        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
 
     private final TransportService transportService;
     private final TimeValue probeConnectTimeout;
@@ -56,7 +63,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
     }
 
     @Override
-    public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<DiscoveryNode> listener) {
+    public void connectToRemoteMasterNode(TransportAddress transportAddress, ActionListener<ProbeConnectionResult> listener) {
         transportService.getThreadPool().generic().execute(new ActionRunnable<>(listener) {
             private final AbstractRunnable thisConnectionAttempt = this;
 
@@ -65,15 +72,30 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                 // We could skip this if the transportService were already connected to the given address, but the savings would be minimal
                 // so we open a new connection anyway.
 
-                final DiscoveryNode targetNode = new DiscoveryNode("", transportAddress.toString(),
+                final DiscoveryNode targetNode = new DiscoveryNode(
+                    "",
+                    transportAddress.toString(),
                     UUIDs.randomBase64UUID(Randomness.get()), // generated deterministically for reproducible tests
-                    transportAddress.address().getHostString(), transportAddress.getAddress(), transportAddress, emptyMap(),
-                    emptySet(), Version.CURRENT.minimumCompatibilityVersion());
+                    transportAddress.address().getHostString(),
+                    transportAddress.getAddress(),
+                    transportAddress,
+                    emptyMap(),
+                    emptySet(),
+                    Version.CURRENT.minimumCompatibilityVersion()
+                );
 
                 logger.trace("[{}] opening probe connection", thisConnectionAttempt);
-                transportService.openConnection(targetNode,
-                    ConnectionProfile.buildSingleChannelProfile(Type.REG, probeConnectTimeout, probeHandshakeTimeout,
-                        TimeValue.MINUS_ONE, null, null), listener.delegateFailure((l, connection) -> {
+                transportService.openConnection(
+                    targetNode,
+                    ConnectionProfile.buildSingleChannelProfile(
+                        Type.REG,
+                        probeConnectTimeout,
+                        probeHandshakeTimeout,
+                        TimeValue.MINUS_ONE,
+                        null,
+                        null
+                    ),
+                    listener.delegateFailure((l, connection) -> {
                         logger.trace("[{}] opened probe connection", thisConnectionAttempt);
 
                         // use NotifyOnceListener to make sure the following line does not result in onFailure being called when
@@ -94,9 +116,9 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                     } else {
                                         transportService.connectToNode(remoteNode, new ActionListener<>() {
                                             @Override
-                                            public void onResponse(Void ignored) {
+                                            public void onResponse(Releasable connectionReleasable) {
                                                 logger.trace("[{}] completed full connection with [{}]", thisConnectionAttempt, remoteNode);
-                                                listener.onResponse(remoteNode);
+                                                listener.onResponse(new ProbeConnectionResult(remoteNode, connectionReleasable));
                                             }
 
                                             @Override
@@ -106,9 +128,14 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
                                                 // the attempt to open a full connection to its publish address failed; a common reason is
                                                 // that the remote node is listening on 0.0.0.0 but has made an inappropriate choice for its
                                                 // publish address.
-                                                logger.warn(new ParameterizedMessage(
-                                                    "[{}] completed handshake with [{}] but followup connection failed",
-                                                    thisConnectionAttempt, remoteNode), e);
+                                                logger.warn(
+                                                    new ParameterizedMessage(
+                                                        "[{}] completed handshake with [{}] but followup connection failed",
+                                                        thisConnectionAttempt,
+                                                        remoteNode
+                                                    ),
+                                                    e
+                                                );
                                                 listener.onFailure(e);
                                             }
                                         });
@@ -130,7 +157,8 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
 
                         });
 
-                    }));
+                    })
+                );
 
             }
 

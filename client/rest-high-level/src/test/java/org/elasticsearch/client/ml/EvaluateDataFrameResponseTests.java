@@ -12,17 +12,17 @@ import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXConten
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.AccuracyMetricResultTests;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.Classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetricResultTests;
+import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetricResultTests;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredErrorMetricResultTests;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetricResultTests;
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.Regression;
-import org.elasticsearch.client.ml.dataframe.evaluation.common.AucRocResultTests;
-import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.OutlierDetection;
-import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.ConfusionMatrixMetricResultTests;
-import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.PrecisionMetricResultTests;
-import org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection.RecallMetricResultTests;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,13 +41,14 @@ public class EvaluateDataFrameResponseTests extends AbstractXContentTestCase<Eva
                         AucRocResultTests.randomResult(),
                         PrecisionMetricResultTests.randomResult(),
                         RecallMetricResultTests.randomResult(),
-                        ConfusionMatrixMetricResultTests.randomResult()));
+                        ConfusionMatrixMetricResultTests.randomResult()
+                    )
+                );
                 break;
             case Regression.NAME:
                 metrics = randomSubsetOf(
-                    Arrays.asList(
-                        MeanSquaredErrorMetricResultTests.randomResult(),
-                        RSquaredMetricResultTests.randomResult()));
+                    Arrays.asList(MeanSquaredErrorMetricResultTests.randomResult(), RSquaredMetricResultTests.randomResult())
+                );
                 break;
             case Classification.NAME:
                 metrics = randomSubsetOf(
@@ -56,7 +57,9 @@ public class EvaluateDataFrameResponseTests extends AbstractXContentTestCase<Eva
                         AccuracyMetricResultTests.randomResult(),
                         org.elasticsearch.client.ml.dataframe.evaluation.classification.PrecisionMetricResultTests.randomResult(),
                         org.elasticsearch.client.ml.dataframe.evaluation.classification.RecallMetricResultTests.randomResult(),
-                        MulticlassConfusionMatrixMetricResultTests.randomResult()));
+                        MulticlassConfusionMatrixMetricResultTests.randomResult()
+                    )
+                );
                 break;
             default:
                 throw new AssertionError("Please add missing \"case\" variant to the \"switch\" statement");

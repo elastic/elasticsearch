@@ -28,7 +28,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -105,11 +105,14 @@ public class ClientTransformIndexerTests extends ESTestCase {
         ClientTransformIndexer indexer = createTestIndexer();
         SearchRequest searchRequest = new SearchRequest(new String[0]);
         Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test", searchRequest);
-        indexer.doSearch(namedSearchRequest, ActionListener.wrap(
-            // A search of zero indices should return null rather than attempt to search all indices
-            ESTestCase::assertNull,
-            e -> fail(e.getMessage())
-        ));
+        indexer.doSearch(
+            namedSearchRequest,
+            ActionListener.wrap(
+                // A search of zero indices should return null rather than attempt to search all indices
+                ESTestCase::assertNull,
+                e -> fail(e.getMessage())
+            )
+        );
     }
 
     public void testPitInjection() throws InterruptedException {
@@ -374,7 +377,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                             // Simulate completely null aggs
                             null,
                             new Suggest(Collections.emptyList()),
-                            new SearchProfileShardResults(Collections.emptyMap()),
+                            new SearchProfileResults(Collections.emptyMap()),
                             false,
                             false,
                             1

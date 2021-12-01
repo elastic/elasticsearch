@@ -30,8 +30,10 @@ public class DebugTests extends ScriptTestCase {
     public void testExplain() {
         // Debug.explain can explain an object
         Object dummy = new Object();
-        PainlessExplainError e = expectScriptThrows(PainlessExplainError.class, () -> exec(
-                "Debug.explain(params.a)", singletonMap("a", dummy), true));
+        PainlessExplainError e = expectScriptThrows(
+            PainlessExplainError.class,
+            () -> exec("Debug.explain(params.a)", singletonMap("a", dummy), true)
+        );
         assertSame(dummy, e.getObjectToExplain());
         assertThat(e.getHeaders(painlessLookup), hasEntry("es.to_string", singletonList(dummy.toString())));
         assertThat(e.getHeaders(painlessLookup), hasEntry("es.java_class", singletonList("java.lang.Object")));
@@ -45,12 +47,14 @@ public class DebugTests extends ScriptTestCase {
         assertThat(e.getHeaders(painlessLookup), not(hasKey("es.painless_class")));
 
         // You can't catch the explain exception
-        e = expectScriptThrows(PainlessExplainError.class, () -> exec(
-                "try {\n"
-              + "  Debug.explain(params.a)\n"
-              + "} catch (Exception e) {\n"
-              + "  return 1\n"
-              + "}", singletonMap("a", dummy), true));
+        e = expectScriptThrows(
+            PainlessExplainError.class,
+            () -> exec(
+                "try {\n" + "  Debug.explain(params.a)\n" + "} catch (Exception e) {\n" + "  return 1\n" + "}",
+                singletonMap("a", dummy),
+                true
+            )
+        );
         assertSame(dummy, e.getObjectToExplain());
     }
 

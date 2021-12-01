@@ -1,4 +1,5 @@
-/* @notice
+/*
+ * @notice
  * Licensed to the Apache Software Foundation (ASF) under one or more
  * contributor license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright ownership.
@@ -6,7 +7,7 @@
  * (the "License"); you may not use this file except in compliance with
  * the License. You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -40,7 +41,7 @@ public final class MultiShardTermsEnum {
 
     /** Sole constructor.
      * @param enums TermsEnums from shards which we should merge
-     * @throws IOException Errors accessing data 
+     * @throws IOException Errors accessing data
      **/
     public MultiShardTermsEnum(TermsEnum[] enums) throws IOException {
         queue = new TermMergeQueue(enums.length);
@@ -74,9 +75,9 @@ public final class MultiShardTermsEnum {
     private void pushTop() throws IOException {
         // call next() on each top, and reorder queue
         for (int i = 0; i < numTop; i++) {
-            TermsEnumWithCurrent top = queue.top();
-            top.current = top.terms.next();
-            if (top.current == null) {
+            TermsEnumWithCurrent termsEnum = queue.top();
+            termsEnum.current = termsEnum.terms.next();
+            if (termsEnum.current == null) {
                 queue.pop();
             } else {
                 queue.updateTop();

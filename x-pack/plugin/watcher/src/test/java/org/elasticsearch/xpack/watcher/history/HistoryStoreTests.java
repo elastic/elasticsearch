@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -72,8 +72,10 @@ public class HistoryStoreTests extends ESTestCase {
         when(client.settings()).thenReturn(settings);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(settings));
         BulkProcessor.Listener listener = mock(BulkProcessor.Listener.class);
-        BulkProcessor bulkProcessor
-                = BulkProcessor.builder(client::bulk, listener, "HistoryStoreTests").setConcurrentRequests(0).setBulkActions(1).build();
+        BulkProcessor bulkProcessor = BulkProcessor.builder(client::bulk, listener, "HistoryStoreTests")
+            .setConcurrentRequests(0)
+            .setBulkActions(1)
+            .build();
         historyStore = new HistoryStore(bulkProcessor);
     }
 
@@ -91,8 +93,9 @@ public class HistoryStoreTests extends ESTestCase {
             ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) invocation.getArguments()[2];
 
             IndexRequest indexRequest = (IndexRequest) request.requests().get(0);
-            if (indexRequest.id().equals(wid.value()) &&
-                indexRequest.opType() == OpType.CREATE && indexRequest.index().equals(HistoryStoreField.DATA_STREAM)) {
+            if (indexRequest.id().equals(wid.value())
+                && indexRequest.opType() == OpType.CREATE
+                && indexRequest.index().equals(HistoryStoreField.DATA_STREAM)) {
                 listener.onResponse(
                     new BulkResponse(new BulkItemResponse[] { BulkItemResponse.success(1, OpType.CREATE, indexResponse) }, 1)
                 );

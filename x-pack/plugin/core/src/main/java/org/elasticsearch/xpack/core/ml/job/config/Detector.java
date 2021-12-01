@@ -7,14 +7,14 @@
 package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.process.writer.RecordWriter;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -32,7 +32,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
-
 
 /**
  * Defines the fields to be used in the analysis.
@@ -99,9 +98,11 @@ public class Detector implements ToXContentObject, Writeable {
         parser.declareString(Builder::setPartitionFieldName, PARTITION_FIELD_NAME_FIELD);
         parser.declareBoolean(Builder::setUseNull, USE_NULL_FIELD);
         parser.declareString(Builder::setExcludeFrequent, ExcludeFrequent::forString, EXCLUDE_FREQUENT_FIELD);
-        parser.declareObjectArray(Builder::setRules,
+        parser.declareObjectArray(
+            Builder::setRules,
             (p, c) -> (ignoreUnknownFields ? DetectionRule.LENIENT_PARSER : DetectionRule.STRICT_PARSER).apply(p, c).build(),
-            CUSTOM_RULES_FIELD);
+            CUSTOM_RULES_FIELD
+        );
         parser.declareInt(Builder::setDetectorIndex, DETECTOR_INDEX);
 
         return parser;
@@ -114,69 +115,67 @@ public class Detector implements ToXContentObject, Writeable {
      * The set of functions that do not require a field, by field or over field
      */
     public static final EnumSet<DetectorFunction> COUNT_WITHOUT_FIELD_FUNCTIONS = EnumSet.of(
-            DetectorFunction.COUNT,
-            DetectorFunction.HIGH_COUNT,
-            DetectorFunction.LOW_COUNT,
-            DetectorFunction.NON_ZERO_COUNT,
-            DetectorFunction.LOW_NON_ZERO_COUNT,
-            DetectorFunction.HIGH_NON_ZERO_COUNT,
-            DetectorFunction.TIME_OF_DAY,
-            DetectorFunction.TIME_OF_WEEK
+        DetectorFunction.COUNT,
+        DetectorFunction.HIGH_COUNT,
+        DetectorFunction.LOW_COUNT,
+        DetectorFunction.NON_ZERO_COUNT,
+        DetectorFunction.LOW_NON_ZERO_COUNT,
+        DetectorFunction.HIGH_NON_ZERO_COUNT,
+        DetectorFunction.TIME_OF_DAY,
+        DetectorFunction.TIME_OF_WEEK
     );
 
     /**
      * The set of functions that require a fieldname
      */
     public static final EnumSet<DetectorFunction> FIELD_NAME_FUNCTIONS = EnumSet.of(
-            DetectorFunction.DISTINCT_COUNT,
-            DetectorFunction.LOW_DISTINCT_COUNT,
-            DetectorFunction.HIGH_DISTINCT_COUNT,
-            DetectorFunction.INFO_CONTENT,
-            DetectorFunction.LOW_INFO_CONTENT,
-            DetectorFunction.HIGH_INFO_CONTENT,
-            DetectorFunction.METRIC,
-            DetectorFunction.MEAN, DetectorFunction.AVG,
-            DetectorFunction.HIGH_MEAN, DetectorFunction.HIGH_AVG,
-            DetectorFunction.LOW_MEAN, DetectorFunction.LOW_AVG,
-            DetectorFunction.MEDIAN,
-            DetectorFunction.LOW_MEDIAN,
-            DetectorFunction.HIGH_MEDIAN,
-            DetectorFunction.MIN,
-            DetectorFunction.MAX,
-            DetectorFunction.SUM,
-            DetectorFunction.LOW_SUM,
-            DetectorFunction.HIGH_SUM,
-            DetectorFunction.NON_NULL_SUM,
-            DetectorFunction.LOW_NON_NULL_SUM,
-            DetectorFunction.HIGH_NON_NULL_SUM,
-            DetectorFunction.VARP,
-            DetectorFunction.LOW_VARP,
-            DetectorFunction.HIGH_VARP,
-            DetectorFunction.LAT_LONG
+        DetectorFunction.DISTINCT_COUNT,
+        DetectorFunction.LOW_DISTINCT_COUNT,
+        DetectorFunction.HIGH_DISTINCT_COUNT,
+        DetectorFunction.INFO_CONTENT,
+        DetectorFunction.LOW_INFO_CONTENT,
+        DetectorFunction.HIGH_INFO_CONTENT,
+        DetectorFunction.METRIC,
+        DetectorFunction.MEAN,
+        DetectorFunction.AVG,
+        DetectorFunction.HIGH_MEAN,
+        DetectorFunction.HIGH_AVG,
+        DetectorFunction.LOW_MEAN,
+        DetectorFunction.LOW_AVG,
+        DetectorFunction.MEDIAN,
+        DetectorFunction.LOW_MEDIAN,
+        DetectorFunction.HIGH_MEDIAN,
+        DetectorFunction.MIN,
+        DetectorFunction.MAX,
+        DetectorFunction.SUM,
+        DetectorFunction.LOW_SUM,
+        DetectorFunction.HIGH_SUM,
+        DetectorFunction.NON_NULL_SUM,
+        DetectorFunction.LOW_NON_NULL_SUM,
+        DetectorFunction.HIGH_NON_NULL_SUM,
+        DetectorFunction.VARP,
+        DetectorFunction.LOW_VARP,
+        DetectorFunction.HIGH_VARP,
+        DetectorFunction.LAT_LONG
     );
 
     /**
      * The set of functions that require a by fieldname
      */
-    public static final EnumSet<DetectorFunction> BY_FIELD_NAME_FUNCTIONS = EnumSet.of(
-            DetectorFunction.RARE,
-            DetectorFunction.FREQ_RARE
-    );
+    public static final EnumSet<DetectorFunction> BY_FIELD_NAME_FUNCTIONS = EnumSet.of(DetectorFunction.RARE, DetectorFunction.FREQ_RARE);
 
     /**
      * The set of functions that require a over fieldname
      */
-    public static final EnumSet<DetectorFunction> OVER_FIELD_NAME_FUNCTIONS = EnumSet.of(
-            DetectorFunction.FREQ_RARE
-    );
+    public static final EnumSet<DetectorFunction> OVER_FIELD_NAME_FUNCTIONS = EnumSet.of(DetectorFunction.FREQ_RARE);
 
     /**
      * The set of functions that cannot have an over fieldname
      */
     public static final EnumSet<DetectorFunction> NO_OVER_FIELD_NAME_FUNCTIONS = EnumSet.of(
-            DetectorFunction.NON_ZERO_COUNT,
-            DetectorFunction.LOW_NON_ZERO_COUNT,
-            DetectorFunction.HIGH_NON_ZERO_COUNT
+        DetectorFunction.NON_ZERO_COUNT,
+        DetectorFunction.LOW_NON_ZERO_COUNT,
+        DetectorFunction.HIGH_NON_ZERO_COUNT
     );
 
     /**
@@ -190,17 +189,21 @@ public class Detector implements ToXContentObject, Writeable {
      * </ul>
      */
     static final EnumSet<DetectorFunction> FUNCTIONS_WITHOUT_RULE_CONDITION_SUPPORT = EnumSet.of(
-            DetectorFunction.LAT_LONG, DetectorFunction.METRIC, DetectorFunction.RARE, DetectorFunction.FREQ_RARE);
+        DetectorFunction.LAT_LONG,
+        DetectorFunction.METRIC,
+        DetectorFunction.RARE,
+        DetectorFunction.FREQ_RARE
+    );
 
     /**
      * field names cannot contain any of these characters
      * ", \
      */
-    public static final Character[] PROHIBITED_FIELDNAME_CHARACTERS = {'"', '\\'};
-    public static final String PROHIBITED = String.join(",",
-            Arrays.stream(PROHIBITED_FIELDNAME_CHARACTERS).map(
-                    c -> Character.toString(c)).collect(Collectors.toList()));
-
+    public static final Character[] PROHIBITED_FIELDNAME_CHARACTERS = { '"', '\\' };
+    public static final String PROHIBITED = String.join(
+        ",",
+        Arrays.stream(PROHIBITED_FIELDNAME_CHARACTERS).map(c -> Character.toString(c)).collect(Collectors.toList())
+    );
 
     private final String detectorDescription;
     private final DetectorFunction function;
@@ -273,17 +276,26 @@ public class Detector implements ToXContentObject, Writeable {
         }
         // negative means "unknown", which should only happen for a 5.4 job
         if (detectorIndex >= 0
-                // no point writing this to cluster state, as the indexes will get reassigned on reload anyway
-                && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) {
+            // no point writing this to cluster state, as the indexes will get reassigned on reload anyway
+            && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) {
             builder.field(DETECTOR_INDEX.getPreferredName(), detectorIndex);
         }
         builder.endObject();
         return builder;
     }
 
-    private Detector(String detectorDescription, DetectorFunction function, String fieldName, String byFieldName, String overFieldName,
-                     String partitionFieldName, boolean useNull, ExcludeFrequent excludeFrequent, List<DetectionRule> rules,
-                     int detectorIndex) {
+    private Detector(
+        String detectorDescription,
+        DetectorFunction function,
+        String fieldName,
+        String byFieldName,
+        String overFieldName,
+        String partitionFieldName,
+        boolean useNull,
+        ExcludeFrequent excludeFrequent,
+        List<DetectionRule> rules,
+        int detectorIndex
+    ) {
         this.function = function;
         this.fieldName = fieldName;
         this.byFieldName = byFieldName;
@@ -383,15 +395,14 @@ public class Detector implements ToXContentObject, Writeable {
      * @return a list with the byFieldName, overFieldName and partitionFieldName that are not null
      */
     public List<String> extractAnalysisFields() {
-        List<String> analysisFields = Arrays.asList(getByFieldName(),
-                getOverFieldName(), getPartitionFieldName());
+        List<String> analysisFields = Arrays.asList(getByFieldName(), getOverFieldName(), getPartitionFieldName());
         return analysisFields.stream().filter(item -> item != null).collect(Collectors.toList());
     }
 
     public Set<String> extractReferencedFilters() {
-        return rules == null ? Collections.emptySet()
-                : rules.stream().map(DetectionRule::extractReferencedFilters)
-                .flatMap(Set::stream).collect(Collectors.toSet());
+        return rules == null
+            ? Collections.emptySet()
+            : rules.stream().map(DetectionRule::extractReferencedFilters).flatMap(Set::stream).collect(Collectors.toSet());
     }
 
     /**
@@ -423,22 +434,32 @@ public class Detector implements ToXContentObject, Writeable {
 
         Detector that = (Detector) other;
 
-        return Objects.equals(this.detectorDescription, that.detectorDescription) &&
-                Objects.equals(this.function, that.function) &&
-                Objects.equals(this.fieldName, that.fieldName) &&
-                Objects.equals(this.byFieldName, that.byFieldName) &&
-                Objects.equals(this.overFieldName, that.overFieldName) &&
-                Objects.equals(this.partitionFieldName, that.partitionFieldName) &&
-                Objects.equals(this.useNull, that.useNull) &&
-                Objects.equals(this.excludeFrequent, that.excludeFrequent) &&
-                Objects.equals(this.rules, that.rules) &&
-                this.detectorIndex == that.detectorIndex;
+        return Objects.equals(this.detectorDescription, that.detectorDescription)
+            && Objects.equals(this.function, that.function)
+            && Objects.equals(this.fieldName, that.fieldName)
+            && Objects.equals(this.byFieldName, that.byFieldName)
+            && Objects.equals(this.overFieldName, that.overFieldName)
+            && Objects.equals(this.partitionFieldName, that.partitionFieldName)
+            && Objects.equals(this.useNull, that.useNull)
+            && Objects.equals(this.excludeFrequent, that.excludeFrequent)
+            && Objects.equals(this.rules, that.rules)
+            && this.detectorIndex == that.detectorIndex;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(detectorDescription, function, fieldName, byFieldName, overFieldName, partitionFieldName, useNull,
-                excludeFrequent, rules, detectorIndex);
+        return Objects.hash(
+            detectorDescription,
+            function,
+            fieldName,
+            byFieldName,
+            overFieldName,
+            partitionFieldName,
+            useNull,
+            excludeFrequent,
+            rules,
+            detectorIndex
+        );
     }
 
     public static class Builder {
@@ -455,8 +476,7 @@ public class Detector implements ToXContentObject, Writeable {
         // negative means unknown, and is expected for v5.4 jobs
         private int detectorIndex = -1;
 
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder(Detector detector) {
             detectorDescription = detector.detectorDescription;
@@ -550,7 +570,8 @@ public class Detector implements ToXContentObject, Writeable {
 
             if (emptyField == false && (Detector.FIELD_NAME_FUNCTIONS.contains(function) == false)) {
                 throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.JOB_CONFIG_FIELDNAME_INCOMPATIBLE_FUNCTION, function));
+                    Messages.getMessage(Messages.JOB_CONFIG_FIELDNAME_INCOMPATIBLE_FUNCTION, function)
+                );
             }
 
             if (emptyByField && Detector.BY_FIELD_NAME_FUNCTIONS.contains(function)) {
@@ -563,7 +584,8 @@ public class Detector implements ToXContentObject, Writeable {
 
             if (emptyOverField == false && Detector.NO_OVER_FIELD_NAME_FUNCTIONS.contains(function)) {
                 throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.JOB_CONFIG_OVERFIELD_INCOMPATIBLE_FUNCTION, function));
+                    Messages.getMessage(Messages.JOB_CONFIG_OVERFIELD_INCOMPATIBLE_FUNCTION, function)
+                );
             }
 
             // field names cannot contain certain characters
@@ -580,54 +602,85 @@ public class Detector implements ToXContentObject, Writeable {
             // partition, by and over field names cannot be duplicates
             if (emptyPartitionField == false) {
                 if (partitionFieldName.equals(byFieldName)) {
-                    throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
-                            PARTITION_FIELD_NAME_FIELD.getPreferredName(), BY_FIELD_NAME_FIELD.getPreferredName(),
-                            partitionFieldName));
+                    throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(
+                            Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
+                            PARTITION_FIELD_NAME_FIELD.getPreferredName(),
+                            BY_FIELD_NAME_FIELD.getPreferredName(),
+                            partitionFieldName
+                        )
+                    );
                 }
                 if (partitionFieldName.equals(overFieldName)) {
-                    throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
-                            PARTITION_FIELD_NAME_FIELD.getPreferredName(), OVER_FIELD_NAME_FIELD.getPreferredName(),
-                            partitionFieldName));
+                    throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(
+                            Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
+                            PARTITION_FIELD_NAME_FIELD.getPreferredName(),
+                            OVER_FIELD_NAME_FIELD.getPreferredName(),
+                            partitionFieldName
+                        )
+                    );
                 }
             }
             if (emptyByField == false && byFieldName.equals(overFieldName)) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
-                        BY_FIELD_NAME_FIELD.getPreferredName(), OVER_FIELD_NAME_FIELD.getPreferredName(),
-                        byFieldName));
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(
+                        Messages.JOB_CONFIG_DETECTOR_DUPLICATE_FIELD_NAME,
+                        BY_FIELD_NAME_FIELD.getPreferredName(),
+                        OVER_FIELD_NAME_FIELD.getPreferredName(),
+                        byFieldName
+                    )
+                );
             }
 
             // by/over field names cannot be "count", "over', "by" - this requirement dates back to the early
             // days of the ML code and could be removed now BUT ONLY IF THE C++ CODE IS CHANGED
             // FIRST - see https://github.com/elastic/x-pack-elasticsearch/issues/858
             if (DetectorFunction.COUNT.getFullName().equals(byFieldName)) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_COUNT_DISALLOWED,
-                        BY_FIELD_NAME_FIELD.getPreferredName()));
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_COUNT_DISALLOWED, BY_FIELD_NAME_FIELD.getPreferredName())
+                );
             }
             if (DetectorFunction.COUNT.getFullName().equals(overFieldName)) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_COUNT_DISALLOWED,
-                        OVER_FIELD_NAME_FIELD.getPreferredName()));
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_COUNT_DISALLOWED, OVER_FIELD_NAME_FIELD.getPreferredName())
+                );
             }
 
             if (BY.equals(byFieldName)) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_BY_DISALLOWED,
-                        BY_FIELD_NAME_FIELD.getPreferredName()));
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_BY_DISALLOWED, BY_FIELD_NAME_FIELD.getPreferredName())
+                );
             }
             if (BY.equals(overFieldName)) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_BY_DISALLOWED,
-                        OVER_FIELD_NAME_FIELD.getPreferredName()));
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_BY_DISALLOWED, OVER_FIELD_NAME_FIELD.getPreferredName())
+                );
             }
 
             if (OVER.equals(byFieldName)) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_OVER_DISALLOWED,
-                        BY_FIELD_NAME_FIELD.getPreferredName()));
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_OVER_DISALLOWED, BY_FIELD_NAME_FIELD.getPreferredName())
+                );
             }
             if (OVER.equals(overFieldName)) {
-                throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_OVER_DISALLOWED,
-                        OVER_FIELD_NAME_FIELD.getPreferredName()));
+                throw ExceptionsHelper.badRequestException(
+                    Messages.getMessage(Messages.JOB_CONFIG_DETECTOR_OVER_DISALLOWED, OVER_FIELD_NAME_FIELD.getPreferredName())
+                );
             }
 
-            return new Detector(detectorDescription, function, fieldName, byFieldName, overFieldName, partitionFieldName,
-                    useNull, excludeFrequent, rules, detectorIndex);
+            return new Detector(
+                detectorDescription,
+                function,
+                fieldName,
+                byFieldName,
+                overFieldName,
+                partitionFieldName,
+                useNull,
+                excludeFrequent,
+                rules,
+                detectorIndex
+            );
         }
 
         public List<String> extractAnalysisFields() {
@@ -643,11 +696,13 @@ public class Detector implements ToXContentObject, Writeable {
         public static void verifyFieldName(String field) throws ElasticsearchParseException {
             if (field != null && containsInvalidChar(field)) {
                 throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME_CHARS, field, Detector.PROHIBITED));
+                    Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME_CHARS, field, Detector.PROHIBITED)
+                );
             }
             if (RecordWriter.CONTROL_FIELD_NAME.equals(field)) {
                 throw ExceptionsHelper.badRequestException(
-                        Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME, field, RecordWriter.CONTROL_FIELD_NAME));
+                    Messages.getMessage(Messages.JOB_CONFIG_INVALID_FIELDNAME, field, RecordWriter.CONTROL_FIELD_NAME)
+                );
             }
         }
 

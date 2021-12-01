@@ -26,17 +26,20 @@ public abstract class StringFieldScript extends AbstractFieldScript {
 
     public static final ScriptContext<Factory> CONTEXT = newContext("keyword_field", Factory.class);
 
-    public static final StringFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (StringFieldScript.LeafFactory) ctx -> new StringFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
+    public static final StringFieldScript.Factory PARSE_FROM_SOURCE = new Factory() {
         @Override
-        public void execute() {
-            emitFromSource();
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup) {
+            return ctx -> new StringFieldScript(field, params, lookup, ctx) {
+                @Override
+                public void execute() {
+                    emitFromSource();
+                }
+            };
+        }
+
+        @Override
+        public boolean isResultDeterministic() {
+            return true;
         }
     };
 
@@ -80,7 +83,7 @@ public abstract class StringFieldScript extends AbstractFieldScript {
 
     /**
      * Execute the script for the provided {@code docId}.
-     * <p>
+     *
      * @return a mutable {@link List} that contains the results of the script
      * and will be modified the next time you call {@linkplain #resultsForDoc}.
      */

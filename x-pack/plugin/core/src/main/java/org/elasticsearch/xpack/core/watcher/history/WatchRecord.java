@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.watcher.history;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.ActionWrapperResult;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
@@ -56,15 +56,28 @@ public abstract class WatchRecord implements ToXContentObject {
     // only emitted to xcontent in "debug" mode
     protected final Map<String, Object> vars;
 
-    @Nullable protected final ExecutableInput<? extends Input, ? extends Input.Result> input;
-    @Nullable protected final ExecutableCondition condition;
-    @Nullable protected final Map<String,Object> metadata;
-    @Nullable protected final WatchExecutionResult executionResult;
+    @Nullable
+    protected final ExecutableInput<? extends Input, ? extends Input.Result> input;
+    @Nullable
+    protected final ExecutableCondition condition;
+    @Nullable
+    protected final Map<String, Object> metadata;
+    @Nullable
+    protected final WatchExecutionResult executionResult;
 
-    private WatchRecord(Wid id, TriggerEvent triggerEvent, ExecutionState state, Map<String, Object> vars,
-                        ExecutableInput<? extends Input, ? extends Input.Result> input, ExecutableCondition condition,
-                        Map<String, Object> metadata, Watch watch, WatchExecutionResult executionResult,
-                        String nodeId, String user) {
+    private WatchRecord(
+        Wid id,
+        TriggerEvent triggerEvent,
+        ExecutionState state,
+        Map<String, Object> vars,
+        ExecutableInput<? extends Input, ? extends Input.Result> input,
+        ExecutableCondition condition,
+        Map<String, Object> metadata,
+        Watch watch,
+        WatchExecutionResult executionResult,
+        String nodeId,
+        String user
+    ) {
         this.id = id;
         this.triggerEvent = triggerEvent;
         this.state = state;
@@ -83,23 +96,51 @@ public abstract class WatchRecord implements ToXContentObject {
     }
 
     private WatchRecord(WatchRecord record, ExecutionState state) {
-        this(record.id, record.triggerEvent, state, record.vars, record.input, record.condition, record.metadata, record.watch,
-                record.executionResult, record.nodeId, record.user);
+        this(
+            record.id,
+            record.triggerEvent,
+            state,
+            record.vars,
+            record.input,
+            record.condition,
+            record.metadata,
+            record.watch,
+            record.executionResult,
+            record.nodeId,
+            record.user
+        );
     }
 
     private WatchRecord(WatchExecutionContext context, ExecutionState state) {
-        this(context.id(), context.triggerEvent(), state, context.vars(),
-                context.watch() != null ? context.watch().input() : null,
-                context.watch() != null ? context.watch().condition() : null,
-                context.watch() != null ? context.watch().metadata() : null,
-                context.watch(),
-                null, context.getNodeId(), context.getUser());
+        this(
+            context.id(),
+            context.triggerEvent(),
+            state,
+            context.vars(),
+            context.watch() != null ? context.watch().input() : null,
+            context.watch() != null ? context.watch().condition() : null,
+            context.watch() != null ? context.watch().metadata() : null,
+            context.watch(),
+            null,
+            context.getNodeId(),
+            context.getUser()
+        );
     }
 
     private WatchRecord(WatchExecutionContext context, WatchExecutionResult executionResult) {
-        this(context.id(), context.triggerEvent(), getState(executionResult), context.vars(), context.watch().input(),
-                context.watch().condition(), context.watch().metadata(), context.watch(), executionResult, context.getNodeId(),
-                context.getUser());
+        this(
+            context.id(),
+            context.triggerEvent(),
+            getState(executionResult),
+            context.vars(),
+            context.watch().input(),
+            context.watch().condition(),
+            context.watch().metadata(),
+            context.watch(),
+            executionResult,
+            context.getNodeId(),
+            context.getUser()
+        );
     }
 
     public static ExecutionState getState(WatchExecutionResult executionResult) {
@@ -133,7 +174,9 @@ public abstract class WatchRecord implements ToXContentObject {
         return id.watchId();
     }
 
-    public ExecutableInput<? extends Input, ? extends Input.Result> input() { return input; }
+    public ExecutableInput<? extends Input, ? extends Input.Result> input() {
+        return input;
+    }
 
     public ExecutionState state() {
         return state;
@@ -174,14 +217,10 @@ public abstract class WatchRecord implements ToXContentObject {
         }
 
         if (input != null) {
-            builder.startObject(WatchField.INPUT.getPreferredName())
-                    .field(input.type(), input, params)
-                    .endObject();
+            builder.startObject(WatchField.INPUT.getPreferredName()).field(input.type(), input, params).endObject();
         }
         if (condition != null) {
-            builder.startObject(WatchField.CONDITION.getPreferredName())
-                    .field(condition.type(), condition, params)
-                    .endObject();
+            builder.startObject(WatchField.CONDITION.getPreferredName()).field(condition.type(), condition, params).endObject();
         }
         if (metadata != null) {
             builder.field(METADATA.getPreferredName(), metadata);
@@ -216,7 +255,8 @@ public abstract class WatchRecord implements ToXContentObject {
     }
 
     public static class MessageWatchRecord extends WatchRecord {
-        @Nullable private final String[] messages;
+        @Nullable
+        private final String[] messages;
 
         /**
          * Called when the execution was aborted before it started
@@ -256,11 +296,11 @@ public abstract class WatchRecord implements ToXContentObject {
                     this.messages = newMessages;
                 }
             } else {
-                messages = new String []{ message };
+                messages = new String[] { message };
             }
         }
 
-        public String[] messages(){
+        public String[] messages() {
             return messages;
         }
 
@@ -274,10 +314,13 @@ public abstract class WatchRecord implements ToXContentObject {
 
     public static class ExceptionWatchRecord extends WatchRecord {
 
-        private static final Map<String, String> STACK_TRACE_ENABLED_PARAMS =
-                Map.of(ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE, "false");
+        private static final Map<String, String> STACK_TRACE_ENABLED_PARAMS = Map.of(
+            ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE,
+            "false"
+        );
 
-        @Nullable private final Exception exception;
+        @Nullable
+        private final Exception exception;
 
         public ExceptionWatchRecord(WatchExecutionContext context, WatchExecutionResult executionResult, Exception exception) {
             super(context, executionResult);
@@ -309,9 +352,9 @@ public abstract class WatchRecord implements ToXContentObject {
                     builder.endObject();
                 } else {
                     builder.startObject(EXCEPTION.getPreferredName())
-                            .field("type", ElasticsearchException.getExceptionName(exception))
-                            .field("reason", exception.getMessage())
-                            .endObject();
+                        .field("type", ElasticsearchException.getExceptionName(exception))
+                        .field("reason", exception.getMessage())
+                        .endObject();
                 }
             }
         }

@@ -8,18 +8,18 @@ package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
 
@@ -31,9 +31,13 @@ public class DataAttachmentParserTests extends ESTestCase {
         EmailAttachmentsParser emailAttachmentsParser = new EmailAttachmentsParser(attachmentParsers);
 
         String id = "some-id";
-        XContentBuilder builder = jsonBuilder().startObject().startObject(id)
-                .startObject(DataAttachmentParser.TYPE).field("format", randomFrom("yaml", "json")).endObject()
-                .endObject().endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startObject(id)
+            .startObject(DataAttachmentParser.TYPE)
+            .field("format", randomFrom("yaml", "json"))
+            .endObject()
+            .endObject()
+            .endObject();
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         logger.info("JSON: {}", Strings.toString(builder));
 

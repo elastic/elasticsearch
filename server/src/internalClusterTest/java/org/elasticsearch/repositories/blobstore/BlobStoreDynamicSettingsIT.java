@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -92,11 +93,11 @@ public class BlobStoreDynamicSettingsIT extends AbstractSnapshotIntegTestCase {
                 randomBoolean()
             );
         } catch (Exception e) {
-            final Throwable ise = ExceptionsHelper.unwrap(e, IllegalStateException.class);
-            assertThat(ise, instanceOf(IllegalStateException.class));
+            final Throwable ise = ExceptionsHelper.unwrap(e, RepositoryConflictException.class);
+            assertThat(ise, instanceOf(RepositoryConflictException.class));
             assertEquals(
                 ise.getMessage(),
-                "trying to modify or unregister repository [test-repo] that is currently used (snapshot is in progress)"
+                "[test-repo] trying to modify or unregister repository that is currently used (snapshot is in progress)"
             );
         }
 

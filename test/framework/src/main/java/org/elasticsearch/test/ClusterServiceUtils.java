@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -24,7 +25,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterApplier;
-import org.elasticsearch.cluster.service.ClusterApplier.ClusterApplyListener;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -47,10 +47,12 @@ public class ClusterServiceUtils {
     public static void setState(ClusterApplierService executor, ClusterState clusterState) {
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> exception = new AtomicReference<>();
-        executor.onNewClusterState("test setting state",
-            () -> ClusterState.builder(clusterState).version(clusterState.version() + 1).build(), new ClusterApplyListener() {
+        executor.onNewClusterState(
+            "test setting state",
+            () -> ClusterState.builder(clusterState).version(clusterState.version() + 1).build(),
+            new ActionListener<>() {
                 @Override
-                public void onSuccess() {
+                public void onResponse(Void ignored) {
                     latch.countDown();
                 }
 
@@ -59,7 +61,8 @@ public class ClusterServiceUtils {
                     exception.set(e);
                     latch.countDown();
                 }
-            });
+            }
+        );
         try {
             latch.await();
             if (exception.get() != null) {
@@ -97,8 +100,13 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterService createClusterService(ThreadPool threadPool) {
-        DiscoveryNode discoveryNode = new DiscoveryNode("node", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            DiscoveryNodeRole.roles(), Version.CURRENT);
+        DiscoveryNode discoveryNode = new DiscoveryNode(
+            "node",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.roles(),
+            Version.CURRENT
+        );
         return createClusterService(threadPool, discoveryNode);
     }
 
@@ -107,21 +115,15 @@ public class ClusterServiceUtils {
     }
 
     public static ClusterService createClusterService(ThreadPool threadPool, DiscoveryNode localNode, ClusterSettings clusterSettings) {
-        Settings settings = Settings.builder()
-                .put("node.name", "test")
-                .put("cluster.name", "ClusterServiceTests")
-                .build();
+        Settings settings = Settings.builder().put("node.name", "test").put("cluster.name", "ClusterServiceTests").build();
         ClusterService clusterService = new ClusterService(settings, clusterSettings, threadPool);
         clusterService.setNodeConnectionsService(createNoOpNodeConnectionsService());
         ClusterState initialClusterState = ClusterState.builder(new ClusterName(ClusterServiceUtils.class.getSimpleName()))
-            .nodes(DiscoveryNodes.builder()
-                .add(localNode)
-                .localNodeId(localNode.getId())
-                .masterNodeId(localNode.getId()))
-            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .build();
         clusterService.getClusterApplierService().setInitialState(initialClusterState);
-        clusterService.getMasterService().setClusterStatePublisher(
-            createClusterStatePublisher(clusterService.getClusterApplierService()));
+        clusterService.getMasterService().setClusterStatePublisher(createClusterStatePublisher(clusterService.getClusterApplierService()));
         clusterService.getMasterService().setClusterStateSupplier(clusterService.getClusterApplierService()::state);
         clusterService.start();
         return clusterService;
@@ -148,17 +150,8 @@ public class ClusterServiceUtils {
             clusterApplier.onNewClusterState(
                 "mock_publish_to_self[" + clusterStatePublicationEvent.getSummary() + "]",
                 clusterStatePublicationEvent::getNewState,
-                new ClusterApplyListener() {
-                    @Override
-                    public void onSuccess() {
-                        publishListener.onResponse(null);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        publishListener.onFailure(e);
-                    }
-                });
+                publishListener
+            );
         };
     }
 
@@ -186,9 +179,8 @@ public class ClusterServiceUtils {
         clusterStatePublicationEvent.setMasterApplyElapsedMillis(0L);
     }
 
-    public static void awaitClusterState(Logger logger,
-                                         Predicate<ClusterState> statePredicate,
-                                         ClusterService clusterService) throws Exception {
+    public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate, ClusterService clusterService)
+        throws Exception {
         final ClusterStateObserver observer = new ClusterStateObserver(
             clusterService,
             null,

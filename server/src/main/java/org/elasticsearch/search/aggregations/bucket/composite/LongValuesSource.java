@@ -55,15 +55,24 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
         LongUnaryOperator rounding,
         DocValueFormat format,
         boolean missingBucket,
+        MissingOrder missingOrder,
         int size,
         int reverseMul
     ) {
-        super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
+        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
         this.bigArrays = bigArrays;
         this.docValuesFunc = docValuesFunc;
         this.rounding = rounding;
         this.bits = missingBucket ? new BitArray(Math.min(size, 100), bigArrays) : null;
-        this.values = bigArrays.newLongArray(Math.min(size, 100), false);
+        boolean success = false;
+        try {
+            this.values = bigArrays.newLongArray(Math.min(size, 100), false);
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     @Override
@@ -84,9 +93,9 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     int compare(int from, int to) {
         if (missingBucket) {
             if (bits.get(from) == false) {
-                return bits.get(to) ? -1 * reverseMul : 0;
+                return bits.get(to) ? -1 * missingOrder.compareAnyValueToMissing(reverseMul) : 0;
             } else if (bits.get(to) == false) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(values.get(from), values.get(to));
@@ -96,9 +105,9 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     int compareCurrent(int slot) {
         if (missingBucket) {
             if (missingCurrentValue) {
-                return bits.get(slot) ? -1 * reverseMul : 0;
+                return bits.get(slot) ? -1 * missingOrder.compareAnyValueToMissing(reverseMul) : 0;
             } else if (bits.get(slot) == false) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(currentValue, values.get(slot));
@@ -108,9 +117,9 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     int compareCurrentWithAfter() {
         if (missingBucket) {
             if (missingCurrentValue) {
-                return afterValue != null ? -1 * reverseMul : 0;
+                return afterValue != null ? -1 * missingOrder.compareAnyValueToMissing(reverseMul) : 0;
             } else if (afterValue == null) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(currentValue, afterValue);

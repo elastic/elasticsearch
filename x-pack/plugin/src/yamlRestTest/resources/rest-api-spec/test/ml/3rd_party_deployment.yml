@@ -9,12 +9,7 @@
             "description": "distilbert-base-uncased-finetuned-sst-2-english.pt",
             "model_type": "pytorch",
             "inference_config": {
-              "ner": {
-                "vocabulary": {
-                  "index": ".ml-inference-native",
-                  "id": "vocab_doc"
-                }
-              }
+              "ner": { }
             }
           }
 

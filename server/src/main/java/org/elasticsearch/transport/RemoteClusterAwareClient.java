@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.transport;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -32,8 +32,11 @@ final class RemoteClusterAwareClient extends AbstractClient {
     }
 
     @Override
-    protected <Request extends ActionRequest, Response extends ActionResponse>
-    void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+    protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+        ActionType<Response> action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(v -> {
             Transport.Connection connection;
             if (request instanceof RemoteClusterAwareRequest) {
@@ -42,10 +45,14 @@ final class RemoteClusterAwareClient extends AbstractClient {
             } else {
                 connection = remoteClusterService.getConnection(clusterAlias);
             }
-            service.sendRequest(connection, action.name(), request, TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener, action.getResponseReader()));
-        },
-        listener::onFailure));
+            service.sendRequest(
+                connection,
+                action.name(),
+                request,
+                TransportRequestOptions.EMPTY,
+                new ActionListenerResponseHandler<>(listener, action.getResponseReader())
+            );
+        }, listener::onFailure));
     }
 
     @Override
@@ -54,7 +61,7 @@ final class RemoteClusterAwareClient extends AbstractClient {
     }
 
     @Override
-    public Client getRemoteClusterClient(String clusterAlias) {
-        return remoteClusterService.getRemoteClusterClient(threadPool(), clusterAlias);
+    public Client getRemoteClusterClient(String remoteClusterAlias) {
+        return remoteClusterService.getRemoteClusterClient(threadPool(), remoteClusterAlias);
     }
 }

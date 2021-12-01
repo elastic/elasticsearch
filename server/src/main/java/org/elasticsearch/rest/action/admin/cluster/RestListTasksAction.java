@@ -15,7 +15,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
@@ -25,13 +24,13 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-
 
 public class RestListTasksAction extends BaseRestHandler {
 
@@ -55,8 +54,7 @@ public class RestListTasksAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ListTasksRequest listTasksRequest = generateListTasksRequest(request);
         final String groupBy = request.param("group_by", "nodes");
-        return channel -> client.admin().cluster().listTasks(listTasksRequest,
-                listTasksResponseListener(nodesInCluster, groupBy, channel));
+        return channel -> client.admin().cluster().listTasks(listTasksRequest, listTasksResponseListener(nodesInCluster, groupBy, channel));
     }
 
     public static ListTasksRequest generateListTasksRequest(RestRequest request) {
@@ -71,7 +69,7 @@ public class RestListTasksAction extends BaseRestHandler {
         listTasksRequest.setNodes(nodes);
         listTasksRequest.setDetailed(detailed);
         listTasksRequest.setActions(actions);
-        listTasksRequest.setParentTaskId(parentTaskId);
+        listTasksRequest.setTargetParentTaskId(parentTaskId);
         listTasksRequest.setWaitForCompletion(waitForCompletion);
         listTasksRequest.setTimeout(timeout);
         return listTasksRequest;
@@ -81,9 +79,10 @@ public class RestListTasksAction extends BaseRestHandler {
      * Standard listener for extensions of {@link ListTasksResponse} that supports {@code group_by=nodes}.
      */
     public static <T extends ListTasksResponse> ActionListener<T> listTasksResponseListener(
-                Supplier<DiscoveryNodes> nodesInCluster,
-                String groupBy,
-                final RestChannel channel) {
+        Supplier<DiscoveryNodes> nodesInCluster,
+        String groupBy,
+        final RestChannel channel
+    ) {
         if ("nodes".equals(groupBy)) {
             return new RestBuilderListener<T>(channel) {
                 @Override

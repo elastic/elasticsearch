@@ -24,19 +24,22 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.VectorValues;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -100,8 +103,9 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             if (reader instanceof FilterDirectoryReader) {
                 FilterDirectoryReader filterDirectoryReader = (FilterDirectoryReader) reader;
                 if (filterDirectoryReader instanceof FieldSubsetDirectoryReader) {
-                    throw new IllegalArgumentException(LoggerMessageFormat.format("Can't wrap [{}] twice",
-                            FieldSubsetDirectoryReader.class));
+                    throw new IllegalArgumentException(
+                        LoggerMessageFormat.format("Can't wrap [{}] twice", FieldSubsetDirectoryReader.class)
+                    );
                 } else {
                     verifyNoOtherFieldSubsetDirectoryReaderIsWrapped(filterDirectoryReader.getDelegate());
                 }
@@ -207,7 +211,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
                 if (state == -1) {
                     continue;
                 }
-                Map<String, Object> filteredValue = filter((Map<String, ?>)value, includeAutomaton, state);
+                Map<String, Object> filteredValue = filter((Map<String, ?>) value, includeAutomaton, state);
                 filtered.add(filteredValue);
             } else if (value instanceof Iterable) {
                 List<Object> filteredValue = filter((Iterable<?>) value, includeAutomaton, initialState);
@@ -275,6 +279,16 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         return hasField(field) ? super.getNormValues(field) : null;
     }
 
+    @Override
+    public VectorValues getVectorValues(String field) throws IOException {
+        return hasField(field) ? super.getVectorValues(field) : null;
+    }
+
+    @Override
+    public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
+        return hasField(field) ? super.searchNearestVectors(field, target, k, acceptDocs) : null;
+    }
+
     // we share core cache keys (for e.g. fielddata)
 
     @Override
@@ -321,11 +335,6 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         public void close() throws IOException {
             reader.close();
         }
-
-        @Override
-        public long ramBytesUsed() {
-            return reader.ramBytesUsed();
-        }
     }
 
     /**
@@ -353,7 +362,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
         }
 
         @Override
-        public void stringField(FieldInfo fieldInfo, byte[] value) throws IOException {
+        public void stringField(FieldInfo fieldInfo, String value) throws IOException {
             visitor.stringField(fieldInfo, value);
         }
 
@@ -448,7 +457,7 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
             final TermsEnum e = iterator();
             long size = 0, sumDocFreq = 0, sumTotalFreq = 0;
             while (e.next() != null) {
-                size ++;
+                size++;
                 sumDocFreq += e.docFreq();
                 sumTotalFreq += e.totalTermFreq();
             }
@@ -536,12 +545,12 @@ public final class FieldSubsetReader extends SequentialStoredFieldsLeafReader {
 
         @Override
         public void seekExact(long ord) throws IOException {
-          throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException();
         }
 
         @Override
         public long ord() throws IOException {
-          throw new UnsupportedOperationException();
+            throw new UnsupportedOperationException();
         }
     }
 

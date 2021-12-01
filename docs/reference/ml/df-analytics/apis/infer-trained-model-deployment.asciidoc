@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[infer-trained-model-deployment]]
 = Infer trained model deployment API
 [subs="attributes"]
@@ -42,9 +41,11 @@ Controls the amount of time to wait for {infer} results. Defaults to 10 seconds.
 [[infer-trained-model-request-body]]
 == {api-request-body-title}
 
-`input`::
-(Required,string)
-The input text for evaluation.
+`docs`::
+(Required, array)
+An array of objects to pass to the model for inference. The objects should
+contain a field matching your configured trained model input. Typically, the field
+name is `text_field`. Currently, only a single value is allowed.
 
 ////
 [[infer-trained-model-deployment-results]]
@@ -66,51 +67,165 @@ text classification task, the response is the score. For example:
 --------------------------------------------------
 POST _ml/trained_models/model2/deployment/_infer
 {
-	"input": "The movie was awesome!!"
+	"docs": [{"text_field": "The movie was awesome!!"}]
 }
 --------------------------------------------------
 // TEST[skip:TBD]
 
-The API returns scores in this case, for example:
+The API returns the predicted label and the confidence.
 
 [source,console-result]
 ----
 {
-  "positive" : 0.9998062667902223,
-  "negative" : 1.9373320977752957E-4
+  "predicted_value" : "POSITIVE",
+  "prediction_probability" : 0.9998667964092964
 }
 ----
 // NOTCONSOLE
 
-For named entity recognition (NER) tasks, the response contains the recognized
-entities and their type. For example:
+For named entity recognition (NER) tasks, the response contains the annotated
+text output and the recognized entities.
 
 [source,console]
 --------------------------------------------------
 POST _ml/trained_models/model2/deployment/_infer
 {
-	"input": "Hi my name is Josh and I live in Berlin"
+	"docs": [{"text_field": "Hi my name is Josh and I live in Berlin"}]
 }
 --------------------------------------------------
 // TEST[skip:TBD]
 
-The API returns scores in this case, for example:
+The API returns in this case:
 
 [source,console-result]
 ----
 {
+  "predicted_value" : "Hi my name is [Josh](PER&Josh) and I live in [Berlin](LOC&Berlin)",
   "entities" : [
     {
-      "label" : "person",
-      "score" : 0.9988716330253505,
-      "word" : "Josh"
+      "entity" : "Josh",
+      "class_name" : "PER",
+      "class_probability" : 0.9977303419824,
+      "start_pos" : 14,
+      "end_pos" : 18
     },
     {
-      "label" : "location",
-      "score" : 0.9980872542990656,
-      "word" : "Berlin"
+      "entity" : "Berlin",
+      "class_name" : "LOC",
+      "class_probability" : 0.9992474323902818,
+      "start_pos" : 33,
+      "end_pos" : 39
     }
   ]
+}
+----
+// NOTCONSOLE
+
+Zero-shot classification tasks require extra configuration defining the class labels.
+These labels are passed in the zero-shot inference config.
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/model2/deployment/_infer
+{
+  "docs": [
+    {
+      "text_field": "This is a very happy person"
+    }
+  ],
+  "inference_config": {
+    "zero_shot_classification": {
+      "labels": [
+        "glad",
+        "sad",
+        "bad",
+        "rad"
+      ],
+      "multi_label": false
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+The API returns the predicted label and the confidence, as well as the top classes:
+
+[source,console-result]
+----
+{
+  "predicted_value" : "glad",
+  "top_classes" : [
+    {
+      "class_name" : "glad",
+      "class_probability" : 0.8061155063386439,
+      "class_score" : 0.8061155063386439
+    },
+    {
+      "class_name" : "rad",
+      "class_probability" : 0.18218006158387956,
+      "class_score" : 0.18218006158387956
+    },
+    {
+      "class_name" : "bad",
+      "class_probability" : 0.006325615787634201,
+      "class_score" : 0.006325615787634201
+    },
+    {
+      "class_name" : "sad",
+      "class_probability" : 0.0053788162898424545,
+      "class_score" : 0.0053788162898424545
+    }
+  ],
+  "prediction_probability" : 0.8061155063386439
+}
+----
+// NOTCONSOLE
+
+
+The tokenization truncate option can be overridden when calling the API:
+
+[source,console]
+--------------------------------------------------
+POST _ml/trained_models/model2/deployment/_infer
+{
+  "docs": [{"text_field": "The Amazon rainforest covers most of the Amazon basin in South America"}],
+  "inference_config": {
+    "ner": {
+      "tokenization": {
+        "bert": {
+          "truncate": "first"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+When the input has been truncated due to the limit imposed by the model's `max_sequence_length`
+the `is_truncated` field appears in the response.
+
+[source,console-result]
+----
+{
+  "predicted_value" : "The [Amazon](LOC&Amazon) rainforest covers most of the [Amazon](LOC&Amazon) basin in [South America](LOC&South+America)",
+  "entities" : [
+    {
+      "entity" : "Amazon",
+      "class_name" : "LOC",
+      "class_probability" : 0.9505460915724254,
+      "start_pos" : 4,
+      "end_pos" : 10
+    },
+    {
+      "entity" : "Amazon",
+      "class_name" : "LOC",
+      "class_probability" : 0.9969992804311777,
+      "start_pos" : 41,
+      "end_pos" : 47
+    }
+  ],
+  "is_truncated" : true
 }
 ----
 // NOTCONSOLE

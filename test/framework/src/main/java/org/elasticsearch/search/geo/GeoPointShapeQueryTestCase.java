@@ -16,8 +16,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Line;
@@ -35,14 +33,16 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -71,7 +71,8 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         client().prepareIndex(defaultIndexName)
             .setId("aNullshape")
             .setSource("{\"geo\": null}", XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE).get();
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
         GetResponse result = client().prepareGet(defaultIndexName, "aNullshape").get();
         assertThat(result.getField("location"), nullValue());
     };
@@ -80,22 +81,21 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName).setId("1").setSource(jsonBuilder()
-            .startObject()
-              .field("name", "Document 1")
-              .field(defaultGeoFieldName, "POINT(-30 -30)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("name", "Document 1").field(defaultGeoFieldName, "POINT(-30 -30)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName).setId("2").setSource(jsonBuilder()
-            .startObject()
-              .field("name", "Document 2")
-              .field(defaultGeoFieldName, "POINT(-45 -50)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field("name", "Document 2").field(defaultGeoFieldName, "POINT(-45 -50)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         Geometry geometry = new Rectangle(-45, 45, 45, -45);
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
-                .relation(ShapeRelation.INTERSECTS))
+            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry).relation(ShapeRelation.INTERSECTS))
             .get();
 
         assertSearchResponse(searchResponse);
@@ -118,30 +118,29 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName).setId("1").setSource(jsonBuilder()
-            .startObject()
-            .field("name", "Document 1")
-            .field(defaultGeoFieldName, "POINT(-30 -30)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("name", "Document 1").field(defaultGeoFieldName, "POINT(-30 -30)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName).setId("2").setSource(jsonBuilder()
-            .startObject()
-            .field("name", "Document 2")
-            .field(defaultGeoFieldName, "POINT(-45 -50)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field("name", "Document 2").field(defaultGeoFieldName, "POINT(-45 -50)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         Geometry geometry = new Circle(-30, -30, 100);
 
         try {
             client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry)
-                    .relation(ShapeRelation.INTERSECTS))
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, geometry).relation(ShapeRelation.INTERSECTS))
                 .get();
-        } catch (
-            Exception e) {
-            assertThat(e.getCause().getMessage(),
-                containsString("failed to create query: "
-                    + ShapeType.CIRCLE + " geometry is not supported"));
+        } catch (Exception e) {
+            assertThat(
+                e.getCause().getMessage(),
+                containsString("failed to create query: " + ShapeType.CIRCLE + " geometry is not supported")
+            );
         }
     }
 
@@ -149,26 +148,22 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName).setId("1").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-30 -30)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-30 -30)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName).setId("2").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-45 -50)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-45 -50)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        Polygon polygon = new Polygon(
-            new LinearRing(
-                new double[] {-35, -35, -25, -25, -35},
-                new double[] {-35, -25, -25, -35, -35}
-            )
-        );
+        Polygon polygon = new Polygon(new LinearRing(new double[] { -35, -35, -25, -25, -35 }, new double[] { -35, -25, -25, -35, -35 }));
 
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, polygon)
-                .relation(ShapeRelation.INTERSECTS))
+            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, polygon).relation(ShapeRelation.INTERSECTS))
             .get();
 
         assertSearchResponse(searchResponse);
@@ -181,43 +176,36 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName).setId("1").setSource(jsonBuilder()
-            .startObject()
-            .field("name", "Document 1")
-            .field(defaultGeoFieldName, "POINT(-30 -30)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("name", "Document 1").field(defaultGeoFieldName, "POINT(-30 -30)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName).setId("2").setSource(jsonBuilder()
-            .startObject()
-            .field("name", "Document 2")
-            .field(defaultGeoFieldName, "POINT(-40 -40)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field("name", "Document 2").field(defaultGeoFieldName, "POINT(-40 -40)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName).setId("3").setSource(jsonBuilder()
-            .startObject()
-            .field("name", "Document 3")
-            .field(defaultGeoFieldName, "POINT(-50 -50)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("3")
+            .setSource(jsonBuilder().startObject().field("name", "Document 3").field(defaultGeoFieldName, "POINT(-50 -50)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         Polygon encloseDocument1Cb = new Polygon(
-            new LinearRing(
-                new double[] {-35, -35, -25, -25, -35},
-                new double[] {-35, -25, -25, -35, -35}
-            )
+            new LinearRing(new double[] { -35, -35, -25, -25, -35 }, new double[] { -35, -25, -25, -35, -35 })
         );
 
         Polygon encloseDocument2Cb = new Polygon(
-            new LinearRing(
-                new double[] {-55, -55, -45, -45, -55},
-                new double[] {-55, -45, -45, -55, -55}
-            )
+            new LinearRing(new double[] { -55, -55, -45, -45, -55 }, new double[] { -55, -45, -45, -55, -55 })
         );
 
         MultiPolygon multiPolygon = new MultiPolygon(List.of(encloseDocument1Cb, encloseDocument2Cb));
         {
             SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPolygon)
-                    .relation(ShapeRelation.INTERSECTS))
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPolygon).relation(ShapeRelation.INTERSECTS))
                 .get();
 
             assertSearchResponse(searchResponse);
@@ -228,8 +216,7 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         }
         {
             SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPolygon)
-                    .relation(ShapeRelation.WITHIN))
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPolygon).relation(ShapeRelation.WITHIN))
                 .get();
 
             assertSearchResponse(searchResponse);
@@ -240,8 +227,7 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         }
         {
             SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPolygon)
-                    .relation(ShapeRelation.DISJOINT))
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPolygon).relation(ShapeRelation.DISJOINT))
                 .get();
 
             assertSearchResponse(searchResponse);
@@ -251,8 +237,7 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         }
         {
             SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPolygon)
-                    .relation(ShapeRelation.CONTAINS))
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPolygon).relation(ShapeRelation.CONTAINS))
                 .get();
 
             assertSearchResponse(searchResponse);
@@ -265,23 +250,22 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName).setId("1").setSource(jsonBuilder()
-            .startObject()
-            .field("name", "Document 1")
-            .field(defaultGeoFieldName, "POINT(-30 -30)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("name", "Document 1").field(defaultGeoFieldName, "POINT(-30 -30)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName).setId("2").setSource(jsonBuilder()
-            .startObject()
-            .field("name", "Document 2")
-            .field(defaultGeoFieldName, "POINT(-45 -50)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field("name", "Document 2").field(defaultGeoFieldName, "POINT(-45 -50)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         Rectangle rectangle = new Rectangle(-50, -40, -45, -55);
 
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, rectangle)
-                .relation(ShapeRelation.INTERSECTS))
+            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, rectangle).relation(ShapeRelation.INTERSECTS))
             .get();
 
         assertSearchResponse(searchResponse);
@@ -294,42 +278,52 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName).setId("point1").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-30 -30)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("point1")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-30 -30)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName).setId("point2").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-45 -50)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("point2")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-45 -50)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         String indexedShapeIndex = "indexed_query_shapes";
         String indexedShapePath = "shape";
-        String queryShapesMapping = Strings.toString(XContentFactory.jsonBuilder().startObject()
-            .startObject("properties").startObject(indexedShapePath)
-            .field("type", "geo_shape")
-            .endObject()
-            .endObject()
-            .endObject());
+        String queryShapesMapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject("properties")
+                .startObject(indexedShapePath)
+                .field("type", "geo_shape")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         client().admin().indices().prepareCreate(indexedShapeIndex).setMapping(queryShapesMapping).get();
         ensureGreen();
 
-        client().prepareIndex(indexedShapeIndex).setId("shape1").setSource(jsonBuilder()
-            .startObject()
-            .field(indexedShapePath, "BBOX(-50, -40, -45, -55)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(indexedShapeIndex)
+            .setId("shape1")
+            .setSource(jsonBuilder().startObject().field(indexedShapePath, "BBOX(-50, -40, -45, -55)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(indexedShapeIndex).setId("shape2").setSource(jsonBuilder()
-            .startObject()
-            .field(indexedShapePath, "BBOX(-60, -50, -50, -60)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(indexedShapeIndex)
+            .setId("shape2")
+            .setSource(jsonBuilder().startObject().field(indexedShapePath, "BBOX(-60, -50, -50, -60)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, "shape1")
-                .relation(ShapeRelation.INTERSECTS)
-                .indexedShapeIndex(indexedShapeIndex)
-                .indexedShapePath(indexedShapePath))
+            .setQuery(
+                QueryBuilders.geoShapeQuery(defaultGeoFieldName, "shape1")
+                    .relation(ShapeRelation.INTERSECTS)
+                    .indexedShapeIndex(indexedShapeIndex)
+                    .indexedShapePath(indexedShapePath)
+            )
             .get();
 
         assertSearchResponse(searchResponse);
@@ -338,10 +332,12 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("point2"));
 
         searchResponse = client().prepareSearch(defaultIndexName)
-            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, "shape2")
-                .relation(ShapeRelation.INTERSECTS)
-                .indexedShapeIndex(indexedShapeIndex)
-                .indexedShapePath(indexedShapePath))
+            .setQuery(
+                QueryBuilders.geoShapeQuery(defaultGeoFieldName, "shape2")
+                    .relation(ShapeRelation.INTERSECTS)
+                    .indexedShapeIndex(indexedShapeIndex)
+                    .indexedShapePath(indexedShapePath)
+            )
             .get();
         assertSearchResponse(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
@@ -351,20 +347,23 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName).setId("1").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-169 0)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-169 0)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName).setId("2").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-179 0)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-179 0)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName).setId("3").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(171 0)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("3")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(171 0)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         Rectangle rectangle = new Rectangle(169, -178, 1, -1);
 
@@ -380,32 +379,31 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName).setId("1").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-169 7)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-169 7)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName).setId("2").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-179 7)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-179 7)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName).setId("3").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(179 7)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("3")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(179 7)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName).setId("4").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(171 7)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("4")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(171 7)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        Polygon polygon = new Polygon(
-            new LinearRing(
-                new double[] {-177, 177, 177, -177, -177},
-                new double[] {10, 10, 5, 5, 10}
-            )
-        );
+        Polygon polygon = new Polygon(new LinearRing(new double[] { -177, 177, 177, -177, -177 }, new double[] { 10, 10, 5, 5, 10 }));
 
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery(defaultGeoFieldName, polygon);
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
@@ -422,35 +420,27 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName).setId("1").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-169 7)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-169 7)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName).setId("2").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-179 7)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-179 7)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        client().prepareIndex(defaultIndexName).setId("3").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(171 7)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("3")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(171 7)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
+        Polygon polygon1 = new Polygon(new LinearRing(new double[] { -167, -171, 171, -167, -167 }, new double[] { 10, 10, 5, 5, 10 }));
 
-        Polygon polygon1 = new Polygon(
-            new LinearRing(
-                new double[] {-167, -171, 171, -167, -167},
-                new double[] {10, 10, 5, 5, 10}
-            )
-        );
-
-        Polygon polygon2 = new Polygon(
-            new LinearRing(
-                new double[] {-177, 177, 177, -177, -177},
-                new double[] {10, 10, 5, 5, 10}
-            )
-        );
+        Polygon polygon2 = new Polygon(new LinearRing(new double[] { -177, 177, 177, -177, -177 }, new double[] { 10, 10, 5, 5, 10 }));
 
         MultiPolygon multiPolygon = new MultiPolygon(List.of(polygon1, polygon2));
 
@@ -467,15 +457,14 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        Line line = new Line(new double[]{-25, -35}, new double[]{-25, -35});
+        Line line = new Line(new double[] { -25, -35 }, new double[] { -25, -35 });
 
         try {
             client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, line).relation(ShapeRelation.WITHIN)).get();
-        } catch (
-            SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getMessage(),
-                containsString("Field [" + defaultGeoFieldName + "] found an unsupported shape Line"));
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, line).relation(ShapeRelation.WITHIN))
+                .get();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getCause().getMessage(), containsString("Field [" + defaultGeoFieldName + "] found an unsupported shape Line"));
         }
     }
 
@@ -483,18 +472,17 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        Line lsb1 = new Line(new double[]{-35, -25}, new double[] {-35, -25});
-        Line lsb2 = new Line(new double[]{-15, -5}, new double[] {-15, -5});
+        Line lsb1 = new Line(new double[] { -35, -25 }, new double[] { -35, -25 });
+        Line lsb2 = new Line(new double[] { -15, -5 }, new double[] { -15, -5 });
 
         MultiLine multiline = new MultiLine(List.of(lsb1, lsb2));
 
         try {
             client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiline).relation(ShapeRelation.WITHIN)).get();
-        } catch (
-            SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getMessage(),
-                containsString("Field [" + defaultGeoFieldName + "] found an unsupported shape Line"));
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiline).relation(ShapeRelation.WITHIN))
+                .get();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getCause().getMessage(), containsString("Field [" + defaultGeoFieldName + "] found an unsupported shape Line"));
         }
     }
 
@@ -502,7 +490,7 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        LinearRing linearRing = new LinearRing(new double[]{-25, -35, -25}, new double[]{-25, -35, -25});
+        LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
 
         // LinearRing extends Line implements Geometry: expose the build process
         GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder(defaultGeoFieldName, linearRing);
@@ -517,33 +505,38 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName).setId("1").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-35 -25)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-35 -25)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
         Point point = new Point(-35, -25);
         {
             SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point)).get();
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point))
+                .get();
             SearchHits searchHits = response.getHits();
             assertEquals(1, searchHits.getTotalHits().value);
         }
         {
             SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.WITHIN)).get();
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.WITHIN))
+                .get();
             SearchHits searchHits = response.getHits();
             assertEquals(1, searchHits.getTotalHits().value);
         }
         {
             SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.CONTAINS)).get();
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.CONTAINS))
+                .get();
             SearchHits searchHits = response.getHits();
             assertEquals(1, searchHits.getTotalHits().value);
         }
         {
             SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.DISJOINT)).get();
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point).relation(ShapeRelation.DISJOINT))
+                .get();
             SearchHits searchHits = response.getHits();
             assertEquals(0, searchHits.getTotalHits().value);
         }
@@ -553,34 +546,39 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         createMapping(defaultIndexName, defaultGeoFieldName);
         ensureGreen();
 
-        client().prepareIndex(defaultIndexName).setId("1").setSource(jsonBuilder()
-            .startObject()
-            .field(defaultGeoFieldName, "POINT(-35 -25)")
-            .endObject()).setRefreshPolicy(IMMEDIATE).get();
+        client().prepareIndex(defaultIndexName)
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, "POINT(-35 -25)").endObject())
+            .setRefreshPolicy(IMMEDIATE)
+            .get();
 
-        MultiPoint multiPoint = new MultiPoint(List.of(new Point(-35,-25), new Point(-15,-5)));
+        MultiPoint multiPoint = new MultiPoint(List.of(new Point(-35, -25), new Point(-15, -5)));
 
         {
             SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPoint)).get();
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPoint))
+                .get();
             SearchHits searchHits = response.getHits();
             assertEquals(1, searchHits.getTotalHits().value);
         }
         {
             SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPoint).relation(ShapeRelation.WITHIN)).get();
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPoint).relation(ShapeRelation.WITHIN))
+                .get();
             SearchHits searchHits = response.getHits();
             assertEquals(1, searchHits.getTotalHits().value);
         }
         {
             SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPoint).relation(ShapeRelation.CONTAINS)).get();
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPoint).relation(ShapeRelation.CONTAINS))
+                .get();
             SearchHits searchHits = response.getHits();
             assertEquals(0, searchHits.getTotalHits().value);
         }
         {
             SearchResponse response = client().prepareSearch(defaultIndexName)
-                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPoint).relation(ShapeRelation.DISJOINT)).get();
+                .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPoint).relation(ShapeRelation.DISJOINT))
+                .get();
             SearchHits searchHits = response.getHits();
             assertEquals(0, searchHits.getTotalHits().value);
         }

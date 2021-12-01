@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.ObjectLookupContainer;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -34,16 +36,19 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.Index;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 /**
@@ -54,6 +59,14 @@ import java.util.stream.StreamSupport;
 public class DiskThresholdMonitor {
 
     private static final Logger logger = LogManager.getLogger(DiskThresholdMonitor.class);
+
+    private static final Settings READ_ONLY_ALLOW_DELETE_SETTINGS = Settings.builder()
+        .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, Boolean.TRUE.toString())
+        .build();
+
+    private static final Settings NOT_READ_ONLY_ALLOW_DELETE_SETTINGS = Settings.builder()
+        .putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
+        .build();
 
     private final DiskThresholdSettings diskThresholdSettings;
     private final Client client;
@@ -81,8 +94,14 @@ public class DiskThresholdMonitor {
      */
     private final Set<String> nodesOverHighThresholdAndRelocating = Sets.newConcurrentHashSet();
 
-    public DiskThresholdMonitor(Settings settings, Supplier<ClusterState> clusterStateSupplier, ClusterSettings clusterSettings,
-                                Client client, LongSupplier currentTimeMillisSupplier, RerouteService rerouteService) {
+    public DiskThresholdMonitor(
+        Settings settings,
+        Supplier<ClusterState> clusterStateSupplier,
+        ClusterSettings clusterSettings,
+        Client client,
+        LongSupplier currentTimeMillisSupplier,
+        RerouteService rerouteService
+    ) {
         this.clusterStateSupplier = clusterStateSupplier;
         this.currentTimeMillisSupplier = currentTimeMillisSupplier;
         this.rerouteService = rerouteService;
@@ -140,16 +159,19 @@ public class DiskThresholdMonitor {
                 ByteSizeValue total = ByteSizeValue.ofBytes(usage.getTotalBytes());
                 long frozenFloodStageThreshold = diskThresholdSettings.getFreeBytesThresholdFrozenFloodStage(total).getBytes();
                 if (usage.getFreeBytes() < frozenFloodStageThreshold) {
-                    logger.warn("flood stage disk watermark [{}] exceeded on {}",
-                        diskThresholdSettings.describeFrozenFloodStageThreshold(total), usage);
+                    logger.warn(
+                        "flood stage disk watermark [{}] exceeded on {}",
+                        diskThresholdSettings.describeFrozenFloodStageThreshold(total),
+                        usage
+                    );
                 }
                 // skip checking high/low watermarks for frozen nodes, since frozen shards have only insignificant local storage footprint
                 // and this allows us to use more of the local storage for cache.
                 continue;
             }
 
-            if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes() ||
-                usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdFloodStage()) {
+            if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes()
+                || usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdFloodStage()) {
 
                 nodesOverLowThreshold.add(node);
                 nodesOverHighThreshold.add(node);
@@ -163,14 +185,17 @@ public class DiskThresholdMonitor {
                     }
                 }
 
-                logger.warn("flood stage disk watermark [{}] exceeded on {}, all indices on this node will be marked read-only",
-                    diskThresholdSettings.describeFloodStageThreshold(), usage);
+                logger.warn(
+                    "flood stage disk watermark [{}] exceeded on {}, all indices on this node will be marked read-only",
+                    diskThresholdSettings.describeFloodStageThreshold(),
+                    usage
+                );
 
                 continue;
             }
 
-            if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes() ||
-                usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
+            if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()
+                || usage.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
 
                 if (routingNode != null) { // might be temporarily null if the ClusterInfoService and the ClusterService are out of step
                     for (ShardRouting routing : routingNode) {
@@ -181,11 +206,16 @@ public class DiskThresholdMonitor {
             }
 
             final long reservedSpace = info.getReservedSpace(usage.getNodeId(), usage.getPath()).getTotal();
-            final DiskUsage usageWithReservedSpace = new DiskUsage(usage.getNodeId(), usage.getNodeName(), usage.getPath(),
-                usage.getTotalBytes(), Math.max(0L, usage.getFreeBytes() - reservedSpace));
+            final DiskUsage usageWithReservedSpace = new DiskUsage(
+                usage.getNodeId(),
+                usage.getNodeName(),
+                usage.getPath(),
+                usage.getTotalBytes(),
+                Math.max(0L, usage.getFreeBytes() - reservedSpace)
+            );
 
-            if (usageWithReservedSpace.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes() ||
-                usageWithReservedSpace.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
+            if (usageWithReservedSpace.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdHigh().getBytes()
+                || usageWithReservedSpace.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
 
                 nodesOverLowThreshold.add(node);
                 nodesOverHighThreshold.add(node);
@@ -196,52 +226,68 @@ public class DiskThresholdMonitor {
                     usagesOverHighThreshold.add(usage);
                     // will log about this node when the reroute completes
                 } else {
-                    logger.debug("high disk watermark exceeded on {} but an automatic reroute has occurred " +
-                            "in the last [{}], skipping reroute",
-                        node, diskThresholdSettings.getRerouteInterval());
+                    logger.debug(
+                        "high disk watermark exceeded on {} but an automatic reroute has occurred " + "in the last [{}], skipping reroute",
+                        node,
+                        diskThresholdSettings.getRerouteInterval()
+                    );
                 }
 
-            } else if (usageWithReservedSpace.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdLow().getBytes() ||
-                usageWithReservedSpace.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdLow()) {
+            } else if (usageWithReservedSpace.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdLow().getBytes()
+                || usageWithReservedSpace.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdLow()) {
 
-                nodesOverHighThresholdAndRelocating.remove(node);
+                    nodesOverHighThresholdAndRelocating.remove(node);
 
-                final boolean wasUnderLowThreshold = nodesOverLowThreshold.add(node);
-                final boolean wasOverHighThreshold = nodesOverHighThreshold.remove(node);
-                assert (wasUnderLowThreshold && wasOverHighThreshold) == false;
+                    final boolean wasUnderLowThreshold = nodesOverLowThreshold.add(node);
+                    final boolean wasOverHighThreshold = nodesOverHighThreshold.remove(node);
+                    assert (wasUnderLowThreshold && wasOverHighThreshold) == false;
 
-                if (wasUnderLowThreshold) {
-                    logger.info("low disk watermark [{}] exceeded on {}, replicas will not be assigned to this node",
-                        diskThresholdSettings.describeLowThreshold(), usage);
-                } else if (wasOverHighThreshold) {
-                    logger.info("high disk watermark [{}] no longer exceeded on {}, but low disk watermark [{}] is still exceeded",
-                        diskThresholdSettings.describeHighThreshold(), usage, diskThresholdSettings.describeLowThreshold());
-                }
-
-            } else {
-
-                nodesOverHighThresholdAndRelocating.remove(node);
-
-                if (nodesOverLowThreshold.contains(node)) {
-                    // The node has previously been over the low watermark, but is no longer, so it may be possible to allocate more shards
-                    // if we reroute now.
-                    if (lastRunTimeMillis.get() <= currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
-                        reroute = true;
-                        explanation = "one or more nodes has gone under the high or low watermark";
-                        nodesOverLowThreshold.remove(node);
-                        nodesOverHighThreshold.remove(node);
-
-                        logger.info("low disk watermark [{}] no longer exceeded on {}",
-                            diskThresholdSettings.describeLowThreshold(), usage);
-
-                    } else {
-                        logger.debug("{} has gone below a disk threshold, but an automatic reroute has occurred " +
-                                "in the last [{}], skipping reroute",
-                            node, diskThresholdSettings.getRerouteInterval());
+                    if (wasUnderLowThreshold) {
+                        logger.info(
+                            "low disk watermark [{}] exceeded on {}, replicas will not be assigned to this node",
+                            diskThresholdSettings.describeLowThreshold(),
+                            usage
+                        );
+                    } else if (wasOverHighThreshold) {
+                        logger.info(
+                            "high disk watermark [{}] no longer exceeded on {}, but low disk watermark [{}] is still exceeded",
+                            diskThresholdSettings.describeHighThreshold(),
+                            usage,
+                            diskThresholdSettings.describeLowThreshold()
+                        );
                     }
-                }
 
-            }
+                } else {
+
+                    nodesOverHighThresholdAndRelocating.remove(node);
+
+                    if (nodesOverLowThreshold.contains(node)) {
+                        // The node has previously been over the low watermark, but is no longer, so it may be possible to allocate more
+                        // shards
+                        // if we reroute now.
+                        if (lastRunTimeMillis.get() <= currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
+                            reroute = true;
+                            explanation = "one or more nodes has gone under the high or low watermark";
+                            nodesOverLowThreshold.remove(node);
+                            nodesOverHighThreshold.remove(node);
+
+                            logger.info(
+                                "low disk watermark [{}] no longer exceeded on {}",
+                                diskThresholdSettings.describeLowThreshold(),
+                                usage
+                            );
+
+                        } else {
+                            logger.debug(
+                                "{} has gone below a disk threshold, but an automatic reroute has occurred "
+                                    + "in the last [{}], skipping reroute",
+                                node,
+                                diskThresholdSettings.getRerouteInterval()
+                            );
+                        }
+                    }
+
+                }
         }
 
         final ActionListener<Void> listener = new GroupedActionListener<>(ActionListener.wrap(this::checkFinished), 3);
@@ -256,8 +302,13 @@ public class DiskThresholdMonitor {
                     final long relocatingShardsSize;
                     if (routingNode != null) { // might be temporarily null if the ClusterInfoService and the ClusterService are out of step
                         relocatingShardsSize = sizeOfRelocatingShards(routingNode, diskUsage, info, reroutedClusterState);
-                        usageIncludingRelocations = new DiskUsage(diskUsage.getNodeId(), diskUsage.getNodeName(),
-                            diskUsage.getPath(), diskUsage.getTotalBytes(), diskUsage.getFreeBytes() - relocatingShardsSize);
+                        usageIncludingRelocations = new DiskUsage(
+                            diskUsage.getNodeId(),
+                            diskUsage.getNodeName(),
+                            diskUsage.getPath(),
+                            diskUsage.getTotalBytes(),
+                            diskUsage.getFreeBytes() - relocatingShardsSize
+                        );
                     } else {
                         usageIncludingRelocations = diskUsage;
                         relocatingShardsSize = 0L;
@@ -267,19 +318,31 @@ public class DiskThresholdMonitor {
                         || usageIncludingRelocations.getFreeDiskAsPercentage() < diskThresholdSettings.getFreeDiskThresholdHigh()) {
 
                         nodesOverHighThresholdAndRelocating.remove(diskUsage.getNodeId());
-                        logger.warn("high disk watermark [{}] exceeded on {}, shards will be relocated away from this node; " +
-                                "currently relocating away shards totalling [{}] bytes; the node is expected to continue to exceed " +
-                                "the high disk watermark when these relocations are complete",
-                            diskThresholdSettings.describeHighThreshold(), diskUsage, -relocatingShardsSize);
+                        logger.warn(
+                            "high disk watermark [{}] exceeded on {}, shards will be relocated away from this node; "
+                                + "currently relocating away shards totalling [{}] bytes; the node is expected to continue to exceed "
+                                + "the high disk watermark when these relocations are complete",
+                            diskThresholdSettings.describeHighThreshold(),
+                            diskUsage,
+                            -relocatingShardsSize
+                        );
                     } else if (nodesOverHighThresholdAndRelocating.add(diskUsage.getNodeId())) {
-                        logger.info("high disk watermark [{}] exceeded on {}, shards will be relocated away from this node; " +
-                                "currently relocating away shards totalling [{}] bytes; the node is expected to be below the high " +
-                                "disk watermark when these relocations are complete",
-                            diskThresholdSettings.describeHighThreshold(), diskUsage, -relocatingShardsSize);
+                        logger.info(
+                            "high disk watermark [{}] exceeded on {}, shards will be relocated away from this node; "
+                                + "currently relocating away shards totalling [{}] bytes; the node is expected to be below the high "
+                                + "disk watermark when these relocations are complete",
+                            diskThresholdSettings.describeHighThreshold(),
+                            diskUsage,
+                            -relocatingShardsSize
+                        );
                     } else {
-                        logger.debug("high disk watermark [{}] exceeded on {}, shards will be relocated away from this node; " +
-                                "currently relocating away shards totalling [{}] bytes",
-                            diskThresholdSettings.describeHighThreshold(), diskUsage, -relocatingShardsSize);
+                        logger.debug(
+                            "high disk watermark [{}] exceeded on {}, shards will be relocated away from this node; "
+                                + "currently relocating away shards totalling [{}] bytes",
+                            diskThresholdSettings.describeHighThreshold(),
+                            diskUsage,
+                            -relocatingShardsSize
+                        );
                     }
                 }
 
@@ -294,16 +357,41 @@ public class DiskThresholdMonitor {
             logger.trace("no reroute required");
             listener.onResponse(null);
         }
-        final Set<String> indicesToAutoRelease = StreamSupport.stream(state.routingTable().indicesRouting()
-            .spliterator(), false)
-            .map(c -> c.key)
+
+        // Generate a map of node name to ID so we can use it to look up node replacement targets
+        final Map<String, String> nodeNameToId = StreamSupport.stream(state.getRoutingNodes().spliterator(), false)
+            .collect(Collectors.toMap(rn -> rn.node().getName(), RoutingNode::nodeId, (s1, s2) -> s2));
+
+        // Calculate both the source node id and the target node id of a "replace" type shutdown
+        final Set<String> nodesIdsPartOfReplacement = state.metadata()
+            .nodeShutdowns()
+            .values()
+            .stream()
+            .filter(meta -> meta.getType() == SingleNodeShutdownMetadata.Type.REPLACE)
+            .flatMap(meta -> Stream.of(meta.getNodeId(), nodeNameToId.get(meta.getTargetNodeName())))
+            .collect(Collectors.toSet());
+
+        // Generate a set of all the indices that exist on either the target or source of a node replacement
+        final Set<String> indicesOnReplaceSourceOrTarget = nodesIdsPartOfReplacement.stream()
+            .flatMap(nodeId -> state.getRoutingNodes().node(nodeId).copyShards().stream().map(ShardRouting::index).map(Index::getName))
+            .collect(Collectors.toSet());
+
+        final Set<String> indicesToAutoRelease = state.routingTable()
+            .indicesRouting()
+            .keySet()
+            .stream()
             .filter(index -> indicesNotToAutoRelease.contains(index) == false)
             .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
+            // Do not auto release indices that are on either the source or the target of a node replacement
+            .filter(index -> indicesOnReplaceSourceOrTarget.contains(index) == false)
             .collect(Collectors.toSet());
 
         if (indicesToAutoRelease.isEmpty() == false) {
-            logger.info("releasing read-only block on indices " + indicesToAutoRelease
-                + " since they are now allocated to nodes with sufficient disk space");
+            logger.info(
+                "releasing read-only block on indices "
+                    + indicesToAutoRelease
+                    + " since they are now allocated to nodes with sufficient disk space"
+            );
             updateIndicesReadOnly(indicesToAutoRelease, listener, false);
         } else {
             logger.trace("no auto-release required");
@@ -321,12 +409,21 @@ public class DiskThresholdMonitor {
 
     // exposed for tests to override
     long sizeOfRelocatingShards(RoutingNode routingNode, DiskUsage diskUsage, ClusterInfo info, ClusterState reroutedClusterState) {
-        return DiskThresholdDecider.sizeOfRelocatingShards(routingNode, true,
-            diskUsage.getPath(), info, reroutedClusterState.metadata(), reroutedClusterState.routingTable());
+        return DiskThresholdDecider.sizeOfRelocatingShards(
+            routingNode,
+            true,
+            diskUsage.getPath(),
+            info,
+            reroutedClusterState.metadata(),
+            reroutedClusterState.routingTable()
+        );
     }
 
-    private void markNodesMissingUsageIneligibleForRelease(RoutingNodes routingNodes, ImmutableOpenMap<String, DiskUsage> usages,
-                                                           Set<String> indicesToMarkIneligibleForAutoRelease) {
+    private void markNodesMissingUsageIneligibleForRelease(
+        RoutingNodes routingNodes,
+        ImmutableOpenMap<String, DiskUsage> usages,
+        Set<String> indicesToMarkIneligibleForAutoRelease
+    ) {
         for (RoutingNode routingNode : routingNodes) {
             if (usages.containsKey(routingNode.nodeId()) == false) {
                 for (ShardRouting routing : routingNode) {
@@ -351,11 +448,12 @@ public class DiskThresholdMonitor {
             setLastRunTimeMillis();
             listener.onFailure(e);
         });
-        Settings readOnlySettings = readOnly ? Settings.builder()
-            .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, Boolean.TRUE.toString()).build() :
-            Settings.builder().putNull(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE).build();
-        client.admin().indices().prepareUpdateSettings(indicesToUpdate.toArray(Strings.EMPTY_ARRAY))
+        Settings readOnlySettings = readOnly ? READ_ONLY_ALLOW_DELETE_SETTINGS : NOT_READ_ONLY_ALLOW_DELETE_SETTINGS;
+        client.admin()
+            .indices()
+            .prepareUpdateSettings(indicesToUpdate.toArray(Strings.EMPTY_ARRAY))
             .setSettings(readOnlySettings)
+            .origin("disk-threshold-monitor")
             .execute(wrappedListener.map(r -> null));
     }
 

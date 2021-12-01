@@ -9,24 +9,27 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
+import java.util.function.Predicate;
 
 public class FillMaskConfigTests extends InferenceConfigItemTestCase<FillMaskConfig> {
 
-    private boolean lenient;
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
 
-    @Before
-    public void chooseStrictOrLenient() {
-        lenient = randomBoolean();
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.isEmpty() == false;
     }
 
     @Override
     protected FillMaskConfig doParseInstance(XContentParser parser) throws IOException {
-        return lenient ? FillMaskConfig.fromXContentLenient(parser) : FillMaskConfig.fromXContentStrict(parser);
+        return FillMaskConfig.fromXContentLenient(parser);
     }
 
     @Override
@@ -46,11 +49,10 @@ public class FillMaskConfigTests extends InferenceConfigItemTestCase<FillMaskCon
 
     public static FillMaskConfig createRandom() {
         return new FillMaskConfig(
-            VocabularyConfigTests.createRandom(),
-            randomBoolean() ?
-                null :
-                randomFrom(BertTokenizationTests.createRandom(), DistilBertTokenizationTests.createRandom())
-
+            randomBoolean() ? null : VocabularyConfigTests.createRandom(),
+            randomBoolean() ? null : BertTokenizationTests.createRandom(),
+            randomBoolean() ? null : randomInt(),
+            randomBoolean() ? null : randomAlphaOfLength(5)
         );
     }
 }

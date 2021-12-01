@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -32,6 +33,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.TransformDeprecations;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
@@ -270,10 +272,24 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
         // <3> Validate the transform, assigning it to the indexer, and get the previous stats (if they exist)
         ActionListener<TransformConfig> getTransformConfigListener = ActionListener.wrap(config -> {
+
+            // fail if a transform is too old, this can only happen on a rolling upgrade
+            if (config.getVersion() == null || config.getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
+                String transformTooOldError = new ParameterizedMessage(
+                    "Transform configuration is too old [{}], use the upgrade API to fix your transform. "
+                        + "Minimum required version is [{}]",
+                    config.getVersion(),
+                    TransformDeprecations.MIN_TRANSFORM_VERSION
+                ).getFormattedMessage();
+                auditor.error(transformId, transformTooOldError);
+                markAsFailed(buildTask, transformTooOldError);
+                return;
+            }
+
             ValidationException validationException = config.validate(null);
             if (validationException == null) {
                 indexerBuilder.setTransformConfig(config);
-                transformServices.getConfigManager().getTransformStoredDoc(transformId, transformStatsActionListener);
+                transformServices.getConfigManager().getTransformStoredDoc(transformId, false, transformStatsActionListener);
             } else {
                 auditor.error(transformId, validationException.getMessage());
                 markAsFailed(
@@ -302,12 +318,8 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             }
         );
 
-        // <1> Check the index templates are installed
-        TransformInternalIndex.ensureLatestIndexAndTemplateInstalled(
-            clusterService,
-            buildTask.getParentTaskClient(),
-            templateCheckListener
-        );
+        // <1> Check the latest internal index (IMPORTANT: according to _this_ node, which might be newer than master) is installed
+        TransformInternalIndex.createLatestVersionedIndexIfRequired(clusterService, buildTask.getParentTaskClient(), templateCheckListener);
     }
 
     private static IndexerState currentIndexerState(TransformState previousState) {

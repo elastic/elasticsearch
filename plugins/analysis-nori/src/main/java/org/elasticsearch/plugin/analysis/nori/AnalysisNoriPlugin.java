@@ -10,11 +10,6 @@ package org.elasticsearch.plugin.analysis.nori;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
-import org.elasticsearch.index.analysis.NoriAnalyzerProvider;
-import org.elasticsearch.index.analysis.NoriNumberFilterFactory;
-import org.elasticsearch.index.analysis.NoriPartOfSpeechStopFilterFactory;
-import org.elasticsearch.index.analysis.NoriReadingFormFilterFactory;
-import org.elasticsearch.index.analysis.NoriTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;

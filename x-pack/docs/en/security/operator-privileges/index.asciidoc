@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="enterprise"]
 [[operator-privileges]]
 == Operator privileges
 

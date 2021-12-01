@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ccr.action;
 
-import com.carrotsearch.hppc.predicates.ObjectPredicate;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -51,7 +49,6 @@ import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -87,12 +84,28 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
 
     private volatile TimeValue waitForMetadataTimeOut;
     private volatile Map<String, AutoFollower> autoFollowers = Collections.emptyMap();
+    private volatile Set<String> patterns = Set.of();
 
     // The following fields are read and updated under a lock:
     private long numberOfSuccessfulIndicesAutoFollowed = 0;
     private long numberOfFailedIndicesAutoFollowed = 0;
     private long numberOfFailedRemoteClusterStateRequests = 0;
-    private final LinkedHashMap<String, Tuple<Long, ElasticsearchException>> recentAutoFollowErrors;
+    private final LinkedHashMap<AutoFollowErrorKey, Tuple<Long, ElasticsearchException>> recentAutoFollowErrors;
+
+    private static final class AutoFollowErrorKey {
+        private final String pattern;
+        private final String index;
+
+        private AutoFollowErrorKey(String pattern, String index) {
+            this.pattern = Objects.requireNonNull(pattern);
+            this.index = index;
+        }
+
+        @Override
+        public String toString() {
+            return index != null ? pattern + ':' + index : pattern;
+        }
+    }
 
     public AutoFollowCoordinator(
         final Settings settings,
@@ -101,7 +114,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         final CcrLicenseChecker ccrLicenseChecker,
         final LongSupplier relativeMillisTimeProvider,
         final LongSupplier absoluteMillisTimeProvider,
-        final Executor executor) {
+        final Executor executor
+    ) {
 
         this.client = client;
         this.clusterService = clusterService;
@@ -111,7 +125,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         this.executor = Objects.requireNonNull(executor);
         this.recentAutoFollowErrors = new LinkedHashMap<>() {
             @Override
-            protected boolean removeEldestEntry(final Map.Entry<String, Tuple<Long, ElasticsearchException>> eldest) {
+            protected boolean removeEldestEntry(final Map.Entry<AutoFollowErrorKey, Tuple<Long, ElasticsearchException>> eldest) {
                 return size() > MAX_AUTO_FOLLOW_ERRORS;
             }
         };
@@ -148,55 +162,81 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
     }
 
     public synchronized AutoFollowStats getStats() {
-        final Map<String, AutoFollower> autoFollowers = this.autoFollowers;
+        final Map<String, AutoFollower> autoFollowersCopy = this.autoFollowers;
         final TreeMap<String, AutoFollowedCluster> timesSinceLastAutoFollowPerRemoteCluster = new TreeMap<>();
-        for (Map.Entry<String, AutoFollower> entry : autoFollowers.entrySet()) {
+        for (Map.Entry<String, AutoFollower> entry : autoFollowersCopy.entrySet()) {
             long lastAutoFollowTimeInMillis = entry.getValue().lastAutoFollowTimeInMillis;
             long lastSeenMetadataVersion = entry.getValue().metadataVersion;
             if (lastAutoFollowTimeInMillis != -1) {
                 long timeSinceLastCheckInMillis = relativeMillisTimeProvider.getAsLong() - lastAutoFollowTimeInMillis;
-                timesSinceLastAutoFollowPerRemoteCluster.put(entry.getKey(),
-                    new AutoFollowedCluster(timeSinceLastCheckInMillis, lastSeenMetadataVersion));
+                timesSinceLastAutoFollowPerRemoteCluster.put(
+                    entry.getKey(),
+                    new AutoFollowedCluster(timeSinceLastCheckInMillis, lastSeenMetadataVersion)
+                );
             } else {
                 timesSinceLastAutoFollowPerRemoteCluster.put(entry.getKey(), new AutoFollowedCluster(-1L, lastSeenMetadataVersion));
             }
+        }
+
+        var recentAutoFollowErrorsCopy = new TreeMap<String, Tuple<Long, ElasticsearchException>>();
+        for (var entry : recentAutoFollowErrors.entrySet()) {
+            recentAutoFollowErrorsCopy.put(entry.getKey().toString(), entry.getValue());
         }
 
         return new AutoFollowStats(
             numberOfFailedIndicesAutoFollowed,
             numberOfFailedRemoteClusterStateRequests,
             numberOfSuccessfulIndicesAutoFollowed,
-            new TreeMap<>(recentAutoFollowErrors),
+            recentAutoFollowErrorsCopy,
             timesSinceLastAutoFollowPerRemoteCluster
         );
     }
 
     synchronized void updateStats(List<AutoFollowResult> results) {
+        // purge stats for removed patterns
+        var currentPatterns = this.patterns;
+        recentAutoFollowErrors.keySet().removeIf(key -> currentPatterns.contains(key.pattern) == false);
+        // add new stats
         long newStatsReceivedTimeStamp = absoluteMillisTimeProvider.getAsLong();
         for (AutoFollowResult result : results) {
+            var onlyPatternKey = new AutoFollowErrorKey(result.autoFollowPatternName, null);
             if (result.clusterStateFetchException != null) {
-                recentAutoFollowErrors.put(result.autoFollowPatternName,
-                    Tuple.tuple(newStatsReceivedTimeStamp, new ElasticsearchException(result.clusterStateFetchException)));
+                recentAutoFollowErrors.put(
+                    onlyPatternKey,
+                    Tuple.tuple(newStatsReceivedTimeStamp, new ElasticsearchException(result.clusterStateFetchException))
+                );
                 numberOfFailedRemoteClusterStateRequests++;
-                LOGGER.warn(new ParameterizedMessage("failure occurred while fetching cluster state for auto follow pattern [{}]",
-                    result.autoFollowPatternName), result.clusterStateFetchException);
+                LOGGER.warn(
+                    new ParameterizedMessage(
+                        "failure occurred while fetching cluster state for auto follow pattern [{}]",
+                        result.autoFollowPatternName
+                    ),
+                    result.clusterStateFetchException
+                );
             } else {
-                recentAutoFollowErrors.remove(result.autoFollowPatternName);
+                recentAutoFollowErrors.remove(onlyPatternKey);
                 for (Map.Entry<Index, Exception> entry : result.autoFollowExecutionResults.entrySet()) {
-                    final String patternAndIndexKey = result.autoFollowPatternName + ":" + entry.getKey().getName();
+                    var patternAndIndexKey = new AutoFollowErrorKey(result.autoFollowPatternName, entry.getKey().getName());
                     if (entry.getValue() != null) {
                         numberOfFailedIndicesAutoFollowed++;
-                        recentAutoFollowErrors.put(patternAndIndexKey,
-                            Tuple.tuple(newStatsReceivedTimeStamp, ExceptionsHelper.convertToElastic(entry.getValue())));
-                        LOGGER.warn(new ParameterizedMessage("failure occurred while auto following index [{}] for auto follow " +
-                            "pattern [{}]", entry.getKey(), result.autoFollowPatternName), entry.getValue());
+                        recentAutoFollowErrors.put(
+                            patternAndIndexKey,
+                            Tuple.tuple(newStatsReceivedTimeStamp, ExceptionsHelper.convertToElastic(entry.getValue()))
+                        );
+                        LOGGER.warn(
+                            new ParameterizedMessage(
+                                "failure occurred while auto following index [{}] for auto follow pattern [{}]",
+                                entry.getKey(),
+                                result.autoFollowPatternName
+                            ),
+                            entry.getValue()
+                        );
                     } else {
                         numberOfSuccessfulIndicesAutoFollowed++;
                         recentAutoFollowErrors.remove(patternAndIndexKey);
                     }
                 }
             }
-
         }
     }
 
@@ -212,22 +252,33 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             return;
         }
 
-        final CopyOnWriteHashMap<String, AutoFollower> autoFollowers = CopyOnWriteHashMap.copyOf(this.autoFollowers);
-        Set<String> newRemoteClusters = autoFollowMetadata.getPatterns().values().stream()
+        this.patterns = Set.copyOf(autoFollowMetadata.getPatterns().keySet());
+
+        final CopyOnWriteHashMap<String, AutoFollower> autoFollowersCopy = CopyOnWriteHashMap.copyOf(this.autoFollowers);
+        Set<String> newRemoteClusters = autoFollowMetadata.getPatterns()
+            .values()
+            .stream()
             .filter(AutoFollowPattern::isActive)
             .map(AutoFollowPattern::getRemoteCluster)
-            .filter(remoteCluster -> autoFollowers.containsKey(remoteCluster) == false)
+            .filter(remoteCluster -> autoFollowersCopy.containsKey(remoteCluster) == false)
             .collect(Collectors.toSet());
 
         Map<String, AutoFollower> newAutoFollowers = new HashMap<>(newRemoteClusters.size());
         for (String remoteCluster : newRemoteClusters) {
-            AutoFollower autoFollower =
-                new AutoFollower(remoteCluster, this::updateStats, clusterService::state, relativeMillisTimeProvider, executor) {
+            AutoFollower autoFollower = new AutoFollower(
+                remoteCluster,
+                this::updateStats,
+                clusterService::state,
+                relativeMillisTimeProvider,
+                executor
+            ) {
 
                 @Override
-                void getRemoteClusterState(final String remoteCluster,
-                                           final long metadataVersion,
-                                           final BiConsumer<ClusterStateResponse, Exception> handler) {
+                void getRemoteClusterState(
+                    final String remoteCluster,
+                    final long metadataVersion,
+                    final BiConsumer<ClusterStateResponse, Exception> handler
+                ) {
                     final ClusterStateRequest request = new ClusterStateRequest();
                     request.clear();
                     request.metadata(true);
@@ -240,14 +291,17 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         remoteCluster,
                         request,
                         e -> handler.accept(null, e),
-                        remoteClusterStateResponse -> handler.accept(remoteClusterStateResponse, null));
+                        remoteClusterStateResponse -> handler.accept(remoteClusterStateResponse, null)
+                    );
                 }
 
                 @Override
-                void createAndFollow(Map<String, String> headers,
-                                     PutFollowAction.Request request,
-                                     Runnable successHandler,
-                                     Consumer<Exception> failureHandler) {
+                void createAndFollow(
+                    Map<String, String> headers,
+                    PutFollowAction.Request request,
+                    Runnable successHandler,
+                    Consumer<Exception> failureHandler
+                ) {
                     Client followerClient = CcrLicenseChecker.wrapClient(client, headers);
                     followerClient.execute(
                         PutFollowAction.INSTANCE,
@@ -257,8 +311,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 }
 
                 @Override
-                void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction,
-                                              Consumer<Exception> handler) {
+                void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
                     clusterService.submitStateUpdateTask("update_auto_follow_metadata", new ClusterStateUpdateTask() {
 
                         @Override
@@ -287,10 +340,12 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         }
 
         List<String> removedRemoteClusters = new ArrayList<>();
-        for (Map.Entry<String, AutoFollower> entry : autoFollowers.entrySet()) {
+        for (Map.Entry<String, AutoFollower> entry : autoFollowersCopy.entrySet()) {
             String remoteCluster = entry.getKey();
             AutoFollower autoFollower = entry.getValue();
-            boolean exist = autoFollowMetadata.getPatterns().values().stream()
+            boolean exist = autoFollowMetadata.getPatterns()
+                .values()
+                .stream()
                 .filter(AutoFollowPattern::isActive)
                 .anyMatch(pattern -> pattern.getRemoteCluster().equals(remoteCluster));
             if (exist == false) {
@@ -306,9 +361,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             }
         }
         assert assertNoOtherActiveAutoFollower(newAutoFollowers);
-        this.autoFollowers = autoFollowers
-            .copyAndPutAll(newAutoFollowers)
-            .copyAndRemoveAll(removedRemoteClusters);
+        this.autoFollowers = autoFollowersCopy.copyAndPutAll(newAutoFollowers).copyAndRemoveAll(removedRemoteClusters);
     }
 
     private boolean assertNoOtherActiveAutoFollower(Map<String, AutoFollower> newAutoFollowers) {
@@ -318,7 +371,6 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         }
         return true;
     }
-
 
     Map<String, AutoFollower> getAutoFollowers() {
         return autoFollowers;
@@ -356,11 +408,13 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         private volatile boolean stop;
         private volatile List<String> lastActivePatterns = List.of();
 
-        AutoFollower(final String remoteCluster,
-                     final Consumer<List<AutoFollowResult>> statsUpdater,
-                     final Supplier<ClusterState> followerClusterStateSupplier,
-                     final LongSupplier relativeTimeProvider,
-                     final Executor executor) {
+        AutoFollower(
+            final String remoteCluster,
+            final Consumer<List<AutoFollowResult>> statsUpdater,
+            final Supplier<ClusterState> followerClusterStateSupplier,
+            final LongSupplier relativeTimeProvider,
+            final Executor executor
+        ) {
             this.remoteCluster = remoteCluster;
             this.statsUpdater = statsUpdater;
             this.followerClusterStateSupplier = followerClusterStateSupplier;
@@ -392,7 +446,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 return;
             }
 
-            final List<String> patterns = autoFollowMetadata.getPatterns().entrySet().stream()
+            final List<String> patterns = autoFollowMetadata.getPatterns()
+                .entrySet()
+                .stream()
                 .filter(entry -> entry.getValue().getRemoteCluster().equals(remoteCluster))
                 .filter(entry -> entry.getValue().isActive())
                 .map(Map.Entry::getKey)
@@ -452,11 +508,13 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             stop = true;
         }
 
-        private void autoFollowIndices(final AutoFollowMetadata autoFollowMetadata,
-                                       final ClusterState clusterState,
-                                       final ClusterState remoteClusterState,
-                                       final List<String> patterns,
-                                       final Thread thread) {
+        private void autoFollowIndices(
+            final AutoFollowMetadata autoFollowMetadata,
+            final ClusterState clusterState,
+            final ClusterState remoteClusterState,
+            final List<String> patterns,
+            final Thread thread
+        ) {
             int i = 0;
             for (String autoFollowPatternName : patterns) {
                 final int slot = i;
@@ -469,35 +527,49 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     finalise(slot, new AutoFollowResult(autoFollowPatternName), thread);
                 } else {
                     List<Tuple<String, AutoFollowPattern>> patternsForTheSameRemoteCluster = autoFollowMetadata.getPatterns()
-                        .entrySet().stream()
+                        .entrySet()
+                        .stream()
                         .filter(item -> autoFollowPatternName.equals(item.getKey()) == false)
                         .filter(item -> remoteCluster.equals(item.getValue().getRemoteCluster()))
                         .map(item -> new Tuple<>(item.getKey(), item.getValue()))
                         .collect(Collectors.toList());
 
                     Consumer<AutoFollowResult> resultHandler = result -> finalise(slot, result, thread);
-                    checkAutoFollowPattern(autoFollowPatternName, remoteCluster, autoFollowPattern, leaderIndicesToFollow, headers,
-                        patternsForTheSameRemoteCluster, remoteClusterState.metadata(), clusterState.metadata(), resultHandler);
+                    checkAutoFollowPattern(
+                        autoFollowPatternName,
+                        remoteCluster,
+                        autoFollowPattern,
+                        leaderIndicesToFollow,
+                        headers,
+                        patternsForTheSameRemoteCluster,
+                        remoteClusterState.metadata(),
+                        clusterState.metadata(),
+                        resultHandler
+                    );
                 }
                 i++;
             }
             cleanFollowedRemoteIndices(remoteClusterState, patterns);
         }
 
-        private void checkAutoFollowPattern(String autoFollowPattenName,
-                                            String remoteCluster,
-                                            AutoFollowPattern autoFollowPattern,
-                                            List<Index> leaderIndicesToFollow,
-                                            Map<String, String> headers,
-                                            List<Tuple<String, AutoFollowPattern>> patternsForTheSameRemoteCluster,
-                                            Metadata remoteMetadata,
-                                            Metadata localMetadata,
-                                            Consumer<AutoFollowResult> resultHandler) {
+        private void checkAutoFollowPattern(
+            String autoFollowPattenName,
+            String remoteClusterString,
+            AutoFollowPattern autoFollowPattern,
+            List<Index> leaderIndicesToFollow,
+            Map<String, String> headers,
+            List<Tuple<String, AutoFollowPattern>> patternsForTheSameRemoteCluster,
+            Metadata remoteMetadata,
+            Metadata localMetadata,
+            Consumer<AutoFollowResult> resultHandler
+        ) {
             final GroupedActionListener<Tuple<Index, Exception>> groupedListener = new GroupedActionListener<>(
                 ActionListener.wrap(
                     rs -> resultHandler.accept(new AutoFollowResult(autoFollowPattenName, new ArrayList<>(rs))),
-                    e -> { throw new AssertionError("must never happen", e); }),
-                leaderIndicesToFollow.size());
+                    e -> { throw new AssertionError("must never happen", e); }
+                ),
+                leaderIndicesToFollow.size()
+            );
 
             for (final Index indexToFollow : leaderIndicesToFollow) {
                 IndexAbstraction indexAbstraction = remoteMetadata.getIndicesLookup().get(indexToFollow.getName());
@@ -507,13 +579,27 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     .collect(Collectors.toList());
                 if (otherMatchingPatterns.size() != 0) {
                     groupedListener.onResponse(
-                        new Tuple<>(indexToFollow, new ElasticsearchException("index to follow [" + indexToFollow.getName() +
-                            "] for pattern [" + autoFollowPattenName + "] matches with other patterns " + otherMatchingPatterns + "")));
+                        new Tuple<>(
+                            indexToFollow,
+                            new ElasticsearchException(
+                                "index to follow ["
+                                    + indexToFollow.getName()
+                                    + "] for pattern ["
+                                    + autoFollowPattenName
+                                    + "] matches with other patterns "
+                                    + otherMatchingPatterns
+                                    + ""
+                            )
+                        )
+                    );
                 } else {
                     final Settings leaderIndexSettings = remoteMetadata.getIndexSafe(indexToFollow).getSettings();
                     if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndexSettings) == false) {
-                        String message = String.format(Locale.ROOT, "index [%s] cannot be followed, because soft deletes are not enabled",
-                            indexToFollow.getName());
+                        String message = String.format(
+                            Locale.ROOT,
+                            "index [%s] cannot be followed, because soft deletes are not enabled",
+                            indexToFollow.getName()
+                        );
                         LOGGER.warn(message);
                         updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow), error -> {
                             ElasticsearchException failure = new ElasticsearchException(message);
@@ -523,7 +609,8 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                             groupedListener.onResponse(new Tuple<>(indexToFollow, failure));
                         });
                     } else if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndexSettings)) {
-                        String message = String.format(Locale.ROOT,
+                        String message = String.format(
+                            Locale.ROOT,
                             "index to follow [%s] is a searchable snapshot index and cannot be used for cross-cluster replication purpose",
                             indexToFollow.getName()
                         );
@@ -536,19 +623,25 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                             groupedListener.onResponse(new Tuple<>(indexToFollow, failure));
                         });
                     } else if (leaderIndexAlreadyFollowed(autoFollowPattern, indexToFollow, localMetadata)) {
-                        updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow),
-                            error -> groupedListener.onResponse(new Tuple<>(indexToFollow, error)));
+                        updateAutoFollowMetadata(
+                            recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow),
+                            error -> groupedListener.onResponse(new Tuple<>(indexToFollow, error))
+                        );
                     } else {
-                        followLeaderIndex(autoFollowPattenName, remoteCluster, indexToFollow, autoFollowPattern, headers,
-                            error -> groupedListener.onResponse(new Tuple<>(indexToFollow, error)));
+                        followLeaderIndex(
+                            autoFollowPattenName,
+                            remoteClusterString,
+                            indexToFollow,
+                            autoFollowPattern,
+                            headers,
+                            error -> groupedListener.onResponse(new Tuple<>(indexToFollow, error))
+                        );
                     }
                 }
             }
         }
 
-        private static boolean leaderIndexAlreadyFollowed(AutoFollowPattern autoFollowPattern,
-                                                          Index leaderIndex,
-                                                          Metadata localMetadata) {
+        private static boolean leaderIndexAlreadyFollowed(AutoFollowPattern autoFollowPattern, Index leaderIndex, Metadata localMetadata) {
             String followIndexName = getFollowerIndexName(autoFollowPattern, leaderIndex.getName());
             IndexMetadata indexMetadata = localMetadata.index(followIndexName);
             if (indexMetadata != null) {
@@ -565,17 +658,19 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             return false;
         }
 
-        private void followLeaderIndex(String autoFollowPattenName,
-                                       String remoteCluster,
-                                       Index indexToFollow,
-                                       AutoFollowPattern pattern,
-                                       Map<String,String> headers,
-                                       Consumer<Exception> onResult) {
+        private void followLeaderIndex(
+            String autoFollowPattenName,
+            String remoteClusterString,
+            Index indexToFollow,
+            AutoFollowPattern pattern,
+            Map<String, String> headers,
+            Consumer<Exception> onResult
+        ) {
             final String leaderIndexName = indexToFollow.getName();
             final String followIndexName = getFollowerIndexName(pattern, leaderIndexName);
 
             PutFollowAction.Request request = new PutFollowAction.Request();
-            request.setRemoteCluster(remoteCluster);
+            request.setRemoteCluster(remoteClusterString);
             request.setLeaderIndex(indexToFollow.getName());
             request.setFollowerIndex(followIndexName);
             request.setSettings(pattern.getSettings());
@@ -625,25 +720,28 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             }
         }
 
-        static List<Index> getLeaderIndicesToFollow(AutoFollowPattern autoFollowPattern,
-                                                    ClusterState remoteClusterState,
-                                                    List<String> followedIndexUUIDs) {
+        static List<Index> getLeaderIndicesToFollow(
+            AutoFollowPattern autoFollowPattern,
+            ClusterState remoteClusterState,
+            List<String> followedIndexUUIDs
+        ) {
             List<Index> leaderIndicesToFollow = new ArrayList<>();
             for (IndexMetadata leaderIndexMetadata : remoteClusterState.getMetadata()) {
                 if (leaderIndexMetadata.getState() != IndexMetadata.State.OPEN) {
                     continue;
                 }
-                IndexAbstraction indexAbstraction =
-                    remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndexMetadata.getIndex().getName());
+                IndexAbstraction indexAbstraction = remoteClusterState.getMetadata()
+                    .getIndicesLookup()
+                    .get(leaderIndexMetadata.getIndex().getName());
                 if (autoFollowPattern.isActive() && autoFollowPattern.match(indexAbstraction)) {
                     IndexRoutingTable indexRoutingTable = remoteClusterState.routingTable().index(leaderIndexMetadata.getIndex());
                     if (indexRoutingTable != null &&
-                        // Leader indices can be in the cluster state, but not all primary shards may be ready yet.
-                        // This checks ensures all primary shards have started, so that index following does not fail.
-                        // If not all primary shards are ready, then the next time the auto follow coordinator runs
-                        // this index will be auto followed.
-                        indexRoutingTable.allPrimaryShardsActive() &&
-                        followedIndexUUIDs.contains(leaderIndexMetadata.getIndex().getUUID()) == false) {
+                    // Leader indices can be in the cluster state, but not all primary shards may be ready yet.
+                    // This checks ensures all primary shards have started, so that index following does not fail.
+                    // If not all primary shards are ready, then the next time the auto follow coordinator runs
+                    // this index will be auto followed.
+                        indexRoutingTable.allPrimaryShardsActive()
+                        && followedIndexUUIDs.contains(leaderIndexMetadata.getIndex().getUUID()) == false) {
                         leaderIndicesToFollow.add(leaderIndexMetadata.getIndex());
                     }
                 }
@@ -659,8 +757,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             }
         }
 
-        static Function<ClusterState, ClusterState> recordLeaderIndexAsFollowFunction(String name,
-                                                                                      Index indexToFollow) {
+        static Function<ClusterState, ClusterState> recordLeaderIndexAsFollowFunction(String name, Index indexToFollow) {
             return currentState -> {
                 AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().custom(AutoFollowMetadata.TYPE);
                 Map<String, List<String>> newFollowedIndexUUIDS = new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
@@ -677,11 +774,15 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                     newUUIDs.add(indexToFollow.getUUID());
                     return Collections.unmodifiableList(newUUIDs);
                 });
-                final AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(),
-                    newFollowedIndexUUIDS, currentAutoFollowMetadata.getHeaders());
+                final AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(
+                    currentAutoFollowMetadata.getPatterns(),
+                    newFollowedIndexUUIDS,
+                    currentAutoFollowMetadata.getHeaders()
+                );
                 return ClusterState.builder(currentState)
-                    .metadata(Metadata.builder(currentState.getMetadata())
-                        .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build())
+                    .metadata(
+                        Metadata.builder(currentState.getMetadata()).putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build()
+                    )
                     .build();
             };
         }
@@ -695,14 +796,19 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         }
 
         static Function<ClusterState, ClusterState> cleanFollowedRemoteIndices(
-                final Metadata remoteMetadata, final List<String> autoFollowPatternNames) {
+            final Metadata remoteMetadata,
+            final List<String> autoFollowPatternNames
+        ) {
             return currentState -> {
                 AutoFollowMetadata currentAutoFollowMetadata = currentState.metadata().custom(AutoFollowMetadata.TYPE);
-                Map<String, List<String>> autoFollowPatternNameToFollowedIndexUUIDs =
-                    new HashMap<>(currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs());
-                Set<String> remoteIndexUUIDS = new HashSet<>();
-                remoteMetadata.getIndices().values()
-                    .forEach((ObjectPredicate<IndexMetadata>) value -> remoteIndexUUIDS.add(value.getIndexUUID()));
+                Map<String, List<String>> autoFollowPatternNameToFollowedIndexUUIDs = new HashMap<>(
+                    currentAutoFollowMetadata.getFollowedLeaderIndexUUIDs()
+                );
+                Set<String> remoteIndexUUIDS = remoteMetadata.getIndices()
+                    .values()
+                    .stream()
+                    .map(IndexMetadata::getIndexUUID)
+                    .collect(Collectors.toSet());
 
                 boolean requiresCSUpdate = false;
                 for (String autoFollowPatternName : autoFollowPatternNames) {
@@ -713,11 +819,11 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         continue;
                     }
 
-                    List<String> followedIndexUUIDs =
-                        new ArrayList<>(autoFollowPatternNameToFollowedIndexUUIDs.get(autoFollowPatternName));
+                    List<String> followedIndexUUIDs = new ArrayList<>(autoFollowPatternNameToFollowedIndexUUIDs.get(autoFollowPatternName));
                     // Remove leader indices that no longer exist in the remote cluster:
                     boolean entriesRemoved = followedIndexUUIDs.removeIf(
-                        followedLeaderIndexUUID -> remoteIndexUUIDS.contains(followedLeaderIndexUUID) == false);
+                        followedLeaderIndexUUID -> remoteIndexUUIDS.contains(followedLeaderIndexUUID) == false
+                    );
                     if (entriesRemoved) {
                         requiresCSUpdate = true;
                     }
@@ -725,11 +831,15 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 }
 
                 if (requiresCSUpdate) {
-                    final AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(currentAutoFollowMetadata.getPatterns(),
-                        autoFollowPatternNameToFollowedIndexUUIDs, currentAutoFollowMetadata.getHeaders());
+                    final AutoFollowMetadata newAutoFollowMetadata = new AutoFollowMetadata(
+                        currentAutoFollowMetadata.getPatterns(),
+                        autoFollowPatternNameToFollowedIndexUUIDs,
+                        currentAutoFollowMetadata.getHeaders()
+                    );
                     return ClusterState.builder(currentState)
-                        .metadata(Metadata.builder(currentState.getMetadata())
-                            .putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build())
+                        .metadata(
+                            Metadata.builder(currentState.getMetadata()).putCustom(AutoFollowMetadata.TYPE, newAutoFollowMetadata).build()
+                        )
                         .build();
                 } else {
                     return currentState;
@@ -756,10 +866,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             Consumer<Exception> failureHandler
         );
 
-        abstract void updateAutoFollowMetadata(
-            Function<ClusterState, ClusterState> updateFunction,
-            Consumer<Exception> handler
-        );
+        abstract void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler);
 
     }
 
@@ -772,13 +879,13 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         AutoFollowResult(String autoFollowPatternName, List<Tuple<Index, Exception>> results) {
             this.autoFollowPatternName = autoFollowPatternName;
 
-            Map<Index, Exception> autoFollowExecutionResults = new HashMap<>();
+            Map<Index, Exception> mutableAutoFollowExecutionResults = new HashMap<>();
             for (Tuple<Index, Exception> result : results) {
-                autoFollowExecutionResults.put(result.v1(), result.v2());
+                mutableAutoFollowExecutionResults.put(result.v1(), result.v2());
             }
 
             this.clusterStateFetchException = null;
-            this.autoFollowExecutionResults = Collections.unmodifiableMap(autoFollowExecutionResults);
+            this.autoFollowExecutionResults = Collections.unmodifiableMap(mutableAutoFollowExecutionResults);
         }
 
         AutoFollowResult(String autoFollowPatternName, Exception e) {

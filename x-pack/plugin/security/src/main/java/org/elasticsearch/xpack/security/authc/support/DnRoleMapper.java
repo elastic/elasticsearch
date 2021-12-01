@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.support;
 
 import com.unboundid.ldap.sdk.DN;
 import com.unboundid.ldap.sdk.LDAPException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -96,8 +97,12 @@ public class DnRoleMapper implements UserRoleMapper {
             return parseFile(path, logger, realmType, realmName, false);
         } catch (Exception e) {
             logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to parse role mappings file [{}]. skipping/removing all mappings...", path.toAbsolutePath()), e);
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "failed to parse role mappings file [{}]. skipping/removing all mappings...",
+                    path.toAbsolutePath()
+                ),
+                e
+            );
             return emptyMap();
         }
     }
@@ -108,8 +113,10 @@ public class DnRoleMapper implements UserRoleMapper {
 
         if (Files.exists(path) == false) {
             final ParameterizedMessage message = new ParameterizedMessage(
-                    "Role mapping file [{}] for realm [{}] does not exist.",
-                    path.toAbsolutePath(), realmName);
+                "Role mapping file [{}] for realm [{}] does not exist.",
+                path.toAbsolutePath(),
+                realmName
+            );
             if (strict) {
                 throw new ElasticsearchException(message.getFormattedMessage());
             } else {
@@ -118,7 +125,7 @@ public class DnRoleMapper implements UserRoleMapper {
             }
         }
 
-        try  {
+        try {
             Settings settings = Settings.builder().loadFromPath(path).build();
 
             Map<DN, Set<String>> dnToRoles = new HashMap<>();
@@ -135,12 +142,13 @@ public class DnRoleMapper implements UserRoleMapper {
                         dnRoles.add(role);
                     } catch (LDAPException e) {
                         ParameterizedMessage message = new ParameterizedMessage(
-                                "invalid DN [{}] found in [{}] role mappings [{}] for realm [{}/{}].",
-                                providedDn,
-                                realmType,
-                                path.toAbsolutePath(),
-                                realmType,
-                                realmName);
+                            "invalid DN [{}] found in [{}] role mappings [{}] for realm [{}/{}].",
+                            providedDn,
+                            realmType,
+                            path.toAbsolutePath(),
+                            realmType,
+                            realmName
+                        );
                         if (strict) {
                             throw new ElasticsearchException(message.getFormattedMessage(), e);
                         } else {
@@ -151,15 +159,22 @@ public class DnRoleMapper implements UserRoleMapper {
 
             }
 
-            logger.debug("[{}] role mappings found in file [{}] for realm [{}/{}]", dnToRoles.size(), path.toAbsolutePath(), realmType,
-                    realmName);
-            Map<String, List<String>> normalizedMap = dnToRoles.entrySet().stream().collect(Collectors.toMap(
-                entry -> entry.getKey().toNormalizedString(),
-                entry -> List.copyOf(entry.getValue())));
+            logger.debug(
+                "[{}] role mappings found in file [{}] for realm [{}/{}]",
+                dnToRoles.size(),
+                path.toAbsolutePath(),
+                realmType,
+                realmName
+            );
+            Map<String, List<String>> normalizedMap = dnToRoles.entrySet()
+                .stream()
+                .collect(Collectors.toMap(entry -> entry.getKey().toNormalizedString(), entry -> List.copyOf(entry.getValue())));
             return unmodifiableMap(normalizedMap);
         } catch (IOException | SettingsException e) {
-            throw new ElasticsearchException("could not read realm [" + realmType + "/" + realmName + "] role mappings file [" +
-                    path.toAbsolutePath() + "]", e);
+            throw new ElasticsearchException(
+                "could not read realm [" + realmType + "/" + realmName + "] role mappings file [" + path.toAbsolutePath() + "]",
+                e
+            );
         }
     }
 
@@ -191,8 +206,15 @@ public class DnRoleMapper implements UserRoleMapper {
             }
         }
         if (logger.isDebugEnabled()) {
-            logger.debug("the roles [{}], are mapped from these [{}] groups [{}] using file [{}] for realm [{}/{}]", roles, config.type(),
-                    groupDns, file.getFileName(), config.type(), config.name());
+            logger.debug(
+                "the roles [{}], are mapped from these [{}] groups [{}] using file [{}] for realm [{}/{}]",
+                roles,
+                config.type(),
+                groupDns,
+                file.getFileName(),
+                config.type(),
+                config.name()
+            );
         }
 
         String normalizedUserDn = dn(userDnString).toNormalizedString();
@@ -201,9 +223,14 @@ public class DnRoleMapper implements UserRoleMapper {
             roles.addAll(rolesMappedToUserDn);
         }
         if (logger.isDebugEnabled()) {
-            logger.debug("the roles [{}], are mapped from the user [{}] using file [{}] for realm [{}/{}]",
-                    (rolesMappedToUserDn == null) ? Collections.emptySet() : rolesMappedToUserDn, normalizedUserDn, file.getFileName(),
-                    config.type(), config.name());
+            logger.debug(
+                "the roles [{}], are mapped from the user [{}] using file [{}] for realm [{}/{}]",
+                (rolesMappedToUserDn == null) ? Collections.emptySet() : rolesMappedToUserDn,
+                normalizedUserDn,
+                file.getFileName(),
+                config.type(),
+                config.name()
+            );
         }
         return roles;
     }
@@ -230,8 +257,12 @@ public class DnRoleMapper implements UserRoleMapper {
                 dnRoles = parseFileLenient(file, logger, config.type(), config.name());
 
                 if (previousDnRoles.equals(dnRoles) == false) {
-                    logger.info("role mappings file [{}] changed for realm [{}/{}]. updating mappings...", file.toAbsolutePath(),
-                            config.type(), config.name());
+                    logger.info(
+                        "role mappings file [{}] changed for realm [{}/{}]. updating mappings...",
+                        file.toAbsolutePath(),
+                        config.type(),
+                        config.name()
+                    );
                     notifyRefresh();
                 }
             }

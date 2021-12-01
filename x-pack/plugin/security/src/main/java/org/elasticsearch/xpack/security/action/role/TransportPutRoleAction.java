@@ -11,9 +11,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
@@ -27,8 +27,12 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
     private final NamedXContentRegistry xContentRegistry;
 
     @Inject
-    public TransportPutRoleAction(ActionFilters actionFilters, NativeRolesStore rolesStore, TransportService transportService,
-                                  NamedXContentRegistry xContentRegistry) {
+    public TransportPutRoleAction(
+        ActionFilters actionFilters,
+        NativeRolesStore rolesStore,
+        TransportService transportService,
+        NamedXContentRegistry xContentRegistry
+    ) {
         super(PutRoleAction.NAME, transportService, actionFilters, PutRoleRequest::new);
         this.rolesStore = rolesStore;
         this.xContentRegistry = xContentRegistry;

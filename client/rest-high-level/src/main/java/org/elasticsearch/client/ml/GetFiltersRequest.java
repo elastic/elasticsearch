@@ -10,9 +10,9 @@ package org.elasticsearch.client.ml;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.core.PageParams;
 import org.elasticsearch.client.ml.job.config.MlFilter;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -22,8 +22,7 @@ import java.util.Objects;
  */
 public class GetFiltersRequest implements Validatable, ToXContentObject {
 
-    public static final ObjectParser<GetFiltersRequest, Void> PARSER =
-        new ObjectParser<>("get_filters_request", GetFiltersRequest::new);
+    public static final ObjectParser<GetFiltersRequest, Void> PARSER = new ObjectParser<>("get_filters_request", GetFiltersRequest::new);
 
     static {
         PARSER.declareString(GetFiltersRequest::setFilterId, MlFilter.ID);
@@ -96,9 +95,7 @@ public class GetFiltersRequest implements Validatable, ToXContentObject {
             return false;
         }
         GetFiltersRequest request = (GetFiltersRequest) obj;
-        return Objects.equals(filterId, request.filterId)
-            && Objects.equals(from, request.from)
-            && Objects.equals(size, request.size);
+        return Objects.equals(filterId, request.filterId) && Objects.equals(from, request.from) && Objects.equals(size, request.size);
     }
 
     @Override

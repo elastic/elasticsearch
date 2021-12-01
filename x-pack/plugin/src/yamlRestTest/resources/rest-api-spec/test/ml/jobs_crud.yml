@@ -26,15 +26,6 @@
   - match: { count: 0 }
   - match: { jobs: [] }
 
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      ml.get_jobs:
-        job_id: "missing-*"
-        allow_no_jobs: true
-  - match: { count: 0 }
-  - match: { jobs: [] }
-
 ---
 "Test get jobs with expression that does not match and not allow_no_match":
   - skip:
@@ -46,14 +37,6 @@
       ml.get_jobs:
         job_id: "missing-*"
         allow_no_match: false
-
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      catch: missing
-      ml.get_jobs:
-        job_id: "missing-*"
-        allow_no_jobs: false
 
 ---
 "Test job crud apis":
@@ -388,7 +371,7 @@
   - length: { analysis_config.categorization_analyzer.filter: 1 }
   - match: { analysis_config.categorization_analyzer.tokenizer: "ml_standard" }
   - length: { analysis_config.categorization_analyzer.char_filter: 3 }
-  - match: { analysis_config.categorization_analyzer.char_filter.0: "first_non_blank_line" }
+  - match: { analysis_config.categorization_analyzer.char_filter.0: "first_line_with_letters" }
   - match: { analysis_config.categorization_analyzer.char_filter.1.pattern: "cat1.*" }
   - match: { analysis_config.categorization_analyzer.char_filter.2.pattern: "cat2.*" }
   - match: { analysis_config.bucket_span: "5m" }
@@ -872,14 +855,6 @@
         allow_no_match: true
   - match: { closed: true }
 
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      ml.close_job:
-        job_id: "missing-*"
-        allow_no_jobs: true
-  - match: { closed: true }
-
 ---
 "Test close jobs with expression that does not match and not allow_no_match":
   - skip:
@@ -890,14 +865,6 @@
       ml.close_job:
         job_id: "missing-*"
         allow_no_match: false
-
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      catch: missing
-      ml.close_job:
-        job_id: "missing-*"
-        allow_no_jobs: false
 
 ---
 "Test force close job":
@@ -1163,7 +1130,11 @@
   - is_false: jobs.0.datafeed_config
 ---
 "Test put job with datafeed with indices options in params":
+  - skip:
+      features: warnings
   - do:
+      warnings:
+        - "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. Consider cold or frozen tiers in place of frozen indices."
       ml.put_job:
         job_id: jobs-crud-put-with-datafeed-with-indices-options
         ignore_throttled: false
@@ -1202,9 +1173,9 @@
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             xpack.ml.max_model_memory_limit: "9g"
-  - match: {transient.xpack.ml.max_model_memory_limit: "9g"}
+  - match: {persistent.xpack.ml.max_model_memory_limit: "9g"}
 
   - do:
       ml.put_job:
@@ -1244,9 +1215,9 @@
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             xpack.ml.max_model_memory_limit: null
-  - match: {transient: {}}
+  - match: {persistent: {}}
 
   - do:
       ml.put_job:
@@ -1422,9 +1393,9 @@
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             cluster.persistent_tasks.allocation.enable: "none"
-  - match: {transient.cluster.persistent_tasks.allocation.enable: "none"}
+  - match: {persistent.cluster.persistent_tasks.allocation.enable: "none"}
 
   - do:
       ml.put_job:
@@ -1452,9 +1423,9 @@
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             cluster.persistent_tasks.allocation.enable: "all"
-  - match: {transient.cluster.persistent_tasks.allocation.enable: "all"}
+  - match: {persistent.cluster.persistent_tasks.allocation.enable: "all"}
 
   - do:
       ml.open_job:
@@ -1525,25 +1496,4 @@
         body:  >
           {
             "allow_no_match" : true
-          }
-
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      catch: missing
-      ml.close_job:
-        job_id: job-that-doesnot-exist*
-        body:  >
-          {
-            "allow_no_jobs" : false
-          }
-
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      ml.close_job:
-        job_id: job-that-doesnot-exist*
-        body:  >
-          {
-            "allow_no_jobs" : true
           }

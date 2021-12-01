@@ -4,7 +4,6 @@
 <titleabbrev>Vector tile search</titleabbrev>
 ++++
 
-experimental::[]
 
 Searches a vector tile for geospatial values. Returns results as a binary
 https://docs.mapbox.com/vector-tiles/specification[Mapbox vector tile].
@@ -51,7 +50,7 @@ https://github.com/mapbox/vector-tile-spec[Mapbox vector tile specification].
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or alias.
+or alias. For cross-cluster search, see <<cross-cluster-configuring>>.
 
 [[search-vector-tile-api-path-params]]
 ==== {api-path-parms-title}
@@ -60,6 +59,9 @@ or alias.
 (Required, string) Comma-separated list of data streams, indices, or aliases to
 search. Supports wildcards (`*`). To search all data streams and indices, omit
 this parameter or use `*` or `_all`.
++
+To search a remote cluster, use the `<cluster>:<target>` syntax. See
+<<modules-cross-cluster-search>>.
 
 `<field>`::
 (Required, string) Field containing geospatial values to return. Must be a
@@ -224,6 +226,11 @@ Each feature is a `Polygon` of the cell's bounding box.
 
 `point`:::
 Each feature is a `Point` that's the centroid of the cell.
+
+`centroid`:::
+Each feature is a `Point` that's the centroid of the data within the cell. For
+complex geometries, the actual centroid may be outside the cell. In these cases,
+the feature is set to the closest point to the centroid inside the cell.
 // end::grid-type[]
 
 // tag::size[]
@@ -232,6 +239,15 @@ Each feature is a `Point` that's the centroid of the cell.
 Accepts `0`-`10000`. Defaults to `10000`. If `0`, results don't include the
 `hits` layer.
 // end::size[]
+
+// tag::track_total_hits[]
+`track_total_hits`::
+(Optional, integer or Boolean)
+Number of hits matching the query to count accurately. Defaults to `10000`.
++
+If `true`, the exact number of hits is returned at the cost of some performance.
+If `false`, the response does not include the total number of hits matching the query.
+// end::track_total_hits[]
 
 [role="child_attributes"]
 [[search-vector-tile-api-request-body]]
@@ -243,10 +259,20 @@ Accepts `0`-`10000`. Defaults to `10000`. If `0`, results don't include the
 aggregation types:
 +
 * <<search-aggregations-metrics-avg-aggregation,`avg`>>
+* <<search-aggregations-metrics-boxplot-aggregation,`boxplot`>>
 * <<search-aggregations-metrics-cardinality-aggregation,`cardinality`>>
+* <<search-aggregations-metrics-extendedstats-aggregation,`extended stats`>>
 * <<search-aggregations-metrics-max-aggregation,`max`>>
+* <<search-aggregations-metrics-median-absolute-deviation-aggregation,`median absolute deviation`>>
 * <<search-aggregations-metrics-min-aggregation,`min`>>
+* <<search-aggregations-metrics-percentile-aggregation,`percentile`>>
+* <<search-aggregations-metrics-percentile-rank-aggregation,`percentile-rank`>>
+* <<search-aggregations-metrics-stats-aggregation,`stats`>>
 * <<search-aggregations-metrics-sum-aggregation,`sum`>>
+* <<search-aggregations-metrics-valuecount-aggregation,`value count`>>
++
+The aggregation names can't start with `_mvt_`. The `_mvt_` prefix is reserved
+for internal aggregations.
 
 include::search-vector-tile-api.asciidoc[tag=exact-bounds]
 
@@ -264,7 +290,7 @@ You can specify fields in the array as a string or object.
 .Properties of `fields` objects
 [%collapsible%open]
 ====
-include::search.asciidoc[tag=fields-api-props]
+include::search.asciidoc[tag=fields-param-props]
 ====
 
 include::search-vector-tile-api.asciidoc[tag=grid-precision]
@@ -285,6 +311,8 @@ include::search-vector-tile-api.asciidoc[tag=size]
 +
 By default, the API calculates a bounding box for each feature. It sorts
 features based on this box's diagonal length, from longest to shortest.
+
+include::search-vector-tile-api.asciidoc[tag=track_total_hits]
 
 [role="child_attributes"]
 [[search-vector-tile-api-response]]
@@ -346,6 +374,9 @@ value that matches the `geo_bounding_box` query.
 `_id`::
 (string) Document `_id` for the feature's document.
 
+`_index`::
+(string) Name of the index for the feature's document.
+
 `<field>`::
 Field value. Only returned for fields in the `fields` parameter.
 ======
@@ -392,7 +423,10 @@ include::search-vector-tile-api.asciidoc[tag=geometry]
 [%collapsible%open]
 ======
 `_count`::
-(string) Count of the cell's documents.
+(long) Count of the cell's documents.
+
+`_key`::
+(string) Bucket key of the cell in the format `<zoom>/<x>/<y>`.
 
 `<sub-aggregation>.value`::
 Sub-aggregation results for the cell. Only returned for sub-aggregations in the
@@ -599,6 +633,7 @@ tile contains the following data:
         },
         "properties": {
           "_id": "1",
+          "_index": "museums",
           "name": "NEMO Science Museum",
           "price": 1750
         },
@@ -615,6 +650,7 @@ tile contains the following data:
         },
         "properties": {
           "_id": "3",
+          "_index": "museums",
           "name": "Nederlands Scheepvaartmuseum",
           "price": 1650
         },
@@ -631,6 +667,7 @@ tile contains the following data:
         },
         "properties": {
           "_id": "4",
+          "_index": "museums",
           "name": "Amsterdam Centre for Architecture",
           "price": 0
         },

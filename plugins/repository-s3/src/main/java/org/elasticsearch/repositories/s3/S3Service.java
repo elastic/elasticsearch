@@ -18,6 +18,7 @@ import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.Constants;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -30,17 +31,18 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 
-
 class S3Service implements Closeable {
-    private static final Logger logger = LogManager.getLogger(S3Service.class);
+    private static final Logger LOGGER = LogManager.getLogger(S3Service.class);
 
     private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = emptyMap();
 
     /**
      * Client settings calculated from static configuration and settings in the keystore.
      */
-    private volatile Map<String, S3ClientSettings> staticClientSettings =
-            Map.of("default", S3ClientSettings.getClientSettings(Settings.EMPTY, "default"));
+    private volatile Map<String, S3ClientSettings> staticClientSettings = Map.of(
+        "default",
+        S3ClientSettings.getClientSettings(Settings.EMPTY, "default")
+    );
 
     /**
      * Client settings derived from those in {@link #staticClientSettings} by combining them with settings
@@ -115,14 +117,18 @@ class S3Service implements Closeable {
                 return newSettings;
             }
         }
-        throw new IllegalArgumentException("Unknown s3 client name [" + clientName + "]. Existing client configs: "
-            + Strings.collectionToDelimitedString(staticClientSettings.keySet(), ","));
+        throw new IllegalArgumentException(
+            "Unknown s3 client name ["
+                + clientName
+                + "]. Existing client configs: "
+                + Strings.collectionToDelimitedString(staticClientSettings.keySet(), ",")
+        );
     }
 
     // proxy for testing
     AmazonS3 buildClient(final S3ClientSettings clientSettings) {
         final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
-        builder.withCredentials(buildCredentials(logger, clientSettings));
+        builder.withCredentials(buildCredentials(LOGGER, clientSettings));
         builder.withClientConfiguration(buildConfiguration(clientSettings));
 
         String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
@@ -132,7 +138,7 @@ class S3Service implements Closeable {
             endpoint = clientSettings.protocol.toString() + "://" + endpoint;
         }
         final String region = Strings.hasLength(clientSettings.region) ? clientSettings.region : null;
-        logger.debug("using endpoint [{}] and region [{}]", endpoint, region);
+        LOGGER.debug("using endpoint [{}] and region [{}]", endpoint, region);
 
         // If the endpoint configuration isn't set on the builder then the default behaviour is to try
         // and work out what region we are in and use an appropriate endpoint - see AwsClientBuilder#setRegion.

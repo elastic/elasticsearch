@@ -72,15 +72,17 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                     matches.add(map(keyed.child()));
                 }
 
-                return new SequenceExec(p.source(),
-                        keys,
-                        matches,
-                        Expressions.asAttributes(s.until().keys()),
-                        map(s.until().child()),
-                        s.timestamp(),
-                        s.tiebreaker(),
-                        s.direction(),
-                        s.maxSpan());
+                return new SequenceExec(
+                    p.source(),
+                    keys,
+                    matches,
+                    Expressions.asAttributes(s.until().keys()),
+                    map(s.until().child()),
+                    s.timestamp(),
+                    s.tiebreaker(),
+                    s.direction(),
+                    s.maxSpan()
+                );
             }
 
             if (p instanceof LocalRelation) {

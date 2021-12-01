@@ -7,26 +7,33 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.InferenceConfigItemTestCase;
-import org.junit.Before;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.function.Predicate;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class TextClassificationConfigTests extends InferenceConfigItemTestCase<TextClassificationConfig> {
 
-    private boolean lenient;
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
 
-    @Before
-    public void chooseStrictOrLenient() {
-        lenient = randomBoolean();
+    @Override
+    protected Predicate<String> getRandomFieldsExcludeFilter() {
+        return field -> field.isEmpty() == false;
     }
 
     @Override
     protected TextClassificationConfig doParseInstance(XContentParser parser) throws IOException {
-        return lenient ? TextClassificationConfig.fromXContentLenient(parser) : TextClassificationConfig.fromXContentStrict(parser);
+        return TextClassificationConfig.fromXContentLenient(parser);
     }
 
     @Override
@@ -44,14 +51,28 @@ public class TextClassificationConfigTests extends InferenceConfigItemTestCase<T
         return instance;
     }
 
+    public void testInvalidClassificationLabels() {
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new TextClassificationConfig(null, null, null, null, null)
+        );
+
+        assertThat(e.getMessage(), containsString("[text_classification] requires at least 2 [classification_labels]; provided null"));
+
+        e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new TextClassificationConfig(null, null, List.of("too-few"), null, null)
+        );
+        assertThat(e.getMessage(), containsString("[text_classification] requires at least 2 [classification_labels]; provided [too-few]"));
+    }
+
     public static TextClassificationConfig createRandom() {
         return new TextClassificationConfig(
-            VocabularyConfigTests.createRandom(),
-            randomBoolean() ?
-                null :
-                randomFrom(BertTokenizationTests.createRandom(), DistilBertTokenizationTests.createRandom()),
-            randomBoolean() ? null : randomList(5, () -> randomAlphaOfLength(10)),
-            randomBoolean() ? null : randomIntBetween(-1, 10)
+            randomBoolean() ? null : VocabularyConfigTests.createRandom(),
+            randomBoolean() ? null : BertTokenizationTests.createRandom(),
+            randomList(2, 5, () -> randomAlphaOfLength(10)),
+            randomBoolean() ? null : randomBoolean() ? -1 : randomIntBetween(1, 10),
+            randomBoolean() ? null : randomAlphaOfLength(6)
         );
     }
 }

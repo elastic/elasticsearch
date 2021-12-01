@@ -11,10 +11,10 @@ package org.elasticsearch.client;
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -28,6 +28,7 @@ import static org.mockito.Mockito.mock;
  * This test works against a {@link RestHighLevelClient} subclass that simulates how custom response sections returned by
  * Elasticsearch plugins can be parsed using the high level client.
  */
+@SuppressWarnings("removal")
 public class RestHighLevelClientExtTests extends ESTestCase {
 
     private RestHighLevelClient restHighLevelClient;
@@ -51,7 +52,7 @@ public class RestHighLevelClientExtTests extends ESTestCase {
             BaseCustomResponseSection customSection = restHighLevelClient.parseEntity(jsonEntity, BaseCustomResponseSection::fromXContent);
             assertThat(customSection, instanceOf(CustomResponseSection2.class));
             CustomResponseSection2 customResponseSection2 = (CustomResponseSection2) customSection;
-            assertArrayEquals(new String[]{"item1", "item2"}, customResponseSection2.values);
+            assertArrayEquals(new String[] { "item1", "item2" }, customResponseSection2.values);
         }
     }
 
@@ -63,10 +64,20 @@ public class RestHighLevelClientExtTests extends ESTestCase {
 
         private static List<NamedXContentRegistry.Entry> getNamedXContentsExt() {
             List<NamedXContentRegistry.Entry> entries = new ArrayList<>();
-            entries.add(new NamedXContentRegistry.Entry(BaseCustomResponseSection.class, new ParseField("custom1"),
-                    CustomResponseSection1::fromXContent));
-            entries.add(new NamedXContentRegistry.Entry(BaseCustomResponseSection.class, new ParseField("custom2"),
-                    CustomResponseSection2::fromXContent));
+            entries.add(
+                new NamedXContentRegistry.Entry(
+                    BaseCustomResponseSection.class,
+                    new ParseField("custom1"),
+                    CustomResponseSection1::fromXContent
+                )
+            );
+            entries.add(
+                new NamedXContentRegistry.Entry(
+                    BaseCustomResponseSection.class,
+                    new ParseField("custom2"),
+                    CustomResponseSection2::fromXContent
+                )
+            );
             return entries;
         }
     }
@@ -115,7 +126,7 @@ public class RestHighLevelClientExtTests extends ESTestCase {
             assertEquals("array", parser.currentName());
             assertEquals(XContentParser.Token.START_ARRAY, parser.nextToken());
             List<String> values = new ArrayList<>();
-            while(parser.nextToken().isValue()) {
+            while (parser.nextToken().isValue()) {
                 values.add(parser.text());
             }
             assertEquals(XContentParser.Token.END_ARRAY, parser.currentToken());

@@ -50,8 +50,8 @@ public class SslSettingsLoader extends SslConfigurationLoader {
         setDefaultClientAuth(SslClientAuthenticationMode.REQUIRED);
     }
 
-    private <T> Map<String, Setting<? extends T>> mapOf(List<Setting<? extends T>> settings) {
-        return settings.stream().collect(Collectors.toMap(s -> s.getKey(), Function.identity()));
+    private <T> Map<String, Setting<? extends T>> mapOf(List<Setting<? extends T>> settingList) {
+        return settingList.stream().collect(Collectors.toMap(Setting::getKey, Function.identity()));
     }
 
     @Override
@@ -85,8 +85,13 @@ public class SslSettingsLoader extends SslConfigurationLoader {
             // This triggers deprecation warnings
             setting.get(settings);
         } else if (disabledSettings.containsKey(key) == false) {
-            throw new SslConfigException("The setting [" + key + "] is not supported, valid SSL settings are: ["
-                + Strings.collectionToCommaDelimitedString(standardSettings.keySet()) + "]");
+            throw new SslConfigException(
+                "The setting ["
+                    + key
+                    + "] is not supported, valid SSL settings are: ["
+                    + Strings.collectionToCommaDelimitedString(standardSettings.keySet())
+                    + "]"
+            );
         }
     }
 
@@ -94,8 +99,13 @@ public class SslSettingsLoader extends SslConfigurationLoader {
     protected char[] getSecureSetting(String key) {
         final Setting<? extends SecureString> setting = secureSettings.get(key);
         if (setting == null) {
-            throw new SslConfigException("The secure setting [" + key + "] is not supported, valid secure SSL settings are: ["
-                + Strings.collectionToCommaDelimitedString(secureSettings.keySet()) + "]");
+            throw new SslConfigException(
+                "The secure setting ["
+                    + key
+                    + "] is not supported, valid secure SSL settings are: ["
+                    + Strings.collectionToCommaDelimitedString(secureSettings.keySet())
+                    + "]"
+            );
         }
         return setting.exists(settings) ? setting.get(settings).getChars() : null;
     }

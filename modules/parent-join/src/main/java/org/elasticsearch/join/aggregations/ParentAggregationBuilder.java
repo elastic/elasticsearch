@@ -12,8 +12,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.join.mapper.Joiner;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -26,6 +24,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -53,8 +53,7 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
         this.childType = childType;
     }
 
-    protected ParentAggregationBuilder(ParentAggregationBuilder clone,
-                                         Builder factoriesBuilder, Map<String, Object> metadata) {
+    protected ParentAggregationBuilder(ParentAggregationBuilder clone, Builder factoriesBuilder, Map<String, Object> metadata) {
         super(clone, factoriesBuilder, metadata);
         this.childType = clone.childType;
         this.childFilter = clone.childFilter;
@@ -90,12 +89,13 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
     }
 
     @Override
-    protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
-                                                       ValuesSourceConfig config,
-                                                       AggregatorFactory parent,
-                                                       Builder subFactoriesBuilder) throws IOException {
-        return new ParentAggregatorFactory(name, config, childFilter, parentFilter, context, parent,
-                subFactoriesBuilder, metadata);
+    protected ValuesSourceAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        Builder subFactoriesBuilder
+    ) throws IOException {
+        return new ParentAggregatorFactory(name, config, childFilter, parentFilter, context, parent, subFactoriesBuilder, metadata);
     }
 
     @Override
@@ -132,8 +132,10 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
                 if ("type".equals(currentFieldName)) {
                     childType = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "]."
+                    );
                 }
             } else {
                 throw new ParsingException(parser.getTokenLocation(), "Unexpected token " + token + " in [" + aggregationName + "].");
@@ -141,8 +143,10 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
         }
 
         if (childType == null) {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "Missing [child_type] field for parent aggregation [" + aggregationName + "]");
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                "Missing [child_type] field for parent aggregation [" + aggregationName + "]"
+            );
         }
 
         return new ParentAggregationBuilder(aggregationName, childType);

@@ -9,10 +9,10 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,7 +40,9 @@ public class GetDatafeedRequest implements Validatable, ToXContentObject {
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetDatafeedRequest, Void> PARSER = new ConstructingObjectParser<>(
         "get_datafeed_request",
-        true, a -> new GetDatafeedRequest(a[0] == null ? new ArrayList<>() : (List<String>) a[0]));
+        true,
+        a -> new GetDatafeedRequest(a[0] == null ? new ArrayList<>() : (List<String>) a[0])
+    );
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), DATAFEED_IDS);
@@ -123,9 +125,9 @@ public class GetDatafeedRequest implements Validatable, ToXContentObject {
         }
 
         GetDatafeedRequest that = (GetDatafeedRequest) other;
-        return Objects.equals(datafeedIds, that.datafeedIds) &&
-            Objects.equals(allowNoMatch, that.allowNoMatch) &&
-            Objects.equals(excludeGenerated, that.excludeGenerated);
+        return Objects.equals(datafeedIds, that.datafeedIds)
+            && Objects.equals(allowNoMatch, that.allowNoMatch)
+            && Objects.equals(excludeGenerated, that.excludeGenerated);
     }
 
     @Override
@@ -133,7 +135,7 @@ public class GetDatafeedRequest implements Validatable, ToXContentObject {
         builder.startObject();
 
         if (datafeedIds.isEmpty() == false) {
-            builder.field(DATAFEED_IDS.getPreferredName(), datafeedIds);
+            builder.stringListField(DATAFEED_IDS.getPreferredName(), datafeedIds);
         }
 
         if (allowNoMatch != null) {

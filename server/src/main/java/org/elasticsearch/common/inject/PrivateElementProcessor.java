@@ -39,10 +39,7 @@ class PrivateElementProcessor extends AbstractProcessor {
 
     @Override
     public Boolean visit(PrivateElements privateElements) {
-        InjectorShell.Builder builder = new InjectorShell.Builder()
-                .parent(injector)
-                .stage(stage)
-                .privateElements(privateElements);
+        InjectorShell.Builder builder = new InjectorShell.Builder().parent(injector).stage(stage).privateElements(privateElements);
         injectorShellBuilders.add(builder);
         return true;
     }

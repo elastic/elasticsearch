@@ -16,8 +16,10 @@ import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Supplier;
 
 public class IndexFieldMapper extends MetadataFieldMapper {
@@ -65,7 +67,15 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            return new ValueFetcher() {
+
+                private final List<Object> indexName = List.of(context.getFullyQualifiedIndex().getName());
+
+                @Override
+                public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
+                    return indexName;
+                }
+            };
         }
     }
 

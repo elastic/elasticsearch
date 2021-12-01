@@ -15,12 +15,12 @@ import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfigTests;
 import org.elasticsearch.client.rollup.job.config.TermsGroupConfig;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -55,12 +55,7 @@ abstract class RollupCapsResponseTestCase<T> extends ESTestCase {
     }
 
     public void testFromXContent() throws IOException {
-        xContentTester(
-            this::createParser,
-            this::createTestInstance,
-            this::toXContent,
-            this::fromXContent)
-            .supportsUnknownFields(true)
+        xContentTester(this::createParser, this::createTestInstance, this::toXContent, this::fromXContent).supportsUnknownFields(true)
             .randomFieldsExcludeFilter(randomFieldsExcludeFilter())
             .shuffleFieldsExceptions(shuffleFieldsExceptions())
             .test();
@@ -68,16 +63,17 @@ abstract class RollupCapsResponseTestCase<T> extends ESTestCase {
 
     @Before
     private void setupIndices() throws IOException {
-        int numIndices = randomIntBetween(1,5);
+        int numIndices = randomIntBetween(1, 5);
         indices = new HashMap<>(numIndices);
         for (int i = 0; i < numIndices; i++) {
             String indexName = "index_" + randomAlphaOfLength(10);
-            int numJobs = randomIntBetween(1,5);
+            int numJobs = randomIntBetween(1, 5);
             List<RollupJobCaps> jobs = new ArrayList<>(numJobs);
             for (int j = 0; j < numJobs; j++) {
                 RollupJobConfig config = RollupJobConfigTests.randomRollupJobConfig(randomAlphaOfLength(10));
-                jobs.add(new RollupJobCaps(config.getId(), config.getIndexPattern(),
-                    config.getRollupIndex(), createRollupFieldCaps(config)));
+                jobs.add(
+                    new RollupJobCaps(config.getId(), config.getIndexPattern(), config.getRollupIndex(), createRollupFieldCaps(config))
+                );
             }
             RollableIndexCaps cap = new RollableIndexCaps(indexName, jobs);
             indices.put(indexName, cap);
@@ -135,21 +131,22 @@ abstract class RollupCapsResponseTestCase<T> extends ESTestCase {
         final List<MetricConfig> metricsConfig = rollupJobConfig.getMetricsConfig();
         if (metricsConfig.size() > 0) {
             rollupJobConfig.getMetricsConfig().forEach(metricConfig -> {
-                final List<Map<String, Object>> metrics = metricConfig.getMetrics().stream()
+                final List<Map<String, Object>> metrics = metricConfig.getMetrics()
+                    .stream()
                     .map(metric -> singletonMap("agg", (Object) metric))
                     .collect(Collectors.toList());
                 metrics.forEach(m -> {
-                    List<Map<String, Object>> caps = tempFieldCaps
-                        .getOrDefault(metricConfig.getField(), new ArrayList<>());
+                    List<Map<String, Object>> caps = tempFieldCaps.getOrDefault(metricConfig.getField(), new ArrayList<>());
                     caps.add(m);
                     tempFieldCaps.put(metricConfig.getField(), caps);
                 });
             });
         }
 
-        return Collections.unmodifiableMap(tempFieldCaps.entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey,
-                e -> new RollupJobCaps.RollupFieldCaps(e.getValue()))));
+        return Collections.unmodifiableMap(
+            tempFieldCaps.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> new RollupJobCaps.RollupFieldCaps(e.getValue())))
+        );
     }
 }

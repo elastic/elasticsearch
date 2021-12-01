@@ -7,18 +7,17 @@
  */
 package org.elasticsearch.client.ml.inference.preprocessing;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-
 
 /**
  * PreProcessor for target mean encoding a set of categorical values for a given field.
@@ -36,13 +35,16 @@ public class TargetMeanEncoding implements PreProcessor {
     public static final ConstructingObjectParser<TargetMeanEncoding, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new TargetMeanEncoding((String)a[0], (String)a[1], (Map<String, Double>)a[2], (Double)a[3], (Boolean)a[4]));
+        a -> new TargetMeanEncoding((String) a[0], (String) a[1], (Map<String, Double>) a[2], (Double) a[3], (Boolean) a[4])
+    );
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), FEATURE_NAME);
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(),
+        PARSER.declareObject(
+            ConstructingObjectParser.constructorArg(),
             (p, c) -> p.map(HashMap::new, XContentParser::doubleValue),
-            TARGET_MAP);
+            TARGET_MAP
+        );
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), DEFAULT_VALUE);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), CUSTOM);
     }
@@ -133,8 +135,8 @@ public class TargetMeanEncoding implements PreProcessor {
         return Objects.hash(field, featureName, meanMap, defaultValue, custom);
     }
 
-    public Builder builder(String field) {
-        return new Builder(field);
+    public Builder builder(String fieldName) {
+        return new Builder(fieldName);
     }
 
     public static class Builder {

@@ -16,7 +16,7 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
@@ -31,6 +31,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(path: xpackModule('spatial'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+  compileOnly "org.locationtech.jts:jts-core:${versions.jts}"
   api "com.wdtinc:mapbox-vector-tile:3.1.0"
   api "com.google.protobuf:protobuf-java:3.14.0"
   runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")
@@ -40,7 +41,7 @@ dependencies {
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-testClusters.all {
+testClusters.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'

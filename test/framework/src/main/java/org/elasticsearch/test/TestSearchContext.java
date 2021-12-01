@@ -10,7 +10,6 @@ package org.elasticsearch.test;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.core.TimeValue;
@@ -54,8 +53,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 
 public class TestSearchContext extends SearchContext {
-    public static final SearchShardTarget SHARD_TARGET =
-        new SearchShardTarget("test", new ShardId("test", "test", 0), null, OriginalIndices.NONE);
+    public static final SearchShardTarget SHARD_TARGET = new SearchShardTarget("test", new ShardId("test", "test", 0), null);
 
     final IndexService indexService;
     final BitsetFilterCache fixedBitSetFilterCache;
@@ -78,6 +76,7 @@ public class TestSearchContext extends SearchContext {
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private SearchContextAggregations aggregations;
     private ScrollContext scrollContext;
+    private FieldDoc searchAfter;
     private final ShardSearchRequest request;
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
@@ -98,8 +97,12 @@ public class TestSearchContext extends SearchContext {
         this(searchExecutionContext, indexShard, searcher, null);
     }
 
-    public TestSearchContext(SearchExecutionContext searchExecutionContext, IndexShard indexShard,
-                             ContextIndexSearcher searcher, ScrollContext scrollContext) {
+    public TestSearchContext(
+        SearchExecutionContext searchExecutionContext,
+        IndexShard indexShard,
+        ContextIndexSearcher searcher,
+        ScrollContext scrollContext
+    ) {
         this.indexService = null;
         this.fixedBitSetFilterCache = null;
         this.indexShard = indexShard;
@@ -115,11 +118,10 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void preProcess(boolean rewrite) {
-    }
+    public void preProcess() {}
 
     @Override
-    public Query buildFilteredQuery(Query query) {
+    public Query buildFilteredQuery(Query q) {
         return null;
     }
 
@@ -164,8 +166,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext aggregations(SearchContextAggregations aggregations) {
-        this.aggregations = aggregations;
+    public SearchContext aggregations(SearchContextAggregations searchContextAggregations) {
+        this.aggregations = searchContextAggregations;
         return this;
     }
 
@@ -185,8 +187,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void highlight(SearchHighlightContext highlight) {
-    }
+    public void highlight(SearchHighlightContext highlight) {}
 
     @Override
     public SuggestionSearchContext suggest() {
@@ -194,8 +195,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void suggest(SuggestionSearchContext suggest) {
-    }
+    public void suggest(SuggestionSearchContext suggest) {}
 
     @Override
     public List<RescoreContext> rescore() {
@@ -273,8 +273,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void timeout(TimeValue timeout) {
-    }
+    public void timeout(TimeValue timeout) {}
 
     @Override
     public int terminateAfter() {
@@ -303,8 +302,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext sort(SortAndFormats sort) {
-        this.sort = sort;
+    public SearchContext sort(SortAndFormats sortAndFormats) {
+        this.sort = sortAndFormats;
         return this;
     }
 
@@ -314,8 +313,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext trackScores(boolean trackScores) {
-        this.trackScores = trackScores;
+    public SearchContext trackScores(boolean shouldTrackScores) {
+        this.trackScores = shouldTrackScores;
         return this;
     }
 
@@ -325,8 +324,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext trackTotalHitsUpTo(int trackTotalHitsUpTo) {
-        this.trackTotalHitsUpTo = trackTotalHitsUpTo;
+    public SearchContext trackTotalHitsUpTo(int trackTotalHitsUpToValue) {
+        this.trackTotalHitsUpTo = trackTotalHitsUpToValue;
         return this;
     }
 
@@ -336,13 +335,14 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext searchAfter(FieldDoc searchAfter) {
-        return null;
+    public SearchContext searchAfter(FieldDoc searchAfterDoc) {
+        this.searchAfter = searchAfterDoc;
+        return this;
     }
 
     @Override
     public FieldDoc searchAfter() {
-        return null;
+        return searchAfter;
     }
 
     @Override
@@ -356,8 +356,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext parsedPostFilter(ParsedQuery postFilter) {
-        this.postFilter = postFilter;
+    public SearchContext parsedPostFilter(ParsedQuery postFilterQuery) {
+        this.postFilter = postFilterQuery;
         return this;
     }
 
@@ -367,9 +367,9 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext parsedQuery(ParsedQuery query) {
-        this.originalQuery = query;
-        this.query = query.query();
+    public SearchContext parsedQuery(ParsedQuery parsedQuery) {
+        this.originalQuery = parsedQuery;
+        this.query = parsedQuery.query();
         return this;
     }
 
@@ -389,8 +389,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext from(int from) {
-        this.from = from;
+    public SearchContext from(int fromValue) {
+        this.from = fromValue;
         return this;
     }
 
@@ -403,9 +403,8 @@ public class TestSearchContext extends SearchContext {
         this.size = size;
     }
 
-
     @Override
-    public SearchContext size(int size) {
+    public SearchContext size(int sizeValue) {
         return null;
     }
 
@@ -430,8 +429,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void explain(boolean explain) {
-    }
+    public void explain(boolean explain) {}
 
     @Override
     public List<String> groupStats() {
@@ -439,8 +437,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void groupStats(List<String> groupStats) {
-    }
+    public void groupStats(List<String> groupStats) {}
 
     @Override
     public boolean version() {
@@ -448,8 +445,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public void version(boolean version) {
-    }
+    public void version(boolean version) {}
 
     @Override
     public boolean seqNoAndPrimaryTerm() {
@@ -507,7 +503,9 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() {return queryCollectors;}
+    public Map<Class<?>, Collector> queryCollectors() {
+        return queryCollectors;
+    }
 
     @Override
     public SearchExecutionContext getSearchExecutionContext() {

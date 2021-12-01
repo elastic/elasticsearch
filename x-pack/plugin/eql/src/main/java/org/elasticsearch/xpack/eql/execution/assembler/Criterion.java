@@ -28,13 +28,15 @@ public class Criterion<Q extends QueryRequest> {
     private final boolean descending;
     private final int keySize;
 
-    public Criterion(int stage,
-              Q queryRequest,
-              List<HitExtractor> keys,
-              HitExtractor timestamp,
-              HitExtractor tiebreaker,
-              HitExtractor implicitTiebreaker,
-              boolean descending) {
+    public Criterion(
+        int stage,
+        Q queryRequest,
+        List<HitExtractor> keys,
+        HitExtractor timestamp,
+        HitExtractor tiebreaker,
+        HitExtractor implicitTiebreaker,
+        boolean descending
+    ) {
         this.stage = stage;
         this.queryRequest = queryRequest;
         this.keys = keys;

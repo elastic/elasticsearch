@@ -15,8 +15,6 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimary
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -25,8 +23,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -38,6 +35,9 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,8 +58,10 @@ public final class NetworkModule {
     public static final String HTTP_TYPE_DEFAULT_KEY = "http.type.default";
     public static final String TRANSPORT_TYPE_DEFAULT_KEY = "transport.type.default";
 
-    public static final Setting<String> TRANSPORT_DEFAULT_TYPE_SETTING = Setting.simpleString(TRANSPORT_TYPE_DEFAULT_KEY,
-            Property.NodeScope);
+    public static final Setting<String> TRANSPORT_DEFAULT_TYPE_SETTING = Setting.simpleString(
+        TRANSPORT_TYPE_DEFAULT_KEY,
+        Property.NodeScope
+    );
     public static final Setting<String> HTTP_DEFAULT_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_DEFAULT_KEY, Property.NodeScope);
     public static final Setting<String> HTTP_TYPE_SETTING = Setting.simpleString(HTTP_TYPE_KEY, Property.NodeScope);
     public static final Setting<String> TRANSPORT_TYPE_SETTING = Setting.simpleString(TRANSPORT_TYPE_KEY, Property.NodeScope);
@@ -70,22 +72,34 @@ public final class NetworkModule {
     private static final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
 
     static {
-        registerAllocationCommand(CancelAllocationCommand::new, CancelAllocationCommand::fromXContent,
-            CancelAllocationCommand.COMMAND_NAME_FIELD);
-        registerAllocationCommand(MoveAllocationCommand::new, MoveAllocationCommand::fromXContent,
-            MoveAllocationCommand.COMMAND_NAME_FIELD);
-        registerAllocationCommand(AllocateReplicaAllocationCommand::new, AllocateReplicaAllocationCommand::fromXContent,
-            AllocateReplicaAllocationCommand.COMMAND_NAME_FIELD);
-        registerAllocationCommand(AllocateEmptyPrimaryAllocationCommand::new, AllocateEmptyPrimaryAllocationCommand::fromXContent,
-            AllocateEmptyPrimaryAllocationCommand.COMMAND_NAME_FIELD);
-        registerAllocationCommand(AllocateStalePrimaryAllocationCommand::new, AllocateStalePrimaryAllocationCommand::fromXContent,
-            AllocateStalePrimaryAllocationCommand.COMMAND_NAME_FIELD);
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(Task.Status.class, ReplicationTask.Status.NAME, ReplicationTask.Status::new));
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new));
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(Task.Status.class, ResyncTask.Status.NAME, ResyncTask.Status::new));
+        registerAllocationCommand(
+            CancelAllocationCommand::new,
+            CancelAllocationCommand::fromXContent,
+            CancelAllocationCommand.COMMAND_NAME_FIELD
+        );
+        registerAllocationCommand(
+            MoveAllocationCommand::new,
+            MoveAllocationCommand::fromXContent,
+            MoveAllocationCommand.COMMAND_NAME_FIELD
+        );
+        registerAllocationCommand(
+            AllocateReplicaAllocationCommand::new,
+            AllocateReplicaAllocationCommand::fromXContent,
+            AllocateReplicaAllocationCommand.COMMAND_NAME_FIELD
+        );
+        registerAllocationCommand(
+            AllocateEmptyPrimaryAllocationCommand::new,
+            AllocateEmptyPrimaryAllocationCommand::fromXContent,
+            AllocateEmptyPrimaryAllocationCommand.COMMAND_NAME_FIELD
+        );
+        registerAllocationCommand(
+            AllocateStalePrimaryAllocationCommand::new,
+            AllocateStalePrimaryAllocationCommand::fromXContent,
+            AllocateStalePrimaryAllocationCommand.COMMAND_NAME_FIELD
+        );
+        namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, ReplicationTask.Status.NAME, ReplicationTask.Status::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, RawTaskStatus.NAME, RawTaskStatus::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(Task.Status.class, ResyncTask.Status.NAME, ResyncTask.Status::new));
     }
 
     private final Map<String, Supplier<Transport>> transportFactories = new HashMap<>();
@@ -96,28 +110,50 @@ public final class NetworkModule {
      * Creates a network module that custom networking classes can be plugged into.
      * @param settings The settings for the node
      */
-    public NetworkModule(Settings settings, List<NetworkPlugin> plugins, ThreadPool threadPool,
-                         BigArrays bigArrays,
-                         PageCacheRecycler pageCacheRecycler,
-                         CircuitBreakerService circuitBreakerService,
-                         NamedWriteableRegistry namedWriteableRegistry,
-                         NamedXContentRegistry xContentRegistry,
-                         NetworkService networkService, HttpServerTransport.Dispatcher dispatcher,
-                         ClusterSettings clusterSettings) {
+    public NetworkModule(
+        Settings settings,
+        List<NetworkPlugin> plugins,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NamedXContentRegistry xContentRegistry,
+        NetworkService networkService,
+        HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings
+    ) {
         this.settings = settings;
         for (NetworkPlugin plugin : plugins) {
-            Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(settings, threadPool, bigArrays,
-                pageCacheRecycler, circuitBreakerService, xContentRegistry, networkService, dispatcher, clusterSettings);
+            Map<String, Supplier<HttpServerTransport>> httpTransportFactory = plugin.getHttpTransports(
+                settings,
+                threadPool,
+                bigArrays,
+                pageCacheRecycler,
+                circuitBreakerService,
+                xContentRegistry,
+                networkService,
+                dispatcher,
+                clusterSettings
+            );
             for (Map.Entry<String, Supplier<HttpServerTransport>> entry : httpTransportFactory.entrySet()) {
                 registerHttpTransport(entry.getKey(), entry.getValue());
             }
-            Map<String, Supplier<Transport>> transportFactory = plugin.getTransports(settings, threadPool, pageCacheRecycler,
-                circuitBreakerService, namedWriteableRegistry, networkService);
+            Map<String, Supplier<Transport>> transportFactory = plugin.getTransports(
+                settings,
+                threadPool,
+                pageCacheRecycler,
+                circuitBreakerService,
+                namedWriteableRegistry,
+                networkService
+            );
             for (Map.Entry<String, Supplier<Transport>> entry : transportFactory.entrySet()) {
                 registerTransport(entry.getKey(), entry.getValue());
             }
-            List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors(namedWriteableRegistry,
-                threadPool.getThreadContext());
+            List<TransportInterceptor> transportInterceptors = plugin.getTransportInterceptors(
+                namedWriteableRegistry,
+                threadPool.getThreadContext()
+            );
             for (TransportInterceptor interceptor : transportInterceptors) {
                 registerTransportInterceptor(interceptor);
             }
@@ -142,14 +178,17 @@ public final class NetworkModule {
     // this lives here instead of the more aptly named ClusterModule because it used to be used by the Transport client
     /**
      * Register an allocation command.
-     * <p>
+     *
      * @param reader the reader to read it from a stream
      * @param parser the parser to read it from XContent
      * @param commandName the names under which the command should be parsed. The {@link ParseField#getPreferredName()} is special because
      *        it is the name under which the command's reader is registered.
      */
-    private static <T extends AllocationCommand> void registerAllocationCommand(Writeable.Reader<T> reader,
-            CheckedFunction<XContentParser, T, IOException> parser, ParseField commandName) {
+    private static <T extends AllocationCommand> void registerAllocationCommand(
+        Writeable.Reader<T> reader,
+        CheckedFunction<XContentParser, T, IOException> parser,
+        ParseField commandName
+    ) {
         namedXContents.add(new NamedXContentRegistry.Entry(AllocationCommand.class, commandName, parser));
         namedWriteables.add(new NamedWriteableRegistry.Entry(AllocationCommand.class, commandName.getPreferredName(), reader));
     }
@@ -213,9 +252,12 @@ public final class NetworkModule {
         }
 
         @Override
-        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(String action, String executor,
-                                                                                        boolean forceExecution,
-                                                                                        TransportRequestHandler<T> actualHandler) {
+        public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+            String action,
+            String executor,
+            boolean forceExecution,
+            TransportRequestHandler<T> actualHandler
+        ) {
             for (TransportInterceptor interceptor : this.transportInterceptors) {
                 actualHandler = interceptor.interceptHandler(action, executor, forceExecution, actualHandler);
             }

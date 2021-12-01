@@ -10,6 +10,8 @@ package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
@@ -20,6 +22,8 @@ import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -54,28 +58,52 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 public class DiscoveryModule {
     private static final Logger logger = LogManager.getLogger(DiscoveryModule.class);
 
-    public static final String ZEN2_DISCOVERY_TYPE = "zen";
-
+    public static final String MULTI_NODE_DISCOVERY_TYPE = "multi-node";
     public static final String SINGLE_NODE_DISCOVERY_TYPE = "single-node";
+    @Deprecated
+    public static final String LEGACY_MULTI_NODE_DISCOVERY_TYPE = "zen";
 
-    public static final Setting<String> DISCOVERY_TYPE_SETTING =
-        new Setting<>("discovery.type", ZEN2_DISCOVERY_TYPE, Function.identity(), Property.NodeScope);
-    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING =
-        Setting.listSetting("discovery.seed_providers", Collections.emptyList(), Function.identity(),
-            Property.NodeScope);
+    public static final Setting<String> DISCOVERY_TYPE_SETTING = new Setting<>(
+        "discovery.type",
+        MULTI_NODE_DISCOVERY_TYPE,
+        Function.identity(),
+        Property.NodeScope
+    );
+
+    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING = Setting.listSetting(
+        "discovery.seed_providers",
+        Collections.emptyList(),
+        Function.identity(),
+        Property.NodeScope
+    );
 
     public static final String DEFAULT_ELECTION_STRATEGY = "default";
 
-    public static final Setting<String> ELECTION_STRATEGY_SETTING =
-        new Setting<>("cluster.election.strategy", DEFAULT_ELECTION_STRATEGY, Function.identity(), Property.NodeScope);
+    public static final Setting<String> ELECTION_STRATEGY_SETTING = new Setting<>(
+        "cluster.election.strategy",
+        DEFAULT_ELECTION_STRATEGY,
+        Function.identity(),
+        Property.NodeScope
+    );
 
-    private final Discovery discovery;
+    private final Coordinator coordinator;
 
-    public DiscoveryModule(Settings settings, TransportService transportService,
-                           NamedWriteableRegistry namedWriteableRegistry, NetworkService networkService, MasterService masterService,
-                           ClusterApplier clusterApplier, ClusterSettings clusterSettings, List<DiscoveryPlugin> plugins,
-                           AllocationService allocationService, Path configFile, GatewayMetaState gatewayMetaState,
-                           RerouteService rerouteService, NodeHealthService nodeHealthService) {
+    public DiscoveryModule(
+        Settings settings,
+        TransportService transportService,
+        Client client,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NetworkService networkService,
+        MasterService masterService,
+        ClusterApplier clusterApplier,
+        ClusterSettings clusterSettings,
+        List<DiscoveryPlugin> plugins,
+        AllocationService allocationService,
+        Path configFile,
+        GatewayMetaState gatewayMetaState,
+        RerouteService rerouteService,
+        NodeHealthService nodeHealthService
+    ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
         hostProviders.put("settings", () -> new SettingsBasedSeedHostsProvider(settings, transportService));
@@ -115,7 +143,9 @@ public class DiscoveryModule {
         }
 
         List<SeedHostsProvider> filteredSeedProviders = seedProviderNames.stream()
-            .map(hostProviders::get).map(Supplier::get).collect(Collectors.toList());
+            .map(hostProviders::get)
+            .map(Supplier::get)
+            .collect(Collectors.toList());
 
         String discoveryType = DISCOVERY_TYPE_SETTING.get(settings);
 
@@ -132,12 +162,41 @@ public class DiscoveryModule {
             throw new IllegalArgumentException("Unknown election strategy " + ELECTION_STRATEGY_SETTING.get(settings));
         }
 
-        if (ZEN2_DISCOVERY_TYPE.equals(discoveryType) || SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
-            discovery = new Coordinator(NODE_NAME_SETTING.get(settings),
-                settings, clusterSettings,
-                transportService, namedWriteableRegistry, allocationService, masterService, gatewayMetaState::getPersistedState,
-                seedHostsProvider, clusterApplier, joinValidators, new Random(Randomness.get().nextLong()), rerouteService,
-                electionStrategy, nodeHealthService);
+        if (LEGACY_MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
+            assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
+            DeprecationLogger.getLogger(DiscoveryModule.class)
+                .critical(
+                    DeprecationCategory.SETTINGS,
+                    "legacy-discovery-type",
+                    "Support for setting [{}] to [{}] is deprecated and will be removed in a future version. Set this setting to [{}] "
+                        + "instead.",
+                    DISCOVERY_TYPE_SETTING.getKey(),
+                    LEGACY_MULTI_NODE_DISCOVERY_TYPE,
+                    MULTI_NODE_DISCOVERY_TYPE
+                );
+        }
+
+        if (MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)
+            || LEGACY_MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)
+            || SINGLE_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
+            coordinator = new Coordinator(
+                NODE_NAME_SETTING.get(settings),
+                settings,
+                clusterSettings,
+                transportService,
+                client,
+                namedWriteableRegistry,
+                allocationService,
+                masterService,
+                gatewayMetaState::getPersistedState,
+                seedHostsProvider,
+                clusterApplier,
+                joinValidators,
+                new Random(Randomness.get().nextLong()),
+                rerouteService,
+                electionStrategy,
+                nodeHealthService
+            );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
         }
@@ -149,7 +208,7 @@ public class DiscoveryModule {
         return SINGLE_NODE_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(settings));
     }
 
-    public Discovery getDiscovery() {
-        return discovery;
+    public Coordinator getCoordinator() {
+        return coordinator;
     }
 }

@@ -17,15 +17,16 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -64,12 +65,26 @@ public class InboundHandlerTests extends ESTestCase {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         TransportHandshaker handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {});
         TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, TcpChannel::sendMessage);
-        OutboundHandler outboundHandler = new OutboundHandler("node", version, new StatsTracker(), threadPool,
-            BigArrays.NON_RECYCLING_INSTANCE);
+        OutboundHandler outboundHandler = new OutboundHandler(
+            "node",
+            version,
+            new StatsTracker(),
+            threadPool,
+            new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE),
+            new HandlingTimeTracker()
+        );
         requestHandlers = new Transport.RequestHandlers();
         responseHandlers = new Transport.ResponseHandlers();
-        handler = new InboundHandler(threadPool, outboundHandler, namedWriteableRegistry, handshaker, keepAlive, requestHandlers,
-            responseHandlers);
+        handler = new InboundHandler(
+            threadPool,
+            outboundHandler,
+            namedWriteableRegistry,
+            handshaker,
+            keepAlive,
+            requestHandlers,
+            responseHandlers,
+            new HandlingTimeTracker()
+        );
     }
 
     @After
@@ -80,8 +95,15 @@ public class InboundHandlerTests extends ESTestCase {
 
     public void testPing() throws Exception {
         AtomicReference<TransportChannel> channelCaptor = new AtomicReference<>();
-        RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>("test-request", TestRequest::new, taskManager,
-            (request, channel, task) -> channelCaptor.set(channel), ThreadPool.Names.SAME, false, true);
+        RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
+            "test-request",
+            TestRequest::new,
+            taskManager,
+            (request, channel, task) -> channelCaptor.set(channel),
+            ThreadPool.Names.SAME,
+            false,
+            true
+        );
         requestHandlers.registerHandler(registry);
 
         handler.inboundMessage(channel, new InboundMessage(null, true));
@@ -117,17 +139,32 @@ public class InboundHandlerTests extends ESTestCase {
                 return new TestResponse(in);
             }
         }, null, action));
-        RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(action, TestRequest::new, taskManager,
+        RequestHandlerRegistry<TestRequest> registry = new RequestHandlerRegistry<>(
+            action,
+            TestRequest::new,
+            taskManager,
             (request, channel, task) -> {
                 channelCaptor.set(channel);
                 requestCaptor.set(request);
-            }, ThreadPool.Names.SAME, false, true);
+            },
+            ThreadPool.Names.SAME,
+            false,
+            true
+        );
         requestHandlers.registerHandler(registry);
         String requestValue = randomAlphaOfLength(10);
-        OutboundMessage.Request request = new OutboundMessage.Request(threadPool.getThreadContext(),
-            new TestRequest(requestValue), version, action, requestId, false, null);
+        OutboundMessage.Request request = new OutboundMessage.Request(
+            threadPool.getThreadContext(),
+            new TestRequest(requestValue),
+            version,
+            action,
+            requestId,
+            false,
+            null
+        );
 
-        BytesReference fullRequestBytes = request.serialize(new BytesStreamOutput());
+        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+        BytesReference fullRequestBytes = request.serialize(new RecyclerBytesStreamOutput(recycler));
         BytesReference requestContent = fullRequestBytes.slice(headerSize, fullRequestBytes.length() - headerSize);
         Header requestHeader = new Header(fullRequestBytes.length() - 6, requestId, TransportStatus.setRequest((byte) 0), version);
         InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.wrap(requestContent), () -> {});
@@ -172,8 +209,12 @@ public class InboundHandlerTests extends ESTestCase {
 
         final Version remoteVersion = VersionUtils.randomCompatibleVersion(random(), version);
         final long requestId = randomNonNegativeLong();
-        final Header requestHeader = new Header(between(0, 100), requestId,
-            TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)), remoteVersion);
+        final Header requestHeader = new Header(
+            between(0, 100),
+            requestId,
+            TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)),
+            remoteVersion
+        );
         final InboundMessage requestMessage = unreadableInboundHandshake(remoteVersion, requestHeader);
         requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
         requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
@@ -184,7 +225,6 @@ public class InboundHandlerTests extends ESTestCase {
         assertTrue(responseHeader.isResponse());
         assertTrue(responseHeader.isError());
     }
-
 
     public void testClosesChannelOnErrorInHandshakeWithIncompatibleVersion() throws Exception {
         // Nodes use their minimum compatibility version for the TCP handshake, so a node from v(major-1).x will report its version as
@@ -200,7 +240,9 @@ public class InboundHandlerTests extends ESTestCase {
                 "expected message",
                 InboundHandler.class.getCanonicalName(),
                 Level.WARN,
-                "could not send error response to handshake"));
+                "could not send error response to handshake"
+            )
+        );
         final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
         Loggers.addAppender(inboundHandlerLogger, mockAppender);
 
@@ -210,8 +252,12 @@ public class InboundHandlerTests extends ESTestCase {
 
             final Version remoteVersion = Version.fromId(randomIntBetween(0, version.minimumCompatibilityVersion().id - 1));
             final long requestId = randomNonNegativeLong();
-            final Header requestHeader = new Header(between(0, 100), requestId,
-                TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)), remoteVersion);
+            final Header requestHeader = new Header(
+                between(0, 100),
+                requestId,
+                TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)),
+                remoteVersion
+            );
             final InboundMessage requestMessage = unreadableInboundHandshake(remoteVersion, requestHeader);
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
             requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
@@ -228,33 +274,68 @@ public class InboundHandlerTests extends ESTestCase {
     public void testLogsSlowInboundProcessing() throws Exception {
         final MockLogAppender mockAppender = new MockLogAppender();
         mockAppender.start();
-        mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                        "expected message",
-                        InboundHandler.class.getCanonicalName(),
-                        Level.WARN,
-                        "handling inbound transport message "));
         final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
         Loggers.addAppender(inboundHandlerLogger, mockAppender);
 
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
         try {
             final Version remoteVersion = Version.CURRENT;
+
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "expected slow request",
+                    InboundHandler.class.getCanonicalName(),
+                    Level.WARN,
+                    "handling request "
+                )
+            );
+
             final long requestId = randomNonNegativeLong();
-            final Header requestHeader = new Header(between(0, 100), requestId,
-                    TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)), remoteVersion);
-            final InboundMessage requestMessage =
-                    new InboundMessage(requestHeader, ReleasableBytesReference.wrap(BytesArray.EMPTY), () -> {
-                        try {
-                            TimeUnit.SECONDS.sleep(1L);
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
-                    });
+            final Header requestHeader = new Header(
+                between(0, 100),
+                requestId,
+                TransportStatus.setRequest(TransportStatus.setHandshake((byte) 0)),
+                remoteVersion
+            );
+            final InboundMessage requestMessage = new InboundMessage(requestHeader, ReleasableBytesReference.empty(), () -> {
+                try {
+                    TimeUnit.SECONDS.sleep(1L);
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            });
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
             requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
             handler.inboundMessage(channel, requestMessage);
             assertNotNull(channel.getMessageCaptor().get());
+            mockAppender.assertAllExpectationsMatched();
+
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "expected slow response",
+                    InboundHandler.class.getCanonicalName(),
+                    Level.WARN,
+                    "handling response "
+                )
+            );
+
+            final long responseId = randomNonNegativeLong();
+            final Header responseHeader = new Header(between(0, 100), responseId, TransportStatus.setResponse((byte) 0), remoteVersion);
+            responseHeader.headers = Tuple.tuple(Map.of(), Map.of());
+            handler.setMessageListener(new TransportMessageListener() {
+                @Override
+                @SuppressWarnings("rawtypes")
+                public void onResponseReceived(long requestId, Transport.ResponseContext context) {
+                    assertEquals(responseId, requestId);
+                    try {
+                        TimeUnit.SECONDS.sleep(1L);
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            });
+            handler.inboundMessage(channel, new InboundMessage(responseHeader, ReleasableBytesReference.empty(), () -> {}));
+
             mockAppender.assertAllExpectationsMatched();
         } finally {
             Loggers.removeAppender(inboundHandlerLogger, mockAppender);
@@ -263,7 +344,7 @@ public class InboundHandlerTests extends ESTestCase {
     }
 
     private static InboundMessage unreadableInboundHandshake(Version remoteVersion, Header requestHeader) {
-        return new InboundMessage(requestHeader, ReleasableBytesReference.wrap(BytesArray.EMPTY), () -> { }) {
+        return new InboundMessage(requestHeader, ReleasableBytesReference.wrap(BytesArray.EMPTY), () -> {}) {
             @Override
             public StreamInput openOrGetStreamInput() {
                 final StreamInput streamInput = new InputStreamStreamInput(new InputStream() {

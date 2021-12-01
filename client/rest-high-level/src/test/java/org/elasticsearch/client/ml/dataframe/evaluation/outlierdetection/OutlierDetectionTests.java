@@ -9,9 +9,9 @@ package org.elasticsearch.client.ml.dataframe.evaluation.outlierdetection;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,26 +32,17 @@ public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetec
             metrics.add(AucRocMetricTests.createRandom());
         }
         if (randomBoolean()) {
-            metrics.add(new PrecisionMetric(Arrays.asList(randomArray(1,
-                4,
-                Double[]::new,
-                OutlierDetectionTests::randomDouble))));
+            metrics.add(new PrecisionMetric(Arrays.asList(randomArray(1, 4, Double[]::new, OutlierDetectionTests::randomDouble))));
         }
         if (randomBoolean()) {
-            metrics.add(new RecallMetric(Arrays.asList(randomArray(1,
-                4,
-                Double[]::new,
-                OutlierDetectionTests::randomDouble))));
+            metrics.add(new RecallMetric(Arrays.asList(randomArray(1, 4, Double[]::new, OutlierDetectionTests::randomDouble))));
         }
         if (randomBoolean()) {
-            metrics.add(new ConfusionMatrixMetric(Arrays.asList(randomArray(1,
-                4,
-                Double[]::new,
-                OutlierDetectionTests::randomDouble))));
+            metrics.add(new ConfusionMatrixMetric(Arrays.asList(randomArray(1, 4, Double[]::new, OutlierDetectionTests::randomDouble))));
         }
-        return randomBoolean() ?
-            new OutlierDetection(randomAlphaOfLength(10), randomAlphaOfLength(10)) :
-            new OutlierDetection(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
+        return randomBoolean()
+            ? new OutlierDetection(randomAlphaOfLength(10), randomAlphaOfLength(10))
+            : new OutlierDetection(randomAlphaOfLength(10), randomAlphaOfLength(10), metrics.isEmpty() ? null : metrics);
     }
 
     @Override

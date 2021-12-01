@@ -4,7 +4,7 @@
 <titleabbrev>Cluster update settings</titleabbrev>
 ++++
 
-Updates cluster-wide settings. 
+Configures <<dynamic-cluster-setting,dynamic cluster settings>>.
 
 
 [[cluster-update-settings-api-request]]
@@ -18,41 +18,13 @@ Updates cluster-wide settings.
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API.
 
-[[cluster-update-settings-api-desc]]
-==== {api-description-title}
-
-With specifications in the request body, this API call can update cluster 
-settings. Updates to settings can be persistent, meaning they apply across 
-restarts, or transient, where they don't survive a full cluster restart.
-
-You can reset persistent or transient settings by assigning a `null` value. If a 
-transient setting is reset, the first one of these values that is defined is 
-applied:
-
-* the persistent setting
-* the setting in the configuration file
-* the default value. 
-
-The order of precedence for cluster settings is:
-
-1. transient cluster settings 
-2. persistent cluster settings
-3. settings in the `elasticsearch.yml` configuration file.
-
-It's best to set all cluster-wide settings with the `settings` API and use the
-`elasticsearch.yml` file only for local configurations. This way you can be sure that
-the setting is the same on all nodes. If, on the other hand, you define different
-settings on different nodes by accident using the configuration file, it is very
-difficult to notice these discrepancies.
-
-
 [[cluster-update-settings-api-query-params]]
 ==== {api-query-parms-title}
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
 `include_defaults`::
-    (Optional, Boolean) If `true`, returns all default cluster settings. 
+    (Optional, Boolean) If `true`, returns all default cluster settings.
     Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
@@ -76,6 +48,16 @@ PUT /_cluster/settings
 
 An example of a transient update:
 
+// tag::transient-settings-warning[]
+[WARNING]
+====
+We no longer recommend using transient cluster settings. Use persistent cluster
+settings instead. If a cluster becomes unstable, transient settings can clear
+unexpectedly, resulting in a potentially undesired cluster configuration. See
+the <<transient-settings-migration-guide>>.
+====
+// end::transient-settings-warning[]
+
 [source,console]
 --------------------------------------------------
 PUT /_cluster/settings?flat_settings=true
@@ -86,8 +68,7 @@ PUT /_cluster/settings?flat_settings=true
 }
 --------------------------------------------------
 
-
-The response to an update returns the changed setting, as in this response to 
+The response to an update returns the changed setting, as in this response to
 the transient example:
 
 [source,console-result]

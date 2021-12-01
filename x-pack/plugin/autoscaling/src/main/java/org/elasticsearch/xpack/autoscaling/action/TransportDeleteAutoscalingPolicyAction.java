@@ -34,7 +34,7 @@ import java.util.TreeMap;
 
 public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTransportMasterNodeAction<DeleteAutoscalingPolicyAction.Request> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPutAutoscalingPolicyAction.class);
+    private static final Logger LOGGER = LogManager.getLogger(TransportPutAutoscalingPolicyAction.class);
 
     @Inject
     public TransportDeleteAutoscalingPolicyAction(
@@ -68,7 +68,7 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
         clusterService.submitStateUpdateTask("delete-autoscaling-policy", new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(final ClusterState currentState) {
-                return deleteAutoscalingPolicy(currentState, request.name(), logger);
+                return deleteAutoscalingPolicy(currentState, request.name(), LOGGER);
             }
         });
     }

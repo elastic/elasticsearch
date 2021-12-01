@@ -10,17 +10,15 @@ package org.elasticsearch.client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -44,7 +42,8 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
         final XContentParser parser = xContent.createParser(
             NamedXContentRegistry.EMPTY,
             LoggingDeprecationHandler.INSTANCE,
-            bytes.streamInput());
+            bytes.streamInput()
+        );
         final C clientInstance = doParseToClientInstance(parser);
         assertInstances(serverTestInstance, clientInstance);
     }
@@ -80,12 +79,7 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
     }
 
     protected static <T> void assertMapEquals(ImmutableOpenMap<String, T> expected, Map<String, T> actual) {
-        Set<String> expectedKeys = new HashSet<>();
-        Iterator<String> keysIt = expected.keysIt();
-        while (keysIt.hasNext()) {
-            expectedKeys.add(keysIt.next());
-        }
-
+        Set<String> expectedKeys = expected.keySet();
         assertEquals(expectedKeys, actual.keySet());
         for (String key : expectedKeys) {
             assertEquals(expected.get(key), actual.get(key));

@@ -57,13 +57,11 @@ class Initializer {
      * @param source   the source location that this injection was requested
      * @Inject).
      */
-    public <T> Initializable<T> requestInjection(InjectorImpl injector, T instance, Object source,
-                                                 Set<InjectionPoint> injectionPoints) {
+    public <T> Initializable<T> requestInjection(InjectorImpl injector, T instance, Object source, Set<InjectionPoint> injectionPoints) {
         Objects.requireNonNull(source);
 
         // short circuit if the object has no injections
-        if (instance == null
-                || (injectionPoints.isEmpty() && injector.membersInjectorStore.hasTypeListeners() == false)) {
+        if (instance == null || (injectionPoints.isEmpty() && injector.membersInjectorStore.hasTypeListeners() == false)) {
             return Initializables.of(instance);
         }
 
@@ -123,7 +121,7 @@ class Initializer {
 
         public void validate(Errors errors) throws ErrorsException {
             @SuppressWarnings("unchecked") // the type of 'T' is a TypeLiteral<T>
-                    TypeLiteral<T> type = TypeLiteral.get((Class<T>) instance.getClass());
+            TypeLiteral<T> type = TypeLiteral.get((Class<T>) instance.getClass());
             membersInjector = injector.membersInjectorStore.get(type, errors.withSource(source));
         }
 

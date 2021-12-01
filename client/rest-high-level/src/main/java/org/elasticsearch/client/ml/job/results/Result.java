@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client.ml.job.results;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.xcontent.ParseField;
 
 /**
  * Contains common attributes for results.
@@ -21,6 +21,5 @@ public final class Result {
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField IS_INTERIM = new ParseField("is_interim");
 
-    private Result() {
-    }
+    private Result() {}
 }

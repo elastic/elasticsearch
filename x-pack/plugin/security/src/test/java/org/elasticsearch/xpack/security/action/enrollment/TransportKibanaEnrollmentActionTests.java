@@ -15,8 +15,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.ssl.SslConfiguration;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -41,9 +41,10 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -56,11 +57,13 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
     private static final SecureString TOKEN_VALUE = new SecureString("token-value".toCharArray());
 
     @BeforeClass
-    public static void muteInFips(){
+    public static void muteInFips() {
         assumeFalse("Enrollment is not supported in FIPS 140-2 as we are using PKCS#12 keystores", inFipsJvm());
     }
 
-    @Before @SuppressWarnings("unchecked") public void setup() throws Exception {
+    @Before
+    @SuppressWarnings("unchecked")
+    public void setup() throws Exception {
         createServiceAccountTokenRequests = new ArrayList<>();
         final Environment env = mock(Environment.class);
         final Path tempDir = createTempDir();
@@ -69,10 +72,7 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
         when(env.configFile()).thenReturn(tempDir);
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("keystore.secure_password", "password");
-        final Settings settings = Settings.builder()
-            .put("keystore.path", httpCaPath)
-            .setSecureSettings(secureSettings)
-            .build();
+        final Settings settings = Settings.builder().put("keystore.path", httpCaPath).setSecureSettings(secureSettings).build();
         when(env.settings()).thenReturn(settings);
         final SSLService sslService = mock(SSLService.class);
         final SslConfiguration sslConfiguration = SslSettingsLoader.load(settings, null, env);
@@ -83,21 +83,23 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocation -> {
-            CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-                (CreateServiceAccountTokenRequest) invocation.getArguments()[1];
+            CreateServiceAccountTokenRequest createServiceAccountTokenRequest = (CreateServiceAccountTokenRequest) invocation
+                .getArguments()[1];
             createServiceAccountTokenRequests.add(createServiceAccountTokenRequest);
             ActionListener<CreateServiceAccountTokenResponse> listener = (ActionListener) invocation.getArguments()[2];
             listener.onResponse(CreateServiceAccountTokenResponse.created(TOKEN_NAME, TOKEN_VALUE));
             return null;
         }).when(client).execute(eq(CreateServiceAccountTokenAction.INSTANCE), any(), any());
 
-        final TransportService transportService = new TransportService(Settings.EMPTY,
+        final TransportService transportService = new TransportService(
+            Settings.EMPTY,
             mock(Transport.class),
             threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,
-            Collections.emptySet());
+            Collections.emptySet()
+        );
         action = new TransportKibanaEnrollmentAction(transportService, client, sslService, mock(ActionFilters.class));
     }
 
@@ -110,15 +112,15 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
         assertThat(
             response.getHttpCa(),
             startsWith(
-                "MIIDSjCCAjKgAwIBAgIVALCgZXvbceUrjJaQMheDCX0kXnRJMA0GCSqGSIb3DQEBCwUAMDQxMjAw" +
-                    "BgNVBAMTKUVsYXN0aWMgQ2VydGlmaWNhdGUgVG9vbCBBdXRvZ2VuZXJhdGVkIENBMB4XDTIx" +
-                    "MDQyODEyNTY0MVoXDTI0MDQyNzEyNTY0MVowNDEyMDAGA1UEAxMpRWxhc3RpYyBDZXJ0aWZp" +
-                    "Y2F0ZSBUb29sIEF1dG9nZW5lcmF0ZWQgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK" +
-                    "AoIBAQCCJbOU4JvxDD/F"
+                "MIIDSjCCAjKgAwIBAgIVALCgZXvbceUrjJaQMheDCX0kXnRJMA0GCSqGSIb3DQEBCwUAMDQxMjAw"
+                    + "BgNVBAMTKUVsYXN0aWMgQ2VydGlmaWNhdGUgVG9vbCBBdXRvZ2VuZXJhdGVkIENBMB4XDTIx"
+                    + "MDQyODEyNTY0MVoXDTI0MDQyNzEyNTY0MVowNDEyMDAGA1UEAxMpRWxhc3RpYyBDZXJ0aWZp"
+                    + "Y2F0ZSBUb29sIEF1dG9nZW5lcmF0ZWQgQ0EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK"
+                    + "AoIBAQCCJbOU4JvxDD/F"
             )
         );
         assertThat(response.getTokenValue(), equalTo(TOKEN_VALUE));
-        assertThat(createServiceAccountTokenRequests.size(), equalTo(1));
+        assertThat(createServiceAccountTokenRequests, hasSize(1));
     }
 
     public void testKibanaEnrollmentFailedTokenCreation() {

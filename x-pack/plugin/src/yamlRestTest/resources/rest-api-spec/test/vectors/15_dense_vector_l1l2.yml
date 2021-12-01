@@ -1,8 +1,6 @@
 setup:
   - skip:
       features: headers
-      version: " - 7.3.99"
-      reason: "l1norm and l2norm functions were added from 7.4"
 
   - do:
       indices.create:

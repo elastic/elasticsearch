@@ -8,14 +8,14 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Response when deleting a role mapping. If the mapping is successfully
@@ -52,7 +52,10 @@ public final class DeleteRoleMappingResponse {
     }
 
     private static final ConstructingObjectParser<DeleteRoleMappingResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "delete_role_mapping_response", true, args -> new DeleteRoleMappingResponse((boolean) args[0]));
+        "delete_role_mapping_response",
+        true,
+        args -> new DeleteRoleMappingResponse((boolean) args[0])
+    );
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("found"));
     }

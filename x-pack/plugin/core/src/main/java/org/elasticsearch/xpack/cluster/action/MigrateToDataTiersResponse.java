@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.cluster.action;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,8 +32,12 @@ public class MigrateToDataTiersResponse extends ActionResponse implements ToXCon
     private final List<String> migratedIndices;
     private final boolean dryRun;
 
-    public MigrateToDataTiersResponse(@Nullable String removedIndexTemplateName, List<String> migratedPolicies,
-                                      List<String> migratedIndices, boolean dryRun) {
+    public MigrateToDataTiersResponse(
+        @Nullable String removedIndexTemplateName,
+        List<String> migratedPolicies,
+        List<String> migratedIndices,
+        boolean dryRun
+    ) {
         this.removedIndexTemplateName = removedIndexTemplateName;
         this.migratedPolicies = migratedPolicies;
         this.migratedIndices = migratedIndices;
@@ -106,8 +110,10 @@ public class MigrateToDataTiersResponse extends ActionResponse implements ToXCon
             return false;
         }
         MigrateToDataTiersResponse that = (MigrateToDataTiersResponse) o;
-        return dryRun == that.dryRun && Objects.equals(removedIndexTemplateName, that.removedIndexTemplateName) &&
-            Objects.equals(migratedPolicies, that.migratedPolicies) && Objects.equals(migratedIndices, that.migratedIndices);
+        return dryRun == that.dryRun
+            && Objects.equals(removedIndexTemplateName, that.removedIndexTemplateName)
+            && Objects.equals(migratedPolicies, that.migratedPolicies)
+            && Objects.equals(migratedIndices, that.migratedIndices);
     }
 
     @Override

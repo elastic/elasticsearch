@@ -27,14 +27,16 @@ import static org.hamcrest.Matchers.instanceOf;
 public class SamlBaseRestHandlerTests extends ESTestCase {
 
     public void testSamlAvailableOnTrialAndPlatinum() {
-        final SamlBaseRestHandler handler = buildHandler(randomFrom(
-            License.OperationMode.TRIAL, License.OperationMode.PLATINUM, License.OperationMode.ENTERPRISE));
+        final SamlBaseRestHandler handler = buildHandler(
+            randomFrom(License.OperationMode.TRIAL, License.OperationMode.PLATINUM, License.OperationMode.ENTERPRISE)
+        );
         assertThat(handler.checkFeatureAvailable(new FakeRestRequest()), Matchers.nullValue());
     }
 
     public void testSamlNotAvailableOnBasicStandardOrGold() {
-        final SamlBaseRestHandler handler = buildHandler(randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD,
-            License.OperationMode.GOLD));
+        final SamlBaseRestHandler handler = buildHandler(
+            randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD)
+        );
         Exception e = handler.checkFeatureAvailable(new FakeRestRequest());
         assertThat(e, instanceOf(ElasticsearchException.class));
         ElasticsearchException elasticsearchException = (ElasticsearchException) e;
@@ -42,11 +44,9 @@ public class SamlBaseRestHandlerTests extends ESTestCase {
     }
 
     private SamlBaseRestHandler buildHandler(License.OperationMode licenseMode) {
-        final Settings settings = Settings.builder()
-                .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
-                .build();
+        final Settings settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
         final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState(settings);
-        licenseState.update(licenseMode, true, Long.MAX_VALUE);
+        licenseState.update(licenseMode, true, null);
 
         return new SamlBaseRestHandler(settings, licenseState) {
 

@@ -14,12 +14,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -28,6 +22,12 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder.Validati
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -76,7 +76,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
         List<NamedXContentRegistry.Entry> xContentEntries = searchModule.getNamedXContents();
         xContentEntries.addAll(additionalNamedContents());
         xContentRegistry = new NamedXContentRegistry(xContentEntries);
-        //create some random type with some default field, those types will stick around for all of the subclasses
+        // create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
             String type = randomAlphaOfLengthBetween(1, 10);
@@ -157,7 +157,6 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
         }
     }
 
-
     public void testEqualsAndHashcode() throws IOException {
         // TODO we only change name and boost, we should extend by any sub-test supplying a "mutate" method that randomly changes one
         // aspect of the object under test
@@ -187,7 +186,7 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
             }
         } else {
             if (randomBoolean()) {
-                types = new String[]{Metadata.ALL};
+                types = new String[] { Metadata.ALL };
             } else {
                 types = new String[0];
             }
@@ -230,8 +229,11 @@ public abstract class BasePipelineAggregationTestCase<AF extends AbstractPipelin
     /**
      * Helper for testing validation.
      */
-    protected String validate(Collection<AggregationBuilder> siblingAggregations,
-            Collection<PipelineAggregationBuilder> siblingPipelineAggregations, AF builder) {
+    protected String validate(
+        Collection<AggregationBuilder> siblingAggregations,
+        Collection<PipelineAggregationBuilder> siblingPipelineAggregations,
+        AF builder
+    ) {
         return validate(ValidationContext.forTreeRoot(siblingAggregations, siblingPipelineAggregations, null), builder);
     }
 

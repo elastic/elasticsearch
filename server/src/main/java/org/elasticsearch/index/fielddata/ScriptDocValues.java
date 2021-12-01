@@ -17,19 +17,14 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geometry.utils.Geohash;
-import org.elasticsearch.script.Converters;
-import org.elasticsearch.script.Field;
-import org.elasticsearch.script.FieldValues;
-import org.elasticsearch.script.InvalidConversion;
-import org.elasticsearch.script.JodaCompatibleZonedDateTime;
+import org.elasticsearch.script.field.DocValuesField;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 import java.util.AbstractList;
-import java.util.Arrays;
 import java.util.Comparator;
-import java.util.List;
 import java.util.function.UnaryOperator;
 
 /**
@@ -40,12 +35,33 @@ import java.util.function.UnaryOperator;
  * return as a single {@link ScriptDocValues} instance can be reused to return
  * values form multiple documents.
  */
-public abstract class ScriptDocValues<T> extends AbstractList<T> implements FieldValues<T> {
+public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     /**
-     * Set the current doc ID.
+     * Supplies values to different ScriptDocValues as we
+     * convert them to wrappers around {@link DocValuesField}.
+     * This allows for different {@link DocValuesField} to implement
+     * this supplier class in many-to-one relationship since
+     * {@link DocValuesField} are more specific where
+     * ({byte, short, int, long, _version, murmur3, etc.} -> {long})
      */
-    public abstract void setNextDocId(int docId) throws IOException;
+    public interface Supplier<T> {
+        void setNextDocId(int docId) throws IOException;
+
+        T getInternal(int index);
+
+        int size();
+    }
+
+    protected final Supplier<T> supplier;
+
+    public ScriptDocValues(Supplier<T> supplier) {
+        this.supplier = supplier;
+    }
+
+    public Supplier<T> getSupplier() {
+        return supplier;
+    }
 
     // Throw meaningful exceptions if someone tries to modify the ScriptDocValues.
     @Override
@@ -73,40 +89,21 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
         throw new UnsupportedOperationException("doc values are unmodifiable");
     }
 
-    public abstract Field<T> toField(String fieldName);
-
-    public List<T> getValues() {
-        return this;
-    }
-
-    public T getNonPrimitiveValue() {
-        return get(0);
-    }
-
-    public long getLongValue() {
-        throw new InvalidConversion(this.getClass(), long.class);
-    }
-
-    public double getDoubleValue() {
-        throw new InvalidConversion(this.getClass(), double.class);
-    }
-
     protected void throwIfEmpty() {
         if (size() == 0) {
-            throw new IllegalStateException("A document doesn't have a value for a field! " +
-                "Use doc[<field>].size()==0 to check if a document is missing a field!");
+            throw new IllegalStateException(
+                "A document doesn't have a value for a field! " + "Use doc[<field>].size()==0 to check if a document is missing a field!"
+            );
         }
     }
 
-    public static final class Longs extends ScriptDocValues<Long> {
+    public static class LongsSupplier implements Supplier<Long> {
+
         private final SortedNumericDocValues in;
         private long[] values = new long[0];
         private int count;
 
-        /**
-         * Standard constructor.
-         */
-        public Longs(SortedNumericDocValues in) {
+        public LongsSupplier(SortedNumericDocValues in) {
             this.in = in;
         }
 
@@ -126,9 +123,26 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
          * Set the {@link #size()} and ensure that the {@link #values} array can
          * store at least that many entries.
          */
-        protected void resize(int newSize) {
+        private void resize(int newSize) {
             count = newSize;
             values = ArrayUtil.grow(values, count);
+        }
+
+        @Override
+        public Long getInternal(int index) {
+            return values[index];
+        }
+
+        @Override
+        public int size() {
+            return count;
+        }
+    }
+
+    public static class Longs extends ScriptDocValues<Long> {
+
+        public Longs(Supplier<Long> supplier) {
+            super(supplier);
         }
 
         public long getValue() {
@@ -138,33 +152,16 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
         @Override
         public Long get(int index) {
             throwIfEmpty();
-            return values[index];
+            return supplier.getInternal(index);
         }
 
         @Override
         public int size() {
-            return count;
-        }
-
-        @Override
-        public long getLongValue() {
-            throwIfEmpty();
-            return values[0];
-        }
-
-        @Override
-        public double getDoubleValue() {
-            throwIfEmpty();
-            return values[0];
-        }
-
-        @Override
-        public Field<Long> toField(String fieldName) {
-            return new Field.LongField(fieldName, this);
+            return supplier.size();
         }
     }
 
-    public static final class Dates extends ScriptDocValues<JodaCompatibleZonedDateTime> {
+    public static class DatesSupplier implements Supplier<ZonedDateTime> {
 
         private final SortedNumericDocValues in;
         private final boolean isNanos;
@@ -172,33 +169,16 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
         /**
          * Values wrapped in {@link java.time.ZonedDateTime} objects.
          */
-        private JodaCompatibleZonedDateTime[] dates;
+        private ZonedDateTime[] dates;
         private int count;
 
-        public Dates(SortedNumericDocValues in, boolean isNanos) {
+        public DatesSupplier(SortedNumericDocValues in, boolean isNanos) {
             this.in = in;
             this.isNanos = isNanos;
         }
 
-        /**
-         * Fetch the first field value or 0 millis after epoch if there are no
-         * in.
-         */
-        public JodaCompatibleZonedDateTime getValue() {
-            return get(0);
-        }
-
         @Override
-        public JodaCompatibleZonedDateTime get(int index) {
-            if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
-            }
-            if (index >= count) {
-                throw new IndexOutOfBoundsException(
-                        "attempted to fetch the [" + index + "] date when there are only ["
-                                + count + "] dates.");
-            }
+        public ZonedDateTime getInternal(int index) {
             return dates[index];
         }
 
@@ -220,53 +200,67 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
         /**
          * Refresh the backing array. Package private so it can be called when {@link Longs} loads dates.
          */
-        void refreshArray() throws IOException {
+        private void refreshArray() throws IOException {
             if (count == 0) {
                 return;
             }
             if (dates == null || count > dates.length) {
                 // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
-                dates = new JodaCompatibleZonedDateTime[count];
+                dates = new ZonedDateTime[count];
             }
             for (int i = 0; i < count; ++i) {
                 if (isNanos) {
-                    dates[i] = new JodaCompatibleZonedDateTime(DateUtils.toInstant(in.nextValue()), ZoneOffset.UTC);
+                    dates[i] = ZonedDateTime.ofInstant(DateUtils.toInstant(in.nextValue()), ZoneOffset.UTC);
                 } else {
-                    dates[i] = new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
+                    dates[i] = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
                 }
             }
         }
+    }
 
-        @Override
-        public long getLongValue() {
-            throwIfEmpty();
-            if (isNanos) {
-                return Converters.convertDateNanosToLong(dates[0]);
-            }
-            return Converters.convertDateMillisToLong(dates[0]);
+    public static class Dates extends ScriptDocValues<ZonedDateTime> {
+
+        public Dates(Supplier<ZonedDateTime> supplier) {
+            super(supplier);
+        }
+
+        /**
+         * Fetch the first field value or 0 millis after epoch if there are no
+         * in.
+         */
+        public ZonedDateTime getValue() {
+            return get(0);
         }
 
         @Override
-        public double getDoubleValue() {
-            return getLongValue();
+        public ZonedDateTime get(int index) {
+            if (supplier.size() == 0) {
+                throw new IllegalStateException(
+                    "A document doesn't have a value for a field! "
+                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
+                );
+            }
+            if (index >= supplier.size()) {
+                throw new IndexOutOfBoundsException(
+                    "attempted to fetch the [" + index + "] date when there are only [" + supplier.size() + "] dates."
+                );
+            }
+            return supplier.getInternal(index);
         }
 
         @Override
-        public Field<JodaCompatibleZonedDateTime> toField(String fieldName) {
-            if (isNanos) {
-                return new Field.DateNanosField(fieldName, this);
-            }
-            return new Field.DateMillisField(fieldName, this);
+        public int size() {
+            return supplier.size();
         }
     }
 
-    public static final class Doubles extends ScriptDocValues<Double> {
+    public static class DoublesSupplier implements Supplier<Double> {
 
         private final SortedNumericDoubleValues in;
         private double[] values = new double[0];
         private int count;
 
-        public Doubles(SortedNumericDoubleValues in) {
+        public DoublesSupplier(SortedNumericDoubleValues in) {
             this.in = in;
         }
 
@@ -286,13 +280,26 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
          * Set the {@link #size()} and ensure that the {@link #values} array can
          * store at least that many entries.
          */
-        protected void resize(int newSize) {
+        private void resize(int newSize) {
             count = newSize;
             values = ArrayUtil.grow(values, count);
         }
 
-        public SortedNumericDoubleValues getInternalValues() {
-            return this.in;
+        @Override
+        public Double getInternal(int index) {
+            return values[index];
+        }
+
+        @Override
+        public int size() {
+            return count;
+        }
+    }
+
+    public static class Doubles extends ScriptDocValues<Double> {
+
+        public Doubles(Supplier<Double> supplier) {
+            super(supplier);
         }
 
         public double getValue() {
@@ -301,49 +308,51 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
 
         @Override
         public Double get(int index) {
-            if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
+            if (supplier.size() == 0) {
+                throw new IllegalStateException(
+                    "A document doesn't have a value for a field! "
+                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
+                );
             }
-            return values[index];
+            return supplier.getInternal(index);
         }
 
         @Override
         public int size() {
-            return count;
-        }
-
-        @Override
-        public long getLongValue() {
-            return (long) getDoubleValue();
-        }
-
-        @Override
-        public double getDoubleValue() {
-            throwIfEmpty();
-            return values[0];
-        }
-
-        @Override
-        public Field<Double> toField(String fieldName) {
-            return new Field.DoubleField(fieldName, this);
+            return supplier.size();
         }
     }
 
     public abstract static class Geometry<T> extends ScriptDocValues<T> {
+
+        public Geometry(Supplier<T> supplier) {
+            super(supplier);
+        }
+
         /** Returns the dimensional type of this geometry */
         public abstract int getDimensionalType();
+
         /** Returns the bounding box of this geometry  */
         public abstract GeoBoundingBox getBoundingBox();
+
         /** Returns the centroid of this geometry  */
         public abstract GeoPoint getCentroid();
+
         /** Returns the width of the bounding box diagonal in the spherical Mercator projection (meters)  */
         public abstract double getMercatorWidth();
+
         /** Returns the height of the bounding box diagonal in the spherical Mercator projection (meters) */
         public abstract double getMercatorHeight();
     }
 
-    public static final class GeoPoints extends Geometry<GeoPoint> {
+    public interface GeometrySupplier<T> extends Supplier<T> {
+
+        GeoPoint getCentroid();
+
+        GeoBoundingBox getBoundingBox();
+    }
+
+    public static class GeoPointsSupplier implements GeometrySupplier<GeoPoint> {
 
         private final MultiGeoPointValues in;
         private GeoPoint[] values = new GeoPoint[0];
@@ -351,7 +360,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
         private final GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
         private int count;
 
-        public GeoPoints(MultiGeoPointValues in) {
+        public GeoPointsSupplier(MultiGeoPointValues in) {
             this.in = in;
         }
 
@@ -403,7 +412,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
          * Set the {@link #size()} and ensure that the {@link #values} array can
          * store at least that many entries.
          */
-        protected void resize(int newSize) {
+        private void resize(int newSize) {
             count = newSize;
             if (newSize > values.length) {
                 int oldLength = values.length;
@@ -412,6 +421,36 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
                     values[i] = new GeoPoint();
                 }
             }
+        }
+
+        @Override
+        public GeoPoint getInternal(int index) {
+            return values[index];
+        }
+
+        @Override
+        public GeoPoint getCentroid() {
+            return centroid;
+        }
+
+        @Override
+        public GeoBoundingBox getBoundingBox() {
+            return boundingBox;
+        }
+
+        @Override
+        public int size() {
+            return count;
+        }
+    }
+
+    public static class GeoPoints extends Geometry<GeoPoint> {
+
+        private final GeometrySupplier<GeoPoint> geometrySupplier;
+
+        public GeoPoints(GeometrySupplier<GeoPoint> supplier) {
+            super(supplier);
+            geometrySupplier = supplier;
         }
 
         public GeoPoint getValue() {
@@ -444,17 +483,19 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
 
         @Override
         public GeoPoint get(int index) {
-            if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
+            if (supplier.size() == 0) {
+                throw new IllegalStateException(
+                    "A document doesn't have a value for a field! "
+                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
+                );
             }
-            final GeoPoint point = values[index];
+            final GeoPoint point = supplier.getInternal(index);
             return new GeoPoint(point.lat(), point.lon());
         }
 
         @Override
         public int size() {
-            return count;
+            return supplier.size();
         }
 
         public double arcDistance(double lat, double lon) {
@@ -483,8 +524,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
 
         public double geohashDistance(String geohash) {
             GeoPoint point = getValue();
-            return GeoUtils.arcDistance(point.lat(), point.lon(), Geohash.decodeLatitude(geohash),
-                Geohash.decodeLongitude(geohash));
+            return GeoUtils.arcDistance(point.lat(), point.lon(), Geohash.decodeLatitude(geohash), Geohash.decodeLongitude(geohash));
         }
 
         public double geohashDistanceWithDefault(String geohash, double defaultValue) {
@@ -501,7 +541,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
 
         @Override
         public GeoPoint getCentroid() {
-            return size() == 0 ? null : centroid;
+            return size() == 0 ? null : geometrySupplier.getCentroid();
         }
 
         @Override
@@ -516,98 +556,40 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
 
         @Override
         public GeoBoundingBox getBoundingBox() {
-          return size() == 0 ? null : boundingBox;
-        }
-
-        @Override
-        public Field<GeoPoint> toField(String fieldName) {
-            return new Field.GeoPointField(fieldName, this);
+            return size() == 0 ? null : geometrySupplier.getBoundingBox();
         }
     }
 
-    public static final class Booleans extends ScriptDocValues<Boolean> {
+    public static class Booleans extends ScriptDocValues<Boolean> {
 
-        private final SortedNumericDocValues in;
-        private boolean[] values = new boolean[0];
-        private int count;
-
-        public Booleans(SortedNumericDocValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
-                resize(in.docValueCount());
-                for (int i = 0; i < count; i++) {
-                    values[i] = in.nextValue() == 1;
-                }
-            } else {
-                resize(0);
-            }
-        }
-
-        /**
-         * Set the {@link #size()} and ensure that the {@link #values} array can
-         * store at least that many entries.
-         */
-        protected void resize(int newSize) {
-            count = newSize;
-            values = grow(values, count);
+        public Booleans(Supplier<Boolean> supplier) {
+            super(supplier);
         }
 
         public boolean getValue() {
+            throwIfEmpty();
             return get(0);
         }
 
         @Override
         public Boolean get(int index) {
-            if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
-            }
-            return values[index];
+            throwIfEmpty();
+            return supplier.getInternal(index);
         }
 
         @Override
         public int size() {
-            return count;
-        }
-
-        private static boolean[] grow(boolean[] array, int minSize) {
-            assert minSize >= 0 : "size must be positive (got " + minSize
-                    + "): likely integer overflow?";
-            if (array.length < minSize) {
-                return Arrays.copyOf(array, ArrayUtil.oversize(minSize, 1));
-            } else
-                return array;
-        }
-
-        @Override
-        public long getLongValue() {
-            throwIfEmpty();
-            return Converters.convertBooleanToLong(values[0]);
-        }
-
-        @Override
-        public double getDoubleValue() {
-            throwIfEmpty();
-            return Converters.convertBooleanToDouble(values[0]);
-        }
-
-        @Override
-        public Field<Boolean> toField(String fieldName) {
-            return new Field.BooleanField(fieldName, this);
+            return supplier.size();
         }
     }
 
-    abstract static class BinaryScriptDocValues<T> extends ScriptDocValues<T> {
+    public static class StringsSupplier implements Supplier<String> {
 
         private final SortedBinaryDocValues in;
-        protected BytesRefBuilder[] values = new BytesRefBuilder[0];
-        protected int count;
+        private BytesRefBuilder[] values = new BytesRefBuilder[0];
+        private int count;
 
-        BinaryScriptDocValues(SortedBinaryDocValues in) {
+        public StringsSupplier(SortedBinaryDocValues in) {
             this.in = in;
         }
 
@@ -630,7 +612,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
          * Set the {@link #size()} and ensure that the {@link #values} array can
          * store at least that many entries.
          */
-        protected void resize(int newSize) {
+        private void resize(int newSize) {
             count = newSize;
             if (newSize > values.length) {
                 final int oldLength = values.length;
@@ -641,80 +623,68 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> implements Fiel
             }
         }
 
+        protected String bytesToString(BytesRef bytesRef) {
+            return bytesRef.utf8ToString();
+        }
+
+        @Override
+        public String getInternal(int index) {
+            return bytesToString(values[index].toBytesRef());
+        }
+
         @Override
         public int size() {
             return count;
         }
     }
 
-    public static class Strings extends BinaryScriptDocValues<String> {
-        public Strings(SortedBinaryDocValues in) {
-            super(in);
+    public static class Strings extends ScriptDocValues<String> {
+
+        public Strings(Supplier<String> supplier) {
+            super(supplier);
         }
 
-        @Override
-        public final String get(int index) {
-            if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
-            }
-            return bytesToString(values[index].get());
-        }
-
-        /**
-         * Convert the stored bytes to a String.
-         */
-        protected String bytesToString(BytesRef bytes) {
-            return bytes.utf8ToString();
-        }
-
-        public final String getValue() {
+        public String getValue() {
             return get(0);
         }
 
         @Override
-        public long getLongValue() {
-            return Converters.convertStringToLong(get(0));
+        public String get(int index) {
+            if (supplier.size() == 0) {
+                throw new IllegalStateException(
+                    "A document doesn't have a value for a field! "
+                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
+                );
+            }
+            return supplier.getInternal(index);
         }
 
         @Override
-        public double getDoubleValue() {
-            return Converters.convertStringToDouble(get(0));
-        }
-
-        @Override
-        public Field<String> toField(String fieldName) {
-            return new Field.StringField(fieldName, this);
+        public int size() {
+            return supplier.size();
         }
     }
 
-    public static final class BytesRefs extends BinaryScriptDocValues<BytesRef> {
+    public static final class BytesRefs extends ScriptDocValues<BytesRef> {
 
-        public BytesRefs(SortedBinaryDocValues in) {
-            super(in);
+        public BytesRefs(Supplier<BytesRef> supplier) {
+            super(supplier);
+        }
+
+        public BytesRef getValue() {
+            throwIfEmpty();
+            return get(0);
         }
 
         @Override
         public BytesRef get(int index) {
-            if (count == 0) {
-                throw new IllegalStateException("A document doesn't have a value for a field! " +
-                    "Use doc[<field>].size()==0 to check if a document is missing a field!");
-            }
-            /**
-             * We need to make a copy here because {@link BinaryScriptDocValues} might reuse the
-             * returned value and the same instance might be used to
-             * return values from multiple documents.
-             **/
-            return values[index].toBytesRef();
-        }
-
-        public BytesRef getValue() {
-            return get(0);
+            throwIfEmpty();
+            return supplier.getInternal(index);
         }
 
         @Override
-        public Field<BytesRef> toField(String fieldName) {
-            return new Field.BytesRefField(fieldName, this);
+        public int size() {
+            return supplier.size();
         }
     }
 }

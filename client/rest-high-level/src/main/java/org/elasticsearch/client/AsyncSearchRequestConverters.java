@@ -11,6 +11,7 @@ package org.elasticsearch.client;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.RequestConverters.Params;
 import org.elasticsearch.client.asyncsearch.DeleteAsyncSearchRequest;
 import org.elasticsearch.client.asyncsearch.GetAsyncSearchRequest;
@@ -25,9 +26,9 @@ import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TY
 final class AsyncSearchRequestConverters {
 
     static Request submitAsyncSearch(SubmitAsyncSearchRequest asyncSearchRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder().addCommaSeparatedPathParts(
-                asyncSearchRequest.getIndices())
-                .addPathPartAsIs("_async_search").build();
+        String endpoint = new RequestConverters.EndpointBuilder().addCommaSeparatedPathParts(asyncSearchRequest.getIndices())
+            .addPathPartAsIs("_async_search")
+            .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         Params params = new RequestConverters.Params();
         // add all typical search params and search request source as body
@@ -53,7 +54,9 @@ final class AsyncSearchRequestConverters {
         params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
         params.withRouting(request.getRouting());
         params.withPreference(request.getPreference());
-        params.withIndicesOptions(request.getIndicesOptions());
+        if (SearchRequest.DEFAULT_INDICES_OPTIONS.equals(request.getIndicesOptions()) == false) {
+            params.withIndicesOptions(request.getIndicesOptions());
+        }
         params.withSearchType(request.getSearchType().name().toLowerCase(Locale.ROOT));
         params.withMaxConcurrentShardRequests(request.getMaxConcurrentShardRequests());
         if (request.getRequestCache() != null) {
@@ -68,12 +71,12 @@ final class AsyncSearchRequestConverters {
     }
 
     static Request getAsyncSearch(GetAsyncSearchRequest asyncSearchRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-                .addPathPartAsIs("_async_search")
-                .addPathPart(asyncSearchRequest.getId())
-                .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_async_search")
+            .addPathPart(asyncSearchRequest.getId())
+            .build();
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         Params params = new RequestConverters.Params();
+        params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
         if (asyncSearchRequest.getKeepAlive() != null) {
             params.putParam("keep_alive", asyncSearchRequest.getKeepAlive().getStringRep());
         }
@@ -85,10 +88,9 @@ final class AsyncSearchRequestConverters {
     }
 
     static Request deleteAsyncSearch(DeleteAsyncSearchRequest deleteAsyncSearchRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-                .addPathPartAsIs("_async_search")
-                .addPathPart(deleteAsyncSearchRequest.getId())
-                .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_async_search")
+            .addPathPart(deleteAsyncSearchRequest.getId())
+            .build();
         return new Request(HttpDelete.METHOD_NAME, endpoint);
     }
 }

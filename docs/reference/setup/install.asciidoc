@@ -4,11 +4,7 @@
 [discrete]
 === Hosted Elasticsearch
 
-You can run Elasticsearch on your own hardware, or use our
-https://www.elastic.co/cloud/elasticsearch-service[hosted Elasticsearch Service]
-on Elastic Cloud. The Elasticsearch Service is available on both AWS and GCP.
-{ess-trial}[Try out the
-Elasticsearch Service for free].
+{ess-leadin}
 
 [discrete]
 === Installing Elasticsearch Yourself

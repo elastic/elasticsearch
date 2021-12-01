@@ -10,8 +10,6 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -19,6 +17,8 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.transform.search.ExecutableSearchTransform;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.watcher.transform.search.SearchTransformFactory;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.getRandomSupportedSearchType;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -54,12 +54,7 @@ public class SearchTransformTests extends ESTestCase {
             builder.field("template", template);
         }
 
-        builder.startObject("body")
-                .startObject("query")
-                .startObject("match_all")
-                .endObject()
-                .endObject()
-                .endObject();
+        builder.startObject("body").startObject("query").startObject("match_all").endObject().endObject().endObject();
 
         builder.endObject();
         TimeValue readTimeout = randomBoolean() ? TimeValue.timeValueSeconds(randomInt(10)) : null;
@@ -73,10 +68,10 @@ public class SearchTransformTests extends ESTestCase {
 
         final MockScriptEngine engine = new MockScriptEngine("mock", Collections.emptyMap(), Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
 
         Client client = mock(Client.class);
-        SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, client,  xContentRegistry(), scriptService);
+        SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, client, xContentRegistry(), scriptService);
         ExecutableSearchTransform executable = transformFactory.parseExecutable("_id", parser);
 
         assertThat(executable, notNullValue());
@@ -89,8 +84,10 @@ public class SearchTransformTests extends ESTestCase {
             assertThat(executable.transform().getRequest().getSearchType(), is(searchType));
         }
         if (templateName != null) {
-            assertThat(executable.transform().getRequest().getTemplate(),
-                    equalTo(new Script(ScriptType.INLINE, "mustache", "template1", Collections.emptyMap())));
+            assertThat(
+                executable.transform().getRequest().getTemplate(),
+                equalTo(new Script(ScriptType.INLINE, "mustache", "template1", Collections.emptyMap()))
+            );
         }
         assertThat(executable.transform().getRequest().getSearchSource().utf8ToString(), equalTo("{\"query\":{\"match_all\":{}}}"));
         assertThat(executable.transform().getTimeout(), equalTo(readTimeout));

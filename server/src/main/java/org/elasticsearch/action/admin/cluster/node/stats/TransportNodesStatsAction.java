@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.node.stats;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,18 +29,33 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRequest,
-                                                                    NodesStatsResponse,
-                                                                    TransportNodesStatsAction.NodeStatsRequest,
-                                                                    NodeStats> {
+public class TransportNodesStatsAction extends TransportNodesAction<
+    NodesStatsRequest,
+    NodesStatsResponse,
+    TransportNodesStatsAction.NodeStatsRequest,
+    NodeStats> {
 
     private final NodeService nodeService;
 
     @Inject
-    public TransportNodesStatsAction(ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                     NodeService nodeService, ActionFilters actionFilters) {
-        super(NodesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            NodesStatsRequest::new, NodeStatsRequest::new, ThreadPool.Names.MANAGEMENT, NodeStats.class);
+    public TransportNodesStatsAction(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        NodeService nodeService,
+        ActionFilters actionFilters
+    ) {
+        super(
+            NodesStatsAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            NodesStatsRequest::new,
+            NodeStatsRequest::new,
+            ThreadPool.Names.MANAGEMENT,
+            NodeStats.class
+        );
         this.nodeService = nodeService;
     }
 
@@ -54,7 +70,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
     }
 
     @Override
-    protected NodeStats newNodeResponse(StreamInput in) throws IOException {
+    protected NodeStats newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
         return new NodeStats(in);
     }
 
@@ -79,7 +95,8 @@ public class TransportNodesStatsAction extends TransportNodesAction<NodesStatsRe
             NodesStatsRequest.Metric.INGEST.containedIn(metrics),
             NodesStatsRequest.Metric.ADAPTIVE_SELECTION.containedIn(metrics),
             NodesStatsRequest.Metric.SCRIPT_CACHE.containedIn(metrics),
-            NodesStatsRequest.Metric.INDEXING_PRESSURE.containedIn(metrics));
+            NodesStatsRequest.Metric.INDEXING_PRESSURE.containedIn(metrics)
+        );
     }
 
     public static class NodeStatsRequest extends TransportRequest {

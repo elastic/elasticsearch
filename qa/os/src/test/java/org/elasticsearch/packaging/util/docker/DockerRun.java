@@ -11,17 +11,21 @@ package org.elasticsearch.packaging.util.docker;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Platforms;
 
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
+import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.packaging.util.FileExistenceMatchers.fileExists;
 import static org.hamcrest.MatcherAssert.assertThat;
 
+/**
+ * A utility class for constructing a {@code docker run} command line from Java.
+ */
 public class DockerRun {
 
     private Distribution distribution;
@@ -35,43 +39,54 @@ public class DockerRun {
     private DockerRun() {}
 
     public static DockerRun builder() {
-        return new DockerRun();
+        // Disable this setting by default in the Docker tests
+        return new DockerRun().envVar("ingest.geoip.downloader.enabled", "false");
     }
 
     public DockerRun distribution(Distribution distribution) {
-        this.distribution = Objects.requireNonNull(distribution);
+        this.distribution = requireNonNull(distribution);
         return this;
     }
 
-    public DockerRun envVars(Map<String, String> envVars) {
-        if (envVars != null) {
-            this.envVars.putAll(envVars);
+    public DockerRun envVar(String key, String value) {
+        this.envVars.put(requireNonNull(key), requireNonNull(value));
+        return this;
+    }
+
+    public DockerRun volume(Path from, String to) {
+        requireNonNull(from);
+        if (Files.exists(from) == false) {
+            throw new RuntimeException("Path [" + from + "] does not exist");
         }
+        this.volumes.put(requireNonNull(from), Path.of(requireNonNull(to)));
         return this;
     }
 
-    public DockerRun volumes(Map<Path, Path> volumes) {
-        if (volumes != null) {
-            this.volumes.putAll(volumes);
-        }
+    public DockerRun volume(Path from, Path to) {
+        this.volumes.put(requireNonNull(from), requireNonNull(to));
         return this;
     }
 
-    public DockerRun uid(Integer uid, Integer gid) {
-        if (uid == null) {
-            if (gid != null) {
+    /**
+     * Sets the UID that the container is run with, and the GID too if specified.
+     *
+     * @param uidToUse the UID to use, or {@code null} to use the image default
+     * @param gidToUse the GID to use, or {@code null} to use the image default
+     * @return the current builder
+     */
+    public DockerRun uid(Integer uidToUse, Integer gidToUse) {
+        if (uidToUse == null) {
+            if (gidToUse != null) {
                 throw new IllegalArgumentException("Cannot override GID without also overriding UID");
             }
         }
-        this.uid = uid;
-        this.gid = gid;
+        this.uid = uidToUse;
+        this.gid = gidToUse;
         return this;
     }
 
     public DockerRun memory(String memoryLimit) {
-        if (memoryLimit != null) {
-            this.memory = memoryLimit;
-        }
+        this.memory = requireNonNull(memoryLimit);
         return this;
     }
 

@@ -8,8 +8,8 @@
 package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,8 +34,15 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
                 executableSections.add(ExecutableSection.parse(parser));
             }
             if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                throw new IllegalArgumentException("malformed section [" + sectionName + "] expected ["
-                        + XContentParser.Token.END_OBJECT + "] but was [" + parser.currentToken() + "]");
+                throw new IllegalArgumentException(
+                    "malformed section ["
+                        + sectionName
+                        + "] expected ["
+                        + XContentParser.Token.END_OBJECT
+                        + "] but was ["
+                        + parser.currentToken()
+                        + "]"
+                );
             }
             parser.nextToken();
             return new ClientYamlTestSection(sectionLocation, sectionName, skipSection, executableSections);

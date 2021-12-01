@@ -9,9 +9,8 @@ package org.elasticsearch.xpack.security.rest.action.user;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -19,6 +18,7 @@ import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
@@ -48,13 +48,13 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
     public List<Route> routes() {
         return List.of(
             Route.builder(PUT, "/_security/user/{username}/_password")
-                .replaces(PUT, "/_xpack/security/user/{username}/_password", RestApiVersion.V_7).build(),
+                .replaces(PUT, "/_xpack/security/user/{username}/_password", RestApiVersion.V_7)
+                .build(),
             Route.builder(POST, "/_security/user/{username}/_password")
-                .replaces(POST, "/_xpack/security/user/{username}/_password", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_security/user/_password")
-                .replaces(PUT, "/_xpack/security/user/_password", RestApiVersion.V_7).build(),
-            Route.builder(POST, "/_security/user/_password")
-                .replaces(POST, "/_xpack/security/user/_password", RestApiVersion.V_7).build()
+                .replaces(POST, "/_xpack/security/user/{username}/_password", RestApiVersion.V_7)
+                .build(),
+            Route.builder(PUT, "/_security/user/_password").replaces(PUT, "/_xpack/security/user/_password", RestApiVersion.V_7).build(),
+            Route.builder(POST, "/_security/user/_password").replaces(POST, "/_xpack/security/user/_password", RestApiVersion.V_7).build()
         );
     }
 
@@ -75,8 +75,7 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
 
         final String refresh = request.param("refresh");
         final BytesReference content = request.requiredContent();
-        return channel -> new ChangePasswordRequestBuilder(client)
-            .username(username)
+        return channel -> new ChangePasswordRequestBuilder(client).username(username)
             .source(content, request.getXContentType(), passwordHasher)
             .setRefreshPolicy(refresh)
             .execute(new RestBuilderListener<>(channel) {

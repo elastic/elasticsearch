@@ -10,14 +10,14 @@ package org.elasticsearch.common.geo;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -59,7 +59,7 @@ public final class GeometryParser {
      * <p>
      * Json structure: valid geojson definition
      */
-    public  Geometry parseGeometry(Object value) throws ElasticsearchParseException {
+    public Geometry parseGeometry(Object value) throws ElasticsearchParseException {
         if (value instanceof List) {
             List<?> values = (List<?>) value;
             if (values.size() == 2 && values.get(0) instanceof Number) {
@@ -73,8 +73,14 @@ public final class GeometryParser {
                 return new GeometryCollection<>(geometries);
             }
         }
-        try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-            Collections.singletonMap("null_value", value), null)) {
+        try (
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE,
+                Collections.singletonMap("null_value", value),
+                null
+            )
+        ) {
             parser.nextToken(); // start object
             parser.nextToken(); // field name
             parser.nextToken(); // field value

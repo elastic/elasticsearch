@@ -28,7 +28,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
@@ -41,6 +40,7 @@ import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -58,6 +58,8 @@ import java.util.function.Supplier;
 
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
+
+import static org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin.ENCRYPTED_SNAPSHOT_FEATURE;
 
 public class EncryptedRepository extends BlobStoreRepository {
     static final Logger logger = LogManager.getLogger(EncryptedRepository.class);
@@ -177,7 +179,7 @@ public class EncryptedRepository extends BlobStoreRepository {
     public Map<String, Object> adaptUserMetadata(Map<String, Object> userMetadata) {
         // because populating the snapshot metadata must be done before the actual snapshot is first initialized,
         // we take the opportunity to validate the license and abort if non-compliant
-        if (false == licenseStateSupplier.get().isAllowed(XPackLicenseState.Feature.ENCRYPTED_SNAPSHOT)) {
+        if (false == ENCRYPTED_SNAPSHOT_FEATURE.checkWithoutTracking(licenseStateSupplier.get())) {
             throw LicenseUtils.newComplianceException("encrypted snapshots");
         }
         Map<String, Object> snapshotUserMetadata = new HashMap<>();

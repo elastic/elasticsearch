@@ -14,11 +14,11 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -31,8 +31,10 @@ import java.util.Map;
  */
 public class PutMappingRequest extends TimedRequest implements IndicesRequest, ToXContentObject {
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, true);
+
     private final String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     private BytesReference source;
     private XContentType xContentType;
@@ -97,9 +99,9 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
      *
      * Note that the definition should *not* be nested under a type name.
      */
-    public PutMappingRequest source(String mappingSource, XContentType xContentType) {
+    public PutMappingRequest source(String mappingSource, XContentType type) {
         this.source = new BytesArray(mappingSource);
-        this.xContentType = xContentType;
+        this.xContentType = type;
         return this;
     }
 
@@ -119,9 +121,9 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
      *
      * Note that the definition should *not* be nested under a type name.
      */
-    public PutMappingRequest source(BytesReference source, XContentType xContentType) {
-        this.source = source;
-        this.xContentType = xContentType;
+    public PutMappingRequest source(BytesReference bytesReference, XContentType type) {
+        this.source = bytesReference;
+        this.xContentType = type;
         return this;
     }
 

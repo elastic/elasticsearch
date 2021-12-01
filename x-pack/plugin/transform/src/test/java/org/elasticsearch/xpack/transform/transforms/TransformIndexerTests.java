@@ -26,7 +26,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -78,7 +78,7 @@ public class TransformIndexerTests extends ESTestCase {
             // Simulate completely null aggs
             null,
             new Suggest(Collections.emptyList()),
-            new SearchProfileShardResults(Collections.emptyMap()),
+            new SearchProfileResults(Collections.emptyMap()),
             false,
             false,
             1
@@ -248,11 +248,7 @@ public class TransformIndexerTests extends ESTestCase {
             --numberOfLoops;
             // pretend that we processed 10k documents for each call
             getStats().incrementNumDocuments(10_000);
-            return new IterationResult<>(
-                Stream.of(new IndexRequest()),
-                new TransformIndexerPosition(null, null),
-                numberOfLoops == 0
-            );
+            return new IterationResult<>(Stream.of(new IndexRequest()), new TransformIndexerPosition(null, null), numberOfLoops == 0);
         }
 
         @Override
@@ -300,6 +296,7 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             null,
+            null,
             TimeRetentionPolicyConfigTests.randomTimeRetentionPolicyConfig(),
             null,
             null
@@ -341,6 +338,7 @@ public class TransformIndexerTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null,
             null,
             null,
             null,
@@ -394,6 +392,7 @@ public class TransformIndexerTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null,
             null,
             null,
             null,

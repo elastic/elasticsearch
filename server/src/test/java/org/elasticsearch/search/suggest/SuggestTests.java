@@ -9,7 +9,6 @@
 package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -17,12 +16,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
@@ -33,6 +26,13 @@ import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -55,12 +55,27 @@ public class SuggestTests extends ESTestCase {
 
     static {
         namedXContents = new ArrayList<>();
-        namedXContents.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("term"),
-                (parser, context) -> TermSuggestion.fromXContent(parser, (String)context)));
-        namedXContents.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("phrase"),
-                (parser, context) -> PhraseSuggestion.fromXContent(parser, (String)context)));
-        namedXContents.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("completion"),
-                (parser, context) -> CompletionSuggestion.fromXContent(parser, (String)context)));
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(
+                Suggest.Suggestion.class,
+                new ParseField("term"),
+                (parser, context) -> TermSuggestion.fromXContent(parser, (String) context)
+            )
+        );
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(
+                Suggest.Suggestion.class,
+                new ParseField("phrase"),
+                (parser, context) -> PhraseSuggestion.fromXContent(parser, (String) context)
+            )
+        );
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(
+                Suggest.Suggestion.class,
+                new ParseField("completion"),
+                (parser, context) -> CompletionSuggestion.fromXContent(parser, (String) context)
+            )
+        );
         xContentRegistry = new NamedXContentRegistry(namedXContents);
     }
 
@@ -112,8 +127,12 @@ public class SuggestTests extends ESTestCase {
     }
 
     public void testToXContent() throws IOException {
-        PhraseSuggestion.Entry.Option option = new PhraseSuggestion.Entry.Option(new Text("someText"), new Text("somethingHighlighted"),
-            1.3f, true);
+        PhraseSuggestion.Entry.Option option = new PhraseSuggestion.Entry.Option(
+            new Text("someText"),
+            new Text("somethingHighlighted"),
+            1.3f,
+            true
+        );
         PhraseSuggestion.Entry entry = new PhraseSuggestion.Entry(new Text("entryText"), 42, 313);
         entry.addOption(option);
         PhraseSuggestion suggestion = new PhraseSuggestion("suggestionName", 5);
@@ -142,7 +161,8 @@ public class SuggestTests extends ESTestCase {
                     + "  }"
                     + "}"
             ),
-            xContent.utf8ToString());
+            xContent.utf8ToString()
+        );
     }
 
     public void testFilter() throws Exception {
@@ -181,7 +201,6 @@ public class SuggestTests extends ESTestCase {
             assertThat(completionSuggestions.get(i).getName(), equalTo(sortedSuggestions.get(i).getName()));
         }
     }
-
 
     public void testParsingExceptionOnUnknownSuggestion() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -224,14 +243,16 @@ public class SuggestTests extends ESTestCase {
     }
 
     public void testSerialization() throws IOException {
-        final Version bwcVersion = VersionUtils.randomVersionBetween(random(),
-            Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT);
+        final Version bwcVersion = VersionUtils.randomVersionBetween(
+            random(),
+            Version.CURRENT.minimumCompatibilityVersion(),
+            Version.CURRENT
+        );
 
         final Suggest suggest = createTestItem();
         final Suggest bwcSuggest;
 
-        NamedWriteableRegistry registry = new NamedWriteableRegistry
-            (new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
+        NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(bwcVersion);

@@ -7,22 +7,25 @@
 
 package org.elasticsearch.xpack.ml.inference.deployment;
 
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Nullable;
-
 import java.time.Instant;
 import java.util.LongSummaryStatistics;
 
 public class ModelStats {
 
+    private final Instant startTime;
     private final LongSummaryStatistics timingStats;
     private final Instant lastUsed;
-    private final ByteSizeValue modelSize;
+    private final int pendingCount;
 
-    ModelStats(LongSummaryStatistics timingStats, Instant lastUsed, @Nullable Long modelSizeBytes) {
+    ModelStats(Instant startTime, LongSummaryStatistics timingStats, Instant lastUsed, int pendingCount) {
+        this.startTime = startTime;
         this.timingStats = timingStats;
         this.lastUsed = lastUsed;
-        this.modelSize = modelSizeBytes == null ? null : ByteSizeValue.ofBytes(modelSizeBytes);
+        this.pendingCount = pendingCount;
+    }
+
+    public Instant getStartTime() {
+        return startTime;
     }
 
     public LongSummaryStatistics getTimingStats() {
@@ -33,7 +36,7 @@ public class ModelStats {
         return lastUsed;
     }
 
-    public ByteSizeValue getModelSize() {
-        return modelSize;
+    public int getPendingCount() {
+        return pendingCount;
     }
 }

@@ -10,13 +10,13 @@ package org.elasticsearch.common.unit;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.sameInstance;
@@ -131,13 +131,15 @@ public class FuzzinessTests extends ESTestCase {
             {
                 float floatValue = randomFrom(0.0f, 1.0f, 2.0f);
                 XContentBuilder json = jsonBuilder().startObject()
-                        .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? String.valueOf(floatValue) : floatValue)
-                        .endObject();
+                    .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? String.valueOf(floatValue) : floatValue)
+                    .endObject();
                 try (XContentParser parser = createParser(json)) {
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
-                    assertThat(parser.nextToken(),
-                            anyOf(equalTo(XContentParser.Token.VALUE_NUMBER), equalTo(XContentParser.Token.VALUE_STRING)));
+                    assertThat(
+                        parser.nextToken(),
+                        anyOf(equalTo(XContentParser.Token.VALUE_NUMBER), equalTo(XContentParser.Token.VALUE_STRING))
+                    );
                     Fuzziness fuzziness = Fuzziness.parse(parser);
                     assertThat(fuzziness.asFloat(), equalTo(floatValue));
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
@@ -146,27 +148,29 @@ public class FuzzinessTests extends ESTestCase {
             {
                 int intValue = randomIntBetween(0, 2);
                 XContentBuilder json = jsonBuilder().startObject()
-                        .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? String.valueOf(intValue) : intValue)
-                        .endObject();
+                    .field(Fuzziness.X_FIELD_NAME, randomBoolean() ? String.valueOf(intValue) : intValue)
+                    .endObject();
                 try (XContentParser parser = createParser(json)) {
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
-                    assertThat(parser.nextToken(), anyOf(equalTo(XContentParser.Token.VALUE_NUMBER),
-                        equalTo(XContentParser.Token.VALUE_STRING)));
+                    assertThat(
+                        parser.nextToken(),
+                        anyOf(equalTo(XContentParser.Token.VALUE_NUMBER), equalTo(XContentParser.Token.VALUE_STRING))
+                    );
                     Fuzziness fuzziness = Fuzziness.parse(parser);
                     assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_OBJECT));
                     switch (intValue) {
-                    case 1:
-                        assertThat(fuzziness, sameInstance(Fuzziness.ONE));
-                        break;
-                    case 2:
-                        assertThat(fuzziness, sameInstance(Fuzziness.TWO));
-                        break;
-                    case 0:
-                        assertThat(fuzziness, sameInstance(Fuzziness.ZERO));
-                        break;
-                    default:
-                        break;
+                        case 1:
+                            assertThat(fuzziness, sameInstance(Fuzziness.ONE));
+                            break;
+                        case 2:
+                            assertThat(fuzziness, sameInstance(Fuzziness.TWO));
+                            break;
+                        case 0:
+                            assertThat(fuzziness, sameInstance(Fuzziness.ZERO));
+                            break;
+                        default:
+                            break;
                     }
                 }
             }

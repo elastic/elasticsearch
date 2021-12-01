@@ -11,7 +11,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.QueryPhaseResultConsumer;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchProgressListener;
@@ -56,6 +55,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)
@@ -64,21 +64,30 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 @Fork(value = 1)
 public class TermsReduceBenchmark {
-    private final SearchPhaseController controller = new SearchPhaseController(req -> new InternalAggregation.ReduceContextBuilder() {
-        @Override
-        public InternalAggregation.ReduceContext forPartialReduction() {
-            return InternalAggregation.ReduceContext.forPartialReduction(null, null, () -> PipelineAggregator.PipelineTree.EMPTY);
-        }
 
-        @Override
-        public InternalAggregation.ReduceContext forFinalReduction() {
-            final MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
-                Integer.MAX_VALUE,
-                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-            );
-            return InternalAggregation.ReduceContext.forFinalReduction(null, null, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY);
+    private final SearchPhaseController controller = new SearchPhaseController(
+        (task, req) -> new InternalAggregation.ReduceContextBuilder() {
+            @Override
+            public InternalAggregation.ReduceContext forPartialReduction() {
+                return InternalAggregation.ReduceContext.forPartialReduction(null, null, () -> PipelineAggregator.PipelineTree.EMPTY, task);
+            }
+
+            @Override
+            public InternalAggregation.ReduceContext forFinalReduction() {
+                final MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
+                    Integer.MAX_VALUE,
+                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                );
+                return InternalAggregation.ReduceContext.forFinalReduction(
+                    null,
+                    null,
+                    bucketConsumer,
+                    PipelineAggregator.PipelineTree.EMPTY,
+                    task
+                );
+            }
         }
-    });
+    );
 
     @State(Scope.Benchmark)
     public static class TermsList extends AbstractList<InternalAggregations> {
@@ -173,20 +182,20 @@ public class TermsReduceBenchmark {
                 new DocValueFormat[] { DocValueFormat.RAW }
             );
             result.aggregations(candidateList.get(i));
-            result.setSearchShardTarget(
-                new SearchShardTarget("node", new ShardId(new Index("index", "index"), i), null, OriginalIndices.NONE)
-            );
+            result.setSearchShardTarget(new SearchShardTarget("node", new ShardId(new Index("index", "index"), i), null));
             shards.add(result);
         }
         SearchRequest request = new SearchRequest();
         request.source(new SearchSourceBuilder().size(0).aggregation(AggregationBuilders.terms("test")));
         request.setBatchedReduceSize(bufferSize);
         ExecutorService executor = Executors.newFixedThreadPool(1);
+        AtomicBoolean isCanceled = new AtomicBoolean();
         QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
             request,
             executor,
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
             controller,
+            isCanceled::get,
             SearchProgressListener.NOOP,
             shards.size(),
             exc -> {}

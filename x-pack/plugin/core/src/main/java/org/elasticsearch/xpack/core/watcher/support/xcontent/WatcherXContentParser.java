@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.watcher.support.xcontent;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.FilterXContentParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.FilterXContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.common.secret.Secret;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
@@ -59,16 +59,23 @@ public class WatcherXContentParser extends FilterXContentParser {
     }
 
     private final ZonedDateTime parseTime;
-    @Nullable private final CryptoService cryptoService;
+    @Nullable
+    private final CryptoService cryptoService;
     private final boolean allowRedactedPasswords;
 
-    public WatcherXContentParser(XContentParser parser, ZonedDateTime parseTime, @Nullable CryptoService cryptoService,
-                                 boolean allowRedactedPasswords) {
+    public WatcherXContentParser(
+        XContentParser parser,
+        ZonedDateTime parseTime,
+        @Nullable CryptoService cryptoService,
+        boolean allowRedactedPasswords
+    ) {
         super(parser);
         this.parseTime = parseTime;
         this.cryptoService = cryptoService;
         this.allowRedactedPasswords = allowRedactedPasswords;
     }
 
-    public ZonedDateTime getParseDateTime() { return parseTime; }
+    public ZonedDateTime getParseDateTime() {
+        return parseTime;
+    }
 }

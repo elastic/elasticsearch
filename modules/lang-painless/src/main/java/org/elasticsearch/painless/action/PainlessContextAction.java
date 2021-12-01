@@ -16,13 +16,10 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.painless.PainlessScriptEngine;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -31,6 +28,9 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -142,7 +142,7 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
 
         @Inject
         public TransportAction(TransportService transportService, ActionFilters actionFilters, PainlessScriptEngine painlessScriptEngine) {
-            super(NAME, transportService, actionFilters, (Writeable.Reader<Request>)Request::new);
+            super(NAME, transportService, actionFilters, (Writeable.Reader<Request>) Request::new);
             this.painlessScriptEngine = painlessScriptEngine;
         }
 
@@ -152,15 +152,18 @@ public class PainlessContextAction extends ActionType<PainlessContextAction.Resp
             PainlessContextInfo painlessContextInfo;
 
             if (request.scriptContextName == null) {
-                scriptContextNames =
-                        painlessScriptEngine.getContextsToLookups().keySet().stream().map(v -> v.name).collect(Collectors.toList());
+                scriptContextNames = painlessScriptEngine.getContextsToLookups()
+                    .keySet()
+                    .stream()
+                    .map(v -> v.name)
+                    .collect(Collectors.toList());
                 painlessContextInfo = null;
             } else {
                 ScriptContext<?> scriptContext = null;
                 PainlessLookup painlessLookup = null;
 
-                for (Map.Entry<ScriptContext<?>, PainlessLookup> contextLookupEntry :
-                        painlessScriptEngine.getContextsToLookups().entrySet()) {
+                for (Map.Entry<ScriptContext<?>, PainlessLookup> contextLookupEntry : painlessScriptEngine.getContextsToLookups()
+                    .entrySet()) {
                     if (contextLookupEntry.getKey().name.equals(request.getScriptContextName())) {
                         scriptContext = contextLookupEntry.getKey();
                         painlessLookup = contextLookupEntry.getValue();

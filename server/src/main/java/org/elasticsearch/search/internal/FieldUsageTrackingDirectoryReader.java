@@ -25,7 +25,10 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.index.VectorValues;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
@@ -63,16 +66,28 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
     public interface FieldUsageNotifier {
         void onTermsUsed(String field);
+
         void onPostingsUsed(String field);
+
         void onTermFrequenciesUsed(String field);
+
         void onPositionsUsed(String field);
+
         void onOffsetsUsed(String field);
+
         void onDocValuesUsed(String field);
+
         void onStoredFieldsUsed(String field);
+
         void onNormsUsed(String field);
+
         void onPayloadsUsed(String field);
+
         void onPointsUsed(String field);
+
         void onTermVectorsUsed(String field);
+
+        void onKnnVectorsUsed(String field);
     }
 
     public static final class FieldUsageTrackingLeafReader extends SequentialStoredFieldsLeafReader {
@@ -172,6 +187,24 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
+        public VectorValues getVectorValues(String field) throws IOException {
+            VectorValues vectorValues = super.getVectorValues(field);
+            if (vectorValues != null) {
+                notifier.onKnnVectorsUsed(field);
+            }
+            return vectorValues;
+        }
+
+        @Override
+        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
+            TopDocs topDocs = super.searchNearestVectors(field, target, k, acceptDocs);
+            if (topDocs != null) {
+                notifier.onKnnVectorsUsed(field);
+            }
+            return topDocs;
+        }
+
+        @Override
         public String toString() {
             final StringBuilder sb = new StringBuilder("FieldUsageTrackingLeafReader(reader=");
             return sb.append(in).append(')').toString();
@@ -212,11 +245,6 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             @Override
             public void close() throws IOException {
                 reader.close();
-            }
-
-            @Override
-            public long ramBytesUsed() {
-                return reader.ramBytesUsed();
             }
         }
 

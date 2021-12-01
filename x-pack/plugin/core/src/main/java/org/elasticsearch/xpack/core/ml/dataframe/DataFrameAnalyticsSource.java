@@ -7,21 +7,21 @@
 package org.elasticsearch.xpack.core.ml.dataframe;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
@@ -43,23 +43,35 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
     public static final ParseField QUERY = new ParseField("query");
     public static final ParseField _SOURCE = new ParseField("_source");
 
-    @SuppressWarnings({ "unchecked"})
+    @SuppressWarnings({ "unchecked" })
     public static ConstructingObjectParser<DataFrameAnalyticsSource, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<DataFrameAnalyticsSource, Void> parser = new ConstructingObjectParser<>("data_frame_analytics_source",
-            ignoreUnknownFields, a -> new DataFrameAnalyticsSource(
+        ConstructingObjectParser<DataFrameAnalyticsSource, Void> parser = new ConstructingObjectParser<>(
+            "data_frame_analytics_source",
+            ignoreUnknownFields,
+            a -> new DataFrameAnalyticsSource(
                 ((List<String>) a[0]).toArray(new String[0]),
                 (QueryProvider) a[1],
                 (FetchSourceContext) a[2],
-                (Map<String, Object>) a[3]));
+                (Map<String, Object>) a[3]
+            )
+        );
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), INDEX);
-        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> QueryProvider.fromXContent(p, ignoreUnknownFields, Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT), QUERY);
-        parser.declareField(ConstructingObjectParser.optionalConstructorArg(),
+        parser.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> QueryProvider.fromXContent(p, ignoreUnknownFields, Messages.DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT),
+            QUERY
+        );
+        parser.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> FetchSourceContext.fromXContent(p),
             _SOURCE,
-            ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING);
-        parser.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(),
-            SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
+            ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING
+        );
+        parser.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> p.map(),
+            SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD
+        );
         return parser;
     }
 
@@ -68,8 +80,12 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
     private final FetchSourceContext sourceFiltering;
     private final Map<String, Object> runtimeMappings;
 
-    public DataFrameAnalyticsSource(String[] index, @Nullable QueryProvider queryProvider, @Nullable FetchSourceContext sourceFiltering,
-                                    @Nullable Map<String, Object> runtimeMappings) {
+    public DataFrameAnalyticsSource(
+        String[] index,
+        @Nullable QueryProvider queryProvider,
+        @Nullable FetchSourceContext sourceFiltering,
+        @Nullable Map<String, Object> runtimeMappings
+    ) {
         this.index = ExceptionsHelper.requireNonNull(index, INDEX);
         if (index.length == 0) {
             throw new IllegalArgumentException("source.index must specify at least one index");
@@ -96,8 +112,13 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
     public DataFrameAnalyticsSource(DataFrameAnalyticsSource other) {
         this.index = Arrays.copyOf(other.index, other.index.length);
         this.queryProvider = new QueryProvider(other.queryProvider);
-        this.sourceFiltering = other.sourceFiltering == null ? null : new FetchSourceContext(
-            other.sourceFiltering.fetchSource(), other.sourceFiltering.includes(), other.sourceFiltering.excludes());
+        this.sourceFiltering = other.sourceFiltering == null
+            ? null
+            : new FetchSourceContext(
+                other.sourceFiltering.fetchSource(),
+                other.sourceFiltering.includes(),
+                other.sourceFiltering.excludes()
+            );
         this.runtimeMappings = Collections.unmodifiableMap(new HashMap<>(other.runtimeMappings));
     }
 
@@ -184,8 +205,7 @@ public class DataFrameAnalyticsSource implements Writeable, ToXContentObject {
     public List<String> getQueryDeprecations(NamedXContentRegistry namedXContentRegistry) {
         List<String> deprecations = new ArrayList<>();
         try {
-            XContentObjectTransformer.queryBuilderTransformer(namedXContentRegistry).fromMap(queryProvider.getQuery(),
-                deprecations);
+            XContentObjectTransformer.queryBuilderTransformer(namedXContentRegistry).fromMap(queryProvider.getQuery(), deprecations);
         } catch (Exception exception) {
             // Certain thrown exceptions wrap up the real Illegal argument making it hard to determine cause for the user
             if (exception.getCause() instanceof IllegalArgumentException) {

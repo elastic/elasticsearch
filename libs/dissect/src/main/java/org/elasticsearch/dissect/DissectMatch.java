@@ -35,7 +35,7 @@ final class DissectMatch {
 
     DissectMatch(String appendSeparator, int maxMatches, int maxResults, int appendCount, int referenceCount) {
         if (maxMatches <= 0 || maxResults <= 0) {
-            throw new IllegalArgumentException("Expected results are zero, can not construct DissectMatch");//should never happen
+            throw new IllegalArgumentException("Expected results are zero, can not construct DissectMatch");// should never happen
         }
         this.maxMatches = maxMatches;
         this.maxResults = maxResults;
@@ -67,8 +67,8 @@ final class DissectMatch {
                 appendResults.computeIfAbsent(key.getName(), k -> new AppendResult(appendSeparator)).addValue(value, implicitAppendOrder++);
                 break;
             case APPEND_WITH_ORDER:
-                appendResults.computeIfAbsent(key.getName(),
-                    k -> new AppendResult(appendSeparator)).addValue(value, key.getAppendPosition());
+                appendResults.computeIfAbsent(key.getName(), k -> new AppendResult(appendSeparator))
+                    .addValue(value, key.getAppendPosition());
                 break;
             case FIELD_NAME:
                 referenceResults.computeIfAbsent(key.getName(), k -> new ReferenceResult()).setKey(value);
@@ -85,15 +85,15 @@ final class DissectMatch {
 
     /**
      * Checks if results are valid.
-     * @param results the results to check
+     * @param resultsToCheck the results to check
      * @return true if all dissect keys have been matched and the results are of the expected size.
      */
-    boolean isValid(Map<String, String> results) {
-        return fullyMatched() && results.size() == maxResults;
+    boolean isValid(Map<String, String> resultsToCheck) {
+        return fullyMatched() && resultsToCheck.size() == maxResults;
     }
 
     /**
-     * Gets all the current matches. Pass the results of this to isValid to determine if a fully successful match has occured.
+     * Gets all the current matches. Pass the results of this to isValid to determine if a fully successful match has occurred.
      *
      * @return the map of the results.
      */

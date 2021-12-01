@@ -54,4 +54,12 @@ public interface RefCounted {
      * @return returns {@code true} if the ref count dropped to 0 as a result of calling this method
      */
     boolean decRef();
+
+    /**
+     * Returns {@code true} only if there was at least one active reference when the method was called; if it returns {@code false} then the
+     * object is closed; future attempts to acquire references will fail.
+     *
+     * @return whether there are currently any active references to this object.
+     */
+    boolean hasReferences();
 }

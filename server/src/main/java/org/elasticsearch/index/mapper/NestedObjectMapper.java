@@ -11,8 +11,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -49,18 +49,15 @@ public class NestedObjectMapper extends ObjectMapper {
         }
 
         @Override
-        public NestedObjectMapper build(ContentPath contentPath) {
-            return new NestedObjectMapper(name, contentPath.pathAsText(name), buildMappers(contentPath), this);
+        public NestedObjectMapper build(MapperBuilderContext context) {
+            return new NestedObjectMapper(name, context.buildFullName(name), buildMappers(false, context), this);
         }
     }
 
     public static class TypeParser extends ObjectMapper.TypeParser {
         @Override
-        public Mapper.Builder parse(
-            String name,
-            Map<String, Object> node,
-            MappingParserContext parserContext
-        ) throws MapperParsingException {
+        public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
+            throws MapperParsingException {
             NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(name, parserContext.indexVersionCreated());
             parseNested(name, node, builder);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
@@ -95,12 +92,7 @@ public class NestedObjectMapper extends ObjectMapper {
     private final String nestedTypePath;
     private final Query nestedTypeFilter;
 
-    NestedObjectMapper(
-        String name,
-        String fullPath,
-        Map<String, Mapper> mappers,
-        Builder builder
-    ) {
+    NestedObjectMapper(String name, String fullPath, Map<String, Mapper> mappers, Builder builder) {
         super(name, fullPath, builder.enabled, builder.dynamic, mappers);
         if (builder.indexCreatedVersion.before(Version.V_8_0_0)) {
             this.nestedTypePath = "__" + fullPath;

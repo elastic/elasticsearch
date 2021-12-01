@@ -12,9 +12,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -33,8 +33,13 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
         private final String context;
         private final String licenseLevel;
 
-        public FeatureUsageInfo(@Nullable String family, String name, ZonedDateTime lastUsedTime,
-                                @Nullable String context, String licenseLevel) {
+        public FeatureUsageInfo(
+            @Nullable String family,
+            String name,
+            ZonedDateTime lastUsedTime,
+            @Nullable String context,
+            String licenseLevel
+        ) {
             this.family = family;
             this.name = Objects.requireNonNull(name, "Feature name may not be null");
             this.lastUsedTime = Objects.requireNonNull(lastUsedTime, "Last used time may not be null");

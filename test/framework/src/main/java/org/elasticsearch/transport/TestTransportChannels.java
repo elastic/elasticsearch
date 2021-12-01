@@ -9,15 +9,30 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.network.HandlingTimeTracker;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 public class TestTransportChannels {
 
-    public static TcpTransportChannel newFakeTcpTransportChannel(String nodeName, TcpChannel channel, ThreadPool threadPool,
-                                                                 String action, long requestId, Version version) {
+    public static TcpTransportChannel newFakeTcpTransportChannel(
+        String nodeName,
+        TcpChannel channel,
+        ThreadPool threadPool,
+        String action,
+        long requestId,
+        Version version
+    ) {
+        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
         return new TcpTransportChannel(
-            new OutboundHandler(nodeName, version, new StatsTracker(), threadPool, BigArrays.NON_RECYCLING_INSTANCE),
-            channel, action, requestId, version, null, false, () -> {});
+            new OutboundHandler(nodeName, version, new StatsTracker(), threadPool, recycler, new HandlingTimeTracker()),
+            channel,
+            action,
+            requestId,
+            version,
+            null,
+            false,
+            () -> {}
+        );
     }
 }

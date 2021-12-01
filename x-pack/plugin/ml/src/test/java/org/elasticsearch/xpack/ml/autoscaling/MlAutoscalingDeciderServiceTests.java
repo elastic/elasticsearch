@@ -89,7 +89,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         32212254720L,
         64424509440L };
 
-    public static final List<Tuple<Long, Long>> AUTO_NODE_TIERS = List.of(
+    public static final List<Tuple<Long, Long>> AUTO_NODE_TIERS = org.elasticsearch.core.List.of(
         Tuple.tuple(1073741824L, 432013312L), // 1GB and true JVM size
         Tuple.tuple(2147483648L, 536870912L), // 2GB ...
         Tuple.tuple(4294967296L, 1073741824L), // 4GB ...
@@ -144,8 +144,8 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         when(mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(any())).thenReturn(
             ByteSizeValue.ofMb(128).getBytes() + Job.PROCESS_MEMORY_OVERHEAD.getBytes()
         );
-        List<String> jobTasks = List.of("waiting_job");
-        List<NodeLoad> nodesForScaleup = List.of(
+        List<String> jobTasks = org.elasticsearch.core.List.of("waiting_job");
+        List<NodeLoad> nodesForScaleup = org.elasticsearch.core.List.of(
             NodeLoad.builder("any")
                 .setMaxMemory(432013312)
                 .setUseMemory(true)
@@ -169,8 +169,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             0,
             nodesForScaleup,
             jobTasks,
-            List.of(),
-            Collections.emptyList(),
+            org.elasticsearch.core.List.of(),
             null,
             new NativeMemoryCapacity(432013312, 432013312, 432013312L),
             reasonBuilder
@@ -184,7 +183,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         // Assume a scale up to 2gb nodes
         // We should NOT scale down below or to 1gb given the same jobs with 2gb node
         long bytesForML = autoBytesForMl(AUTO_NODE_TIERS.get(1).v1(), AUTO_NODE_TIERS.get(1).v2());
-        List<NodeLoad> nodeForScaleDown = List.of(
+        List<NodeLoad> nodeForScaleDown = org.elasticsearch.core.List.of(
             NodeLoad.builder("any")
                 .setMaxMemory(bytesForML)
                 .setUseMemory(true)
@@ -255,10 +254,9 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 AutoscalingDeciderResult scaleUpResult = service.checkForScaleUp(
                     0,
                     0,
-                    List.of(nodeLoadForScaleUp),
+                    org.elasticsearch.core.List.of(nodeLoadForScaleUp),
                     waitingJobs,
-                    List.of(),
-                    Collections.emptyList(),
+                    org.elasticsearch.core.List.of(),
                     null,
                     new NativeMemoryCapacity(memoryForMl, memoryForMl, lowerTier.v2()),
                     new MlScalingReason.Builder().setPassedConfiguration(Settings.EMPTY)
@@ -283,7 +281,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 long scaledBytesForMl = autoBytesForMl(size, AUTO_NODE_TIERS.get(nextTier).v2());
                 // It could be that scale down doesn't occur, this is fine as we are "perfectly scaled"
                 Optional<AutoscalingDeciderResult> result = service.checkForScaleDown(
-                    List.of(forScaleDown.build()),
+                    org.elasticsearch.core.List.of(forScaleDown.build()),
                     maxJob,
                     new NativeMemoryCapacity(scaledBytesForMl, scaledBytesForMl, AUTO_NODE_TIERS.get(nextTier).v2()),
                     new MlScalingReason.Builder().setPassedConfiguration(Settings.EMPTY)
@@ -965,7 +963,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                     .put(MAX_JVM_SIZE_NODE_ATTR, jvmSize.toString())
                     .put(MACHINE_MEMORY_NODE_ATTR, nodeSize.toString())
                     .map(),
-                Set.of(DiscoveryNodeRole.ML_ROLE),
+                DiscoveryNodeRole.BUILT_IN_ROLES,
                 Version.CURRENT
             ),
             30,

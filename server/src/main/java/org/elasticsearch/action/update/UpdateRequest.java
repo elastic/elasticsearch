@@ -137,7 +137,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     public UpdateRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
-
+        this(shardId, in, null, null);
     }
 
     public UpdateRequest(

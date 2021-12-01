@@ -55,8 +55,7 @@ PUT _ilm/policy/my_policy
         "min_age": "10d",
         "actions": {
           "forcemerge": {
-            "max_num_segments": 1,
-            "read_only": true
+            "max_num_segments": 1
           }
         }
       },
@@ -94,8 +93,7 @@ If the request succeeds, the body of the response contains the policy definition
           "min_age": "10d",
           "actions": {
             "forcemerge": {
-              "max_num_segments": 1,
-              "read_only": true
+              "max_num_segments": 1
             }
           }
         },

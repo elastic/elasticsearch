@@ -323,9 +323,9 @@ specific indices or data streams instead.
 If you're restoring to a different cluster, see <<restore-different-cluster>>
 before you start.
 
-. If you <<backup-cluster-configuration,backed up the cluster's configuration
-files>>, you can restore them to each node. This step is optional and requires a
-<<restart-upgrade,full cluster restart>>.
+. If you run {es} on your own hardware and <<backup-cluster-configuration,backed
+up the cluster's configuration files>>, you can restore them to each node. This
+step is optional and requires a <<restart-upgrade,full cluster restart>>.
 +
 After you shut down a node, copy the backed-up configuration files over to the
 node's `$ES_PATH_CONF` directory. Before restarting the node, ensure
@@ -334,6 +334,28 @@ other node-specific settings.
 +
 If you choose to perform this step, you must repeat this process on each node in
 the cluster.
+
+. If you use {ess}, ensure you have access to the {ess} Console. If needed, you
+can use the console to access {kib} or {cloud}/ec-password-reset.html[reset the
+`elastic` superuser password].
++
+--
+[[restore-create-file-realm-user]]
+If you run {es} on your own hardware and use {es} security features, log in to a
+node host, navigate to the {es} installation directory, and add a user with the
+`superuser` role to the file realm using the
+<<users-command,`elasticsearch-users`>> tool.
+
+For example, the following command creates a user named `restore_user`.
+
+[source,sh]
+----
+./bin/elasticsearch-users useradd restore_user -p my_password -r superuser
+----
+
+Use this file realm user to authenticate requests until the restore operation is
+complete.
+--
 
 . Temporarily stop indexing and turn off the following features:
 +
@@ -409,25 +431,6 @@ POST _watcher/_start
 ////
 --
 
-
-. {blank}
-+
---
-[[restore-create-file-realm-user]]
-If you use {es} security features, log in to a node host, navigate to the {es}
-installation directory, and add a user with the `superuser` role to the file
-realm using the <<users-command,`elasticsearch-users`>> tool.
-
-For example, the following command creates a user named `restore_user`.
-
-[source,sh]
-----
-./bin/elasticsearch-users useradd restore_user -p my_password -r superuser
-----
-
-Use this file realm user to authenticate requests until the restore operation is
-complete.
---
 
 . Use the <<cluster-update-settings,cluster update settings API>> to set
 <<action-destructive-requires-name,`action.destructive_requires_name`>> to

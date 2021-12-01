@@ -63,6 +63,7 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.ThreadLocalBytesRecycler;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -169,6 +170,7 @@ import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -885,6 +887,7 @@ public class Node implements Closeable {
             clusterService.addListener(pluginShutdownService);
 
             final RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
+            final ThreadLocalBytesRecycler bytesRecycler = new ThreadLocalBytesRecycler(new BytesRefRecycler(pageCacheRecycler));
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -965,6 +968,7 @@ public class Node implements Closeable {
                 b.bind(SystemIndices.class).toInstance(systemIndices);
                 b.bind(PluginShutdownService.class).toInstance(pluginShutdownService);
                 b.bind(ExecutorSelector.class).toInstance(executorSelector);
+                b.bind(ThreadLocalBytesRecycler.class).toInstance(bytesRecycler);
             });
             injector = modules.createInjector();
 

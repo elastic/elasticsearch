@@ -241,22 +241,32 @@ public class PyTorchModelIT extends ESRestTestCase {
         CheckedBiConsumer<String, AllocationStatus.State, IOException> assertAtLeast = (modelId, state) -> {
             startDeployment(modelId, state.toString());
             Response response = getTrainedModelStats(modelId);
-            List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(response).get("trained_model_stats");
+            var responseMap = entityAsMap(response);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) responseMap.get("trained_model_stats");
             assertThat(stats, hasSize(1));
             String statusState = (String) XContentMapValues.extractValue("deployment_stats.allocation_status.state", stats.get(0));
             assertThat(stats.toString(), statusState, is(not(nullValue())));
             assertThat(AllocationStatus.State.fromString(statusState), greaterThanOrEqualTo(state));
-            Integer byteSize = (Integer) XContentMapValues.extractValue("deployment_stats.model_size_bytes", stats.get(0));
-            assertThat(byteSize, is(not(nullValue())));
-            assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
 
-            Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
-            stats = (List<Map<String, Object>>) entityAsMap(humanResponse).get("trained_model_stats");
-            assertThat(stats, hasSize(1));
-            String stringBytes = (String) XContentMapValues.extractValue("deployment_stats.model_size", stats.get(0));
-            assertThat(stringBytes, is(not(nullValue())));
-            assertThat(stringBytes, equalTo("1.5kb"));
-            stopDeployment(model);
+            // starting models do not know their model size yet
+            if (state.isAnyOf(AllocationStatus.State.STARTED, AllocationStatus.State.FULLY_ALLOCATED)) {
+                Integer byteSize = (Integer) XContentMapValues.extractValue("deployment_stats.model_size_bytes", stats.get(0));
+                assertThat(responseMap.toString(), byteSize, is(not(nullValue())));
+                assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
+
+                Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
+                var humanResponseMap = entityAsMap(humanResponse);
+                stats = (List<Map<String, Object>>) humanResponseMap.get("trained_model_stats");
+                assertThat(stats, hasSize(1));
+                String stringBytes = (String) XContentMapValues.extractValue("deployment_stats.model_size", stats.get(0));
+                assertThat(
+                    "stats response: " + responseMap + " human stats response" + humanResponseMap,
+                    stringBytes,
+                    is(not(nullValue()))
+                );
+                assertThat(stringBytes, equalTo("1.5kb"));
+            }
+            stopDeployment(modelId);
         };
 
         assertAtLeast.accept(model, AllocationStatus.State.STARTING);

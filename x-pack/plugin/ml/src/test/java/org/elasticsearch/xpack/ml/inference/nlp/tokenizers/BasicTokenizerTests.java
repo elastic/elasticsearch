@@ -154,21 +154,12 @@ public class BasicTokenizerTests extends ESTestCase {
     }
 
     public void testIsPunctuation() {
-        assertTrue(BasicTokenizer.isCommonPunctuation('-'));
-        assertTrue(BasicTokenizer.isCommonPunctuation('$'));
-        assertTrue(BasicTokenizer.isCommonPunctuation('.'));
-        assertFalse(BasicTokenizer.isCommonPunctuation(' '));
-        assertFalse(BasicTokenizer.isCommonPunctuation('A'));
-        assertFalse(BasicTokenizer.isCommonPunctuation('`'));
-
         assertTrue(BasicTokenizer.isPunctuationMark('-'));
         assertTrue(BasicTokenizer.isPunctuationMark('$'));
         assertTrue(BasicTokenizer.isPunctuationMark('`'));
         assertTrue(BasicTokenizer.isPunctuationMark('.'));
         assertFalse(BasicTokenizer.isPunctuationMark(' '));
         assertFalse(BasicTokenizer.isPunctuationMark('A'));
-
-        assertFalse(BasicTokenizer.isCommonPunctuation('['));
         assertTrue(BasicTokenizer.isPunctuationMark('['));
     }
 

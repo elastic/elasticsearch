@@ -738,7 +738,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
                         for (String l : existingConfigWithoutAutoconfiguration) {
                             bw.write(l);
-			    bw.newLine();
+                            bw.newLine();
                         }
                     }
                 });

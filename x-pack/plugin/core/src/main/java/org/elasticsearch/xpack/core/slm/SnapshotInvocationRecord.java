@@ -37,10 +37,10 @@ public class SnapshotInvocationRecord extends AbstractDiffable<SnapshotInvocatio
     static final ParseField TIMESTAMP = new ParseField("time");
     static final ParseField DETAILS = new ParseField("details");
 
-    private String snapshotName;
-    private Long snapshotStartTimestamp;
-    private long snapshotFinishTimestamp;
-    private String details;
+    private final String snapshotName;
+    private final Long snapshotStartTimestamp;
+    private final long snapshotFinishTimestamp;
+    private final String details;
 
     public static final ConstructingObjectParser<SnapshotInvocationRecord, String> PARSER = new ConstructingObjectParser<>(
         "snapshot_policy_invocation_record",

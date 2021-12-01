@@ -40,10 +40,10 @@ enable <<deprecation-logging, deprecation logging>>.
 [%collapsible]
 ====
 *Details* +
-In 8.1, when retrieving a geo_shape field using the fields API, the geometry will be
-normalized if it crosses the dateline. For example if a polygon crosses the dateline,
-it will be returned as two polygons. The original polygon can still be retrieved
-from `_source`.
+The search API's `fields` parameter now normalizes `geo_shape` objects that
+cross the international dateline (+/-180° longitude). For example, if a polygon
+crosses the dateline, the `fields` parameter returns it as two polygons. You can
+still retrieve original, unnormalized geometry objects from `_source`.
 ====
 //end::notable-breaking-changes[]
 

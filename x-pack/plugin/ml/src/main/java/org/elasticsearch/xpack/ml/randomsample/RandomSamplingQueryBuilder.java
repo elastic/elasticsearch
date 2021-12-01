@@ -58,7 +58,7 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(p);
         out.writeOptionalInt(seed);
-        out.writeOptionalWriteable(queryBuilder);
+        out.writeOptionalNamedWriteable(queryBuilder);
     }
 
     public double getProbability() {
@@ -112,6 +112,9 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
     protected final Query doToQuery(SearchExecutionContext context) throws IOException {
         int seed = Objects.requireNonNullElseGet(this.seed, () -> Long.hashCode(context.nowInMillis()));
         long hash = BitMixer.mix(context.index().getUUID(), context.getShardId());
+        if (this.seed == null) {
+            context.disableCache();
+        }
         return new RandomSamplingQuery(p, new IntSupplier() {
             private final PCG pcg = new PCG(seed, hash);
 
@@ -119,7 +122,7 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
             public int getAsInt() {
                 return pcg.nextInt();
             }
-        }, this.seed == null, queryBuilder == null ? null : queryBuilder.toQuery(context));
+        }, context.isCacheable(), queryBuilder == null ? null : queryBuilder.toQuery(context));
     }
 
     @Override
@@ -160,7 +163,7 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
 
     private double validateProbability(double p) {
         if (p <= 0.0) {
-            throw new IllegalArgumentException("[" + PROBABILITY.getPreferredName() + "] cannot be less than or equal to 0.0.");
+            throw new IllegalArgumentException("[" + PROBABILITY.getPreferredName() + "] cannot be less than or equal to 0.");
         }
         if (p >= 1.0) {
             throw new IllegalArgumentException("[" + PROBABILITY.getPreferredName() + "] cannot be greater than or equal to 1.");

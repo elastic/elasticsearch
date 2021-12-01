@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.ml.randomsample;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
@@ -26,10 +28,15 @@ public class RandomSamplingQueryBuilderTests extends AbstractQueryTestCase<Rando
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(MachineLearning.class);
+        return List.of(MachineLearning.class, TestGeoShapeFieldMapperPlugin.class);
     }
 
     private boolean isCacheable = false;
+
+    @Override
+    protected boolean builderGeneratesCacheableQueries() {
+        return isCacheable;
+    }
 
     @Override
     protected RandomSamplingQueryBuilder doCreateTestQueryBuilder() {
@@ -38,6 +45,8 @@ public class RandomSamplingQueryBuilderTests extends AbstractQueryTestCase<Rando
         if (randomBoolean()) {
             builder.setSeed(123);
             isCacheable = true;
+        } else {
+            isCacheable = false;
         }
         if (randomBoolean()) {
             builder.setQuery(QueryBuilders.matchAllQuery());
@@ -55,30 +64,39 @@ public class RandomSamplingQueryBuilderTests extends AbstractQueryTestCase<Rando
             IllegalArgumentException.class,
             () -> new RandomSamplingQueryBuilder().setProbability(0.0)
         );
-        assertEquals("[probability] cannot be less than or equal to 0.0.", e.getMessage());
+        assertEquals("[probability] cannot be less than or equal to 0.", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> new RandomSamplingQueryBuilder().setProbability(-5.0));
-        assertEquals("[probability] cannot be less than or equal to 0.0.", e.getMessage());
+        assertEquals("[probability] cannot be less than or equal to 0.", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> new RandomSamplingQueryBuilder().setProbability(1.0));
-        assertEquals("[probability] cannot be greater than or equal to 1.0.", e.getMessage());
+        assertEquals("[probability] cannot be greater than or equal to 1.", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> new RandomSamplingQueryBuilder().setProbability(5.0));
-        assertEquals("[probability] cannot be greater than or equal to 1.0.", e.getMessage());
+        assertEquals("[probability] cannot be greater than or equal to 1.", e.getMessage());
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n" + "  \"random_sample\" : {\n" + "    \"probability\" : 0.5\n" + "  }\n" + "}";
+        String json = "{ \"random_sample\": {\"boost\":1.0,\"probability\": 0.5}}";
         RandomSamplingQueryBuilder parsed = (RandomSamplingQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertThat(parsed.getProbability(), equalTo(0.5));
         assertThat(parsed.getSeed(), nullValue());
 
         // try with seed
-        json = "{\n" + "  \"random_sample\" : {\n" + "    \"probability\" : 0.5,\n" + "    \"seed\" : 123\n" + "  }\n" + "}";
+        json = "{ \"random_sample\": {\"boost\":1.0,\"probability\": 0.5,\"seed\":123}}";
         parsed = (RandomSamplingQueryBuilder) parseQuery(json);
         assertThat(parsed.getProbability(), equalTo(0.5));
         assertThat(parsed.getSeed(), equalTo(123));
+    }
+
+    @Override
+    public void testCacheability() throws IOException {
+        RandomSamplingQueryBuilder queryBuilder = createTestQueryBuilder();
+        SearchExecutionContext context = createSearchExecutionContext();
+        QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
+        assertNotNull(rewriteQuery.toQuery(context));
+        assertTrue("query should be cacheable: " + queryBuilder.toString(), isCacheable);
     }
 
 }

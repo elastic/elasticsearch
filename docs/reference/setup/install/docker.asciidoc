@@ -103,7 +103,7 @@ For example:
 
 [source,sh]
 ----
-docker exec -it es-node01 /usr/share/elasticsearch/bin/reset-elastic-password
+docker exec -it es-node01 /usr/share/elasticsearch/bin/elasticsearch-reset-password
 ----
 ====
 

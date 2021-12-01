@@ -323,9 +323,9 @@ specific indices or data streams instead.
 If you're restoring to a different cluster, see <<restore-different-cluster>>
 before you start.
 
-. If you run {es} on your own hardware and <<backup-cluster-configuration,backed
-up the cluster's configuration files>>, you can restore them to each node. This
-step is optional and requires a <<restart-upgrade,full cluster restart>>.
+. If you run {es} on your own hardware and  <<back-up-config-files,backed up the
+cluster's configuration files>>, you can restore them to each node. This step is
+optional and requires a <<restart-upgrade,full cluster restart>>.
 +
 After you shut down a node, copy the backed-up configuration files over to the
 node's `$ES_PATH_CONF` directory. Before restarting the node, ensure

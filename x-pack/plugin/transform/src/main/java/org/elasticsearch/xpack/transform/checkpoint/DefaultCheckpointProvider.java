@@ -156,23 +156,24 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     ) {
         if (fallbackToBWC.contains(cluster)) {
             getCheckpointsFromOneClusterBWC(client, headers, indices, cluster, listener);
-        }
-        getCheckpointsFromOneClusterV2(client, headers, indices, cluster, ActionListener.wrap(listener::onResponse, e -> {
-            Throwable unwrappedException = ExceptionsHelper.unwrapCause(e);
-            if (unwrappedException instanceof ActionNotFoundTransportException) {
-                // this is an implementation detail, so not necessary to audit or warn, but only report as debug
-                logger.debug(
-                    "[{}] Cluster [{}] does not support transform checkpoint API, falling back to legacy checkpointing",
-                    transformConfig.getId(),
-                    cluster
-                );
+        } else {
+            getCheckpointsFromOneClusterV2(client, headers, indices, cluster, ActionListener.wrap(listener::onResponse, e -> {
+                Throwable unwrappedException = ExceptionsHelper.unwrapCause(e);
+                if (unwrappedException instanceof ActionNotFoundTransportException) {
+                    // this is an implementation detail, so not necessary to audit or warn, but only report as debug
+                    logger.debug(
+                        "[{}] Cluster [{}] does not support transform checkpoint API, falling back to legacy checkpointing",
+                        transformConfig.getId(),
+                        cluster
+                    );
 
-                fallbackToBWC.add(cluster);
-                getCheckpointsFromOneClusterBWC(client, headers, indices, cluster, listener);
-            } else {
-                listener.onFailure(e);
-            }
-        }));
+                    fallbackToBWC.add(cluster);
+                    getCheckpointsFromOneClusterBWC(client, headers, indices, cluster, listener);
+                } else {
+                    listener.onFailure(e);
+                }
+            }));
+        }
     }
 
     private static void getCheckpointsFromOneClusterV2(

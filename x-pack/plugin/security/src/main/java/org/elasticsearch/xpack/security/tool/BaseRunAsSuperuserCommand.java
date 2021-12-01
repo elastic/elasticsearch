@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.tool;
 
 import joptsimple.OptionSet;
+import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 
 import org.elasticsearch.Version;
@@ -57,6 +58,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
     private static final int PASSWORD_LENGTH = 14;
 
     private final OptionSpecBuilder force;
+    protected final OptionSpec<String> urlOption;
     private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
 
@@ -72,6 +74,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
             List.of("f", "force"),
             "Use this option to force execution of the command against a cluster that is currently unhealthy."
         );
+        urlOption = parser.accepts("url", "the URL where the elasticsearch node listens for connections.").withRequiredArg();
     }
 
     @Override
@@ -120,7 +123,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
 
             attributesChecker.check(terminal);
             final boolean forceExecution = options.has(force);
-            checkClusterHealthWithRetries(newEnv, terminal, username, password, 5, forceExecution);
+            checkClusterHealthWithRetries(newEnv, options, terminal, username, password, 5, forceExecution);
             executeCommand(terminal, options, newEnv, username, password);
         } catch (Exception e) {
             int exitCode;
@@ -195,6 +198,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
      */
     private void checkClusterHealthWithRetries(
         Environment env,
+        OptionSet options,
         Terminal terminal,
         String username,
         SecureString password,
@@ -202,7 +206,8 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
         boolean force
     ) throws Exception {
         CommandLineHttpClient client = clientFunction.apply(env);
-        final URL clusterHealthUrl = CommandLineHttpClient.createURL(new URL(client.getDefaultURL()), "_cluster/health", "?pretty");
+        final URL baseUrl = options.has(urlOption) ? new URL(options.valueOf(urlOption)) : new URL(client.getDefaultURL());
+        final URL clusterHealthUrl = CommandLineHttpClient.createURL(baseUrl, "_cluster/health", "?pretty");
         final HttpResponse response;
         try {
             response = client.execute("GET", clusterHealthUrl, username, password, () -> null, CommandLineHttpClient::responseBuilder);
@@ -225,7 +230,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
                 );
                 Thread.sleep(1000);
                 retries -= 1;
-                checkClusterHealthWithRetries(env, terminal, username, password, retries, force);
+                checkClusterHealthWithRetries(env, options, terminal, username, password, retries, force);
             } else {
                 throw new UserException(
                     ExitCodes.DATA_ERROR,

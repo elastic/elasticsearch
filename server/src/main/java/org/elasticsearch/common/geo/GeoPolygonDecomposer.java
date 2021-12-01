@@ -39,6 +39,24 @@ class GeoPolygonDecomposer {
         // no instances
     }
 
+    public static boolean needsDecomposing(Polygon polygon) {
+        double minX = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        LinearRing linearRing = polygon.getPolygon();
+        for (int i = 0; i < linearRing.length(); i++) {
+            if (GeoUtils.needsNormalizeLat(linearRing.getLat(i)) || GeoUtils.needsNormalizeLon(linearRing.getLon(i))) {
+                return true;
+            }
+            minX = Math.min(minX, linearRing.getLon(i));
+            maxX = Math.max(maxX, linearRing.getLon(i));
+        }
+        // calculate range
+        final double rng = maxX - minX;
+        // we need to decompose tif the range is greater than a hemisphere (180 degrees)
+        // but not spanning 2 hemispheres (translation would result in a collapsed poly)
+        return rng > DATELINE && rng != 2 * DATELINE;
+    }
+
     public static void decomposeMultiPolygon(MultiPolygon multiPolygon, boolean orientation, List<Polygon> collector) {
         for (Polygon polygon : multiPolygon) {
             decomposePolygon(polygon, orientation, collector);

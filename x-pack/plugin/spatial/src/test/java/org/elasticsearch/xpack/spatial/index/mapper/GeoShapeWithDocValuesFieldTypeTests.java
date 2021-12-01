@@ -13,7 +13,6 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.xpack.vectortile.SpatialGeometryFormatterExtension;
@@ -27,7 +26,16 @@ import java.util.Map;
 public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new GeoShapeFieldMapper.Builder("field", true, true).build(MapperBuilderContext.ROOT).fieldType();
+        final GeoFormatterFactory<Geometry> geoFormatterFactory = new GeoFormatterFactory<>(
+            new SpatialGeometryFormatterExtension().getGeometryFormatterFactories()
+        );
+        final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
+            "field",
+            Version.CURRENT,
+            false,
+            false,
+            geoFormatterFactory
+        ).build(MapperBuilderContext.ROOT).fieldType();
 
         Map<String, Object> jsonLineString = Map.of("type", "LineString", "coordinates", List.of(List.of(42.0, 27.1), List.of(30.0, 50.0)));
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(14.0, 15.0));
@@ -125,5 +133,55 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         for (int i = 0; i < features.size(); i++) {
             assertThat(sourceValue.get(i), Matchers.equalTo(features.get(i)));
         }
+    }
+
+    public void testFetchSourceValueDateLine() throws IOException {
+        final GeoFormatterFactory<Geometry> geoFormatterFactory = new GeoFormatterFactory<>(
+            new SpatialGeometryFormatterExtension().getGeometryFormatterFactories()
+        );
+        final MappedFieldType mapper = new GeoShapeWithDocValuesFieldMapper.Builder(
+            "field",
+            Version.CURRENT,
+            false,
+            false,
+            geoFormatterFactory
+        ).build(MapperBuilderContext.ROOT).fieldType();
+        // Test a polygon crossing the dateline
+        Object sourceValue = "POLYGON((170 -10, -170 -10, -170 10, 170 10, 170 -10))";
+        String polygonDateLine = "MULTIPOLYGON (((180.0 -10.0, 180.0 10.0, 170.0 10.0, 170.0 -10.0, 180.0 -10.0)),"
+            + "((-180.0 10.0, -180.0 -10.0, -170.0 -10.0, -170.0 10.0, -180.0 10.0)))";
+        Map<String, Object> jsonPolygonDateLine = Map.of(
+            "type",
+            "MultiPolygon",
+            "coordinates",
+            List.of(
+                List.of(
+                    List.of(List.of(180.0, -10.0), List.of(180.0, 10.0), List.of(170.0, 10.0), List.of(170.0, -10.0), List.of(180.0, -10.0))
+                ),
+                List.of(
+                    List.of(
+                        List.of(-180.0, 10.0),
+                        List.of(-180.0, -10.0),
+                        List.of(-170.0, -10.0),
+                        List.of(-170.0, 10.0),
+                        List.of(-180.0, 10.0)
+                    )
+                )
+            )
+        );
+
+        assertEquals(List.of(jsonPolygonDateLine), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(polygonDateLine), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        String mvtPolygonDateLine = "MULTIPOLYGON (((180.0 -10.0, 180.0 10.0, 170.0 10.0, 170.0 -10.0, 180.0 -10.0)),"
+            + "((-180.0 10.0, -180.0 -10.0, -170.0 -10.0, -170.0 10.0, -180.0 10.0)))";
+
+        List<?> mvtExpected = fetchSourceValue(mapper, mvtPolygonDateLine, "mvt(0/0/0@256)");
+        List<?> mvt = fetchSourceValue(mapper, sourceValue, "mvt(0/0/0@256)");
+        assertThat(mvt.size(), Matchers.equalTo(1));
+        assertThat(mvt.size(), Matchers.equalTo(mvtExpected.size()));
+        assertThat(mvtExpected.get(0), Matchers.instanceOf(byte[].class));
+        assertThat(mvt.get(0), Matchers.instanceOf(byte[].class));
+        assertThat((byte[]) mvt.get(0), Matchers.equalTo((byte[]) mvtExpected.get(0)));
     }
 }

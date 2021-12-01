@@ -150,7 +150,6 @@ public class ForceMergeAction implements LifecycleAction {
             }
         );
 
-
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(
             checkNotWriteIndex,
             codecChange ? closeKey : forceMergeKey
@@ -203,8 +202,7 @@ public class ForceMergeAction implements LifecycleAction {
             return false;
         }
         ForceMergeAction other = (ForceMergeAction) obj;
-        return Objects.equals(this.maxNumSegments, other.maxNumSegments)
-            && Objects.equals(this.codec, other.codec);
+        return Objects.equals(this.maxNumSegments, other.maxNumSegments) && Objects.equals(this.codec, other.codec);
     }
 
     @Override

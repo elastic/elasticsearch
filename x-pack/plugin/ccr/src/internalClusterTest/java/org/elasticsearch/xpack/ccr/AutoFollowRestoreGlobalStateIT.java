@@ -106,12 +106,10 @@ public class AutoFollowRestoreGlobalStateIT extends CcrIntegTestCase {
         createRepository(followerClient());
 
         // take a snapshot with global state without auto-followers
-        updateClusterSettings(followerClient(), Settings.builder().putNull("cluster.remote.leader_cluster.seeds"));
-
-        takeSnapshot(followerClient(), snapshotName);
-
         assertThat(getClusterSettings(followerClient()).get("cluster.remote.leader_cluster.seeds"), nullValue());
         assertThat(getAutoFollowerPatterns(followerClient()).keySet(), equalTo(Set.of()));
+
+        takeSnapshot(followerClient(), snapshotName);
 
         // create remote and auto-follower
         var remote = getAddress(getLeaderCluster());

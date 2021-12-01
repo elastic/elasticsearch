@@ -582,7 +582,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
 
-                Releasable toRelease;
+                final Releasable toRelease;
                 if (requestMemory.needToReleaseNetworkMemory()) {
                     RecyclerBytesStreamOutput streamOutput = bytesRecycler.get();
                     toRelease = RequestMemory.copyBytesToNewReference(streamOutput, bulkShardRequest);
@@ -631,7 +631,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             );
                         }
                     });
-
+                    success = true;
                 } finally {
                     if (success == false) {
                         toRelease.close();

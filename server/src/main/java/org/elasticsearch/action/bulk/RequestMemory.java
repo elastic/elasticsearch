@@ -77,7 +77,7 @@ public class RequestMemory {
             throw new UncheckedIOException(e);
         } finally {
             if (success == false) {
-                streamOutput.retainBytesAndTruncateStream().close();
+                streamOutput.reset();
                 Releasables.close(bytesReference);
             }
 

@@ -227,9 +227,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
                 ReleasableBytesReference[] references = new ReleasableBytesReference[pageCount];
                 for (int i = 0; i < pageCount - 1; ++i) {
                     Page page = this.pages.get(i);
-                    if (retainAndTruncate) {
-                        page.incRef();
-                    }
                     int offsetAdjustment = 0;
                     if (i == 0) {
                         offsetAdjustment = firstPageOffset;
@@ -273,9 +270,7 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
     }
 
     public ReleasableBytesReference retainBytesAndTruncateStream() {
-        ReleasableBytesReference bytes = bytes(true);
-
-        return bytes;
+        return bytes(true);
     }
 
     public List<ReleasableBytesReference> retainPages() {

@@ -279,7 +279,6 @@ public class PhaseCacheManagementTests extends ESTestCase {
                 new Step.StepKey("phase", "allocate", AllocationRoutedStep.NAME),
                 new Step.StepKey("phase", "forcemerge", ForceMergeAction.CONDITIONAL_SKIP_FORCE_MERGE_STEP),
                 new Step.StepKey("phase", "forcemerge", CheckNotDataStreamWriteIndexStep.NAME),
-                new Step.StepKey("phase", "forcemerge", ReadOnlyAction.NAME),
                 new Step.StepKey("phase", "forcemerge", ForceMergeAction.NAME),
                 new Step.StepKey("phase", "forcemerge", SegmentCountStep.NAME)
             )

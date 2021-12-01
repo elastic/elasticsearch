@@ -36,7 +36,7 @@ enable <<deprecation-logging, deprecation logging>>.
 ==== REST API changes
 
 [[fields_api_geoshape_normalize]]
-.Fields API for geo_shape field returns the normalized geometry.
+.The search API's `fields` parameter now normalizes geometry objects that cross the international dateline.
 [%collapsible]
 ====
 *Details* +

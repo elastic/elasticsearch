@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.job.snapshot.upgrader;
+package org.elasticsearch.xpack.core.ml.job.snapshot.upgrade;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;

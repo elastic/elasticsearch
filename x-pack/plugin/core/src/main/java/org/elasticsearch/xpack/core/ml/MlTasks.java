@@ -200,6 +200,14 @@ public final class MlTasks {
         return jobState;
     }
 
+    public static SnapshotUpgradeState getSnapshotUpgradeState(
+        String jobId,
+        String snapshotId,
+        @Nullable PersistentTasksCustomMetadata tasks
+    ) {
+        return getSnapshotUpgradeState(getSnapshotUpgraderTask(jobId, snapshotId, tasks));
+    }
+
     public static SnapshotUpgradeState getSnapshotUpgradeState(@Nullable PersistentTasksCustomMetadata.PersistentTask<?> task) {
         if (task == null) {
             return SnapshotUpgradeState.STOPPED;

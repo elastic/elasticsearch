@@ -102,6 +102,8 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         Map<String, Map<String, Long>> memoryRequirementByTaskName = new TreeMap<>();
         memoryRequirementByTaskName.put(MlTasks.JOB_TASK_NAME, memoryRequirementByAnomalyDetectorJob);
         memoryRequirementByTaskName.put(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryRequirementByDataFrameAnalyticsJob);
+        // We don't add snapshot upgrade tasks here - instead, we assume they
+        // have the same memory requirement as the job they correspond to.
         this.memoryRequirementByTaskName = Collections.unmodifiableMap(memoryRequirementByTaskName);
 
         setReassignmentRecheckInterval(PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.get(settings));
@@ -258,6 +260,11 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
         if (isMaster == false) {
             return null;
+        }
+
+        // Assume snapshot upgrade tasks have the same memory requirement as the job they correspond to.
+        if (MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME.equals(taskName)) {
+            taskName = MlTasks.JOB_TASK_NAME;
         }
 
         Map<String, Long> memoryRequirementByJob = memoryRequirementByTaskName.get(taskName);

@@ -90,17 +90,20 @@ public class RequestMemory {
             DocWriteRequest<?> request = item.request();
             int length = 0;
             if (request instanceof IndexRequest) {
-                length = ((IndexRequest) request).source().length();
-                ((IndexRequest) request).source(bytesReference.slice(offset, length));
+                IndexRequest indexRequest = (IndexRequest) request;
+                length = indexRequest.source().length();
+                indexRequest.source(bytesReference.slice(offset, length), indexRequest.getContentType());
             } else if (request instanceof UpdateRequest) {
                 UpdateRequest updateRequest = (UpdateRequest) request;
                 if (updateRequest.upsertRequest() != null) {
-                    length = updateRequest.upsertRequest().source().length();
-                    updateRequest.upsertRequest().source(bytesReference.slice(offset, length));
+                    IndexRequest indexRequest = updateRequest.upsertRequest();
+                    length = indexRequest.source().length();
+                    indexRequest.source(bytesReference.slice(offset, length), indexRequest.getContentType());
                 }
                 if (updateRequest.doc() != null) {
-                    length = updateRequest.doc().source().length();
-                    updateRequest.doc().source(bytesReference.slice(offset, length));
+                    IndexRequest indexRequest = updateRequest.doc();
+                    length = indexRequest.source().length();
+                    indexRequest.source(bytesReference.slice(offset, length), indexRequest.getContentType());
                 }
             }
             offset += length;

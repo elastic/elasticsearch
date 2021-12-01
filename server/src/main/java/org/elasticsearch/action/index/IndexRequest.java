@@ -140,7 +140,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             boolean success = false;
             try (ReleasableBytesReference reference = in.readReleasableBytesReference()) {
                 reference.writeTo(recyclerStream);
-                toRelease.add(recyclerStream.retainBytesAndTruncateStream());
+                ReleasableBytesReference source = recyclerStream.retainBytesAndTruncateStream();
+                toRelease.add(source);
+                this.source = source;
                 success = true;
             } finally {
                 if (success == false) {

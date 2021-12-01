@@ -313,7 +313,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             );
         } else {
             final IndexRequest request = context.getRequestToExecute();
-            final BytesReference source = request.source();
+            final BytesReference source = getSource(request);
             final SourceToParse sourceToParse = new SourceToParse(
                 request.id(),
                 source,
@@ -575,9 +575,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             case CREATE:
             case INDEX:
                 final IndexRequest indexRequest = (IndexRequest) docWriteRequest;
+                BytesReference source = getSource(indexRequest);
                 final SourceToParse sourceToParse = new SourceToParse(
                     indexRequest.id(),
-                    indexRequest.source(),
+                    source,
                     indexRequest.getContentType(),
                     indexRequest.routing(),
                     Map.of()
@@ -623,7 +624,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private static final ThreadLocal<byte[]> indexingBuffer = ThreadLocal.withInitial(() -> new byte[256 * 1024 * 1024]);
 
-    private BytesReference getSource(IndexRequest request) {
+    private static BytesReference getSource(IndexRequest request) {
         BytesReference source = request.source();
         if (source.hasArray()) {
             return source;

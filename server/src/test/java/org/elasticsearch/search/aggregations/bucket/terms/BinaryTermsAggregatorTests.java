@@ -124,7 +124,7 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
                 ValueType.NUMERIC // numeric type hint
             )
         );
-        assertThat(e.getMessage(), equalTo("Expected numeric type on field [binary], but got [binary]"));
+        assertThat(e.getMessage(), equalTo("Field type [binary] is incompatible with specified value_type [numeric]"));
     }
 
     private void testSearchCase(

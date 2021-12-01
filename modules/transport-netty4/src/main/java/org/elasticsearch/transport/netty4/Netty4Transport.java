@@ -334,7 +334,7 @@ public class Netty4Transport extends TcpTransport {
             assert ch instanceof Netty4NioSocketChannel;
             NetUtils.tryEnsureReasonableKeepAliveConfig(((Netty4NioSocketChannel) ch).javaChannel());
             ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
-            ch.pipeline().addLast("logging", new ESLoggingHandler());
+            ch.pipeline().addLast("logging", ESLoggingHandler.INSTANCE);
             // using a dot as a prefix means this cannot come from any settings parsed
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, recycler));
         }
@@ -362,7 +362,7 @@ public class Netty4Transport extends TcpTransport {
             Netty4TcpChannel nettyTcpChannel = new Netty4TcpChannel(ch, true, name, ch.newSucceededFuture());
             ch.attr(CHANNEL_KEY).set(nettyTcpChannel);
             ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
-            ch.pipeline().addLast("logging", new ESLoggingHandler());
+            ch.pipeline().addLast("logging", ESLoggingHandler.INSTANCE);
             ch.pipeline().addLast("dispatcher", new Netty4MessageChannelHandler(Netty4Transport.this, recycler));
             serverAcceptedChannel(nettyTcpChannel);
         }

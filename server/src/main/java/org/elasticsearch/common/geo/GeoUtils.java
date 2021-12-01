@@ -293,11 +293,19 @@ public class GeoUtils {
         normalizePoint(lonLat, true, true);
     }
 
+    public static boolean needsNormalizeLat(double lat) {
+        return lat > 90 || lat < -90;
+    }
+
+    public static boolean needsNormalizeLon(double lon) {
+        return lon > 180 || lon < -180;
+    }
+
     public static void normalizePoint(double[] lonLat, boolean normLon, boolean normLat) {
         assert lonLat != null && lonLat.length == 2;
 
-        normLat = normLat && (lonLat[1] > 90 || lonLat[1] < -90);
-        normLon = normLon && (lonLat[0] > 180 || lonLat[0] < -180 || normLat);
+        normLat = normLat && needsNormalizeLat(lonLat[1]);
+        normLon = normLon && (needsNormalizeLon(lonLat[0]) || normLat);
 
         if (normLat) {
             lonLat[1] = centeredModulus(lonLat[1], 360);

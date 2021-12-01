@@ -30,8 +30,10 @@ setup:
 ---
 "Create data stream":
   - skip:
-      version: " - 7.8.99"
-      reason: "data streams only supported in 7.9+"
+      version: all
+      reason: "Awaits fix: https://github.com/elastic/elasticsearch/issues/81164"
+      #version: " - 7.8.99"
+      #reason: "data streams only supported in 7.9+"
 
   - do:
       indices.create_data_stream:
@@ -54,13 +56,15 @@ setup:
   - match: { data_streams.0.status: 'GREEN' }
   - match: { data_streams.0.template: 'my-template1' }
   - match: { data_streams.0.hidden: false }
+  - match: { data_streams.0.replicated: false }
   - match: { data_streams.1.name: simple-data-stream2 }
   - match: { data_streams.1.timestamp_field.name: '@timestamp' }
-  - match: { data_streams.0.generation: 1 }
+  - match: { data_streams.1.generation: 1 }
   - length: { data_streams.1.indices: 1 }
   - match: { data_streams.1.indices.0.index_name: '/\.ds-simple-data-stream2-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - match: { data_streams.1.template: 'my-template2' }
-  - match: { data_streams.0.hidden: false }
+  - match: { data_streams.1.hidden: false }
+  - match: { data_streams.1.replicated: false }
 
   # save the backing index names for later use
   - set: { data_streams.0.indices.0.index_name: idx0name }

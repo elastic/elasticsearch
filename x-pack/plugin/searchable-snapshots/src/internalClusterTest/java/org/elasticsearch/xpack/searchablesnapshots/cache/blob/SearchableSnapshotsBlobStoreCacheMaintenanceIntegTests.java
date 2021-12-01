@@ -233,7 +233,7 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
 
         // creates a backup of the system index cache to be restored later
         createRepository("backup", FsRepository.TYPE);
-        createSnapshot("backup", "backup", List.of(SNAPSHOT_BLOB_CACHE_INDEX));
+        createSnapshot("backup", "backup", Collections.emptyList(), Collections.singletonList("searchable_snapshots"));
 
         final Set<String> indicesToDelete = new HashSet<>(mountedIndices.keySet());
         indicesToDelete.add(randomFrom(otherMountedIndices.keySet()));
@@ -262,7 +262,11 @@ public class SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests extends Base
             final RestoreSnapshotResponse restoreResponse = client().admin()
                 .cluster()
                 .prepareRestoreSnapshot("backup", "backup")
-                .setIndices(SNAPSHOT_BLOB_CACHE_INDEX)
+                // We only want to restore the blob cache index. Since we can't do that by name, specify an index that doesn't exist and
+                // allow no indices - this way, only the indices resolved from the feature state will be resolved.
+                .setIndices("this-index-doesnt-exist-i-know-because-#-is-illegal-in-index-names")
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setFeatureStates("searchable_snapshots")
                 .setWaitForCompletion(true)
                 .get();
             assertThat(restoreResponse.getRestoreInfo().successfulShards(), equalTo(1));

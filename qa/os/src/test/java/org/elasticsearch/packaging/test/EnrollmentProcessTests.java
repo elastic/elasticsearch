@@ -14,6 +14,7 @@ import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
+import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -88,7 +89,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
 
         );
         // the autoconfiguration dir will be cleaned _after_ we fail to connect to the supposed original node. Allow time for this to happen
-        assertBusy(() -> verifySecurityNotAutoConfigured(installation));
+        assertBusy(() -> assertThat(getAutoConfigDirName(installation).isPresent(), Matchers.is(false)));
         // auto-configure security using the enrollment token
         Shell.Result startSecondNode = awaitElasticsearchStartupWithResult(
             Archives.startElasticsearchWithTty(installation, sh, null, List.of("--enrollment-token", enrollmentToken), false)

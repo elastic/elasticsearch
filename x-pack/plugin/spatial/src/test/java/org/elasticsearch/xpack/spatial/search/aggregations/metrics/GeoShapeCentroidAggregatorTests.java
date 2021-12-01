@@ -154,10 +154,14 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             );
             Geometry geometry = geometryGenerator.apply(false);
             try {
-                geometries.add(GeometryNormalizer.apply(Orientation.CCW, geometry));
-            } catch (InvalidShapeException e) {
-                // do not include geometry
+                geometry = GeometryNormalizer.apply(Orientation.CCW, geometry);
+                // make sure we can index the geometry
+                GeoTestUtils.binaryGeoShapeDocValuesField("field", geometry);
+            } catch (IllegalArgumentException e) {
+                // do not include geometry.
+                continue;
             }
+            geometries.add(geometry);
             // find dimensional-shape-type of geometry
             CentroidCalculator centroidCalculator = new CentroidCalculator();
             centroidCalculator.add(geometry);

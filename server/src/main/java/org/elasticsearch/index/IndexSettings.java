@@ -552,13 +552,10 @@ public final class IndexSettings {
      */
     private final IndexMode mode;
     /**
-     * Start time of the time_series index.
+     * The bounds for {@code @timestamp} on this index or
+     * {@code null} if there are no bounds.
      */
-    private final long timeSeriesStartTime;
-    /**
-     * End time of the time_series index.
-     */
-    private volatile long timeSeriesEndTime;
+    private final TimestampBounds timestampBounds;
 
     // volatile fields are updated via #updateIndexMetadata(IndexMetadata) under lock
     private volatile Settings settings;
@@ -701,8 +698,7 @@ public final class IndexSettings {
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         mode = isTimeSeriesModeEnabled() ? scopedSettings.get(MODE) : IndexMode.STANDARD;
-        timeSeriesStartTime = TIME_SERIES_START_TIME.get(settings).toEpochMilli();
-        timeSeriesEndTime = TIME_SERIES_END_TIME.get(settings).toEpochMilli();
+        this.timestampBounds = TIME_SERIES_START_TIME.exists(settings) ? new TimestampBounds(scopedSettings) : null;
         this.searchThrottled = INDEX_SEARCH_THROTTLED.get(settings);
         this.queryStringLenient = QUERY_STRING_LENIENT_SETTING.get(settings);
         this.queryStringAnalyzeWildcard = QUERY_STRING_ANALYZE_WILDCARD.get(nodeSettings);
@@ -813,9 +809,6 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING, this::setMappingDimensionFieldsLimit);
-        if (IndexSettings.isTimeSeriesModeEnabled()) {
-            scopedSettings.addSettingsUpdateConsumer(TIME_SERIES_END_TIME, this::updateTimeSeriesEndTime);
-        }
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1330,21 +1323,11 @@ public final class IndexSettings {
         this.mappingDimensionFieldsLimit = value;
     }
 
-    public long getTimeSeriesStartTime() {
-        return timeSeriesStartTime;
-    }
-
-    public long getTimeSeriesEndTime() {
-        return timeSeriesEndTime;
-    }
-
-    public void updateTimeSeriesEndTime(Instant endTimeInstant) {
-        long endTime = endTimeInstant.toEpochMilli();
-        if (this.timeSeriesEndTime > endTime) {
-            throw new IllegalArgumentException(
-                "index.time_series.end_time must be larger than current value [" + this.timeSeriesEndTime + "]"
-            );
-        }
-        this.timeSeriesEndTime = endTime;
+    /**
+     * The bounds for {@code @timestamp} on this index or
+     * {@code null} if there are no bounds.
+     */
+    public TimestampBounds getTimestampBounds() {
+        return timestampBounds;
     }
 }

@@ -75,7 +75,6 @@ public enum IndexMode {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
-
     },
     TIME_SERIES {
         @Override

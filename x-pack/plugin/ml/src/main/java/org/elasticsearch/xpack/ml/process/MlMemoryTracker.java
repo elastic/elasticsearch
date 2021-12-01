@@ -22,7 +22,6 @@ import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -49,17 +48,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * This class keeps track of the memory requirement of ML jobs.
  * It only functions on the master node - for this reason it should only be used by master node actions.
  * The memory requirement for ML jobs can be updated in 4 ways:
- * 1. For all open ML data frame analytics jobs and anomaly detector jobs (via {@link #asyncRefresh})
- * 2. For all open/started ML jobs, plus one named ML anomaly detector job that is not open
+ * 1. For all open ML data frame analytics jobs, anomaly detector jobs and model snapshot upgrades (via {@link #asyncRefresh})
+ * 2. For all open/started ML jobs and model snapshot upgrades, plus one named ML anomaly detector job that may not be open
  *    (via {@link #refreshAnomalyDetectorJobMemoryAndAllOthers})
- * 3. For all open/started ML jobs, plus one named ML data frame analytics job that is not started
+ * 3. For all open/started ML jobs and model snapshot upgrades, plus one named ML data frame analytics job that is not started
  *    (via {@link #addDataFrameAnalyticsJobMemoryAndRefreshAllOthers})
- * 4. For one named ML anomaly detector job (via {@link #refreshAnomalyDetectorJobMemory})
+ * 4. For one named ML anomaly detector job or model snapshot upgrade (via {@link #refreshAnomalyDetectorJobMemory})
  * In cases 2, 3 and 4 a listener informs the caller when the requested updates are complete.
  */
 public class MlMemoryTracker implements LocalNodeMasterListener {
@@ -78,7 +78,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     private final JobResultsProvider jobResultsProvider;
     private final DataFrameAnalyticsConfigProvider configProvider;
     private final Phaser stopPhaser;
-    private volatile AtomicInteger phase = new AtomicInteger(0);
+    private final AtomicInteger phase = new AtomicInteger(0);
     private volatile boolean isMaster;
     private volatile boolean stopped;
     private volatile Instant lastUpdateTime;
@@ -334,8 +334,13 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             return;
         }
 
-        PersistentTasksCustomMetadata persistentTasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        refresh(persistentTasks, ActionListener.wrap(aVoid -> refreshAnomalyDetectorJobMemory(jobId, listener), listener::onFailure));
+        // Skip the provided job ID in the main refresh, as we unconditionally do it at the end.
+        // Otherwise it might get refreshed twice, because it could have both a job task and a snapshot upgrade task.
+        refresh(
+            clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE),
+            Collections.singleton(jobId),
+            ActionListener.wrap(aVoid -> refreshAnomalyDetectorJobMemory(jobId, listener), listener::onFailure)
+        );
     }
 
     /**
@@ -366,6 +371,10 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
      * jobs are deleted.)
      */
     public void refresh(PersistentTasksCustomMetadata persistentTasks, ActionListener<Void> onCompletion) {
+        refresh(persistentTasks, Collections.emptySet(), onCompletion);
+    }
+
+    void refresh(PersistentTasksCustomMetadata persistentTasks, Set<String> jobIdsToSkip, ActionListener<Void> onCompletion) {
 
         synchronized (fullRefreshCompletionListeners) {
             fullRefreshCompletionListeners.add(onCompletion);
@@ -418,29 +427,31 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 refreshComplete::onFailure
             );
 
-            List<PersistentTasksCustomMetadata.PersistentTask<?>> mlAnomalyDetectorJobTasks = persistentTasks.tasks()
-                .stream()
-                .filter(task -> MlTasks.JOB_TASK_NAME.equals(task.getTaskName()))
-                .collect(Collectors.toList());
-            iterateAnomalyDetectorJobTasks(mlAnomalyDetectorJobTasks.iterator(), refreshDataFrameAnalyticsJobs);
+            Set<String> mlAnomalyDetectorJobTasks = Stream.concat(
+                persistentTasks.tasks()
+                    .stream()
+                    .filter(task -> MlTasks.JOB_TASK_NAME.equals(task.getTaskName()))
+                    .map(task -> MlTasks.jobId(task.getId())),
+                persistentTasks.tasks()
+                    .stream()
+                    .filter(task -> MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME.equals(task.getTaskName()))
+                    .map(task -> MlTasks.jobAndSnapshotId(task.getId()).v1())
+            ).filter(jobId -> jobIdsToSkip.contains(jobId) == false).collect(Collectors.toSet());
+            iterateAnomalyDetectorJobs(mlAnomalyDetectorJobTasks.iterator(), refreshDataFrameAnalyticsJobs);
         }
     }
 
-    private void iterateAnomalyDetectorJobTasks(
-        Iterator<PersistentTasksCustomMetadata.PersistentTask<?>> iterator,
-        ActionListener<Void> refreshComplete
-    ) {
+    private void iterateAnomalyDetectorJobs(Iterator<String> iterator, ActionListener<Void> refreshComplete) {
         if (iterator.hasNext()) {
-            OpenJobAction.JobParams jobParams = (OpenJobAction.JobParams) iterator.next().getParams();
             refreshAnomalyDetectorJobMemory(
-                jobParams.getJobId(),
+                iterator.next(),
                 ActionListener.wrap(
                     // Do the next iteration in a different thread, otherwise stack overflow
                     // can occur if the searches happen to be on the local node, as the huge
                     // chain of listeners are all called in the same thread if only one node
                     // is involved
                     mem -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                        .execute(() -> iterateAnomalyDetectorJobTasks(iterator, refreshComplete)),
+                        .execute(() -> iterateAnomalyDetectorJobs(iterator, refreshComplete)),
                     refreshComplete::onFailure
                 )
             );

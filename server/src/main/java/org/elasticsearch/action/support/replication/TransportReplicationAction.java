@@ -327,8 +327,7 @@ public abstract class TransportReplicationAction<
     }
 
     private void handleOperationRequest(final Request request, final TransportChannel channel, Task task) {
-        Releasable limitsReleasable = checkOperationLimits(request);
-        Releasable releasable = copyMemoryFromRequest(request, limitsReleasable);
+        Releasable releasable = checkOperationLimits(request);
         ActionListener<Response> listener = ActionListener.runBefore(
             new ChannelActionListener<>(channel, actionName, request),
             releasable::close
@@ -341,12 +340,11 @@ public abstract class TransportReplicationAction<
     }
 
     protected void handlePrimaryRequest(final ConcreteShardRequest<Request> request, final TransportChannel channel, final Task task) {
-        Releasable limitsReleasable = checkPrimaryLimits(
+        Releasable releasable = checkPrimaryLimits(
             request.getRequest(),
             request.sentFromLocalReroute(),
             request.localRerouteInitiatedByNodeClient()
         );
-        Releasable releasable = copyMemoryFromRequest(request.getRequest(), limitsReleasable);
         ActionListener<Response> listener = ActionListener.runBefore(
             new ChannelActionListener<>(channel, transportPrimaryAction, request),
             releasable::close
@@ -357,10 +355,6 @@ public abstract class TransportReplicationAction<
         } catch (RuntimeException e) {
             listener.onFailure(e);
         }
-    }
-
-    protected Releasable copyMemoryFromRequest(final Request request, final Releasable limitsReleasable) {
-        return limitsReleasable;
     }
 
     protected Releasable checkPrimaryLimits(final Request request, boolean rerouteWasLocal, boolean localRerouteInitiatedByNodeClient) {
@@ -610,9 +604,7 @@ public abstract class TransportReplicationAction<
         final TransportChannel channel,
         final Task task
     ) {
-        Releasable limitsReleasable = checkReplicaLimits(replicaRequest.getRequest());
-        Releasable releasable = copyMemoryFromReplicaRequest(replicaRequest.getRequest(), limitsReleasable);
-
+        Releasable releasable = checkReplicaLimits(replicaRequest.getRequest());
         ActionListener<ReplicaResponse> listener = ActionListener.runBefore(
             new ChannelActionListener<>(channel, transportReplicaAction, replicaRequest),
             releasable::close
@@ -627,10 +619,6 @@ public abstract class TransportReplicationAction<
 
     protected Releasable checkReplicaLimits(final ReplicaRequest request) {
         return () -> {};
-    }
-
-    protected Releasable copyMemoryFromReplicaRequest(final ReplicaRequest request, final Releasable limitsReleasable) {
-        return limitsReleasable;
     }
 
     public static class RetryOnReplicaException extends ElasticsearchException {

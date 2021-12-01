@@ -28,6 +28,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -35,7 +36,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
+import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
@@ -44,7 +45,13 @@ import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.ByteDocValuesField;
 import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DoubleDocValuesField;
+import org.elasticsearch.script.field.FloatDocValuesField;
+import org.elasticsearch.script.field.IntegerDocValuesField;
+import org.elasticsearch.script.field.LongDocValuesField;
+import org.elasticsearch.script.field.ShortDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -334,7 +341,7 @@ public class NumberFieldMapper extends FieldMapper {
                 return new SortedDoublesIndexFieldData.Builder(
                     name,
                     numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
+                    (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
                 );
             }
 
@@ -442,11 +449,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedDoublesIndexFieldData.Builder(
-                    name,
-                    numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
-                );
+                return new SortedDoublesIndexFieldData.Builder(name, numericType(), FloatDocValuesField::new);
             }
 
             private void validateParsed(float value) {
@@ -536,11 +539,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedDoublesIndexFieldData.Builder(
-                    name,
-                    numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
-                );
+                return new SortedDoublesIndexFieldData.Builder(name, numericType(), DoubleDocValuesField::new);
             }
 
             private void validateParsed(double value) {
@@ -617,11 +616,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedNumericIndexFieldData.Builder(
-                    name,
-                    numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
-                );
+                return new SortedNumericIndexFieldData.Builder(name, numericType(), ByteDocValuesField::new);
             }
         },
         SHORT("short", NumericType.SHORT) {
@@ -688,11 +683,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedNumericIndexFieldData.Builder(
-                    name,
-                    numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
-                );
+                return new SortedNumericIndexFieldData.Builder(name, numericType(), ShortDocValuesField::new);
             }
         },
         INTEGER("integer", NumericType.INT) {
@@ -818,11 +809,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedNumericIndexFieldData.Builder(
-                    name,
-                    numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
-                );
+                return new SortedNumericIndexFieldData.Builder(name, numericType(), IntegerDocValuesField::new);
             }
         },
         LONG("long", NumericType.LONG) {
@@ -918,11 +905,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedNumericIndexFieldData.Builder(
-                    name,
-                    numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Longs(dv), n)
-                );
+                return new SortedNumericIndexFieldData.Builder(name, numericType(), LongDocValuesField::new);
             }
         };
 
@@ -1354,7 +1337,7 @@ public class NumberFieldMapper extends FieldMapper {
     protected void parseCreateField(DocumentParserContext context) throws IOException {
         Number value;
         try {
-            value = value(context.parser(), type, nullValue, coerce.value());
+            value = value(context.parser(), type, nullValue, coerce());
         } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
             if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
                 context.addIgnoredField(mappedFieldType.name());
@@ -1391,20 +1374,18 @@ public class NumberFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, Number numericValue) {
-        List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
-        if (dimension) {
-            // Check that a dimension field is single-valued and not an array
-            if (context.doc().getByKey(fieldType().name()) != null) {
-                throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
-            }
-            if (fields.size() > 0) {
-                // Add the first field by key so that we can validate if it has been added
-                context.doc().addWithKey(fieldType().name(), fields.get(0));
-                context.doc().addAll(fields.subList(1, fields.size()));
-            }
-        } else {
-            context.doc().addAll(fields);
+        if (dimension && numericValue != null) {
+            // Dimension can only be one of byte, short, int, long. So, we encode the tsid
+            // part of the dimension field by using the long value.
+            // Also, there is no point in encoding the tsid value if we do not generate
+            // the _tsid field.
+            BytesReference bytes = context.getMetadataMapper(TimeSeriesIdFieldMapper.NAME) != null
+                ? TimeSeriesIdFieldMapper.encodeTsidValue(numericValue.longValue())
+                : null;
+            context.doc().addDimensionBytes(fieldType().name(), bytes);
         }
+        List<Field> fields = fieldType().type.createFields(fieldType().name(), numericValue, indexed, hasDocValues, stored);
+        context.doc().addAll(fields);
 
         if (hasDocValues == false && (stored || indexed)) {
             context.addToFieldNames(fieldType().name());

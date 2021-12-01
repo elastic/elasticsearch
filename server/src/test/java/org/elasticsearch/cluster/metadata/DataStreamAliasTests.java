@@ -204,9 +204,13 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
         {
             DataStreamAlias alias1 = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), "ds-2", null);
             DataStreamAlias alias2 = new DataStreamAlias("my-alias", List.of("ds-2", "ds-3"), "ds-3", null);
-            DataStreamAlias result = alias1.merge(alias2);
-            assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2", "ds-3"));
-            assertThat(result.getWriteDataStream(), equalTo("ds-2"));
+            var e = expectThrows(IllegalArgumentException.class, () -> alias1.merge(alias2));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "cannot merge alias [my-alias], write data stream of this [ds-2] and write data stream of other [ds-3] are different"
+                )
+            );
         }
         {
             DataStreamAlias alias1 = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), null, null);

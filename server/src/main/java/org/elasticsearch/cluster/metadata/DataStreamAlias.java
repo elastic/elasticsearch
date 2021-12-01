@@ -230,10 +230,23 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
         mergedDataStreams.addAll(this.getDataStreams());
 
         String writeDataStream = this.writeDataStream;
-        if (writeDataStream == null) {
-            if (other.getWriteDataStream() != null && mergedDataStreams.contains(other.getWriteDataStream())) {
+        if (writeDataStream != null && other.getWriteDataStream() != null) {
+            if (writeDataStream.equals(other.getWriteDataStream()) == false) {
+                throw new IllegalArgumentException(
+                    "cannot merge alias ["
+                        + name
+                        + "], write data stream of this ["
+                        + writeDataStream
+                        + "] and write data stream of other ["
+                        + other.getWriteDataStream()
+                        + "] are different"
+                );
+            }
+        } else if (writeDataStream == null && other.getWriteDataStream() != null) {
+            if (mergedDataStreams.contains(other.getWriteDataStream())) {
                 writeDataStream = other.getWriteDataStream();
             }
+            // else throw error?
         }
 
         return new DataStreamAlias(this.name, List.copyOf(mergedDataStreams), writeDataStream, filter);

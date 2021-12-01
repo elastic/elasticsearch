@@ -137,7 +137,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
     }
 
     public void testInvalidNegativeSegmentNumber() {
-        Exception r = expectThrows(IllegalArgumentException.class, () -> { new ForceMergeAction(randomIntBetween(-10, 0), null); });
+        Exception r = expectThrows(IllegalArgumentException.class, () -> new ForceMergeAction(randomIntBetween(-10, 0), null));
         assertThat(r.getMessage(), equalTo("[max_num_segments] must be a positive integer"));
     }
 

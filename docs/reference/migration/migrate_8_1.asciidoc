@@ -44,6 +44,10 @@ The search API's `fields` parameter now normalizes `geo_shape` objects that
 cross the international dateline (+/-180° longitude). For example, if a polygon
 crosses the dateline, the `fields` parameter returns it as two polygons. You can
 still retrieve original, unnormalized geometry objects from `_source`.
+
+*Impact* +
+If your application requires unnormalized geometry objects, retrieve them from
+`_source` rather than using the `fields` parameter.
 ====
 //end::notable-breaking-changes[]
 

@@ -44,6 +44,8 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;
@@ -73,7 +75,10 @@ import java.util.Set;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTestCase {
+/**
+ * Test suite for legacy checkpointing using 2 calls: getindex, getindexstats
+ */
+public class TransformLegacyCheckpointServiceNodeTests extends TransformSingleNodeTestCase {
 
     // re-use the mock client for the whole test suite as the underlying thread pool and the
     // corresponding context if recreated cause unreliable test execution
@@ -111,6 +116,14 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
             ActionListener<Response> listener
         ) {
 
+            // fallback to legacy checkpointing
+            if (request instanceof GetCheckpointAction.Request) {
+                listener.onFailure(
+                    new ActionNotFoundTransportException(GetCheckpointAction.NAME)
+                );
+                return;
+            }
+
             if (request instanceof GetIndexRequest) {
                 // for this test we only need the indices
                 assert (indices != null);
@@ -118,7 +131,9 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
 
                 listener.onResponse((Response) indexResponse);
                 return;
-            } else if (request instanceof IndicesStatsRequest) {
+            }
+
+            if (request instanceof IndicesStatsRequest) {
 
                 // IndicesStatsResponse is package private, therefore using a mock
                 final IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);

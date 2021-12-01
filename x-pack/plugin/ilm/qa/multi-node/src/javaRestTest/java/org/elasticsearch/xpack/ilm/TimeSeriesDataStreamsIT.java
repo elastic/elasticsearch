@@ -242,8 +242,8 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         assertNull(settings.get("index.frozen"));
     }
 
-    public void checkForceMergeAction(String codec, boolean readOnly) throws Exception {
-        createNewSingletonPolicy(client(), policyName, "warm", new ForceMergeAction(1, readOnly, codec));
+    public void checkForceMergeAction(String codec) throws Exception {
+        createNewSingletonPolicy(client(), policyName, "warm", new ForceMergeAction(1, codec));
         createComposableTemplate(client(), template, dataStream + "*", getTemplate(policyName));
         indexDocument(client(), dataStream, true);
 
@@ -264,26 +264,17 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
         assertBusy(() -> {
             assertThat(explainIndex(client(), backingIndexName).get("step"), is(PhaseCompleteStep.NAME));
             Map<String, Object> settings = getOnlyIndexSettings(client(), backingIndexName);
-            Object expectedWriteSetting = readOnly ? "true" : null;
             assertThat(settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(codec));
-            assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo(expectedWriteSetting));
+            assertThat(settings.containsKey(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo(false));
         }, 30, TimeUnit.SECONDS);
     }
 
     public void testForceMergeAction() throws Exception {
-        checkForceMergeAction(null, true);
+        checkForceMergeAction(null);
     }
 
     public void testForceMergeActionWithCompressionCodec() throws Exception {
-        checkForceMergeAction("best_compression", true);
-    }
-
-    public void testForceMergeActionNonReadOnly() throws Exception {
-        checkForceMergeAction(null, false);
-    }
-
-    public void testForceMergeActionWithCompressionCodecNonReadOnly() throws Exception {
-        checkForceMergeAction("best_compression", false);
+        checkForceMergeAction("best_compression");
     }
 
     @SuppressWarnings("unchecked")

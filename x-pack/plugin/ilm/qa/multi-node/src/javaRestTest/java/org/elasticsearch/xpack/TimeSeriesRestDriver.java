@@ -177,7 +177,7 @@ public final class TimeSeriesRestDriver {
         hotActions.put(RolloverAction.NAME, new RolloverAction(null, null, null, 1L, null));
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
-        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, true, null));
+        warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
         warmActions.put(
             AllocateAction.NAME,
             new AllocateAction(

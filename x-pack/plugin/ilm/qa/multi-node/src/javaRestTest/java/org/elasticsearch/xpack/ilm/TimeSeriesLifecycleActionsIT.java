@@ -473,7 +473,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertOK(client().performRequest(new Request("DELETE", "/_snapshot/repo/" + snapName)));
     }
 
-    public void checkForceMergeAction(String codec, boolean readOnly) throws Exception {
+    public void checkForceMergeAction(String codec) throws Exception {
         createIndexWithSettings(
             client(),
             index,
@@ -488,39 +488,26 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         }
 
         assertThat(getNumberOfSegments(client(), index), greaterThanOrEqualTo(1));
-        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, readOnly, codec));
+        createNewSingletonPolicy(client(), policy, "warm", new ForceMergeAction(1, codec));
         updatePolicy(client(), index, policy);
 
         assertBusy(() -> {
             assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
             Map<String, Object> settings = getOnlyIndexSettings(client(), index);
-            Object expectedWriteSetting = readOnly ? "true" : null;
             assertThat(settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(codec));
-            assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo(expectedWriteSetting));
+            assertThat(settings.containsKey(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo(false));
         }, 30, TimeUnit.SECONDS);
 
-        if (readOnly) {
-            expectThrows(ResponseException.class, () -> indexDocument(client(), index));
-        } else {
-            // No exception should be thrown here as writes were not blocked
-            indexDocument(client(), index);
-        }
+        // No exception should be thrown here as writes were not blocked
+        indexDocument(client(), index);
     }
 
     public void testForceMergeAction() throws Exception {
-        checkForceMergeAction(null, true);
+        checkForceMergeAction(null);
     }
 
     public void testForceMergeActionWithCompressionCodec() throws Exception {
-        checkForceMergeAction("best_compression", true);
-    }
-
-    public void testForceMergeActionNonReadOnly() throws Exception {
-        checkForceMergeAction(null, false);
-    }
-
-    public void testForceMergeActionWithCompressionCodecNonReadOnly() throws Exception {
-        checkForceMergeAction("best_compression", false);
+        checkForceMergeAction("best_compression");
     }
 
     public void testSetPriority() throws Exception {

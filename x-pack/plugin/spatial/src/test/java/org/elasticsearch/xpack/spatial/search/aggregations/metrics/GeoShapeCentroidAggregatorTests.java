@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
-import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 import java.io.IOException;
 import java.util.ArrayList;

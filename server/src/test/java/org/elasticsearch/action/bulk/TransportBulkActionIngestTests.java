@@ -32,8 +32,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.io.stream.ThreadLocalBytesRecycler;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -138,7 +138,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
                 EmptySystemIndices.INSTANCE,
-                PageCacheRecycler.NON_RECYCLING_INSTANCE
+                ThreadLocalBytesRecycler.NON_RECYCLING_INSTANCE
             );
         }
 

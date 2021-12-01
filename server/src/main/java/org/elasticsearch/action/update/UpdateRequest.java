@@ -20,12 +20,14 @@ import org.elasticsearch.action.support.single.instance.InstanceShardOperationRe
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -42,6 +44,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -134,6 +137,15 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     public UpdateRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+
+    }
+
+    public UpdateRequest(
+        @Nullable ShardId shardId,
+        StreamInput in,
+        @Nullable RecyclerBytesStreamOutput recyclerStream,
+        @Nullable ArrayList<Releasable> toRelease
+    ) throws IOException {
         super(shardId, in);
         waitForActiveShards = ActiveShardCount.readFrom(in);
         if (in.getVersion().before(Version.V_8_0_0)) {
@@ -148,11 +160,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
         retryOnConflict = in.readVInt();
         refreshPolicy = RefreshPolicy.readFrom(in);
         if (in.readBoolean()) {
-            doc = new IndexRequest(shardId, in);
+            doc = new IndexRequest(shardId, in, recyclerStream, toRelease);
         }
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::new);
         if (in.readBoolean()) {
-            upsertRequest = new IndexRequest(shardId, in);
+            upsertRequest = new IndexRequest(shardId, in, recyclerStream, toRelease);
         }
         docAsUpsert = in.readBoolean();
         ifSeqNo = in.readZLong();

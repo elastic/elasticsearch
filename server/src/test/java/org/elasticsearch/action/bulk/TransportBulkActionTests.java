@@ -29,8 +29,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.ThreadLocalBytesRecycler;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -87,7 +87,7 @@ public class TransportBulkActionTests extends ESTestCase {
                 new Resolver(),
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
-                PageCacheRecycler.NON_RECYCLING_INSTANCE
+                ThreadLocalBytesRecycler.NON_RECYCLING_INSTANCE
             );
         }
 

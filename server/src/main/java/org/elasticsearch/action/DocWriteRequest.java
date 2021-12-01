@@ -13,14 +13,17 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Locale;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -219,14 +222,31 @@ public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
      *                that does not have a unique shard id.
      */
     static DocWriteRequest<?> readDocumentRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        return readDocumentRequestWithRecycler(shardId, in, null, null);
+    }
+
+    /**
+     * Read a document write (index/delete/update) request. The source bytes will be copied into the recycler
+     * stream and sliced off by calling {@link RecyclerBytesStreamOutput#retainBytesAndTruncateStream()}.
+     * They will be placed into the toRelease arraylist passed in. Callers must release when finished.
+     *
+     * @param shardId shard id of the request. {@code null} when reading as part of a {@link org.elasticsearch.action.bulk.BulkRequest}
+     *                that does not have a unique shard id.
+     */
+    static DocWriteRequest<?> readDocumentRequestWithRecycler(
+        @Nullable ShardId shardId,
+        StreamInput in,
+        @Nullable RecyclerBytesStreamOutput recyclerStream,
+        @Nullable ArrayList<Releasable> toRelease
+    ) throws IOException {
         byte type = in.readByte();
         DocWriteRequest<?> docWriteRequest;
         if (type == 0) {
-            docWriteRequest = new IndexRequest(shardId, in);
+            docWriteRequest = new IndexRequest(shardId, in, recyclerStream, toRelease);
         } else if (type == 1) {
             docWriteRequest = new DeleteRequest(shardId, in);
         } else if (type == 2) {
-            docWriteRequest = new UpdateRequest(shardId, in);
+            docWriteRequest = new UpdateRequest(shardId, in, recyclerStream, toRelease);
         } else {
             throw new IllegalStateException("invalid request type [" + type + " ]");
         }

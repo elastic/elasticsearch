@@ -122,6 +122,7 @@ import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.io.stream.ThreadLocalBytesRecycler;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -1900,7 +1901,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indexNameExpressionResolver,
                         new IndexingPressure(settings),
                         EmptySystemIndices.INSTANCE,
-                        PageCacheRecycler.NON_RECYCLING_INSTANCE
+                        ThreadLocalBytesRecycler.NON_RECYCLING_INSTANCE
                     )
                 );
                 final TransportShardBulkAction transportShardBulkAction = new TransportShardBulkAction(
@@ -1915,7 +1916,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     actionFilters,
                     indexingMemoryLimits,
                     EmptySystemIndices.INSTANCE,
-                    PageCacheRecycler.NON_RECYCLING_INSTANCE
+                    new ThreadLocalBytesRecycler(BytesRefRecycler.NON_RECYCLING_INSTANCE)
                 );
                 actions.put(TransportShardBulkAction.TYPE, transportShardBulkAction);
                 final RestoreService restoreService = new RestoreService(

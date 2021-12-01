@@ -22,12 +22,15 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -37,6 +40,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -114,6 +118,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public IndexRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
+        this(shardId, in, null, null);
+    }
+
+    public IndexRequest(
+        @Nullable ShardId shardId,
+        StreamInput in,
+        @Nullable RecyclerBytesStreamOutput recyclerStream,
+        @Nullable ArrayList<Releasable> toRelease
+    ) throws IOException {
         super(shardId, in);
         if (in.getVersion().before(Version.V_8_0_0)) {
             String type = in.readOptionalString();
@@ -121,7 +134,20 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         id = in.readOptionalString();
         routing = in.readOptionalString();
-        source = in.readBytesReference();
+        if (recyclerStream == null) {
+            source = in.readBytesReference();
+        } else {
+            boolean success = false;
+            try (ReleasableBytesReference reference = in.readReleasableBytesReference()) {
+                reference.writeTo(recyclerStream);
+                toRelease.add(recyclerStream.retainBytesAndTruncateStream());
+                success = true;
+            } finally {
+                if (success == false) {
+                    recyclerStream.reset();
+                }
+            }
+        }
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());

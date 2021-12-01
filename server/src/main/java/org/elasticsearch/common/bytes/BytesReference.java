@@ -54,6 +54,25 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
         return ArrayUtil.copyOfSubArray(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
     }
 
+    static void copyToByteArray(BytesReference reference, byte[] array) {
+        if (reference.length() > array.length) {
+            throw new IndexOutOfBoundsException();
+        }
+        final BytesRefIterator iterator = reference.iterator();
+        BytesRef ref;
+        try {
+            int dOff = 0;
+            while ((ref = iterator.next()) != null) {
+                System.arraycopy(ref.bytes, ref.offset, array, dOff, ref.length);
+                dOff += ref.length;
+            }
+        } catch (IOException e) {
+            // this is really an error since we don't do IO in our bytesreferences
+            throw new AssertionError("won't happen", e);
+        }
+
+    }
+
     /**
      * Returns an array of byte buffers from the given BytesReference.
      */

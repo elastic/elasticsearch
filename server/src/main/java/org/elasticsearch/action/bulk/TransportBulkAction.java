@@ -45,7 +45,7 @@ import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.io.stream.ThreadLocalBytesRecycler;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -62,7 +62,6 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
@@ -103,7 +102,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexingPressure indexingPressure;
     private final SystemIndices systemIndices;
-    private final ThreadLocal<RecyclerBytesStreamOutput> bytesStream;
+    private final ThreadLocalBytesRecycler bytesRecycler;
 
     @Inject
     public TransportBulkAction(
@@ -116,7 +115,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        PageCacheRecycler pageCacheRecycler
+        ThreadLocalBytesRecycler bytesRecycler
     ) {
         this(
             threadPool,
@@ -128,7 +127,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
-            pageCacheRecycler,
+            bytesRecycler,
             System::nanoTime
         );
     }
@@ -143,7 +142,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
-        PageCacheRecycler pageCacheRecycler,
+        ThreadLocalBytesRecycler bytesRecycler,
         LongSupplier relativeTimeProvider
     ) {
         super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.SAME);
@@ -157,8 +156,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
-        final BytesRefRecycler bytesRefRecycler = new BytesRefRecycler(pageCacheRecycler);
-        this.bytesStream = ThreadLocal.withInitial(() -> new RecyclerBytesStreamOutput(bytesRefRecycler));
+        this.bytesRecycler = bytesRecycler;
         clusterService.addStateApplier(this.ingestForwarder);
     }
 
@@ -584,7 +582,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
                 Releasable toRelease;
                 if (requestMemory.needToReleaseNetworkMemory()) {
-                    RecyclerBytesStreamOutput streamOutput = bytesStream.get();
+                    RecyclerBytesStreamOutput streamOutput = bytesRecycler.get();
                     toRelease = RequestMemory.copyBytesToNewReference(streamOutput, bulkShardRequest);
                 } else {
                     toRelease = Releasable.NO_OP;

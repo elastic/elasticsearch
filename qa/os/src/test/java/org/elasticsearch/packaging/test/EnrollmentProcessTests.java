@@ -87,7 +87,8 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             false
 
         );
-        verifySecurityNotAutoConfigured(installation);
+        // the autoconfiguration dir will be cleaned _after_ we fail to connect to the supposed original node. Allow time for this to happen
+        assertBusy(() -> verifySecurityNotAutoConfigured(installation));
         // auto-configure security using the enrollment token
         Shell.Result startSecondNode = awaitElasticsearchStartupWithResult(
             Archives.startElasticsearchWithTty(installation, sh, null, List.of("--enrollment-token", enrollmentToken), false)

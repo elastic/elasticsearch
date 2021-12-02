@@ -502,6 +502,7 @@ final class StoreRecovery {
             logger.trace("[{}] restoring shard [{}]", restoreSource.snapshot(), shardId);
         }
         final ActionListener<Void> restoreListener = ActionListener.wrap(v -> {
+            indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
             final Store store = indexShard.store();
             bootstrap(indexShard, store);
             assert indexShard.shardRouting.primary() : "only primary shards can recover from store";

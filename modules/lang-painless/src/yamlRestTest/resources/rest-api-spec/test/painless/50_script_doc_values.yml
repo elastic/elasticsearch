@@ -216,6 +216,28 @@ setup:
                             source: "doc.date.value"
     - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
 
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "field('date').get(null)"
+    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid yaml stash */ $('date', null)"
+    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+
 ---
 "geo_point":
     - do:

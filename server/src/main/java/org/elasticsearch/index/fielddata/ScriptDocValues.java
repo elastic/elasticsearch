@@ -15,13 +15,10 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.script.field.DocValuesField;
 
 import java.io.IOException;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.AbstractList;
 import java.util.Comparator;
@@ -158,63 +155,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         @Override
         public int size() {
             return supplier.size();
-        }
-    }
-
-    public static class DatesSupplier implements Supplier<ZonedDateTime> {
-
-        private final SortedNumericDocValues in;
-        private final boolean isNanos;
-
-        /**
-         * Values wrapped in {@link java.time.ZonedDateTime} objects.
-         */
-        private ZonedDateTime[] dates;
-        private int count;
-
-        public DatesSupplier(SortedNumericDocValues in, boolean isNanos) {
-            this.in = in;
-            this.isNanos = isNanos;
-        }
-
-        @Override
-        public ZonedDateTime getInternal(int index) {
-            return dates[index];
-        }
-
-        @Override
-        public int size() {
-            return count;
-        }
-
-        @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
-                count = in.docValueCount();
-            } else {
-                count = 0;
-            }
-            refreshArray();
-        }
-
-        /**
-         * Refresh the backing array. Package private so it can be called when {@link Longs} loads dates.
-         */
-        private void refreshArray() throws IOException {
-            if (count == 0) {
-                return;
-            }
-            if (dates == null || count > dates.length) {
-                // Happens for the document. We delay allocating dates so we can allocate it with a reasonable size.
-                dates = new ZonedDateTime[count];
-            }
-            for (int i = 0; i < count; ++i) {
-                if (isNanos) {
-                    dates[i] = ZonedDateTime.ofInstant(DateUtils.toInstant(in.nextValue()), ZoneOffset.UTC);
-                } else {
-                    dates[i] = ZonedDateTime.ofInstant(Instant.ofEpochMilli(in.nextValue()), ZoneOffset.UTC);
-                }
-            }
         }
     }
 

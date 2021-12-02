@@ -67,3 +67,13 @@ class org.elasticsearch.script.field.ShortDocValuesField @dynamic_type {
   short get(int)
   short get(int, int)
 }
+
+class org.elasticsearch.script.field.DateMillisDocValuesField @dynamic_type {
+  ZonedDateTime get(ZonedDateTime)
+  ZonedDateTime get(int, ZonedDateTime)
+}
+
+class org.elasticsearch.script.field.DateNanosDocValuesField @dynamic_type {
+  ZonedDateTime get(ZonedDateTime)
+  ZonedDateTime get(int, ZonedDateTime)
+}

@@ -113,7 +113,7 @@ public class UnsignedLongDocValuesField implements DocValuesField<Long>, ScriptD
 
     /** Returns the 0th index value as an {@code long} if it exists, otherwise {@code defaultValue}. */
     public long get(long defaultValue) {
-        return getValue(0, defaultValue);
+        return get(0, defaultValue);
     }
 
     /** Returns the value at {@code index} as an {@code long} if it exists, otherwise {@code defaultValue}. */

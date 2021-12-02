@@ -8,19 +8,20 @@
 
 package org.elasticsearch.common.filesystem;
 
+import com.sun.jna.LastErrorException;
+import com.sun.jna.Library;
 import com.sun.jna.Native;
 import com.sun.jna.Platform;
 import com.sun.jna.Structure;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.List;
 import java.util.OptionalLong;
 
 /**
@@ -35,77 +36,29 @@ final class LinuxFileSystemNatives implements FileSystemNatives.Provider {
     /** st_blocks field indicates the number of blocks allocated to the file, 512-byte units **/
     private static final long ST_BLOCKS_UNIT = 512L;
 
-    private final Class<? extends BaseMethod> method;
+    /** Version of the `struct stat' data structure. **/
+    private static final int STAT_VER_KERNEL = 0;
+
+    private final XStatLibrary library;
 
     private LinuxFileSystemNatives() {
         assert Constants.LINUX : Constants.OS_NAME;
         assert Constants.JRE_IS_64BIT : Constants.OS_ARCH;
-
-        Class<? extends BaseMethod> method = null;
         try {
-            logger.debug("trying to register Stat64Method...");
-            Native.register(Stat64Method.class, Platform.C_LIBRARY_NAME);
-            method = Stat64Method.class;
-        } catch (UnsatisfiedLinkError ue0) {
-            try {
-                logger.debug("trying to register XStat64Method...");
-                Native.register(XStat64Method.class, Platform.C_LIBRARY_NAME);
-                method = XStat64Method.class;
-            } catch (UnsatisfiedLinkError ue1) {
-                ue1.addSuppressed(ue0);
-                try {
-                    logger.debug("trying to register StatMethod...");
-                    Native.register(StatMethod.class, Platform.C_LIBRARY_NAME);
-                    method = StatMethod.class;
-                } catch (UnsatisfiedLinkError ue2) {
-                    ue2.addSuppressed(ue1);
-                    logger.warn("unable to load JNA native support library for stat() on Linux", ue2);
-                    throw ue2;
-                }
-            }
+            library = Native.load(Platform.C_LIBRARY_NAME, XStatLibrary.class);
+            logger.debug("C library loaded");
+        } catch (LinkageError e) {
+            logger.warn("unable to link C library. native methods and handlers will be disabled.", e);
+            throw e;
         }
-        logger.debug("library {} is registered", method.getSimpleName());
-        this.method = method;
     }
 
     static LinuxFileSystemNatives getInstance() {
         return INSTANCE;
     }
 
-    private abstract static class BaseMethod {
-
-        /**
-         * char *strerror(int errnum)
-         *
-         * https://linux.die.net/man/3/strerror
-         */
-        private static native String strerror(int errno);
-    }
-
-    private static final class Stat64Method extends BaseMethod {
-
-        private Stat64Method() {}
-
-        /**
-         * stat(const char *path, struct stat *buf)
-         *
-         * https://linux.die.net/man/2/stat64
-         */
-        private static native int stat64(String path, Stat64 stats);
-    }
-
-    private static final class XStat64Method extends BaseMethod {
-
-        private XStat64Method() {}
-
-        private static native int __xstat64(int version, String path, Stat64 stats);
-    }
-
-    private static final class StatMethod extends BaseMethod {
-
-        private StatMethod() {}
-
-        private static native int stat(String path, Stat64 stats);
+    interface XStatLibrary extends Library {
+        int __xstat(int version, String path, Stat stats) throws LastErrorException;
     }
 
     /**
@@ -117,73 +70,62 @@ final class LinuxFileSystemNatives implements FileSystemNatives.Provider {
     @Override
     public OptionalLong allocatedSizeInBytes(Path path) {
         assert Files.isRegularFile(path) : path;
-        final Stat64 stats = new Stat64();
-
-        final int rc;
-        if (method == Stat64Method.class) {
-            rc = Stat64Method.stat64(path.toString(), stats);
-        } else if (method == XStat64Method.class) {
-            rc = XStat64Method.__xstat64(1, path.toString(), stats);
-        } else {
-            assert method == StatMethod.class;
-            rc = StatMethod.stat(path.toString(), stats);
-        }
-        if (rc != 0) {
-            final int err = Native.getLastError();
-            logger.warn("error [{}] when executing native method stat(const char *path, struct stat *buf) for file [{}]", err, path);
-            return OptionalLong.empty();
-        }
-        if (logger.isTraceEnabled()) {
-            logger.trace("executing native method stat() returned {} for file [{}]", stats, path);
-        }
-        return OptionalLong.of(stats.st_blocks * ST_BLOCKS_UNIT);
-    }
-
-    /**
-     * Linux X86-64 for stat()
-     */
-    public static class Stat64 extends Structure {
-
-        public long st_dev;         // dev_t
-        public long st_ino;         // ino_t
-        public long st_nlink;       // nlink_t
-        public int st_mode;         // mode_t
-        public int st_uid;          // uid_t
-        public int st_gid;          // gid_t
-        public int pad0;            // int
-        public long st_rdev;        // dev_t
-        public long st_size;        // off_t
-        public long st_blksize;     // blksize_t
-        public long st_blocks;      // blkcnt_t
-        public Time st_atim;    // struct timespec
-        public Time st_mtim;    // struct timespec
-        public Time st_ctim;    // struct timespec
-        public long reserved1;      // __syscall_slong_t
-        public long reserved2;      // __syscall_slong_t
-        public long reserved3;      // __syscall_slong_t
-
-        @Override
-        protected List<String> getFieldOrder() {
-            return Arrays.asList(
-                "st_dev",
-                "st_ino",
-                "st_nlink",
-                "st_mode",
-                "st_uid",
-                "st_gid",
-                "pad0",
-                "st_rdev",
-                "st_size",
-                "st_blksize",
-                "st_blocks",
-                "st_atim",
-                "st_mtim",
-                "st_ctim",
-                "reserved1",
-                "reserved2",
-                "reserved3"
+        try {
+            final Stat stats = new Stat();
+            final int rc = library.__xstat(STAT_VER_KERNEL, path.toString(), stats);
+            if (logger.isTraceEnabled()) {
+                logger.trace("executing native method __xstat() returned {} with error code [{}] for file [{}]", rc, stats, path);
+            }
+            return OptionalLong.of(stats.st_blocks * ST_BLOCKS_UNIT);
+        } catch (LastErrorException e) {
+            logger.warn(
+                () -> new ParameterizedMessage(
+                    "error when executing native method __xstat(int vers, const char *name, struct stat *buf) for file [{}]",
+                    path
+                ),
+                e
             );
         }
+        return OptionalLong.empty();
+    }
+
+    @Structure.FieldOrder(
+        {
+            "st_dev",
+            "st_ino",
+            "st_mode",
+            "st_nlink",
+            "st_uid",
+            "st_gid",
+            "st_rdev",
+            "st_size",
+            "st_blksize",
+            "st_blocks",
+            "st_atim",
+            "st_mtim",
+            "st_ctim",
+            "st_atim_tv_sec",
+            "st_mtim_tv_sec",
+            "st_ctim_tv_sec" }
+    )
+    public static class Stat extends Structure {
+
+        public long st_dev;         // __dev_t st_dev; /* Device. */
+        public long st_ino;         // __ino_t st_ino; /* File serial number. */
+        public int st_mode;         // __mode_t st_mode; /* File mode. */
+        public long st_nlink;       // __nlink_t st_nlink; /* Link count. */
+        public int st_uid;          // __uid_t st_uid; /* User ID of the file's owner. */
+        public int st_gid;          // __gid_t st_gid; /* Group ID of the file's group. */
+        public long st_rdev;        // __dev_t st_rdev; /* Device number, if device. */
+        public long st_size;        // __off_t st_size; /* Size of file, in bytes. */
+        public long st_blksize;     // __blksize_t st_blksize; /* Optimal block size for I/O. */
+        public long st_blocks;      // __blkcnt_t st_blocks; /* Number 512-byte blocks allocated. */
+        public Time st_atim;        // struct timespec st_atim; /* Time of last access. */
+        public Time st_mtim;        // struct timespec st_mtim; /* Time of last modification. */
+        public Time st_ctim;        // struct timespec st_ctim; /* Time of last status change. */
+        public long st_atim_tv_sec; // backward compatibility
+        public long st_mtim_tv_sec; // backward compatibility
+        public long st_ctim_tv_sec; // backward compatibility
 
         @Override
         public String toString() {
@@ -217,14 +159,9 @@ final class LinuxFileSystemNatives implements FileSystemNatives.Provider {
         }
     }
 
+    @Structure.FieldOrder({ "tv_sec", "tv_nsec" })
     public static class Time extends Structure {
-
         public long tv_sec;
         public long tv_nsec;
-
-        @Override
-        protected List<String> getFieldOrder() {
-            return Arrays.asList("tv_sec", "tv_nsec");
-        }
     }
 }

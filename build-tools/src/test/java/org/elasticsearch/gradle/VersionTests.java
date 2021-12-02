@@ -41,6 +41,7 @@ public class VersionTests extends GradleUnitTestCase {
         assertVersionEquals("6.1.2-foo", 6, 1, 2, Version.Mode.RELAXED);
         assertVersionEquals("6.1.2-foo-bar", 6, 1, 2, Version.Mode.RELAXED);
         assertVersionEquals("16.01.22", 16, 1, 22, Version.Mode.RELAXED);
+        assertVersionEquals("20.10.10+dfsg1", 20, 10, 10, Version.Mode.RELAXED);
     }
 
     public void testCompareWithStringVersions() {

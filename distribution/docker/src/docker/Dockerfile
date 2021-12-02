@@ -233,6 +233,7 @@ COPY --from=builder --chown=0:0 /opt /opt
 <% } %>
 
 ENV PATH /usr/share/elasticsearch/bin:\$PATH
+ENV ES_ZLIB_PATH /usr/local/cloudflare-zlib/lib
 
 COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 

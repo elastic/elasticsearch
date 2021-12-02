@@ -64,6 +64,15 @@ NOTE: If you have imported the project into IntelliJ according to the instructio
 link:/CONTRIBUTING.md#importing-the-project-into-intellij-idea[CONTRIBUTING.md] then a debug run configuration
 named "Debug Elasticsearch" will be created for you and configured appropriately.
 
+==== Disabling assertions
+
+When running Elasticsearch with `./gradlew run`, assertions are enabled by
+default. To disable them, add the following command line option:
+
+-------------------------
+-Dtests.jvm.argline="-da"
+-------------------------
+
 ==== Distribution
 
 By default a node is started with the zip distribution.

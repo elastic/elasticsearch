@@ -198,16 +198,16 @@ public class SSLService {
      * Create a new {@link SSLIOSessionStrategy} based on the provided settings. The settings are used to identify the SSL configuration
      * that should be used to create the context.
      *
-     * @param settings the settings used to identify the ssl configuration, typically under a *.ssl. prefix. An empty settings will return
-     *                 a context created from the default configuration
+     * @param settingsToUse the settings used to identify the ssl configuration, typically under a *.ssl. prefix. An empty settings will
+     *                      return a context created from the default configuration
      * @return Never {@code null}.
      * @deprecated This method will fail if the SSL configuration uses a {@link org.elasticsearch.common.settings.SecureSetting} but the
      * {@link org.elasticsearch.common.settings.SecureSettings} have been closed. Use {@link #getSSLConfiguration(String)}
      * and {@link #sslIOSessionStrategy(SSLConfiguration)} (Deprecated, but not removed because monitoring uses dynamic SSL settings)
      */
     @Deprecated
-    public SSLIOSessionStrategy sslIOSessionStrategy(Settings settings) {
-        SSLConfiguration config = sslConfiguration(settings);
+    public SSLIOSessionStrategy sslIOSessionStrategy(Settings settingsToUse) {
+        SSLConfiguration config = sslConfiguration(settingsToUse);
         return sslIOSessionStrategy(config);
     }
 
@@ -376,11 +376,11 @@ public class SSLService {
     /**
      * Returns the existing {@link SSLConfiguration} for the given settings
      *
-     * @param settings the settings for the ssl configuration
+     * @param settingsToUse the settings for the ssl configuration
      * @return the ssl configuration for the provided settings
      */
-    public SSLConfiguration sslConfiguration(Settings settings) {
-        return new SSLConfiguration(settings);
+    public SSLConfiguration sslConfiguration(Settings settingsToUse) {
+        return new SSLConfiguration(settingsToUse);
     }
 
     public Set<String> getTransportProfileContextNames() {

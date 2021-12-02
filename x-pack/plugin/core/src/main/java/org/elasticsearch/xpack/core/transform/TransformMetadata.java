@@ -154,8 +154,8 @@ public class TransformMetadata implements XPackPlugin.XPackMetadataCustom {
             }
         }
 
-        public TransformMetadata.Builder isResetMode(boolean resetMode) {
-            this.resetMode = resetMode;
+        public TransformMetadata.Builder isResetMode(boolean isResetMode) {
+            this.resetMode = isResetMode;
             return this;
         }
 

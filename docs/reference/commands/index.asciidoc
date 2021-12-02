@@ -19,6 +19,7 @@ tasks from the command line:
 * <<shard-tool>>
 * <<syskeygen>>
 * <<users-command>>
+* <<kibana-verification-code>>
 
 --
 
@@ -35,3 +36,4 @@ include::setup-passwords.asciidoc[]
 include::shard-tool.asciidoc[]
 include::syskeygen.asciidoc[]
 include::users-command.asciidoc[]
+include::kibana-verification-code.asciidoc[]

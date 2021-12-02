@@ -1,0 +1,46 @@
+[[kibana-verification-code]]
+
+== kibana-verification-code
+
+The `kibana-verification-code` tool generates a verification code for enrolling
+a {kib} instance with a secured {es} cluster. 
+
+[discrete]
+=== Synopsis
+
+[source,shell]
+----
+bin/kibana-verification-code <1>
+[-V, --version] [-h, --help]
+----
+<1> This tool is available in the {kib} configuration directory.
+
+[discrete]
+=== Description
+
+Use this command to generate a verification code for {kib}. You enter this code
+in {kib} when manually configuring a secure connection with an {es} cluster.
+This tool is useful if you don’t have access to the {kib} terminal output, such
+as on a hosted environment. You can connect to a machine where {kib} is
+running (such as using SSH) and generate a verification code that you enter in
+{kib}.
+
+You must run this tool on the same machine where {kib} is running.
+
+[discrete]
+[[kibana-verification-code-parameters]]
+=== Parameters
+
+`-h, --help`:: Returns all of the command parameters.
+
+`-V, --version`:: Displays the {kib} version number.
+
+[discrete]
+=== Examples
+
+The following command generates a verification code for {kib}.
+
+[source,shell]
+----
+bin/kibana-verification-code
+----

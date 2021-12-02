@@ -23,6 +23,20 @@ publishing {
 
 archivesBaseName = 'elasticsearch'
 
+sourceSets {
+  main.java.srcDirs = [
+    'src/main/java',
+    'src/main/module'
+  ]
+}
+
+// TODO: check modular jar for version, and centralized in base java plugin?
+// TODO: write a basic test for modules? but how
+// TODO: get in to CI, see what else fails.
+// TODO: Maybe update framework to help at least unit test each module as a module, e.g. core, xcontent, etc
+// TODO: IDEA plugin/
+//
+
 dependencies {
 
   api project(':libs:elasticsearch-core')
@@ -140,27 +154,9 @@ if (BuildParams.isSnapshotBuild() == false) {
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
-            'com.fasterxml.jackson.databind.ObjectMapper',
 
             // from log4j
             'com.conversantmedia.util.concurrent.SpinPolicy',
-            'com.fasterxml.jackson.databind.SerializationFeature',
-            'com.fasterxml.jackson.annotation.JsonInclude$Include',
-            'com.fasterxml.jackson.databind.DeserializationContext',
-            'com.fasterxml.jackson.databind.DeserializationFeature',
-            'com.fasterxml.jackson.databind.JsonMappingException',
-            'com.fasterxml.jackson.databind.JsonNode',
-            'com.fasterxml.jackson.databind.Module$SetupContext',
-            'com.fasterxml.jackson.databind.ObjectReader',
-            'com.fasterxml.jackson.databind.ObjectWriter',
-            'com.fasterxml.jackson.databind.SerializerProvider',
-            'com.fasterxml.jackson.databind.deser.std.StdDeserializer',
-            'com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer',
-            'com.fasterxml.jackson.databind.module.SimpleModule',
-            'com.fasterxml.jackson.databind.ser.impl.SimpleBeanPropertyFilter',
-            'com.fasterxml.jackson.databind.ser.impl.SimpleFilterProvider',
-            'com.fasterxml.jackson.databind.ser.std.StdScalarSerializer',
-            'com.fasterxml.jackson.databind.ser.std.StdSerializer',
             'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
             'com.fasterxml.jackson.dataformat.xml.XmlMapper',
             'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',

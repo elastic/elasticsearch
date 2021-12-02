@@ -4,6 +4,10 @@
     "http://www.puppycrawl.com/dtds/configuration_1_3.dtd">
 
 <module name="Checker">
+  <module name="BeforeExecutionExclusionFileFilter">
+   <property name="fileNamePattern" value="module\-info\.java$"/>
+  </module>
+
   <property name="charset" value="UTF-8" />
 
   <module name="SuppressionFilter">

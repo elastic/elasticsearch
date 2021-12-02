@@ -35,16 +35,6 @@ tasks.named("thirdPartyAudit").configure {
     // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
     'org.noggit.JSONParser',
 
-    // from org.locationtech.spatial4j.io.jackson.ShapeAsGeoJSONSerialize
-    'com.fasterxml.jackson.databind.JsonSerializer',
-    'com.fasterxml.jackson.databind.JsonDeserializer',
-    'com.fasterxml.jackson.databind.node.ArrayNode',
-    'com.fasterxml.jackson.databind.DeserializationContext',
-    'com.fasterxml.jackson.databind.JsonNode',
-    'com.fasterxml.jackson.databind.SerializerProvider',
-    'com.fasterxml.jackson.databind.module.SimpleModule',
-    'com.fasterxml.jackson.databind.node.ObjectNode',
-
     // from lucene-spatial
     'com.google.common.geometry.S2Cell',
     'com.google.common.geometry.S2CellId',

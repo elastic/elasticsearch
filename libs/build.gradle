@@ -13,6 +13,13 @@ configure(subprojects - project('elasticsearch-log4j')) {
    */
   apply plugin: 'elasticsearch.build'
 
+  sourceSets {
+    main.java.srcDirs = [
+      'src/main/java',
+      'src/main/module'
+    ]
+  }
+
   /*
    * Subprojects may depend on the "core" lib but may not depend on any
    * other libs. This keeps our dependencies simpler.

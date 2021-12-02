@@ -195,8 +195,8 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 return this;
             }
 
-            public Builder setInferenceTimeout(TimeValue timeout) {
-                this.timeout = timeout;
+            public Builder setInferenceTimeout(TimeValue inferenceTimeout) {
+                this.timeout = inferenceTimeout;
                 return this;
             }
 
@@ -205,8 +205,8 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
                 return this;
             }
 
-            private Builder setInferenceTimeout(String timeout) {
-                return setInferenceTimeout(TimeValue.parseTimeValue(timeout, TIMEOUT.getPreferredName()));
+            private Builder setInferenceTimeout(String inferenceTimeout) {
+                return setInferenceTimeout(TimeValue.parseTimeValue(inferenceTimeout, TIMEOUT.getPreferredName()));
             }
 
             public Request build() {

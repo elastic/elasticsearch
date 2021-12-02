@@ -126,11 +126,20 @@ RUN echo "plugins:" > config/elasticsearch-plugins.example.yml && \\
     echo "  - id: repository-gcs"   >> config/elasticsearch-plugins.example.yml && \\
     echo "  - id: repository-s3"    >> config/elasticsearch-plugins.example.yml
 
-<% /*  I tried to use `ADD` here, but I couldn't force it to do what I wanted */ %>
 COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/
-RUN mkdir -p /opt/filebeat /opt/metricbeat && \\
-    tar xf /tmp/filebeat-${version}.tar.gz -C /opt/filebeat --strip-components=1 && \\
-    tar xf /tmp/metricbeat-${version}.tar.gz -C /opt/metricbeat --strip-components=1
+RUN set -eux ; \\
+    for beat in filebeat metricbeat ; do \\
+      if [ ! -s /tmp/\$beat-${version}.tar.gz ]; then \\
+        echo "/tmp/\$beat-${version}.tar.gz is empty - cannot uncompress" 2>&1 ; \\
+        exit 1 ; \\
+      fi ; \\
+      if ! tar tf /tmp/\$beat-${version}.tar.gz >/dev/null; then \\
+        echo "/tmp/\$beat-${version}.tar.gz is corrupt - cannot uncompress" 2>&1 ; \\
+        exit 1 ; \\
+      fi ; \\
+      mkdir -p /opt/\$beat ; \\
+      tar xf /tmp/\$beat-${version}.tar.gz -C /opt/\$beat --strip-components=1 ; \\
+    done
 
 # Add plugins infrastructure
 RUN mkdir -p /opt/plugins/archive

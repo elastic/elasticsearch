@@ -12,6 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.xpack.core.security.EnrollmentToken;
 import org.hamcrest.Matchers;
@@ -20,12 +21,14 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileUtils.getCurrentVersion;
+import static org.elasticsearch.packaging.util.FileUtils.slurp;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assume.assumeTrue;
@@ -89,6 +92,10 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             false
 
         );
+        Thread.sleep(20000);
+        Path pidFile = installation.home.resolve("elasticsearch.pid");
+        String pid = slurp(pidFile).trim();
+        Platforms.onLinux(() -> sh.run("ps -p "+pid));
         // the autoconfiguration dir will be cleaned _after_ we fail to connect to the supposed original node. Allow time for this to happen
         assertBusy(() -> assertThat(getAutoConfigDirName(installation).isPresent(), Matchers.is(false)), 20, TimeUnit.SECONDS);
         // auto-configure security using the enrollment token

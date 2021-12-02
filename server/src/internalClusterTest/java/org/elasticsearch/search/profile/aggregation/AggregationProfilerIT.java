@@ -700,7 +700,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                                         matchesList().item(
                                             matchesMap().entry("query", "DocValuesFieldExistsQuery [field=date]")
                                                 .entry("specialized_for", "docvalues_field_exists")
-                                                .entry("results_from_metadata", 0)
+                                                .entry("segments_counted_in_constant_time", 0)
                                         )
                                     )
                             )

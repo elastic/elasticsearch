@@ -22,16 +22,15 @@ import java.util.function.BiConsumer;
  * Specialized {@link QueryToFilterAdapter} for {@link DocValuesFieldExistsQuery} that reads counts from metadata.
  */
 class DocValuesFieldExistsAdapter extends QueryToFilterAdapter<DocValuesFieldExistsQuery> {
-    private int resultsFromMetadata;
-
     DocValuesFieldExistsAdapter(IndexSearcher searcher, String key, DocValuesFieldExistsQuery query) {
         super(searcher, key, query);
     }
 
     @Override
     long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-        if (countCanUseMetadata(counter, live) && canCountFromMetadata(ctx)) {
-            resultsFromMetadata++;
+        if (ctx.reader().hasDeletions() == false && counter.docCount.alwaysOne() && canCountFromMetadata(ctx)) {
+            // TODO Lucene is getting the count optimization soon
+            segmentsCountedInConstantTime++;
             PointValues points = ctx.reader().getPointValues(query().getField());
             if (points == null) {
                 return 0;
@@ -55,6 +54,5 @@ class DocValuesFieldExistsAdapter extends QueryToFilterAdapter<DocValuesFieldExi
     void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
         add.accept("specialized_for", "docvalues_field_exists");
-        add.accept("results_from_metadata", resultsFromMetadata);
     }
 }

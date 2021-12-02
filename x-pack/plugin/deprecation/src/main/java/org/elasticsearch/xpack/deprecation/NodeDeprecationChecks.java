@@ -28,6 +28,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -1911,6 +1912,17 @@ class NodeDeprecationChecks {
         final XPackLicenseState licenseState
     ) {
         Setting<Boolean> deprecatedSetting = FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenMinimumMasterNodesSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Integer> deprecatedSetting = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
         return checkSettingNoReplacement(settings, deprecatedSetting, url);
     }

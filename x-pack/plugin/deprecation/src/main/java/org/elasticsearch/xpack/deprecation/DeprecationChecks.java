@@ -200,6 +200,7 @@ public class DeprecationChecks {
                 NodeDeprecationChecks::checkZenPingTimeoutSetting,
                 NodeDeprecationChecks::checkZenPingRetriesSetting,
                 NodeDeprecationChecks::checkZenRegisterConnectionListenerSetting,
+                NodeDeprecationChecks::checkZenMinimumMasterNodesSetting,
                 NodeDeprecationChecks::checkAutoImportDanglingIndicesSetting,
                 NodeDeprecationChecks::checkHttpContentTypeRequiredSetting,
                 NodeDeprecationChecks::checkFsRepositoryCompressionSetting,

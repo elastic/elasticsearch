@@ -31,6 +31,7 @@ import org.elasticsearch.core.Set;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.FaultDetection;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -2080,6 +2081,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), randomTimeValue())
             .put(FaultDetection.PING_RETRIES_SETTING.getKey(), randomInt())
             .put(FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING.getKey(), randomBoolean())
+            .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), randomInt())
             .build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
@@ -2093,7 +2095,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             FaultDetection.PING_INTERVAL_SETTING,
             FaultDetection.PING_TIMEOUT_SETTING,
             FaultDetection.PING_RETRIES_SETTING,
-            FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING
+            FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING,
+            ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING
         );
         for (Setting<?> deprecatedSetting : deprecatedSettings) {
             final DeprecationIssue expected = new DeprecationIssue(

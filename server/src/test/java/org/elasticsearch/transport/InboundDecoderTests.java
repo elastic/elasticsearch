@@ -12,7 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -70,7 +70,7 @@ public class InboundDecoderTests extends ESTestCase {
             );
         }
 
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
+        try (ReleasableBytesStreamOutput os = new ReleasableBytesStreamOutput(recycler)) {
             final BytesReference totalBytes = message.serialize(os);
             int totalHeaderSize = TcpHeader.headerSize(Version.CURRENT) + totalBytes.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
             final BytesReference messageBytes = totalBytes.slice(totalHeaderSize, totalBytes.length() - totalHeaderSize);
@@ -135,7 +135,7 @@ public class InboundDecoderTests extends ESTestCase {
             compressionScheme
         );
 
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
+        try (ReleasableBytesStreamOutput os = new ReleasableBytesStreamOutput(recycler)) {
             final BytesReference totalBytes = message.serialize(os);
             int partialHeaderSize = TcpHeader.headerSize(preHeaderVariableInt);
 
@@ -192,7 +192,7 @@ public class InboundDecoderTests extends ESTestCase {
             null
         );
 
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
+        try (ReleasableBytesStreamOutput os = new ReleasableBytesStreamOutput(recycler)) {
             final BytesReference bytes = message.serialize(os);
             int totalHeaderSize = TcpHeader.headerSize(handshakeCompat);
 
@@ -238,7 +238,7 @@ public class InboundDecoderTests extends ESTestCase {
             message = new OutboundMessage.Response(threadContext, transportMessage, Version.CURRENT, requestId, false, scheme);
         }
 
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
+        try (ReleasableBytesStreamOutput os = new ReleasableBytesStreamOutput(recycler)) {
             final BytesReference totalBytes = message.serialize(os);
             final BytesStreamOutput out = new BytesStreamOutput();
             transportMessage.writeTo(out);
@@ -305,7 +305,7 @@ public class InboundDecoderTests extends ESTestCase {
             Compression.Scheme.DEFLATE
         );
 
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
+        try (ReleasableBytesStreamOutput os = new ReleasableBytesStreamOutput(recycler)) {
             final BytesReference bytes = message.serialize(os);
             int totalHeaderSize = TcpHeader.headerSize(handshakeCompat);
 
@@ -343,7 +343,7 @@ public class InboundDecoderTests extends ESTestCase {
         );
 
         final ReleasableBytesReference releasable1;
-        try (RecyclerBytesStreamOutput os = new RecyclerBytesStreamOutput(recycler)) {
+        try (ReleasableBytesStreamOutput os = new ReleasableBytesStreamOutput(recycler)) {
             final BytesReference bytes = message.serialize(os);
 
             InboundDecoder decoder = new InboundDecoder(Version.CURRENT, recycler);

@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  * Tests for {@link StreamOutput}.
  */
-public class BytesStreamsTests extends ESTestCase {
+public class BytesStreamOutputsTests extends ESTestCase {
     public void testEmpty() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 

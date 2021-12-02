@@ -22,7 +22,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -62,7 +62,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
         final TransportService transportService = mock(TransportService.class);
         final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
-        when(transportService.newNetworkBytesStream()).then(invocation -> new RecyclerBytesStreamOutput(recycler));
+        when(transportService.newNetworkBytesStream()).then(invocation -> new ReleasableBytesStreamOutput(recycler));
 
         final PublicationTransportHandler handler = new PublicationTransportHandler(
             transportService,
@@ -175,8 +175,8 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 }
 
                 @Override
-                public RecyclerBytesStreamOutput newNetworkBytesStream() {
-                    return new RecyclerBytesStreamOutput(recycler);
+                public ReleasableBytesStreamOutput newNetworkBytesStream() {
+                    return new ReleasableBytesStreamOutput(recycler);
                 }
             };
 

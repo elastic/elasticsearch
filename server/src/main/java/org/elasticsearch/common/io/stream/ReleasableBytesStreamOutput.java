@@ -8,49 +8,24 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.util.BigArrays;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
-import org.elasticsearch.transport.BytesRefRecycler;
 
 /**
- * An bytes stream output that allows providing a {@link BigArrays} instance
- * expecting it to require releasing its content ({@link #bytes()}) once done.
- * <p>
- * Please note, closing this stream will release the bytes that are in use by any
- * {@link ReleasableBytesReference} returned from {@link #bytes()}, so this
- * stream should only be closed after the bytes have been output or copied
- * elsewhere.
+ * A @link {@link StreamOutput} that uses {@link Recycler.V<BytesRef>} to acquire pages of bytes, which
+ * avoids frequent reallocation &amp; copying of the internal data. When {@link #close()} is called,
+ * the bytes will be released.
  */
 public class ReleasableBytesStreamOutput extends BytesStreamOutput implements Releasable {
 
-    public ReleasableBytesStreamOutput(BigArrays bigarrays) {
-        this(PageCacheRecycler.PAGE_SIZE_IN_BYTES, null);
-    }
-
-    public ReleasableBytesStreamOutput(BytesRefRecycler recycler) {
+    public ReleasableBytesStreamOutput(Recycler<BytesRef> recycler) {
         super(PageCacheRecycler.BYTE_PAGE_SIZE, recycler);
     }
 
-    public ReleasableBytesStreamOutput(int expectedSize, BytesRefRecycler recycler) {
+    public ReleasableBytesStreamOutput(int expectedSize, Recycler<BytesRef> recycler) {
         super(expectedSize, recycler);
     }
 
-    @Override
-    public void close() {
-        try {
-            Releasables.close(pages);
-        } finally {
-            pages.clear();
-        }
-    }
-
-    @Override
-    public void reset() {
-        assert false;
-        // not supported, close and create a new instance instead
-        throw new UnsupportedOperationException("must not reuse a pooled bytes backed stream");
-    }
 }

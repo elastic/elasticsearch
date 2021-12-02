@@ -14,7 +14,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.BytesRefRecycler;
 
@@ -26,7 +25,7 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 
 /**
- * A @link {@link StreamOutput} that uses {@link BigArrays} to acquire pages of
+ * A @link {@link StreamOutput} that uses {@link Recycler.V<BytesRef>} to acquire pages of
  * bytes, which avoids frequent reallocation &amp; copying of the internal data.
  */
 public class BytesStreamOutput extends BytesStream {
@@ -160,7 +159,13 @@ public class BytesStreamOutput extends BytesStream {
     }
 
     @Override
-    public void close() {}
+    public void close() {
+        try {
+            Releasables.close(pages);
+        } finally {
+            pages.clear();
+        }
+    }
 
     /**
      * Returns the current size of the buffer.

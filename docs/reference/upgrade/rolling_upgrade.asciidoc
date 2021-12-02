@@ -11,8 +11,8 @@ We strongly recommend that when you upgrade you divide your cluster's nodes
 into the following two groups and upgrade the groups in this order:
 
 . Nodes that are not <<master-node,master-eligible>>. You can retrieve a list
-of these nodes with `GET /_nodes/_all,master:false/_none` or by finding all the nodes
-configured with `node.master: false`.
+of these nodes with `GET /_nodes/_all,master:false/_none` or by finding all the
+nodes configured with `node.master: false`.
 .. If you are using data tiers, or a hot-warm-cold architecture based on node 
 attributes, you should upgrade the nodes tier-by-tier, completing the upgrade
 of each tier before starting the next. Upgrade the frozen tier first, then the

@@ -55,11 +55,30 @@ public class IndexAbstractionResolver {
         );
     }
 
+    // TODO: remove
     public List<String> resolveIndexAbstractions(
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         Metadata metadata,
         Collection<String> availableIndexAbstractions,
+        boolean replaceWildcards,
+        boolean includeDataStreams
+    ) {
+        return resolveIndexAbstractions(
+            indices,
+            indicesOptions,
+            metadata,
+            new AvailableIndices(Set.copyOf(availableIndexAbstractions)),
+            replaceWildcards,
+            includeDataStreams
+        );
+    }
+
+    public List<String> resolveIndexAbstractions(
+        Iterable<String> indices,
+        IndicesOptions indicesOptions,
+        Metadata metadata,
+        AvailableIndices availableIndices,
         boolean replaceWildcards,
         boolean includeDataStreams
     ) {
@@ -82,7 +101,7 @@ public class IndexAbstractionResolver {
                 if (replaceWildcards && Regex.isSimpleMatchPattern(dateMathName)) {
                     // continue
                     indexAbstraction = dateMathName;
-                } else if (availableIndexAbstractions.contains(dateMathName)
+                } else if (availableIndices.isAvailableName(dateMathName)
                     && isIndexVisible(
                         indexAbstraction,
                         dateMathName,
@@ -107,7 +126,7 @@ public class IndexAbstractionResolver {
             if (replaceWildcards && Regex.isSimpleMatchPattern(indexAbstraction)) {
                 wildcardSeen = true;
                 Set<String> resolvedIndices = new HashSet<>();
-                for (String authorizedIndex : availableIndexAbstractions) {
+                for (String authorizedIndex : availableIndices.getAvailableNames()) {
                     if (Regex.simpleMatch(indexAbstraction, authorizedIndex)
                         && isIndexVisible(
                             indexAbstraction,
@@ -135,7 +154,7 @@ public class IndexAbstractionResolver {
             } else if (dateMathName.equals(indexAbstraction)) {
                 if (minus) {
                     finalIndices.remove(indexAbstraction);
-                } else if (indicesOptions.ignoreUnavailable() == false || availableIndexAbstractions.contains(indexAbstraction)) {
+                } else if (indicesOptions.ignoreUnavailable() == false || availableIndices.isAvailableName(indexAbstraction)) {
                     finalIndices.add(indexAbstraction);
                 }
             }

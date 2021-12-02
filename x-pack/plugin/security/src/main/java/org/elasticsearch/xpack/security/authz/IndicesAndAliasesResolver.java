@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.AvailableIndices;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstractionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -92,12 +93,17 @@ class IndicesAndAliasesResolver {
      * Otherwise, <em>N</em> will be added to the <em>local</em> index list.
      */
 
+    // TODO: remove
     ResolvedIndices resolve(String action, TransportRequest request, Metadata metadata, Set<String> authorizedIndices) {
+        return resolve(action, request, metadata, new AvailableIndices(authorizedIndices));
+    }
+
+    ResolvedIndices resolve(String action, TransportRequest request, Metadata metadata, AvailableIndices availableIndices) {
         if (request instanceof IndicesAliasesRequest) {
             ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
             IndicesAliasesRequest indicesAliasesRequest = (IndicesAliasesRequest) request;
             for (IndicesRequest indicesRequest : indicesAliasesRequest.getAliasActions()) {
-                final ResolvedIndices resolved = resolveIndicesAndAliases(action, indicesRequest, metadata, authorizedIndices);
+                final ResolvedIndices resolved = resolveIndicesAndAliases(action, indicesRequest, metadata, availableIndices);
                 resolvedIndicesBuilder.addLocal(resolved.getLocal());
                 resolvedIndicesBuilder.addRemote(resolved.getRemote());
             }
@@ -108,7 +114,7 @@ class IndicesAndAliasesResolver {
         if (request instanceof IndicesRequest == false) {
             throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
-        return resolveIndicesAndAliases(action, (IndicesRequest) request, metadata, authorizedIndices);
+        return resolveIndicesAndAliases(action, (IndicesRequest) request, metadata, availableIndices);
     }
 
     /**
@@ -183,11 +189,21 @@ class IndicesAndAliasesResolver {
         return new ResolvedIndices(localIndices, List.of());
     }
 
+    // TODO: remove
     ResolvedIndices resolveIndicesAndAliases(
         String action,
         IndicesRequest indicesRequest,
         Metadata metadata,
         Set<String> authorizedIndices
+    ) {
+        return resolveIndicesAndAliases(action, indicesRequest, metadata, new AvailableIndices(authorizedIndices));
+    }
+
+    ResolvedIndices resolveIndicesAndAliases(
+        String action,
+        IndicesRequest indicesRequest,
+        Metadata metadata,
+        AvailableIndices availableIndices
     ) {
         final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
         boolean indicesReplacedWithNoIndices = false;
@@ -199,7 +215,7 @@ class IndicesAndAliasesResolver {
              */
             assert indicesRequest.indices() == null || indicesRequest.indices().length == 0
                 : "indices are: " + Arrays.toString(indicesRequest.indices()); // Arrays.toString() can handle null values - all good
-            resolvedIndicesBuilder.addLocal(getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, authorizedIndices, metadata));
+            resolvedIndicesBuilder.addLocal(getPutMappingIndexOrAlias((PutMappingRequest) indicesRequest, availableIndices, metadata));
         } else if (indicesRequest instanceof IndicesRequest.Replaceable) {
             final IndicesRequest.Replaceable replaceable = (IndicesRequest.Replaceable) indicesRequest;
             final IndicesOptions indicesOptions = indicesRequest.indicesOptions();
@@ -208,7 +224,7 @@ class IndicesAndAliasesResolver {
             // check for all and return list of authorized indices
             if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
                 if (replaceWildcards) {
-                    for (String authorizedIndex : authorizedIndices) {
+                    for (String authorizedIndex : availableIndices.getAvailableNames()) {
                         if (IndexAbstractionResolver.isIndexVisible(
                             "*",
                             authorizedIndex,
@@ -234,7 +250,7 @@ class IndicesAndAliasesResolver {
                     split.getLocal(),
                     indicesOptions,
                     metadata,
-                    authorizedIndices,
+                    availableIndices,
                     replaceWildcards,
                     indicesRequest.includeDataStreams()
                 );
@@ -272,7 +288,7 @@ class IndicesAndAliasesResolver {
             if (aliasesRequest.expandAliasesWildcards()) {
                 List<String> aliases = replaceWildcardsWithAuthorizedAliases(
                     aliasesRequest.aliases(),
-                    loadAuthorizedAliases(authorizedIndices, metadata)
+                    loadAuthorizedAliases(availableIndices, metadata)
                 );
                 aliasesRequest.replaceAliases(aliases.toArray(new String[aliases.size()]));
             }
@@ -314,7 +330,12 @@ class IndicesAndAliasesResolver {
      * request's concrete index is not in the list of authorized indices, then we need to look to
      * see if this can be authorized against an alias
      */
-    static String getPutMappingIndexOrAlias(PutMappingRequest request, Set<String> authorizedIndicesList, Metadata metadata) {
+    // TODO: remove
+    static String getPutMappingIndexOrAlias(PutMappingRequest request, Set<String> authorizedIndices, Metadata metadata) {
+        return getPutMappingIndexOrAlias(request, new AvailableIndices(authorizedIndices), metadata);
+    }
+
+    static String getPutMappingIndexOrAlias(PutMappingRequest request, AvailableIndices availableIndices, Metadata metadata) {
         final String concreteIndexName = request.getConcreteIndex().getName();
 
         // validate that the concrete index exists, otherwise there is no remapping that we could do
@@ -330,7 +351,7 @@ class IndicesAndAliasesResolver {
                     + indexAbstraction.getType().getDisplayName()
                     + "], but a concrete index is expected"
             );
-        } else if (authorizedIndicesList.contains(concreteIndexName)) {
+        } else if (availableIndices.isAvailableName(concreteIndexName)) {
             // user is authorized to put mappings for this index
             resolvedAliasOrIndex = concreteIndexName;
         } else {
@@ -341,7 +362,7 @@ class IndicesAndAliasesResolver {
             if (aliasMetadata != null) {
                 Optional<String> foundAlias = aliasMetadata.stream()
                     .map(AliasMetadata::alias)
-                    .filter(authorizedIndicesList::contains)
+                    .filter(availableIndices::isAvailableName)
                     .filter(aliasName -> {
                         IndexAbstraction alias = metadata.getIndicesLookup().get(aliasName);
                         List<Index> indices = alias.getIndices();
@@ -363,10 +384,10 @@ class IndicesAndAliasesResolver {
         return resolvedAliasOrIndex;
     }
 
-    private List<String> loadAuthorizedAliases(Set<String> authorizedIndices, Metadata metadata) {
+    private List<String> loadAuthorizedAliases(AvailableIndices availableIndices, Metadata metadata) {
         List<String> authorizedAliases = new ArrayList<>();
         SortedMap<String, IndexAbstraction> existingAliases = metadata.getIndicesLookup();
-        for (String authorizedIndex : authorizedIndices) {
+        for (String authorizedIndex : availableIndices.getAvailableNames()) {
             IndexAbstraction indexAbstraction = existingAliases.get(authorizedIndex);
             if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
                 authorizedAliases.add(authorizedIndex);

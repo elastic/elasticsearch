@@ -159,11 +159,15 @@ public final class IndicesPermission {
             }
         }
         final StringMatcher nameMatcher = indexMatcher(ordinaryIndices, restrictedIndices);
-        final StringMatcher bwcSpecialCaseMatcher = indexMatcher(grantMappingUpdatesOnIndices, grantMappingUpdatesOnRestrictedIndices);
-        return indexAbstraction -> nameMatcher.test(indexAbstraction.getName())
-            || (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
-                && (indexAbstraction.getParentDataStream() == null)
-                && bwcSpecialCaseMatcher.test(indexAbstraction.getName()));
+        if (grantMappingUpdatesOnIndices.isEmpty() && grantMappingUpdatesOnRestrictedIndices.isEmpty()) {
+            return indexAbstraction -> nameMatcher.test(indexAbstraction.getName());
+        } else {
+            final StringMatcher bwcSpecialCaseMatcher = indexMatcher(grantMappingUpdatesOnIndices, grantMappingUpdatesOnRestrictedIndices);
+            return indexAbstraction -> nameMatcher.test(indexAbstraction.getName())
+                || (indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM
+                    && (indexAbstraction.getParentDataStream() == null)
+                    && bwcSpecialCaseMatcher.test(indexAbstraction.getName()));
+        }
     }
 
     /**

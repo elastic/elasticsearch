@@ -405,38 +405,28 @@ public class AuthorizationService {
             }, clusterAuthzListener::onFailure));
         } else if (isIndexAction(action)) {
             final Metadata metadata = clusterService.state().metadata();
-            final AsyncSupplier<Set<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(authzIndicesListener -> {
-                LoadAuthorizedIndiciesTimeChecker timeChecker = LoadAuthorizedIndiciesTimeChecker.start(requestInfo, authzInfo);
-                authzEngine.loadAuthorizedIndices(
-                    requestInfo,
-                    authzInfo,
-                    metadata.getIndicesLookup(),
-                    authzIndicesListener.map(authzIndices -> {
-                        timeChecker.done(authzIndices);
-                        return authzIndices;
-                    })
-                );
-            });
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
-                final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
+                ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
                 if (resolvedIndices != null) {
                     resolvedIndicesListener.onResponse(resolvedIndices);
                 } else {
-                    authorizedIndicesSupplier.getAsync(
-                        ActionListener.wrap(
-                            authorizedIndices -> resolvedIndicesListener.onResponse(
-                                indicesAndAliasesResolver.resolve(action, request, metadata, authorizedIndices)
-                            ),
-                            e -> {
-                                auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
-                                if (e instanceof IndexNotFoundException) {
-                                    listener.onFailure(e);
-                                } else {
-                                    listener.onFailure(denialException(authentication, action, request, e));
-                                }
-                            }
-                        )
-                    );
+                    try {
+                        resolvedIndicesListener.onResponse(
+                            indicesAndAliasesResolver.resolve(
+                                action,
+                                request,
+                                metadata,
+                                authzEngine.loadAuthorizedIndices(requestInfo, authzInfo, metadata)
+                            )
+                        );
+                    } catch (Exception e) {
+                        auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
+                        if (e instanceof IndexNotFoundException) {
+                            listener.onFailure(e);
+                        } else {
+                            listener.onFailure(denialException(authentication, action, request, e));
+                        }
+                    }
                 }
             });
             authzEngine.authorizeIndexAction(

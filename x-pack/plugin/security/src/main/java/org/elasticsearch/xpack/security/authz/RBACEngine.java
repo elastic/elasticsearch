@@ -28,7 +28,9 @@ import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
+import org.elasticsearch.cluster.metadata.AvailableIndices;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -482,6 +484,16 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
+    public AvailableIndices loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo, Metadata metadata) {
+        if (authorizationInfo instanceof RBACAuthorizationInfo) {
+            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
+            return resolveAuthorizedIndicesFromRole(role, requestInfo, metadata);
+        } else {
+            throw new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName());
+        }
+    }
+
+    @Override
     public void validateIndexPermissionsAreSubset(
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
@@ -702,6 +714,29 @@ public class RBACEngine implements AuthorizationEngine {
             }
         }
         return Collections.unmodifiableSet(indicesAndAliases);
+    }
+
+    static AvailableIndices resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Metadata metadata) {
+        final Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
+
+        // do not include data streams for actions that do not operate on data streams
+        TransportRequest request = requestInfo.getRequest();
+        final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
+
+        return new AvailableIndices(metadata, indexAbstraction -> {
+            if (indexAbstraction == null) {
+                return false;
+            }
+            if (includeDataStreams) {
+                if (predicate.test(indexAbstraction)) {
+                    return true;
+                } else {
+                    return indexAbstraction.getParentDataStream() != null && predicate.test(indexAbstraction.getParentDataStream());
+                }
+            } else {
+                return indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM && predicate.test(indexAbstraction);
+            }
+        });
     }
 
     private IndexAuthorizationResult buildIndicesAccessControl(

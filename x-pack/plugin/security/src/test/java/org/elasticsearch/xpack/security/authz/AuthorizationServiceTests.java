@@ -85,6 +85,7 @@ import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.AvailableIndices;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -2674,6 +2675,11 @@ public class AuthorizationServiceTests extends ESTestCase {
                 Map<String, IndexAbstraction> indicesLookup,
                 ActionListener<Set<String>> listener
             ) {
+                throw new UnsupportedOperationException("not implemented");
+            }
+
+            @Override
+            public AvailableIndices loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo, Metadata metadata) {
                 throw new UnsupportedOperationException("not implemented");
             }
 

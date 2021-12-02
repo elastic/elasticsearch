@@ -141,8 +141,8 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
                             JOB_AUDIT_REQUIRES_MORE_MEMORY_TO_RUN,
                             ByteSizeValue.ofBytes(memoryTracker.getJobMemoryRequirement(getTaskName(), jobId)),
                             ByteSizeValue.ofBytes(capacityAndFreeMemory.v2()),
-                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getTier()),
-                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getNode())
+                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getTierMlNativeMemoryRequirement()),
+                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getNodeMlNativeMemoryRequirement())
                         )
                     );
                     auditedJobCapacity.put(getUniqueId(jobId), capacityAndFreeMemory.v2());

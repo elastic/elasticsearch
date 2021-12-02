@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
@@ -107,16 +108,10 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             // Use the job_task_name for the appropriate job size
             MlTasks.JOB_TASK_NAME,
             memoryTracker,
-            0,
+            maxLazyMLNodes,
             node -> null
         );
-        return jobNodeSelector.selectNode(
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            maxMachineMemoryPercent,
-            Long.MAX_VALUE,
-            useAutoMemoryPercentage
-        );
+        return jobNodeSelector.selectNode(maxOpenJobs, Integer.MAX_VALUE, maxMachineMemoryPercent, maxNodeMemory, useAutoMemoryPercentage);
     }
 
     @Override

@@ -181,6 +181,27 @@ public final class MlTasks {
         return jobState;
     }
 
+    public static SnapshotUpgradeState getSnapshotUpgradeState(
+        String jobId,
+        String snapshotId,
+        @Nullable PersistentTasksCustomMetadata tasks
+    ) {
+        return getSnapshotUpgradeState(getSnapshotUpgraderTask(jobId, snapshotId, tasks));
+    }
+
+    public static SnapshotUpgradeState getSnapshotUpgradeState(@Nullable PersistentTasksCustomMetadata.PersistentTask<?> task) {
+        if (task == null) {
+            return SnapshotUpgradeState.STOPPED;
+        }
+        SnapshotUpgradeTaskState taskState = (SnapshotUpgradeTaskState) task.getState();
+        if (taskState == null) {
+            // If we haven't set a state yet then the task has never been assigned, so
+            // report that it's doing the first thing it does
+            return SnapshotUpgradeState.LOADING_OLD_STATE;
+        }
+        return taskState.getState();
+    }
+
     public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksCustomMetadata tasks) {
         PersistentTasksCustomMetadata.PersistentTask<?> task = getDatafeedTask(datafeedId, tasks);
         if (task == null) {
@@ -414,8 +435,7 @@ public final class MlTasks {
             case JOB_TASK_NAME:
                 return getJobStateModifiedForReassignments(task);
             case JOB_SNAPSHOT_UPGRADE_TASK_NAME:
-                SnapshotUpgradeTaskState taskState = (SnapshotUpgradeTaskState) task.getState();
-                return taskState == null ? SnapshotUpgradeState.LOADING_OLD_STATE : taskState.getState();
+                return getSnapshotUpgradeState(task);
             case DATA_FRAME_ANALYTICS_TASK_NAME:
                 return getDataFrameAnalyticsState(task);
             default:

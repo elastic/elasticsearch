@@ -21,6 +21,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 
 import java.net.InetAddress;
 
@@ -69,6 +72,27 @@ public class MlTasksTests extends ESTestCase {
 
         tasksBuilder.updateTaskState(MlTasks.datafeedTaskId("foo"), DatafeedState.STARTED);
         assertEquals(DatafeedState.STARTED, MlTasks.getDatafeedState("foo", tasksBuilder.build()));
+    }
+
+    public void testGetSnapshotUpgradeState() {
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        // A missing task is a stopped snapshot upgrade
+        assertEquals(SnapshotUpgradeState.STOPPED, MlTasks.getSnapshotUpgradeState("foo", "1", tasksBuilder.build()));
+
+        tasksBuilder.addTask(
+            MlTasks.snapshotUpgradeTaskId("foo", "1"),
+            MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME,
+            new SnapshotUpgradeTaskParams("foo", "1"),
+            new PersistentTasksCustomMetadata.Assignment("bar", "test assignment")
+        );
+        // A task with no state means the datafeed is starting
+        assertEquals(SnapshotUpgradeState.LOADING_OLD_STATE, MlTasks.getSnapshotUpgradeState("foo", "1", tasksBuilder.build()));
+
+        tasksBuilder.updateTaskState(
+            MlTasks.snapshotUpgradeTaskId("foo", "1"),
+            new SnapshotUpgradeTaskState(SnapshotUpgradeState.SAVING_NEW_STATE, tasksBuilder.getLastAllocationId(), null)
+        );
+        assertEquals(SnapshotUpgradeState.SAVING_NEW_STATE, MlTasks.getSnapshotUpgradeState("foo", "1", tasksBuilder.build()));
     }
 
     public void testGetJobTask() {

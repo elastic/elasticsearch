@@ -95,7 +95,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
 
         );
         // Not sure what goes on here
-        sh.run("ls -la " + getAutoConfigDirName(installation));
+        sh.run("ls -la " + getAutoConfigDirName(installation).get());
         logger.info(String.join("\n", Files.readAllLines(installation.config("elasticsearch.yml"))));
         logger.info(String.join("\n", Files.readAllLines(installation.logs.resolve("elasticsearch.log"))));
         // the autoconfiguration dir will be cleaned _after_ we fail to connect to the supposed original node. Allow time for this to happen

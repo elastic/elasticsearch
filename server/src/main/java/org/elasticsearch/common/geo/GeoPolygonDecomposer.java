@@ -137,7 +137,8 @@ class GeoPolygonDecomposer {
             }
             if (linearRing.getLon(i - 1) == linearRing.getLon(i + 1)
                 && linearRing.getLat(i - 1) > linearRing.getLat(i) != linearRing.getLat(i + 1) > linearRing.getLat(i)) {
-                // collinear
+                // collinear - we only remove points that go in the same direction. So latitudes [1,2,3] we would want
+                // to remove 1 but for [1,2,-1] we don't.
                 return true;
             }
         }

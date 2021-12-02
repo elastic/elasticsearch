@@ -85,6 +85,43 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         return plugins;
     }
 
+    public void testStartMigrationAndImmediatelyCheckStatus() throws Exception {
+        createSystemIndexForDescriptor(INTERNAL_MANAGED);
+        createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
+        createSystemIndexForDescriptor(EXTERNAL_MANAGED);
+        createSystemIndexForDescriptor(EXTERNAL_UNMANAGED);
+
+        TestPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
+        TestPlugin.postMigrationHook.set((state, metadata) -> {});
+
+        ensureGreen();
+
+        PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest();
+        GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest();
+
+        // Start the migration and *immediately* request the status. We're trying to detect a race condition with this test, so we need to
+        // do this as fast as possible, but not before the request to start the migration completes.
+        PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, migrationRequest).get();
+        GetFeatureUpgradeStatusResponse statusResponse = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest).get();
+
+        // Make sure we actually started the migration
+        final Set<String> migratingFeatures = migrationResponse.getFeatures()
+            .stream()
+            .map(PostFeatureUpgradeResponse.Feature::getFeatureName)
+            .collect(Collectors.toSet());
+        assertThat(migratingFeatures, hasItem(FEATURE_NAME));
+
+        // We should see that the migration is in progress even though we just started the migration.
+        assertThat(statusResponse.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.IN_PROGRESS));
+
+        // Now wait for the migration to finish (otherwise the test infra explodes)
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
+        });
+    }
+
     public void testMigrateInternalManagedSystemIndex() throws Exception {
         createSystemIndexForDescriptor(INTERNAL_MANAGED);
         createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
@@ -203,6 +240,30 @@ public class FeatureMigrationIT extends ESIntegTestCase {
             false,
             Collections.singletonList(".ext-unman-old")
         );
+    }
+
+    public void testMigrateIndexWithWriteBlock() throws Exception {
+        createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
+
+        String indexName = Optional.ofNullable(INTERNAL_UNMANAGED.getPrimaryIndex())
+            .orElse(INTERNAL_UNMANAGED.getIndexPattern().replace("*", "old"));
+        client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put("index.blocks.write", true)).get();
+
+        TestPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
+        TestPlugin.postMigrationHook.set((state, metadata) -> {});
+
+        ensureGreen();
+
+        client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest()).get();
+
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(
+                GetFeatureUpgradeStatusAction.INSTANCE,
+                new GetFeatureUpgradeStatusRequest()
+            ).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
+        });
     }
 
     public void assertIndexHasCorrectProperties(

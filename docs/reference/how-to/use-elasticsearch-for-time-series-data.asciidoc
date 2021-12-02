@@ -26,7 +26,6 @@ stream.
 
 The steps for setting up data tiers vary based on your deployment type:
 
-include::{es-repo-dir}/tab-widgets/code.asciidoc[]
 include::{es-repo-dir}/tab-widgets/data-tiers-widget.asciidoc[]
 
 [discrete]

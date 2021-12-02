@@ -153,7 +153,7 @@ public class GeoTileGroupSource extends SingleGroupSource implements ToXContentO
          * @param precision The precision
          * @return The {@link Builder} with the precision set.
          */
-        public Builder setPrecission(Integer precision) {
+        public Builder setPrecision(Integer precision) {
             this.precision = precision;
             return this;
         }

@@ -93,13 +93,13 @@ public class XContentParserConfiguration {
     /**
      * Replace the configured filtering.
      */
-    public XContentParserConfiguration withFiltering(Set<String> includes, Set<String> excludes) {
+    public XContentParserConfiguration withFiltering(Set<String> includeStrings, Set<String> excludeStrings) {
         return new XContentParserConfiguration(
             registry,
             deprecationHandler,
             restApiVersion,
-            FilterPath.compile(includes),
-            FilterPath.compile(excludes)
+            FilterPath.compile(includeStrings),
+            FilterPath.compile(excludeStrings)
         );
     }
 

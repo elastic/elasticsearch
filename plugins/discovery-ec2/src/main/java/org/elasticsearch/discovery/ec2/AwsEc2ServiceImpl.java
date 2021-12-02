@@ -28,13 +28,13 @@ import java.util.concurrent.atomic.AtomicReference;
 
 class AwsEc2ServiceImpl implements AwsEc2Service {
 
-    private static final Logger logger = LogManager.getLogger(AwsEc2ServiceImpl.class);
+    private static final Logger LOGGER = LogManager.getLogger(AwsEc2ServiceImpl.class);
 
     private final AtomicReference<LazyInitializable<AmazonEc2Reference, ElasticsearchException>> lazyClientReference =
         new AtomicReference<>();
 
     private AmazonEC2 buildClient(Ec2ClientSettings clientSettings) {
-        final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
+        final AWSCredentialsProvider credentials = buildCredentials(LOGGER, clientSettings);
         final ClientConfiguration configuration = buildConfiguration(clientSettings);
         return buildClient(credentials, configuration, clientSettings.endpoint);
     }
@@ -45,7 +45,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
             .withCredentials(credentials)
             .withClientConfiguration(configuration);
         if (Strings.hasText(endpoint)) {
-            logger.debug("using explicit ec2 endpoint [{}]", endpoint);
+            LOGGER.debug("using explicit ec2 endpoint [{}]", endpoint);
             builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, null));
         }
         return SocketAccess.doPrivileged(builder::build);

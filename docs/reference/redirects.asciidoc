@@ -3,6 +3,60 @@
 
 The following pages have moved or been deleted.
 
+// [START] Snapshot and restore
+
+[role="exclude",id="snapshot-lifecycle-management"]
+=== {slm-cap} ({slm-init})
+
+See <<automate-snapshots-slm>>.
+
+[role="exclude",id="getting-started-snapshot-lifecycle-management"]
+=== Tutorial: Automate backups with {slm-init}
+
+See <<automate-snapshots-slm>>.
+
+[role="exclude",id="slm-and-security"]
+=== Security and {slm-init}
+
+See <<slm-security>>.
+
+[role="exclude",id="slm-retention"]
+=== Snapshot retention
+
+See <<slm-retention-task>>.
+
+[role="exclude",id="delete-snapshots"]
+=== Delete a snapshot
+
+See <<delete-snapshot>>.
+
+[role="exclude",id="snapshots-monitor-snapshot-restore"]
+=== Monitor snapshot progress
+
+See <<monitor-snapshot>>.
+
+[role="exclude",id="backup-cluster"]
+=== Back up a cluster
+
+See <<snapshots-take-snapshot>>.
+
+[role="exclude",id="backup-cluster-data"]
+=== Back up a cluster's data
+
+See <<snapshots-take-snapshot>>.
+
+[role="exclude",id="backup-cluster-configuration"]
+=== Back up a cluster's configuration
+
+See <<back-up-config-files>>.
+
+[role="exclude",id="security-backup"]
+=== Back up a cluster's security configuration
+
+See <<back-up-config-files>> and <<cluster-state-snapshots>>.
+
+// [END] Snapshot and restore
+
 [role="exclude",id="configuring-tls-docker"]
 == Encrypting communications in an {es} Docker Container
 
@@ -844,7 +898,7 @@ See <<snapshot-restore>>.
 [role="exclude",id="_repository_plugins"]
 ==== Repository plugins
 
-See <<snapshots-repository-plugins>>.
+See <<self-managed-repo-types>>.
 
 [role="exclude",id="_changing_index_settings_during_restore"]
 ==== Change index settings during restore
@@ -1727,3 +1781,5 @@ See <<security-api-kibana-enrollment>>.
 
 See the <<sql-search-api-request-body,request body parameters>> for the
 <<sql-search-api,SQL search API>>.
+
+

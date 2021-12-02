@@ -14,15 +14,10 @@ rootDir.listFiles().findAll { it.directory && new File(it, 'build.gradle').exist
 gradle.rootProject {
   ext {
     // Fetch Elasticsearch version from outer build
-    if (gradle.includedBuilds) {
-      new File(rootDir.parentFile.parentFile, 'build-tools-internal/version.properties').withInputStream { is ->
-        def props = new Properties()
-        props.load(is)
-        elasticsearchVersion = "${props.get('elasticsearch')}-SNAPSHOT"
-      }
-    } else {
-        // In a composite we substitute these dependencies so the version doesn't matter
-        elasticsearchVersion = '0.0.1-SNAPSHOT'
+    new File(rootDir.parentFile.parentFile, 'build-tools-internal/version.properties').withInputStream { is ->
+      def props = new Properties()
+      props.load(is)
+      elasticsearchVersion = "${props.get('elasticsearch')}-SNAPSHOT"
     }
   }
 }
@@ -34,7 +29,6 @@ gradle.projectsEvaluated {
         resolutionStrategy.dependencySubstitution {
           // When using composite builds we need to tell Gradle to use the project names since we rename the published artifacts
           substitute module('org.elasticsearch:elasticsearch') using module("org.elasticsearch:server:${elasticsearchVersion}")
-          substitute module('org.elasticsearch.client:elasticsearch-rest-high-level-client') using module("org.elasticsearch.client:rest-high-level:${elasticsearchVersion}")
           substitute module('org.elasticsearch.client:elasticsearch-rest-client') using module("org.elasticsearch.client:rest:${elasticsearchVersion}")
           substitute module('org.elasticsearch.plugin:x-pack-core') with module("org.elasticsearch.plugin:core:${elasticsearchVersion}")
           substitute module('org.elasticsearch.plugin:elasticsearch-scripting-painless-spi') with module("org.elasticsearch.plugin:spi:${elasticsearchVersion}")

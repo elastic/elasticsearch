@@ -17,7 +17,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -41,6 +41,7 @@ public class InboundHandler {
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
     private final Transport.ResponseHandlers responseHandlers;
+    private final HandlingTimeTracker handlingTimeTracker;
     private final Transport.RequestHandlers requestHandlers;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
@@ -54,7 +55,8 @@ public class InboundHandler {
         TransportHandshaker handshaker,
         TransportKeepAlive keepAlive,
         Transport.RequestHandlers requestHandlers,
-        Transport.ResponseHandlers responseHandlers
+        Transport.ResponseHandlers responseHandlers,
+        HandlingTimeTracker handlingTimeTracker
     ) {
         this.threadPool = threadPool;
         this.outboundHandler = outboundHandler;
@@ -63,6 +65,7 @@ public class InboundHandler {
         this.keepAlive = keepAlive;
         this.requestHandlers = requestHandlers;
         this.responseHandlers = responseHandlers;
+        this.handlingTimeTracker = handlingTimeTracker;
     }
 
     void setMessageListener(TransportMessageListener listener) {
@@ -78,7 +81,7 @@ public class InboundHandler {
     }
 
     void inboundMessage(TcpChannel channel, InboundMessage message) throws Exception {
-        final long startTime = threadPool.relativeTimeInMillis();
+        final long startTime = threadPool.rawRelativeTimeInMillis();
         channel.getChannelStats().markAccessed(startTime);
         TransportLogger.logInboundMessage(channel, message);
 
@@ -97,41 +100,43 @@ public class InboundHandler {
         final Header header = message.getHeader();
         assert header.needsToReadVariableHeader() == false;
 
+        TransportResponseHandler<?> responseHandler = null;
+        final boolean isRequest = message.getHeader().isRequest();
+
         ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
             // Place the context with the headers from the message
             threadContext.setHeaders(header.getHeaders());
             threadContext.putTransient("_remote_address", remoteAddress);
-            if (header.isRequest()) {
+            if (isRequest) {
                 handleRequest(channel, header, message);
             } else {
                 // Responses do not support short circuiting currently
                 assert message.isShortCircuit() == false;
-                final TransportResponseHandler<?> handler;
                 long requestId = header.getRequestId();
                 if (header.isHandshake()) {
-                    handler = handshaker.removeHandlerForHandshake(requestId);
+                    responseHandler = handshaker.removeHandlerForHandshake(requestId);
                 } else {
-                    TransportResponseHandler<? extends TransportResponse> theHandler = responseHandlers.onResponseReceived(
+                    final TransportResponseHandler<? extends TransportResponse> theHandler = responseHandlers.onResponseReceived(
                         requestId,
                         messageListener
                     );
                     if (theHandler == null && header.isError()) {
-                        handler = handshaker.removeHandlerForHandshake(requestId);
+                        responseHandler = handshaker.removeHandlerForHandshake(requestId);
                     } else {
-                        handler = theHandler;
+                        responseHandler = theHandler;
                     }
                 }
                 // ignore if its null, the service logs it
-                if (handler != null) {
+                if (responseHandler != null) {
                     final StreamInput streamInput;
                     if (message.getContentLength() > 0 || header.getVersion().equals(Version.CURRENT) == false) {
                         streamInput = namedWriteableStream(message.openOrGetStreamInput());
                         assertRemoteVersion(streamInput, header.getVersion());
                         if (header.isError()) {
-                            handlerResponseError(streamInput, handler);
+                            handlerResponseError(streamInput, responseHandler);
                         } else {
-                            handleResponse(remoteAddress, streamInput, handler);
+                            handleResponse(remoteAddress, streamInput, responseHandler);
                         }
                         // Check the entire message has been read
                         final int nextByte = streamInput.read();
@@ -141,7 +146,7 @@ public class InboundHandler {
                                 "Message not fully read (response) for requestId ["
                                     + requestId
                                     + "], handler ["
-                                    + handler
+                                    + responseHandler
                                     + "], error ["
                                     + header.isError()
                                     + "]; resetting"
@@ -149,20 +154,31 @@ public class InboundHandler {
                         }
                     } else {
                         assert header.isError() == false;
-                        handleResponse(remoteAddress, EMPTY_STREAM_INPUT, handler);
+                        handleResponse(remoteAddress, EMPTY_STREAM_INPUT, responseHandler);
                     }
                 }
             }
         } finally {
-            final long took = threadPool.relativeTimeInMillis() - startTime;
+            final long took = threadPool.rawRelativeTimeInMillis() - startTime;
+            handlingTimeTracker.addHandlingTime(took);
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
-                logger.warn(
-                    "handling inbound transport message [{}] took [{}ms] which is above the warn threshold of [{}ms]",
-                    message,
-                    took,
-                    logThreshold
-                );
+                if (isRequest) {
+                    logger.warn(
+                        "handling request [{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                        message,
+                        took,
+                        logThreshold
+                    );
+                } else {
+                    logger.warn(
+                        "handling response [{}] on handler [{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                        message,
+                        responseHandler,
+                        took,
+                        logThreshold
+                    );
+                }
             }
         }
     }
@@ -226,7 +242,7 @@ public class InboundHandler {
                     assert reg != null;
                     final T request = reg.newRequest(stream);
                     try {
-                        request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
+                        request.remoteAddress(channel.getRemoteAddress());
                         // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
                         final int nextByte = stream.read();
                         // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
@@ -307,7 +323,7 @@ public class InboundHandler {
         final T response;
         try {
             response = handler.read(stream);
-            response.remoteAddress(new TransportAddress(remoteAddress));
+            response.remoteAddress(remoteAddress);
         } catch (Exception e) {
             final Exception serializationException = new TransportSerializationException(
                 "Failed to deserialize response from handler [" + handler + "]",

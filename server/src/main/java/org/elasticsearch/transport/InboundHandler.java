@@ -41,8 +41,9 @@ public class InboundHandler {
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
     private final Transport.ResponseHandlers responseHandlers;
-    private final HandlingTimeTracker handlingTimeTracker;
     private final Transport.RequestHandlers requestHandlers;
+    private final HandlingTimeTracker handlingTimeTracker;
+    private final boolean ignoreDeserializationErrors;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
@@ -56,7 +57,8 @@ public class InboundHandler {
         TransportKeepAlive keepAlive,
         Transport.RequestHandlers requestHandlers,
         Transport.ResponseHandlers responseHandlers,
-        HandlingTimeTracker handlingTimeTracker
+        HandlingTimeTracker handlingTimeTracker,
+        boolean ignoreDeserializationErrors
     ) {
         this.threadPool = threadPool;
         this.outboundHandler = outboundHandler;
@@ -66,6 +68,7 @@ public class InboundHandler {
         this.requestHandlers = requestHandlers;
         this.responseHandlers = responseHandlers;
         this.handlingTimeTracker = handlingTimeTracker;
+        this.ignoreDeserializationErrors = ignoreDeserializationErrors;
     }
 
     void setMessageListener(TransportMessageListener listener) {
@@ -142,7 +145,7 @@ public class InboundHandler {
                         final int nextByte = streamInput.read();
                         // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
                         if (nextByte != -1) {
-                            throw new IllegalStateException(
+                            final IllegalStateException exception = new IllegalStateException(
                                 "Message not fully read (response) for requestId ["
                                     + requestId
                                     + "], handler ["
@@ -151,6 +154,8 @@ public class InboundHandler {
                                     + header.isError()
                                     + "]; resetting"
                             );
+                            assert ignoreDeserializationErrors : exception;
+                            throw exception;
                         }
                     } else {
                         assert header.isError() == false;
@@ -240,14 +245,20 @@ public class InboundHandler {
                     assertRemoteVersion(stream, header.getVersion());
                     final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
                     assert reg != null;
-                    final T request = reg.newRequest(stream);
+                    final T request;
+                    try {
+                        request = reg.newRequest(stream);
+                    } catch (Exception e) {
+                        assert ignoreDeserializationErrors : e;
+                        throw e;
+                    }
                     try {
                         request.remoteAddress(channel.getRemoteAddress());
                         // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
                         final int nextByte = stream.read();
                         // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
                         if (nextByte != -1) {
-                            throw new IllegalStateException(
+                            final IllegalStateException exception = new IllegalStateException(
                                 "Message not fully read (request) for requestId ["
                                     + requestId
                                     + "], action ["
@@ -256,6 +267,8 @@ public class InboundHandler {
                                     + stream.available()
                                     + "]; resetting"
                             );
+                            assert ignoreDeserializationErrors : exception;
+                            throw exception;
                         }
                         final String executor = reg.getExecutor();
                         if (ThreadPool.Names.SAME.equals(executor)) {
@@ -330,6 +343,7 @@ public class InboundHandler {
                 e
             );
             logger.warn(new ParameterizedMessage("Failed to deserialize response from [{}]", remoteAddress), serializationException);
+            assert ignoreDeserializationErrors : e;
             handleException(handler, serializationException);
             return;
         }
@@ -368,6 +382,7 @@ public class InboundHandler {
                 "Failed to deserialize exception response from stream for handler [" + handler + "]",
                 e
             );
+            assert ignoreDeserializationErrors : error;
         }
         handleException(handler, error);
     }

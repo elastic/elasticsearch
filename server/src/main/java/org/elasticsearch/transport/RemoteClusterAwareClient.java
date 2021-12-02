@@ -23,12 +23,20 @@ final class RemoteClusterAwareClient extends AbstractClient {
     private final TransportService service;
     private final String clusterAlias;
     private final RemoteClusterService remoteClusterService;
+    private final boolean ensureConnected;
 
-    RemoteClusterAwareClient(Settings settings, ThreadPool threadPool, TransportService service, String clusterAlias) {
+    RemoteClusterAwareClient(
+        Settings settings,
+        ThreadPool threadPool,
+        TransportService service,
+        String clusterAlias,
+        boolean ensureConnected
+    ) {
         super(settings, threadPool);
         this.service = service;
         this.clusterAlias = clusterAlias;
         this.remoteClusterService = service.getRemoteClusterService();
+        this.ensureConnected = ensureConnected;
     }
 
     @Override
@@ -37,13 +45,21 @@ final class RemoteClusterAwareClient extends AbstractClient {
         Request request,
         ActionListener<Response> listener
     ) {
-        remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(v -> {
-            Transport.Connection connection;
-            if (request instanceof RemoteClusterAwareRequest) {
-                DiscoveryNode preferredTargetNode = ((RemoteClusterAwareRequest) request).getPreferredTargetNode();
-                connection = remoteClusterService.getConnection(preferredTargetNode, clusterAlias);
-            } else {
-                connection = remoteClusterService.getConnection(clusterAlias);
+        maybeEnsureConnected(ActionListener.wrap(v -> {
+            final Transport.Connection connection;
+            try {
+                if (request instanceof RemoteClusterAwareRequest) {
+                    DiscoveryNode preferredTargetNode = ((RemoteClusterAwareRequest) request).getPreferredTargetNode();
+                    connection = remoteClusterService.getConnection(preferredTargetNode, clusterAlias);
+                } else {
+                    connection = remoteClusterService.getConnection(clusterAlias);
+                }
+            } catch (NoSuchRemoteClusterException e) {
+                if (ensureConnected == false) {
+                    // trigger another connection attempt, but don't wait for it to complete
+                    remoteClusterService.ensureConnected(clusterAlias, ActionListener.wrap(() -> {}));
+                }
+                throw e;
             }
             service.sendRequest(
                 connection,
@@ -53,6 +69,14 @@ final class RemoteClusterAwareClient extends AbstractClient {
                 new ActionListenerResponseHandler<>(listener, action.getResponseReader())
             );
         }, listener::onFailure));
+    }
+
+    private void maybeEnsureConnected(ActionListener<Void> ensureConnectedListener) {
+        if (ensureConnected) {
+            remoteClusterService.ensureConnected(clusterAlias, ensureConnectedListener);
+        } else {
+            ensureConnectedListener.onResponse(null);
+        }
     }
 
     @Override

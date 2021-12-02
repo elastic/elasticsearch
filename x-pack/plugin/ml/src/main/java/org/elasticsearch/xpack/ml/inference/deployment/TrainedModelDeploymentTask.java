@@ -51,7 +51,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         XPackLicenseState licenseState,
         LicensedFeature.Persistent licensedFeature
     ) {
-        super(id, type, action, MlTasks.trainedModelDeploymentTaskId(taskParams.getModelId()), parentTask, headers);
+        super(id, type, action, MlTasks.trainedModelAllocationTaskDescription(taskParams.getModelId()), parentTask, headers);
         this.params = taskParams;
         this.trainedModelAllocationNodeService = ExceptionsHelper.requireNonNull(
             trainedModelAllocationNodeService,

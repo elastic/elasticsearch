@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction.Request;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction.Response;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -49,10 +51,11 @@ public class TransportGetCheckpointNodeAction extends HandledTransportAction<Req
             final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
 
-            checkpointsByIndexOfThisNode.computeIfAbsent(
-                shardId.getIndexName(),
-                k -> new long[indexService.getIndexSettings().getNumberOfShards()]
-            );
+            checkpointsByIndexOfThisNode.computeIfAbsent(shardId.getIndexName(), k -> {
+                long[] seqNumbers = new long[indexService.getIndexSettings().getNumberOfShards()];
+                Arrays.fill(seqNumbers, SequenceNumbers.UNASSIGNED_SEQ_NO);
+                return seqNumbers;
+            });
             checkpointsByIndexOfThisNode.get(shardId.getIndexName())[shardId.getId()] = indexShard.seqNoStats().getGlobalCheckpoint();
         }
         listener.onResponse(new Response(checkpointsByIndexOfThisNode));

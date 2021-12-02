@@ -89,20 +89,6 @@ public final class MlTasks {
         return JOB_SNAPSHOT_UPGRADE_TASK_ID_PREFIX + jobId + "-" + snapshotId;
     }
 
-    public static Tuple<String, String> jobAndSnapshotId(String snapshotUpgradeTaskId) {
-        // This is not great. The function that creates the snapshot upgrade task ID is not generically reversible.
-        // Given the way model snapshot IDs are created by the C++ code we know in production they shouldn't contain
-        // dashes. So we assume that the last dash separates the job ID from the snapshot ID. But it would be nice
-        // not to have to rely on distant implementation details like this.
-        int lastDash = snapshotUpgradeTaskId.lastIndexOf('-');
-        if (lastDash < JOB_SNAPSHOT_UPGRADE_TASK_ID_PREFIX.length()) {
-            throw new IllegalStateException("snapshot upgrade task ID [" + snapshotUpgradeTaskId + "] is not structured as expected");
-        }
-        String jobId = snapshotUpgradeTaskId.substring(JOB_SNAPSHOT_UPGRADE_TASK_ID_PREFIX.length(), lastDash);
-        String snapshotId = snapshotUpgradeTaskId.substring(lastDash + 1);
-        return new Tuple<>(jobId, snapshotId);
-    }
-
     /**
      * Namespaces the task ids for data frame analytics.
      */

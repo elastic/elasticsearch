@@ -22,12 +22,14 @@ import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
@@ -431,11 +433,11 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 persistentTasks.tasks()
                     .stream()
                     .filter(task -> MlTasks.JOB_TASK_NAME.equals(task.getTaskName()))
-                    .map(task -> MlTasks.jobId(task.getId())),
+                    .map(task -> ((OpenJobAction.JobParams) task.getParams()).getJobId()),
                 persistentTasks.tasks()
                     .stream()
                     .filter(task -> MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME.equals(task.getTaskName()))
-                    .map(task -> MlTasks.jobAndSnapshotId(task.getId()).v1())
+                    .map(task -> ((SnapshotUpgradeTaskParams) task.getParams()).getJobId())
             ).filter(jobId -> jobIdsToSkip.contains(jobId) == false).collect(Collectors.toSet());
             iterateAnomalyDetectorJobs(mlAnomalyDetectorJobTasks.iterator(), refreshDataFrameAnalyticsJobs);
         }

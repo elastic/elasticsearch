@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
+import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.DatafeedParams;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocati
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
@@ -354,15 +357,15 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         Map<String, TrainedModelAllocation> modelAllocations = TrainedModelAllocationMetadata.fromState(clusterState).modelAllocations();
         final List<String> waitingAnomalyJobs = anomalyDetectionTasks.stream()
             .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
-            .map(t -> MlTasks.jobId(t.getId()))
+            .map(t -> ((OpenJobAction.JobParams) t.getParams()).getJobId())
             .collect(Collectors.toList());
         final List<String> waitingSnapshotUpgrades = snapshotUpgradeTasks.stream()
             .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
-            .map(t -> MlTasks.jobAndSnapshotId(t.getId()).v1())
+            .map(t -> ((SnapshotUpgradeTaskParams) t.getParams()).getJobId())
             .collect(Collectors.toList());
         final List<String> waitingAnalyticsJobs = dataframeAnalyticsTasks.stream()
             .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
-            .map(t -> MlTasks.dataFrameAnalyticsId(t.getId()))
+            .map(t -> ((StartDataFrameAnalyticsAction.TaskParams) t.getParams()).getId())
             .collect(Collectors.toList());
         final List<String> waitingAllocatedModels = modelAllocations.entrySet()
             .stream()

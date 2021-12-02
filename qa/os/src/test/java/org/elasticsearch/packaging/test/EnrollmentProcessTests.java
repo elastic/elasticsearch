@@ -94,8 +94,12 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         );
         Thread.sleep(20000);
         Path pidFile = installation.home.resolve("elasticsearch.pid");
-        String pid = slurp(pidFile).trim();
-        Platforms.onLinux(() -> sh.run("ps -p "+pid));
+        try {
+            String pid = slurp(pidFile).trim();
+            Platforms.onLinux(() -> sh.run("ps -p " + pid));
+        } catch (Exception e) {
+            logger.info("No PID File, so Elasticsearch should have stopped running");
+        }
         // the autoconfiguration dir will be cleaned _after_ we fail to connect to the supposed original node. Allow time for this to happen
         assertBusy(() -> assertThat(getAutoConfigDirName(installation).isPresent(), Matchers.is(false)), 20, TimeUnit.SECONDS);
         // auto-configure security using the enrollment token

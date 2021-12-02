@@ -1458,7 +1458,7 @@ public class Security extends Plugin
             () -> new SecurityNetty4HttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
+                pageCacheRecycler,
                 ipFilter.get(),
                 getSslService(),
                 threadPool,

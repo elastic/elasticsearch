@@ -73,6 +73,10 @@ if [[ -n "$ES_LOG_STYLE" ]]; then
   esac
 fi
 
+if [[ -d /usr/local/cloudflare-zlib/lib ]]; then
+  export LD_LIBRARY_PATH=/usr/local/cloudflare-zlib/lib
+fi
+
 # Signal forwarding and child reaping is handled by `tini`, which is the
 # actual entrypoint of the container
 exec /usr/share/elasticsearch/bin/elasticsearch <<<"$KEYSTORE_PASSWORD"

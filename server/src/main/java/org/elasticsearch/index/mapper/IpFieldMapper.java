@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
@@ -420,8 +421,8 @@ public class IpFieldMapper extends FieldMapper {
             failIfNoDocValues();
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
-                s -> new IpScriptDocValues(new IpSupplier(s)),
-                CoreValuesSourceType.IP
+                CoreValuesSourceType.IP,
+                (dv, n) -> new DelegateDocValuesField(new IpScriptDocValues(new IpSupplier(dv)), n)
             );
         }
 

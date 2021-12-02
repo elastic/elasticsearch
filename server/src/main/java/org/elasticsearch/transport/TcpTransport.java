@@ -98,6 +98,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // this limit is per-address
     private static final int LIMIT_LOCAL_PORTS_COUNT = 6;
 
+    // Deliberately unregistered, only used in unit tests. Copied to AbstractSimpleTransportTestCase#IGNORE_DESERIALIZATION_ERRORS_SETTING
+    // so that tests in other packages can see it too.
+    static final Setting<Boolean> IGNORE_DESERIALIZATION_ERRORS_SETTING = Setting.boolSetting(
+        "transport.ignore_deserialization_errors",
+        false,
+        Setting.Property.NodeScope
+    );
+
     protected final Settings settings;
     protected final ThreadPool threadPool;
     protected final Recycler<BytesRef> recycler;
@@ -144,6 +152,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         this.recycler = createRecycler(settings, pageCacheRecycler);
         this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, recycler, outboundHandlingTimeTracker);
+
+        final boolean ignoreDeserializationErrors = IGNORE_DESERIALIZATION_ERRORS_SETTING.get(settings);
+
         this.handshaker = new TransportHandshaker(
             version,
             threadPool,
@@ -157,7 +168,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 v,
                 null,
                 true
-            )
+            ),
+            ignoreDeserializationErrors
         );
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
         this.inboundHandler = new InboundHandler(
@@ -168,7 +180,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             keepAlive,
             requestHandlers,
             responseHandlers,
-            networkService.getHandlingTimeTracker()
+            networkService.getHandlingTimeTracker(),
+            ignoreDeserializationErrors
         );
     }
 

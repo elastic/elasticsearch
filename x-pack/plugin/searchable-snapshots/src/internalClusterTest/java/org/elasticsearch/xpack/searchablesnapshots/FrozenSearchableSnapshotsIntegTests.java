@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
@@ -270,12 +269,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             final ByteBuffersDirectory inMemoryDir = (ByteBuffersDirectory) unwrappedDir;
             assertThat(inMemoryDir.listAll(), arrayWithSize(1));
 
-            final String segmentsFileName = SegmentInfos.getLastCommitSegmentsFileName(inMemoryDir);
-            assertThat("Fail to find segment file name directory for " + shardRouting.toString(), segmentsFileName, notNullValue());
-            final long extraSegmentFileSize = inMemoryDir.fileLength(segmentsFileName);
-
-            assertThat(shardRouting.toString(), store.getTotalDataSetSize().getBytes(), equalTo(originalSize + extraSegmentFileSize));
-            totalExpectedSize += extraSegmentFileSize;
+            assertThat(shardRouting.toString(), store.getTotalDataSetSize().getBytes(), equalTo(originalSize));
         }
 
         final StoreStats store = indicesStatsResponse.getTotal().getStore();

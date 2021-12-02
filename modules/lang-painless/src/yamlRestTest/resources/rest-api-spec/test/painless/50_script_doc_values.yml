@@ -124,13 +124,13 @@ setup:
 
     - do:
         search:
-            rest_total_hits_as_int: true
-            body:
-                query: { term: { _id: 1 } }
-                script_fields:
-                    field:
-                        script:
-                            source: "field('boolean').get(false)"
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid yaml stash for '$' */ $('boolean', false)"
     - match: { hits.hits.0.fields.field.0: true }
 
     - do:
@@ -142,6 +142,17 @@ setup:
                     field:
                         script:
                             source: "field('boolean').get(false)"
+    - match: { hits.hits.0.fields.field.0: false }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 2 } }
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid yaml stash for '$' */ $('boolean', false)"
     - match: { hits.hits.0.fields.field.0: false }
 
     - do:
@@ -430,6 +441,18 @@ setup:
             script_fields:
               field:
                 script:
+                  source: "/* avoid yaml stash */ $('integer', -1)"
+    - match: { hits.hits.0.fields.field.0: 134134566 }
+    - match: { hits.hits.1.fields.field.0: -1 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
                   source: "field('integer').get(1, -3)"
     - match: { hits.hits.0.fields.field.0: -3 }
     - match: { hits.hits.1.fields.field.0: -3 }
@@ -492,7 +515,31 @@ setup:
             script_fields:
               field:
                 script:
+                  source: "/* avoid yaml stash */ $('short', -1)"
+    - match: { hits.hits.0.fields.field.0: 1324 }
+    - match: { hits.hits.1.fields.field.0: -1 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
                   source: "short defaultShort = -1; field('short').get(defaultShort)"
+    - match: { hits.hits.0.fields.field.0: 1324 }
+    - match: { hits.hits.1.fields.field.0: -1 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "short defaultShort = -1; $('short', defaultShort)"
     - match: { hits.hits.0.fields.field.0: 1324 }
     - match: { hits.hits.1.fields.field.0: -1 }
 
@@ -580,6 +627,19 @@ setup:
             script_fields:
               field:
                 script:
+                  source: "/* avoid yaml stash */ $('byte', (byte) 5)"
+    - match: { hits.hits.0.fields.field.0: 12 }
+    - match: { hits.hits.1.fields.field.0: 5 }
+    - match: { hits.hits.2.fields.field.0: 4 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
                   source: "byte defaultByte = 5; field('byte').get(defaultByte)"
     - match: { hits.hits.0.fields.field.0: 12 }
     - match: { hits.hits.1.fields.field.0: 5 }
@@ -593,7 +653,33 @@ setup:
             script_fields:
               field:
                 script:
+                  source: "byte defaultByte = 5; $('byte', defaultByte)"
+    - match: { hits.hits.0.fields.field.0: 12 }
+    - match: { hits.hits.1.fields.field.0: 5 }
+    - match: { hits.hits.2.fields.field.0: 4 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
                   source: "field('byte').get(5)"
+    - match: { hits.hits.0.fields.field.0: 12 }
+    - match: { hits.hits.1.fields.field.0: 5 }
+    - match: { hits.hits.2.fields.field.0: 4 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid yaml stash */ $('byte', 5)"
     - match: { hits.hits.0.fields.field.0: 12 }
     - match: { hits.hits.1.fields.field.0: 5 }
     - match: { hits.hits.2.fields.field.0: 4 }
@@ -695,6 +781,19 @@ setup:
             script_fields:
               field:
                 script:
+                  source: "/* avoid yaml stash */ $('double', -1)"
+    - match: { hits.hits.0.fields.field.0: 3.14159265358979 }
+    - match: { hits.hits.1.fields.field.0: -1 }
+    - match: { hits.hits.2.fields.field.0: 2.141592653587 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
                   source: "double defaultDouble = 7.8; field('double').get(1, defaultDouble)"
     - match: { hits.hits.0.fields.field.0: 7.8 }
     - match: { hits.hits.1.fields.field.0: 7.8 }
@@ -759,6 +858,19 @@ setup:
               field:
                 script:
                   source: "field('float').get(-1).toString()" # toString to avoid making this a double
+    - match: { hits.hits.0.fields.field.0: "3.1415927" }
+    - match: { hits.hits.1.fields.field.0: "-1.0" }
+    - match: { hits.hits.2.fields.field.0: "1.123" }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "return $('float', -1).toString()" # toString to avoid making this a double
     - match: { hits.hits.0.fields.field.0: "3.1415927" }
     - match: { hits.hits.1.fields.field.0: "-1.0" }
     - match: { hits.hits.2.fields.field.0: "1.123" }
@@ -884,6 +996,16 @@ setup:
             field:
               script:
                 source: "int value = field('dne').get(1); value"
+  - match: { hits.hits.0.fields.field.0: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          script_fields:
+            field:
+              script:
+                source: "int value = $('dne', 1); value"
   - match: { hits.hits.0.fields.field.0: 1}
 
   - do:

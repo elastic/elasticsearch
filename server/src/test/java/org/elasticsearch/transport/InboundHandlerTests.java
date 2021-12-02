@@ -63,7 +63,8 @@ public class InboundHandlerTests extends ESTestCase {
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        TransportHandshaker handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {});
+        final boolean ignoreDeserializationErrors = true; // suppress assertions to test production error-handling
+        TransportHandshaker handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {}, ignoreDeserializationErrors);
         TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, TcpChannel::sendMessage);
         OutboundHandler outboundHandler = new OutboundHandler(
             "node",
@@ -83,7 +84,8 @@ public class InboundHandlerTests extends ESTestCase {
             keepAlive,
             requestHandlers,
             responseHandlers,
-            new HandlingTimeTracker()
+            new HandlingTimeTracker(),
+            ignoreDeserializationErrors
         );
     }
 

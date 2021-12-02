@@ -51,7 +51,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
-import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX;
+import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_ACTION;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_TYPE;
 import static org.elasticsearch.xpack.ml.MachineLearning.ML_PYTORCH_MODEL_INFERENCE_FEATURE;
 
@@ -356,7 +356,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         );
         TrainedModelDeploymentTask task = (TrainedModelDeploymentTask) taskManager.register(
             TRAINED_MODEL_ALLOCATION_TASK_TYPE,
-            TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX + taskParams.getModelId(),
+            TRAINED_MODEL_ALLOCATION_TASK_ACTION,
             taskAwareRequest(taskParams)
         );
         // threadsafe check to verify we are not loading/loaded the model

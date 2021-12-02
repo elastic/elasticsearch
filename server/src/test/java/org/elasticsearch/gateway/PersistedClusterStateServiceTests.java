@@ -1306,8 +1306,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 assertThat(clusterState.metadata().clusterUUID(), equalTo(clusterUUID));
                 assertTrue(clusterState.metadata().clusterUUIDCommitted());
                 assertThat(clusterState.metadata().version(), equalTo(version));
-
             }
+
             for (Path dataPath : persistedClusterStateService.getDataPaths()) {
                 assertTrue(findSegmentInDirectory(dataPath));
             }
@@ -1322,15 +1322,14 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
     private boolean findSegmentInDirectory(Path dataPath) throws IOException {
         Directory d = new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME));
-        boolean foundSegment = false;
+
         for (final String file : d.listAll()) {
             if (file.startsWith(IndexFileNames.SEGMENTS)) {
-                foundSegment = true;
-                break;
+                return true;
             }
         }
 
-        return foundSegment;
+        return false;
     }
 
     private void assertExpectedLogs(

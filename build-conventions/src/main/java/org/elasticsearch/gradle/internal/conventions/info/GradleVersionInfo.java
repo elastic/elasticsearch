@@ -80,6 +80,10 @@ public class GradleVersionInfo {
         public int hashCode() {
             return Objects.hash(versionString, rcFor, milestoneFor, snapshot);
         }
+
+        public String toString() {
+            return versionString;
+        }
     }
 
     static List<Version> getGradleVersions() throws MalformedURLException {

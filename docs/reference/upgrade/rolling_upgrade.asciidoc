@@ -18,6 +18,8 @@ This is to ensure ILM can continue to move between the phases and ensure version
 compatibility.
 
 You can get the list of nodes from specific tiers by `GET /_nodes/data_frozen:true/_none`, `GET /_nodes/data_cold:true/_none` etc.
+
+You can get the list of nodes from specific tiers by `GET /_nodes/data_frozen:true/_none`, `GET /_nodes/data_cold:true/_none` etc.
 .. If you are not using data tiers, you may upgrade the nodes within the group in any order.
 
 

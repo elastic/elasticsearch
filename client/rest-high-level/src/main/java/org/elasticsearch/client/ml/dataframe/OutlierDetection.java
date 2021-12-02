@@ -209,8 +209,8 @@ public class OutlierDetection implements DataFrameAnalysis {
 
         private Builder() {}
 
-        public Builder setNNeighbors(Integer nNeighbors) {
-            this.nNeighbors = nNeighbors;
+        public Builder setNNeighbors(Integer nNeighborsValue) {
+            this.nNeighbors = nNeighborsValue;
             return this;
         }
 

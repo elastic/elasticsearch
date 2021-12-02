@@ -24,9 +24,9 @@ public interface NlpTokenizer {
 
     TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokenization> tokenizations);
 
-    TokenizationResult.Tokenization tokenize(String seq);
+    TokenizationResult.Tokenization tokenize(String seq, Tokenization.Truncate truncate);
 
-    TokenizationResult.Tokenization tokenize(String seq1, String seq2);
+    TokenizationResult.Tokenization tokenize(String seq1, String seq2, Tokenization.Truncate truncate);
 
     NlpTask.RequestBuilder requestBuilder();
 

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[get-trained-model-deployment-stats]]
 = Get trained model deployment statistics API
 [subs="attributes"]
@@ -72,6 +71,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 `model_size`:::
 (<<byte-units,byte value>>)
 The size of the loaded model in bytes.
+
+`start_time`:::
+(long)
+The epoch timestamp when the deployment started.
 
 `state`:::
 (string)
@@ -170,6 +173,10 @@ The current routing state and reason for the current routing state for this allo
 `reason`:::
 (string)
 The reason for the current state. Usually only populated when the `routing_state` is `failed`.
+
+`start_time`:::
+(long)
+The epoch timestamp when the allocation started.
 
 =====
 ====

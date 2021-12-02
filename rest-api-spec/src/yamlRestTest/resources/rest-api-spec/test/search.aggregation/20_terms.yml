@@ -1368,3 +1368,143 @@ huge size:
   - match: { aggregations.str_terms.buckets.1.doc_count: 2 }
   - match: { aggregations.str_terms.buckets.2.key: c }
   - match: { aggregations.str_terms.buckets.2.doc_count: 3 }
+
+---
+Value type mismatch fails shard:
+  - skip:
+        version: " - 8.0.99"
+        reason: "Fixed in 8.1"
+
+  - do:
+      indices.create:
+          index: valuetype_test_1
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                ip:
+                   type: keyword
+  - do:
+      indices.create:
+          index: valuetype_test_2
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                ip:
+                   type: ip
+
+  - do:
+      bulk:
+        index: valuetype_test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "ip": "192.168.7.1" }
+          { "index": {} }
+          { "ip": "192.168.7.2" }
+          { "index": {} }
+          { "ip": "192.168.7.3" }
+
+  - do:
+      bulk:
+        index: valuetype_test_2
+        refresh: true
+        body: |
+          { "index": {} }
+          { "ip": "127.0.0.1" }
+          { "index": {} }
+          { "ip": "192.168.0.1" }
+          { "index": {} }
+          { "ip": "192.168.0.2" }
+          { "index": {} }
+          { "ip": "192.168.0.3" }
+  - do:
+      search:
+        index: valuetype_test_1,valuetype_test_2
+        body:
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                field: ip
+                value_type: ip
+
+  - match: { _shards.failed: 1 }
+  - length: { aggregations.str_terms.buckets: 4 }
+  - match: { aggregations.str_terms.buckets.0.key: "127.0.0.1" }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.1.key: "192.168.0.1" }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.2.key: "192.168.0.2" }
+  - match: { aggregations.str_terms.buckets.2.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.3.key: "192.168.0.3" }
+  - match: { aggregations.str_terms.buckets.3.doc_count: 1 }
+
+---
+Value type mismatch fails shard with no docs:
+  - skip:
+        version: " - 8.0.99"
+        reason: "Fixed in 8.1"
+
+  - do:
+      indices.create:
+          index: valuetype_test_1
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                ip:
+                   type: keyword
+  - do:
+      indices.create:
+          index: valuetype_test_2
+          body:
+            settings:
+              number_of_shards: 1
+              number_of_replicas: 0
+            mappings:
+              properties:
+                ip:
+                   type: ip
+
+  - do:
+      bulk:
+        index: valuetype_test_2
+        refresh: true
+        body: |
+          { "index": {} }
+          { "ip": "127.0.0.1" }
+          { "index": {} }
+          { "ip": "192.168.0.1" }
+          { "index": {} }
+          { "ip": "192.168.0.2" }
+          { "index": {} }
+          { "ip": "192.168.0.3" }
+  - do:
+      search:
+        index: valuetype_test_1,valuetype_test_2
+        body:
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                field: ip
+                value_type: ip
+
+  - match: { _shards.failed: 1 }
+  - length: { aggregations.str_terms.buckets: 4 }
+  - match: { aggregations.str_terms.buckets.0.key: "127.0.0.1" }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.1.key: "192.168.0.1" }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.2.key: "192.168.0.2" }
+  - match: { aggregations.str_terms.buckets.2.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.3.key: "192.168.0.3" }
+  - match: { aggregations.str_terms.buckets.3.doc_count: 1 }

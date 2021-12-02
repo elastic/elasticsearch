@@ -16,10 +16,10 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.spatial.index.fielddata.DimensionalShapeType;
 import org.elasticsearch.xpack.spatial.index.mapper.GeoShapeWithDocValuesFieldMapper.GeoShapeWithDocValuesFieldType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
-import org.locationtech.spatial4j.exception.InvalidShapeException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -143,7 +142,6 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
         int numDocs = scaledRandomIntBetween(64, 256);
         List<Geometry> geometries = new ArrayList<>();
         DimensionalShapeType targetShapeType = DimensionalShapeType.POINT;
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         for (int i = 0; i < numDocs; i++) {
             Function<Boolean, Geometry> geometryGenerator = ESTestCase.randomFrom(
                 GeometryTestUtils::randomLine,
@@ -155,10 +153,14 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             );
             Geometry geometry = geometryGenerator.apply(false);
             try {
-                geometries.add(indexer.prepareForIndexing(geometry));
-            } catch (InvalidShapeException e) {
-                // do not include geometry
+                geometry = GeometryNormalizer.apply(Orientation.CCW, geometry);
+                // make sure we can index the geometry
+                GeoTestUtils.binaryGeoShapeDocValuesField("field", geometry);
+            } catch (IllegalArgumentException e) {
+                // do not include geometry.
+                assumeNoException("The geometry[" + geometry.toString() + "] is not supported", e);
             }
+            geometries.add(geometry);
             // find dimensional-shape-type of geometry
             CentroidCalculator centroidCalculator = new CentroidCalculator();
             centroidCalculator.add(geometry);

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[aggregate-metric-double]]
 === Aggregate metric field type
 ++++
@@ -57,10 +56,21 @@ specify at least one value.
 Default metric sub-field to use for queries, scripts, and aggregations that
 don't use a sub-field. Must be a value from the `metrics` array.
 
-include::numeric.asciidoc[tag=time_series_metric]
+`time_series_metric`::
 +
+--
+experimental:[]
+(Optional, string)
+
+.For internal use by Elastic only.
+[%collapsible]
+====
+include::numeric.asciidoc[tag=time_series_metric]
+
 For `aggregate_metric_double` fields, this parameter accepts `counter`, `gauge`,
 and `summary`. You can't update this parameter for existing fields.
+====
+--
 
 [[aggregate-metric-double-uses]]
 ==== Uses

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.xcontent;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -166,7 +167,7 @@ public class ObjectParserTests extends ESTestCase {
                 this.name = name;
             }
 
-            public void setURI(URI uri) {
+            public void setUri(URI uri) {
                 this.uri = uri;
             }
         }
@@ -179,9 +180,9 @@ public class ObjectParserTests extends ESTestCase {
                 this.parser = parser;
             }
 
-            public URI parseURI(XContentParser parser) {
+            public URI parseURI(XContentParser xContentParser) {
                 try {
-                    return this.parser.parseURI(parser);
+                    return this.parser.parseURI(xContentParser);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -193,7 +194,7 @@ public class ObjectParserTests extends ESTestCase {
         );
         ObjectParser<Foo, CustomParseContext> objectParser = new ObjectParser<>("foo");
         objectParser.declareString(Foo::setName, new ParseField("name"));
-        objectParser.declareObjectOrDefault(Foo::setURI, (p, s) -> s.parseURI(p), () -> null, new ParseField("url"));
+        objectParser.declareObjectOrDefault(Foo::setUri, (p, s) -> s.parseURI(p), () -> null, new ParseField("url"));
         Foo s = objectParser.parse(parser, new Foo(), new CustomParseContext(new ClassicParser()));
         assertEquals(s.uri.getHost(), "foobar");
         assertEquals(s.uri.getPort(), 80);
@@ -233,7 +234,7 @@ public class ObjectParserTests extends ESTestCase {
         assertEquals("foo", s.test);
         assertWarnings(
             false,
-            new DeprecationWarning(DeprecationLogger.CRITICAL, "[foo][1:15] Deprecated field [old_test] used, " + "expected [test] instead")
+            new DeprecationWarning(Level.WARN, "[foo][1:15] Deprecated field [old_test] used, " + "expected [test] instead")
         );
     }
 
@@ -704,8 +705,8 @@ public class ObjectParserTests extends ESTestCase {
                 this.ints = ints;
             }
 
-            public void setArray(List<Object> testArray) {
-                this.testArray = testArray;
+            public void setArray(List<Object> array) {
+                this.testArray = array;
             }
         }
         ObjectParser<TestStruct, Void> objectParser = new ObjectParser<>("foo");

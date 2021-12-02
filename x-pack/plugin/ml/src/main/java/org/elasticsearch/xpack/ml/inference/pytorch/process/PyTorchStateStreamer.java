@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
@@ -36,11 +37,16 @@ public class PyTorchStateStreamer {
 
     private static final Logger logger = LogManager.getLogger(PyTorchStateStreamer.class);
 
+    /** The size of the data written before the model definition */
+    private static final int NUM_BYTES_IN_PRELUDE = 4;
+
     private final OriginSettingClient client;
     private final ExecutorService executorService;
     private final NamedXContentRegistry xContentRegistry;
     private volatile boolean isCancelled;
-    private int modelSize = -1;
+    private volatile int modelSize = -1;
+    // model bytes only, does not include the prelude
+    private final AtomicInteger modelBytesWritten = new AtomicInteger();
 
     public PyTorchStateStreamer(Client client, ExecutorService executorService, NamedXContentRegistry xContentRegistry) {
         this.client = new OriginSettingClient(Objects.requireNonNull(client), ML_ORIGIN);
@@ -57,7 +63,7 @@ public class PyTorchStateStreamer {
 
     /**
      * First writes the size of the model so the native process can
-     * allocated memory then writes the chunks of binary state.
+     * allocate memory then writes the chunks of binary state.
      *
      * @param modelId  The model to write
      * @param index    The index to search for the model
@@ -70,6 +76,19 @@ public class PyTorchStateStreamer {
         restorer.setSearchSize(1);
         restorer.restoreModelDefinition(doc -> writeChunk(doc, restoreStream), success -> {
             logger.debug("model [{}] state restored in [{}] documents from index [{}]", modelId, restorer.getNumDocsWritten(), index);
+
+            if (success) {
+                if (modelBytesWritten.get() != modelSize) {
+                    logger.error(
+                        "model [{}] restored state size [{}] does not equal the expected model size [{}]",
+                        modelId,
+                        modelBytesWritten,
+                        modelSize
+                    );
+                }
+            } else {
+                logger.info("[{}] loading model state cancelled", modelId);
+            }
             listener.onResponse(success);
         }, listener::onFailure);
     }
@@ -86,6 +105,7 @@ public class PyTorchStateStreamer {
         // The array backing the BytesReference may be bigger than what is
         // referred to so write only what is after the offset
         outputStream.write(doc.getBinaryData().array(), doc.getBinaryData().arrayOffset(), doc.getBinaryData().length());
+        modelBytesWritten.addAndGet(doc.getBinaryData().length());
         return true;
     }
 
@@ -128,7 +148,7 @@ public class PyTorchStateStreamer {
             throw new IllegalStateException(message);
         }
 
-        ByteBuffer lengthBuffer = ByteBuffer.allocate(4);
+        ByteBuffer lengthBuffer = ByteBuffer.allocate(NUM_BYTES_IN_PRELUDE);
         lengthBuffer.putInt(modelSizeBytes.intValue());
         outputStream.write(lengthBuffer.array());
 

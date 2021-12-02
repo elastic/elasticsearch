@@ -28,7 +28,7 @@ public class Page implements Releasable {
     }
 
     private Page(ByteBuffer byteBuffer, RefCountedCloseable refCountedCloseable) {
-        assert refCountedCloseable.refCount() > 0;
+        assert refCountedCloseable.hasReferences();
         this.byteBuffer = byteBuffer;
         this.refCountedCloseable = refCountedCloseable;
     }
@@ -51,7 +51,7 @@ public class Page implements Releasable {
      * @return the byte buffer
      */
     public ByteBuffer byteBuffer() {
-        assert refCountedCloseable.refCount() > 0;
+        assert refCountedCloseable.hasReferences();
         return byteBuffer;
     }
 

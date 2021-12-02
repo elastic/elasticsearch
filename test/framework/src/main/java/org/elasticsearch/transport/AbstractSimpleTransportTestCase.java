@@ -87,6 +87,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -102,6 +103,9 @@ import static org.hamcrest.Matchers.startsWith;
 public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     private static final TimeValue HUNDRED_MS = TimeValue.timeValueMillis(100L);
+
+    // public copy of package-private setting so that tests in other packages can use it
+    public static final Setting<Boolean> IGNORE_DESERIALIZATION_ERRORS_SETTING = TcpTransport.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 
     protected ThreadPool threadPool;
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions
@@ -197,6 +201,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .put(TransportSettings.PORT.getKey(), getPortRange())
             .put(settings)
             .put(Node.NODE_NAME_SETTING.getKey(), name)
+            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
             .build();
         if (clusterSettings == null) {
             clusterSettings = new ClusterSettings(updatedSettings, getSupportedSettings());
@@ -1721,7 +1726,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 public void handleException(TransportException exp) {
                     Throwable cause = ExceptionsHelper.unwrapCause(exp);
                     assertThat(cause, instanceOf(ConnectTransportException.class));
-                    assertThat(((ConnectTransportException) cause).node(), equalTo(nodeA));
+                    assertThat(cause.getMessage(), allOf(containsString(nodeA.getName()), containsString(nodeA.getAddress().toString())));
                 }
             }
         );
@@ -1729,7 +1734,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         final ExecutionException e = expectThrows(ExecutionException.class, res::get);
         Throwable cause = ExceptionsHelper.unwrapCause(e.getCause());
         assertThat(cause, instanceOf(ConnectTransportException.class));
-        assertThat(((ConnectTransportException) cause).node(), equalTo(nodeA));
+        assertThat(cause.getMessage(), allOf(containsString(nodeA.getName()), containsString(nodeA.getAddress().toString())));
 
         // wait for the transport to process the sending failure and disconnect from node
         assertBusy(() -> assertFalse(serviceB.nodeConnected(nodeA)));
@@ -1792,8 +1797,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     public void testHostOnMessages() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(2);
-        final AtomicReference<TransportAddress> addressA = new AtomicReference<>();
-        final AtomicReference<TransportAddress> addressB = new AtomicReference<>();
+        final AtomicReference<InetSocketAddress> addressA = new AtomicReference<>();
+        final AtomicReference<InetSocketAddress> addressB = new AtomicReference<>();
         serviceB.registerRequestHandler("internal:action1", ThreadPool.Names.SAME, TestRequest::new, (request, channel, task) -> {
             addressA.set(request.remoteAddress());
             channel.sendResponse(new TestResponse((String) null));
@@ -1821,8 +1826,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             fail("message round trip did not complete within a sensible time frame");
         }
 
-        assertTrue(nodeA.getAddress().getAddress().equals(addressA.get().getAddress()));
-        assertTrue(nodeB.getAddress().getAddress().equals(addressB.get().getAddress()));
+        // nodeA opened the connection so the request originates from an ephemeral port, but from the right interface at least
+        assertEquals(nodeA.getAddress().address().getAddress(), addressA.get().getAddress());
+
+        // the response originates from the expected transport port
+        assertEquals(nodeB.getAddress().address(), addressB.get());
     }
 
     public void testRejectEarlyIncomingRequests() throws Exception {
@@ -2753,9 +2761,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             TransportException exception = receivedException.get();
             assertNotNull(exception);
             BytesStreamOutput streamOutput = new BytesStreamOutput();
+            streamOutput.setVersion(version0);
             exception.writeTo(streamOutput);
             String failedMessage = "Unexpected read bytes size. The transport exception that was received=" + exception;
-            // 49 bytes are the non-exception message bytes that have been received. It should include the initial
+            // 53 bytes are the non-exception message bytes that have been received. It should include the initial
             // handshake message and the header, version, etc bytes in the exception message.
             assertEquals(failedMessage, 53 + streamOutput.bytes().length(), stats.getRxSize().getBytes());
             assertEquals(111, stats.getTxSize().getBytes());

@@ -120,7 +120,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         @Override
         public GeoShapeWithDocValuesFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
-                DEPRECATION_LOGGER.critical(
+                DEPRECATION_LOGGER.warn(
                     DeprecationCategory.MAPPINGS,
                     "geo_shape_multifields",
                     "Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future"
@@ -131,7 +131,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 coerce.get().value(),
                 ignoreZValue.get().value()
             );
-            GeoShapeParser parser = new GeoShapeParser(geometryParser);
+            GeoShapeParser parser = new GeoShapeParser(geometryParser, orientation.get().value());
             GeoShapeWithDocValuesFieldType ft = new GeoShapeWithDocValuesFieldType(
                 context.buildFullName(name),
                 indexed.get(),
@@ -146,7 +146,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 ft,
                 multiFieldsBuilder.build(this, context),
                 copyTo.build(),
-                new GeoShapeIndexer(orientation.get().value().getAsBoolean(), ft.name()),
+                new GeoShapeIndexer(orientation.get().value(), ft.name()),
                 parser,
                 this
             );
@@ -286,7 +286,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         if (geometry == null) {
             return;
         }
-        geometry = indexer.prepareForIndexing(geometry);
         List<IndexableField> fields = indexer.indexShape(geometry);
         if (fieldType().isSearchable()) {
             context.doc().addAll(fields);

@@ -1,8 +1,8 @@
 keyword dimension:
   - skip:
       features: close_to
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.00.99"
+      reason: _tsid support introduced in 8.1.0
 
   - do:
       indices.create:
@@ -12,6 +12,9 @@ keyword dimension:
               index:
                 mode: time_series
                 routing_path: [uid]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
             mappings:
               properties:
                 "@timestamp":
@@ -43,14 +46,36 @@ keyword dimension:
           - '{"@timestamp": "2021-04-28T18:35:54.467Z", "uid": "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "voltage": 3.3}'
   - is_false: errors
 
-  # TODO aggregate on tsid
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+              aggs:
+                voltage:
+                  avg:
+                    field: voltage
+
+  - match: {hits.total.value: 8}
+  - match: {aggregations.tsids.buckets.0.key: {uid: 947e4ced-1786-4e53-9e0c-5c447e959507}}
+  - match: {aggregations.tsids.buckets.0.doc_count: 4}
+  - close_to: {aggregations.tsids.buckets.0.voltage.value: { value: 7.3, error: 0.01 }}
+  - match: {aggregations.tsids.buckets.1.key: {uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9}}
+  - match: {aggregations.tsids.buckets.1.doc_count: 4}
+  - close_to: {aggregations.tsids.buckets.1.voltage.value: { value: 3.3, error: 0.01 }}
 
 ---
 long dimension:
   - skip:
       features: close_to
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.00.99"
+      reason: _tsid support introduced in 8.1.0
 
   - do:
       indices.create:
@@ -60,6 +85,9 @@ long dimension:
               index:
                 mode: time_series
                 routing_path: [metricset]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
             mappings:
               properties:
                 "@timestamp":
@@ -93,14 +121,36 @@ long dimension:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:35:54.467Z", "metricset": "aa", "id": 2, "voltage": 3.3}'
 
-  # TODO aggregate on tsid
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+              aggs:
+                voltage:
+                  avg:
+                    field: voltage
+
+  - match: {hits.total.value: 8}
+  - match: {aggregations.tsids.buckets.0.key: {id: 1, metricset: aa}}
+  - match: {aggregations.tsids.buckets.0.doc_count: 4}
+  - close_to: {aggregations.tsids.buckets.0.voltage.value: { value: 7.3, error: 0.01 }}
+  - match: {aggregations.tsids.buckets.1.key: {id: 2, metricset: aa }}
+  - match: {aggregations.tsids.buckets.1.doc_count: 4}
+  - close_to: {aggregations.tsids.buckets.1.voltage.value: { value: 3.3, error: 0.01 }}
 
 ---
 ip dimension:
   - skip:
       features: close_to
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.00.99"
+      reason: _tsid support introduced in 8.1.0
 
   - do:
       indices.create:
@@ -110,6 +160,9 @@ ip dimension:
               index:
                 mode: time_series
                 routing_path: [metricset]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
             mappings:
               properties:
                 "@timestamp":
@@ -143,4 +196,26 @@ ip dimension:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:35:54.467Z", "metricset": "aa", "ip": "2001:0db8:85a3::8a2e:0370:7334", "voltage": 3.3}'
 
-  # TODO aggregate on tsid
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+              aggs:
+                voltage:
+                  avg:
+                    field: voltage
+
+  - match: {hits.total.value: 8}
+  - match: {aggregations.tsids.buckets.0.key: { ip: "10.10.1.1", metricset: aa}}
+  - match: {aggregations.tsids.buckets.0.doc_count: 4}
+  - close_to: {aggregations.tsids.buckets.0.voltage.value: { value: 7.3, error: 0.01 }}
+  - match: {aggregations.tsids.buckets.1.key: { ip: "2001:db8:85a3::8a2e:370:7334", metricset: aa }}
+  - match: {aggregations.tsids.buckets.1.doc_count: 4}
+  - close_to: {aggregations.tsids.buckets.1.voltage.value: { value: 3.3, error: 0.01 }}

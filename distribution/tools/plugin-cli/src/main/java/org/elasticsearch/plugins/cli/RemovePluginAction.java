@@ -34,7 +34,7 @@ import static org.elasticsearch.cli.Terminal.Verbosity.VERBOSE;
 /**
  * An action for the plugin CLI to remove plugins from Elasticsearch.
  */
-class RemovePluginAction {
+public class RemovePluginAction {
 
     // exit codes for remove
     /** A plugin cannot be removed because it is extended by another plugin. */
@@ -42,7 +42,7 @@ class RemovePluginAction {
 
     private final Terminal terminal;
     private final Environment env;
-    private final boolean purge;
+    private boolean purge;
 
     /**
      * Creates a new action.
@@ -51,9 +51,13 @@ class RemovePluginAction {
      * @param env        the environment for the local node
      * @param purge      if true, plugin configuration files will be removed but otherwise preserved
      */
-    RemovePluginAction(Terminal terminal, Environment env, boolean purge) {
+    public RemovePluginAction(Terminal terminal, Environment env, boolean purge) {
         this.terminal = terminal;
         this.env = env;
+        this.purge = purge;
+    }
+
+    public void setPurge(boolean purge) {
         this.purge = purge;
     }
 
@@ -66,7 +70,7 @@ class RemovePluginAction {
      * @throws UserException if plugin directory does not exist
      * @throws UserException if the plugin bin directory is not a directory
      */
-    void execute(List<PluginDescriptor> plugins) throws IOException, UserException {
+    public void execute(List<PluginDescriptor> plugins) throws IOException, UserException {
         if (plugins == null || plugins.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "At least one plugin ID is required");
         }

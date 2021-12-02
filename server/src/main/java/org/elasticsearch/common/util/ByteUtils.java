@@ -8,12 +8,18 @@
 
 package org.elasticsearch.common.util;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
+
 /** Utility methods to do byte-level encoding. These methods are biased towards little-endian byte order because it is the most
  *  common byte order and reading several bytes at once may be optimizable in the future with the help of sun.mist.Unsafe. */
 public enum ByteUtils {
     ;
 
-    public static final int MAX_BYTES_VLONG = 9;
+    public static final VarHandle LITTLE_ENDIAN_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
+
+    public static final VarHandle LITTLE_ENDIAN_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
     /** Zig-zag decode. */
     public static long zigZagDecode(long n) {
@@ -27,38 +33,22 @@ public enum ByteUtils {
 
     /** Write a long in little-endian format. */
     public static void writeLongLE(long l, byte[] arr, int offset) {
-        for (int i = 0; i < 8; ++i) {
-            arr[offset++] = (byte) l;
-            l >>>= 8;
-        }
-        assert l == 0;
+        LITTLE_ENDIAN_LONG.set(arr, offset, l);
     }
 
     /** Write a long in little-endian format. */
     public static long readLongLE(byte[] arr, int offset) {
-        long l = arr[offset++] & 0xFFL;
-        for (int i = 1; i < 8; ++i) {
-            l |= (arr[offset++] & 0xFFL) << (8 * i);
-        }
-        return l;
+        return (long) LITTLE_ENDIAN_LONG.get(arr, offset);
     }
 
     /** Write an int in little-endian format. */
     public static void writeIntLE(int l, byte[] arr, int offset) {
-        for (int i = 0; i < 4; ++i) {
-            arr[offset++] = (byte) l;
-            l >>>= 8;
-        }
-        assert l == 0;
+        LITTLE_ENDIAN_INT.set(arr, offset, l);
     }
 
     /** Read an int in little-endian format. */
     public static int readIntLE(byte[] arr, int offset) {
-        int l = arr[offset++] & 0xFF;
-        for (int i = 1; i < 4; ++i) {
-            l |= (arr[offset++] & 0xFF) << (8 * i);
-        }
-        return l;
+        return (int) LITTLE_ENDIAN_INT.get(arr, offset);
     }
 
     /** Write a double in little-endian format. */

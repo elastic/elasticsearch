@@ -336,7 +336,7 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
     @Override
     protected InternalTopMetrics mutateInstance(InternalTopMetrics instance) throws IOException {
         String name = instance.getName();
-        SortOrder sortOrder = instance.getSortOrder();
+        SortOrder instanceSortOrder = instance.getSortOrder();
         List<String> metricNames = instance.getMetricNames();
         int size = instance.getSize();
         List<InternalTopMetrics.TopMetric> topMetrics = instance.getTopMetrics();
@@ -345,7 +345,7 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
                 name = randomAlphaOfLength(6);
                 break;
             case 1:
-                sortOrder = sortOrder == SortOrder.ASC ? SortOrder.DESC : SortOrder.ASC;
+                instanceSortOrder = instanceSortOrder == SortOrder.ASC ? SortOrder.DESC : SortOrder.ASC;
                 Collections.reverse(topMetrics);
                 break;
             case 2:
@@ -371,7 +371,7 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             default:
                 throw new IllegalArgumentException("bad mutation");
         }
-        return new InternalTopMetrics(name, sortOrder, metricNames, size, topMetrics, instance.getMetadata());
+        return new InternalTopMetrics(name, instanceSortOrder, metricNames, size, topMetrics, instance.getMetadata());
     }
 
     /**

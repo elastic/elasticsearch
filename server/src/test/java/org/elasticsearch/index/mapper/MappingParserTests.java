@@ -29,7 +29,7 @@ import java.util.function.Supplier;
 public class MappingParserTests extends MapperServiceTestCase {
 
     private static MappingParser createMappingParser(Settings settings) {
-        ScriptService scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap());
+        ScriptService scriptService = new ScriptService(settings, Collections.emptyMap(), Collections.emptyMap(), () -> 1L);
         IndexSettings indexSettings = createIndexSettings(Version.CURRENT, settings);
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());
@@ -44,16 +44,17 @@ public class MappingParserTests extends MapperServiceTestCase {
             scriptService,
             indexAnalyzers,
             indexSettings,
-            () -> false
+            IdFieldMapper.NO_FIELD_DATA
         );
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-        metadataMapperParsers.values()
-            .stream()
-            .map(parser -> parser.getDefault(parserContextSupplier.get()))
-            .forEach(m -> metadataMappers.put(m.getClass(), m));
+        metadataMapperParsers.values().stream().map(parser -> parser.getDefault(parserContextSupplier.get())).forEach(m -> {
+            if (m != null) {
+                metadataMappers.put(m.getClass(), m);
+            }
+        });
         return new MappingParser(
             parserContextSupplier,
             metadataMapperParsers,
@@ -132,5 +133,14 @@ public class MappingParserTests extends MapperServiceTestCase {
             () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
         );
         assertEquals("Type [alias] cannot be used in multi field", e.getMessage());
+    }
+
+    public void testBadMetadataMapper() throws IOException {
+        XContentBuilder builder = topMapping(b -> { b.field(RoutingFieldMapper.NAME, "required"); });
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
+        );
+        assertEquals("[_routing] config must be an object", e.getMessage());
     }
 }

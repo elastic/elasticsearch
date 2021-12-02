@@ -145,24 +145,26 @@ public class AucRoc extends AbstractAucRoc {
     @Override
     public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(
         EvaluationParameters parameters,
-        EvaluationFields fields
+        EvaluationFields evaluationFields
     ) {
         if (result.get() != null) {
             return Tuple.tuple(List.of(), List.of());
         }
         // Store given {@code fields} for the purpose of generating error messages in {@code process}.
-        this.fields.trySet(fields);
+        this.fields.trySet(evaluationFields);
 
         double[] percentiles = IntStream.range(1, 100).mapToDouble(v -> (double) v).toArray();
         AggregationBuilder percentilesAgg = AggregationBuilders.percentiles(PERCENTILES_AGG_NAME)
-            .field(fields.getPredictedProbabilityField())
+            .field(evaluationFields.getPredictedProbabilityField())
             .percentiles(percentiles);
-        AggregationBuilder nestedAgg = AggregationBuilders.nested(NESTED_AGG_NAME, fields.getTopClassesField())
+        AggregationBuilder nestedAgg = AggregationBuilders.nested(NESTED_AGG_NAME, evaluationFields.getTopClassesField())
             .subAggregation(
-                AggregationBuilders.filter(NESTED_FILTER_AGG_NAME, QueryBuilders.termQuery(fields.getPredictedClassField(), className))
-                    .subAggregation(percentilesAgg)
+                AggregationBuilders.filter(
+                    NESTED_FILTER_AGG_NAME,
+                    QueryBuilders.termQuery(evaluationFields.getPredictedClassField(), className)
+                ).subAggregation(percentilesAgg)
             );
-        QueryBuilder actualIsTrueQuery = QueryBuilders.termQuery(fields.getActualField(), className);
+        QueryBuilder actualIsTrueQuery = QueryBuilders.termQuery(evaluationFields.getActualField(), className);
         AggregationBuilder percentilesForClassValueAgg = AggregationBuilders.filter(TRUE_AGG_NAME, actualIsTrueQuery)
             .subAggregation(nestedAgg);
         AggregationBuilder percentilesForRestAgg = AggregationBuilders.filter(

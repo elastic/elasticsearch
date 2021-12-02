@@ -127,8 +127,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static final Version UUIDS_IN_REPO_DATA_VERSION = Version.V_7_12_0;
 
-    // TODO: Update to 7.16 after backporting
-    public static final Version FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION = Version.CURRENT;
+    public static final Version FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION = Version.V_7_16_0;
 
     public static final Version OLD_SNAPSHOT_FORMAT = Version.V_7_5_0;
 
@@ -171,7 +170,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private final OngoingRepositoryOperations repositoryOperations = new OngoingRepositoryOperations();
 
-    private final Map<String, SystemIndices.Feature> systemIndexDescriptorMap;
+    private final SystemIndices systemIndices;
 
     /**
      * Setting that specifies the maximum number of allowed concurrent snapshot create and delete operations in the
@@ -195,7 +194,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         RepositoriesService repositoriesService,
         TransportService transportService,
         ActionFilters actionFilters,
-        Map<String, SystemIndices.Feature> systemIndexDescriptorMap
+        SystemIndices systemIndices
     ) {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -218,7 +217,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             clusterService.getClusterSettings()
                 .addSettingsUpdateConsumer(MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING, i -> maxConcurrentOperations = i);
         }
-        this.systemIndexDescriptorMap = systemIndexDescriptorMap;
+        this.systemIndices = systemIndices;
     }
 
     /**
@@ -263,7 +262,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         if (request.includeGlobalState() || requestedStates.isEmpty() == false) {
             if (request.includeGlobalState() && requestedStates.isEmpty()) {
                 // If we're including global state and feature states aren't specified, include all of them
-                featureStatesSet = systemIndexDescriptorMap.keySet();
+                featureStatesSet = systemIndices.getFeatures().keySet();
             } else if (requestedStates.size() == 1 && NO_FEATURE_STATES_VALUE.equalsIgnoreCase(requestedStates.get(0))) {
                 // If there's exactly one value and it's "none", include no states
                 featureStatesSet = Collections.emptySet();
@@ -282,7 +281,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     return;
                 }
                 featureStatesSet = new HashSet<>(requestedStates);
-                featureStatesSet.retainAll(systemIndexDescriptorMap.keySet());
+                featureStatesSet.retainAll(systemIndices.getFeatures().keySet());
             }
         } else {
             featureStatesSet = Collections.emptySet();
@@ -307,7 +306,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 ensureNoCleanupInProgress(currentState, repositoryName, snapshotName, "create snapshot");
                 ensureBelowConcurrencyLimit(repositoryName, snapshotName, snapshots, deletionsInProgress);
                 // Store newSnapshot here to be processed in clusterStateProcessed
-                List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
+                List<String> indices = Arrays.stream(indexNameExpressionResolver.concreteIndexNames(currentState, request))
+                    .filter(indexName -> systemIndices.isSystemIndex(indexName) == false) // Only resolve system indices via Features
+                    .collect(Collectors.toList());
 
                 final Set<SnapshotFeatureInfo> featureStates = new HashSet<>();
                 final Set<String> systemDataStreamNames = new HashSet<>();
@@ -315,7 +316,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 // been requested by the request directly
                 final Set<String> indexNames = new HashSet<>(indices);
                 for (String featureName : featureStatesSet) {
-                    SystemIndices.Feature feature = systemIndexDescriptorMap.get(featureName);
+                    SystemIndices.Feature feature = systemIndices.getFeatures().get(featureName);
 
                     Set<String> featureSystemIndices = feature.getIndexDescriptors()
                         .stream()

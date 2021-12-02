@@ -38,7 +38,7 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
     public AzureDiscoveryPlugin(Settings settings) {
         this.settings = settings;
-        deprecationLogger.critical(DeprecationCategory.PLUGINS, "azure_discovery_plugin", "azure classic discovery plugin is deprecated.");
+        deprecationLogger.warn(DeprecationCategory.PLUGINS, "azure_discovery_plugin", "azure classic discovery plugin is deprecated.");
         logger.trace("starting azure classic discovery plugin...");
     }
 
@@ -57,12 +57,12 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
     // Used for testing
     protected AzureSeedHostsProvider createSeedHostsProvider(
-        final Settings settings,
+        final Settings settingsToUse,
         final AzureComputeService azureComputeService,
         final TransportService transportService,
         final NetworkService networkService
     ) {
-        return new AzureSeedHostsProvider(settings, azureComputeService, transportService, networkService);
+        return new AzureSeedHostsProvider(settingsToUse, azureComputeService, transportService, networkService);
     }
 
     @Override

@@ -305,10 +305,16 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             if (enrollResponse == null || enrollResponse.getHttpStatus() != 200) {
                 try {
                     deleteDirectory(instantAutoConfigDir);
-                } catch (Exception e ) {
-                    e.printStackTrace();
-
+                } catch (Exception e) {
+                    throw new UserException(
+                        ExitCodes.UNAVAILABLE,
+                        "Aborting enrolling to cluster. "
+                            + "Could not communicate with the node on any of the addresses from the enrollment token. All of "
+                            + enrollmentToken.getBoundAddress()
+                            + " were attempted.", e
+                    );
                 }
+
                 throw new UserException(
                     ExitCodes.UNAVAILABLE,
                     "Aborting enrolling to cluster. "

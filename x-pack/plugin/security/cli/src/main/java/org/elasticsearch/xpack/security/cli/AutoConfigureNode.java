@@ -303,7 +303,12 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 }
             }
             if (enrollResponse == null || enrollResponse.getHttpStatus() != 200) {
-                deleteDirectory(instantAutoConfigDir);
+                try {
+                    deleteDirectory(instantAutoConfigDir);
+                } catch (Exception e ) {
+                    e.printStackTrace();
+
+                }
                 throw new UserException(
                     ExitCodes.UNAVAILABLE,
                     "Aborting enrolling to cluster. "

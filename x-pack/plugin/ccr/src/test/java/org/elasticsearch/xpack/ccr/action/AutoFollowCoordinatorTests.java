@@ -1147,25 +1147,40 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(removedAutoFollower2.removed, is(true));
     }
 
+    public void testUpdateAutoFollowersResetsMetadata() {
+        //given coordinator with some initial patterns
+        var autoFollowCoordinator = createAutoFollowCoordinator();
+        autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(Map.of(
+            "pattern1", createAutoFollowPattern("remote1", "logs-*"),
+            "pattern2", createAutoFollowPattern("remote2", "logs-*"),
+            "pattern3", createAutoFollowPattern("remote2", "metrics-*")
+        )));
+        var initialAutoFollowers = autoFollowCoordinator.getAutoFollowers();
+
+        //when resetting the state
+        autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(null));
+        var newAutoFollowers = autoFollowCoordinator.getAutoFollowers();
+
+        //then auto-followers are removed
+        assertThat(newAutoFollowers.entrySet(), empty());
+        //and remotes are stopped
+        assertThat(initialAutoFollowers.get("remote1").removed, equalTo(true));
+        assertThat(initialAutoFollowers.get("remote2").removed, equalTo(true));
+    }
+
     public void testUpdateAutoFollowersNoPatterns() {
-        AutoFollowCoordinator autoFollowCoordinator = createAutoFollowCoordinator();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("remote"))
-            .metadata(
-                Metadata.builder()
-                    .putCustom(
-                        AutoFollowMetadata.TYPE,
-                        new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap())
-                    )
-            )
-            .build();
-        autoFollowCoordinator.updateAutoFollowers(clusterState);
+        var autoFollowCoordinator = createAutoFollowCoordinator();
+        autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(Map.of()));
+
+        assertThat(autoFollowCoordinator.getAutoFollowers().keySet(), empty());
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(0));
     }
 
     public void testUpdateAutoFollowersNoAutoFollowMetadata() {
-        AutoFollowCoordinator autoFollowCoordinator = createAutoFollowCoordinator();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("remote")).build();
-        autoFollowCoordinator.updateAutoFollowers(clusterState);
+        var autoFollowCoordinator = createAutoFollowCoordinator();
+        autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(null));
+
+        assertThat(autoFollowCoordinator.getAutoFollowers().keySet(), empty());
         assertThat(autoFollowCoordinator.getStats().getAutoFollowedClusters().size(), equalTo(0));
     }
 
@@ -2044,9 +2059,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     private ClusterState createClusterStateWith(Map<String, AutoFollowPattern> patterns) {
-        return ClusterState.builder(new ClusterName("remote"))
-            .metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Map.of(), Map.of())))
-            .build();
+        var builder = ClusterState.builder(new ClusterName("remote"));
+        if (patterns != null) {
+            builder.metadata(Metadata.builder().putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Map.of(), Map.of())));
+        }
+        return builder.build();
     }
 
     private AutoFollowPattern createAutoFollowPattern(String remoteCluster, String pattern) {

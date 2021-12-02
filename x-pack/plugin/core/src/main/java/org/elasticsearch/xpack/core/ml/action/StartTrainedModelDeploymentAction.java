@@ -36,7 +36,7 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.ml.MlTasks.trainedModelDeploymentTaskId;
+import static org.elasticsearch.xpack.core.ml.MlTasks.trainedModelAllocationTaskDescription;
 
 public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedModelAllocationAction.Response> {
 
@@ -382,7 +382,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
                 if (Strings.isAllOrWildcard(expectedId)) {
                     return true;
                 }
-                String expectedDescription = trainedModelDeploymentTaskId(expectedId);
+                String expectedDescription = trainedModelAllocationTaskDescription(expectedId);
                 return expectedDescription.equals(task.getDescription());
             }
             return false;

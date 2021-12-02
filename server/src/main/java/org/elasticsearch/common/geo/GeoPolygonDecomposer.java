@@ -39,6 +39,24 @@ class GeoPolygonDecomposer {
         // no instances
     }
 
+    public static boolean needsDecomposing(Polygon polygon) {
+        double minX = Double.POSITIVE_INFINITY;
+        double maxX = Double.NEGATIVE_INFINITY;
+        LinearRing linearRing = polygon.getPolygon();
+        for (int i = 0; i < linearRing.length(); i++) {
+            if (GeoUtils.needsNormalizeLat(linearRing.getLat(i)) || GeoUtils.needsNormalizeLon(linearRing.getLon(i))) {
+                return true;
+            }
+            minX = Math.min(minX, linearRing.getLon(i));
+            maxX = Math.max(maxX, linearRing.getLon(i));
+        }
+        // calculate range
+        final double rng = maxX - minX;
+        // we need to decompose tif the range is greater than a hemisphere (180 degrees)
+        // but not spanning 2 hemispheres (translation would result in a collapsed poly)
+        return rng > DATELINE && rng != 2 * DATELINE;
+    }
+
     public static void decomposeMultiPolygon(MultiPolygon multiPolygon, boolean orientation, List<Polygon> collector) {
         for (Polygon polygon : multiPolygon) {
             decomposePolygon(polygon, orientation, collector);
@@ -88,18 +106,9 @@ class GeoPolygonDecomposer {
         int numPoints = linearRing.length();
         int count = 2;
         for (int i = 1; i < numPoints - 1; i++) {
-            if (linearRing.getLon(i - 1) == linearRing.getLon(i)) {
-                if (linearRing.getLat(i - 1) == linearRing.getLat(i)) {
-                    // same point
-                    continue;
-                }
-                if (linearRing.getLon(i - 1) == linearRing.getLon(i + 1)
-                    && linearRing.getLat(i - 1) > linearRing.getLat(i) != linearRing.getLat(i + 1) > linearRing.getLat(i)) {
-                    // coplanar
-                    continue;
-                }
+            if (skipPoint(linearRing, i) == false) {
+                count++;
             }
-            count++;
         }
         if (numPoints == count) {
             return linearRing;
@@ -111,17 +120,29 @@ class GeoPolygonDecomposer {
         lons[0] = lons[count - 1] = linearRing.getLon(0);
         count = 0;
         for (int i = 1; i < numPoints - 1; i++) {
-            if (linearRing.getLon(i - 1) == linearRing.getLon(i)) {
-                if (linearRing.getLat(i - 1) == linearRing.getLat(i) || linearRing.getLon(i - 1) == linearRing.getLon(i + 1)) {
-                    // filter
-                    continue;
-                }
+            if (skipPoint(linearRing, i) == false) {
+                count++;
+                lats[count] = linearRing.getLat(i);
+                lons[count] = linearRing.getLon(i);
             }
-            count++;
-            lats[count] = linearRing.getLat(i);
-            lons[count] = linearRing.getLon(i);
         }
         return new LinearRing(lons, lats);
+    }
+
+    private static boolean skipPoint(LinearRing linearRing, int i) {
+        if (linearRing.getLon(i - 1) == linearRing.getLon(i)) {
+            if (linearRing.getLat(i - 1) == linearRing.getLat(i)) {
+                // same point
+                return true;
+            }
+            if (linearRing.getLon(i - 1) == linearRing.getLon(i + 1)
+                && linearRing.getLat(i - 1) > linearRing.getLat(i) != linearRing.getLat(i + 1) > linearRing.getLat(i)) {
+                // collinear - we only remove points that go in the same direction. So latitudes [1,2,3] we would want
+                // to remove 1 but for [1,2,-1] we don't.
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void validateHole(LinearRing shell, LinearRing hole) {

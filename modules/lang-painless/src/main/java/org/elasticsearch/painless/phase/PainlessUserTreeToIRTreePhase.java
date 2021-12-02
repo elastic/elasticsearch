@@ -22,6 +22,7 @@ import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.FieldNode;
 import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.IRNode;
+import org.elasticsearch.painless.ir.InvokeCallDefNode;
 import org.elasticsearch.painless.ir.InvokeCallMemberNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
 import org.elasticsearch.painless.ir.LoadFieldMemberNode;
@@ -33,13 +34,16 @@ import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.ir.TryNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.node.AStatement;
+import org.elasticsearch.painless.node.ECallLocal;
 import org.elasticsearch.painless.node.SExpression;
 import org.elasticsearch.painless.node.SFunction;
 import org.elasticsearch.painless.node.SReturn;
 import org.elasticsearch.painless.symbol.Decorations.Converter;
 import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
 import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
+import org.elasticsearch.painless.symbol.Decorations.ThisPainlessMethod;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
@@ -56,6 +60,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDName;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDParameterNames;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDReturnType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDSymbol;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDThisMethod;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDTypeParameters;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.script.ScriptException;
@@ -540,6 +545,31 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         ExpressionNode returnExpression = returnNode.getExpressionNode();
         returnNode.setExpressionNode(irInvokeCallMemberNode);
         irInvokeCallMemberNode.addArgumentNode(returnExpression);
+    }
 
+    @Override
+    public void visitCallLocal(ECallLocal userCallLocalNode, ScriptScope scriptScope) {
+        if ("$".equals(userCallLocalNode.getMethodName())) {
+            PainlessMethod thisMethod = scriptScope.getDecoration(userCallLocalNode, ThisPainlessMethod.class).getThisPainlessMethod();
+
+            InvokeCallMemberNode irInvokeCallMemberNode = new InvokeCallMemberNode(userCallLocalNode.getLocation());
+            irInvokeCallMemberNode.attachDecoration(new IRDThisMethod(thisMethod));
+            irInvokeCallMemberNode.addArgumentNode(injectCast(userCallLocalNode.getArgumentNodes().get(0), scriptScope));
+            irInvokeCallMemberNode.attachDecoration(new IRDExpressionType(def.class));
+
+            InvokeCallDefNode irCallSubDefNode = new InvokeCallDefNode(userCallLocalNode.getLocation());
+            irCallSubDefNode.addArgumentNode(injectCast(userCallLocalNode.getArgumentNodes().get(1), scriptScope));
+            irCallSubDefNode.attachDecoration(new IRDExpressionType(def.class));
+            irCallSubDefNode.attachDecoration(new IRDName("get"));
+
+            BinaryImplNode irBinaryImplNode = new BinaryImplNode(userCallLocalNode.getLocation());
+            irBinaryImplNode.setLeftNode(irInvokeCallMemberNode);
+            irBinaryImplNode.setRightNode(irCallSubDefNode);
+            irBinaryImplNode.attachDecoration(new IRDExpressionType(def.class));
+
+            scriptScope.putDecoration(userCallLocalNode, new IRNodeDecoration(irBinaryImplNode));
+        } else {
+            super.visitCallLocal(userCallLocalNode, scriptScope);
+        }
     }
 }

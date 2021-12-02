@@ -1,7 +1,7 @@
 enable:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       indices.create:
@@ -11,6 +11,9 @@ enable:
               index:
                 mode: time_series
                 routing_path: [metricset, k8s.pod.uid]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -41,8 +44,8 @@ enable:
 ---
 no sort field:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       catch: /\[index.mode=time_series\] is incompatible with \[index.sort.field\]/
@@ -52,13 +55,17 @@ no sort field:
             settings:
               index:
                 mode: time_series
+                routing_path: foo
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
                 sort.field: ['a']
 
 ---
 no sort order:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       catch: /\[index.mode=time_series\] is incompatible with \[index.sort.order\]/
@@ -68,13 +75,17 @@ no sort order:
             settings:
               index:
                 mode: time_series
+                routing_path: foo
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
                 sort.order: ['DESC']
 
 ---
 no sort mode:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       catch: /\[index.mode=time_series\] is incompatible with \[index.sort.mode\]/
@@ -84,13 +95,17 @@ no sort mode:
             settings:
               index:
                 mode: time_series
+                routing_path: foo
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
                 sort.mode: ['MIN']
 
 ---
 no sort missing:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       catch: /\[index.mode=time_series\] is incompatible with \[index.sort.missing\]/
@@ -100,13 +115,17 @@ no sort missing:
             settings:
               index:
                 mode: time_series
+                routing_path: foo
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
                 sort.missing: ['_last']
 
 ---
 no partitioning:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       catch: /\[index.mode=time_series\] is incompatible with \[index.routing_partition_size\]/
@@ -116,14 +135,18 @@ no partitioning:
             settings:
               index:
                 mode: time_series
+                routing_path: foo
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
                 shards: 5
                 routing_partition_size: 2
 
 ---
 routing_path required:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       catch: /\[index.mode=time_series\] requires \[index.routing_path\]/
@@ -133,13 +156,16 @@ routing_path required:
             settings:
               index:
                 mode: time_series
-                shards: 5
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+                number_of_shards: 5
 
 ---
 routing_path is not allowed in standard mode:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       catch: /\[index.routing_path\] requires \[index.mode=time_series\]/
@@ -153,8 +179,8 @@ routing_path is not allowed in standard mode:
 ---
 routing required:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       catch: /routing is forbidden on CRUD operations that target indices in \[index.mode=time_series\]/
@@ -165,6 +191,9 @@ routing required:
               index:
                 mode: time_series
                 routing_path: foo
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
             mappings:
               _routing:
                 required: true
@@ -186,6 +215,8 @@ set start_time and end_time:
                 end_time: 1632625792000
           mappings:
             properties:
+              "@timestamp":
+                type: date
               metricset:
                 type: keyword
                 time_series_dimension: true

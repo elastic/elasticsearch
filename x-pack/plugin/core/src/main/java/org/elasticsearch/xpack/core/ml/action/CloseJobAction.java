@@ -121,8 +121,8 @@ public class CloseJobAction extends ActionType<CloseJobAction.Response> {
             return timeout;
         }
 
-        public Request setCloseTimeout(TimeValue timeout) {
-            this.timeout = timeout;
+        public Request setCloseTimeout(TimeValue closeTimeout) {
+            this.timeout = closeTimeout;
             return this;
         }
 

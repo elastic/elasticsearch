@@ -207,6 +207,43 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         });
     }
 
+    @SuppressWarnings("unchecked")
+    public void testExplainIndicesDatesAndAges() throws Exception {
+        createNewSingletonPolicy(client(), policy, "delete", DeleteAction.WITH_SNAPSHOT_DELETE, TimeValue.timeValueDays(100));
+        String withOriginationDate = this.index + "-with-origination-date";
+        String withoutOriginationDate = this.index + "-without-origination-date";
+        long originationDate = randomLongBetween(0, System.currentTimeMillis());
+        createIndexWithSettings(
+            client(),
+            withOriginationDate,
+            alias + withOriginationDate,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+                .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, originationDate)
+        );
+        createIndexWithSettings(
+            client(),
+            withoutOriginationDate,
+            alias + withoutOriginationDate,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policy)
+        );
+
+        assertBusy(() -> {
+            Map<String, Map<String, Object>> explain = explain(client(), this.index + "*", false, false);
+
+            Map<String, Object> explainIndexWithOriginationDate = explain.get(withOriginationDate);
+            assertThat(explainIndexWithOriginationDate.get("age").equals(explainIndexWithOriginationDate.get("index_age")), is(false));
+
+            Map<String, Object> explainIndexWithoutOriginationDate = explain.get(withoutOriginationDate);
+            assertThat(explainIndexWithoutOriginationDate.get("age").equals(explainIndexWithoutOriginationDate.get("index_age")), is(true));
+        });
+    }
+
     private void assertUnmanagedIndex(Map<String, Object> explainIndexMap) {
         assertThat(explainIndexMap.get("managed"), is(false));
         assertThat(explainIndexMap.get("policy"), is(nullValue()));

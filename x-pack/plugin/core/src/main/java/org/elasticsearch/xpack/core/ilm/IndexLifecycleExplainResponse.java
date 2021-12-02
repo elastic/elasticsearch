@@ -27,6 +27,8 @@ import java.util.stream.Stream;
 public class IndexLifecycleExplainResponse implements ToXContentObject, Writeable {
 
     private static final ParseField INDEX_FIELD = new ParseField("index");
+    private static final ParseField INDEX_CREATION_DATE_MILLIS_FIELD = new ParseField("index_creation_date_millis");
+    private static final ParseField INDEX_CREATION_DATE_FIELD = new ParseField("index_creation_date");
     private static final ParseField MANAGED_BY_ILM_FIELD = new ParseField("managed");
     private static final ParseField POLICY_NAME_FIELD = new ParseField("policy");
     private static final ParseField LIFECYCLE_DATE_MILLIS_FIELD = new ParseField("lifecycle_date_millis");
@@ -46,6 +48,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private static final ParseField STEP_INFO_FIELD = new ParseField("step_info");
     private static final ParseField PHASE_EXECUTION_INFO = new ParseField("phase_execution");
     private static final ParseField AGE_FIELD = new ParseField("age");
+    private static final ParseField INDEX_AGE_FIELD = new ParseField("index_age");
     private static final ParseField REPOSITORY_NAME = new ParseField("repository_name");
     private static final ParseField SHRINK_INDEX_NAME = new ParseField("shrink_index_name");
     private static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
@@ -54,6 +57,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         "index_lifecycle_explain_response",
         a -> new IndexLifecycleExplainResponse(
             (String) a[0],
+            (Long) (a[19]),
             (boolean) a[1],
             (String) a[2],
             (Long) (a[3]),
@@ -72,6 +76,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             (BytesReference) a[11],
             (PhaseExecutionInfo) a[12]
             // a[13] == "age"
+            // a[20] == "index_age"
         )
     );
     static {
@@ -102,9 +107,12 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REPOSITORY_NAME);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), SNAPSHOT_NAME);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), SHRINK_INDEX_NAME);
+        PARSER.declareLong(ConstructingObjectParser.constructorArg(), INDEX_CREATION_DATE_MILLIS_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_AGE_FIELD);
     }
 
     private final String index;
+    private final Long indexCreationDate;
     private final String policyName;
     private final String phase;
     private final String action;
@@ -125,6 +133,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
 
     public static IndexLifecycleExplainResponse newManagedIndexResponse(
         String index,
+        Long indexCreationDate,
         String policyName,
         Long lifecycleDate,
         String phase,
@@ -144,6 +153,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     ) {
         return new IndexLifecycleExplainResponse(
             index,
+            indexCreationDate,
             true,
             policyName,
             lifecycleDate,
@@ -164,9 +174,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         );
     }
 
-    public static IndexLifecycleExplainResponse newUnmanagedIndexResponse(String index) {
+    public static IndexLifecycleExplainResponse newUnmanagedIndexResponse(String index, Long indexCreationDate) {
         return new IndexLifecycleExplainResponse(
             index,
+            indexCreationDate,
             false,
             null,
             null,
@@ -189,6 +200,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
 
     private IndexLifecycleExplainResponse(
         String index,
+        Long indexCreationDate,
         boolean managedByILM,
         String policyName,
         Long lifecycleDate,
@@ -243,11 +255,20 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 || stepInfo != null
                 || phaseExecutionInfo != null) {
                 throw new IllegalArgumentException(
-                    "Unmanaged index response must only contain fields: [" + MANAGED_BY_ILM_FIELD + ", " + INDEX_FIELD + "]"
+                    "Unmanaged index response must only contain fields: ["
+                        + MANAGED_BY_ILM_FIELD
+                        + ", "
+                        + INDEX_FIELD
+                        + ", "
+                        + INDEX_CREATION_DATE_FIELD
+                        + ", "
+                        + INDEX_AGE_FIELD
+                        + "]"
                 );
             }
         }
         this.index = index;
+        this.indexCreationDate = indexCreationDate;
         this.policyName = policyName;
         this.managedByILM = managedByILM;
         this.lifecycleDate = lifecycleDate;
@@ -305,6 +326,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             snapshotName = null;
             shrinkIndexName = null;
         }
+        indexCreationDate = in.readLong();
     }
 
     @Override
@@ -329,10 +351,19 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             out.writeOptionalString(snapshotName);
             out.writeOptionalString(shrinkIndexName);
         }
+        out.writeLong(indexCreationDate);
     }
 
     public String getIndex() {
         return index;
+    }
+
+    public Long getIndexCreationDate() {
+        return indexCreationDate;
+    }
+
+    public TimeValue getIndexAge() {
+        return TimeValue.timeValueMillis(System.currentTimeMillis() - indexCreationDate);
     }
 
     public boolean managedByILM() {
@@ -415,6 +446,12 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(INDEX_FIELD.getPreferredName(), index);
+        builder.timeField(
+            INDEX_CREATION_DATE_MILLIS_FIELD.getPreferredName(),
+            INDEX_CREATION_DATE_FIELD.getPreferredName(),
+            indexCreationDate
+        );
+        builder.field(INDEX_AGE_FIELD.getPreferredName(), getIndexAge().toHumanReadableString(2));
         builder.field(MANAGED_BY_ILM_FIELD.getPreferredName(), managedByILM);
         if (managedByILM) {
             builder.field(POLICY_NAME_FIELD.getPreferredName(), policyName);
@@ -473,6 +510,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     public int hashCode() {
         return Objects.hash(
             index,
+            indexCreationDate,
             managedByILM,
             policyName,
             lifecycleDate,
@@ -503,6 +541,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         }
         IndexLifecycleExplainResponse other = (IndexLifecycleExplainResponse) obj;
         return Objects.equals(index, other.index)
+            && Objects.equals(indexCreationDate, other.indexCreationDate)
             && Objects.equals(managedByILM, other.managedByILM)
             && Objects.equals(policyName, other.policyName)
             && Objects.equals(lifecycleDate, other.lifecycleDate)

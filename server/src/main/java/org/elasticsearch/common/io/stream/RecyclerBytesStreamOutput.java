@@ -273,10 +273,6 @@ public class RecyclerBytesStreamOutput extends BytesStream implements Releasable
         return bytes(true);
     }
 
-    public List<ReleasableBytesReference> retainPages() {
-        return new ArrayList<>(pages.size());
-    }
-
     private void ensureCapacity(int bytesNeeded) {
         if (bytesNeeded > pageSize - currentPageOffset) {
             ensureCapacityFromPosition(internalPosition() + bytesNeeded);

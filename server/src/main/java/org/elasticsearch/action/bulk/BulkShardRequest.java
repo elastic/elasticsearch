@@ -37,7 +37,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     private final BulkItemRequest[] items;
 
     // Local, not serialized
-    private final Resources toRelease = new Resources();
+    private final Resources resources = new Resources();
 
     public BulkShardRequest(StreamInput in) throws IOException {
         this(in, null);
@@ -48,13 +48,13 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
         boolean success = false;
         try {
             items = in.readArray(
-                i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt, recycler, toRelease.toRelease)),
+                i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt, recycler, resources.toRelease)),
                 BulkItemRequest[]::new
             );
             success = true;
         } finally {
             if (success == false) {
-                toRelease.decRef();
+                resources.decRef();
             }
         }
     }
@@ -174,22 +174,22 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     @Override
     public void incRef() {
-        toRelease.incRef();
+        resources.incRef();
     }
 
     @Override
     public boolean tryIncRef() {
-        return toRelease.tryIncRef();
+        return resources.tryIncRef();
     }
 
     @Override
     public boolean decRef() {
-        return toRelease.decRef();
+        return resources.decRef();
     }
 
     @Override
     public boolean hasReferences() {
-        return toRelease.hasReferences();
+        return resources.hasReferences();
     }
 
     private static class Resources extends AbstractRefCounted {

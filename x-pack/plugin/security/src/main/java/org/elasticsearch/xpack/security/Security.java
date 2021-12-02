@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -49,7 +48,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
@@ -83,7 +81,6 @@ import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.nio.NioGroupFactory;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -157,7 +154,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -302,7 +298,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
-import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.transport.SecurityHttpSettings;
 import org.elasticsearch.xpack.security.transport.SecurityServerTransportInterceptor;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -312,7 +308,6 @@ import org.elasticsearch.xpack.security.transport.nio.SecurityNioHttpServerTrans
 import org.elasticsearch.xpack.security.transport.nio.SecurityNioTransport;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.ArrayList;
@@ -336,17 +331,10 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_TOKENS_INDEX_FORMAT;
-import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
 
 public class Security extends Plugin
     implements
@@ -445,11 +433,10 @@ public class Security extends Plugin
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 
-    public static final SystemIndexDescriptor SECURITY_MAIN_INDEX_DESCRIPTOR = getSecurityMainIndexDescriptor();
-    public static final SystemIndexDescriptor SECURITY_TOKEN_INDEX_DESCRIPTOR = getSecurityTokenIndexDescriptor();
-
     private final Settings settings;
     private final boolean enabled;
+    private final SecuritySystemIndices systemIndices;
+
     /* what a PITA that we need an extra indirection to initialize this. Yet, once we got rid of guice we can thing about how
      * to fix this or make it simpler. Today we need several service that are created in createComponents but we need to register
      * an instance of TransportInterceptor way earlier before createComponents is called. */
@@ -462,7 +449,7 @@ public class Security extends Plugin
     private final SetOnce<ThreadContext> threadContext = new SetOnce<>();
     private final SetOnce<TokenService> tokenService = new SetOnce<>();
     private final SetOnce<SecurityActionFilter> securityActionFilter = new SetOnce<>();
-    private final SetOnce<SecurityIndexManager> securityIndex = new SetOnce<>();
+
     private final SetOnce<SharedGroupFactory> sharedGroupFactory = new SetOnce<>();
     private final SetOnce<NioGroupFactory> nioGroupFactory = new SetOnce<>();
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
@@ -480,6 +467,7 @@ public class Security extends Plugin
         this.settings = settings;
         // TODO this is wrong, we should only use the environment that is provided to createComponents
         this.enabled = XPackSettings.SECURITY_ENABLED.get(settings);
+        this.systemIndices = new SecuritySystemIndices();
         if (enabled) {
             runStartupChecks(settings);
             Automatons.updateConfiguration(settings);
@@ -557,6 +545,8 @@ public class Security extends Plugin
             return Collections.singletonList(new SecurityUsageServices(null, null, null, null));
         }
 
+        systemIndices.init(client, clusterService);
+
         scriptServiceReference.set(scriptService);
         // We need to construct the checks here while the secure settings are still available.
         // If we wait until #getBoostrapChecks the secure settings will have been cleared/closed.
@@ -585,27 +575,25 @@ public class Security extends Plugin
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
-        securityIndex.set(SecurityIndexManager.buildSecurityIndexManager(client, clusterService, SECURITY_MAIN_INDEX_DESCRIPTOR));
-
         final TokenService tokenService = new TokenService(
             settings,
             Clock.systemUTC(),
             client,
             getLicenseState(),
             securityContext.get(),
-            securityIndex.get(),
-            SecurityIndexManager.buildSecurityIndexManager(client, clusterService, SECURITY_TOKEN_INDEX_DESCRIPTOR),
+            systemIndices.getMainIndexManager(),
+            systemIndices.getTokenIndexManager(),
             clusterService
         );
         this.tokenService.set(tokenService);
         components.add(tokenService);
 
         // realms construction
-        final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, securityIndex.get());
+        final NativeUsersStore nativeUsersStore = new NativeUsersStore(settings, client, systemIndices.getMainIndexManager());
         final NativeRoleMappingStore nativeRoleMappingStore = new NativeRoleMappingStore(
             settings,
             client,
-            securityIndex.get(),
+            systemIndices.getMainIndexManager(),
             scriptService
         );
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
@@ -625,7 +613,7 @@ public class Security extends Plugin
                 getSslService(),
                 nativeUsersStore,
                 nativeRoleMappingStore,
-                securityIndex.get()
+                systemIndices.getMainIndexManager()
             )
         );
         for (SecurityExtension extension : securityExtensions) {
@@ -649,17 +637,17 @@ public class Security extends Plugin
         components.add(realms);
         components.add(reservedRealm);
 
-        securityIndex.get().addStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
+        systemIndices.getMainIndexManager().addStateListener(nativeRoleMappingStore::onSecurityIndexStateChange);
 
         final CacheInvalidatorRegistry cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
         cacheInvalidatorRegistry.registerAlias("service", Set.of("file_service_account_token", "index_service_account_token"));
         components.add(cacheInvalidatorRegistry);
-        securityIndex.get().addStateListener(cacheInvalidatorRegistry::onSecurityIndexStateChange);
+        systemIndices.getMainIndexManager().addStateListener(cacheInvalidatorRegistry::onSecurityIndexStateChange);
 
         final NativePrivilegeStore privilegeStore = new NativePrivilegeStore(
             settings,
             client,
-            securityIndex.get(),
+            systemIndices.getMainIndexManager(),
             cacheInvalidatorRegistry
         );
         components.add(privilegeStore);
@@ -673,7 +661,12 @@ public class Security extends Plugin
             getLicenseState(),
             xContentRegistry
         );
-        final NativeRolesStore nativeRolesStore = new NativeRolesStore(settings, client, getLicenseState(), securityIndex.get());
+        final NativeRolesStore nativeRolesStore = new NativeRolesStore(
+            settings,
+            client,
+            getLicenseState(),
+            systemIndices.getMainIndexManager()
+        );
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
 
         final Map<String, List<BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>>>> customRoleProviders = new LinkedHashMap<>();
@@ -690,7 +683,7 @@ public class Security extends Plugin
             settings,
             Clock.systemUTC(),
             client,
-            securityIndex.get(),
+            systemIndices.getMainIndexManager(),
             clusterService,
             cacheInvalidatorRegistry,
             threadPool
@@ -702,7 +695,7 @@ public class Security extends Plugin
             threadPool,
             getClock(),
             client,
-            securityIndex.get(),
+            systemIndices.getMainIndexManager(),
             clusterService,
             cacheInvalidatorRegistry
         );
@@ -744,7 +737,7 @@ public class Security extends Plugin
             expressionResolver,
             new DeprecationRoleDescriptorConsumer(clusterService, threadPool)
         );
-        securityIndex.get().addStateListener(allRolesStore::onSecurityIndexStateChange);
+        systemIndices.getMainIndexManager().addStateListener(allRolesStore::onSecurityIndexStateChange);
 
         // We use the value of the {@code ENROLLMENT_ENABLED} setting to determine if the node is starting up with auto-generated
         // certificates (which have been generated by pre-startup scripts). In this case, and further if the node forms a new cluster by
@@ -753,7 +746,7 @@ public class Security extends Plugin
         // The generated information is output on node's standard out (if
         InitialNodeSecurityAutoConfiguration.maybeGenerateEnrollmentTokensAndElasticCredentialsOnNodeStartup(
             nativeUsersStore,
-            securityIndex.get(),
+            systemIndices.getMainIndexManager(),
             getSslService(),
             client,
             environment
@@ -791,7 +784,7 @@ public class Security extends Plugin
             )
         );
         components.add(authcService.get());
-        securityIndex.get().addStateListener(authcService.get()::onSecurityIndexStateChange);
+        systemIndices.getMainIndexManager().addStateListener(authcService.get()::onSecurityIndexStateChange);
 
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
             new ResizeRequestInterceptor(threadPool, getLicenseState(), auditTrailService),
@@ -1624,607 +1617,9 @@ public class Security extends Plugin
         }
     }
 
-    private static SystemIndexDescriptor getSecurityMainIndexDescriptor() {
-        return SystemIndexDescriptor.builder()
-            // This can't just be `.security-*` because that would overlap with the tokens index pattern
-            .setIndexPattern(".security-[0-9]+*")
-            .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
-            .setDescription("Contains Security configuration")
-            .setMappings(getIndexMappings())
-            .setSettings(getIndexSettings())
-            .setAliasName(SECURITY_MAIN_ALIAS)
-            .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
-            .setVersionMetaKey("security-version")
-            .setOrigin(SECURITY_ORIGIN)
-            .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
-            .build();
-    }
-
-    private static SystemIndexDescriptor getSecurityTokenIndexDescriptor() {
-        return SystemIndexDescriptor.builder()
-            .setIndexPattern(".security-tokens-[0-9]+*")
-            .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7)
-            .setDescription("Contains auth token data")
-            .setMappings(getTokenIndexMappings())
-            .setSettings(getTokenIndexSettings())
-            .setAliasName(SECURITY_TOKENS_ALIAS)
-            .setIndexFormat(INTERNAL_TOKENS_INDEX_FORMAT)
-            .setVersionMetaKey(SECURITY_VERSION_STRING)
-            .setOrigin(SECURITY_ORIGIN)
-            .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
-            .build();
-    }
-
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return List.of(SECURITY_MAIN_INDEX_DESCRIPTOR, SECURITY_TOKEN_INDEX_DESCRIPTOR);
-    }
-
-    private static Settings getIndexSettings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-            .put(IndexMetadata.SETTING_PRIORITY, 1000)
-            .put("index.refresh_interval", "1s")
-            .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_MAIN_INDEX_FORMAT)
-            .put("analysis.filter.email.type", "pattern_capture")
-            .put("analysis.filter.email.preserve_original", true)
-            .putList("analysis.filter.email.patterns", List.of("([^@]+)", "(\\p{L}+)", "(\\d+)", "@(.+)"))
-            .put("analysis.analyzer.email.tokenizer", "uax_url_email")
-            .putList("analysis.analyzer.email.filter", List.of("email", "lowercase", "unique"))
-            .build();
-    }
-
-    private static XContentBuilder getIndexMappings() {
-        try {
-            final XContentBuilder builder = jsonBuilder();
-            builder.startObject();
-            {
-                builder.startObject("_meta");
-                builder.field(SECURITY_VERSION_STRING, Version.CURRENT.toString());
-                builder.endObject();
-
-                builder.field("dynamic", "strict");
-                builder.startObject("properties");
-                {
-                    builder.startObject("username");
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
-                    builder.startObject("roles");
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
-                    builder.startObject("role_templates");
-                    {
-                        builder.startObject("properties");
-                        {
-                            builder.startObject("template");
-                            builder.field("type", "text");
-                            builder.endObject();
-
-                            builder.startObject("format");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-
-                    builder.startObject("password");
-                    builder.field("type", "keyword");
-                    builder.field("index", false);
-                    builder.field("doc_values", false);
-                    builder.endObject();
-
-                    builder.startObject("full_name");
-                    builder.field("type", "text");
-                    builder.endObject();
-
-                    builder.startObject("email");
-                    builder.field("type", "text");
-                    builder.field("analyzer", "email");
-                    builder.endObject();
-
-                    builder.startObject("metadata");
-                    builder.field("type", "object");
-                    builder.field("dynamic", false);
-                    builder.endObject();
-
-                    builder.startObject("metadata_flattened");
-                    builder.field("type", "flattened");
-                    builder.endObject();
-
-                    builder.startObject("enabled");
-                    builder.field("type", "boolean");
-                    builder.endObject();
-
-                    builder.startObject("cluster");
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
-                    builder.startObject("indices");
-                    {
-                        builder.field("type", "object");
-                        builder.startObject("properties");
-                        {
-                            builder.startObject("field_security");
-                            {
-                                builder.startObject("properties");
-                                {
-                                    builder.startObject("grant");
-                                    builder.field("type", "keyword");
-                                    builder.endObject();
-
-                                    builder.startObject("except");
-                                    builder.field("type", "keyword");
-                                    builder.endObject();
-                                }
-                                builder.endObject();
-                            }
-                            builder.endObject();
-
-                            builder.startObject("names");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-
-                            builder.startObject("privileges");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-
-                            builder.startObject("query");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-
-                            builder.startObject("allow_restricted_indices");
-                            builder.field("type", "boolean");
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-
-                    builder.startObject("applications");
-                    {
-                        builder.field("type", "object");
-                        builder.startObject("properties");
-                        {
-                            builder.startObject("application");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-
-                            builder.startObject("privileges");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-
-                            builder.startObject("resources");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-
-                    builder.startObject("application");
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
-                    builder.startObject("global");
-                    {
-                        builder.field("type", "object");
-                        builder.startObject("properties");
-                        {
-                            builder.startObject("application");
-                            {
-                                builder.field("type", "object");
-                                builder.startObject("properties");
-                                {
-                                    builder.startObject("manage");
-                                    {
-                                        builder.field("type", "object");
-                                        builder.startObject("properties");
-                                        {
-                                            builder.startObject("applications");
-                                            builder.field("type", "keyword");
-                                            builder.endObject();
-                                        }
-                                        builder.endObject();
-                                    }
-                                    builder.endObject();
-                                }
-                                builder.endObject();
-                            }
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-
-                    builder.startObject("name");
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
-                    builder.startObject("run_as");
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
-                    builder.startObject("doc_type");
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
-                    builder.startObject("type");
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
-                    builder.startObject("actions");
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
-                    builder.startObject("expiration_time");
-                    builder.field("type", "date");
-                    builder.field("format", "epoch_millis");
-                    builder.endObject();
-
-                    builder.startObject("creation_time");
-                    builder.field("type", "date");
-                    builder.field("format", "epoch_millis");
-                    builder.endObject();
-
-                    builder.startObject("api_key_hash");
-                    builder.field("type", "keyword");
-                    builder.field("index", false);
-                    builder.field("doc_values", false);
-                    builder.endObject();
-
-                    builder.startObject("api_key_invalidated");
-                    builder.field("type", "boolean");
-                    builder.endObject();
-
-                    builder.startObject("role_descriptors");
-                    builder.field("type", "object");
-                    builder.field("enabled", false);
-                    builder.endObject();
-
-                    builder.startObject("limited_by_role_descriptors");
-                    builder.field("type", "object");
-                    builder.field("enabled", false);
-                    builder.endObject();
-
-                    builder.startObject("version");
-                    builder.field("type", "integer");
-                    builder.endObject();
-
-                    builder.startObject("creator");
-                    {
-                        builder.field("type", "object");
-                        builder.startObject("properties");
-                        {
-                            builder.startObject("principal");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-
-                            builder.startObject("full_name");
-                            builder.field("type", "text");
-                            builder.endObject();
-
-                            builder.startObject("email");
-                            builder.field("type", "text");
-                            builder.field("analyzer", "email");
-                            builder.endObject();
-
-                            builder.startObject("metadata");
-                            builder.field("type", "object");
-                            builder.field("dynamic", false);
-                            builder.endObject();
-
-                            builder.startObject("realm");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-
-                            builder.startObject("realm_type");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-
-                    builder.startObject("rules");
-                    builder.field("type", "object");
-                    builder.field("dynamic", false);
-                    builder.endObject();
-
-                    builder.startObject("refresh_token");
-                    {
-                        builder.field("type", "object");
-                        builder.startObject("properties");
-                        {
-                            builder.startObject("token");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-
-                            builder.startObject("refreshed");
-                            builder.field("type", "boolean");
-                            builder.endObject();
-
-                            builder.startObject("refresh_time");
-                            builder.field("type", "date");
-                            builder.field("format", "epoch_millis");
-                            builder.endObject();
-
-                            builder.startObject("superseding");
-                            {
-                                builder.field("type", "object");
-                                builder.startObject("properties");
-                                {
-                                    builder.startObject("encrypted_tokens");
-                                    builder.field("type", "binary");
-                                    builder.endObject();
-
-                                    builder.startObject("encryption_iv");
-                                    builder.field("type", "binary");
-                                    builder.endObject();
-
-                                    builder.startObject("encryption_salt");
-                                    builder.field("type", "binary");
-                                    builder.endObject();
-                                }
-                                builder.endObject();
-                            }
-                            builder.endObject();
-
-                            builder.startObject("invalidated");
-                            builder.field("type", "boolean");
-                            builder.endObject();
-
-                            builder.startObject("client");
-                            {
-                                builder.field("type", "object");
-                                builder.startObject("properties");
-                                {
-                                    builder.startObject("type");
-                                    builder.field("type", "keyword");
-                                    builder.endObject();
-
-                                    builder.startObject("user");
-                                    builder.field("type", "keyword");
-                                    builder.endObject();
-
-                                    builder.startObject("realm");
-                                    builder.field("type", "keyword");
-                                    builder.endObject();
-                                }
-                                builder.endObject();
-                            }
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-
-                    builder.startObject("access_token");
-                    {
-                        builder.field("type", "object");
-                        builder.startObject("properties");
-                        {
-                            builder.startObject("user_token");
-                            {
-                                builder.field("type", "object");
-                                builder.startObject("properties");
-                                {
-                                    builder.startObject("id");
-                                    builder.field("type", "keyword");
-                                    builder.endObject();
-
-                                    builder.startObject("expiration_time");
-                                    builder.field("type", "date");
-                                    builder.field("format", "epoch_millis");
-                                    builder.endObject();
-
-                                    builder.startObject("version");
-                                    builder.field("type", "integer");
-                                    builder.endObject();
-
-                                    builder.startObject("metadata");
-                                    builder.field("type", "object");
-                                    builder.field("dynamic", false);
-                                    builder.endObject();
-
-                                    builder.startObject("authentication");
-                                    builder.field("type", "binary");
-                                    builder.endObject();
-                                }
-                                builder.endObject();
-                            }
-                            builder.endObject();
-
-                            builder.startObject("invalidated");
-                            builder.field("type", "boolean");
-                            builder.endObject();
-
-                            builder.startObject("realm");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-            builder.endObject();
-
-            return builder;
-        } catch (IOException e) {
-            logger.fatal("Failed to build " + RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7 + " index mappings", e);
-            throw new UncheckedIOException(
-                "Failed to build " + RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7 + " index mappings",
-                e
-            );
-        }
-    }
-
-    private static Settings getTokenIndexSettings() {
-        return Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-            .put(IndexMetadata.SETTING_PRIORITY, 1000)
-            .put("index.refresh_interval", "1s")
-            .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_TOKENS_INDEX_FORMAT)
-            .build();
-    }
-
-    private static XContentBuilder getTokenIndexMappings() {
-        try {
-            final XContentBuilder builder = jsonBuilder();
-
-            builder.startObject();
-            {
-                builder.startObject("_meta");
-                builder.field(SECURITY_VERSION_STRING, Version.CURRENT);
-                builder.endObject();
-
-                builder.field("dynamic", "strict");
-                builder.startObject("properties");
-                {
-                    builder.startObject("doc_type");
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
-                    builder.startObject("creation_time");
-                    builder.field("type", "date");
-                    builder.field("format", "epoch_millis");
-                    builder.endObject();
-
-                    builder.startObject("refresh_token");
-                    {
-                        builder.field("type", "object");
-                        builder.startObject("properties");
-                        {
-                            builder.startObject("token");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-
-                            builder.startObject("refreshed");
-                            builder.field("type", "boolean");
-                            builder.endObject();
-
-                            builder.startObject("refresh_time");
-                            builder.field("type", "date");
-                            builder.field("format", "epoch_millis");
-                            builder.endObject();
-
-                            builder.startObject("superseding");
-                            {
-                                builder.field("type", "object");
-                                builder.startObject("properties");
-                                {
-                                    builder.startObject("encrypted_tokens");
-                                    builder.field("type", "binary");
-                                    builder.endObject();
-
-                                    builder.startObject("encryption_iv");
-                                    builder.field("type", "binary");
-                                    builder.endObject();
-
-                                    builder.startObject("encryption_salt");
-                                    builder.field("type", "binary");
-                                    builder.endObject();
-                                }
-                                builder.endObject();
-                            }
-                            builder.endObject();
-
-                            builder.startObject("invalidated");
-                            builder.field("type", "boolean");
-                            builder.endObject();
-
-                            builder.startObject("client");
-                            {
-                                builder.field("type", "object");
-                                builder.startObject("properties");
-                                {
-                                    builder.startObject("type");
-                                    builder.field("type", "keyword");
-                                    builder.endObject();
-
-                                    builder.startObject("user");
-                                    builder.field("type", "keyword");
-                                    builder.endObject();
-
-                                    builder.startObject("realm");
-                                    builder.field("type", "keyword");
-                                    builder.endObject();
-                                }
-                                builder.endObject();
-                            }
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-
-                    builder.startObject("access_token");
-                    {
-                        builder.field("type", "object");
-                        builder.startObject("properties");
-                        {
-                            builder.startObject("user_token");
-                            {
-                                builder.field("type", "object");
-                                builder.startObject("properties");
-                                {
-                                    builder.startObject("id");
-                                    builder.field("type", "keyword");
-                                    builder.endObject();
-
-                                    builder.startObject("expiration_time");
-                                    builder.field("type", "date");
-                                    builder.field("format", "epoch_millis");
-                                    builder.endObject();
-
-                                    builder.startObject("version");
-                                    builder.field("type", "integer");
-                                    builder.endObject();
-
-                                    builder.startObject("metadata");
-                                    builder.field("type", "object");
-                                    builder.field("dynamic", false);
-                                    builder.endObject();
-
-                                    builder.startObject("authentication");
-                                    builder.field("type", "binary");
-                                    builder.endObject();
-                                }
-                                builder.endObject();
-                            }
-                            builder.endObject();
-
-                            builder.startObject("invalidated");
-                            builder.field("type", "boolean");
-                            builder.endObject();
-
-                            builder.startObject("realm");
-                            builder.field("type", "keyword");
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-
-            builder.endObject();
-            return builder;
-        } catch (IOException e) {
-            throw new UncheckedIOException(
-                "Failed to build " + RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7 + " index mappings",
-                e
-            );
-        }
+        return systemIndices.getSystemIndexDescriptors();
     }
 
     @Override

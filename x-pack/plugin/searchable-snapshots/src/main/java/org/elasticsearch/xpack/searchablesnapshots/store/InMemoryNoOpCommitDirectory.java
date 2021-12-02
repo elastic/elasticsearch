@@ -21,8 +21,8 @@ import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
  * A {@link Directory} which wraps a read-only "real" directory with a wrapper that allows no-op (in-memory) commits, and peer recoveries
@@ -31,7 +31,7 @@ import java.util.Set;
 public class InMemoryNoOpCommitDirectory extends FilterDirectory {
 
     private final Directory realDirectory;
-    private final Set<String> deletedFiles = new HashSet<>();
+    private final Set<String> deletedFiles = new CopyOnWriteArraySet<>();
 
     InMemoryNoOpCommitDirectory(Directory realDirectory) {
         super(new ByteBuffersDirectory(NoLockFactory.INSTANCE));

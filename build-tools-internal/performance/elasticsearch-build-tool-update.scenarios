@@ -1,5 +1,5 @@
 # Can specify scenarios to use when none are specified on the command line
-default-scenarios = ["buildConfigurationNew", "buildConfigurationOld"]
+default-scenarios = ["buildConfiguration"]
 
 buildConfiguration {
     title = "new"

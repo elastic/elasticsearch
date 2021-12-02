@@ -65,15 +65,22 @@ cannot use both in a single {transform}.
 
 `<transform_id>`::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
+Identifier for the {transform}. This identifier can contain lowercase
+alphanumeric characters (a-z and 0-9), hyphens, and underscores. It has a 64
+character limit and must start and end with alphanumeric characters.
 
 [[put-transform-query-parms]]
 == {api-query-parms-title}
 
 `defer_validation`::
-  (Optional, Boolean) When `true`, deferrable validations are not run. This
-  behavior may be desired if the source index does not exist until after the
-  {transform} is created.
+(Optional, Boolean) When `true`, deferrable validations are not run. This
+behavior may be desired if the source index does not exist until after the
+{transform} is created.
+
+`timeout`::
+(Optional, time)
+Period to wait for a response. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
 
 [role="child_attributes"]
 [[put-transform-request-body]]

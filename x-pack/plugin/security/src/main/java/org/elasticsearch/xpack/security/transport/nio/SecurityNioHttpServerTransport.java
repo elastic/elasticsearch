@@ -12,7 +12,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.http.nio.HttpReadWriteHandler;
 import org.elasticsearch.http.nio.NioHttpChannel;
@@ -39,7 +38,6 @@ import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.function.Consumer;
-
 import javax.net.ssl.SSLEngine;
 
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
@@ -56,7 +54,6 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
     public SecurityNioHttpServerTransport(
         Settings settings,
         NetworkService networkService,
-        BigArrays bigArrays,
         PageCacheRecycler pageCacheRecycler,
         ThreadPool threadPool,
         NamedXContentRegistry xContentRegistry,
@@ -69,7 +66,6 @@ public class SecurityNioHttpServerTransport extends NioHttpServerTransport {
         super(
             settings,
             networkService,
-            bigArrays,
             pageCacheRecycler,
             threadPool,
             xContentRegistry,

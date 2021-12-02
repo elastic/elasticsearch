@@ -1473,7 +1473,6 @@ public class Security extends Plugin
             () -> new SecurityNioHttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
                 pageCacheRecycler,
                 threadPool,
                 xContentRegistry,

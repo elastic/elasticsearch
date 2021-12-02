@@ -74,7 +74,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
         // something in our tests wrap the error code to 1 on windows
         // TODO investigate this and remove this guard
         if (distribution.platform != Distribution.Platform.WINDOWS) {
-            assertThat(result.exitCode, equalTo(ExitCodes.DATA_ERROR));
+            assertThat(result.exitCode, equalTo(ExitCodes.UNAVAILABLE));
         }
         verifySecurityNotAutoConfigured(installation);
     }

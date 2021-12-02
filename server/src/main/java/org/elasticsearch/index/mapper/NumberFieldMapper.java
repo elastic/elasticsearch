@@ -37,8 +37,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
 import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
-import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
-import org.elasticsearch.index.fielddata.ScriptDocValues.LongsSupplier;
 import org.elasticsearch.index.fielddata.plain.SortedDoublesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
@@ -47,7 +45,13 @@ import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.ByteDocValuesField;
 import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DoubleDocValuesField;
+import org.elasticsearch.script.field.FloatDocValuesField;
+import org.elasticsearch.script.field.IntegerDocValuesField;
+import org.elasticsearch.script.field.LongDocValuesField;
+import org.elasticsearch.script.field.ShortDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -445,11 +449,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedDoublesIndexFieldData.Builder(
-                    name,
-                    numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
-                );
+                return new SortedDoublesIndexFieldData.Builder(name, numericType(), FloatDocValuesField::new);
             }
 
             private void validateParsed(float value) {
@@ -539,11 +539,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedDoublesIndexFieldData.Builder(
-                    name,
-                    numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
-                );
+                return new SortedDoublesIndexFieldData.Builder(name, numericType(), DoubleDocValuesField::new);
             }
 
             private void validateParsed(double value) {
@@ -620,11 +616,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedNumericIndexFieldData.Builder(
-                    name,
-                    numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
-                );
+                return new SortedNumericIndexFieldData.Builder(name, numericType(), ByteDocValuesField::new);
             }
         },
         SHORT("short", NumericType.SHORT) {
@@ -691,11 +683,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedNumericIndexFieldData.Builder(
-                    name,
-                    numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
-                );
+                return new SortedNumericIndexFieldData.Builder(name, numericType(), ShortDocValuesField::new);
             }
         },
         INTEGER("integer", NumericType.INT) {
@@ -821,11 +809,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedNumericIndexFieldData.Builder(
-                    name,
-                    numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
-                );
+                return new SortedNumericIndexFieldData.Builder(name, numericType(), IntegerDocValuesField::new);
             }
         },
         LONG("long", NumericType.LONG) {
@@ -921,11 +905,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public IndexFieldData.Builder getFieldDataBuilder(String name) {
-                return new SortedNumericIndexFieldData.Builder(
-                    name,
-                    numericType(),
-                    (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
-                );
+                return new SortedNumericIndexFieldData.Builder(name, numericType(), LongDocValuesField::new);
             }
         };
 

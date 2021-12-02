@@ -272,8 +272,8 @@ public class Bucket implements ToXContentObject, Writeable {
         return isInterim;
     }
 
-    public void setInterim(boolean isInterim) {
-        this.isInterim = isInterim;
+    public void setInterim(boolean interim) {
+        this.isInterim = interim;
     }
 
     public long getProcessingTimeMs() {

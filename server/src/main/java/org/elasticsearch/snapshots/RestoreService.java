@@ -432,8 +432,8 @@ public class RestoreService implements ClusterStateApplier {
             metadataBuilder.put(snapshotIndexMetaData, false);
         }
 
-        assert explicitlyRequestedSystemIndices.size() == 0
-            : "it should be impossible to reach this point with explicitly requested system indices, but got: "
+        assert explicitlyRequestedSystemIndices
+            .size() == 0 : "it should be impossible to reach this point with explicitly requested system indices, but got: "
                 + explicitlyRequestedSystemIndices;
 
         // Now we can start the actual restore process by adding shards to be recovered in the cluster state
@@ -1395,25 +1395,13 @@ public class RestoreService implements ClusterStateApplier {
                     .collect(Collectors.toMap(DataStream::getName, Function.identity()))
             );
             final Map<String, DataStreamAlias> updatedDataStreamAliases = new HashMap<>(currentState.metadata().dataStreamAliases());
-            metadata.dataStreamAliases()
-                .values()
-                .stream()
-                // Optionally rename the data stream names for each alias
-                .map(alias -> {
-                    if (request.renamePattern() != null && request.renameReplacement() != null) {
-                        return alias.renameDataStreams(request.renamePattern(), request.renameReplacement());
-                    } else {
-                        return alias;
-                    }
-                })
-                .forEach(alias -> {
-                    final DataStreamAlias current = updatedDataStreamAliases.putIfAbsent(alias.getName(), alias);
-                    if (current != null) {
-                        // Merge data stream alias from snapshot with an existing data stream aliases in target cluster:
-                        DataStreamAlias newInstance = alias.merge(current);
-                        updatedDataStreamAliases.put(alias.getName(), newInstance);
-                    }
-                });
+            for (DataStreamAlias alias : metadata.dataStreamAliases().values()) {
+                // Merge data stream alias from snapshot with an existing data stream aliases in target cluster:
+                updatedDataStreamAliases.compute(
+                    alias.getName(),
+                    (key, previous) -> alias.restore(previous, request.renamePattern(), request.renameReplacement())
+                );
+            }
             mdBuilder.dataStreams(updatedDataStreams, updatedDataStreamAliases);
         }
 

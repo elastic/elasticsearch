@@ -422,9 +422,9 @@ public class DockerTests extends PackagingTestCase {
     public void test060JavaUsesCloudflareZlib() {
         waitForElasticsearch(installation, "elastic", PASSWORD);
 
-        final List<String> output = sh.run("bash -c 'pmap -p $(pidof java)'").stdout.lines().collect(Collectors.toList());
+        final String output = sh.run("bash -c 'pmap -p $(pidof java)'").stdout;
 
-        assertThat("Expected java to be using cloudflare-zlib", output, hasItem(containsString("cloudflare-zlib")));
+        assertThat("Expected java to be using cloudflare-zlib", output, containsString("cloudflare-zlib"));
     }
 
     /**

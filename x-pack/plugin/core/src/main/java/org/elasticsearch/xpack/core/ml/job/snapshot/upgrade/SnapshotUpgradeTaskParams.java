@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.core.ml.job.snapshot.upgrade;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
@@ -23,7 +23,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME;
 
-public class SnapshotUpgradeTaskParams implements XPackPlugin.XPackPersistentTaskParams, MlTaskParams {
+public class SnapshotUpgradeTaskParams implements PersistentTaskParams, MlTaskParams {
 
     public static final ParseField SNAPSHOT_ID = new ParseField("snapshot_id");
 

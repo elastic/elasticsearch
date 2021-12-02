@@ -86,7 +86,6 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.transport.TcpTransport.IGNORE_DESERIALIZATION_ERRORS_SETTING_KEY;
 import static org.elasticsearch.transport.TransportService.NOOP_TRANSPORT_INTERCEPTOR;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -104,6 +103,9 @@ import static org.hamcrest.Matchers.startsWith;
 public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
     private static final TimeValue HUNDRED_MS = TimeValue.timeValueMillis(100L);
+
+    // public copy of package-private setting so that tests in other packages can use it
+    public static final Setting<Boolean> IGNORE_DESERIALIZATION_ERRORS_SETTING = TcpTransport.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 
     protected ThreadPool threadPool;
     // we use always a non-alpha or beta version here otherwise minimumCompatibilityVersion will be different for the two used versions
@@ -199,7 +201,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .put(TransportSettings.PORT.getKey(), getPortRange())
             .put(settings)
             .put(Node.NODE_NAME_SETTING.getKey(), name)
-            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING_KEY, true) // suppress assertions to test production error-handling
+            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
             .build();
         if (clusterSettings == null) {
             clusterSettings = new ClusterSettings(updatedSettings, getSupportedSettings());
@@ -3180,9 +3182,5 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             futureHandler.handleException(ex);
         }
         return future;
-    }
-
-    public static String getIgnoreDeserializationErrorsSettingKey() {
-        return IGNORE_DESERIALIZATION_ERRORS_SETTING_KEY;
     }
 }

@@ -52,7 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
-import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.getIgnoreDeserializationErrorsSettingKey;
+import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -342,7 +342,7 @@ public class JoinHelperTests extends ESTestCase {
             releasables.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
 
             final TransportService remoteTransportService = MockTransportService.createNewService(
-                Settings.builder().put(getIgnoreDeserializationErrorsSettingKey(), true).build(),
+                Settings.builder().put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true).build(),
                 Version.CURRENT,
                 threadPool
             );

@@ -98,10 +98,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // this limit is per-address
     private static final int LIMIT_LOCAL_PORTS_COUNT = 6;
 
-    // deliberately unregistered, only used in unit tests
-    static final String IGNORE_DESERIALIZATION_ERRORS_SETTING_KEY = "transport.ignore_deserialization_errors";
-    private static final Setting<Boolean> IGNORE_DESERIALIZATION_ERRORS_SETTING = Setting.boolSetting(
-        IGNORE_DESERIALIZATION_ERRORS_SETTING_KEY,
+    // Deliberately unregistered, only used in unit tests. Copied to AbstractSimpleTransportTestCase#IGNORE_DESERIALIZATION_ERRORS_SETTING
+    // so that tests in other packages can see it too.
+    static final Setting<Boolean> IGNORE_DESERIALIZATION_ERRORS_SETTING = Setting.boolSetting(
+        "transport.ignore_deserialization_errors",
         false,
         Setting.Property.NodeScope
     );

@@ -1,0 +1,6 @@
+pr: 81245
+summary: Use Cloudflare's zlib in Docker images
+area: Packaging
+type: enhancement
+issues:
+ - 81208

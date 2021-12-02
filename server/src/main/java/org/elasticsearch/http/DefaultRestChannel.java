@@ -14,7 +14,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -24,6 +23,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,7 +45,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     static final String SET_COOKIE = "set-cookie";
 
     private final HttpRequest httpRequest;
-    private final BigArrays bigArrays;
+    private final BytesRefRecycler bytesRefRecycler;
     private final HttpHandlingSettings settings;
     private final ThreadContext threadContext;
     private final HttpChannel httpChannel;
@@ -58,7 +58,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         HttpChannel httpChannel,
         HttpRequest httpRequest,
         RestRequest request,
-        BigArrays bigArrays,
+        BytesRefRecycler bytesRefRecycler,
         HttpHandlingSettings settings,
         ThreadContext threadContext,
         CorsHandler corsHandler,
@@ -67,7 +67,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         super(request, settings.getDetailedErrorsEnabled());
         this.httpChannel = httpChannel;
         this.httpRequest = httpRequest;
-        this.bigArrays = bigArrays;
+        this.bytesRefRecycler = bytesRefRecycler;
         this.settings = settings;
         this.threadContext = threadContext;
         this.corsHandler = corsHandler;
@@ -76,7 +76,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
     @Override
     protected BytesStreamOutput newBytesOutput() {
-        return new ReleasableBytesStreamOutput(bigArrays);
+        return new ReleasableBytesStreamOutput(bytesRefRecycler);
     }
 
     @Override

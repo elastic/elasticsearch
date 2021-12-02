@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 /**
  * An bytes stream output that allows providing a {@link BigArrays} instance
@@ -26,12 +27,15 @@ import org.elasticsearch.core.Releasables;
 public class ReleasableBytesStreamOutput extends BytesStreamOutput implements Releasable {
 
     public ReleasableBytesStreamOutput(BigArrays bigarrays) {
-        this(PageCacheRecycler.PAGE_SIZE_IN_BYTES, bigarrays);
+        this(PageCacheRecycler.PAGE_SIZE_IN_BYTES, null);
     }
 
-    public ReleasableBytesStreamOutput(int expectedSize, BigArrays bigArrays) {
-        // TODO: FIX!!!!!!!!
-        super(expectedSize);
+    public ReleasableBytesStreamOutput(BytesRefRecycler recycler) {
+        super(PageCacheRecycler.BYTE_PAGE_SIZE, recycler);
+    }
+
+    public ReleasableBytesStreamOutput(int expectedSize, BytesRefRecycler recycler) {
+        super(expectedSize, recycler);
     }
 
     @Override

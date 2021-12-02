@@ -30,6 +30,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.After;
@@ -59,14 +60,14 @@ import static org.mockito.Mockito.verify;
 public class DefaultRestChannelTests extends ESTestCase {
 
     private ThreadPool threadPool;
-    private MockBigArrays bigArrays;
+    private BytesRefRecycler recycler;
     private HttpChannel httpChannel;
 
     @Before
     public void setup() {
         httpChannel = mock(HttpChannel.class);
         threadPool = new TestThreadPool("test");
-        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
     }
 
     @After
@@ -143,7 +144,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             httpChannel,
             httpRequest,
             request,
-            bigArrays,
+            recycler,
             handlingSettings,
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
@@ -179,7 +180,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             httpChannel,
             httpRequest,
             request,
-            bigArrays,
+            recycler,
             handlingSettings,
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
@@ -207,7 +208,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             httpChannel,
             httpRequest,
             request,
-            bigArrays,
+            recycler,
             handlingSettings,
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
@@ -274,7 +275,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             httpChannel,
             httpRequest,
             request,
-            bigArrays,
+            recycler,
             handlingSettings,
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(settings),
@@ -313,7 +314,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             httpChannel,
             request.getHttpRequest(),
             request,
-            bigArrays,
+            recycler,
             HttpHandlingSettings.fromSettings(Settings.EMPTY),
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(Settings.EMPTY),
@@ -359,7 +360,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             httpChannel,
             request.getHttpRequest(),
             request,
-            bigArrays,
+            recycler,
             HttpHandlingSettings.fromSettings(Settings.EMPTY),
             threadPool.getThreadContext(),
             CorsHandler.fromSettings(Settings.EMPTY),
@@ -397,7 +398,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             httpChannel,
             httpRequest,
             request,
-            bigArrays,
+            recycler,
             httpHandlingSettings,
             threadPool.getThreadContext(),
             new CorsHandler(CorsHandler.buildConfig(settings)),

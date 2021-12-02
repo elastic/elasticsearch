@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -48,7 +49,7 @@ public class CompositeBytesReferenceTests extends AbstractBytesReferenceTestCase
                 referenceList.add(BytesArray.EMPTY);
                 continue;
             }
-            ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(sliceLength, bigarrays);
+            ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(sliceLength, BytesRefRecycler.NON_RECYCLING_INSTANCE);
             for (int j = 0; j < sliceLength; j++) {
                 out.writeByte((byte) random().nextInt(1 << 8));
             }

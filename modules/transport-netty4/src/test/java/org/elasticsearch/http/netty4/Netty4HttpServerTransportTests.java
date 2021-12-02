@@ -43,7 +43,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -53,7 +52,6 @@ import org.elasticsearch.http.CorsHandler;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.http.NullDispatcher;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -89,14 +87,14 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
 
     private NetworkService networkService;
     private ThreadPool threadPool;
-    private MockBigArrays bigArrays;
+    private MockPageCacheRecycler pageCacheRecycler;
     private ClusterSettings clusterSettings;
 
     @Before
     public void setup() throws Exception {
         networkService = new NetworkService(Collections.emptyList());
         threadPool = new TestThreadPool("test");
-        bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        pageCacheRecycler = new MockPageCacheRecycler(Settings.EMPTY);
         clusterSettings = randomClusterSettings();
     }
 
@@ -107,7 +105,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         }
         threadPool = null;
         networkService = null;
-        bigArrays = null;
+        pageCacheRecycler = null;
         clusterSettings = null;
     }
 
@@ -169,7 +167,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
+                pageCacheRecycler,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
@@ -218,7 +216,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 initialSettings,
                 networkService,
-                bigArrays,
+                pageCacheRecycler,
                 threadPool,
                 xContentRegistry(),
                 new NullDispatcher(),
@@ -236,7 +234,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 Netty4HttpServerTransport otherTransport = new Netty4HttpServerTransport(
                     settings,
                     networkService,
-                    bigArrays,
+                    pageCacheRecycler,
                     threadPool,
                     xContentRegistry(),
                     new NullDispatcher(),
@@ -288,7 +286,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
+                pageCacheRecycler,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
@@ -350,7 +348,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 Settings.EMPTY,
                 networkService,
-                bigArrays,
+                pageCacheRecycler,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
@@ -419,7 +417,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
+                pageCacheRecycler,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,
@@ -492,7 +490,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
                 settings,
                 networkService,
-                bigArrays,
+                pageCacheRecycler,
                 threadPool,
                 xContentRegistry(),
                 dispatcher,

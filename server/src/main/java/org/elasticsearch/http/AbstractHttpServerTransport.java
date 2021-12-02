@@ -29,7 +29,7 @@ import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -39,6 +39,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
+import org.elasticsearch.transport.BytesRefRecycler;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -69,7 +70,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected final Settings settings;
     public final HttpHandlingSettings handlingSettings;
     protected final NetworkService networkService;
-    protected final BigArrays bigArrays;
+    protected final BytesRefRecycler bytesRefRecycler;
     protected final ThreadPool threadPool;
     protected final Dispatcher dispatcher;
     protected final CorsHandler corsHandler;
@@ -95,7 +96,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     protected AbstractHttpServerTransport(
         Settings settings,
         NetworkService networkService,
-        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
         ThreadPool threadPool,
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
@@ -103,7 +104,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
     ) {
         this.settings = settings;
         this.networkService = networkService;
-        this.bigArrays = bigArrays;
+        this.bytesRefRecycler = new BytesRefRecycler(pageCacheRecycler);
         this.threadPool = threadPool;
         this.parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
             .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
@@ -439,7 +440,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     httpChannel,
                     httpRequest,
                     restRequest,
-                    bigArrays,
+                    bytesRefRecycler,
                     handlingSettings,
                     threadContext,
                     corsHandler,
@@ -452,7 +453,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                     httpChannel,
                     httpRequest,
                     innerRequest,
-                    bigArrays,
+                    bytesRefRecycler,
                     handlingSettings,
                     threadContext,
                     corsHandler,

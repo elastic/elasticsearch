@@ -15,7 +15,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.BytesRefRecycler;
 
@@ -32,7 +31,6 @@ import java.util.ArrayList;
  */
 public class BytesStreamOutput extends BytesStream {
 
-    private static final BytesRefRecycler NON_RECYCLING_INSTANCE = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
     private static final VarHandle VH_BE_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.BIG_ENDIAN);
     private static final VarHandle VH_BE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
     private static final int MIN_SIZE = 64;
@@ -50,7 +48,7 @@ public class BytesStreamOutput extends BytesStream {
     }
 
     public BytesStreamOutput(int expectedSize) {
-        this(expectedSize, NON_RECYCLING_INSTANCE);
+        this(expectedSize, BytesRefRecycler.NON_RECYCLING_INSTANCE);
     }
 
     protected BytesStreamOutput(int expectedSize, Recycler<BytesRef> recycler) {

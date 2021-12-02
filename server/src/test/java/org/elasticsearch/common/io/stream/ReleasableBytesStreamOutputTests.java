@@ -11,23 +11,23 @@ package org.elasticsearch.common.io.stream;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.IOException;
 
 public class ReleasableBytesStreamOutputTests extends ESTestCase {
 
     public void testRelease() throws Exception {
-        MockBigArrays mockBigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-        try (ReleasableBytesStreamOutput output = getRandomReleasableBytesStreamOutput(mockBigArrays)) {
+        MockPageCacheRecycler mockPageCacheRecycler = new MockPageCacheRecycler(Settings.EMPTY);
+        try (ReleasableBytesStreamOutput output = getRandomReleasableBytesStreamOutput(mockPageCacheRecycler)) {
             output.writeBoolean(randomBoolean());
         }
         MockBigArrays.ensureAllArraysAreReleased();
     }
 
-    private ReleasableBytesStreamOutput getRandomReleasableBytesStreamOutput(MockBigArrays mockBigArrays) throws IOException {
-        ReleasableBytesStreamOutput output = new ReleasableBytesStreamOutput(mockBigArrays);
+    private ReleasableBytesStreamOutput getRandomReleasableBytesStreamOutput(MockPageCacheRecycler pageCacheRecycler) throws IOException {
+        ReleasableBytesStreamOutput output = new ReleasableBytesStreamOutput(new BytesRefRecycler(pageCacheRecycler));
         if (randomBoolean()) {
             for (int i = 0; i < scaledRandomIntBetween(1, 32); i++) {
                 output.write(randomByte());

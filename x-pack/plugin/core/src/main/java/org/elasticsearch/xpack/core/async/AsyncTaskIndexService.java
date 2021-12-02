@@ -29,11 +29,11 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.BigArraysStreamOutput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
-import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -216,7 +216,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public void createResponseForEQL(String docId, Map<String, String> headers, R response, ActionListener<IndexResponse> listener)
         throws IOException {
         try {
-            final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
+            final BigArraysStreamOutput buffer = new BigArraysStreamOutput(0, bigArrays.withCircuitBreaking());
             final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
             listener = ActionListener.runBefore(listener, buffer::close);
             source.startObject()
@@ -242,7 +242,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public void createResponse(String docId, Map<String, String> headers, R response, ActionListener<IndexResponse> listener)
         throws IOException {
         try {
-            final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutputWithLimit(
+            final BigArraysStreamOutput buffer = new ReleasableBytesStreamOutputWithLimit(
                 0,
                 bigArrays.withCircuitBreaking(),
                 maxResponseSize
@@ -285,8 +285,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         boolean isFailure
     ) {
         try {
-            final ReleasableBytesStreamOutput buffer = isFailure
-                ? new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())
+            final BigArraysStreamOutput buffer = isFailure
+                ? new BigArraysStreamOutput(0, bigArrays.withCircuitBreaking())
                 : new ReleasableBytesStreamOutputWithLimit(0, bigArrays.withCircuitBreaking(), maxResponseSize);
             final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
             listener = ActionListener.runBefore(listener, buffer::close);
@@ -642,7 +642,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         }
     }
 
-    private static class ReleasableBytesStreamOutputWithLimit extends ReleasableBytesStreamOutput {
+    private static class ReleasableBytesStreamOutputWithLimit extends BigArraysStreamOutput {
         private final long limit;
 
         ReleasableBytesStreamOutputWithLimit(int expectedSize, BigArrays bigArrays, long limit) {
@@ -651,7 +651,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         }
 
         @Override
-        protected void ensureCapacityFromPosition(long offset) {
+        protected void ensureCapacity(long offset) {
             if (offset > limit) {
                 throw new IllegalArgumentException(
                     "Can't store an async search response larger than ["
@@ -662,7 +662,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                         + "] setting."
                 );
             }
-            super.ensureCapacityFromPosition(offset);
+            super.ensureCapacity(offset);
         }
     }
 }

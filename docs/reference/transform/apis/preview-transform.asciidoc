@@ -64,6 +64,14 @@ Id of the {transform} to preview.
 NOTE: If you provide the `<transform_id>` as a path parameter, you cannot
 provide {transform} configuration details in the request body.
 
+[[preview-transform-query-parms]]
+== {api-query-parms-title}
+
+`timeout`::
+(Optional, time)
+Period to wait for a response. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
+
 [[preview-transform-request-body]]
 == {api-request-body-title}
 

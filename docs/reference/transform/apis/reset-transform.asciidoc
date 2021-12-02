@@ -45,6 +45,11 @@ If this value is `true`, the {transform} is reset regardless of its current
 state. If it's false, the {transform} must be `stopped` before it can be reset.
 The default value is `false`
 
+`timeout`::
+(Optional, time)
+Period to wait for a response. If no response is received before the timeout
+expires, the request fails and returns an error. Defaults to `30s`.
+
 [[reset-transform-examples]]
 == {api-examples-title}
 

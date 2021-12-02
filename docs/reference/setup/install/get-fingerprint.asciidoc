@@ -1,0 +1,28 @@
+==== Connect clients to {es}
+
+When you start {es} for the first time, it generates a hex-coded SHA-256
+fingerprint of the generated HTTPS CA DER-encoded certificate in the terminal.
+To connect your client to {es}, copy this fingerprint and pass it as a parameter.
+Any clients that connect to {es}, such as the 
+https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} Clients],
+{beats}, {ls}, and {fleet} can verify that any certificate in the chain
+matches the fingerprint.
+
+If the auto-configuration process already completed, you can still obtain the 
+fingerprint of the security certificate. Run the following command on any
+running node in the {es} cluster that you want to connect to. Modify
+`<host>:<port>` to match where your {es} node is running.
+
+[source,sh]
+----
+echo | openssl s_client -connect <host>:<port> 2>/dev/null | openssl x509 -issuer -fingerprint -sha256 | sed 's/://g'
+----
+
+The command returns the the security certificate, including the fingerprint.
+The `issuer` should be `Elasticsearch security auto-configuration HTTP CA`.
+
+[source,sh]
+----
+issuer= /CN=Elasticsearch security auto-configuration HTTP CA
+SHA256 Fingerprint=<fingerprint>
+----

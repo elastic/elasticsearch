@@ -403,6 +403,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 onMalformed.accept(e);
             }
         }
+
+        @Override
+        public ShapeBuilder<?, ?, ?> normalizeFromSource(ShapeBuilder<?, ?, ?> geometry) {
+            return geometry;
+        }
     }
 
     public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType<ShapeBuilder<?, ?, ?>> implements GeoShapeQueryable {

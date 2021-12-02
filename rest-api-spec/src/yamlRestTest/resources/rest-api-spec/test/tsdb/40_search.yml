@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       indices.create:
@@ -11,6 +11,9 @@ setup:
               index:
                 mode: time_series
                 routing_path: [metricset, k8s.pod.uid]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
             mappings:
               properties:
                 "@timestamp":
@@ -60,8 +63,8 @@ setup:
 ---
 query a dimension:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       search:
@@ -76,8 +79,8 @@ query a dimension:
 ---
 query a metric:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       search:
@@ -108,8 +111,8 @@ query a metric:
 ---
 fetch a dimension:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       search:
@@ -127,8 +130,8 @@ fetch a dimension:
 ---
 fetch a metric:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       search:
@@ -147,8 +150,8 @@ fetch a metric:
 ---
 fetch a tag:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       search:
@@ -208,8 +211,8 @@ aggregate a dimension:
 ---
 aggregate a metric:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       search:
@@ -236,8 +239,8 @@ aggregate a metric:
 ---
 aggregate a tag:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       search:

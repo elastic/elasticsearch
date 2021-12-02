@@ -115,8 +115,8 @@ public class GetModelSnapshotsAction extends ActionType<GetModelSnapshotsAction.
             return desc;
         }
 
-        public void setDescOrder(boolean desc) {
-            this.desc = desc;
+        public void setDescOrder(boolean descOrder) {
+            this.desc = descOrder;
         }
 
         public PageParams getPageParams() {

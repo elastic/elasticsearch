@@ -2,8 +2,8 @@
 ---
 date:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       indices.create:
@@ -13,6 +13,9 @@ date:
               index:
                 mode: time_series
                 routing_path: [metricset]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -48,8 +51,8 @@ date:
 ---
 date_nanos:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       indices.create:
@@ -59,6 +62,9 @@ date_nanos:
               index:
                 mode: time_series
                 routing_path: [metricset]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -94,8 +100,8 @@ date_nanos:
 ---
 automatically add with date:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       indices.create:
@@ -105,6 +111,9 @@ automatically add with date:
               index:
                 mode: time_series
                 routing_path: [metricset]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -138,8 +147,8 @@ automatically add with date:
 ---
 reject @timestamp with wrong type:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0 to be backported to 7.16.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       catch: /data stream timestamp field \[@timestamp\] is of type \[keyword\], but \[date,date_nanos\] is expected/
@@ -150,6 +159,9 @@ reject @timestamp with wrong type:
               index:
                 mode: time_series
                 routing_path: [metricset]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
                 number_of_replicas: 0
                 number_of_shards: 2
             mappings:
@@ -172,6 +184,9 @@ reject timestamp meta field with wrong type:
             index:
               mode: time_series
               routing_path: [metricset]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -192,6 +207,9 @@ enable timestamp meta field:
             index:
               mode: time_series
               routing_path: [metricset]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -219,6 +237,9 @@ reject bad timestamp meta field:
             index:
               mode: time_series
               routing_path: [metricset]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -238,6 +259,9 @@ write without timestamp:
             index:
               mode: time_series
               routing_path: [metricset]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -275,6 +299,9 @@ explicitly enable timestamp meta field:
             index:
               mode: time_series
               routing_path: [metricset]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
               number_of_replicas: 0
               number_of_shards: 2
           mappings:
@@ -292,7 +319,7 @@ explicitly enable timestamp meta field:
         refresh: true
         index: test
         body: {
-          "@timestamp": 1632625793000,
+          "@timestamp": 2021-04-28T18:50:53.142Z,
           "metricset": "pod",
           "new_field" : "value"
         }
@@ -303,7 +330,7 @@ explicitly enable timestamp meta field:
         body:
           docvalue_fields: [ '@timestamp', 'new_field.keyword' ]
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0.fields.@timestamp: [ "2021-09-26T03:09:53.000Z" ] }
+  - match: { hits.hits.0.fields.@timestamp: [ "2021-04-28T18:50:53.142Z" ] }
   - match: { hits.hits.0.fields.new_field\.keyword: [ "value" ] }
 
   - do:

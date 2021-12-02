@@ -246,20 +246,20 @@ public class EnrichPolicyRunner implements Runnable {
         }
     }
 
-    private XContentBuilder resolveEnrichMapping(final EnrichPolicy policy, final List<Map<String, Object>> mappings) {
-        if (EnrichPolicy.MATCH_TYPE.equals(policy.getType())) {
+    private XContentBuilder resolveEnrichMapping(final EnrichPolicy enrichPolicy, final List<Map<String, Object>> mappings) {
+        if (EnrichPolicy.MATCH_TYPE.equals(enrichPolicy.getType())) {
             return createEnrichMappingBuilder((builder) -> builder.field("type", "keyword").field("doc_values", false));
-        } else if (EnrichPolicy.RANGE_TYPE.equals(policy.getType())) {
-            return createRangeEnrichMappingBuilder(policy, mappings);
-        } else if (EnrichPolicy.GEO_MATCH_TYPE.equals(policy.getType())) {
+        } else if (EnrichPolicy.RANGE_TYPE.equals(enrichPolicy.getType())) {
+            return createRangeEnrichMappingBuilder(enrichPolicy, mappings);
+        } else if (EnrichPolicy.GEO_MATCH_TYPE.equals(enrichPolicy.getType())) {
             return createEnrichMappingBuilder((builder) -> builder.field("type", "geo_shape"));
         } else {
-            throw new ElasticsearchException("Unrecognized enrich policy type [{}]", policy.getType());
+            throw new ElasticsearchException("Unrecognized enrich policy type [{}]", enrichPolicy.getType());
         }
     }
 
-    private XContentBuilder createRangeEnrichMappingBuilder(EnrichPolicy policy, List<Map<String, Object>> mappings) {
-        String matchFieldPath = "properties." + policy.getMatchField().replace(".", ".properties.");
+    private XContentBuilder createRangeEnrichMappingBuilder(EnrichPolicy enrichPolicy, List<Map<String, Object>> mappings) {
+        String matchFieldPath = "properties." + enrichPolicy.getMatchField().replace(".", ".properties.");
         List<Map<String, String>> matchFieldMappings = mappings.stream()
             .map(map -> ObjectPath.<Map<String, String>>eval(matchFieldPath, map))
             .filter(Objects::nonNull)
@@ -295,15 +295,15 @@ public class EnrichPolicyRunner implements Runnable {
                     }
                     throw new ElasticsearchException(
                         "Multiple distinct date format specified for match field '{}' - indices({})  format entries({})",
-                        policy.getMatchField(),
-                        Strings.collectionToCommaDelimitedString(policy.getIndices()),
+                        enrichPolicy.getMatchField(),
+                        Strings.collectionToCommaDelimitedString(enrichPolicy.getIndices()),
                         (formatEntries.contains(null) ? "(DEFAULT), " : "") + Strings.collectionToCommaDelimitedString(formatEntries)
                     );
 
                 default:
                     throw new ElasticsearchException(
                         "Field '{}' has type [{}] which doesn't appear to be a range type",
-                        policy.getMatchField(),
+                        enrichPolicy.getMatchField(),
                         type
                     );
             }
@@ -311,14 +311,14 @@ public class EnrichPolicyRunner implements Runnable {
         if (types.isEmpty()) {
             throw new ElasticsearchException(
                 "No mapping type found for match field '{}' - indices({})",
-                policy.getMatchField(),
-                Strings.collectionToCommaDelimitedString(policy.getIndices())
+                enrichPolicy.getMatchField(),
+                Strings.collectionToCommaDelimitedString(enrichPolicy.getIndices())
             );
         }
         throw new ElasticsearchException(
             "Multiple distinct mapping types for match field '{}' - indices({})  types({})",
-            policy.getMatchField(),
-            Strings.collectionToCommaDelimitedString(policy.getIndices()),
+            enrichPolicy.getMatchField(),
+            Strings.collectionToCommaDelimitedString(enrichPolicy.getIndices()),
             Strings.collectionToCommaDelimitedString(types)
         );
     }

@@ -140,8 +140,8 @@ public class GetRecordsAction extends ActionType<GetRecordsAction.Response> {
             return recordScoreFilter;
         }
 
-        public void setRecordScore(double recordScoreFilter) {
-            this.recordScoreFilter = recordScoreFilter;
+        public void setRecordScore(double recordScore) {
+            this.recordScoreFilter = recordScore;
         }
 
         public String getSort() {

@@ -1,11 +1,9 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
-
 
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Architecture
@@ -72,8 +70,12 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     String clusterName = versionNoDots
 
     def testClusterProvider = testClusters.register(clusterName) {
+      testDistribution = 'DEFAULT'
       setting 'path.repo', repoLocation
-      setting 'xpack.security.enabled', 'false'
+      setting 'xpack.license.self_generated.type', 'trial'
+
+      setting 'xpack.security.enabled', 'true'
+      user username: 'admin', password: 'admin-password', role: 'superuser'
     }
 
     TaskProvider<AntFixture> fixture = tasks.register("oldES${versionNoDots}Fixture", AntFixture) {

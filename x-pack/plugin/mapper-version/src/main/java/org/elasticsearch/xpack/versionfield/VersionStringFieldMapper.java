@@ -44,12 +44,12 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.versionfield.VersionEncoder.EncodedVersion;
-import org.elasticsearch.xpack.versionfield.VersionScriptDocValues.VersionScriptSupplier;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -63,6 +63,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
+import static org.elasticsearch.xpack.versionfield.VersionScriptDocValues.VersionScriptSupplier;
 
 /**
  * A {@link FieldMapper} for indexing fields with version strings.
@@ -282,8 +283,8 @@ public class VersionStringFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
-                dv -> new VersionScriptDocValues(new VersionScriptSupplier(dv)),
-                CoreValuesSourceType.KEYWORD
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new DelegateDocValuesField(new VersionScriptDocValues(new VersionScriptSupplier(dv)), n)
             );
         }
 

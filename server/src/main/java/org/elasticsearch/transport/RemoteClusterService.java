@@ -398,11 +398,12 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
     /**
      * Returns a client to the remote cluster if the given cluster alias exists.
      *
-     * @param threadPool   the {@link ThreadPool} for the client
-     * @param clusterAlias the cluster alias the remote cluster is registered under
+     * @param threadPool      the {@link ThreadPool} for the client
+     * @param clusterAlias    the cluster alias the remote cluster is registered under
+     * @param ensureConnected whether requests should wait for a connection attempt when there isn't a connection available
      * @throws IllegalArgumentException if the given clusterAlias doesn't exist
      */
-    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
+    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias, boolean ensureConnected) {
         if (transportService.getRemoteClusterService().isEnabled() == false) {
             throw new IllegalArgumentException(
                 "this node does not have the " + DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName() + " role"
@@ -411,7 +412,22 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         if (transportService.getRemoteClusterService().getRemoteClusterNames().contains(clusterAlias) == false) {
             throw new NoSuchRemoteClusterException(clusterAlias);
         }
-        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias);
+        return new RemoteClusterAwareClient(settings, threadPool, transportService, clusterAlias, ensureConnected);
+    }
+
+    /**
+     * Returns a client to the remote cluster if the given cluster alias exists.
+     *
+     * @param threadPool   the {@link ThreadPool} for the client
+     * @param clusterAlias the cluster alias the remote cluster is registered under
+     * @throws IllegalArgumentException if the given clusterAlias doesn't exist
+     */
+    public Client getRemoteClusterClient(ThreadPool threadPool, String clusterAlias) {
+        return getRemoteClusterClient(
+            threadPool,
+            clusterAlias,
+            transportService.getRemoteClusterService().isSkipUnavailable(clusterAlias) == false
+        );
     }
 
     Collection<RemoteClusterConnection> getConnections() {

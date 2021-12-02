@@ -82,7 +82,7 @@ public class SearchGroupsResolverInMemoryTests extends LdapTestCase {
 
             // Wait for the async search to complete or timeout.
             // Without this, we might trigger an orphaned thread - see https://github.com/pingidentity/ldapsdk/issues/120
-            assertBusy(() -> assertThat(connection.getActiveOperationCount(), lessThanOrEqualTo(0)), 1000, TimeUnit.MILLISECONDS);
+            assertBusy(() -> assertThat(connection.getActiveOperationCount(), lessThanOrEqualTo(0)), 2000, TimeUnit.MILLISECONDS);
         }
     }
 

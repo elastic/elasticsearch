@@ -52,6 +52,10 @@ if [ -z "$LIBFFI_TMPDIR" ]; then
   export LIBFFI_TMPDIR
 fi
 
+if [ "$ES_DISTRIBUTION_TYPE" = 'docker' ] && [ -d '/usr/local/cloudflare-zlib/lib' ]; then
+  export LD_LIBRARY_PATH="/usr/local/cloudflare-zlib/lib:$LD_LIBRARY_PATH"
+fi
+
 # get keystore password before setting java options to avoid
 # conflicting GC configurations for the keystore tools
 unset KEYSTORE_PASSWORD

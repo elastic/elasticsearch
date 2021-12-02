@@ -703,8 +703,10 @@ public class BigArraysStreamOutputTests extends ESTestCase {
 
         assertNotEquals(mapKeys, reverseMapKeys);
 
-        try (BigArraysStreamOutput output = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
-             BigArraysStreamOutput reverseMapOutput = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE)) {
+        try (
+            BigArraysStreamOutput output = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE);
+            BigArraysStreamOutput reverseMapOutput = new BigArraysStreamOutput(BigArrays.NON_RECYCLING_INSTANCE)
+        ) {
             output.writeMapWithConsistentOrder(map);
             reverseMapOutput.writeMapWithConsistentOrder(reverseMap);
 

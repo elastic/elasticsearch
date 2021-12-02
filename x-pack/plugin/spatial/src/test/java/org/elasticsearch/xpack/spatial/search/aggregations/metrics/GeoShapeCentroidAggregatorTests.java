@@ -158,7 +158,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                 GeoTestUtils.binaryGeoShapeDocValuesField("field", geometry);
             } catch (IllegalArgumentException e) {
                 // do not include geometry.
-                continue;
+                assumeNoException("The geometry[" + geometry.toString() + "] is not supported", e);
             }
             geometries.add(geometry);
             // find dimensional-shape-type of geometry

@@ -938,8 +938,8 @@ public class JobUpdate implements Writeable, ToXContentObject {
             return this;
         }
 
-        public Builder setClearFinishTime(boolean clearJobFinishTime) {
-            this.clearJobFinishTime = clearJobFinishTime;
+        public Builder setClearFinishTime(boolean clearFinishTime) {
+            this.clearJobFinishTime = clearFinishTime;
             return this;
         }
 

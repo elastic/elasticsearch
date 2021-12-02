@@ -2253,7 +2253,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .build();
         DataStream dataStream = new DataStream(
             dataStreamName,
-            DataStream.Type.DEFAULT,
+            DataStream.Type.STANDARD,
             new DataStream.TimestampField("@timestamp"),
             List.of(indexMetadata.getIndex()),
             1,

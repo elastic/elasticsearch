@@ -160,7 +160,7 @@ public final class DataStreamTestHelper {
         }
         return new DataStream(
             dataStreamName,
-            DataStream.Type.DEFAULT,
+            DataStream.Type.STANDARD,
             createTimestampField("@timestamp"),
             indices,
             generation,

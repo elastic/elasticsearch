@@ -243,7 +243,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(hidden, false, DataStream.Type.DEFAULT),
+            new ComposableIndexTemplate.DataStreamTemplate(hidden, false, DataStream.Type.STANDARD),
             null
         );
         assertTrue(

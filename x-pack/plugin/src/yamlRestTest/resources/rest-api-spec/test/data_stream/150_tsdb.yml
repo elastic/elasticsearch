@@ -11,7 +11,8 @@ setup:
         name: my-template1
         body:
           index_patterns: [k8s*]
-          data_stream: {}
+          data_stream:
+            type: time_series
           template:
             settings:
               index:
@@ -19,9 +20,6 @@ setup:
                 number_of_shards: 2
                 mode: time_series
                 routing_path: [metricset, time_series_dimension]
-                time_series:
-                  start_time: 2021-04-28T00:00:00Z
-                  end_time: 2021-04-29T00:00:00Z
             mappings:
               properties:
                 "@timestamp":
@@ -80,6 +78,7 @@ created the data stream:
         name: '*'
   - length: { data_streams: 1 }
   - match: { data_streams.0.name: 'k8s' }
+  - match: { data_streams.0.type: 'time_series' }
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
   - match: { data_streams.0.generation: 1 }
   - length: { data_streams.0.indices: 1 }
@@ -139,3 +138,13 @@ fetch the tsid:
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
   - match: {aggregations.tsids.buckets.1.key: 'k8s.pod.uid:df3145b3-0563-4d3b-a0f7-897eb2876ea9,metricset:pod'}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
+
+---
+time_series rollover:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+
+  - do:
+      indices.rollover:
+        alias: 'k8s'

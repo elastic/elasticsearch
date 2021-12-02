@@ -71,7 +71,7 @@ public class TSDBDataStreamService extends AbstractLifecycleComponent implements
     ClusterState updateTimeSeriesEndTimes(ClusterState current) {
         Metadata.Builder mBuilder = null;
         for (DataStream dataStream : current.metadata().dataStreams().values()) {
-            if (dataStream.getType() != DataStream.Type.TSDB) {
+            if (dataStream.getType() != DataStream.Type.TIME_SERIES) {
                 continue;
             }
             if (dataStream.isReplicated()) {

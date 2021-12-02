@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.cluster.metadata.DataStream.Type.STANDARD;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportPutFollowActionTests extends ESTestCase {
@@ -80,7 +81,7 @@ public class TransportPutFollowActionTests extends ESTestCase {
             .collect(Collectors.toList());
         return new DataStream(
             name,
-            DataStream.Type.DEFAULT,
+            STANDARD,
             new TimestampField("@timestamp"),
             backingIndices,
             backingIndices.size(),
@@ -94,7 +95,7 @@ public class TransportPutFollowActionTests extends ESTestCase {
     static DataStream generateDataSteam(String name, int generation, boolean replicate, String... backingIndexNames) {
         List<Index> backingIndices = Arrays.stream(backingIndexNames).map(value -> new Index(value, "uuid")).collect(Collectors.toList());
         TimestampField timestampField = new TimestampField("@timestamp");
-        return new DataStream(name, DataStream.Type.DEFAULT, timestampField, backingIndices, generation, Map.of(), false, replicate, false);
+        return new DataStream(name, STANDARD, timestampField, backingIndices, generation, Map.of(), false, replicate, false);
     }
 
 }

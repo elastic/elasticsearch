@@ -1145,7 +1145,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, true, DataStream.Type.DEFAULT)
+            new ComposableIndexTemplate.DataStreamTemplate(false, true, DataStream.Type.STANDARD)
         );
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,
@@ -1796,7 +1796,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, true, DataStream.Type.DEFAULT)
+            new ComposableIndexTemplate.DataStreamTemplate(false, true, DataStream.Type.STANDARD)
         );
         ComposableIndexTemplate finalTemplate = template;
         client().execute(
@@ -1817,7 +1817,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, true, DataStream.Type.DEFAULT)
+            new ComposableIndexTemplate.DataStreamTemplate(false, true, DataStream.Type.STANDARD)
         );
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,
@@ -1838,7 +1838,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, false, DataStream.Type.DEFAULT)
+            new ComposableIndexTemplate.DataStreamTemplate(false, false, DataStream.Type.STANDARD)
         );
         ComposableIndexTemplate finalTemplate1 = template;
         Exception e = expectThrows(
@@ -1875,7 +1875,7 @@ public class DataStreamIT extends ESIntegTestCase {
             null,
             null,
             null,
-            new ComposableIndexTemplate.DataStreamTemplate(false, true, DataStream.Type.DEFAULT)
+            new ComposableIndexTemplate.DataStreamTemplate(false, true, DataStream.Type.STANDARD)
         );
         client().execute(
             PutComposableIndexTemplateAction.INSTANCE,

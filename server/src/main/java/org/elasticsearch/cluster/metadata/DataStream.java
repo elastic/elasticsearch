@@ -89,7 +89,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     private final boolean allowCustomRouting;
 
     public DataStream(String name, TimestampField timeStampField, List<Index> indices, long generation, Map<String, Object> metadata) {
-        this(name, Type.DEFAULT, timeStampField, indices, generation, metadata, false, false, false, false);
+        this(name, Type.STANDARD, timeStampField, indices, generation, metadata, false, false, false, false);
     }
 
     public DataStream(
@@ -160,7 +160,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         boolean allowCustomRouting
     ) {
         this.name = name;
-        this.type = type != null ? type : Type.DEFAULT;
+        this.type = type != null ? type : Type.STANDARD;
         this.timeStampField = timeStampField;
         this.indices = Collections.unmodifiableList(indices);
         this.generation = generation;
@@ -202,7 +202,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     public Index getWriteIndex(DocWriteRequest<?> request, Metadata metadata) {
-        if (type != Type.TSDB) {
+        if (type != Type.TIME_SERIES) {
             return getWriteIndex();
         }
 
@@ -642,13 +642,16 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     public enum Type {
 
-        DEFAULT,
-        TSDB;
+        STANDARD,
+        TIME_SERIES;
 
         public static Type fromString(String name) {
-            return name != null ? valueOf(name.trim().toUpperCase(Locale.ROOT)) : DEFAULT;
+            return name != null ? valueOf(name.trim().toUpperCase(Locale.ROOT)) : STANDARD;
         }
 
+        public String string() {
+            return super.toString().toLowerCase(Locale.ROOT);
+        }
     }
 
     public static final class TimestampField implements Writeable, ToXContentObject {

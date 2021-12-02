@@ -328,7 +328,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         private final DataStream.Type type;
 
         public DataStreamTemplate() {
-            this(false, false, DataStream.Type.DEFAULT);
+            this(false, false, DataStream.Type.STANDARD);
         }
 
         public DataStreamTemplate(boolean hidden, boolean allowCustomRouting, DataStream.Type type) {
@@ -344,7 +344,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             } else {
                 allowCustomRouting = false;
             }
-            type = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readEnum(DataStream.Type.class) : DataStream.Type.DEFAULT;
+            type = in.getVersion().onOrAfter(Version.V_8_1_0) ? in.readEnum(DataStream.Type.class) : DataStream.Type.STANDARD;
         }
 
         public String getTimestampField() {

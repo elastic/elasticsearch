@@ -38,7 +38,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -208,12 +207,9 @@ public class MetadataCreateDataStreamService {
                 firstBackingIndexName
             ).dataStreamName(dataStreamName).systemDataStreamDescriptor(systemDataStreamDescriptor);
 
-            if (template.getDataStreamTemplate().getType() == DataStream.Type.TSDB) {
-                Instant start = Instant.ofEpochMilli(request.startTime);
-                Instant end = start.plus(DataStream.DEFAULT_LOOK_AHEAD_TIME);
-
-                // start - 5 minutes, because there may be docs still inflight before request.startTime?
-                start = start.minus(5, ChronoUnit.MINUTES);
+            if (template.getDataStreamTemplate().getType() == DataStream.Type.TIME_SERIES) {
+                Instant start = Instant.ofEpochMilli(0);
+                Instant end = Instant.ofEpochMilli(request.startTime).plus(DataStream.DEFAULT_LOOK_AHEAD_TIME);
 
                 Settings.Builder indexSettingsBuilder = Settings.builder();
                 DateFormatter dateFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;

@@ -2831,7 +2831,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                     .put(
                         new DataStream(
                             dataStream1,
-                            DataStream.Type.DEFAULT,
+                            DataStream.Type.STANDARD,
                             createTimestampField("@timestamp"),
                             List.of(index1.getIndex(), index2.getIndex()),
                             2,

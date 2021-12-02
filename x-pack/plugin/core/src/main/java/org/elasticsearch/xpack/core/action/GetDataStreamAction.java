@@ -189,14 +189,14 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
                 builder.field(DataStream.NAME_FIELD.getPreferredName(), dataStream.getName());
-                builder.field(DataStream.TYPE_FIELD.getPreferredName(), dataStream.getType().toString());
+                builder.field(DataStream.TYPE_FIELD.getPreferredName(), dataStream.getType().string());
                 builder.field(DataStream.TIMESTAMP_FIELD_FIELD.getPreferredName(), dataStream.getTimeStampField());
                 builder.startArray(DataStream.INDICES_FIELD.getPreferredName());
                 for (IndexMetadata im : indexMetadatas) {
                     builder.startObject();
                     builder.field(Index.INDEX_NAME_KEY, im.getIndex().getName());
                     builder.field(Index.INDEX_UUID_KEY, im.getIndex().getUUID());
-                    if (dataStream.getType() == DataStream.Type.TSDB) {
+                    if (dataStream.getType() == DataStream.Type.TIME_SERIES) {
                         builder.field(
                             IndexSettings.TIME_SERIES_START_TIME.getKey(),
                             im.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey())

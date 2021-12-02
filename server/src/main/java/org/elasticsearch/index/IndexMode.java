@@ -89,8 +89,10 @@ public enum IndexMode {
                 }
             }
             settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
+            // TODO: Uncomment and fix this. Currently this fails when putting templates with data stream snippets.
+            // (create data stream logic injects these settings automatically so no need to specify this in the template)
+            // settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
+            // settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
         }
 
         private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {

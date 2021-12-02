@@ -101,7 +101,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
                 coerce.get().value(),
                 ignoreZValue.get().value()
             );
-            GeoShapeParser geoShapeParser = new GeoShapeParser(geometryParser);
+            GeoShapeParser geoShapeParser = new GeoShapeParser(geometryParser, orientation.get().value());
             GeoShapeFieldType ft = new GeoShapeFieldType(
                 context.buildFullName(name),
                 indexed.get(),

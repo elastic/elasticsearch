@@ -17,7 +17,7 @@ return an error and the job waits in the `opening` state until sufficient {ml}
 node capacity is available.
 end::allow-lazy-open[]
 
-tag::allow-no-datafeeds[]
+tag::allow-no-match-datafeeds[]
 Specifies what to do when the request:
 +
 --
@@ -30,24 +30,24 @@ there are no matches and the subset of results when there are partial matches.
 If this parameter is `false`, the request returns a `404` status code when there
 are no matches or only partial matches.
 --
-end::allow-no-datafeeds[]
+end::allow-no-match-datafeeds[]
 
-tag::allow-no-jobs[]
+tag::allow-no-match-deployments[]
 Specifies what to do when the request:
 +
 --
-* Contains wildcard expressions and there are no jobs that match.
+* Contains wildcard expressions and there are no deployments that match.
 * Contains the `_all` string or no identifiers and there are no matches.
 * Contains wildcard expressions and there are only partial matches.
 
-The default value is `true`, which returns an empty `jobs` array
-when there are no matches and the subset of results when there are partial
-matches. If this parameter is `false`, the request returns a `404` status code
-when there are no matches or only partial matches.
+The default value is `true`, which returns an empty array when there are no
+matches and the subset of results when there are partial matches. If this
+parameter is `false`, the request returns a `404` status code when there are no
+matches or only partial matches.
 --
-end::allow-no-jobs[]
+end::allow-no-match-deployments[]
 
-tag::allow-no-match[]
+tag::allow-no-match-dfa-jobs[]
  Specifies what to do when the request:
 +
 --
@@ -60,7 +60,22 @@ when there are no matches and the subset of results when there are partial
 matches. If this parameter is `false`, the request returns a `404` status code
 when there are no matches or only partial matches.
 --
-end::allow-no-match[]
+end::allow-no-match-dfa-jobs[]
+
+tag::allow-no-match-jobs[]
+Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no jobs that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches.
+
+The default value is `true`, which returns an empty `jobs` array
+when there are no matches and the subset of results when there are partial
+matches. If this parameter is `false`, the request returns a `404` status code
+when there are no matches or only partial matches.
+--
+end::allow-no-match-jobs[]
 
 tag::allow-no-match-models[]
 Specifies what to do when the request:

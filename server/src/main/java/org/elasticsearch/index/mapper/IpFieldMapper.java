@@ -19,18 +19,22 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.IpScriptDocValues.IpSupplier;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
@@ -349,27 +353,52 @@ public class IpFieldMapper extends FieldMapper {
 
         public static final class IpScriptDocValues extends ScriptDocValues<String> {
 
-            private final SortedSetDocValues in;
-            private long[] ords = new long[0];
-            private int count;
+            public static final class IpSupplier implements ScriptDocValues.Supplier<String> {
 
-            public IpScriptDocValues(SortedSetDocValues in) {
-                this.in = in;
-            }
+                private final SortedSetDocValues in;
+                private long[] ords = new long[0];
+                private int count;
 
-            @Override
-            public void setNextDocId(int docId) throws IOException {
-                count = 0;
-                if (in.advanceExact(docId)) {
-                    for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
-                        ords = ArrayUtil.grow(ords, count + 1);
-                        ords[count++] = ord;
+                public IpSupplier(SortedSetDocValues in) {
+                    this.in = in;
+                }
+
+                @Override
+                public void setNextDocId(int docId) throws IOException {
+                    count = 0;
+                    if (in.advanceExact(docId)) {
+                        for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
+                            ords = ArrayUtil.grow(ords, count + 1);
+                            ords[count++] = ord;
+                        }
                     }
+                }
+
+                @Override
+                public String getInternal(int index) {
+                    try {
+                        BytesRef encoded = in.lookupOrd(ords[index]);
+                        InetAddress address = InetAddressPoint.decode(
+                            Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)
+                        );
+                        return InetAddresses.toAddrString(address);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                @Override
+                public int size() {
+                    return count;
                 }
             }
 
+            public IpScriptDocValues(IpSupplier supplier) {
+                super(supplier);
+            }
+
             public String getValue() {
-                if (count == 0) {
+                if (supplier.size() == 0) {
                     return null;
                 } else {
                     return get(0);
@@ -378,27 +407,23 @@ public class IpFieldMapper extends FieldMapper {
 
             @Override
             public String get(int index) {
-                try {
-                    BytesRef encoded = in.lookupOrd(ords[index]);
-                    InetAddress address = InetAddressPoint.decode(
-                        Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)
-                    );
-                    return InetAddresses.toAddrString(address);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                return supplier.getInternal(index);
             }
 
             @Override
             public int size() {
-                return count;
+                return supplier.size();
             }
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), IpScriptDocValues::new, CoreValuesSourceType.IP);
+            return new SortedSetOrdinalsIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.IP,
+                (dv, n) -> new DelegateDocValuesField(new IpScriptDocValues(new IpSupplier(dv)), n)
+            );
         }
 
         @Override
@@ -497,18 +522,17 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
+        if (dimension) {
+            // Encode the tsid part of the dimension field if the _tsid field is enabled.
+            // If the _tsid field is not enabled, we can skip the encoding part.
+            BytesReference bytes = context.getMetadataMapper(TimeSeriesIdFieldMapper.NAME) != null
+                ? TimeSeriesIdFieldMapper.encodeTsidValue(NetworkAddress.format(address))
+                : null;
+            context.doc().addDimensionBytes(fieldType().name(), bytes);
+        }
         if (indexed) {
             Field field = new InetAddressPoint(fieldType().name(), address);
-            if (dimension) {
-                // Add dimension field with key so that we ensure it is single-valued.
-                // Dimension fields are always indexed.
-                if (context.doc().getByKey(fieldType().name()) != null) {
-                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
-                }
-                context.doc().addWithKey(fieldType().name(), field);
-            } else {
-                context.doc().add(field);
-            }
+            context.doc().add(field);
         }
         if (hasDocValues) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));

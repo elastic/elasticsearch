@@ -8,19 +8,6 @@
 //tag::notable-breaking-changes[]
 TIP: {ess-setting-change}
 
-.You can no longer set `xpack.searchable.snapshot.shared_cache.size` on non-frozen nodes. {ess-icon}
-[%collapsible]
-====
-*Details* +
-Setting `xpack.searchable.snapshot.shared_cache.size` on a node
-that does not have the `data_frozen` role was deprecated in {es} 7.12.0 and has
-been removed in {es} 8.0.0.
-
-*Impact* +
-{es} only allocates partially mounted indices to nodes with the `data_frozen`
-role. Remove the `xpack.searchable.snapshot.shared_cache.size` setting from nodes that don't have the `data_frozen` role. 
-====
-
 .`action.destructive_requires_name` now defaults to `false`. {ess-icon}
 [%collapsible]
 ====
@@ -38,6 +25,22 @@ operations explicitly name the indices to be modified.
 To use wildcard patterns for destructive actions, set
 `action.destructive_requires_name` to `false` using the
 {ref}/cluster-update-settings.html[] cluster settings API].
+====
+
+.You can no longer set `xpack.searchable.snapshot.shared_cache.size` on non-frozen nodes.
+[%collapsible]
+====
+*Details* +
+You can no longer set
+{ref}/searchable-snapshots.html#searchable-snapshots-shared-cache[`xpack.searchable.snapshot.shared_cache.size`]
+on a node that doesn't have the `data_frozen` node role. This setting reserves
+disk space for the shared cache of partially mounted indices. {es} only
+allocates partially mounted indices to nodes with the `data_frozen` role.
+
+*Impact* +
+Remove `xpack.searchable.snapshot.shared_cache.size` from `elasticsearch.yml`
+for nodes that don't have the `data_frozen` role. Specifying the setting on a
+non-frozen node will result in an error on startup.
 ====
 
 [[max_clause_count_change]]
@@ -851,6 +854,22 @@ was explicitly configured. Starting in 8.0,
 *Impact* +
 This configuration means that transport compression will produce somewhat lower
 compression ratios in exchange for lower CPU load.
+====
+
+.The `repositories.fs.compress` node-level setting has been removed.
+[%collapsible]
+====
+*Details* +
+For shared file system repositories (`"type": "fs"`), the node level setting `repositories.fs.compress` could
+previously be used to enable compression for all shared file system repositories where `compress` was not specified.
+The `repositories.fs.compress` setting has been removed.
+
+*Impact* +
+Use the repository specific `compress` setting to enable compression. See
+{ref}/snapshots-register-repository.html[Register a snapshot repository] for
+information on the `compress` setting.
+
+Discontinue use of the `repositories.fs.compress` node-level setting.
 ====
 //end::notable-breaking-changes[]
 

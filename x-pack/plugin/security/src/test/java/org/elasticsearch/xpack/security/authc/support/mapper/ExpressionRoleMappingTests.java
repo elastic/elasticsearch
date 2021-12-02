@@ -331,7 +331,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
         output.setVersion(version);
         original.writeTo(output);
 
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput streamInput = new NamedWriteableAwareStreamInput(
             ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
             registry
@@ -349,7 +349,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
         output.setVersion(version);
         original.writeTo(output);
 
-        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
+        final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
         StreamInput streamInput = new NamedWriteableAwareStreamInput(
             ByteBufferStreamInput.wrap(BytesReference.toBytes(output.bytes())),
             registry

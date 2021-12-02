@@ -42,7 +42,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
@@ -300,8 +299,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
             assertThat(snapshotShardsStats.size(), equalTo(1));
             for (Map<String, Object> value : snapshotShardsStats.get(0).values()) {
-                assertThat(extractValue(value, "stats.total.file_count"), equalTo(1));
-                assertThat(extractValue(value, "stats.incremental.file_count"), lessThanOrEqualTo(1));
+                assertThat(extractValue(value, "stats.total.file_count"), equalTo(0));
+                assertThat(extractValue(value, "stats.incremental.file_count"), equalTo(0));
             }
 
             deleteIndex(restoredIndexName);

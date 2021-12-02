@@ -419,12 +419,11 @@ GET _cat/shards?v=true&h=index,shard,prirep,state,node,unassigned.reason&s=state
 ----
 
 Unassigned shards have a `state` of `UNASSIGNED`. The `prirep` value is `p` for
-primary shards and `r` for replicas. The `unassigned.reason` describes why the
-shard remains unassigned.
+primary shards and `r` for replicas.
 
-To get a more in-depth explanation of an unassigned shard's allocation status,
-use the <<cluster-allocation-explain,cluster allocation explanation API>>. You
-can often use details in the response to resolve the issue.
+To understand why an unassigned shard is not being assigned and what action
+you must take to allow {es} to assign it, use the
+<<cluster-allocation-explain,cluster allocation explanation API>>.
 
 [source,console]
 ----

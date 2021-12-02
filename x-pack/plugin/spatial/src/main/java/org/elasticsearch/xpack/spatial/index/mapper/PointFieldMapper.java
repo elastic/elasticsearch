@@ -234,5 +234,10 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         protected void reset(CartesianPoint in, double x, double y) {
             in.reset(x, y);
         }
+
+        @Override
+        public CartesianPoint normalizeFromSource(CartesianPoint point) {
+            return point;
+        }
     }
 }

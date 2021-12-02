@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
@@ -41,6 +42,8 @@ public class InboundHandler {
     private final TransportKeepAlive keepAlive;
     private final Transport.ResponseHandlers responseHandlers;
     private final Transport.RequestHandlers requestHandlers;
+    private final HandlingTimeTracker handlingTimeTracker;
+    private final boolean ignoreDeserializationErrors;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
@@ -53,7 +56,9 @@ public class InboundHandler {
         TransportHandshaker handshaker,
         TransportKeepAlive keepAlive,
         Transport.RequestHandlers requestHandlers,
-        Transport.ResponseHandlers responseHandlers
+        Transport.ResponseHandlers responseHandlers,
+        HandlingTimeTracker handlingTimeTracker,
+        boolean ignoreDeserializationErrors
     ) {
         this.threadPool = threadPool;
         this.outboundHandler = outboundHandler;
@@ -62,6 +67,8 @@ public class InboundHandler {
         this.keepAlive = keepAlive;
         this.requestHandlers = requestHandlers;
         this.responseHandlers = responseHandlers;
+        this.handlingTimeTracker = handlingTimeTracker;
+        this.ignoreDeserializationErrors = ignoreDeserializationErrors;
     }
 
     void setMessageListener(TransportMessageListener listener) {
@@ -77,7 +84,7 @@ public class InboundHandler {
     }
 
     void inboundMessage(TcpChannel channel, InboundMessage message) throws Exception {
-        final long startTime = threadPool.relativeTimeInMillis();
+        final long startTime = threadPool.rawRelativeTimeInMillis();
         channel.getChannelStats().markAccessed(startTime);
         TransportLogger.logInboundMessage(channel, message);
 
@@ -138,7 +145,7 @@ public class InboundHandler {
                         final int nextByte = streamInput.read();
                         // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
                         if (nextByte != -1) {
-                            throw new IllegalStateException(
+                            final IllegalStateException exception = new IllegalStateException(
                                 "Message not fully read (response) for requestId ["
                                     + requestId
                                     + "], handler ["
@@ -147,6 +154,8 @@ public class InboundHandler {
                                     + header.isError()
                                     + "]; resetting"
                             );
+                            assert ignoreDeserializationErrors : exception;
+                            throw exception;
                         }
                     } else {
                         assert header.isError() == false;
@@ -155,7 +164,8 @@ public class InboundHandler {
                 }
             }
         } finally {
-            final long took = threadPool.relativeTimeInMillis() - startTime;
+            final long took = threadPool.rawRelativeTimeInMillis() - startTime;
+            handlingTimeTracker.addHandlingTime(took);
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
                 if (isRequest) {
@@ -235,14 +245,20 @@ public class InboundHandler {
                     assertRemoteVersion(stream, header.getVersion());
                     final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
                     assert reg != null;
-                    final T request = reg.newRequest(stream);
+                    final T request;
+                    try {
+                        request = reg.newRequest(stream);
+                    } catch (Exception e) {
+                        assert ignoreDeserializationErrors : e;
+                        throw e;
+                    }
                     try {
                         request.remoteAddress(channel.getRemoteAddress());
                         // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
                         final int nextByte = stream.read();
                         // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
                         if (nextByte != -1) {
-                            throw new IllegalStateException(
+                            final IllegalStateException exception = new IllegalStateException(
                                 "Message not fully read (request) for requestId ["
                                     + requestId
                                     + "], action ["
@@ -251,6 +267,8 @@ public class InboundHandler {
                                     + stream.available()
                                     + "]; resetting"
                             );
+                            assert ignoreDeserializationErrors : exception;
+                            throw exception;
                         }
                         final String executor = reg.getExecutor();
                         if (ThreadPool.Names.SAME.equals(executor)) {
@@ -325,6 +343,7 @@ public class InboundHandler {
                 e
             );
             logger.warn(new ParameterizedMessage("Failed to deserialize response from [{}]", remoteAddress), serializationException);
+            assert ignoreDeserializationErrors : e;
             handleException(handler, serializationException);
             return;
         }
@@ -363,6 +382,7 @@ public class InboundHandler {
                 "Failed to deserialize exception response from stream for handler [" + handler + "]",
                 e
             );
+            assert ignoreDeserializationErrors : error;
         }
         handleException(handler, error);
     }

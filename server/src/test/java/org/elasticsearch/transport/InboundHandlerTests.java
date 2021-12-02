@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.TimeValue;
@@ -62,14 +63,16 @@ public class InboundHandlerTests extends ESTestCase {
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
-        TransportHandshaker handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {});
+        final boolean ignoreDeserializationErrors = true; // suppress assertions to test production error-handling
+        TransportHandshaker handshaker = new TransportHandshaker(version, threadPool, (n, c, r, v) -> {}, ignoreDeserializationErrors);
         TransportKeepAlive keepAlive = new TransportKeepAlive(threadPool, TcpChannel::sendMessage);
         OutboundHandler outboundHandler = new OutboundHandler(
             "node",
             version,
             new StatsTracker(),
             threadPool,
-            new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE)
+            new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE),
+            new HandlingTimeTracker()
         );
         requestHandlers = new Transport.RequestHandlers();
         responseHandlers = new Transport.ResponseHandlers();
@@ -80,7 +83,9 @@ public class InboundHandlerTests extends ESTestCase {
             handshaker,
             keepAlive,
             requestHandlers,
-            responseHandlers
+            responseHandlers,
+            new HandlingTimeTracker(),
+            ignoreDeserializationErrors
         );
     }
 

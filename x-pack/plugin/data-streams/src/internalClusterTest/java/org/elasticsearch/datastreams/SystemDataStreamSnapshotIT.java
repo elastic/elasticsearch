@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -38,7 +39,9 @@ import static org.elasticsearch.datastreams.SystemDataStreamSnapshotIT.SystemDat
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 
@@ -59,7 +62,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertTrue(response.isAcknowledged());
     }
 
-    public void testSystemDataStreamSnapshotIT() throws Exception {
+    public void testSystemDataStreamInGlobalState() throws Exception {
         Path location = randomRepoPath();
         createRepository(REPO, "fs", location);
 
@@ -74,8 +77,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setId("42")
             .setSource("{ \"@timestamp\": \"2099-03-08T11:06:07.000Z\", \"name\": \"my-name\" }", XContentType.JSON)
             .setOpType(DocWriteRequest.OpType.CREATE)
-            .execute()
-            .actionGet();
+            .get();
         assertThat(indexRepsonse.status().getStatus(), oneOf(200, 201));
 
         {
@@ -90,7 +92,7 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .cluster()
                 .prepareCreateSnapshot(REPO, SNAPSHOT)
                 .setWaitForCompletion(true)
-                .setIncludeGlobalState(false)
+                .setIncludeGlobalState(true)
                 .execute()
         );
 
@@ -105,13 +107,38 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
         {
             GetIndexResponse indicesRemaining = client().admin().indices().prepareGetIndex().addIndices("_all").get();
             assertThat(indicesRemaining.indices(), arrayWithSize(0));
+            assertSystemDataStreamDoesNotExist();
         }
 
+        // Make sure requesting the data stream by name throws.
+        // For some reason, expectThrows() isn't working for me here, hence the try/catch.
+        try {
+            client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(REPO, SNAPSHOT)
+                .setIndices(".test-data-stream")
+                .setWaitForCompletion(true)
+                .setRestoreGlobalState(randomBoolean()) // this shouldn't matter
+                .get();
+        } catch (Exception e) {
+            assertThat(e, instanceOf(IllegalArgumentException.class));
+            assertThat(
+                e.getMessage(),
+                equalTo(
+                    "requested system data stream [.test-data-stream], but system data streams can only be restored as part of a feature "
+                        + "state"
+                )
+            );
+        }
+
+        assertSystemDataStreamDoesNotExist();
+
+        // Now actually restore the data stream
         RestoreSnapshotResponse restoreSnapshotResponse = client().admin()
             .cluster()
             .prepareRestoreSnapshot(REPO, SNAPSHOT)
             .setWaitForCompletion(true)
-            .setRestoreGlobalState(false)
+            .setRestoreGlobalState(true)
             .get();
         assertEquals(restoreSnapshotResponse.getRestoreInfo().totalShards(), restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
@@ -120,6 +147,25 @@ public class SystemDataStreamSnapshotIT extends AbstractSnapshotIntegTestCase {
             GetDataStreamAction.Response response = client().execute(GetDataStreamAction.INSTANCE, request).get();
             assertThat(response.getDataStreams(), hasSize(1));
             assertTrue(response.getDataStreams().get(0).getDataStream().isSystem());
+        }
+
+        // Attempting to restore again without specifying indices or global/feature states should work, as the wildcard should not be
+        // resolved to system indices/data streams.
+        client().admin().cluster().prepareRestoreSnapshot(REPO, SNAPSHOT).setWaitForCompletion(true).setRestoreGlobalState(false).get();
+        assertEquals(restoreSnapshotResponse.getRestoreInfo().totalShards(), restoreSnapshotResponse.getRestoreInfo().successfulShards());
+    }
+
+    private void assertSystemDataStreamDoesNotExist() {
+        try {
+            GetDataStreamAction.Request request = new GetDataStreamAction.Request(new String[] { SYSTEM_DATA_STREAM_NAME });
+            GetDataStreamAction.Response response = client().execute(GetDataStreamAction.INSTANCE, request).get();
+            assertThat(response.getDataStreams(), hasSize(0));
+        } catch (Exception e) {
+            Throwable ex = e;
+            while (ex instanceof IndexNotFoundException == false) {
+                ex = ex.getCause();
+                assertNotNull("expected to find an IndexNotFoundException somewhere in the causes, did not", e);
+            }
         }
     }
 

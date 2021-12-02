@@ -1201,4 +1201,17 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    /**
+     * Similar to {@link #writeOptionalWriteable} but for use when the value is always missing.
+     */
+    public <T extends Writeable> void writeMissingWriteable(Class<T> ignored) throws IOException {
+        writeBoolean(false);
+    }
+
+    /**
+     * Similar to {@link #writeOptionalString} but for use when the value is always missing.
+     */
+    public void writeMissingString() throws IOException {
+        writeBoolean(false);
+    }
 }

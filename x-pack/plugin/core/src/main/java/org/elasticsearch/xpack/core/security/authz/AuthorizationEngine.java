@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.metadata.AvailableIndices;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
@@ -29,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 
 /**
  * <p>
@@ -154,6 +154,7 @@ public interface AuthorizationEngine {
      *                            alias or index
      * @param listener the listener to be notified of the authorization result
      */
+    // TODO: remove?
     void loadAuthorizedIndices(
         RequestInfo requestInfo,
         AuthorizationInfo authorizationInfo,
@@ -161,7 +162,11 @@ public interface AuthorizationEngine {
         ActionListener<Set<String>> listener
     );
 
-    AvailableIndices loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo, Metadata metadata);
+    Predicate<IndexAbstraction> predicateForAuthorizedIndices(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        Metadata metadata
+    );
 
     /**
      * Asynchronously checks that the permissions a user would have for a given list of names do

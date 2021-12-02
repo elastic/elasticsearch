@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ConcreteShardRequest;
 import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.cluster.metadata.AvailableIndices;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -416,7 +417,7 @@ public class AuthorizationService {
                                 action,
                                 request,
                                 metadata,
-                                authzEngine.loadAuthorizedIndices(requestInfo, authzInfo, metadata)
+                                new AvailableIndices(metadata, authzEngine.predicateForAuthorizedIndices(requestInfo, authzInfo, metadata))
                             )
                         );
                     } catch (Exception e) {

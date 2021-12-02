@@ -15,7 +15,6 @@ import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -60,7 +59,7 @@ public class IndexAbstractionResolver {
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         Metadata metadata,
-        Collection<String> availableIndexAbstractions,
+        Set<String> availableIndexAbstractions,
         boolean replaceWildcards,
         boolean includeDataStreams
     ) {
@@ -68,7 +67,7 @@ public class IndexAbstractionResolver {
             indices,
             indicesOptions,
             metadata,
-            new AvailableIndices(Set.copyOf(availableIndexAbstractions)),
+            new AvailableIndices(availableIndexAbstractions),
             replaceWildcards,
             includeDataStreams
         );

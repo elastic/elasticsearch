@@ -28,7 +28,6 @@ import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
-import org.elasticsearch.cluster.metadata.AvailableIndices;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
@@ -466,6 +465,7 @@ public class RBACEngine implements AuthorizationEngine {
 
     }
 
+    // TODO: remove?
     @Override
     public void loadAuthorizedIndices(
         RequestInfo requestInfo,
@@ -484,13 +484,12 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public AvailableIndices loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo, Metadata metadata) {
-        if (authorizationInfo instanceof RBACAuthorizationInfo) {
-            final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            return resolveAuthorizedIndicesFromRole(role, requestInfo, metadata);
-        } else {
-            throw new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName());
-        }
+    public Predicate<IndexAbstraction> predicateForAuthorizedIndices(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        Metadata metadata
+    ) {
+        return buildPredicateForAuthorizedIndicesFromRole(ensureRBAC(authorizationInfo).getRole(), requestInfo, metadata);
     }
 
     @Override
@@ -685,6 +684,7 @@ public class RBACEngine implements AuthorizationEngine {
         return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs);
     }
 
+    // TODO: remove?
     static Set<String> resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Map<String, IndexAbstraction> lookup) {
         Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
 
@@ -716,14 +716,14 @@ public class RBACEngine implements AuthorizationEngine {
         return Collections.unmodifiableSet(indicesAndAliases);
     }
 
-    static AvailableIndices resolveAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Metadata metadata) {
+    static Predicate<IndexAbstraction> buildPredicateForAuthorizedIndicesFromRole(Role role, RequestInfo requestInfo, Metadata metadata) {
         final Predicate<IndexAbstraction> predicate = role.allowedIndicesMatcher(requestInfo.getAction());
 
         // do not include data streams for actions that do not operate on data streams
         TransportRequest request = requestInfo.getRequest();
         final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
 
-        return new AvailableIndices(metadata, indexAbstraction -> {
+        return indexAbstraction -> {
             if (indexAbstraction == null) {
                 return false;
             }
@@ -736,7 +736,7 @@ public class RBACEngine implements AuthorizationEngine {
             } else {
                 return indexAbstraction.getType() != IndexAbstraction.Type.DATA_STREAM && predicate.test(indexAbstraction);
             }
-        });
+        };
     }
 
     private IndexAuthorizationResult buildIndicesAccessControl(

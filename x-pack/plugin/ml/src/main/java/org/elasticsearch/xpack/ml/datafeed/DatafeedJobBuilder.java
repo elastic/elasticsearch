@@ -44,7 +44,7 @@ public class DatafeedJobBuilder {
     private final Supplier<Long> currentTimeSupplier;
     private final JobResultsPersister jobResultsPersister;
     private final boolean remoteClusterClient;
-    private final String nodeName;
+    private final ClusterService clusterService;
 
     private volatile long delayedDataCheckFreq;
 
@@ -65,8 +65,8 @@ public class DatafeedJobBuilder {
         this.currentTimeSupplier = Objects.requireNonNull(currentTimeSupplier);
         this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
-        this.nodeName = clusterService.getNodeName();
         this.delayedDataCheckFreq = DELAYED_DATA_CHECK_FREQ.get(settings).millis();
+        this.clusterService = Objects.requireNonNull(clusterService);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DELAYED_DATA_CHECK_FREQ, this::setDelayedDataCheckFreq);
     }
 
@@ -75,7 +75,7 @@ public class DatafeedJobBuilder {
     }
 
     void build(TransportStartDatafeedAction.DatafeedTask task, DatafeedContext context, ActionListener<DatafeedJob> listener) {
-        final ParentTaskAssigningClient parentTaskAssigningClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
+        final ParentTaskAssigningClient parentTaskAssigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
         final DatafeedConfig datafeedConfig = context.getDatafeedConfig();
         final Job job = context.getJob();
         final long latestFinalBucketEndMs = context.getRestartTimeInfo().getLatestFinalBucketTimeMs() == null
@@ -155,7 +155,12 @@ public class DatafeedJobBuilder {
             List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(datafeedConfig.getIndices());
             if (remoteIndices.isEmpty() == false) {
                 throw ExceptionsHelper.badRequestException(
-                    Messages.getMessage(Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH, datafeedConfig.getId(), remoteIndices, nodeName)
+                    Messages.getMessage(
+                        Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
+                        datafeedConfig.getId(),
+                        remoteIndices,
+                        clusterService.getNodeName()
+                    )
                 );
             }
         }

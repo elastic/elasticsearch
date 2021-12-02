@@ -8,13 +8,17 @@
 
 package org.elasticsearch.transport.netty4;
 
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
 
+@ChannelHandler.Sharable
 final class ESLoggingHandler extends LoggingHandler {
 
-    ESLoggingHandler() {
+    static final ESLoggingHandler INSTANCE = new ESLoggingHandler();
+
+    private ESLoggingHandler() {
         super(LogLevel.TRACE);
     }
 

@@ -916,8 +916,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
-        public Builder setDataDescription(DataDescription.Builder description) {
-            dataDescription = ExceptionsHelper.requireNonNull(description, DATA_DESCRIPTION.getPreferredName()).build();
+        public Builder setDataDescription(DataDescription.Builder dataDescription) {
+            this.dataDescription = ExceptionsHelper.requireNonNull(dataDescription, DATA_DESCRIPTION.getPreferredName()).build();
             return this;
         }
 
@@ -1266,7 +1266,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
          * @param createTime The time this job was created
          * @return The job
          */
-        public Job build(Date createTime) {
+        public Job build(@SuppressWarnings("HiddenField") Date createTime) {
             setCreateTime(createTime);
             setJobVersion(Version.CURRENT);
             return build();

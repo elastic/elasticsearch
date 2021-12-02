@@ -149,6 +149,7 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
@@ -2679,14 +2680,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 indexCommitPointFiles = new ArrayList<>();
                 final Collection<String> fileNames;
                 final Store.MetadataSnapshot metadataFromStore;
-                try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
-                    // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
-                    try {
-                        logger.trace("[{}] [{}] Loading store metadata using index commit [{}]", shardId, snapshotId, snapshotIndexCommit);
-                        metadataFromStore = store.getMetadata(snapshotIndexCommit);
-                        fileNames = snapshotIndexCommit.getFileNames();
-                    } catch (IOException e) {
-                        throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
+                if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
+                    fileNames = Collections.emptyList();
+                    metadataFromStore = Store.MetadataSnapshot.EMPTY;
+                } else {
+                    try (Releasable ignored = incrementStoreRef(store, snapshotStatus, shardId)) {
+                        // TODO apparently we don't use the MetadataSnapshot#.recoveryDiff(...) here but we should
+                        try {
+                            logger.trace(
+                                "[{}] [{}] Loading store metadata using index commit [{}]",
+                                shardId,
+                                snapshotId,
+                                snapshotIndexCommit
+                            );
+                            metadataFromStore = store.getMetadata(snapshotIndexCommit);
+                            fileNames = snapshotIndexCommit.getFileNames();
+                        } catch (IOException e) {
+                            throw new IndexShardSnapshotFailedException(shardId, "Failed to get store file metadata", e);
+                        }
                     }
                 }
                 for (String fileName : fileNames) {

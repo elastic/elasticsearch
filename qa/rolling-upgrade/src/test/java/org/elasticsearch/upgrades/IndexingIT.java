@@ -15,6 +15,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -322,6 +323,8 @@ public class IndexingIT extends AbstractRollingTestCase {
         indexSpec.startObject("settings").startObject("index");
         indexSpec.field("mode", "time_series");
         indexSpec.array("routing_path", new String[] { "dim" });
+        indexSpec.field("time_series.start_time", 1L);
+        indexSpec.field("time_series.end_time", DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
         indexSpec.endObject().endObject();
         createIndex.setJsonEntity(Strings.toString(indexSpec.endObject()));
         client().performRequest(createIndex);

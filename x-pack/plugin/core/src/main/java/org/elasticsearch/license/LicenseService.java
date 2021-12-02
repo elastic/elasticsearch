@@ -109,7 +109,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     /**
      * Currently active license
      */
-    private final AtomicReference<License> currentLicense = new AtomicReference<>();
+    private final AtomicReference<License> currentLicenseHolder = new AtomicReference<>();
     private final SchedulerEngine scheduler;
     private final Clock clock;
 
@@ -438,7 +438,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         clusterService.removeListener(this);
         scheduler.stop();
         // clear current license
-        currentLicense.set(null);
+        currentLicenseHolder.set(null);
     }
 
     @Override
@@ -558,9 +558,9 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         // license can be null if the trial license is yet to be auto-generated
         // in this case, it is a no-op
         if (license != null) {
-            final License previousLicense = currentLicense.get();
+            final License previousLicense = currentLicenseHolder.get();
             if (license.equals(previousLicense) == false) {
-                currentLicense.set(license);
+                currentLicenseHolder.set(license);
                 license.setOperationModeFileWatcher(operationModeFileWatcher);
                 scheduler.add(new SchedulerEngine.Job(LICENSE_JOB, nextLicenseCheck(license)));
                 for (ExpirationCallback expirationCallback : expirationCallbacks) {

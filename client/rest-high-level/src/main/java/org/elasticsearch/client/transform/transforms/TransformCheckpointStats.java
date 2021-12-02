@@ -8,14 +8,14 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class TransformCheckpointStats {
 
@@ -34,15 +34,18 @@ public class TransformCheckpointStats {
     private final long timeUpperBoundMillis;
 
     public static final ConstructingObjectParser<TransformCheckpointStats, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
-            "transform_checkpoint_stats", true, args -> {
-        long checkpoint = args[0] == null ? 0L : (Long) args[0];
-        TransformIndexerPosition position = (TransformIndexerPosition) args[1];
-        TransformProgress checkpointProgress = (TransformProgress) args[2];
-        long timestamp = args[3] == null ? 0L : (Long) args[3];
-        long timeUpperBound = args[4] == null ? 0L : (Long) args[4];
+        "transform_checkpoint_stats",
+        true,
+        args -> {
+            long checkpoint = args[0] == null ? 0L : (Long) args[0];
+            TransformIndexerPosition position = (TransformIndexerPosition) args[1];
+            TransformProgress checkpointProgress = (TransformProgress) args[2];
+            long timestamp = args[3] == null ? 0L : (Long) args[3];
+            long timeUpperBound = args[4] == null ? 0L : (Long) args[4];
 
-        return new TransformCheckpointStats(checkpoint, position, checkpointProgress, timestamp, timeUpperBound);
-    });
+            return new TransformCheckpointStats(checkpoint, position, checkpointProgress, timestamp, timeUpperBound);
+        }
+    );
 
     static {
         LENIENT_PARSER.declareLong(optionalConstructorArg(), CHECKPOINT);
@@ -56,9 +59,13 @@ public class TransformCheckpointStats {
         return LENIENT_PARSER.parse(parser, null);
     }
 
-    public TransformCheckpointStats(final long checkpoint, final TransformIndexerPosition position,
-                                    final TransformProgress checkpointProgress, final long timestampMillis,
-                                    final long timeUpperBoundMillis) {
+    public TransformCheckpointStats(
+        final long checkpoint,
+        final TransformIndexerPosition position,
+        final TransformProgress checkpointProgress,
+        final long timestampMillis,
+        final long timeUpperBoundMillis
+    ) {
         this.checkpoint = checkpoint;
         this.position = position;
         this.checkpointProgress = checkpointProgress;

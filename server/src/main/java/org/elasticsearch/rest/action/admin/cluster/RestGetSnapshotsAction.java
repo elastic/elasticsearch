@@ -13,8 +13,8 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
@@ -64,11 +64,18 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         if (afterString != null) {
             getSnapshotsRequest.after(GetSnapshotsRequest.After.fromQueryParam(afterString));
         }
+        final String fromSortValue = request.param("from_sort_value");
+        if (fromSortValue != null) {
+            getSnapshotsRequest.fromSortValue(fromSortValue);
+        }
+        final String[] policies = request.paramAsStringArray("slm_policy_filter", Strings.EMPTY_ARRAY);
+        getSnapshotsRequest.policies(policies);
 
         final SortOrder order = SortOrder.fromString(request.param("order", getSnapshotsRequest.order().toString()));
         getSnapshotsRequest.order(order);
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
-        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin().cluster()
-                .getSnapshots(getSnapshotsRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .cluster()
+            .getSnapshots(getSnapshotsRequest, new RestToXContentListener<>(channel));
     }
 }

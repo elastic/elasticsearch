@@ -43,9 +43,8 @@ public class VersionPropertiesLoader {
             );
         }
         String qualifier = providers.systemProperty("build.version_qualifier")
-                .orElse("")
                 .forUseAtConfigurationTime()
-                .get();
+                .getOrElse("");
         if (qualifier.isEmpty() == false) {
             if (qualifier.matches("(alpha|beta|rc)\\d+") == false) {
                 throw new IllegalStateException("Invalid qualifier: " + qualifier);
@@ -53,9 +52,8 @@ public class VersionPropertiesLoader {
             elasticsearch += "-" + qualifier;
         }
         final String buildSnapshotSystemProperty = providers.systemProperty("build.snapshot")
-                .orElse("true")
                 .forUseAtConfigurationTime()
-                .get();
+                .getOrElse("true");
         switch (buildSnapshotSystemProperty) {
             case "true":
                 elasticsearch += "-SNAPSHOT";

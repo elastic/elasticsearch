@@ -10,13 +10,14 @@ package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Nullable;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 /**
@@ -127,7 +128,7 @@ public class BytesStreamOutput extends BytesStream {
      *
      * @return the value of the <code>count</code> field, which is the number of valid
      *         bytes in this output stream.
-     * @see java.io.ByteArrayOutputStream#count
+     * @see ByteArrayOutputStream#size()
      */
     public int size() {
         return count;

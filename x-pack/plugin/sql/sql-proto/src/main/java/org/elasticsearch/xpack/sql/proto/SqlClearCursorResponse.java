@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Response to the request to clean all SQL resources associated with the cursor for JDBC/CLI client
@@ -20,14 +20,15 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class SqlClearCursorResponse {
 
     public static final ParseField SUCCEEDED = new ParseField("succeeded");
-    public static final ConstructingObjectParser<SqlClearCursorResponse, Void> PARSER =
-        new ConstructingObjectParser<>(SqlClearCursorResponse.class.getName(), true,
-            objects -> new SqlClearCursorResponse(objects[0] == null ? false : (boolean) objects[0]));
+    public static final ConstructingObjectParser<SqlClearCursorResponse, Void> PARSER = new ConstructingObjectParser<>(
+        SqlClearCursorResponse.class.getName(),
+        true,
+        objects -> new SqlClearCursorResponse(objects[0] == null ? false : (boolean) objects[0])
+    );
 
     static {
         PARSER.declareBoolean(optionalConstructorArg(), SUCCEEDED);
     }
-
 
     private final boolean succeeded;
 

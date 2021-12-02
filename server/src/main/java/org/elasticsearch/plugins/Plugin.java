@@ -19,8 +19,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingUpgrader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
@@ -30,6 +28,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -79,12 +79,19 @@ public abstract class Plugin implements Closeable {
      * @param repositoriesServiceSupplier A supplier for the service that manages snapshot repositories; will return null when this method
      *                                   is called, but will return the repositories service once the node is initialized.
      */
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver indexNameExpressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         return Collections.emptyList();
     }
 
@@ -93,7 +100,7 @@ public abstract class Plugin implements Closeable {
      * overwritten with the additional settings. These settings added if they don't exist.
      */
     public Settings additionalSettings() {
-        return Settings.Builder.EMPTY_SETTINGS;
+        return Settings.EMPTY;
     }
 
     /**
@@ -121,12 +128,16 @@ public abstract class Plugin implements Closeable {
     /**
      * Returns a list of additional {@link Setting} definitions for this plugin.
      */
-    public List<Setting<?>> getSettings() { return Collections.emptyList(); }
+    public List<Setting<?>> getSettings() {
+        return Collections.emptyList();
+    }
 
     /**
      * Returns a list of additional settings filter for this plugin
      */
-    public List<String> getSettingsFilter() { return Collections.emptyList(); }
+    public List<String> getSettingsFilter() {
+        return Collections.emptyList();
+    }
 
     /**
      * Get the setting upgraders provided by this plugin.
@@ -144,7 +155,7 @@ public abstract class Plugin implements Closeable {
      * <p>
      * The order of the template upgrader calls is undefined and can change between runs so, it is expected that
      * plugins will modify only templates owned by them to avoid conflicts.
-     * <p>
+     *
      * @return Never {@code null}. The same or upgraded {@code IndexTemplateMetadata} map.
      * @throws IllegalStateException if the node should not start because at least one {@code IndexTemplateMetadata}
      *                               cannot be upgraded
@@ -170,7 +181,9 @@ public abstract class Plugin implements Closeable {
      * to provide a better out of the box experience by pre-configuring otherwise (in production) mandatory settings or to enforce certain
      * configurations like OS settings or 3rd party resources.
      */
-    public List<BootstrapCheck> getBootstrapChecks() { return Collections.emptyList(); }
+    public List<BootstrapCheck> getBootstrapChecks() {
+        return Collections.emptyList();
+    }
 
     /**
      * Close the resources opened by this plugin.

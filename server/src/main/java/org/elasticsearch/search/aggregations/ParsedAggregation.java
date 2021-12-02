@@ -8,12 +8,12 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.xcontent.AbstractObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Collections;

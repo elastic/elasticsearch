@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.ml.job.snapshot.upgrader;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.utils.MlTaskParams;
 
@@ -29,7 +29,8 @@ public class SnapshotUpgradeTaskParams implements PersistentTaskParams, MlTaskPa
     public static final ConstructingObjectParser<SnapshotUpgradeTaskParams, Void> PARSER = new ConstructingObjectParser<>(
         JOB_SNAPSHOT_UPGRADE_TASK_NAME,
         true,
-        a -> new SnapshotUpgradeTaskParams((String) a[0], (String) a[1]));
+        a -> new SnapshotUpgradeTaskParams((String) a[0], (String) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -89,8 +90,7 @@ public class SnapshotUpgradeTaskParams implements PersistentTaskParams, MlTaskPa
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SnapshotUpgradeTaskParams params = (SnapshotUpgradeTaskParams) o;
-        return Objects.equals(jobId, params.jobId) &&
-            Objects.equals(snapshotId, params.snapshotId);
+        return Objects.equals(jobId, params.jobId) && Objects.equals(snapshotId, params.snapshotId);
     }
 
     @Override
@@ -103,5 +103,3 @@ public class SnapshotUpgradeTaskParams implements PersistentTaskParams, MlTaskPa
         return jobId;
     }
 }
-
-

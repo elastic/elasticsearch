@@ -36,7 +36,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private boolean copySettings;
     private SystemDataStreamDescriptor systemDataStreamDescriptor;
 
-    private Settings settings = Settings.Builder.EMPTY_SETTINGS;
+    private Settings settings = Settings.EMPTY;
 
     private String mappings = "{}";
 
@@ -45,6 +45,8 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private final Set<ClusterBlock> blocks = new HashSet<>();
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+
+    private boolean performReroute = true;
 
     public CreateIndexClusterStateUpdateRequest(String cause, String index, String providedName) {
         this.cause = cause;
@@ -143,7 +145,9 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     /**
      * The instant at which the name provided by the user was resolved
      */
-    public long getNameResolvedAt() { return nameResolvedAt;}
+    public long getNameResolvedAt() {
+        return nameResolvedAt;
+    }
 
     public ActiveShardCount waitForActiveShards() {
         return waitForActiveShards;
@@ -173,21 +177,46 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
+    public boolean performReroute() {
+        return performReroute;
+    }
+
+    public CreateIndexClusterStateUpdateRequest performReroute(boolean performReroute) {
+        this.performReroute = performReroute;
+        return this;
+    }
+
     @Override
     public String toString() {
-        return "CreateIndexClusterStateUpdateRequest{" +
-            "cause='" + cause + '\'' +
-            ", index='" + index + '\'' +
-            ", dataStreamName='" + dataStreamName + '\'' +
-            ", providedName='" + providedName + '\'' +
-            ", recoverFrom=" + recoverFrom +
-            ", resizeType=" + resizeType +
-            ", copySettings=" + copySettings +
-            ", settings=" + settings +
-            ", aliases=" + aliases +
-            ", blocks=" + blocks +
-            ", waitForActiveShards=" + waitForActiveShards +
-            ", systemDataStreamDescriptor=" + systemDataStreamDescriptor +
-            '}';
+        return "CreateIndexClusterStateUpdateRequest{"
+            + "cause='"
+            + cause
+            + '\''
+            + ", index='"
+            + index
+            + '\''
+            + ", dataStreamName='"
+            + dataStreamName
+            + '\''
+            + ", providedName='"
+            + providedName
+            + '\''
+            + ", recoverFrom="
+            + recoverFrom
+            + ", resizeType="
+            + resizeType
+            + ", copySettings="
+            + copySettings
+            + ", settings="
+            + settings
+            + ", aliases="
+            + aliases
+            + ", blocks="
+            + blocks
+            + ", waitForActiveShards="
+            + waitForActiveShards
+            + ", systemDataStreamDescriptor="
+            + systemDataStreamDescriptor
+            + '}';
     }
 }

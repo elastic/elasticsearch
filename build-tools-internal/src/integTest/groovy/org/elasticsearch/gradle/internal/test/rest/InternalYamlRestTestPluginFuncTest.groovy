@@ -67,8 +67,8 @@ class InternalYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         file("/build/classes/java/yamlRestTest/MockIT.class").exists()
 
         // check that our copied specs and tests are on the yamlRestTest classpath
-        normalized(result.output).contains("./build/restResources/yamlSpecs")
-        normalized(result.output).contains("./build/restResources/yamlTests")
+        result.output.contains("./build/restResources/yamlSpecs")
+        result.output.contains("./build/restResources/yamlTests")
 
         when:
         result = gradleRunner("yamlRestTest").build()

@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.io.IOException;
@@ -449,8 +449,12 @@ public final class DataTypeConverter {
         Converter converter = converterFor(detectedType, dataType);
 
         if (converter == null) {
-            throw new QlIllegalArgumentException("cannot convert from [{}], type [{}] to [{}]", value, detectedType.typeName(),
-                    dataType.typeName());
+            throw new QlIllegalArgumentException(
+                "cannot convert from [{}], type [{}] to [{}]",
+                value,
+                detectedType.typeName(),
+                dataType.typeName()
+            );
         }
 
         return converter.convert(value);
@@ -469,7 +473,7 @@ public final class DataTypeConverter {
 
         RATIONAL_TO_UNSIGNED_LONG(fromDouble(DataTypeConverter::safeToUnsignedLong)),
         INTEGER_TO_UNSIGNED_LONG(fromNumber(value -> DataTypeConverter.safeToUnsignedLong(value.longValue()))),
-        STRING_TO_UNSIGNED_LONG(fromString(DataTypeConverter::safeToUnsignedLong,"unsigned_long")),
+        STRING_TO_UNSIGNED_LONG(fromString(DataTypeConverter::safeToUnsignedLong, "unsigned_long")),
         DATETIME_TO_UNSIGNED_LONG(fromDateTime(DataTypeConverter::safeToUnsignedLong)),
 
         RATIONAL_TO_LONG(fromDouble(DataTypeConverter::safeDoubleToLong)),

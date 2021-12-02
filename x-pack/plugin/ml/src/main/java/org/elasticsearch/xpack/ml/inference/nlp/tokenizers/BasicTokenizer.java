@@ -42,8 +42,7 @@ public class BasicTokenizer {
      * @param isStripAccents Strip all accents
      * @param neverSplit The set of tokens that should not be split
      */
-    public BasicTokenizer(boolean isLowerCase, boolean isTokenizeCjkChars, boolean isStripAccents,
-                          Set<String> neverSplit) {
+    public BasicTokenizer(boolean isLowerCase, boolean isTokenizeCjkChars, boolean isStripAccents, Set<String> neverSplit) {
         this.isLowerCase = isLowerCase;
         this.isTokenizeCjkChars = isTokenizeCjkChars;
         this.isStripAccents = isStripAccents;
@@ -85,7 +84,7 @@ public class BasicTokenizer {
             text = tokenizeCjkChars(text);
         }
 
-        String [] tokens = whiteSpaceTokenize(text);
+        String[] tokens = whiteSpaceTokenize(text);
 
         List<String> processedTokens = new ArrayList<>(tokens.length);
         for (String token : tokens) {
@@ -101,21 +100,21 @@ public class BasicTokenizer {
 
             // At this point text has been tokenized by whitespace
             // but one of the special never split tokens could be adjacent
-            // to a punctuation character.
-            if (isCommonPunctuation(token.codePointAt(token.length() -1)) &&
-                    neverSplit.contains(token.substring(0, token.length() -1))) {
-                processedTokens.add(token.substring(0, token.length() -1));
-                processedTokens.add(token.substring(token.length() -1));
-                continue;
+            // to one or more punctuation characters.
+            List<String> splitOnCommonTokens = splitOnPredicate(token, BasicTokenizer::isCommonPunctuation);
+            for (String splitOnCommon : splitOnCommonTokens) {
+                if (neverSplit.contains(splitOnCommon)) {
+                    processedTokens.add(splitOnCommon);
+                } else {
+                    if (isLowerCase) {
+                        splitOnCommon = splitOnCommon.toLowerCase(Locale.ROOT);
+                    }
+                    if (isStripAccents) {
+                        splitOnCommon = stripAccents(splitOnCommon);
+                    }
+                    processedTokens.addAll(splitOnPunctuation(splitOnCommon));
+                }
             }
-
-            if (isLowerCase) {
-                token = token.toLowerCase(Locale.ROOT);
-            }
-            if (isStripAccents) {
-                token = stripAccents(token);
-            }
-            processedTokens.addAll(splitOnPunctuation(token));
         }
 
         return processedTokens;
@@ -133,7 +132,7 @@ public class BasicTokenizer {
         return isTokenizeCjkChars;
     }
 
-    static String [] whiteSpaceTokenize(String text) {
+    static String[] whiteSpaceTokenize(String text) {
         text = text.trim();
         return text.split(" ");
     }
@@ -152,7 +151,7 @@ public class BasicTokenizer {
     static String stripAccents(String word) {
         String normalizedString = Normalizer.normalize(word, Normalizer.Form.NFD);
 
-        int [] codePoints = normalizedString.codePoints()
+        int[] codePoints = normalizedString.codePoints()
             .filter(codePoint -> Character.getType(codePoint) != Character.NON_SPACING_MARK)
             .toArray();
 
@@ -165,10 +164,10 @@ public class BasicTokenizer {
 
     static List<String> splitOnPredicate(String word, Predicate<Integer> test) {
         List<String> split = new ArrayList<>();
-        int [] codePoints = word.codePoints().toArray();
+        int[] codePoints = word.codePoints().toArray();
 
         int lastSplit = 0;
-        for (int i=0; i<codePoints.length; i++) {
+        for (int i = 0; i < codePoints.length; i++) {
             if (test.test(codePoints[i])) {
                 int charCount = i - lastSplit;
                 if (charCount > 0) {
@@ -176,7 +175,7 @@ public class BasicTokenizer {
                     split.add(new String(codePoints, lastSplit, i - lastSplit));
                 }
                 split.add(new String(codePoints, i, 1));
-                lastSplit = i+1;
+                lastSplit = i + 1;
             }
         }
 
@@ -221,7 +220,7 @@ public class BasicTokenizer {
      * @return Cleaned text
      */
     static String cleanText(String text) {
-        int [] codePoints = text.codePoints()
+        int[] codePoints = text.codePoints()
             .filter(codePoint -> (codePoint == 0x00 || codePoint == 0xFFFD || isControlChar(codePoint)) == false)
             .map(codePoint -> isWhiteSpace(codePoint) ? ' ' : codePoint)
             .toArray();
@@ -232,14 +231,14 @@ public class BasicTokenizer {
     static boolean isCjkChar(int codePoint) {
         // https://en.wikipedia.org/wiki/CJK_Unified_Ideographs_(Unicode_block)
         Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
-        return Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS.equals(block) ||
-                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS.equals(block) ||
-                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A.equals(block) ||
-                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B.equals(block) ||
-                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C.equals(block) ||
-                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D.equals(block) ||
-                Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_E.equals(block) ||
-                Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT.equals(block);
+        return Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS.equals(block)
+            || Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS.equals(block)
+            || Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A.equals(block)
+            || Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B.equals(block)
+            || Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_C.equals(block)
+            || Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_D.equals(block)
+            || Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_E.equals(block)
+            || Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT.equals(block);
     }
 
     /**
@@ -250,7 +249,7 @@ public class BasicTokenizer {
      * @return is control char
      */
     static boolean isControlChar(int codePoint) {
-        if (codePoint == '\n' || codePoint == '\r' || codePoint == '\t' ) {
+        if (codePoint == '\n' || codePoint == '\r' || codePoint == '\t') {
             return false;
         }
         int category = Character.getType(codePoint);
@@ -267,7 +266,7 @@ public class BasicTokenizer {
      * @return is white space
      */
     static boolean isWhiteSpace(int codePoint) {
-        if (codePoint == '\n' || codePoint == '\r' || codePoint == '\t' ) {
+        if (codePoint == '\n' || codePoint == '\r' || codePoint == '\t') {
             return true;
         }
         return Character.getType(codePoint) == Character.SPACE_SEPARATOR;
@@ -282,15 +281,16 @@ public class BasicTokenizer {
      * @return true if is punctuation
      */
     static boolean isPunctuationMark(int codePoint) {
-        if ((codePoint >= 33 && codePoint <= 47) ||
-            (codePoint >= 58 && codePoint <= 64) ||
-            (codePoint >= 91 && codePoint <= 96) ||
-            (codePoint >= 123 && codePoint <= 126)) {
+        if ((codePoint >= 33 && codePoint <= 47)
+            || (codePoint >= 58 && codePoint <= 64)
+            || (codePoint >= 91 && codePoint <= 96)
+            || (codePoint >= 123 && codePoint <= 126)) {
             return true;
         }
 
         int category = Character.getType(codePoint);
-        return category >= Character.DASH_PUNCTUATION && category <= Character.OTHER_PUNCTUATION;
+        return (category >= Character.DASH_PUNCTUATION && category <= Character.OTHER_PUNCTUATION)
+            || (category >= Character.INITIAL_QUOTE_PUNCTUATION && category <= Character.FINAL_QUOTE_PUNCTUATION);
     }
 
     /**
@@ -300,11 +300,6 @@ public class BasicTokenizer {
      * @return true if codepoint is punctuation
      */
     static boolean isCommonPunctuation(int codePoint) {
-        if ((codePoint >= 33 && codePoint <= 47) ||
-            (codePoint >= 58 && codePoint <= 64) ) {
-            return true;
-        }
-
-        return false;
+        return (codePoint >= 33 && codePoint <= 47) || (codePoint >= 58 && codePoint <= 64);
     }
 }

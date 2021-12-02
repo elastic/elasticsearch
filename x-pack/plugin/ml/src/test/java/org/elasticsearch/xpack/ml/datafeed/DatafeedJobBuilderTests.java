@@ -6,8 +6,14 @@
  */
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -38,6 +44,8 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -66,27 +74,47 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         auditor = mock(AnomalyDetectionAuditor.class);
         annotationPersister = mock(AnnotationPersister.class);
         jobResultsPersister = mock(JobResultsPersister.class);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
-            new HashSet<>(Arrays.asList(MachineLearning.DELAYED_DATA_CHECK_FREQ,
-                MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
-                ClusterService.USER_DEFINED_METADATA,
-                ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(
+                Arrays.asList(
+                    MachineLearning.DELAYED_DATA_CHECK_FREQ,
+                    MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                    ClusterService.USER_DEFINED_METADATA,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                )
+            )
+        );
+        final DiscoveryNode localNode = new DiscoveryNode(
+            "test_node",
+            buildNewFakeTransportAddress(),
+            emptyMap(),
+            emptySet(),
+            Version.CURRENT
+        );
         clusterService = new ClusterService(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_node").build(),
             clusterSettings,
             threadPool
         );
+        clusterService.getClusterApplierService()
+            .setInitialState(
+                ClusterState.builder(new ClusterName("DatafeedJobBuilderTests"))
+                    .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+                    .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+                    .build()
+            );
 
         datafeedJobBuilder = new DatafeedJobBuilder(
-                client,
-                xContentRegistry(),
-                auditor,
-                annotationPersister,
-                System::currentTimeMillis,
-                jobResultsPersister,
-                Settings.EMPTY,
-                clusterService
+            client,
+            xContentRegistry(),
+            auditor,
+            annotationPersister,
+            System::currentTimeMillis,
+            jobResultsPersister,
+            Settings.EMPTY,
+            clusterService
         );
     }
 
@@ -99,14 +127,12 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         DatafeedConfig.Builder datafeed = DatafeedRunnerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
-        ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(
-                datafeedJob -> {
-                    assertThat(datafeedJob.isRunning(), is(true));
-                    assertThat(datafeedJob.isIsolated(), is(false));
-                    assertThat(datafeedJob.lastEndTimeMs(), is(nullValue()));
-                    wasHandlerCalled.compareAndSet(false, true);
-                }, e -> fail()
-        );
+        ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(datafeedJob -> {
+            assertThat(datafeedJob.isRunning(), is(true));
+            assertThat(datafeedJob.isIsolated(), is(false));
+            assertThat(datafeedJob.lastEndTimeMs(), is(nullValue()));
+            wasHandlerCalled.compareAndSet(false, true);
+        }, e -> fail());
 
         DatafeedContext datafeedContext = DatafeedContext.builder()
             .setDatafeedConfig(datafeed.build())
@@ -131,14 +157,12 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         DatafeedConfig.Builder datafeed = DatafeedRunnerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
-        ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(
-                datafeedJob -> {
-                    assertThat(datafeedJob.isRunning(), is(true));
-                    assertThat(datafeedJob.isIsolated(), is(false));
-                    assertThat(datafeedJob.lastEndTimeMs(), equalTo(7_200_000L));
-                    wasHandlerCalled.compareAndSet(false, true);
-                }, e -> fail()
-        );
+        ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(datafeedJob -> {
+            assertThat(datafeedJob.isRunning(), is(true));
+            assertThat(datafeedJob.isIsolated(), is(false));
+            assertThat(datafeedJob.lastEndTimeMs(), equalTo(7_200_000L));
+            wasHandlerCalled.compareAndSet(false, true);
+        }, e -> fail());
 
         DatafeedContext datafeedContext = DatafeedContext.builder()
             .setDatafeedConfig(datafeed.build())
@@ -163,14 +187,12 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         DatafeedConfig.Builder datafeed = DatafeedRunnerTests.createDatafeedConfig("datafeed1", jobBuilder.getId());
 
         AtomicBoolean wasHandlerCalled = new AtomicBoolean(false);
-        ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(
-                datafeedJob -> {
-                    assertThat(datafeedJob.isRunning(), is(true));
-                    assertThat(datafeedJob.isIsolated(), is(false));
-                    assertThat(datafeedJob.lastEndTimeMs(), equalTo(7_199_999L));
-                    wasHandlerCalled.compareAndSet(false, true);
-                }, e -> fail()
-        );
+        ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(datafeedJob -> {
+            assertThat(datafeedJob.isRunning(), is(true));
+            assertThat(datafeedJob.isIsolated(), is(false));
+            assertThat(datafeedJob.lastEndTimeMs(), equalTo(7_199_999L));
+            wasHandlerCalled.compareAndSet(false, true);
+        }, e -> fail());
 
         DatafeedContext datafeedContext = DatafeedContext.builder()
             .setDatafeedConfig(datafeed.build())
@@ -209,10 +231,17 @@ public class DatafeedJobBuilderTests extends ESTestCase {
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(
             datafeedJob -> fail("datafeed builder did not fail when remote index was given and remote clusters were not enabled"),
             e -> {
-                assertThat(e.getMessage(), equalTo(Messages.getMessage(Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
-                    "datafeed1",
-                    "[remotecluster:index-*]",
-                    "test_node")));
+                assertThat(
+                    e.getMessage(),
+                    equalTo(
+                        Messages.getMessage(
+                            Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
+                            "datafeed1",
+                            "[remotecluster:index-*]",
+                            "test_node"
+                        )
+                    )
+                );
                 wasHandlerCalled.compareAndSet(false, true);
             }
         );

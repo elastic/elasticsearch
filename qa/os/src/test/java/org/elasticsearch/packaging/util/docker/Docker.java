@@ -14,7 +14,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Distribution.Packaging;
 import org.elasticsearch.packaging.util.FileUtils;
@@ -23,6 +25,7 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 
 import java.io.FileNotFoundException;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -41,6 +44,7 @@ import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.Directory;
 import static org.elasticsearch.packaging.util.FileMatcher.p444;
 import static org.elasticsearch.packaging.util.FileMatcher.p555;
+import static org.elasticsearch.packaging.util.FileMatcher.p660;
 import static org.elasticsearch.packaging.util.FileMatcher.p664;
 import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
@@ -64,7 +68,7 @@ public class Docker {
     public static final Shell sh = new Shell();
     public static final DockerShell dockerShell = new DockerShell();
     public static final int STARTUP_SLEEP_INTERVAL_MILLISECONDS = 1000;
-    public static final int STARTUP_ATTEMPTS_MAX = 10;
+    public static final int STARTUP_ATTEMPTS_MAX = 30;
 
     /**
      * Tracks the currently running Docker image. An earlier implementation used a fixed container name,
@@ -153,7 +157,7 @@ public class Docker {
 
         do {
             try {
-                // Give the container a chance to crash out
+                // Give the container enough time for security auto-configuration or a chance to crash out
                 Thread.sleep(STARTUP_SLEEP_INTERVAL_MILLISECONDS);
 
                 // Set COLUMNS so that `ps` doesn't truncate its output
@@ -191,7 +195,7 @@ public class Docker {
         do {
             try {
                 // Give the container a chance to exit out
-                Thread.sleep(1000);
+                Thread.sleep(2000);
 
                 if (sh.run("docker ps --quiet --no-trunc").stdout.contains(containerId) == false) {
                     isElasticsearchRunning = false;
@@ -200,7 +204,7 @@ public class Docker {
             } catch (Exception e) {
                 logger.warn("Caught exception while waiting for ES to exit", e);
             }
-        } while (attempt++ < 8);
+        } while (attempt++ < 60);
 
         if (isElasticsearchRunning) {
             final Shell.Result dockerLogs = getContainerLogs();
@@ -267,6 +271,29 @@ public class Docker {
         final Shell.Result result = dockerShell.runIgnoreExitCode("test -e " + path);
 
         return result.isSuccess();
+    }
+
+    /**
+     * Finds a file or dir in the container and returns its path ( in the container ). If there are multiple matches for the given
+     * pattern, only the first is returned.
+     *
+     * @param base The base path in the container to start the search from
+     * @param type The type we're looking for , d for directories or f for files.
+     * @param pattern the pattern (case insensitive) that matches the file/dir name
+     * @return a Path pointing to the file/directory in the container
+     */
+    public static Path findInContainer(Path base, String type, String pattern) throws InvalidPathException {
+        logger.debug("Trying to look for " + pattern + " ( " + type + ") in " + base + " in the container");
+        final String script = "docker exec " + containerId + " find " + base + " -type " + type + " -iname " + pattern;
+        final Shell.Result result = sh.run(script);
+        if (result.isSuccess() && Strings.isNullOrEmpty(result.stdout) == false) {
+            String path = result.stdout;
+            if (path.split(System.lineSeparator()).length > 1) {
+                path = path.split(System.lineSeparator())[1];
+            }
+            return Path.of(path);
+        }
+        return null;
     }
 
     /**
@@ -408,8 +435,11 @@ public class Docker {
                 )
             );
 
-        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties", "role_mapping.yml", "roles.yml", "users", "users_roles")
+        Stream.of("jvm.options", "log4j2.properties", "role_mapping.yml", "roles.yml", "users", "users_roles")
             .forEach(configFile -> assertThat(es.config(configFile), file("root", "root", p664)));
+        // We write to the elasticsearch.yml and elasticsearch.keystore in AutoConfigureNode so it gets owned by elasticsearch.
+        assertThat(es.config("elasticsearch.yml"), file("elasticsearch", "root", p664));
+        assertThat(es.config("elasticsearch.keystore"), file("elasticsearch", "root", p660));
 
         Stream.of("LICENSE.txt", "NOTICE.txt", "README.asciidoc")
             .forEach(doc -> assertThat(es.home.resolve(doc), file("root", "root", p444)));
@@ -432,8 +462,6 @@ public class Docker {
     }
 
     private static void verifyCloudContainerInstallation(Installation es) {
-        assertThat(Path.of("/opt/plugins/plugin-wrapper.sh"), file("root", "root", p555));
-
         final String pluginArchive = "/opt/plugins/archive";
         final List<String> plugins = listContents(pluginArchive);
 
@@ -452,20 +480,36 @@ public class Docker {
         } else {
             assertThat("Cloud image should not have any plugins in " + pluginArchive, plugins, empty());
         }
+
+        // Cloud uses `wget` to install plugins / bundles.
+        Stream.of("wget")
+            .forEach(
+                cliBinary -> assertTrue(
+                    cliBinary + " ought to be available.",
+                    dockerShell.runIgnoreExitCode("bash -c  'hash " + cliBinary + "'").isSuccess()
+                )
+            );
     }
 
     public static void waitForElasticsearch(Installation installation) throws Exception {
         withLogging(() -> ServerUtils.waitForElasticsearch(installation));
     }
 
-    public static void waitForElasticsearch(String status, String index, Installation installation, String username, String password)
-        throws Exception {
-        withLogging(() -> ServerUtils.waitForElasticsearch(status, index, installation, username, password));
+    public static void waitForElasticsearch(Installation installation, String username, String password) {
+        waitForElasticsearch(installation, username, password, null);
     }
 
-    public static void waitForElasticsearch(Installation installation, String username, String password) {
+    /**
+     * Waits for the Elasticsearch cluster status to turn green.
+     *
+     * @param installation the installation to check
+     * @param username the username to authenticate with
+     * @param password the password to authenticate with
+     * @param caCert the CA cert to trust
+     */
+    public static void waitForElasticsearch(Installation installation, String username, String password, Path caCert) {
         try {
-            waitForElasticsearch("green", null, installation, username, password);
+            withLogging(() -> ServerUtils.waitForElasticsearch("green", null, installation, username, password, caCert));
         } catch (Exception e) {
             throw new AssertionError(
                 "Failed to check whether Elasticsearch had started. This could be because "
@@ -517,7 +561,18 @@ public class Docker {
         return mapper.readTree(pluginsResponse);
     }
 
-    public static JsonNode getJson(String path, String user, String password) throws Exception {
+    /**
+     * Fetches the resource from the specified {@code path} on {@code http(s)://localhost:9200}, using
+     * the supplied authentication credentials.
+     *
+     * @param path the path to fetch
+     * @param user the user to authenticate with
+     * @param password the password to authenticate with
+     * @param caCert CA cert to trust, if non-null use the https URL
+     * @return a parsed JSON response
+     * @throws Exception if something goes wrong
+     */
+    public static JsonNode getJson(String path, String user, String password, @Nullable Path caCert) throws Exception {
         path = Objects.requireNonNull(path, "path can not be null").trim();
         if (path.isEmpty()) {
             throw new IllegalArgumentException("path must be supplied");
@@ -525,7 +580,13 @@ public class Docker {
         if (path.startsWith("/") == false) {
             throw new IllegalArgumentException("path must start with /");
         }
-        final String pluginsResponse = makeRequest(Request.Get("http://localhost:9200" + path), user, password, null);
+
+        final String pluginsResponse;
+        if (caCert == null) {
+            pluginsResponse = makeRequest(Request.Get("http://localhost:9200" + path), user, password, null);
+        } else {
+            pluginsResponse = makeRequest(Request.Get("https://localhost:9200" + path), user, password, caCert);
+        }
 
         ObjectMapper mapper = new ObjectMapper();
 
@@ -585,7 +646,7 @@ public class Docker {
         sh.run("docker restart " + containerId);
     }
 
-    public static PosixFileAttributes getAttributes(Path path) throws FileNotFoundException {
+    static PosixFileAttributes getAttributes(Path path) throws FileNotFoundException {
         final Shell.Result result = dockerShell.runIgnoreExitCode("stat -c \"%U %G %A\" " + path);
         if (result.isSuccess() == false) {
             throw new FileNotFoundException(path + " does not exist");

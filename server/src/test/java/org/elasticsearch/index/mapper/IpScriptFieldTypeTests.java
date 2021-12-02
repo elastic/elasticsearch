@@ -26,10 +26,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
-import org.elasticsearch.index.fielddata.IpScriptFieldData;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.ScoreScript;
@@ -145,7 +145,7 @@ public class IpScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase {
                         return new ScoreScript(Map.of(), searchContext.lookup(), docReader) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
-                                IpScriptFieldData.IpScriptDocValues bytes = (IpScriptFieldData.IpScriptDocValues) getDoc().get("test");
+                                Strings bytes = (Strings) getDoc().get("test");
                                 return Integer.parseInt(bytes.getValue().substring(bytes.getValue().lastIndexOf(".") + 1));
                             }
                         };

@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.sql.jdbc;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.http.MockResponse;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
@@ -39,10 +39,18 @@ public class VersionParityTests extends WebServerTestCase {
             // Client's version is wired up to patch level, excluding the qualifier => generate the test version as the server does it.
             String versionString = SqlVersion.fromString(version.toString()).toString();
 
-            SQLException ex = expectThrows(SQLException.class, () -> new JdbcHttpClient(JdbcConfiguration.create(url, null, 0)));
-            assertEquals("This version of the JDBC driver is only compatible with Elasticsearch version " +
-                ClientVersion.CURRENT.majorMinorToString() + " or newer; attempting to connect to a server " +
-                "version " + versionString, ex.getMessage());
+            SQLException ex = expectThrows(
+                SQLException.class,
+                () -> new JdbcHttpClient(new JdbcConnection(JdbcConfiguration.create(url, null, 0), false))
+            );
+            assertEquals(
+                "This version of the JDBC driver is only compatible with Elasticsearch version "
+                    + ClientVersion.CURRENT.majorMinorToString()
+                    + " or newer; attempting to connect to a server "
+                    + "version "
+                    + versionString,
+                ex.getMessage()
+            );
         } while (version.compareTo(firstVersion) > 0);
     }
 
@@ -52,7 +60,7 @@ public class VersionParityTests extends WebServerTestCase {
         try {
             do {
                 prepareResponse(version);
-                new JdbcHttpClient(JdbcConfiguration.create(url, null, 0));
+                new JdbcHttpClient(new JdbcConnection(JdbcConfiguration.create(url, null, 0), false));
                 version = VersionUtils.getPreviousVersion(version);
             } while (version.compareTo(Version.V_7_7_0) >= 0);
         } catch (SQLException sqle) {
@@ -62,7 +70,10 @@ public class VersionParityTests extends WebServerTestCase {
 
     void prepareResponse(Version version) throws IOException {
         MainResponse response = version == null ? createCurrentVersionMainResponse() : createMainResponse(version);
-        webServer().enqueue(new MockResponse().setResponseCode(200).addHeader("Content-Type", "application/json").setBody(
-                XContentHelper.toXContent(response, XContentType.JSON, false).utf8ToString()));
+        webServer().enqueue(
+            new MockResponse().setResponseCode(200)
+                .addHeader("Content-Type", "application/json")
+                .setBody(XContentHelper.toXContent(response, XContentType.JSON, false).utf8ToString())
+        );
     }
 }

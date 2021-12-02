@@ -11,18 +11,18 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class DefaultShardOperationFailedException extends ShardOperationFailedException implements Writeable {
 
@@ -31,7 +31,10 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
     private static final String REASON = "reason";
 
     public static final ConstructingObjectParser<DefaultShardOperationFailedException, Void> PARSER = new ConstructingObjectParser<>(
-        "failures", true, arg -> new DefaultShardOperationFailedException((String) arg[0], (int) arg[1] ,(Throwable) arg[2]));
+        "failures",
+        true,
+        arg -> new DefaultShardOperationFailedException((String) arg[0], (int) arg[1], (Throwable) arg[2])
+    );
 
     protected static <T extends DefaultShardOperationFailedException> void declareFields(ConstructingObjectParser<T, Void> objectParser) {
         objectParser.declareString(constructorArg(), new ParseField(INDEX));
@@ -50,8 +53,13 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
     }
 
     public DefaultShardOperationFailedException(ElasticsearchException e) {
-        super(e.getIndex() == null ? null : e.getIndex().getName(), e.getShardId() == null ? -1 : e.getShardId().getId(),
-            ExceptionsHelper.stackTrace(e), e.status(), e);
+        super(
+            e.getIndex() == null ? null : e.getIndex().getName(),
+            e.getShardId() == null ? -1 : e.getShardId().getId(),
+            ExceptionsHelper.stackTrace(e),
+            e.status(),
+            e
+        );
     }
 
     public DefaultShardOperationFailedException(String index, int shardId, Throwable cause) {

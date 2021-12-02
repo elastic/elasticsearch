@@ -96,16 +96,17 @@ import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.security.authc.service.ElasticServiceAccounts.ElasticServiceAccount;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -118,98 +119,169 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         final RoleDescriptor serviceAccountRoleDescriptor = ElasticServiceAccounts.ACCOUNTS.get("elastic/kibana").roleDescriptor();
         final RoleDescriptor reservedRolesStoreRoleDescriptor = ReservedRolesStore.kibanaSystemRoleDescriptor(KibanaSystemUser.ROLE_NAME);
         assertThat(serviceAccountRoleDescriptor.getClusterPrivileges(), equalTo(reservedRolesStoreRoleDescriptor.getClusterPrivileges()));
-        assertThat(serviceAccountRoleDescriptor.getApplicationPrivileges(),
-            equalTo(reservedRolesStoreRoleDescriptor.getApplicationPrivileges()));
+        assertThat(
+            serviceAccountRoleDescriptor.getApplicationPrivileges(),
+            equalTo(reservedRolesStoreRoleDescriptor.getApplicationPrivileges())
+        );
         assertThat(serviceAccountRoleDescriptor.getIndicesPrivileges(), equalTo(reservedRolesStoreRoleDescriptor.getIndicesPrivileges()));
-        assertThat(serviceAccountRoleDescriptor.getConditionalClusterPrivileges(),
-            equalTo(reservedRolesStoreRoleDescriptor.getConditionalClusterPrivileges()));
+        assertThat(
+            serviceAccountRoleDescriptor.getConditionalClusterPrivileges(),
+            equalTo(reservedRolesStoreRoleDescriptor.getConditionalClusterPrivileges())
+        );
         assertThat(serviceAccountRoleDescriptor.getRunAs(), equalTo(reservedRolesStoreRoleDescriptor.getRunAs()));
         assertThat(serviceAccountRoleDescriptor.getMetadata(), equalTo(reservedRolesStoreRoleDescriptor.getMetadata()));
     }
 
-    public void testElasticFleetPrivileges() {
-        final Role role =
-            Role.builder(ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(), null, Automatons.EMPTY).build();
+    public void testElasticFleetServerPrivileges() {
+        final Role role = Role.builder(
+            ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(),
+            null,
+            RESTRICTED_INDICES_AUTOMATON
+        ).build();
         final Authentication authentication = mock(Authentication.class);
-        assertThat(role.cluster().check(CreateApiKeyAction.NAME,
-            new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null), authentication), is(true));
+        assertThat(
+            role.cluster()
+                .check(CreateApiKeyAction.NAME, new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null), authentication),
+            is(true)
+        );
         assertThat(role.cluster().check(GetApiKeyAction.NAME, GetApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
         assertThat(role.cluster().check(InvalidateApiKeyAction.NAME, InvalidateApiKeyRequest.forOwnedApiKeys(), authentication), is(true));
 
         assertThat(role.cluster().check(GetApiKeyAction.NAME, randomFrom(GetApiKeyRequest.forAllApiKeys()), authentication), is(false));
-        assertThat(role.cluster().check(InvalidateApiKeyAction.NAME,
-            InvalidateApiKeyRequest.usingUserName(randomAlphaOfLengthBetween(3, 16)), authentication), is(false));
+        assertThat(
+            role.cluster()
+                .check(
+                    InvalidateApiKeyAction.NAME,
+                    InvalidateApiKeyRequest.usingUserName(randomAlphaOfLengthBetween(3, 16)),
+                    authentication
+                ),
+            is(false)
+        );
 
         List.of(
             "logs-" + randomAlphaOfLengthBetween(1, 20),
             "metrics-" + randomAlphaOfLengthBetween(1, 20),
             "traces-" + randomAlphaOfLengthBetween(1, 20),
             "synthetics-" + randomAlphaOfLengthBetween(1, 20),
-            ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(1, 20))
-            .stream().map(this::mockIndexAbstraction)
-            .forEach(index -> {
-                assertThat(role.indices().allowedIndicesMatcher(AutoPutMappingAction.NAME).test(index), is(true));
-                assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(index), is(true));
-                assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
-                assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
-                assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
-                assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(true));
-                assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
-                assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(false));
-                assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(index), is(false));
-                assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(false));
-                assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(false));
-                assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
-            });
+            ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(1, 20),
+            ".logs-endpoint.action.responses-" + randomAlphaOfLengthBetween(1, 20)
+        ).stream().map(this::mockIndexAbstraction).forEach(index -> {
+            assertThat(role.indices().allowedIndicesMatcher(AutoPutMappingAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(AutoCreateAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(index), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(index), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(index), is(false));
+        });
 
-        final String dotFleetIndexName = ".fleet-" + randomAlphaOfLengthBetween(1, 20);
-        final IndexAbstraction dotFleetIndex = mockIndexAbstraction(dotFleetIndexName);
-        assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(dotFleetIndex), is(true));
-        assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(dotFleetIndex), is(false));
-        assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetIndex), is(false));
-        assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotFleetIndex), is(false));
-        // TODO: more tests when role descriptor is finalised for elastic/fleet-server
+        List.of(
+            ".fleet-" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-action" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-agents" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-enrollment-api-keys" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-policies" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-policies-leader" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-servers" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-artifacts" + randomAlphaOfLengthBetween(1, 20),
+            ".fleet-actions-results" + randomAlphaOfLengthBetween(1, 20)
+        ).forEach(index -> {
+            final IndexAbstraction dotFleetIndex = mockIndexAbstraction(index);
+            assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(CreateIndexAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(BulkAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(IndicesStatsAction.NAME).test(dotFleetIndex), is(true));
+            assertThat(role.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(dotFleetIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher(UpdateSettingsAction.NAME).test(dotFleetIndex), is(false));
+            assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(dotFleetIndex), is(false));
+        });
+
+        final String kibanaApplication = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
+        final String privilegeName = randomAlphaOfLengthBetween(3, 16);
+        assertThat(
+            role.application().grants(new ApplicationPrivilege(kibanaApplication, privilegeName, "reserved_fleet-setup"), "*"),
+            is(true)
+        );
+
+        final String otherApplication = randomValueOtherThanMany(s -> s.startsWith("kibana"), () -> randomAlphaOfLengthBetween(3, 8))
+            + "-"
+            + randomAlphaOfLengthBetween(8, 24);
+        assertThat(
+            role.application().grants(new ApplicationPrivilege(otherApplication, privilegeName, "reserved_fleet-setup"), "*"),
+            is(false)
+        );
+
+        assertThat(
+            role.application()
+                .grants(
+                    new ApplicationPrivilege(
+                        kibanaApplication,
+                        privilegeName,
+                        randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 16))
+                    ),
+                    "*"
+                ),
+            is(false)
+        );
     }
 
     public void testElasticServiceAccount() {
         final String serviceName = randomAlphaOfLengthBetween(3, 8);
         final String principal = ElasticServiceAccounts.NAMESPACE + "/" + serviceName;
         final RoleDescriptor roleDescriptor1 = new RoleDescriptor(principal, null, null, null);
-        final ElasticServiceAccount serviceAccount = new ElasticServiceAccount(
-            serviceName, roleDescriptor1);
+        final ElasticServiceAccount serviceAccount = new ElasticServiceAccount(serviceName, roleDescriptor1);
         assertThat(serviceAccount.id(), equalTo(new ServiceAccount.ServiceAccountId(ElasticServiceAccounts.NAMESPACE, serviceName)));
         assertThat(serviceAccount.roleDescriptor(), equalTo(roleDescriptor1));
-        assertThat(serviceAccount.asUser(), equalTo(new User(principal, Strings.EMPTY_ARRAY,
-            "Service account - " + principal, null,
-            Map.of("_elastic_service_account", true),
-            true)));
+        assertThat(
+            serviceAccount.asUser(),
+            equalTo(
+                new User(
+                    principal,
+                    Strings.EMPTY_ARRAY,
+                    "Service account - " + principal,
+                    null,
+                    Map.of("_elastic_service_account", true),
+                    true
+                )
+            )
+        );
 
-        final NullPointerException e1 =
-            expectThrows(NullPointerException.class, () -> new ElasticServiceAccount(serviceName, null));
+        final NullPointerException e1 = expectThrows(NullPointerException.class, () -> new ElasticServiceAccount(serviceName, null));
         assertThat(e1.getMessage(), containsString("Role descriptor cannot be null"));
 
-        final RoleDescriptor roleDescriptor2 = new RoleDescriptor(randomAlphaOfLengthBetween(6, 16),
-            null, null, null);
-        final IllegalArgumentException e2 =
-            expectThrows(IllegalArgumentException.class, () -> new ElasticServiceAccount(serviceName, roleDescriptor2));
-        assertThat(e2.getMessage(), containsString(
-            "the provided role descriptor [" + roleDescriptor2.getName()
-                + "] must have the same name as the service account [" + principal + "]"));
+        final RoleDescriptor roleDescriptor2 = new RoleDescriptor(randomAlphaOfLengthBetween(6, 16), null, null, null);
+        final IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ElasticServiceAccount(serviceName, roleDescriptor2)
+        );
+        assertThat(
+            e2.getMessage(),
+            containsString(
+                "the provided role descriptor ["
+                    + roleDescriptor2.getName()
+                    + "] must have the same name as the service account ["
+                    + principal
+                    + "]"
+            )
+        );
     }
 
     private IndexAbstraction mockIndexAbstraction(String name) {
         IndexAbstraction mock = mock(IndexAbstraction.class);
         when(mock.getName()).thenReturn(name);
-        when(mock.getType()).thenReturn(randomFrom(IndexAbstraction.Type.CONCRETE_INDEX,
-            IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM));
+        when(mock.getType()).thenReturn(
+            randomFrom(IndexAbstraction.Type.CONCRETE_INDEX, IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM)
+        );
         return mock;
     }
 

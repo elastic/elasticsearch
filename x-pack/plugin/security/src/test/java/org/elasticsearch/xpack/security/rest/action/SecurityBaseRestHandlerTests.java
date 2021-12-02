@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class SecurityBaseRestHandlerTests extends ESTestCase {
@@ -34,7 +34,8 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
         final AtomicBoolean consumerCalled = new AtomicBoolean(false);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.getOperationMode()).thenReturn(
-            randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD));
+            randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD)
+        );
         SecurityBaseRestHandler handler = new SecurityBaseRestHandler(settings, licenseState) {
 
             @Override
@@ -61,7 +62,7 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
 
         try (NodeClient client = new NoOpNodeClient(this.getTestName())) {
             assertFalse(consumerCalled.get());
-            verifyZeroInteractions(licenseState);
+            verifyNoMoreInteractions(licenseState);
             handler.handleRequest(fakeRestRequest, fakeRestChannel, client);
 
             if (securityEnabled) {

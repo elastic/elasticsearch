@@ -9,8 +9,8 @@ package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -242,8 +242,8 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         }
 
         if (reduceContext.isFinalReduce()) {
-            MatrixStatsResults results = new MatrixStatsResults(runningStats);
-            return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, getMetadata());
+            MatrixStatsResults matrixStatsResults = new MatrixStatsResults(runningStats);
+            return new InternalMatrixStats(name, matrixStatsResults.getDocCount(), runningStats, matrixStatsResults, getMetadata());
         }
         return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata());
     }

@@ -9,6 +9,7 @@ import org.elasticsearch.gradle.internal.docker.TransformLog4jConfigFilter
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 import java.nio.file.Path
+import java.time.temporal.ChronoUnit
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
@@ -81,14 +82,21 @@ dependencies {
 ext.expansions = { Architecture architecture, DockerBase base ->
   def (major,minor) = VersionProperties.elasticsearch.split("\\.")
 
+  // We tag our Docker images with various pieces of information, including a timestamp
+  // for when the image was built. However, this makes it impossible completely cache
+  // the image. When developing the Docker images, it's very tedious to completely rebuild
+  // an image for every single change. Therefore, outside of CI, we fix the
+  // build time to midnight so that the Docker build cache is usable.
+  def buildDate = BuildParams.isCi() ? BuildParams.buildDate : BuildParams.buildDate.truncatedTo(ChronoUnit.DAYS)
+
   return [
     'base_image'         : base.image,
     'bin_dir'            : base == DockerBase.IRON_BANK ? 'scripts' : 'bin',
-    'build_date'         : BuildParams.buildDate,
+    'build_date'         : buildDate,
     'config_dir'         : base == DockerBase.IRON_BANK ? 'scripts' : 'config',
     'git_revision'       : BuildParams.gitRevision,
-    'license'            : base == DockerBase.IRON_BANK ? 'Elastic License 1.0' : 'Elastic-License-2.0',
-    'package_manager'    : base == DockerBase.UBI ? 'microdnf' : 'yum',
+    'license'            : base == DockerBase.IRON_BANK ? 'Elastic License 2.0' : 'Elastic-License-2.0',
+    'package_manager'    : base == DockerBase.IRON_BANK ? 'yum' : (base == DockerBase.UBI ? 'microdnf' : 'apt-get'),
     'docker_base'        : base.name().toLowerCase(),
     'version'            : VersionProperties.elasticsearch,
     'major_minor_version': "${major}.${minor}",
@@ -113,7 +121,7 @@ private static String toCamel(String input) {
 private static String taskName(String prefix, Architecture architecture, DockerBase base, String suffix) {
   return prefix +
     (architecture == Architecture.AARCH64 ? 'Aarch64' : '') +
-    (base == DockerBase.CENTOS ? "" : toCamel(base.name())) +
+    (base == DockerBase.DEFAULT ? "" : toCamel(base.name())) +
     suffix
 }
 
@@ -186,12 +194,12 @@ tasks.named("preProcessFixture").configure {
   doLast {
     // tests expect to have an empty repo
     project.delete(
-      "${buildDir}/repo",
+      "${testFixturesDir}/repo",
     )
     createAndSetWritable(
-      "${buildDir}/repo",
-      "${buildDir}/logs/default-1",
-      "${buildDir}/logs/default-2",
+      "${testFixturesDir}/repo",
+      "${testFixturesDir}/logs/default-1",
+      "${testFixturesDir}/logs/default-2",
     )
   }
 }
@@ -221,6 +229,10 @@ tasks.named("composePull").configure {
   enabled = false
 }
 
+tasks.named("composeUp").configure {
+  dependsOn tasks.named("preProcessFixture")
+}
+
 void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
   String configDirectory = base == DockerBase.IRON_BANK ? 'scripts' : 'config'
   String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
@@ -240,17 +252,19 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
       }
 
       if (base == DockerBase.CLOUD) {
+        // If we're performing a release build, but `build.id` hasn't been set, we can
+        // infer that we're not at the Docker building stage of the build, and therefore
+        // we should skip the beats part of the build.
+        String buildId = providers.systemProperty('build.id').forUseAtConfigurationTime().getOrNull()
+        boolean includeBeats = VersionProperties.isElasticsearchSnapshot() == true || buildId != null
+
         from configurations.repositoryPlugins
-        from configurations.filebeat
-        from configurations.metricbeat
+        if (includeBeats) {
+          from configurations.filebeat
+          from configurations.metricbeat
+        }
         // For some reason, the artifact name can differ depending on what repository we used.
         rename ~/((?:file|metric)beat)-.*\.tar\.gz$/, "\$1-${VersionProperties.elasticsearch}.tar.gz"
-
-        into('bin') {
-          from(project.projectDir.toPath().resolve('src/docker/cloud')) {
-            expand([ version: VersionProperties.elasticsearch ])
-          }
-        }
       }
 
       onlyIf { Architecture.current() == architecture }
@@ -329,6 +343,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
       dockerContext.fileProvider(transformTask.map { Sync task -> task.getDestinationDir() })
 
+      noCache = BuildParams.isCi
       tags = generateTags(base)
 
       if (base == DockerBase.IRON_BANK) {
@@ -346,8 +361,6 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
         baseImages = [baseImage]
         buildArgs = buildArgsMap
-      } else if (base == DockerBase.CENTOS || base == DockerBase.CLOUD) {
-        baseImages = ['alpine:3.13', base.image]
       } else {
         baseImages = [base.image]
       }
@@ -390,11 +403,11 @@ void addBuildEssDockerImageTask(Architecture architecture) {
     tasks.register(taskName("build", architecture, base, "DockerImage"), DockerBuildTask) {
 
       TaskProvider<DockerBuildTask> buildCloudTask = tasks.named(taskName("build", architecture, DockerBase.CLOUD, "DockerImage"))
-      dependsOn(buildCloudTask)
-      dependsOn(buildContextTask)
+      inputs.files(buildCloudTask)
 
       dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
 
+      noCache = BuildParams.isCi
       baseImages = []
       tags = generateTags(base)
 
@@ -428,7 +441,7 @@ subprojects { Project subProject ->
     apply plugin: 'distribution'
 
     final Architecture architecture = subProject.name.contains('aarch64-') ? Architecture.AARCH64 : Architecture.X64
-    DockerBase base = DockerBase.CENTOS
+    DockerBase base = DockerBase.DEFAULT
     if (subProject.name.contains('ubi-')) {
       base = DockerBase.UBI
     } else if (subProject.name.contains('ironbank-')) {

@@ -17,10 +17,10 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -176,11 +176,11 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         request.addParameter("refresh", "true");
 
         StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_index\": \"test\", \"_id\":\"1\"}\n");
+        bulk.append("{\"index\":{\"_index\": \"test\", \"_id\":\"1\"}}\n");
         bulk.append("{\"a\": 1, \"b\": 2, \"c\": 3}\n");
-        bulk.append("{\"index\":{\"_index\": \"test\", \"_id\":\"2\"}\n");
+        bulk.append("{\"index\":{\"_index\": \"test\", \"_id\":\"2\"}}\n");
         bulk.append("{\"a\": 4, \"b\": 5, \"c\": 6}\n");
-        bulk.append("{\"index\":{\"_index\": \"bort\", \"_id\":\"1\"}\n");
+        bulk.append("{\"index\":{\"_index\": \"bort\", \"_id\":\"1\"}}\n");
         bulk.append("{\"a\": \"test\"}\n");
         request.setJsonEntity(bulk.toString());
         client().performRequest(request);

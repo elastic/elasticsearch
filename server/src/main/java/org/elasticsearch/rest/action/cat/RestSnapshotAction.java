@@ -8,8 +8,8 @@
 
 package org.elasticsearch.rest.action.cat;
 
-
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.admin.cluster.repositories.get.TransportGetRepositoriesAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.node.NodeClient;
@@ -37,9 +37,7 @@ public class RestSnapshotAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_cat/snapshots"),
-            new Route(GET, "/_cat/snapshots/{repository}"));
+        return List.of(new Route(GET, "/_cat/snapshots"), new Route(GET, "/_cat/snapshots/{repository}"));
     }
 
     @Override
@@ -49,21 +47,20 @@ public class RestSnapshotAction extends AbstractCatAction {
 
     @Override
     protected RestChannelConsumer doCatRequest(final RestRequest request, NodeClient client) {
-        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest()
-                .repositories(request.paramAsStringArray("repository", new String[]{"_all"}))
-                .snapshots(new String[]{GetSnapshotsRequest.ALL_SNAPSHOTS});
+        final String[] matchAll = { TransportGetRepositoriesAction.ALL_PATTERN };
+        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest().repositories(request.paramAsStringArray("repository", matchAll))
+            .snapshots(matchAll);
 
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
 
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
 
-        return channel ->
-            client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestResponseListener<>(channel) {
-                @Override
-                public RestResponse buildResponse(GetSnapshotsResponse getSnapshotsResponse) throws Exception {
-                    return RestTable.buildResponse(buildTable(request, getSnapshotsResponse), channel);
-                }
-            });
+        return channel -> client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestResponseListener<>(channel) {
+            @Override
+            public RestResponse buildResponse(GetSnapshotsResponse getSnapshotsResponse) throws Exception {
+                return RestTable.buildResponse(buildTable(request, getSnapshotsResponse), channel);
+            }
+        });
     }
 
     @Override
@@ -73,22 +70,21 @@ public class RestSnapshotAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(RestRequest request) {
-        return new Table()
-                .startHeaders()
-                .addCell("id", "alias:id,snapshot;desc:unique snapshot")
-                .addCell("repository", "alias:re,repo;desc:repository name")
-                .addCell("status", "alias:s,status;text-align:right;desc:snapshot name")
-                .addCell("start_epoch", "alias:ste,startEpoch;desc:start time in seconds since 1970-01-01 00:00:00")
-                .addCell("start_time", "alias:sti,startTime;desc:start time in HH:MM:SS")
-                .addCell("end_epoch", "alias:ete,endEpoch;desc:end time in seconds since 1970-01-01 00:00:00")
-                .addCell("end_time", "alias:eti,endTime;desc:end time in HH:MM:SS")
-                .addCell("duration", "alias:dur,duration;text-align:right;desc:duration")
-                .addCell("indices", "alias:i,indices;text-align:right;desc:number of indices")
-                .addCell("successful_shards", "alias:ss,successful_shards;text-align:right;desc:number of successful shards")
-                .addCell("failed_shards", "alias:fs,failed_shards;text-align:right;desc:number of failed shards")
-                .addCell("total_shards", "alias:ts,total_shards;text-align:right;desc:number of total shards")
-                .addCell("reason", "default:false;alias:r,reason;desc:reason for failures")
-                .endHeaders();
+        return new Table().startHeaders()
+            .addCell("id", "alias:id,snapshot;desc:unique snapshot")
+            .addCell("repository", "alias:re,repo;desc:repository name")
+            .addCell("status", "alias:s,status;text-align:right;desc:snapshot name")
+            .addCell("start_epoch", "alias:ste,startEpoch;desc:start time in seconds since 1970-01-01 00:00:00")
+            .addCell("start_time", "alias:sti,startTime;desc:start time in HH:MM:SS")
+            .addCell("end_epoch", "alias:ete,endEpoch;desc:end time in seconds since 1970-01-01 00:00:00")
+            .addCell("end_time", "alias:eti,endTime;desc:end time in HH:MM:SS")
+            .addCell("duration", "alias:dur,duration;text-align:right;desc:duration")
+            .addCell("indices", "alias:i,indices;text-align:right;desc:number of indices")
+            .addCell("successful_shards", "alias:ss,successful_shards;text-align:right;desc:number of successful shards")
+            .addCell("failed_shards", "alias:fs,failed_shards;text-align:right;desc:number of failed shards")
+            .addCell("total_shards", "alias:ts,total_shards;text-align:right;desc:number of total shards")
+            .addCell("reason", "default:false;alias:r,reason;desc:reason for failures")
+            .endHeaders();
     }
 
     private static final DateFormatter FORMATTER = DateFormatter.forPattern("HH:mm:ss").withZone(ZoneOffset.UTC);
@@ -107,12 +103,14 @@ public class RestSnapshotAction extends AbstractCatAction {
                 }
             }
             throw new ElasticsearchException(
-                    "Repositories [" +
-                            Strings.collectionToCommaDelimitedString(getSnapshotsResponse.getFailures().keySet()) +
-                    "] failed to retrieve snapshots", causes);
+                "Repositories ["
+                    + Strings.collectionToCommaDelimitedString(getSnapshotsResponse.getFailures().keySet())
+                    + "] failed to retrieve snapshots",
+                causes
+            );
         }
 
-        for (SnapshotInfo snapshotStatus: getSnapshotsResponse.getSnapshots()) {
+        for (SnapshotInfo snapshotStatus : getSnapshotsResponse.getSnapshots()) {
             table.startRow();
 
             table.addCell(snapshotStatus.snapshotId().getName());

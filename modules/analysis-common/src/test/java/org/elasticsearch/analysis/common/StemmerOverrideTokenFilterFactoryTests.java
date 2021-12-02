@@ -35,7 +35,8 @@ public class StemmerOverrideTokenFilterFactoryTests extends ESTokenStreamTestCas
                 .putList("index.analysis.filter.my_stemmer_override.rules", rules)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build(),
-            new CommonAnalysisPlugin());
+            new CommonAnalysisPlugin()
+        );
 
         return analysis.tokenFilter.get("my_stemmer_override");
     }
@@ -51,19 +52,18 @@ public class StemmerOverrideTokenFilterFactoryTests extends ESTokenStreamTestCas
             "=>a",     // no keys
             "a,=>b"    // empty key
         )) {
-            expectThrows(RuntimeException.class, String.format(
-                Locale.ROOT, "Should fail for invalid rule: '%s'", rule
-            ), () -> create(rule));
+            expectThrows(
+                RuntimeException.class,
+                String.format(Locale.ROOT, "Should fail for invalid rule: '%s'", rule),
+                () -> create(rule)
+            );
         }
     }
 
     public void testRulesOk() throws IOException {
-        TokenFilterFactory tokenFilterFactory = create(
-            "a => 1",
-            "b,c => 2"
-        );
+        TokenFilterFactory tokenFilterFactory = create("a => 1", "b,c => 2");
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader("a b c"));
-        assertTokenStreamContents(tokenFilterFactory.create(tokenizer), new String[]{"1", "2", "2"});
+        assertTokenStreamContents(tokenFilterFactory.create(tokenizer), new String[] { "1", "2", "2" });
     }
 }

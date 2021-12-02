@@ -9,16 +9,16 @@ package org.elasticsearch.xpack.core.ilm.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,7 +39,9 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
         public static final ParseField FAILED_INDEXES_FIELD = new ParseField("failed_indexes");
         @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<Response, Void> PARSER = new ConstructingObjectParser<>(
-                "change_policy_for_index_response", a -> new Response((List<String>) a[0]));
+            "change_policy_for_index_response",
+            a -> new Response((List<String>) a[0])
+        );
         static {
             PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), FAILED_INDEXES_FIELD);
             // Needs to be declared but not used in constructing the response object
@@ -72,7 +74,7 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(HAS_FAILURES_FIELD.getPreferredName(), hasFailures());
-            builder.field(FAILED_INDEXES_FIELD.getPreferredName(), failedIndexes);
+            builder.stringListField(FAILED_INDEXES_FIELD.getPreferredName(), failedIndexes);
             builder.endObject();
             return builder;
         }
@@ -112,8 +114,7 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(String... indices) {
             if (indices == null) {
@@ -167,8 +168,7 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.deepEquals(indices, other.indices) &&
-                    Objects.equals(indicesOptions, other.indicesOptions);
+            return Objects.deepEquals(indices, other.indices) && Objects.equals(indicesOptions, other.indicesOptions);
         }
 
     }

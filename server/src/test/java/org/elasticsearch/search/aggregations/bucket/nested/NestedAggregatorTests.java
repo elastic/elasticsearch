@@ -31,10 +31,10 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -131,7 +131,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
     }
 
     public void testNoDocs() throws IOException {
@@ -937,6 +937,6 @@ public class NestedAggregatorTests extends AggregatorTestCase {
     );
 
     public static NestedObjectMapper nestedObject(String path) {
-        return new NestedObjectMapper.Builder(path, Version.CURRENT).build(new ContentPath());
+        return new NestedObjectMapper.Builder(path, Version.CURRENT).build(MapperBuilderContext.ROOT);
     }
 }

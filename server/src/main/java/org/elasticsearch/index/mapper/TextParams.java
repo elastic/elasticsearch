@@ -35,16 +35,24 @@ public final class TextParams {
         public final Parameter<Integer> positionIncrementGap;
         public final IndexAnalyzers indexAnalyzers;
 
-        public Analyzers(IndexAnalyzers indexAnalyzers,
-                         Function<FieldMapper, Analyzers> analyzerInitFunction) {
-            this.indexAnalyzer = Parameter.analyzerParam("analyzer", false,
-                m -> analyzerInitFunction.apply(m).indexAnalyzer.get(), indexAnalyzers::getDefaultIndexAnalyzer)
-                .setSerializerCheck((id, ic, a) -> id || ic ||
-                    Objects.equals(a, getSearchAnalyzer()) == false || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
+        public Analyzers(
+            IndexAnalyzers indexAnalyzers,
+            Function<FieldMapper, NamedAnalyzer> analyzerInitFunction,
+            Function<FieldMapper, Integer> positionGapInitFunction
+        ) {
+            this.indexAnalyzer = Parameter.analyzerParam("analyzer", false, analyzerInitFunction, indexAnalyzers::getDefaultIndexAnalyzer)
+                .setSerializerCheck(
+                    (id, ic, a) -> id
+                        || ic
+                        || Objects.equals(a, getSearchAnalyzer()) == false
+                        || Objects.equals(a, getSearchQuoteAnalyzer()) == false
+                )
                 .addValidator(a -> a.checkAllowedInMode(AnalysisMode.INDEX_TIME));
-            this.searchAnalyzer
-                = Parameter.analyzerParam("search_analyzer", true,
-                m -> m.fieldType().getTextSearchInfo().getSearchAnalyzer(), () -> {
+            this.searchAnalyzer = Parameter.analyzerParam(
+                "search_analyzer",
+                true,
+                m -> m.fieldType().getTextSearchInfo().getSearchAnalyzer(),
+                () -> {
                     if (indexAnalyzer.isConfigured() == false) {
                         NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME);
                         if (defaultAnalyzer != null) {
@@ -52,12 +60,15 @@ public final class TextParams {
                         }
                     }
                     return indexAnalyzer.get();
-                })
+                }
+            )
                 .setSerializerCheck((id, ic, a) -> id || ic || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
                 .addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
-            this.searchQuoteAnalyzer
-                = Parameter.analyzerParam("search_quote_analyzer", true,
-                m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(), () -> {
+            this.searchQuoteAnalyzer = Parameter.analyzerParam(
+                "search_quote_analyzer",
+                true,
+                m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(),
+                () -> {
                     if (searchAnalyzer.isConfigured() == false && indexAnalyzer.isConfigured() == false) {
                         NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME);
                         if (defaultAnalyzer != null) {
@@ -65,15 +76,18 @@ public final class TextParams {
                         }
                     }
                     return searchAnalyzer.get();
-                })
-                .addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
-            this.positionIncrementGap = Parameter.intParam("position_increment_gap", false,
-                m -> analyzerInitFunction.apply(m).positionIncrementGap.get(), TextFieldMapper.Defaults.POSITION_INCREMENT_GAP)
-                .addValidator(v -> {
-                    if (v < 0) {
-                        throw new MapperParsingException("[position_increment_gap] must be positive, got [" + v + "]");
-                    }
-                });
+                }
+            ).addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
+            this.positionIncrementGap = Parameter.intParam(
+                "position_increment_gap",
+                false,
+                positionGapInitFunction,
+                TextFieldMapper.Defaults.POSITION_INCREMENT_GAP
+            ).addValidator(v -> {
+                if (v < 0) {
+                    throw new MapperParsingException("[position_increment_gap] must be positive, got [" + v + "]");
+                }
+            });
             this.indexAnalyzers = indexAnalyzers;
         }
 
@@ -99,27 +113,27 @@ public final class TextParams {
 
     public static Parameter<Boolean> norms(boolean defaultValue, Function<FieldMapper, Boolean> initializer) {
         // norms can be updated from 'true' to 'false' but not vv
-        return Parameter.boolParam("norms", true, initializer, defaultValue)
-            .setMergeValidator((o, n, c) -> o == n || (o && n == false));
+        return Parameter.boolParam("norms", true, initializer, defaultValue).setMergeValidator((o, n, c) -> o == n || (o && n == false));
     }
 
     public static Parameter<SimilarityProvider> similarity(Function<FieldMapper, SimilarityProvider> init) {
-        return new Parameter<>("similarity", false, () -> null,
-            (n, c, o) -> TypeParsers.resolveSimilarity(c, n, o), init)
-            .setSerializer((b, f, v) -> b.field(f, v == null ? null : v.name()), v -> v == null ? null : v.name())
-            .acceptsNull();
+        return new Parameter<>("similarity", false, () -> null, (n, c, o) -> TypeParsers.resolveSimilarity(c, n, o), init).setSerializer(
+            (b, f, v) -> b.field(f, v == null ? null : v.name()),
+            v -> v == null ? null : v.name()
+        ).acceptsNull();
     }
 
     public static Parameter<String> indexOptions(Function<FieldMapper, String> initializer) {
-        return Parameter.restrictedStringParam("index_options", false, initializer,
-            "positions", "docs", "freqs", "offsets");
+        return Parameter.restrictedStringParam("index_options", false, initializer, "positions", "docs", "freqs", "offsets");
     }
 
-    public static FieldType buildFieldType(Supplier<Boolean> indexed,
-                                           Supplier<Boolean> stored,
-                                           Supplier<String> indexOptions,
-                                           Supplier<Boolean> norms,
-                                           Supplier<String> termVectors) {
+    public static FieldType buildFieldType(
+        Supplier<Boolean> indexed,
+        Supplier<Boolean> stored,
+        Supplier<String> indexOptions,
+        Supplier<Boolean> norms,
+        Supplier<String> termVectors
+    ) {
         FieldType ft = new FieldType();
         ft.setStored(stored.get());
         ft.setTokenized(true);
@@ -147,14 +161,18 @@ public final class TextParams {
     }
 
     public static Parameter<String> termVectors(Function<FieldMapper, String> initializer) {
-        return Parameter.restrictedStringParam("term_vector", false, initializer,
+        return Parameter.restrictedStringParam(
+            "term_vector",
+            false,
+            initializer,
             "no",
             "yes",
             "with_positions",
             "with_offsets",
             "with_positions_offsets",
             "with_positions_payloads",
-            "with_positions_offsets_payloads");
+            "with_positions_offsets_payloads"
+        );
     }
 
     public static void setTermVectorParams(String configuration, FieldType fieldType) {

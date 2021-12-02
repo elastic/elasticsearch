@@ -27,9 +27,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAllocationAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAllocationAction;
+import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
 
@@ -96,17 +96,14 @@ public class TrainedModelAllocationService {
 
     public void waitForAllocationCondition(
         final String modelId,
-        final Predicate<TrainedModelAllocation> predicate,
+        final Predicate<ClusterState> predicate,
         final @Nullable TimeValue timeout,
         final WaitForAllocationListener listener
     ) {
-        final Predicate<ClusterState> clusterStatePredicate = clusterState -> predicate.test(
-            TrainedModelAllocationMetadata.allocationForModelId(clusterState, modelId).orElse(null)
-        );
 
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, timeout, logger, threadPool.getThreadContext());
         final ClusterState clusterState = observer.setAndGetObservedState();
-        if (clusterStatePredicate.test(clusterState)) {
+        if (predicate.test(clusterState)) {
             listener.onResponse(TrainedModelAllocationMetadata.allocationForModelId(clusterState, modelId).orElse(null));
         } else {
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
@@ -124,7 +121,7 @@ public class TrainedModelAllocationService {
                 public void onTimeout(TimeValue timeout) {
                     listener.onTimeout(timeout);
                 }
-            }, clusterStatePredicate);
+            }, predicate);
         }
     }
 

@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -25,7 +25,8 @@ public class FilterRef implements ToXContentObject, Writeable {
     public static final ParseField FILTER_TYPE = new ParseField("filter_type");
 
     public enum FilterType {
-        INCLUDE, EXCLUDE;
+        INCLUDE,
+        EXCLUDE;
 
         public static FilterType fromString(String value) {
             return valueOf(value.toUpperCase(Locale.ROOT));
@@ -42,8 +43,11 @@ public class FilterRef implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<FilterRef, Void> STRICT_PARSER = createParser(false);
 
     private static ConstructingObjectParser<FilterRef, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<FilterRef, Void> parser = new ConstructingObjectParser<>(FILTER_REF_FIELD.getPreferredName(),
-            ignoreUnknownFields, a -> new FilterRef((String) a[0], (FilterType) a[1]));
+        ConstructingObjectParser<FilterRef, Void> parser = new ConstructingObjectParser<>(
+            FILTER_REF_FIELD.getPreferredName(),
+            ignoreUnknownFields,
+            a -> new FilterRef((String) a[0], (FilterType) a[1])
+        );
 
         parser.declareString(ConstructingObjectParser.constructorArg(), FILTER_ID);
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), FilterType::fromString, FILTER_TYPE);

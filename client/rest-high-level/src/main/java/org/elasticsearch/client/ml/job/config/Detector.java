@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -122,9 +122,18 @@ public class Detector implements ToXContentObject {
         return builder;
     }
 
-    private Detector(String detectorDescription, DetectorFunction function, String fieldName, String byFieldName, String overFieldName,
-                     String partitionFieldName, boolean useNull, ExcludeFrequent excludeFrequent, List<DetectionRule> rules,
-                     int detectorIndex) {
+    private Detector(
+        String detectorDescription,
+        DetectorFunction function,
+        String fieldName,
+        String byFieldName,
+        String overFieldName,
+        String partitionFieldName,
+        boolean useNull,
+        ExcludeFrequent excludeFrequent,
+        List<DetectionRule> rules,
+        int detectorIndex
+    ) {
         this.function = function;
         this.fieldName = fieldName;
         this.byFieldName = byFieldName;
@@ -230,22 +239,32 @@ public class Detector implements ToXContentObject {
 
         Detector that = (Detector) other;
 
-        return Objects.equals(this.detectorDescription, that.detectorDescription) &&
-                Objects.equals(this.function, that.function) &&
-                Objects.equals(this.fieldName, that.fieldName) &&
-                Objects.equals(this.byFieldName, that.byFieldName) &&
-                Objects.equals(this.overFieldName, that.overFieldName) &&
-                Objects.equals(this.partitionFieldName, that.partitionFieldName) &&
-                Objects.equals(this.useNull, that.useNull) &&
-                Objects.equals(this.excludeFrequent, that.excludeFrequent) &&
-                Objects.equals(this.rules, that.rules) &&
-                this.detectorIndex == that.detectorIndex;
+        return Objects.equals(this.detectorDescription, that.detectorDescription)
+            && Objects.equals(this.function, that.function)
+            && Objects.equals(this.fieldName, that.fieldName)
+            && Objects.equals(this.byFieldName, that.byFieldName)
+            && Objects.equals(this.overFieldName, that.overFieldName)
+            && Objects.equals(this.partitionFieldName, that.partitionFieldName)
+            && Objects.equals(this.useNull, that.useNull)
+            && Objects.equals(this.excludeFrequent, that.excludeFrequent)
+            && Objects.equals(this.rules, that.rules)
+            && this.detectorIndex == that.detectorIndex;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(detectorDescription, function, fieldName, byFieldName, overFieldName, partitionFieldName, useNull,
-                excludeFrequent, rules, detectorIndex);
+        return Objects.hash(
+            detectorDescription,
+            function,
+            fieldName,
+            byFieldName,
+            overFieldName,
+            partitionFieldName,
+            useNull,
+            excludeFrequent,
+            rules,
+            detectorIndex
+        );
     }
 
     public static Builder builder() {
@@ -266,8 +285,7 @@ public class Detector implements ToXContentObject {
         // negative means unknown
         private int detectorIndex = -1;
 
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder(Detector detector) {
             detectorDescription = detector.detectorDescription;
@@ -342,8 +360,18 @@ public class Detector implements ToXContentObject {
         }
 
         public Detector build() {
-            return new Detector(detectorDescription, function, fieldName, byFieldName, overFieldName, partitionFieldName,
-                useNull, excludeFrequent, rules, detectorIndex);
+            return new Detector(
+                detectorDescription,
+                function,
+                fieldName,
+                byFieldName,
+                overFieldName,
+                partitionFieldName,
+                useNull,
+                excludeFrequent,
+                rules,
+                detectorIndex
+            );
         }
     }
 }

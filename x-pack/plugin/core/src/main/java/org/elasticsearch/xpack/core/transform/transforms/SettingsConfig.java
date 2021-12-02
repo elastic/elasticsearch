@@ -13,19 +13,22 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class SettingsConfig implements Writeable, ToXContentObject {
     public static final ConstructingObjectParser<SettingsConfig, Void> STRICT_PARSER = createParser(false);
@@ -139,6 +142,8 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return validationException;
     }
 
+    public void checkForDeprecations(String id, NamedXContentRegistry namedXContentRegistry, Consumer<DeprecationIssue> onDeprecation) {}
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalInt(maxPageSearchSize);
@@ -244,11 +249,11 @@ public class SettingsConfig implements Writeable, ToXContentObject {
          * This setting throttles transform by issuing queries less often, however processing still happens in
          * batches. A value of 0 disables throttling (default).
          *
-         * @param docsPerSecond Integer value
+         * @param documentsPerSecond Integer value
          * @return the {@link Builder} with requestsPerSecond set.
          */
-        public Builder setRequestsPerSecond(Float docsPerSecond) {
-            this.docsPerSecond = docsPerSecond == null ? DEFAULT_DOCS_PER_SECOND : docsPerSecond;
+        public Builder setRequestsPerSecond(Float documentsPerSecond) {
+            this.docsPerSecond = documentsPerSecond == null ? DEFAULT_DOCS_PER_SECOND : documentsPerSecond;
             return this;
         }
 
@@ -303,7 +308,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
                     ? null
                     : update.getDatesAsEpochMillisForUpdate();
             }
-            if (update.getAlignCheckpointsForUpdate() != null)  {
+            if (update.getAlignCheckpointsForUpdate() != null) {
                 this.alignCheckpoints = update.getAlignCheckpointsForUpdate().equals(DEFAULT_ALIGN_CHECKPOINTS)
                     ? null
                     : update.getAlignCheckpointsForUpdate();

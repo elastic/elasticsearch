@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -158,16 +158,19 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testDatetimeWithNanos() throws IOException, SQLException {
-        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
-                versionSupportsDateNanos());
+        assumeTrue(
+            "Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+            versionSupportsDateNanos()
+        );
 
         long randomTimestampWitnNanos = randomTimeInNanos();
         int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
         setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
 
         try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement(
-                    "SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")) {
+            try (
+                PreparedStatement statement = connection.prepareStatement("SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")
+            ) {
                 Timestamp ts = new Timestamp(toMilliSeconds(randomTimestampWitnNanos));
                 statement.setObject(1, ts);
                 try (ResultSet results = statement.executeQuery()) {
@@ -187,16 +190,19 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testDateTimeWithNanosAgainstDriverWithoutSupport() throws IOException, SQLException {
-        assumeFalse("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
-                versionSupportsDateNanos());
+        assumeFalse(
+            "Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+            versionSupportsDateNanos()
+        );
 
         long randomTimestampWitnNanos = randomTimeInNanos();
         int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
         setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
 
         try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement(
-                    "SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")) {
+            try (
+                PreparedStatement statement = connection.prepareStatement("SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")
+            ) {
                 Timestamp ts = new Timestamp(toMilliSeconds(randomTimestampWitnNanos));
                 statement.setObject(1, ts);
                 try (ResultSet results = statement.executeQuery()) {

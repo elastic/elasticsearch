@@ -11,23 +11,22 @@ package org.elasticsearch.index.search;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CachingTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanOrQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanOrQuery;
-import org.apache.lucene.search.spans.SpanQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.QueryBuilder;
 import org.apache.lucene.util.graph.GraphTokenStreamFiniteStrings;
 import org.elasticsearch.ElasticsearchException;
@@ -44,6 +43,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -119,8 +119,10 @@ public class MatchQueryParser {
 
     protected int maxExpansions = FuzzyQuery.defaultMaxExpansions;
 
-    protected SpanMultiTermQueryWrapper.SpanRewriteMethod spanRewriteMethod =
-        new SpanBooleanQueryRewriteWithMaxClause(FuzzyQuery.defaultMaxExpansions, false);
+    protected SpanMultiTermQueryWrapper.SpanRewriteMethod spanRewriteMethod = new SpanBooleanQueryRewriteWithMaxClause(
+        FuzzyQuery.defaultMaxExpansions,
+        false
+    );
 
     protected boolean transpositions = FuzzyQuery.defaultTranspositions;
 
@@ -200,8 +202,9 @@ public class MatchQueryParser {
         // We check here that the field supports text searches -
         // if it doesn't, we can bail out early without doing any further parsing.
         if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
-            IllegalArgumentException iae = new IllegalArgumentException("Field [" + fieldType.name() + "] of type [" +
-                fieldType.typeName() + "] does not support match queries");
+            IllegalArgumentException iae = new IllegalArgumentException(
+                "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "] does not support match queries"
+            );
             if (lenient) {
                 return newLenientFieldQuery(fieldName, iae);
             }
@@ -224,7 +227,7 @@ public class MatchQueryParser {
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
             final Term term = new Term(resolvedFieldName, stringValue);
             if (type == Type.BOOLEAN_PREFIX
-                    && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
+                && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
                 return builder.newPrefixQuery(term);
             } else {
                 return builder.newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
@@ -267,8 +270,12 @@ public class MatchQueryParser {
         /**
          * Creates a new QueryBuilder using the given analyzer.
          */
-        MatchQueryBuilder(Analyzer analyzer, MappedFieldType fieldType,
-                            boolean enablePositionIncrements, boolean autoGenerateSynonymsPhraseQuery) {
+        MatchQueryBuilder(
+            Analyzer analyzer,
+            MappedFieldType fieldType,
+            boolean enablePositionIncrements,
+            boolean autoGenerateSynonymsPhraseQuery
+        ) {
             super(analyzer);
             this.fieldType = fieldType;
             setEnablePositionIncrements(enablePositionIncrements);
@@ -280,8 +287,14 @@ public class MatchQueryParser {
         }
 
         @Override
-        protected Query createFieldQuery(Analyzer analyzer, BooleanClause.Occur operator, String field,
-                                         String queryText, boolean quoted, int slop) {
+        protected Query createFieldQuery(
+            Analyzer analyzer,
+            BooleanClause.Occur operator,
+            String field,
+            String queryText,
+            boolean quoted,
+            int slop
+        ) {
             assert operator == BooleanClause.Occur.SHOULD || operator == BooleanClause.Occur.MUST;
             Type type = quoted ? Type.PHRASE : Type.BOOLEAN;
             return createQuery(field, queryText, type, operator, slop);
@@ -419,15 +432,11 @@ public class MatchQueryParser {
             }
             SpanQuery[] spanQueries = new SpanQuery[terms.length];
             for (int i = 0; i < terms.length; i++) {
-                spanQueries[i] = isPrefix ? fieldType.spanPrefixQuery(terms[i].text(), spanRewriteMethod, context) :
-                    new SpanTermQuery(terms[i]);
+                spanQueries[i] = isPrefix
+                    ? fieldType.spanPrefixQuery(terms[i].text(), spanRewriteMethod, context)
+                    : new SpanTermQuery(terms[i]);
             }
             return new SpanOrQuery(spanQueries);
-        }
-
-        @Override
-        protected SpanQuery createSpanQuery(TokenStream in, String field) throws IOException {
-            return createSpanQuery(in, field, false);
         }
 
         private SpanQuery createSpanQuery(TokenStream in, String field, boolean isPrefix) throws IOException {
@@ -441,7 +450,7 @@ public class MatchQueryParser {
             Term lastTerm = null;
             while (in.incrementToken()) {
                 if (posIncAtt.getPositionIncrement() > 1) {
-                    builder.addGap(posIncAtt.getPositionIncrement()-1);
+                    builder.addGap(posIncAtt.getPositionIncrement() - 1);
                 }
                 if (lastTerm != null) {
                     builder.addClause(new SpanTermQuery(lastTerm));
@@ -449,8 +458,9 @@ public class MatchQueryParser {
                 lastTerm = new Term(field, termAtt.getBytesRef());
             }
             if (lastTerm != null) {
-                SpanQuery spanQuery = isPrefix ?
-                    fieldType.spanPrefixQuery(lastTerm.text(), spanRewriteMethod, context) : new SpanTermQuery(lastTerm);
+                SpanQuery spanQuery = isPrefix
+                    ? fieldType.spanPrefixQuery(lastTerm.text(), spanRewriteMethod, context)
+                    : new SpanTermQuery(lastTerm);
                 builder.addClause(spanQuery);
             }
             SpanNearQuery query = builder.build();
@@ -467,8 +477,7 @@ public class MatchQueryParser {
             Supplier<Query> querySupplier;
             if (fuzziness != null) {
                 querySupplier = () -> {
-                    Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions,
-                            transpositions, context);
+                    Query query = fieldType.fuzzyQuery(term.text(), fuzziness, fuzzyPrefixLength, maxExpansions, transpositions, context);
                     if (query instanceof FuzzyQuery) {
                         QueryParsers.setRewriteMethod((FuzzyQuery) query, fuzzyRewriteMethod);
                     }
@@ -514,8 +523,9 @@ public class MatchQueryParser {
             final Term term = new Term(field, termAtt.getBytesRef());
             int lastOffset = offsetAtt.endOffset();
             stream.end();
-            return isPrefix && lastOffset == offsetAtt.endOffset() ?
-                newPrefixQuery(term) : newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
+            return isPrefix && lastOffset == offsetAtt.endOffset()
+                ? newPrefixQuery(term)
+                : newTermQuery(term, BoostAttribute.DEFAULT_BOOST);
         }
 
         private void add(BooleanQuery.Builder q, String field, List<Term> current, BooleanClause.Occur operator, boolean isPrefix) {
@@ -537,8 +547,8 @@ public class MatchQueryParser {
             }
         }
 
-        private Query analyzeMultiBoolean(String field, TokenStream stream,
-                                          BooleanClause.Occur operator, boolean isPrefix) throws IOException {
+        private Query analyzeMultiBoolean(String field, TokenStream stream, BooleanClause.Occur operator, boolean isPrefix)
+            throws IOException {
             BooleanQuery.Builder q = newBooleanQuery();
             List<Term> currentQuery = new ArrayList<>();
 
@@ -596,8 +606,8 @@ public class MatchQueryParser {
             }
         }
 
-        private Query analyzeGraphBoolean(String field, TokenStream source,
-                                            BooleanClause.Occur operator, boolean isPrefix) throws IOException {
+        private Query analyzeGraphBoolean(String field, TokenStream source, BooleanClause.Occur operator, boolean isPrefix)
+            throws IOException {
             source.reset();
             GraphTokenStreamFiniteStrings graph = new GraphTokenStreamFiniteStrings(source);
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
@@ -625,9 +635,7 @@ public class MatchQueryParser {
                             TokenStream ts = it.next();
                             final Type type;
                             if (getAutoGenerateMultiTermSynonymsPhraseQuery()) {
-                                type = usePrefix
-                                    ? Type.PHRASE_PREFIX
-                                    : Type.PHRASE;
+                                type = usePrefix ? Type.PHRASE_PREFIX : Type.PHRASE;
                             } else {
                                 type = Type.BOOLEAN;
                             }

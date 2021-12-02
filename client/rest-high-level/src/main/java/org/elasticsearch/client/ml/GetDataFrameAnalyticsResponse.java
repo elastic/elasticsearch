@@ -9,25 +9,25 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 public class GetDataFrameAnalyticsResponse {
 
     public static final ParseField DATA_FRAME_ANALYTICS = new ParseField("data_frame_analytics");
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<GetDataFrameAnalyticsResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "get_data_frame_analytics",
-            true,
-            args -> new GetDataFrameAnalyticsResponse((List<DataFrameAnalyticsConfig>) args[0]));
+    static final ConstructingObjectParser<GetDataFrameAnalyticsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_data_frame_analytics",
+        true,
+        args -> new GetDataFrameAnalyticsResponse((List<DataFrameAnalyticsConfig>) args[0])
+    );
 
     static {
         PARSER.declareObjectArray(constructorArg(), (p, c) -> DataFrameAnalyticsConfig.fromXContent(p), DATA_FRAME_ANALYTICS);

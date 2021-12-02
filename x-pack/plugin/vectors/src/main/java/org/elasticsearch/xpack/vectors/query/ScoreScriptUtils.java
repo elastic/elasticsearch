@@ -5,15 +5,12 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.query;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.script.ScoreScript;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.List;
 
 public class ScoreScriptUtils {
@@ -23,9 +20,7 @@ public class ScoreScriptUtils {
         final float[] queryVector;
         final DenseVectorScriptDocValues docValues;
 
-        public DenseVectorFunction(ScoreScript scoreScript,
-                                   List<Number> queryVector,
-                                   String field) {
+        public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector, String field) {
             this(scoreScript, queryVector, field, false);
         }
 
@@ -36,16 +31,18 @@ public class ScoreScriptUtils {
          * @param queryVector The query vector.
          * @param normalizeQuery Whether the provided query should be normalized to unit length.
          */
-        public DenseVectorFunction(ScoreScript scoreScript,
-                                   List<Number> queryVector,
-                                   String field,
-                                   boolean normalizeQuery) {
+        public DenseVectorFunction(ScoreScript scoreScript, List<Number> queryVector, String field, boolean normalizeQuery) {
             this.scoreScript = scoreScript;
             this.docValues = (DenseVectorScriptDocValues) scoreScript.getDoc().get(field);
 
-            if (docValues.dims() != queryVector.size()){
-                throw new IllegalArgumentException("The query vector has a different number of dimensions [" +
-                    queryVector.size() + "] than the document vectors [" + docValues.dims() + "].");
+            if (docValues.dims() != queryVector.size()) {
+                throw new IllegalArgumentException(
+                    "The query vector has a different number of dimensions ["
+                        + queryVector.size()
+                        + "] than the document vectors ["
+                        + docValues.dims()
+                        + "]."
+                );
             }
 
             this.queryVector = new float[queryVector.size()];
@@ -64,17 +61,15 @@ public class ScoreScriptUtils {
             }
         }
 
-        BytesRef getEncodedVector() {
+        void setNextVector() {
             try {
-                docValues.setNextDocId(scoreScript._getDocId());
+                docValues.getSupplier().setNextDocId(scoreScript._getDocId());
             } catch (IOException e) {
                 throw ExceptionsHelper.convertToElastic(e);
             }
-            BytesRef vector = docValues.getEncodedValue();
-            if (vector == null) {
+            if (docValues.size() == 0) {
                 throw new IllegalArgumentException("A document doesn't have a value for a vector field!");
             }
-            return vector;
         }
     }
 
@@ -86,15 +81,8 @@ public class ScoreScriptUtils {
         }
 
         public double l1norm() {
-            BytesRef vector = getEncodedVector();
-            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
-
-            double l1norm = 0;
-
-            for (float queryValue : queryVector) {
-                l1norm += Math.abs(queryValue - byteBuffer.getFloat());
-            }
-            return l1norm;
+            setNextVector();
+            return docValues.l1Norm(queryVector);
         }
     }
 
@@ -106,15 +94,8 @@ public class ScoreScriptUtils {
         }
 
         public double l2norm() {
-            BytesRef vector = getEncodedVector();
-            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
-
-            double l2norm = 0;
-            for (float queryValue : queryVector) {
-                double diff = queryValue - byteBuffer.getFloat();
-                l2norm += diff * diff;
-            }
-            return Math.sqrt(l2norm);
+            setNextVector();
+            return docValues.l2Norm(queryVector);
         }
     }
 
@@ -126,14 +107,8 @@ public class ScoreScriptUtils {
         }
 
         public double dotProduct() {
-            BytesRef vector = getEncodedVector();
-            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
-
-            double dotProduct = 0;
-            for (float queryValue : queryVector) {
-                dotProduct += queryValue * byteBuffer.getFloat();
-            }
-            return dotProduct;
+            setNextVector();
+            return docValues.dotProduct(queryVector);
         }
     }
 
@@ -145,13 +120,8 @@ public class ScoreScriptUtils {
         }
 
         public double cosineSimilarity() {
-            BytesRef vector = getEncodedVector();
-            ByteBuffer byteBuffer = ByteBuffer.wrap(vector.bytes, vector.offset, vector.length);
-            double dotProduct = 0.0;
-            for (float queryValue : queryVector) {
-                dotProduct += queryValue * byteBuffer.getFloat();
-            }
-            return dotProduct / docValues.getMagnitude();
+            setNextVector();
+            return docValues.dotProduct(queryVector) / docValues.getMagnitude();
         }
     }
 }

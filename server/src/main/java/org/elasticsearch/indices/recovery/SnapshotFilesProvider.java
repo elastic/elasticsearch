@@ -22,7 +22,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 public class SnapshotFilesProvider {
     private final RepositoriesService repositoriesService;
@@ -31,11 +31,13 @@ public class SnapshotFilesProvider {
         this.repositoriesService = Objects.requireNonNull(repositoriesService);
     }
 
-    public InputStream getInputStreamForSnapshotFile(String repositoryName,
-                                                     IndexId indexId,
-                                                     ShardId shardId,
-                                                     BlobStoreIndexShardSnapshot.FileInfo fileInfo,
-                                                     Consumer<Long> rateLimiterListener) {
+    public InputStream getInputStreamForSnapshotFile(
+        String repositoryName,
+        IndexId indexId,
+        ShardId shardId,
+        BlobStoreIndexShardSnapshot.FileInfo fileInfo,
+        LongConsumer rateLimiterListener
+    ) {
         BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repositoriesService.repository(repositoryName);
         StoreFileMetadata storeFileMetadata = fileInfo.metadata();
         final InputStream inputStream;

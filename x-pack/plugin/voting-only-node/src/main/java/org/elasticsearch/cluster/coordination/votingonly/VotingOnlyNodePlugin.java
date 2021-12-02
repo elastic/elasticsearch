@@ -25,7 +25,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -44,6 +43,7 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 

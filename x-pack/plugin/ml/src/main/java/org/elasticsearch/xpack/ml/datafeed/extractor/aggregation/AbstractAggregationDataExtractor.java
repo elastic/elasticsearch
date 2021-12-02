@@ -36,8 +36,7 @@ import java.util.stream.Collectors;
  *
  * @param <T> The request builder type for getting data from ElasticSearch
  */
-abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<SearchRequest, SearchResponse>>
-    implements DataExtractor {
+abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<SearchRequest, SearchResponse>> implements DataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(AbstractAggregationDataExtractor.class);
 
@@ -50,7 +49,10 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
     private final ByteArrayOutputStream outputStream;
 
     AbstractAggregationDataExtractor(
-            Client client, AggregationDataExtractorContext dataExtractorContext, DatafeedTimingStatsReporter timingStatsReporter) {
+        Client client,
+        AggregationDataExtractorContext dataExtractorContext,
+        DatafeedTimingStatsReporter timingStatsReporter
+    ) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(dataExtractorContext);
         this.timingStatsReporter = Objects.requireNonNull(timingStatsReporter);
@@ -110,8 +112,13 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
     }
 
     private void initAggregationProcessor(Aggregations aggs) throws IOException {
-        aggregationToJsonProcessor = new AggregationToJsonProcessor(context.timeField, context.fields, context.includeDocCount,
-            context.start, null);
+        aggregationToJsonProcessor = new AggregationToJsonProcessor(
+            context.timeField,
+            context.fields,
+            context.includeDocCount,
+            context.start,
+            null
+        );
         aggregationToJsonProcessor.process(aggs);
     }
 
@@ -125,8 +132,7 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
         // in that bucket
         long histogramSearchStartTime = Math.max(0, context.start - ExtractorUtils.getHistogramIntervalMillis(context.aggs));
 
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
-            .size(0)
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0)
             .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, histogramSearchStartTime, context.end));
 
         if (context.runtimeMappings.isEmpty() == false) {
@@ -148,8 +154,10 @@ abstract class AbstractAggregationDataExtractor<T extends ActionRequestBuilder<S
             return null;
         }
         if (aggsAsList.size() > 1) {
-            throw new IllegalArgumentException("Multiple top level aggregations not supported; found: "
-                + aggsAsList.stream().map(Aggregation::getName).collect(Collectors.toList()));
+            throw new IllegalArgumentException(
+                "Multiple top level aggregations not supported; found: "
+                    + aggsAsList.stream().map(Aggregation::getName).collect(Collectors.toList())
+            );
         }
 
         return aggs;

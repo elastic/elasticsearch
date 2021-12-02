@@ -7,20 +7,20 @@
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationParameters;
@@ -60,8 +60,10 @@ public class AucRoc extends AbstractAucRoc {
 
     public static final ParseField INCLUDE_CURVE = new ParseField("include_curve");
 
-    public static final ConstructingObjectParser<AucRoc, Void> PARSER =
-        new ConstructingObjectParser<>(NAME.getPreferredName(), a -> new AucRoc((Boolean) a[0]));
+    public static final ConstructingObjectParser<AucRoc, Void> PARSER = new ConstructingObjectParser<>(
+        NAME.getPreferredName(),
+        a -> new AucRoc((Boolean) a[0])
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), INCLUDE_CURVE);
@@ -108,7 +110,9 @@ public class AucRoc extends AbstractAucRoc {
     @Override
     public Set<String> getRequiredFields() {
         return Sets.newHashSet(
-            EvaluationFields.ACTUAL_FIELD.getPreferredName(), EvaluationFields.PREDICTED_PROBABILITY_FIELD.getPreferredName());
+            EvaluationFields.ACTUAL_FIELD.getPreferredName(),
+            EvaluationFields.PREDICTED_PROBABILITY_FIELD.getPreferredName()
+        );
     }
 
     @Override
@@ -125,8 +129,10 @@ public class AucRoc extends AbstractAucRoc {
     }
 
     @Override
-    public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
-                                                                                  EvaluationFields fields) {
+    public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(
+        EvaluationParameters parameters,
+        EvaluationFields fields
+    ) {
         if (result.get() != null) {
             return Tuple.tuple(List.of(), List.of());
         }
@@ -136,22 +142,16 @@ public class AucRoc extends AbstractAucRoc {
         String actualField = fields.getActualField();
         String predictedProbabilityField = fields.getPredictedProbabilityField();
         double[] percentiles = IntStream.range(1, 100).mapToDouble(v -> (double) v).toArray();
-        AggregationBuilder percentilesAgg =
-            AggregationBuilders
-                .percentiles(PERCENTILES_AGG_NAME)
-                .field(predictedProbabilityField)
-                .percentiles(percentiles);
-        AggregationBuilder percentilesForClassValueAgg =
-            AggregationBuilders
-                .filter(TRUE_AGG_NAME, actualIsTrueQuery(actualField))
-                .subAggregation(percentilesAgg);
-        AggregationBuilder percentilesForRestAgg =
-            AggregationBuilders
-                .filter(NON_TRUE_AGG_NAME, QueryBuilders.boolQuery().mustNot(actualIsTrueQuery(actualField)))
-                .subAggregation(percentilesAgg);
-        return Tuple.tuple(
-            List.of(percentilesForClassValueAgg, percentilesForRestAgg),
-            List.of());
+        AggregationBuilder percentilesAgg = AggregationBuilders.percentiles(PERCENTILES_AGG_NAME)
+            .field(predictedProbabilityField)
+            .percentiles(percentiles);
+        AggregationBuilder percentilesForClassValueAgg = AggregationBuilders.filter(TRUE_AGG_NAME, actualIsTrueQuery(actualField))
+            .subAggregation(percentilesAgg);
+        AggregationBuilder percentilesForRestAgg = AggregationBuilders.filter(
+            NON_TRUE_AGG_NAME,
+            QueryBuilders.boolQuery().mustNot(actualIsTrueQuery(actualField))
+        ).subAggregation(percentilesAgg);
+        return Tuple.tuple(List.of(percentilesForClassValueAgg, percentilesForRestAgg), List.of());
     }
 
     @Override
@@ -162,13 +162,21 @@ public class AucRoc extends AbstractAucRoc {
         Filter classAgg = aggs.get(TRUE_AGG_NAME);
         if (classAgg.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] requires at least one [{}] to have the value [{}]", getName(), fields.get().getActualField(), "true");
+                "[{}] requires at least one [{}] to have the value [{}]",
+                getName(),
+                fields.get().getActualField(),
+                "true"
+            );
         }
         double[] tpPercentiles = percentilesArray(classAgg.getAggregations().get(PERCENTILES_AGG_NAME));
         Filter restAgg = aggs.get(NON_TRUE_AGG_NAME);
         if (restAgg.getDocCount() == 0) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] requires at least one [{}] to have a different value than [{}]", getName(), fields.get().getActualField(), "true");
+                "[{}] requires at least one [{}] to have a different value than [{}]",
+                getName(),
+                fields.get().getActualField(),
+                "true"
+            );
         }
         double[] fpPercentiles = percentilesArray(restAgg.getAggregations().get(PERCENTILES_AGG_NAME));
 

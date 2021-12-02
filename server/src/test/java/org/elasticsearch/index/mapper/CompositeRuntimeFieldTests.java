@@ -9,14 +9,14 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
+import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -37,7 +37,7 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
                 params,
                 searchLookup,
                 ctx
-            ){
+            ) {
                 @Override
                 public void execute() {
                     if (script.getIdOrCode().equals("split-str-long")) {
@@ -114,13 +114,13 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
                 assertSame(longSubfield, mappedFieldType);
             } else if (mappedFieldType.name().equals("obj.str-subfield")) {
                 assertSame(strSubfield, mappedFieldType);
-            }  else if (mappedFieldType.name().equals("obj.double-subfield")) {
+            } else if (mappedFieldType.name().equals("obj.double-subfield")) {
                 assertSame(doubleSubfield, mappedFieldType);
-            }  else if (mappedFieldType.name().equals("obj.boolean-subfield")) {
+            } else if (mappedFieldType.name().equals("obj.boolean-subfield")) {
                 assertSame(booleanSubfield, mappedFieldType);
-            }  else if (mappedFieldType.name().equals("obj.ip-subfield")) {
+            } else if (mappedFieldType.name().equals("obj.ip-subfield")) {
                 assertSame(ipSubfield, mappedFieldType);
-            }  else if (mappedFieldType.name().equals("obj.geopoint-subfield")) {
+            } else if (mappedFieldType.name().equals("obj.geopoint-subfield")) {
                 assertSame(geoPointSubfield, mappedFieldType);
             } else {
                 fail("unexpected subfield [" + mappedFieldType.name() + "]");
@@ -154,12 +154,14 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
             b.endObject();
             b.endObject();
         }));
-        assertEquals("{\"_doc\":{\"runtime\":{" +
-            "\"message\":{\"type\":\"composite\"," +
-            "\"meta\":{\"test-meta\":\"value\"}," +
-            "\"script\":{\"source\":\"dummy\",\"lang\":\"painless\"}," +
-            "\"fields\":{\"response\":{\"type\":\"long\"}}}}}}",
-            Strings.toString(mapperService.mappingLookup().getMapping()));
+        assertEquals(
+            "{\"_doc\":{\"runtime\":{"
+                + "\"message\":{\"type\":\"composite\","
+                + "\"meta\":{\"test-meta\":\"value\"},"
+                + "\"script\":{\"source\":\"dummy\",\"lang\":\"painless\"},"
+                + "\"fields\":{\"response\":{\"type\":\"long\"}}}}}}",
+            Strings.toString(mapperService.mappingLookup().getMapping())
+        );
     }
 
     public void testScriptOnSubFieldThrowsError() {
@@ -268,9 +270,12 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
         assertEquals(1, mappedFieldTypes.size());
         assertSame(doubleSubField, mappedFieldTypes.iterator().next());
 
-        assertEquals("{\"obj\":{\"type\":\"composite\"," +
-            "\"script\":{\"source\":\"dummy2\",\"lang\":\"painless\"}," +
-            "\"fields\":{\"double-subfield\":{\"type\":\"double\"}}}}", Strings.toString(rf));
+        assertEquals(
+            "{\"obj\":{\"type\":\"composite\","
+                + "\"script\":{\"source\":\"dummy2\",\"lang\":\"painless\"},"
+                + "\"fields\":{\"double-subfield\":{\"type\":\"double\"}}}}",
+            Strings.toString(rf)
+        );
     }
 
     public void testFieldDefinedTwiceWithSameName() throws IOException {
@@ -396,7 +401,7 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
         assertNotNull(mapperService.mappingLookup().getFieldType("obj.str"));
     }
 
-    public void testParseDocumentSubfieldsOutsideRuntimeObject() throws IOException{
+    public void testParseDocumentSubfieldsOutsideRuntimeObject() throws IOException {
         MapperService mapperService = createMapperService(topMapping(b -> {
             b.startObject("runtime");
             b.startObject("obj");
@@ -413,8 +418,10 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
         assertNull(doc1.rootDoc().get("obj.long"));
         assertNotNull(doc1.rootDoc().get("obj.bool"));
 
-        assertEquals("{\"_doc\":{\"properties\":{\"obj\":{\"properties\":{\"bool\":{\"type\":\"boolean\"}}}}}}",
-            Strings.toString(doc1.dynamicMappingsUpdate()));
+        assertEquals(
+            "{\"_doc\":{\"properties\":{\"obj\":{\"properties\":{\"bool\":{\"type\":\"boolean\"}}}}}}",
+            Strings.toString(doc1.dynamicMappingsUpdate())
+        );
 
         MapperService mapperService2 = createMapperService(topMapping(b -> {
             b.field("dynamic", "runtime");
@@ -432,7 +439,9 @@ public class CompositeRuntimeFieldTests extends MapperServiceTestCase {
         ParsedDocument doc2 = mapperService2.documentMapper().parse(source(b -> b.field("obj.long", 1L).field("obj.bool", true)));
         assertNull(doc2.rootDoc().get("obj.long"));
         assertNull(doc2.rootDoc().get("obj.bool"));
-        assertEquals("{\"_doc\":{\"dynamic\":\"runtime\",\"runtime\":{\"obj.bool\":{\"type\":\"boolean\"}}}}",
-            Strings.toString(doc2.dynamicMappingsUpdate()));
+        assertEquals(
+            "{\"_doc\":{\"dynamic\":\"runtime\",\"runtime\":{\"obj.bool\":{\"type\":\"boolean\"}}}}",
+            Strings.toString(doc2.dynamicMappingsUpdate())
+        );
     }
 }

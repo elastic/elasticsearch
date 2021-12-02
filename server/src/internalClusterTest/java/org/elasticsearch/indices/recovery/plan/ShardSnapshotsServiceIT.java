@@ -8,6 +8,7 @@
 
 package org.elasticsearch.indices.recovery.plan;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -17,7 +18,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,6 +38,7 @@ import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -53,6 +54,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class ShardSnapshotsServiceIT extends ESIntegTestCase {
     @Override
@@ -87,12 +89,14 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         private final boolean failLoadShardSnapshot;
         private final boolean failLoadShardSnapshots;
 
-        public FailingRepo(RepositoryMetadata metadata,
-                    Environment environment,
-                    NamedXContentRegistry namedXContentRegistry,
-                    ClusterService clusterService,
-                    BigArrays bigArrays,
-                    RecoverySettings recoverySettings) {
+        public FailingRepo(
+            RepositoryMetadata metadata,
+            Environment environment,
+            NamedXContentRegistry namedXContentRegistry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings
+        ) {
             super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
             this.failGetRepositoryData = metadata.settings().getAsBoolean(FAIL_GET_REPOSITORY_DATA_SETTING_KEY, false);
             this.failLoadShardSnapshot = metadata.settings().getAsBoolean(FAIL_LOAD_SHARD_SNAPSHOT_SETTING_KEY, false);
@@ -122,9 +126,8 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        public BlobStoreIndexShardSnapshots getBlobStoreIndexShardSnapshots(IndexId indexId,
-                                                                            int shardId,
-                                                                            ShardGeneration shardGen) throws IOException {
+        public BlobStoreIndexShardSnapshots getBlobStoreIndexShardSnapshots(IndexId indexId, int shardId, ShardGeneration shardGen)
+            throws IOException {
             if (failLoadShardSnapshots) {
                 throw new FileNotFoundException("Failed to get blob store index shard snapshots");
             }
@@ -184,6 +187,12 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
             assertThat(nonEnabledRepos.contains(shardSnapshotInfo.getRepository()), is(equalTo(false)));
 
             assertThat(shardSnapshotData.getMetadataSnapshot().size(), is(greaterThan(0)));
+            Version commitVersion = shardSnapshotData.getCommitVersion();
+            assertThat(commitVersion, is(notNullValue()));
+            assertThat(commitVersion, is(equalTo(Version.CURRENT)));
+            final org.apache.lucene.util.Version commitLuceneVersion = shardSnapshotData.getCommitLuceneVersion();
+            assertThat(commitLuceneVersion, is(notNullValue()));
+            assertThat(commitLuceneVersion, is(equalTo(Version.CURRENT.luceneVersion)));
 
             assertThat(shardSnapshotInfo.getShardId(), is(equalTo(shardId)));
             assertThat(shardSnapshotInfo.getSnapshot().getSnapshotId().getName(), is(equalTo(snapshotName)));
@@ -224,16 +233,19 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
 
         for (Tuple<String, Path> failingRepo : failingRepos) {
             // Update repository settings to fail fetching the repository information at any stage
-            String repoFailureType =
-                randomFrom(FailingRepo.FAIL_GET_REPOSITORY_DATA_SETTING_KEY,
-                    FailingRepo.FAIL_LOAD_SHARD_SNAPSHOT_SETTING_KEY,
-                    FailingRepo.FAIL_LOAD_SHARD_SNAPSHOTS_SETTING_KEY
-                );
+            String repoFailureType = randomFrom(
+                FailingRepo.FAIL_GET_REPOSITORY_DATA_SETTING_KEY,
+                FailingRepo.FAIL_LOAD_SHARD_SNAPSHOT_SETTING_KEY,
+                FailingRepo.FAIL_LOAD_SHARD_SNAPSHOTS_SETTING_KEY
+            );
 
-            assertAcked(client().admin().cluster().preparePutRepository(failingRepo.v1())
-                .setType(FailingRepoPlugin.TYPE)
-                .setVerify(false)
-                .setSettings(Settings.builder().put(repoFailureType, true).put("location", failingRepo.v2()))
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .preparePutRepository(failingRepo.v1())
+                    .setType(FailingRepoPlugin.TYPE)
+                    .setVerify(false)
+                    .setSettings(Settings.builder().put(repoFailureType, true).put("location", failingRepo.v2()))
             );
         }
 
@@ -305,21 +317,21 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
     }
 
     private void createRepository(String repositoryName, String type, Path location, boolean recoveryEnabledRepo) {
-        assertAcked(client().admin().cluster().preparePutRepository(repositoryName)
-            .setType(type)
-            .setVerify(false)
-            .setSettings(Settings.builder()
-                .put("location", location)
-                .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), recoveryEnabledRepo)
-            )
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutRepository(repositoryName)
+                .setType(type)
+                .setVerify(false)
+                .setSettings(
+                    Settings.builder()
+                        .put("location", location)
+                        .put(BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.getKey(), recoveryEnabledRepo)
+                )
         );
     }
 
     private void createSnapshot(String repoName, String snapshotName, String index) {
-        clusterAdmin()
-            .prepareCreateSnapshot(repoName, snapshotName)
-            .setWaitForCompletion(true)
-            .setIndices(index)
-            .get();
+        clusterAdmin().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true).setIndices(index).get();
     }
 }

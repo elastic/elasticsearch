@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction.Request;
 
 public class UpdateModelSnapshotActionRequestTests extends AbstractSerializingTestCase<Request> {
@@ -20,8 +20,7 @@ public class UpdateModelSnapshotActionRequestTests extends AbstractSerializingTe
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomAlphaOfLengthBetween(1, 20),
-                randomAlphaOfLengthBetween(1, 20));
+        Request request = new Request(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
             request.setDescription(randomAlphaOfLengthBetween(1, 20));
         }

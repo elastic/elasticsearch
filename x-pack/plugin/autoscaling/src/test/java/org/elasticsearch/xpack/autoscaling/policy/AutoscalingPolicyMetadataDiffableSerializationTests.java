@@ -11,9 +11,9 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.mutateAutoscalingPolicy;

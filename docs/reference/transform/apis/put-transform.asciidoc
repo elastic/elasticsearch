@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[put-transform]]
 = Create {transform} API
 
@@ -23,7 +22,7 @@ Requires the following privileges:
 * cluster: `manage_transform` (the `transform_admin` built-in role grants this 
   privilege)
 * source indices: `read`, `view_index_metadata`
-* destination index: `read`, `create_index`, index`.
+* destination index: `read`, `create_index`, `index`.
 
 [[put-transform-desc]]
 == {api-description-title}
@@ -125,6 +124,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-unique-key]
 
 ====
 //End latest
+
+//Begin _meta
+`_meta`::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-metadata]
+//End _meta
 
 //Begin pivot
 `pivot`::

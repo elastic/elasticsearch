@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -54,8 +53,8 @@ public class DanglingIndicesState {
 
         final Set<String> excludeIndexPathIds = new HashSet<>(metadata.indices().size());
 
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            excludeIndexPathIds.add(cursor.value.getIndex().getUUID());
+        for (IndexMetadata indexMetadata : metadata.indices().values()) {
+            excludeIndexPathIds.add(indexMetadata.getIndex().getUUID());
         }
 
         try {

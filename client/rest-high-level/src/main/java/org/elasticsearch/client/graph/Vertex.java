@@ -7,17 +7,17 @@
  */
 package org.elasticsearch.client.graph;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * A vertex in a graph response represents a single term (a field and value pair)
@@ -41,7 +41,6 @@ public class Vertex implements ToXContentFragment {
     private static final ParseField FG = new ParseField("fg");
     private static final ParseField BG = new ParseField("bg");
 
-
     public Vertex(String field, String term, double weight, int depth, long bg, long fg) {
         super();
         this.field = field;
@@ -59,19 +58,16 @@ public class Vertex implements ToXContentFragment {
 
     @Override
     public boolean equals(Object obj) {
-        if (this == obj)
-            return true;
-        if (obj == null)
-            return false;
-        if (getClass() != obj.getClass())
-            return false;
+        if (this == obj) return true;
+        if (obj == null) return false;
+        if (getClass() != obj.getClass()) return false;
         Vertex other = (Vertex) obj;
-        return depth == other.depth &&
-               weight == other.weight &&
-               bg == other.bg &&
-               fg == other.fg &&
-               Objects.equals(field, other.field) &&
-               Objects.equals(term, other.term);
+        return depth == other.depth
+            && weight == other.weight
+            && bg == other.bg
+            && fg == other.fg
+            && Objects.equals(field, other.field)
+            && Objects.equals(term, other.term);
 
     }
 
@@ -89,20 +85,17 @@ public class Vertex implements ToXContentFragment {
         return builder;
     }
 
-
-    private static final ConstructingObjectParser<Vertex, Void> PARSER = new ConstructingObjectParser<>(
-            "VertexParser", true,
-            args -> {
-                String field = (String) args[0];
-                String term = (String) args[1];
-                double weight = (Double) args[2];
-                int depth = (Integer) args[3];
-                Long optionalBg = (Long) args[4];
-                Long optionalFg = (Long) args[5];
-                long bg = optionalBg == null ? 0 : optionalBg;
-                long fg = optionalFg == null ? 0 : optionalFg;
-                return new Vertex(field, term, weight, depth, bg, fg);
-            });
+    private static final ConstructingObjectParser<Vertex, Void> PARSER = new ConstructingObjectParser<>("VertexParser", true, args -> {
+        String field = (String) args[0];
+        String term = (String) args[1];
+        double weight = (Double) args[2];
+        int depth = (Integer) args[3];
+        Long optionalBg = (Long) args[4];
+        Long optionalFg = (Long) args[5];
+        long bg = optionalBg == null ? 0 : optionalBg;
+        long fg = optionalFg == null ? 0 : optionalFg;
+        return new Vertex(field, term, weight, depth, bg, fg);
+    });
 
     static {
         PARSER.declareString(constructorArg(), FIELD);
@@ -116,7 +109,6 @@ public class Vertex implements ToXContentFragment {
     static Vertex fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
-
 
     /**
      * @return a {@link VertexId} object that uniquely identifies this Vertex
@@ -132,7 +124,7 @@ public class Vertex implements ToXContentFragment {
      * @return a {@link VertexId} that can be used for looking up vertices
      */
     public static VertexId createId(String field, String term) {
-        return new VertexId(field,term);
+        return new VertexId(field, term);
     }
 
     @Override
@@ -225,17 +217,13 @@ public class Vertex implements ToXContentFragment {
 
         @Override
         public boolean equals(Object o) {
-            if (this == o)
-                return true;
-            if (o == null || getClass() != o.getClass())
-                return false;
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
 
             VertexId vertexId = (VertexId) o;
 
-            if (field != null ? field.equals(vertexId.field) == false : vertexId.field != null)
-                return false;
-            if (term != null ? term.equals(vertexId.term) == false : vertexId.term != null)
-                return false;
+            if (field != null ? field.equals(vertexId.field) == false : vertexId.field != null) return false;
+            if (term != null ? term.equals(vertexId.term) == false : vertexId.term != null) return false;
 
             return true;
         }

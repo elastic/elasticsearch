@@ -12,18 +12,22 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.core.TimeValue.NSEC_PER_MSEC;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * FieldMapper for the data-stream's timestamp meta-field.
@@ -32,13 +36,18 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_data_stream_timestamp";
-    private static final String DEFAULT_PATH = "@timestamp";
+    public static final String DEFAULT_PATH = "@timestamp";
+
+    public static final DataStreamTimestampFieldMapper ENABLED_INSTANCE = new DataStreamTimestampFieldMapper(true);
+    private static final DataStreamTimestampFieldMapper DISABLED_INSTANCE = new DataStreamTimestampFieldMapper(false);
 
     // For now the field shouldn't be useable in searches.
     // In the future it should act as an alias to the actual data stream timestamp field.
     public static final class TimestampFieldType extends MappedFieldType {
 
-        public TimestampFieldType() {
+        static final TimestampFieldType INSTANCE = new TimestampFieldType();
+
+        private TimestampFieldType() {
             super(NAME, false, false, false, TextSearchInfo.NONE, Map.of());
         }
 
@@ -84,20 +93,16 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
         @Override
         public MetadataFieldMapper build() {
-            return new DataStreamTimestampFieldMapper(new TimestampFieldType(), enabled.getValue());
+            return enabled.getValue() ? ENABLED_INSTANCE : DISABLED_INSTANCE;
         }
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> new DataStreamTimestampFieldMapper(new TimestampFieldType(), false),
-        c -> new Builder()
-    );
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> DISABLED_INSTANCE, c -> new Builder());
 
-    private final String path = DEFAULT_PATH;
     private final boolean enabled;
 
-    private DataStreamTimestampFieldMapper(MappedFieldType mappedFieldType, boolean enabled) {
-        super(mappedFieldType);
+    private DataStreamTimestampFieldMapper(boolean enabled) {
+        super(TimestampFieldType.INSTANCE);
         this.enabled = enabled;
     }
 
@@ -112,16 +117,16 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             return;
         }
 
-        Mapper mapper = lookup.getMapper(path);
+        Mapper mapper = lookup.getMapper(DEFAULT_PATH);
         if (mapper == null) {
-            throw new IllegalArgumentException("data stream timestamp field [" + path + "] does not exist");
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] does not exist");
         }
 
         if (DateFieldMapper.CONTENT_TYPE.equals(mapper.typeName()) == false
             && DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(mapper.typeName()) == false) {
             throw new IllegalArgumentException(
                 "data stream timestamp field ["
-                    + path
+                    + DEFAULT_PATH
                     + "] is of type ["
                     + mapper.typeName()
                     + "], but ["
@@ -134,19 +139,19 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
 
         DateFieldMapper dateFieldMapper = (DateFieldMapper) mapper;
         if (dateFieldMapper.fieldType().isSearchable() == false) {
-            throw new IllegalArgumentException("data stream timestamp field [" + path + "] is not indexed");
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is not indexed");
         }
         if (dateFieldMapper.fieldType().hasDocValues() == false) {
-            throw new IllegalArgumentException("data stream timestamp field [" + path + "] doesn't have doc values");
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] doesn't have doc values");
         }
         if (dateFieldMapper.getNullValue() != null) {
             throw new IllegalArgumentException(
-                "data stream timestamp field [" + path + "] has disallowed [null_value] attribute specified"
+                "data stream timestamp field [" + DEFAULT_PATH + "] has disallowed [null_value] attribute specified"
             );
         }
         if (dateFieldMapper.getIgnoreMalformed()) {
             throw new IllegalArgumentException(
-                "data stream timestamp field [" + path + "] has disallowed [ignore_malformed] attribute specified"
+                "data stream timestamp field [" + DEFAULT_PATH + "] has disallowed [ignore_malformed] attribute specified"
             );
         }
 
@@ -192,16 +197,55 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             return;
         }
 
-        IndexableField[] fields = context.rootDoc().getFields(path);
+        IndexableField[] fields = context.rootDoc().getFields(DEFAULT_PATH);
         if (fields.length == 0) {
-            throw new IllegalArgumentException("data stream timestamp field [" + path + "] is missing");
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] is missing");
         }
 
         long numberOfValues = Arrays.stream(fields)
             .filter(indexableField -> indexableField.fieldType().docValuesType() == DocValuesType.SORTED_NUMERIC)
             .count();
         if (numberOfValues > 1) {
-            throw new IllegalArgumentException("data stream timestamp field [" + path + "] encountered multiple values");
+            throw new IllegalArgumentException("data stream timestamp field [" + DEFAULT_PATH + "] encountered multiple values");
+        }
+
+        validateTimestamp(fields[0], context);
+    }
+
+    private void validateTimestamp(IndexableField field, DocumentParserContext context) {
+        if (context.indexSettings().getMode() == null || context.indexSettings().getMode() != IndexMode.TIME_SERIES) {
+            return;
+        }
+
+        long originValue = field.numericValue().longValue();
+        long value = originValue;
+
+        Resolution resolution;
+        if (context.mappingLookup().getMapper(DEFAULT_PATH).typeName().equals(DateFieldMapper.DATE_NANOS_CONTENT_TYPE)) {
+            resolution = Resolution.NANOSECONDS;
+            value /= NSEC_PER_MSEC;
+        } else {
+            resolution = Resolution.MILLISECONDS;
+        }
+
+        long startTime = context.indexSettings().getTimeSeriesStartTime();
+        if (value < startTime) {
+            throw new IllegalArgumentException(
+                "time series index @timestamp value ["
+                    + resolution.toInstant(originValue)
+                    + "] must be larger than "
+                    + Instant.ofEpochMilli(startTime)
+            );
+        }
+
+        long endTime = context.indexSettings().getTimeSeriesEndTime();
+        if (value >= endTime) {
+            throw new IllegalArgumentException(
+                "time series index @timestamp value ["
+                    + resolution.toInstant(originValue)
+                    + "] must be smaller than "
+                    + Instant.ofEpochMilli(endTime)
+            );
         }
     }
 

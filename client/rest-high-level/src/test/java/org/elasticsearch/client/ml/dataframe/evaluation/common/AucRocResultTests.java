@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml.dataframe.evaluation.common;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.Predicate;
@@ -21,10 +21,8 @@ public class AucRocResultTests extends AbstractXContentTestCase<EvaluationMetric
     public static EvaluationMetric.Result randomResult() {
         return new AucRocResult(
             randomDouble(),
-            Stream
-                .generate(AucRocPointTests::randomPoint)
-                .limit(randomIntBetween(1, 10))
-                .collect(Collectors.toList()));
+            Stream.generate(AucRocPointTests::randomPoint).limit(randomIntBetween(1, 10)).collect(Collectors.toList())
+        );
     }
 
     @Override

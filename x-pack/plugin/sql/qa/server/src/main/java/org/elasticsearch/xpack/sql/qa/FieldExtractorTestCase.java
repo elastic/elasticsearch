@@ -12,10 +12,10 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
 import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
@@ -47,7 +47,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
 
     /*
      *    "text_field": {
-     *       "text": "keyword"
+     *       "type": "text"
      *    }
      */
     public void testTextField() throws IOException {
@@ -660,6 +660,36 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             expectSourceDisabledError(query);
             expectSourceDisabledError("SELECT " + subFieldName + " FROM test");
         }
+    }
+
+    /*
+     *      "keyword_field": {
+     *          "type": "keyword",
+     *          "ignore_above": 10
+     *      },
+     *      "date": {
+     *          "type": "date"
+     *      }
+     *      Test for bug https://github.com/elastic/elasticsearch/issues/80653
+     */
+    public void testTopHitsAggBug_With_IgnoreAbove_Subfield() throws IOException {
+        String text = randomAlphaOfLength(10) + " " + randomAlphaOfLength(10);
+        String function = randomFrom("FIRST", "LAST");
+        String query = "select keyword_field from test group by keyword_field order by " + function + "(date)";
+
+        Map<String, Map<String, Object>> fieldProps = new HashMap<>(1);
+        Map<String, Object> fieldProp = new HashMap<>(1);
+        fieldProp.put("ignore_above", 10);
+        fieldProps.put("keyword_field", fieldProp);
+
+        createIndexWithFieldTypeAndProperties("keyword", fieldProps, null);
+        index("{\"keyword_field\":\"" + text + "\",\"date\":\"2021-11-11T11:11:11.000Z\"}");
+
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", singletonList(columnInfo("plain", "keyword_field", "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+
+        expected.put("rows", singletonList(singletonList(null)));
+        assertResponse(expected, runSql(query));
     }
 
     /*

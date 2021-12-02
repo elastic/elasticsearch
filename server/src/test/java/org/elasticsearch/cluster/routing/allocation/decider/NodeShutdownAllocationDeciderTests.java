@@ -35,7 +35,6 @@ import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -94,7 +93,6 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
         );
     }
 
-
     public void testCannotAllocateShardsToRemovingNode() {
         ClusterState state = prepareState(
             service.reroute(ClusterState.EMPTY_STATE, "initial state"),
@@ -106,10 +104,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
 
         Decision decision = decider.canAllocate(shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(
-            decision.getExplanation(),
-            equalTo("node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster")
-        );
+        assertThat(decision.getExplanation(), equalTo("node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster"));
     }
 
     public void testShardsCanRemainOnRestartingNode() {
@@ -140,10 +135,7 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
 
         Decision decision = decider.canRemain(shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(
-            decision.getExplanation(),
-            equalTo("node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster")
-        );
+        assertThat(decision.getExplanation(), equalTo("node [" + DATA_NODE.getId() + "] is preparing to be removed from the cluster"));
     }
 
     public void testCannotAutoExpandToRestartingNode() {
@@ -176,13 +168,13 @@ public class NodeShutdownAllocationDeciderTests extends ESAllocationTestCase {
     }
 
     private ClusterState prepareState(ClusterState initialState, SingleNodeShutdownMetadata.Type shutdownType) {
-        Map<String, SingleNodeShutdownMetadata> nodesShutdownInfo = new HashMap<>();
-
+        final String targetNodeName = shutdownType == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
         final SingleNodeShutdownMetadata nodeShutdownMetadata = SingleNodeShutdownMetadata.builder()
             .setNodeId(DATA_NODE.getId())
             .setType(shutdownType)
             .setReason(this.getTestName())
             .setStartedAtMillis(1L)
+            .setTargetNodeName(targetNodeName)
             .build();
         NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(new HashMap<>()).putSingleNodeMetadata(
             nodeShutdownMetadata

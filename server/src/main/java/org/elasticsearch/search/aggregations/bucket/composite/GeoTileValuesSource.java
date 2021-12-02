@@ -32,10 +32,11 @@ class GeoTileValuesSource extends LongValuesSource {
         LongUnaryOperator rounding,
         DocValueFormat format,
         boolean missingBucket,
+        MissingOrder missingOrder,
         int size,
         int reverseMul
     ) {
-        super(bigArrays, fieldType, docValuesFunc, rounding, format, missingBucket, size, reverseMul);
+        super(bigArrays, fieldType, docValuesFunc, rounding, format, missingBucket, missingOrder, size, reverseMul);
     }
 
     @Override

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.junit.Before;
 
@@ -48,7 +48,8 @@ public class BertTokenizationTests extends AbstractBWCSerializationTestCase<Bert
         return new BertTokenization(
             randomBoolean() ? null : randomBoolean(),
             randomBoolean() ? null : randomBoolean(),
-            randomBoolean() ? null : randomIntBetween(1, 1024)
+            randomBoolean() ? null : randomIntBetween(1, 1024),
+            randomBoolean() ? null : randomFrom(Tokenization.Truncate.values())
         );
     }
 }

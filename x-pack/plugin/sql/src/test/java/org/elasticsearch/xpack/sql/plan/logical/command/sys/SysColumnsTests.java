@@ -6,15 +6,6 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
-import java.sql.Types;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.function.Consumer;
-import java.util.stream.Collectors;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Tuple;
@@ -39,17 +30,27 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
 import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
-import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
 import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -147,14 +148,25 @@ public class SysColumnsTests extends ESTestCase {
         for (Mode mode : List.of(Mode.JDBC, Mode.ODBC)) {
             for (SqlVersion version : versions) {
                 List<List<?>> rows = new ArrayList<>();
-                SysColumns.fillInRows("test", "index", loadMapping("mapping-multi-field-variation.json", true), null, rows, null, mode,
-                    version);
+                SysColumns.fillInRows(
+                    "test",
+                    "index",
+                    loadMapping("mapping-multi-field-variation.json", true),
+                    null,
+                    rows,
+                    null,
+                    mode,
+                    version
+                );
                 List<String> types = rows.stream().map(row -> name(row).toString()).collect(Collectors.toList());
-                assertEquals(isTypeSupportedInVersion(UNSIGNED_LONG, version),
-                    types.contains(UNSIGNED_LONG.toString().toLowerCase(Locale.ROOT)));
+                assertEquals(
+                    isTypeSupportedInVersion(UNSIGNED_LONG, version),
+                    types.contains(UNSIGNED_LONG.toString().toLowerCase(Locale.ROOT))
+                );
             }
         }
     }
+
     private static Object name(List<?> list) {
         return list.get(3);
     }
@@ -207,7 +219,7 @@ public class SysColumnsTests extends ESTestCase {
     }
 
     public void testSysColumnsWithCatalogWildcard() {
-        executeCommand("SYS COLUMNS CATALOG 'cluster' TABLE LIKE 'test' LIKE '%'", emptyList(), r -> {
+        executeCommand("SYS COLUMNS CATALOG '" + CLUSTER_NAME + "' TABLE LIKE 'test' LIKE '%'", emptyList(), r -> {
             assertEquals(FIELD_COUNT1, r.size());
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
@@ -256,11 +268,27 @@ public class SysColumnsTests extends ESTestCase {
     }
 
     private int executeCommandInOdbcModeAndCountRows(String sql) {
-        final SqlConfiguration config = new SqlConfiguration(DateUtils.UTC, randomIntBetween(1, 15), Protocol.REQUEST_TIMEOUT,
-            Protocol.PAGE_TIMEOUT, null, null, Mode.ODBC, null, SqlVersion.fromId(Version.CURRENT.id), null, null, false, false);
+        final SqlConfiguration config = new SqlConfiguration(
+            DateUtils.UTC,
+            null,
+            randomIntBetween(1, 15),
+            Protocol.REQUEST_TIMEOUT,
+            Protocol.PAGE_TIMEOUT,
+            null,
+            null,
+            Mode.ODBC,
+            null,
+            SqlVersion.fromId(Version.CURRENT.id),
+            null,
+            null,
+            false,
+            false,
+            null,
+            null
+        );
         Tuple<Command, SqlSession> tuple = sql(sql, emptyList(), config, MAPPING1);
 
-        int[] rowCount = {0};
+        int[] rowCount = { 0 };
         tuple.v1().execute(tuple.v2(), new ActionListener<>() {
             @Override
             public void onResponse(Cursor.Page page) {
@@ -279,34 +307,68 @@ public class SysColumnsTests extends ESTestCase {
         return rowCount[0];
     }
 
-    private void executeCommand(String sql, List<SqlTypedParamValue> params, Mode mode, Consumer<SchemaRowSet> consumer,
-                                Map<String, EsField> mapping) {
-        final SqlConfiguration config = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-            Protocol.PAGE_TIMEOUT, null, null, mode, null, SqlVersion.fromId(Version.CURRENT.id), null, null, false, false);
+    private void executeCommand(
+        String sql,
+        List<SqlTypedParamValue> params,
+        Mode mode,
+        Consumer<SchemaRowSet> consumer,
+        Map<String, EsField> mapping
+    ) {
+        final SqlConfiguration config = new SqlConfiguration(
+            DateUtils.UTC,
+            null,
+            Protocol.FETCH_SIZE,
+            Protocol.REQUEST_TIMEOUT,
+            Protocol.PAGE_TIMEOUT,
+            null,
+            null,
+            mode,
+            null,
+            SqlVersion.fromId(Version.CURRENT.id),
+            null,
+            null,
+            false,
+            false,
+            null,
+            null
+        );
         Tuple<Command, SqlSession> tuple = sql(sql, params, config, mapping);
 
         tuple.v1().execute(tuple.v2(), wrap(p -> consumer.accept((SchemaRowSet) p.rowSet()), ex -> fail(ex.getMessage())));
     }
 
-    private void executeCommand(String sql, List<SqlTypedParamValue> params,
-                                Consumer<SchemaRowSet> consumer, Map<String, EsField> mapping) {
+    private void executeCommand(
+        String sql,
+        List<SqlTypedParamValue> params,
+        Consumer<SchemaRowSet> consumer,
+        Map<String, EsField> mapping
+    ) {
         executeCommand(sql, params, Mode.PLAIN, consumer, mapping);
     }
 
     @SuppressWarnings({ "unchecked" })
-    private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, SqlConfiguration config,
-                                           Map<String, EsField> mapping) {
+    private Tuple<Command, SqlSession> sql(
+        String sql,
+        List<SqlTypedParamValue> params,
+        SqlConfiguration config,
+        Map<String, EsField> mapping
+    ) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(config, new FunctionRegistry(), IndexResolution.valid(test), new Verifier(new Metrics(),
-            config.version()));
+        Analyzer analyzer = new Analyzer(
+            config,
+            new FunctionRegistry(),
+            IndexResolution.valid(test),
+            new Verifier(new Metrics(), config.version())
+        );
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params, UTC), true);
 
         IndexResolver resolver = mock(IndexResolver.class);
         when(resolver.clusterName()).thenReturn(CLUSTER_NAME);
+        when(resolver.remoteClusters()).thenReturn(Set.of(CLUSTER_NAME));
         doAnswer(invocation -> {
-            ((ActionListener<IndexResolution>) invocation.getArguments()[4]).onResponse(IndexResolution.valid(test));
+            ((ActionListener<IndexResolution>) invocation.getArguments()[3]).onResponse(IndexResolution.valid(test));
             return Void.TYPE;
-        }).when(resolver).resolveAsMergedMapping(any(), any(), anyBoolean(), any(), any());
+        }).when(resolver).resolveAsMergedMapping(any(), anyBoolean(), any(), any());
         doAnswer(invocation -> {
             ((ActionListener<List<EsIndex>>) invocation.getArguments()[4]).onResponse(singletonList(test));
             return Void.TYPE;
@@ -321,7 +383,7 @@ public class SysColumnsTests extends ESTestCase {
         // https://github.com/elastic/elasticsearch/issues/35376
         // cols that need to be of short type: DATA_TYPE, DECIMAL_DIGITS, NUM_PREC_RADIX, NULLABLE, SQL_DATA_TYPE, SQL_DATETIME_SUB
         List<Integer> cols = Arrays.asList(4, 8, 9, 10, 13, 14);
-        for (Integer i: cols) {
+        for (Integer i : cols) {
             assertEquals("short", r.schema().get(i).type().name().toLowerCase(Locale.ROOT));
         }
     }

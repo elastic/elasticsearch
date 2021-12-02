@@ -15,8 +15,8 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.Set;
 
-public class GeoIpDownloaderStatsActionNodeResponseSerializingTests extends
-    AbstractWireSerializingTestCase<GeoIpDownloaderStatsAction.NodeResponse> {
+public class GeoIpDownloaderStatsActionNodeResponseSerializingTests extends AbstractWireSerializingTestCase<
+    GeoIpDownloaderStatsAction.NodeResponse> {
 
     @Override
     protected Writeable.Reader<GeoIpDownloaderStatsAction.NodeResponse> instanceReader() {
@@ -32,7 +32,13 @@ public class GeoIpDownloaderStatsActionNodeResponseSerializingTests extends
         DiscoveryNode node = new DiscoveryNode("id", buildNewFakeTransportAddress(), Version.CURRENT);
         Set<String> databases = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
         Set<String> files = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
-        return new GeoIpDownloaderStatsAction.NodeResponse(node, GeoIpDownloaderStatsSerializingTests.createRandomInstance(), databases,
-            files);
+        Set<String> configDatabases = Set.copyOf(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
+        return new GeoIpDownloaderStatsAction.NodeResponse(
+            node,
+            GeoIpDownloaderStatsSerializingTests.createRandomInstance(),
+            databases,
+            files,
+            configDatabases
+        );
     }
 }

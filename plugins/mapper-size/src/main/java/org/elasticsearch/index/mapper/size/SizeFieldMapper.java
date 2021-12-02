@@ -31,8 +31,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
 
     public static class Builder extends MetadataFieldMapper.Builder {
 
-        private final Parameter<Explicit<Boolean>> enabled
-            = updateableBoolParam("enabled", m -> toType(m).enabled, false);
+        private final Parameter<Explicit<Boolean>> enabled = updateableBoolParam("enabled", m -> toType(m).enabled, false);
 
         private Builder() {
             super(NAME);
@@ -57,7 +56,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (hasDocValues() == false) {
-                return lookup -> List.of();
+                return (lookup, ignoredValues) -> List.of();
             }
             return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
         }

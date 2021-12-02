@@ -32,17 +32,30 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 
-public class TransportIndicesSegmentsAction
-        extends TransportBroadcastByNodeAction<IndicesSegmentsRequest, IndicesSegmentResponse, ShardSegments> {
+public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeAction<
+    IndicesSegmentsRequest,
+    IndicesSegmentResponse,
+    ShardSegments> {
 
     private final IndicesService indicesService;
 
     @Inject
-    public TransportIndicesSegmentsAction(ClusterService clusterService, TransportService transportService,
-                                          IndicesService indicesService, ActionFilters actionFilters,
-                                          IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(IndicesSegmentsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                IndicesSegmentsRequest::new, ThreadPool.Names.MANAGEMENT);
+    public TransportIndicesSegmentsAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        IndicesService indicesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            IndicesSegmentsAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            indexNameExpressionResolver,
+            IndicesSegmentsRequest::new,
+            ThreadPool.Names.MANAGEMENT
+        );
         this.indicesService = indicesService;
     }
 
@@ -70,11 +83,22 @@ public class TransportIndicesSegmentsAction
     }
 
     @Override
-    protected IndicesSegmentResponse newResponse(IndicesSegmentsRequest request, int totalShards, int successfulShards, int failedShards,
-                                                 List<ShardSegments> results, List<DefaultShardOperationFailedException> shardFailures,
-                                                 ClusterState clusterState) {
-        return new IndicesSegmentResponse(results.toArray(new ShardSegments[results.size()]), totalShards, successfulShards, failedShards,
-            shardFailures);
+    protected IndicesSegmentResponse newResponse(
+        IndicesSegmentsRequest request,
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<ShardSegments> results,
+        List<DefaultShardOperationFailedException> shardFailures,
+        ClusterState clusterState
+    ) {
+        return new IndicesSegmentResponse(
+            results.toArray(new ShardSegments[results.size()]),
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardFailures
+        );
     }
 
     @Override
@@ -83,13 +107,17 @@ public class TransportIndicesSegmentsAction
     }
 
     @Override
-    protected void shardOperation(IndicesSegmentsRequest request, ShardRouting shardRouting, Task task,
-                                  ActionListener<ShardSegments> listener) {
+    protected void shardOperation(
+        IndicesSegmentsRequest request,
+        ShardRouting shardRouting,
+        Task task,
+        ActionListener<ShardSegments> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             assert task instanceof CancellableTask;
             IndexService indexService = indicesService.indexServiceSafe(shardRouting.index());
             IndexShard indexShard = indexService.getShard(shardRouting.id());
-            return new ShardSegments(indexShard.routingEntry(), indexShard.segments(request.verbose()));
+            return new ShardSegments(indexShard.routingEntry(), indexShard.segments());
         });
     }
 }

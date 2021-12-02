@@ -10,16 +10,16 @@ package org.elasticsearch.xpack.monitoring.collector.ccr;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
+import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.BaseMonitoringDocTestCase;
 import org.junit.Before;
 
@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,20 +52,23 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
     }
 
     public void testConstructorStatusMustNotBeNull() {
-        final NullPointerException e =
-                expectThrows(NullPointerException.class, () -> new FollowStatsMonitoringDoc(cluster, timestamp, interval, node, null));
+        final NullPointerException e = expectThrows(
+            NullPointerException.class,
+            () -> new FollowStatsMonitoringDoc(cluster, timestamp, interval, node, null)
+        );
         assertThat(e, hasToString(containsString("status")));
     }
 
     @Override
     protected FollowStatsMonitoringDoc createMonitoringDoc(
-            final String cluster,
-            final long timestamp,
-            final long interval,
-            final MonitoringDoc.Node node,
-            final MonitoredSystem system,
-            final String type,
-            final String id) {
+        final String cluster,
+        final long timestamp,
+        final long interval,
+        final MonitoringDoc.Node node,
+        final MonitoredSystem system,
+        final String type,
+        final String id
+    ) {
         return new FollowStatsMonitoringDoc(cluster, timestamp, interval, node, status);
     }
 
@@ -107,106 +110,170 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
         final long successfulWriteRequests = randomNonNegativeLong();
         final long failedWriteRequests = randomNonNegativeLong();
         final long operationWritten = randomNonNegativeLong();
-        final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions =
-                new TreeMap<>(Collections.singletonMap(
-                        randomNonNegativeLong(),
-                        Tuple.tuple(randomIntBetween(0, Integer.MAX_VALUE), new ElasticsearchException("shard is sad"))));
+        final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions = new TreeMap<>(
+            Collections.singletonMap(
+                randomNonNegativeLong(),
+                Tuple.tuple(randomIntBetween(0, Integer.MAX_VALUE), new ElasticsearchException("shard is sad"))
+            )
+        );
         final long timeSinceLastReadMillis = randomNonNegativeLong();
-        final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
-                "leader_cluster",
-                "leader_index",
-                "follower_index",
-                shardId,
-                leaderGlobalCheckpoint,
-                leaderMaxSeqNo,
-                followerGlobalCheckpoint,
-                followerMaxSeqNo,
-                lastRequestedSeqNo,
-                numberOfConcurrentReads,
-                numberOfConcurrentWrites,
-                writeBufferOperationCount,
-                writeBufferSizeInBytes,
-                followerMappingVersion,
-                followerSettingsVersion,
-                followerAliasesVersion,
-                totalReadTimeMillis,
-                totalReadRemoteExecTimeMillis,
-                successfulReadRequests,
-                failedReadRequests,
-                operationsRead,
-                bytesRead,
-                totalWriteTimeMillis,
-                successfulWriteRequests,
-                failedWriteRequests,
-                operationWritten,
-                fetchExceptions,
-                timeSinceLastReadMillis,
-                new ElasticsearchException("fatal error"));
-        final FollowStatsMonitoringDoc document = new FollowStatsMonitoringDoc("_cluster", timestamp, intervalMillis, node, status);
+        final ShardFollowNodeTaskStatus taskStatus = new ShardFollowNodeTaskStatus(
+            "leader_cluster",
+            "leader_index",
+            "follower_index",
+            shardId,
+            leaderGlobalCheckpoint,
+            leaderMaxSeqNo,
+            followerGlobalCheckpoint,
+            followerMaxSeqNo,
+            lastRequestedSeqNo,
+            numberOfConcurrentReads,
+            numberOfConcurrentWrites,
+            writeBufferOperationCount,
+            writeBufferSizeInBytes,
+            followerMappingVersion,
+            followerSettingsVersion,
+            followerAliasesVersion,
+            totalReadTimeMillis,
+            totalReadRemoteExecTimeMillis,
+            successfulReadRequests,
+            failedReadRequests,
+            operationsRead,
+            bytesRead,
+            totalWriteTimeMillis,
+            successfulWriteRequests,
+            failedWriteRequests,
+            operationWritten,
+            fetchExceptions,
+            timeSinceLastReadMillis,
+            new ElasticsearchException("fatal error")
+        );
+        final FollowStatsMonitoringDoc document = new FollowStatsMonitoringDoc("_cluster", timestamp, intervalMillis, node, taskStatus);
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         assertThat(
-                xContent.utf8ToString(),
-                equalTo(
-                        "{"
-                                + "\"cluster_uuid\":\"_cluster\","
-                                + "\"timestamp\":\"" + DATE_TIME_FORMATTER.formatMillis(timestamp) + "\","
-                                + "\"interval_ms\":" + intervalMillis + ","
-                                + "\"type\":\"ccr_stats\","
-                                + "\"source_node\":{"
-                                        + "\"uuid\":\"_uuid\","
-                                        + "\"host\":\"_host\","
-                                        + "\"transport_address\":\"_addr\","
-                                        + "\"ip\":\"_ip\","
-                                        + "\"name\":\"_name\","
-                                        + "\"timestamp\":\"" + DATE_TIME_FORMATTER.formatMillis(nodeTimestamp) +  "\""
-                                + "},"
-                                + "\"ccr_stats\":{"
-                                        + "\"remote_cluster\":\"leader_cluster\","
-                                        + "\"leader_index\":\"leader_index\","
-                                        + "\"follower_index\":\"follower_index\","
-                                        + "\"shard_id\":" + shardId + ","
-                                        + "\"leader_global_checkpoint\":" + leaderGlobalCheckpoint + ","
-                                        + "\"leader_max_seq_no\":" + leaderMaxSeqNo + ","
-                                        + "\"follower_global_checkpoint\":" + followerGlobalCheckpoint + ","
-                                        + "\"follower_max_seq_no\":" + followerMaxSeqNo + ","
-                                        + "\"last_requested_seq_no\":" + lastRequestedSeqNo + ","
-                                        + "\"outstanding_read_requests\":" + numberOfConcurrentReads + ","
-                                        + "\"outstanding_write_requests\":" + numberOfConcurrentWrites + ","
-                                        + "\"write_buffer_operation_count\":" + writeBufferOperationCount + ","
-                                        + "\"write_buffer_size_in_bytes\":" + writeBufferSizeInBytes + ","
-                                        + "\"follower_mapping_version\":" + followerMappingVersion + ","
-                                        + "\"follower_settings_version\":" + followerSettingsVersion + ","
-                                        + "\"follower_aliases_version\":" + followerAliasesVersion + ","
-                                        + "\"total_read_time_millis\":" + totalReadTimeMillis + ","
-                                        + "\"total_read_remote_exec_time_millis\":" + totalReadRemoteExecTimeMillis + ","
-                                        + "\"successful_read_requests\":" + successfulReadRequests + ","
-                                        + "\"failed_read_requests\":" + failedReadRequests + ","
-                                        + "\"operations_read\":" + operationsRead + ","
-                                        + "\"bytes_read\":" + bytesRead + ","
-                                        + "\"total_write_time_millis\":" + totalWriteTimeMillis +","
-                                        + "\"successful_write_requests\":" + successfulWriteRequests + ","
-                                        + "\"failed_write_requests\":" + failedWriteRequests + ","
-                                        + "\"operations_written\":" + operationWritten + ","
-                                        + "\"read_exceptions\":["
-                                                + "{"
-                                                        + "\"from_seq_no\":" + fetchExceptions.keySet().iterator().next() + ","
-                                                        + "\"retries\":" + fetchExceptions.values().iterator().next().v1() + ","
-                                                        + "\"exception\":{"
-                                                                + "\"type\":\"exception\","
-                                                                + "\"reason\":\"shard is sad\""
-                                                        + "}"
-                                                + "}"
-                                        + "],"
-                                        + "\"time_since_last_read_millis\":" + timeSinceLastReadMillis + ","
-                                        + "\"fatal_exception\":{\"type\":\"exception\",\"reason\":\"fatal error\"}"
-                                + "}"
-                        + "}"));
+            xContent.utf8ToString(),
+            equalTo(
+                "{"
+                    + "\"cluster_uuid\":\"_cluster\","
+                    + "\"timestamp\":\""
+                    + DATE_TIME_FORMATTER.formatMillis(timestamp)
+                    + "\","
+                    + "\"interval_ms\":"
+                    + intervalMillis
+                    + ","
+                    + "\"type\":\"ccr_stats\","
+                    + "\"source_node\":{"
+                    + "\"uuid\":\"_uuid\","
+                    + "\"host\":\"_host\","
+                    + "\"transport_address\":\"_addr\","
+                    + "\"ip\":\"_ip\","
+                    + "\"name\":\"_name\","
+                    + "\"timestamp\":\""
+                    + DATE_TIME_FORMATTER.formatMillis(nodeTimestamp)
+                    + "\""
+                    + "},"
+                    + "\"ccr_stats\":{"
+                    + "\"remote_cluster\":\"leader_cluster\","
+                    + "\"leader_index\":\"leader_index\","
+                    + "\"follower_index\":\"follower_index\","
+                    + "\"shard_id\":"
+                    + shardId
+                    + ","
+                    + "\"leader_global_checkpoint\":"
+                    + leaderGlobalCheckpoint
+                    + ","
+                    + "\"leader_max_seq_no\":"
+                    + leaderMaxSeqNo
+                    + ","
+                    + "\"follower_global_checkpoint\":"
+                    + followerGlobalCheckpoint
+                    + ","
+                    + "\"follower_max_seq_no\":"
+                    + followerMaxSeqNo
+                    + ","
+                    + "\"last_requested_seq_no\":"
+                    + lastRequestedSeqNo
+                    + ","
+                    + "\"outstanding_read_requests\":"
+                    + numberOfConcurrentReads
+                    + ","
+                    + "\"outstanding_write_requests\":"
+                    + numberOfConcurrentWrites
+                    + ","
+                    + "\"write_buffer_operation_count\":"
+                    + writeBufferOperationCount
+                    + ","
+                    + "\"write_buffer_size_in_bytes\":"
+                    + writeBufferSizeInBytes
+                    + ","
+                    + "\"follower_mapping_version\":"
+                    + followerMappingVersion
+                    + ","
+                    + "\"follower_settings_version\":"
+                    + followerSettingsVersion
+                    + ","
+                    + "\"follower_aliases_version\":"
+                    + followerAliasesVersion
+                    + ","
+                    + "\"total_read_time_millis\":"
+                    + totalReadTimeMillis
+                    + ","
+                    + "\"total_read_remote_exec_time_millis\":"
+                    + totalReadRemoteExecTimeMillis
+                    + ","
+                    + "\"successful_read_requests\":"
+                    + successfulReadRequests
+                    + ","
+                    + "\"failed_read_requests\":"
+                    + failedReadRequests
+                    + ","
+                    + "\"operations_read\":"
+                    + operationsRead
+                    + ","
+                    + "\"bytes_read\":"
+                    + bytesRead
+                    + ","
+                    + "\"total_write_time_millis\":"
+                    + totalWriteTimeMillis
+                    + ","
+                    + "\"successful_write_requests\":"
+                    + successfulWriteRequests
+                    + ","
+                    + "\"failed_write_requests\":"
+                    + failedWriteRequests
+                    + ","
+                    + "\"operations_written\":"
+                    + operationWritten
+                    + ","
+                    + "\"read_exceptions\":["
+                    + "{"
+                    + "\"from_seq_no\":"
+                    + fetchExceptions.keySet().iterator().next()
+                    + ","
+                    + "\"retries\":"
+                    + fetchExceptions.values().iterator().next().v1()
+                    + ","
+                    + "\"exception\":{"
+                    + "\"type\":\"exception\","
+                    + "\"reason\":\"shard is sad\""
+                    + "}"
+                    + "}"
+                    + "],"
+                    + "\"time_since_last_read_millis\":"
+                    + timeSinceLastReadMillis
+                    + ","
+                    + "\"fatal_exception\":{\"type\":\"exception\",\"reason\":\"fatal error\"}"
+                    + "}"
+                    + "}"
+            )
+        );
     }
 
     public void testShardFollowNodeTaskStatusFieldsMapped() throws IOException {
-        final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions =
-            new TreeMap<>(Collections.singletonMap(1L, Tuple.tuple(2, new ElasticsearchException("shard is sad"))));
-        final ShardFollowNodeTaskStatus status = new ShardFollowNodeTaskStatus(
+        final NavigableMap<Long, Tuple<Integer, ElasticsearchException>> fetchExceptions = new TreeMap<>(
+            Collections.singletonMap(1L, Tuple.tuple(2, new ElasticsearchException("shard is sad")))
+        );
+        final ShardFollowNodeTaskStatus taskStatus = new ShardFollowNodeTaskStatus(
             "remote_cluster",
             "leader_index",
             "follower_index",
@@ -235,15 +302,24 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             10,
             fetchExceptions,
             2,
-            new ElasticsearchException("fatal error"));
+            new ElasticsearchException("fatal error")
+        );
         XContentBuilder builder = jsonBuilder();
-        builder.value(status);
+        builder.value(taskStatus);
         Map<String, Object> serializedStatus = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(builder), false);
 
-        Map<String, Object> template =
-            XContentHelper.convertToMap(XContentType.JSON.xContent(), MonitoringTemplateUtils.loadTemplate("es"), false);
-        Map<?, ?> followStatsMapping = (Map<?, ?>) XContentMapValues
-            .extractValue("mappings._doc.properties.ccr_stats.properties", template);
+        byte[] loadedTemplate = MonitoringTemplateRegistry.getTemplateConfigForMonitoredSystem(MonitoredSystem.ES).loadBytes();
+        Map<String, Object> template = XContentHelper.convertToMap(
+            XContentType.JSON.xContent(),
+            loadedTemplate,
+            0,
+            loadedTemplate.length,
+            false
+        );
+        Map<?, ?> followStatsMapping = (Map<?, ?>) XContentMapValues.extractValue(
+            "mappings._doc.properties.ccr_stats.properties",
+            template
+        );
         assertThat(serializedStatus.size(), equalTo(followStatsMapping.size()));
         for (Map.Entry<String, Object> entry : serializedStatus.entrySet()) {
             String fieldName = entry.getKey();
@@ -253,11 +329,13 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
             Object fieldValue = entry.getValue();
             String fieldType = (String) fieldMapping.get("type");
             if (fieldValue instanceof Long || fieldValue instanceof Integer) {
-                assertThat("expected long field type for field [" + fieldName + "]", fieldType,
-                    anyOf(equalTo("long"), equalTo("integer")));
+                assertThat("expected long field type for field [" + fieldName + "]", fieldType, anyOf(equalTo("long"), equalTo("integer")));
             } else if (fieldValue instanceof String) {
-                assertThat("expected keyword field type for field [" + fieldName + "]", fieldType,
-                    anyOf(equalTo("keyword"), equalTo("text")));
+                assertThat(
+                    "expected keyword field type for field [" + fieldName + "]",
+                    fieldType,
+                    anyOf(equalTo("keyword"), equalTo("text"))
+                );
             } else {
                 // Manual test specific object fields and if not just fail:
                 if (fieldName.equals("read_exceptions")) {
@@ -267,8 +345,10 @@ public class FollowStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Fol
                     assertThat(XContentMapValues.extractValue("properties.retries.type", fieldMapping), equalTo("integer"));
                     assertThat(XContentMapValues.extractValue("properties.exception.type", fieldMapping), equalTo("object"));
 
-                    Map<?, ?> exceptionFieldMapping =
-                        (Map<?, ?>) XContentMapValues.extractValue("properties.exception.properties", fieldMapping);
+                    Map<?, ?> exceptionFieldMapping = (Map<?, ?>) XContentMapValues.extractValue(
+                        "properties.exception.properties",
+                        fieldMapping
+                    );
                     assertThat(exceptionFieldMapping.size(), equalTo(2));
                     assertThat(XContentMapValues.extractValue("type.type", exceptionFieldMapping), equalTo("keyword"));
                     assertThat(XContentMapValues.extractValue("reason.type", exceptionFieldMapping), equalTo("text"));

@@ -11,14 +11,14 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.io.IOException;

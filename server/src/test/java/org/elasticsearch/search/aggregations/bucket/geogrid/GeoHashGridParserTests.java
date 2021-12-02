@@ -8,12 +8,12 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;

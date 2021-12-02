@@ -19,15 +19,15 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.core.watcher.actions.Action.Result.Status;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -51,7 +51,7 @@ import static java.util.Collections.unmodifiableSet;
 import static java.util.Map.entry;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -60,7 +60,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class IndexActionTests extends ESTestCase {
@@ -117,44 +117,37 @@ public class IndexActionTests extends ESTestCase {
 
     public void testParserFailure() throws Exception {
         // wrong type for field
-        expectParseFailure(jsonBuilder()
-                .startObject()
-                .field(IndexAction.Field.TIMEOUT.getPreferredName(), "1234")
-                .endObject());
+        expectParseFailure(jsonBuilder().startObject().field(IndexAction.Field.TIMEOUT.getPreferredName(), "1234").endObject());
 
         // unknown field
-        expectParseFailure(jsonBuilder()
-                .startObject()
-                .field("unknown", "whatever")
-                .endObject());
+        expectParseFailure(jsonBuilder().startObject().field("unknown", "whatever").endObject());
 
-        expectParseFailure(jsonBuilder()
-                .startObject()
-                .field("unknown", 1234)
-                .endObject());
+        expectParseFailure(jsonBuilder().startObject().field("unknown", 1234).endObject());
 
         // unknown refresh policy
-        expectFailure(IllegalArgumentException.class, jsonBuilder()
-                .startObject()
-                .field(IndexAction.Field.REFRESH.getPreferredName(), "unknown")
-                .endObject());
+        expectFailure(
+            IllegalArgumentException.class,
+            jsonBuilder().startObject().field(IndexAction.Field.REFRESH.getPreferredName(), "unknown").endObject()
+        );
     }
 
     public void testOpTypeThatCannotBeParsed() throws Exception {
-        expectParseFailure(jsonBuilder()
-            .startObject()
-            .field(IndexAction.Field.OP_TYPE.getPreferredName(), randomAlphaOfLength(10))
-            .endObject(),
-            "failed to parse op_type value for field [op_type]");
+        expectParseFailure(
+            jsonBuilder().startObject().field(IndexAction.Field.OP_TYPE.getPreferredName(), randomAlphaOfLength(10)).endObject(),
+            "failed to parse op_type value for field [op_type]"
+        );
     }
 
     public void testUnsupportedOpType() throws Exception {
-        expectParseFailure(jsonBuilder()
-            .startObject()
-            .field(IndexAction.Field.OP_TYPE.getPreferredName(),
-                randomFrom(DocWriteRequest.OpType.UPDATE.name(), DocWriteRequest.OpType.DELETE.name()))
-            .endObject(),
-            "op_type value for field [op_type] must be [index] or [create]");
+        expectParseFailure(
+            jsonBuilder().startObject()
+                .field(
+                    IndexAction.Field.OP_TYPE.getPreferredName(),
+                    randomFrom(DocWriteRequest.OpType.UPDATE.name(), DocWriteRequest.OpType.DELETE.name())
+                )
+                .endObject(),
+            "op_type value for field [op_type] must be [index] or [create]"
+        );
     }
 
     private void expectParseFailure(XContentBuilder builder, String expectedMessage) throws Exception {
@@ -181,11 +174,14 @@ public class IndexActionTests extends ESTestCase {
 
     public void testUsingParameterIdWithBulkOrIdFieldThrowsIllegalState() {
         final IndexAction action = new IndexAction("test-index", "123", null, null, null, null, refreshPolicy);
-        final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
-                TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
-        final Map<String, Object> docWithId = Map.of(
-                "foo", "bar",
-                "_id", "0");
+        final ExecutableIndexAction executable = new ExecutableIndexAction(
+            action,
+            logger,
+            client,
+            TimeValue.timeValueSeconds(30),
+            TimeValue.timeValueSeconds(30)
+        );
+        final Map<String, Object> docWithId = Map.of("foo", "bar", "_id", "0");
         final ZonedDateTime executionTime = ZonedDateTime.now(ZoneOffset.UTC);
 
         // using doc_id with bulk fails regardless of using ID
@@ -193,10 +189,10 @@ public class IndexActionTests extends ESTestCase {
             final List<Map<?, ?>> idList = Arrays.asList(docWithId, MapBuilder.newMapBuilder().put("foo", "bar1").put("_id", "1").map());
 
             final Object list = randomFrom(
-                    new Map<?,?>[] { singletonMap("foo", "bar"), singletonMap("foo", "bar1") },
-                    Arrays.asList(singletonMap("foo", "bar"), singletonMap("foo", "bar1")),
-                    unmodifiableSet(newHashSet(singletonMap("foo", "bar"), singletonMap("foo", "bar1"))),
-                    idList
+                new Map<?, ?>[] { singletonMap("foo", "bar"), singletonMap("foo", "bar1") },
+                Arrays.asList(singletonMap("foo", "bar"), singletonMap("foo", "bar1")),
+                unmodifiableSet(newHashSet(singletonMap("foo", "bar"), singletonMap("foo", "bar1"))),
+                idList
             );
 
             final WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", executionTime, new Payload.Simple("_doc", list));
@@ -226,11 +222,22 @@ public class IndexActionTests extends ESTestCase {
             entries.add(entry("_index", "my_dynamic_index"));
         }
 
-        final IndexAction action = new IndexAction(configureIndexDynamically ? null : "my_index",
-                configureIdDynamically ? null : "my_id",
-                null, null, null, null, refreshPolicy);
-        final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
-                TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
+        final IndexAction action = new IndexAction(
+            configureIndexDynamically ? null : "my_index",
+            configureIdDynamically ? null : "my_id",
+            null,
+            null,
+            null,
+            null,
+            refreshPolicy
+        );
+        final ExecutableIndexAction executable = new ExecutableIndexAction(
+            action,
+            logger,
+            client,
+            TimeValue.timeValueSeconds(30),
+            TimeValue.timeValueSeconds(30)
+        );
 
         final WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", new Payload.Simple(Maps.ofEntries(entries)));
 
@@ -249,19 +256,26 @@ public class IndexActionTests extends ESTestCase {
 
     public void testThatIndexActionCanBeConfiguredWithDynamicIndexNameAndBulk() throws Exception {
         final IndexAction action = new IndexAction(null, null, null, null, null, null, refreshPolicy);
-        final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
-                TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
+        final ExecutableIndexAction executable = new ExecutableIndexAction(
+            action,
+            logger,
+            client,
+            TimeValue.timeValueSeconds(30),
+            TimeValue.timeValueSeconds(30)
+        );
 
         final Map<String, Object> docWithIndex = Map.of("foo", "bar", "_index", "my-index");
         final Map<String, Object> docWithOtherIndex = Map.of("foo", "bar", "_index", "my-other-index");
-        final WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id",
-                new Payload.Simple("_doc", Arrays.asList(docWithIndex, docWithOtherIndex)));
+        final WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext(
+            "_id",
+            new Payload.Simple("_doc", Arrays.asList(docWithIndex, docWithOtherIndex))
+        );
 
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         PlainActionFuture<BulkResponse> listener = PlainActionFuture.newFuture();
         IndexResponse indexResponse = new IndexResponse(new ShardId(new Index("foo", "bar"), 0), "whatever", 1, 1, 1, true);
         BulkItemResponse response = BulkItemResponse.success(0, DocWriteRequest.OpType.INDEX, indexResponse);
-        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{response}, 1);
+        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[] { response }, 1);
         listener.onResponse(bulkResponse);
         when(client.bulk(captor.capture())).thenReturn(listener);
         Action.Result result = executable.execute("_id", ctx, ctx.payload());
@@ -275,18 +289,28 @@ public class IndexActionTests extends ESTestCase {
 
     public void testConfigureIndexInMapAndAction() {
         String fieldName = "_index";
-        final IndexAction action = new IndexAction("my_index",
-                null, null,null, null, null, refreshPolicy);
-        final ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
-                TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
+        final IndexAction action = new IndexAction("my_index", null, null, null, null, null, refreshPolicy);
+        final ExecutableIndexAction executable = new ExecutableIndexAction(
+            action,
+            logger,
+            client,
+            TimeValue.timeValueSeconds(30),
+            TimeValue.timeValueSeconds(30)
+        );
 
         final Map<String, Object> docWithIndex = Map.of("foo", "bar", fieldName, "my-value");
-        final WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id",
-                new Payload.Simple("_doc", Collections.singletonList(docWithIndex)));
+        final WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext(
+            "_id",
+            new Payload.Simple("_doc", Collections.singletonList(docWithIndex))
+        );
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> executable.execute("_id", ctx, ctx.payload()));
-        assertThat(e.getMessage(), startsWith("could not execute action [_id] of watch [_id]. [ctx.payload." +
-                fieldName + "] or [ctx.payload._doc." + fieldName + "]"));
+        assertThat(
+            e.getMessage(),
+            startsWith(
+                "could not execute action [_id] of watch [_id]. [ctx.payload." + fieldName + "] or [ctx.payload._doc." + fieldName + "]"
+            )
+        );
     }
 
     public void testIndexActionExecuteSingleDoc() throws Exception {
@@ -296,8 +320,13 @@ public class IndexActionTests extends ESTestCase {
         String timestampField = randomFrom("@timestamp", null);
 
         IndexAction action = new IndexAction("test-index", docIdAsParam ? docId : null, null, timestampField, null, null, refreshPolicy);
-        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client, TimeValue.timeValueSeconds(30),
-                TimeValue.timeValueSeconds(30));
+        ExecutableIndexAction executable = new ExecutableIndexAction(
+            action,
+            logger,
+            client,
+            TimeValue.timeValueSeconds(30),
+            TimeValue.timeValueSeconds(30)
+        );
         ZonedDateTime executionTime = DateUtils.nowWithMillisResolution();
         Payload payload;
 
@@ -321,7 +350,7 @@ public class IndexActionTests extends ESTestCase {
         assertThat(result, instanceOf(IndexAction.Result.class));
         IndexAction.Result successResult = (IndexAction.Result) result;
         XContentSource response = successResult.response();
-        assertThat(response.getValue("created"), equalTo((Object)Boolean.TRUE));
+        assertThat(response.getValue("created"), equalTo((Object) Boolean.TRUE));
         assertThat(response.getValue("version"), equalTo((Object) 1));
         assertThat(response.getValue("index").toString(), equalTo("test-index"));
 
@@ -332,7 +361,7 @@ public class IndexActionTests extends ESTestCase {
             assertThat(indexRequest.id(), is(docId));
         }
 
-        RefreshPolicy expectedRefreshPolicy = refreshPolicy == null ? RefreshPolicy.NONE: refreshPolicy;
+        RefreshPolicy expectedRefreshPolicy = refreshPolicy == null ? RefreshPolicy.NONE : refreshPolicy;
         assertThat(indexRequest.getRefreshPolicy(), is(expectedRefreshPolicy));
 
         if (timestampField != null) {
@@ -345,8 +374,13 @@ public class IndexActionTests extends ESTestCase {
 
     public void testFailureResult() throws Exception {
         IndexAction action = new IndexAction("test-index", null, null, "@timestamp", null, null, refreshPolicy);
-        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
-                TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
+        ExecutableIndexAction executable = new ExecutableIndexAction(
+            action,
+            logger,
+            client,
+            TimeValue.timeValueSeconds(30),
+            TimeValue.timeValueSeconds(30)
+        );
 
         // should the result resemble a failure or a partial failure
         boolean isPartialFailure = randomBoolean();
@@ -360,8 +394,7 @@ public class IndexActionTests extends ESTestCase {
 
         ArgumentCaptor<BulkRequest> captor = ArgumentCaptor.forClass(BulkRequest.class);
         PlainActionFuture<BulkResponse> listener = PlainActionFuture.newFuture();
-        BulkItemResponse.Failure failure = new BulkItemResponse.Failure("test-index", "anything",
-                new ElasticsearchException("anything"));
+        BulkItemResponse.Failure failure = new BulkItemResponse.Failure("test-index", "anything", new ElasticsearchException("anything"));
         BulkItemResponse firstResponse = BulkItemResponse.failure(0, DocWriteRequest.OpType.INDEX, failure);
         BulkItemResponse secondResponse;
         if (isPartialFailure) {
@@ -371,11 +404,11 @@ public class IndexActionTests extends ESTestCase {
         } else {
             secondResponse = BulkItemResponse.failure(1, DocWriteRequest.OpType.INDEX, failure);
         }
-        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[]{firstResponse, secondResponse}, 1);
+        BulkResponse bulkResponse = new BulkResponse(new BulkItemResponse[] { firstResponse, secondResponse }, 1);
         listener.onResponse(bulkResponse);
         when(client.bulk(captor.capture())).thenReturn(listener);
         Action.Result result = executable.execute("_id", ctx, payload);
-        RefreshPolicy expectedRefreshPolicy = refreshPolicy == null ? RefreshPolicy.NONE: refreshPolicy;
+        RefreshPolicy expectedRefreshPolicy = refreshPolicy == null ? RefreshPolicy.NONE : refreshPolicy;
         assertThat(captor.getValue().getRefreshPolicy(), is(expectedRefreshPolicy));
 
         if (isPartialFailure) {
@@ -387,8 +420,13 @@ public class IndexActionTests extends ESTestCase {
 
     public void testIndexSeveralDocumentsIsSimulated() throws Exception {
         IndexAction action = new IndexAction("test-index", null, null, "@timestamp", null, null, refreshPolicy);
-        ExecutableIndexAction executable = new ExecutableIndexAction(action, logger, client,
-            TimeValue.timeValueSeconds(30), TimeValue.timeValueSeconds(30));
+        ExecutableIndexAction executable = new ExecutableIndexAction(
+            action,
+            logger,
+            client,
+            TimeValue.timeValueSeconds(30),
+            TimeValue.timeValueSeconds(30)
+        );
 
         String docId = randomAlphaOfLength(5);
         final List<Map<String, String>> docs = List.of(Map.of("foo", "bar", "_id", docId));
@@ -403,6 +441,6 @@ public class IndexActionTests extends ESTestCase {
 
         Action.Result result = executable.execute("my_id", ctx, payload);
         assertThat(result.status(), is(Status.SIMULATED));
-        verifyZeroInteractions(client);
+        verifyNoMoreInteractions(client);
     }
 }

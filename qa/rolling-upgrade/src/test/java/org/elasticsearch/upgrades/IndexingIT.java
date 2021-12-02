@@ -7,23 +7,33 @@
  */
 package org.elasticsearch.upgrades;
 
+import io.github.nik9000.mapmatcher.ListMatcher;
+
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
+import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -41,25 +51,25 @@ public class IndexingIT extends AbstractRollingTestCase {
 
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
-        case OLD:
-            break;
-        case MIXED:
-            Request waitForYellow = new Request("GET", "/_cluster/health");
-            waitForYellow.addParameter("wait_for_nodes", "3");
-            waitForYellow.addParameter("wait_for_status", "yellow");
-            client().performRequest(waitForYellow);
-            break;
-        case UPGRADED:
-            Request waitForGreen = new Request("GET", "/_cluster/health/test_index,index_with_replicas,empty_index");
-            waitForGreen.addParameter("wait_for_nodes", "3");
-            waitForGreen.addParameter("wait_for_status", "green");
-            // wait for long enough that we give delayed unassigned shards to stop being delayed
-            waitForGreen.addParameter("timeout", "70s");
-            waitForGreen.addParameter("level", "shards");
-            client().performRequest(waitForGreen);
-            break;
-        default:
-            throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+            case OLD:
+                break;
+            case MIXED:
+                Request waitForYellow = new Request("GET", "/_cluster/health");
+                waitForYellow.addParameter("wait_for_nodes", "3");
+                waitForYellow.addParameter("wait_for_status", "yellow");
+                client().performRequest(waitForYellow);
+                break;
+            case UPGRADED:
+                Request waitForGreen = new Request("GET", "/_cluster/health/test_index,index_with_replicas,empty_index");
+                waitForGreen.addParameter("wait_for_nodes", "3");
+                waitForGreen.addParameter("wait_for_status", "green");
+                // wait for long enough that we give delayed unassigned shards to stop being delayed
+                waitForGreen.addParameter("timeout", "70s");
+                waitForGreen.addParameter("level", "shards");
+                client().performRequest(waitForGreen);
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
         if (CLUSTER_TYPE == ClusterType.OLD) {
@@ -86,21 +96,21 @@ public class IndexingIT extends AbstractRollingTestCase {
 
         int expectedCount;
         switch (CLUSTER_TYPE) {
-        case OLD:
-            expectedCount = 5;
-            break;
-        case MIXED:
-            if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+            case OLD:
                 expectedCount = 5;
-            } else {
-                expectedCount = 10;
-            }
-            break;
-        case UPGRADED:
-            expectedCount = 15;
-            break;
-        default:
-            throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
+                break;
+            case MIXED:
+                if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
+                    expectedCount = 5;
+                } else {
+                    expectedCount = 10;
+                }
+                break;
+            case UPGRADED:
+                expectedCount = 15;
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
 
         assertCount("test_index", expectedCount);
@@ -148,12 +158,13 @@ public class IndexingIT extends AbstractRollingTestCase {
                 if (minNodeVersion.before(Version.V_7_5_0)) {
                     ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(bulk));
                     assertEquals(400, e.getResponse().getStatusLine().getStatusCode());
-                    assertThat(e.getMessage(),
+                    assertThat(
+                        e.getMessage(),
                         // if request goes to 7.5+ node
                         either(containsString("optype create not supported for indexing requests without explicit id until"))
                             // if request goes to < 7.5 node
-                            .or(containsString("an id must be provided if version type or value are set")
-                            ));
+                            .or(containsString("an id must be provided if version type or value are set"))
+                    );
                 } else {
                     client().performRequest(bulk);
                 }
@@ -173,16 +184,16 @@ public class IndexingIT extends AbstractRollingTestCase {
                 Request createIndex = new Request("PUT", "/" + indexName);
                 XContentBuilder mappings = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
-                        .startObject("mappings")
-                            .startObject("properties")
-                                .startObject("date")
-                                    .field("type", "date")
-                                .endObject()
-                                .startObject("date_nanos")
-                                    .field("type", "date_nanos")
-                                .endObject()
-                            .endObject()
-                        .endObject()
+                    .startObject("mappings")
+                    .startObject("properties")
+                    .startObject("date")
+                    .field("type", "date")
+                    .endObject()
+                    .startObject("date_nanos")
+                    .field("type", "date_nanos")
+                    .endObject()
+                    .endObject()
+                    .endObject()
                     .endObject();
                 createIndex.setJsonEntity(Strings.toString(mappings));
                 client().performRequest(createIndex);
@@ -190,8 +201,8 @@ public class IndexingIT extends AbstractRollingTestCase {
                 Request index = new Request("POST", "/" + indexName + "/_doc/");
                 XContentBuilder doc = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
-                        .field("date", "2015-01-01T12:10:30.123456789Z")
-                        .field("date_nanos", "2015-01-01T12:10:30.123456789Z")
+                    .field("date", "2015-01-01T12:10:30.123456789Z")
+                    .field("date_nanos", "2015-01-01T12:10:30.123456789Z")
                     .endObject();
                 index.addParameter("refresh", "true");
                 index.setJsonEntity(Strings.toString(doc));
@@ -202,7 +213,7 @@ public class IndexingIT extends AbstractRollingTestCase {
                 Request search = new Request("POST", "/" + indexName + "/_search");
                 XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
                     .startObject()
-                        .array("fields", new String[] { "date", "date_nanos" })
+                    .array("fields", new String[] { "date", "date_nanos" })
                     .endObject();
                 search.setJsonEntity(Strings.toString(query));
                 Map<String, Object> response = entityAsMap(client().performRequest(search));
@@ -228,10 +239,131 @@ public class IndexingIT extends AbstractRollingTestCase {
             b.append("{\"index\": {\"_index\": \"").append(index).append("\"}}\n");
             b.append("{\"f1\": \"v").append(i).append(valueSuffix).append("\", \"f2\": ").append(i).append("}\n");
         }
+        bulk(index, b.toString());
+    }
+
+    private static final List<String> TSDB_DIMS = List.of("6a841a21", "947e4ced", "a4c385a1", "b47a2f4e", "df3145b3");
+    private static final long[] TSDB_TIMES;
+    static {
+        String[] times = new String[] {
+            "2021-01-01T00:00:00Z",
+            "2021-01-02T00:00:00Z",
+            "2021-01-02T00:10:00Z",
+            "2021-01-02T00:20:00Z",
+            "2021-01-02T00:30:00Z" };
+        TSDB_TIMES = new long[times.length];
+        for (int i = 0; i < times.length; i++) {
+            TSDB_TIMES[i] = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(times[i]);
+        }
+    }
+
+    public void testTsdb() throws IOException {
+        assumeTrue("sort by _tsid added in 8.1.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_1_0));
+
+        StringBuilder bulk = new StringBuilder();
+        switch (CLUSTER_TYPE) {
+            case OLD:
+                createTsdbIndex();
+                tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[0], TSDB_TIMES[1], 0.1);
+                tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[0], TSDB_TIMES[1], -0.1);
+                bulk("tsdb", bulk.toString());
+                assertTsdbAgg(closeTo(215.95, 0.005), closeTo(-215.95, 0.005));
+                return;
+            case MIXED:
+                if (FIRST_MIXED_ROUND) {
+                    tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[1], TSDB_TIMES[2], 0.1);
+                    tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[1], TSDB_TIMES[2], -0.1);
+                    tsdbBulk(bulk, TSDB_DIMS.get(2), TSDB_TIMES[0], TSDB_TIMES[2], 1.1);
+                    bulk("tsdb", bulk.toString());
+                    assertTsdbAgg(closeTo(217.45, 0.005), closeTo(-217.45, 0.005), closeTo(2391.95, 0.005));
+                    return;
+                }
+                tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[2], TSDB_TIMES[3], 0.1);
+                tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[2], TSDB_TIMES[3], -0.1);
+                tsdbBulk(bulk, TSDB_DIMS.get(2), TSDB_TIMES[2], TSDB_TIMES[3], 1.1);
+                tsdbBulk(bulk, TSDB_DIMS.get(3), TSDB_TIMES[0], TSDB_TIMES[3], 10);
+                bulk("tsdb", bulk.toString());
+                assertTsdbAgg(closeTo(218.95, 0.005), closeTo(-218.95, 0.005), closeTo(2408.45, 0.005), closeTo(21895, 0.5));
+                return;
+            case UPGRADED:
+                tsdbBulk(bulk, TSDB_DIMS.get(0), TSDB_TIMES[3], TSDB_TIMES[4], 0.1);
+                tsdbBulk(bulk, TSDB_DIMS.get(1), TSDB_TIMES[3], TSDB_TIMES[4], -0.1);
+                tsdbBulk(bulk, TSDB_DIMS.get(2), TSDB_TIMES[3], TSDB_TIMES[4], 1.1);
+                tsdbBulk(bulk, TSDB_DIMS.get(3), TSDB_TIMES[3], TSDB_TIMES[4], 10);
+                tsdbBulk(bulk, TSDB_DIMS.get(4), TSDB_TIMES[0], TSDB_TIMES[4], -5);
+                bulk("tsdb", bulk.toString());
+                assertTsdbAgg(
+                    closeTo(220.45, 0.005),
+                    closeTo(-220.45, 0.005),
+                    closeTo(2424.95, 0.005),
+                    closeTo(22045, 0.5),
+                    closeTo(-11022.5, 0.5)
+                );
+                return;
+        }
+    }
+
+    private void bulk(String index, String entity) throws IOException {
         Request bulk = new Request("POST", "/_bulk");
         bulk.addParameter("refresh", "true");
-        bulk.setJsonEntity(b.toString());
-        client().performRequest(bulk);
+        bulk.setJsonEntity(entity.toString());
+        assertThat(EntityUtils.toString(client().performRequest(bulk).getEntity()), containsString("\"errors\":false"));
+    }
+
+    private void createTsdbIndex() throws IOException {
+        Request createIndex = new Request("PUT", "/tsdb");
+        XContentBuilder indexSpec = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();
+        indexSpec.startObject("mappings").startObject("properties");
+        {
+            indexSpec.startObject("@timestamp").field("type", "date").endObject();
+            indexSpec.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+        }
+        indexSpec.endObject().endObject();
+        indexSpec.startObject("settings").startObject("index");
+        indexSpec.field("mode", "time_series");
+        indexSpec.array("routing_path", new String[] { "dim" });
+        indexSpec.endObject().endObject();
+        createIndex.setJsonEntity(Strings.toString(indexSpec.endObject()));
+        client().performRequest(createIndex);
+    }
+
+    private void tsdbBulk(StringBuilder bulk, String dim, long timeStart, long timeEnd, double rate) throws IOException {
+        long delta = TimeUnit.SECONDS.toMillis(20);
+        double value = (timeStart - TSDB_TIMES[0]) / TimeUnit.SECONDS.toMillis(20) * rate;
+        for (long t = timeStart; t < timeEnd; t += delta) {
+            bulk.append("{\"index\": {\"_index\": \"tsdb\"}}\n");
+            bulk.append("{\"@timestamp\": ").append(t);
+            bulk.append(", \"dim\": \"").append(dim).append("\"");
+            bulk.append(", \"value\": ").append(value).append("}\n");
+            value += rate;
+        }
+    }
+
+    private void assertTsdbAgg(Matcher<?>... expected) throws IOException {
+        Request request = new Request("POST", "/tsdb/_search");
+        request.addParameter("size", "0");
+        XContentBuilder body = JsonXContent.contentBuilder().startObject();
+        body.startObject("aggs").startObject("tsids");
+        {
+            body.startObject("terms").field("field", "_tsid").endObject();
+            body.startObject("aggs").startObject("avg");
+            {
+                body.startObject("avg").field("field", "value").endObject();
+            }
+            body.endObject().endObject();
+        }
+        body.endObject().endObject();
+        request.setJsonEntity(Strings.toString(body.endObject()));
+        ListMatcher tsidsExpected = matchesList();
+        for (int d = 0; d < expected.length; d++) {
+            Object key = Map.of("dim", TSDB_DIMS.get(d));
+            tsidsExpected = tsidsExpected.item(matchesMap().extraOk().entry("key", key).entry("avg", Map.of("value", expected[d])));
+        }
+        assertMap(
+            entityAsMap(client().performRequest(request)),
+            matchesMap().extraOk()
+                .entry("aggregations", matchesMap().entry("tsids", matchesMap().extraOk().entry("buckets", tsidsExpected)))
+        );
     }
 
     private void assertCount(String index, int count) throws IOException {
@@ -239,8 +371,10 @@ public class IndexingIT extends AbstractRollingTestCase {
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");
         Response searchTestIndexResponse = client().performRequest(searchTestIndexRequest);
-        assertEquals("{\"hits\":{\"total\":" + count + "}}",
-                EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8));
+        assertEquals(
+            "{\"hits\":{\"total\":" + count + "}}",
+            EntityUtils.toString(searchTestIndexResponse.getEntity(), StandardCharsets.UTF_8)
+        );
     }
 
     private Version minNodeVersion() throws IOException {

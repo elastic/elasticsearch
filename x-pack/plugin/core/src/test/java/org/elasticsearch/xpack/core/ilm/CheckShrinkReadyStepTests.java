@@ -88,8 +88,17 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
         CheckShrinkReadyStep step = createRandomInstance();
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> {
-            assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-                new ClusterStateWaitStep.Result(true, null));
+            assertAllocateStatus(
+                index,
+                1,
+                0,
+                step,
+                existingSettings,
+                node1Settings,
+                node2Settings,
+                indexRoutingTable,
+                new ClusterStateWaitStep.Result(true, null)
+            );
         });
         assertThat(e.getMessage(), containsString("Cannot check shrink allocation as there are no allocation rules by _id"));
     }
@@ -114,8 +123,17 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED));
 
         CheckShrinkReadyStep step = createRandomInstance();
-        assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-            new ClusterStateWaitStep.Result(true, null));
+        assertAllocateStatus(
+            index,
+            1,
+            0,
+            step,
+            existingSettings,
+            node1Settings,
+            node2Settings,
+            indexRoutingTable,
+            new ClusterStateWaitStep.Result(true, null)
+        );
     }
 
     public void testConditionMetOnlyOneCopyAllocated() {
@@ -136,12 +154,20 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         boolean primaryOnNode1 = randomBoolean();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", primaryOnNode1, ShardRoutingState.STARTED))
-            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
-                ShardRoutingState.STARTED));
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false, ShardRoutingState.STARTED));
 
         CheckShrinkReadyStep step = new CheckShrinkReadyStep(randomStepKey(), randomStepKey());
-        assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-            new ClusterStateWaitStep.Result(true, null));
+        assertAllocateStatus(
+            index,
+            1,
+            0,
+            step,
+            existingSettings,
+            node1Settings,
+            node2Settings,
+            indexRoutingTable,
+            new ClusterStateWaitStep.Result(true, null)
+        );
     }
 
     public void testConditionNotMetDueToRelocation() {
@@ -160,17 +186,29 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
         boolean primaryOnNode1 = randomBoolean();
-        ShardRouting shardOnNode1 = TestShardRouting.newShardRouting(new ShardId(index, 0),
-            "node1", primaryOnNode1, ShardRoutingState.STARTED);
+        ShardRouting shardOnNode1 = TestShardRouting.newShardRouting(
+            new ShardId(index, 0),
+            "node1",
+            primaryOnNode1,
+            ShardRoutingState.STARTED
+        );
         shardOnNode1 = shardOnNode1.relocate("node3", 230);
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(shardOnNode1)
-            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
-                ShardRoutingState.STARTED));
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false, ShardRoutingState.STARTED));
 
         CheckShrinkReadyStep step = new CheckShrinkReadyStep(randomStepKey(), randomStepKey());
-        assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-            new ClusterStateWaitStep.Result(false, new CheckShrinkReadyStep.Info("node1", 1, 1)));
+        assertAllocateStatus(
+            index,
+            1,
+            0,
+            step,
+            existingSettings,
+            node1Settings,
+            node2Settings,
+            indexRoutingTable,
+            new ClusterStateWaitStep.Result(false, new CheckShrinkReadyStep.Info("node1", 1, 1))
+        );
     }
 
     public void testExecuteAllocateNotComplete() throws Exception {
@@ -194,8 +232,17 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node2", true, ShardRoutingState.STARTED));
 
         CheckShrinkReadyStep step = createRandomInstance();
-        assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-            new ClusterStateWaitStep.Result(false, new CheckShrinkReadyStep.Info("node1", 2, 1)));
+        assertAllocateStatus(
+            index,
+            2,
+            0,
+            step,
+            existingSettings,
+            node1Settings,
+            node2Settings,
+            indexRoutingTable,
+            new ClusterStateWaitStep.Result(false, new CheckShrinkReadyStep.Info("node1", 2, 1))
+        );
     }
 
     public void testExecuteAllocateNotCompleteOnlyOneCopyAllocated() throws Exception {
@@ -217,12 +264,20 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         boolean primaryOnNode1 = randomBoolean();
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", primaryOnNode1, ShardRoutingState.STARTED))
-            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
-                ShardRoutingState.STARTED));
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false, ShardRoutingState.STARTED));
 
         CheckShrinkReadyStep step = new CheckShrinkReadyStep(randomStepKey(), randomStepKey());
-        assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-            new ClusterStateWaitStep.Result(false, new CheckShrinkReadyStep.Info("node1", 2, 1)));
+        assertAllocateStatus(
+            index,
+            2,
+            0,
+            step,
+            existingSettings,
+            node1Settings,
+            node2Settings,
+            indexRoutingTable,
+            new ClusterStateWaitStep.Result(false, new CheckShrinkReadyStep.Info("node1", 2, 1))
+        );
     }
 
     public void testExecuteAllocateReplicaUnassigned() {
@@ -243,12 +298,29 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
-            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), null, null, false, ShardRoutingState.UNASSIGNED,
-                randomUnassignedInfo("the shard is intentionally unassigned")));
+            .addShard(
+                TestShardRouting.newShardRouting(
+                    new ShardId(index, 0),
+                    null,
+                    null,
+                    false,
+                    ShardRoutingState.UNASSIGNED,
+                    randomUnassignedInfo("the shard is intentionally unassigned")
+                )
+            );
 
         CheckShrinkReadyStep step = createRandomInstance();
-        assertAllocateStatus(index, 1, 1, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-            new ClusterStateWaitStep.Result(true, null));
+        assertAllocateStatus(
+            index,
+            1,
+            1,
+            step,
+            existingSettings,
+            node1Settings,
+            node2Settings,
+            indexRoutingTable,
+            new ClusterStateWaitStep.Result(true, null)
+        );
     }
 
     /**
@@ -278,20 +350,35 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
         Settings.Builder node2Settings = Settings.builder();
-        requires.forEach((k, v) -> {
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
-        });
+        requires.forEach((k, v) -> { expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v); });
 
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node1", false, ShardRoutingState.STARTED))
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node2", true, ShardRoutingState.STARTED))
-            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), null, null, false, ShardRoutingState.UNASSIGNED,
-                new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, "no attempt")));
+            .addShard(
+                TestShardRouting.newShardRouting(
+                    new ShardId(index, 0),
+                    null,
+                    null,
+                    false,
+                    ShardRoutingState.UNASSIGNED,
+                    new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, "no attempt")
+                )
+            );
 
         CheckShrinkReadyStep step = createRandomInstance();
-        assertAllocateStatus(index, 2, 1, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-            new ClusterStateWaitStep.Result(true, null));
+        assertAllocateStatus(
+            index,
+            2,
+            1,
+            step,
+            existingSettings,
+            node1Settings,
+            node2Settings,
+            indexRoutingTable,
+            new ClusterStateWaitStep.Result(true, null)
+        );
     }
 
     public void testExecuteReplicasButCopiesNotPresent() {
@@ -304,20 +391,35 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
         Settings.Builder node2Settings = Settings.builder();
-        requires.forEach((k, v) -> {
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
-        });
+        requires.forEach((k, v) -> { expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v); });
 
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node2", false, ShardRoutingState.STARTED))
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node3", true, ShardRoutingState.STARTED))
-            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), null, null, false, ShardRoutingState.UNASSIGNED,
-                new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, "no attempt")));
+            .addShard(
+                TestShardRouting.newShardRouting(
+                    new ShardId(index, 0),
+                    null,
+                    null,
+                    false,
+                    ShardRoutingState.UNASSIGNED,
+                    new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, "no attempt")
+                )
+            );
 
         CheckShrinkReadyStep step = createRandomInstance();
-        assertAllocateStatus(index, 2, 1, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
-            new ClusterStateWaitStep.Result(false, new CheckShrinkReadyStep.Info("node1", 2, 1)));
+        assertAllocateStatus(
+            index,
+            2,
+            1,
+            step,
+            existingSettings,
+            node1Settings,
+            node2Settings,
+            indexRoutingTable,
+            new ClusterStateWaitStep.Result(false, new CheckShrinkReadyStep.Info("node1", 2, 1))
+        );
     }
 
     public void testExecuteIndexMissing() throws Exception {
@@ -351,31 +453,58 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED));
 
         CheckShrinkReadyStep step = createRandomInstance();
-        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(existingSettings).numberOfShards(1)
-            .numberOfReplicas(1).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder().fPut(index.getName(),
-            indexMetadata);
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+            .settings(existingSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
+            .fPut(index.getName(), indexMetadata);
 
+        final SingleNodeShutdownMetadata.Type type = randomFrom(
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.REPLACE
+        );
+        final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder()
-                .indices(indices.build())
-                .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Collections.singletonMap("node1",
-                    SingleNodeShutdownMetadata.builder()
-                        .setType(randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE))
-                        .setStartedAtMillis(randomNonNegativeLong())
-                        .setReason("test")
-                        .setNodeId("node1")
-                        .build()))))
-            .nodes(DiscoveryNodes.builder()
-                .add(DiscoveryNode.createLocal(Settings.builder().put(node1Settings.build())
-                        .put(Node.NODE_NAME_SETTING.getKey(), "node1").build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                    "node1"))
-                .add(DiscoveryNode.createLocal(Settings.builder().put(node2Settings.build())
-                        .put(Node.NODE_NAME_SETTING.getKey(), "node2").build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                    "node2")))
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+            .metadata(
+                Metadata.builder()
+                    .indices(indices.build())
+                    .putCustom(
+                        NodesShutdownMetadata.TYPE,
+                        new NodesShutdownMetadata(
+                            Collections.singletonMap(
+                                "node1",
+                                SingleNodeShutdownMetadata.builder()
+                                    .setType(type)
+                                    .setStartedAtMillis(randomNonNegativeLong())
+                                    .setReason("test")
+                                    .setNodeId("node1")
+                                    .setTargetNodeName(targetNodeName)
+                                    .build()
+                            )
+                        )
+                    )
+            )
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(
+                        DiscoveryNode.createLocal(
+                            Settings.builder().put(node1Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node1").build(),
+                            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
+                            "node1"
+                        )
+                    )
+                    .add(
+                        DiscoveryNode.createLocal(
+                            Settings.builder().put(node2Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node2").build(),
+                            new TransportAddress(TransportAddress.META_ADDRESS, 9201),
+                            "node2"
+                        )
+                    )
+            )
+            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
+            .build();
         assertTrue(step.isCompletable());
         ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, clusterState);
         assertTrue(actualResult.isComplete());
@@ -402,58 +531,108 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.INITIALIZING));
 
         CheckShrinkReadyStep step = createRandomInstance();
-        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(existingSettings).numberOfShards(1)
-            .numberOfReplicas(1).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder().fPut(index.getName(),
-            indexMetadata);
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+            .settings(existingSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
+            .fPut(index.getName(), indexMetadata);
 
+        final SingleNodeShutdownMetadata.Type type = randomFrom(
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.REPLACE
+        );
+        final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
         ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .metadata(Metadata.builder()
-                .indices(indices.build())
-            .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Collections.singletonMap("node1",
-                SingleNodeShutdownMetadata.builder()
-                    .setType(randomFrom(SingleNodeShutdownMetadata.Type.REMOVE, SingleNodeShutdownMetadata.Type.REPLACE))
-                    .setStartedAtMillis(randomNonNegativeLong())
-                    .setReason("test")
-                    .setNodeId("node1")
-                    .build()))))
-            .nodes(DiscoveryNodes.builder()
-                .add(DiscoveryNode.createLocal(Settings.builder().put(node1Settings.build())
-                        .put(Node.NODE_NAME_SETTING.getKey(), "node1").build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                    "node1"))
-                .add(DiscoveryNode.createLocal(Settings.builder().put(node2Settings.build())
-                        .put(Node.NODE_NAME_SETTING.getKey(), "node2").build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                    "node2")))
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+            .metadata(
+                Metadata.builder()
+                    .indices(indices.build())
+                    .putCustom(
+                        NodesShutdownMetadata.TYPE,
+                        new NodesShutdownMetadata(
+                            Collections.singletonMap(
+                                "node1",
+                                SingleNodeShutdownMetadata.builder()
+                                    .setType(type)
+                                    .setStartedAtMillis(randomNonNegativeLong())
+                                    .setReason("test")
+                                    .setNodeId("node1")
+                                    .setTargetNodeName(targetNodeName)
+                                    .build()
+                            )
+                        )
+                    )
+            )
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(
+                        DiscoveryNode.createLocal(
+                            Settings.builder().put(node1Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node1").build(),
+                            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
+                            "node1"
+                        )
+                    )
+                    .add(
+                        DiscoveryNode.createLocal(
+                            Settings.builder().put(node2Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node2").build(),
+                            new TransportAddress(TransportAddress.META_ADDRESS, 9201),
+                            "node2"
+                        )
+                    )
+            )
+            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
+            .build();
         assertTrue(step.isCompletable());
         ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, clusterState);
         assertFalse(actualResult.isComplete());
-        assertThat(Strings.toString(actualResult.getInfomationContext()),
-            containsString("node with id [node1] is currently marked as shutting down"));
+        assertThat(
+            Strings.toString(actualResult.getInfomationContext()),
+            containsString("node with id [node1] is currently marked as shutting down")
+        );
         assertFalse(step.isCompletable());
     }
 
-    private void assertAllocateStatus(Index index, int shards, int replicas, CheckShrinkReadyStep step, Settings.Builder existingSettings,
-                                      Settings.Builder node1Settings, Settings.Builder node2Settings,
-                                      IndexRoutingTable.Builder indexRoutingTable, ClusterStateWaitStep.Result expectedResult) {
-        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(existingSettings).numberOfShards(shards)
-            .numberOfReplicas(replicas).build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder().fPut(index.getName(),
-            indexMetadata);
+    private void assertAllocateStatus(
+        Index index,
+        int shards,
+        int replicas,
+        CheckShrinkReadyStep step,
+        Settings.Builder existingSettings,
+        Settings.Builder node1Settings,
+        Settings.Builder node2Settings,
+        IndexRoutingTable.Builder indexRoutingTable,
+        ClusterStateWaitStep.Result expectedResult
+    ) {
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName())
+            .settings(existingSettings)
+            .numberOfShards(shards)
+            .numberOfReplicas(replicas)
+            .build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
+            .fPut(index.getName(), indexMetadata);
 
-        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(Metadata.builder().indices(indices.build()))
-            .nodes(DiscoveryNodes.builder()
-                .add(DiscoveryNode.createLocal(Settings.builder().put(node1Settings.build())
-                        .put(Node.NODE_NAME_SETTING.getKey(), "node1").build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9200),
-                    "node1"))
-                .add(DiscoveryNode.createLocal(Settings.builder().put(node2Settings.build())
-                        .put(Node.NODE_NAME_SETTING.getKey(), "node2").build(),
-                    new TransportAddress(TransportAddress.META_ADDRESS, 9201),
-                    "node2")))
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().indices(indices.build()))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(
+                        DiscoveryNode.createLocal(
+                            Settings.builder().put(node1Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node1").build(),
+                            new TransportAddress(TransportAddress.META_ADDRESS, 9200),
+                            "node1"
+                        )
+                    )
+                    .add(
+                        DiscoveryNode.createLocal(
+                            Settings.builder().put(node2Settings.build()).put(Node.NODE_NAME_SETTING.getKey(), "node2").build(),
+                            new TransportAddress(TransportAddress.META_ADDRESS, 9201),
+                            "node2"
+                        )
+                    )
+            )
+            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
+            .build();
         ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, clusterState);
         assertEquals(expectedResult.isComplete(), actualResult.isComplete());
         assertEquals(expectedResult.getInfomationContext(), actualResult.getInfomationContext());

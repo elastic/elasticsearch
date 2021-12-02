@@ -7,49 +7,28 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
-import org.elasticsearch.script.Converter;
-import org.elasticsearch.script.Converters;
-import org.elasticsearch.script.Field;
-import org.elasticsearch.script.FieldValues;
+import org.elasticsearch.script.field.Field;
 
 import java.math.BigInteger;
 import java.util.List;
-import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
+public interface UnsignedLongField extends Field<Long> {
 
-public class UnsignedLongField extends Field.LongField {
-    public UnsignedLongField(String name, FieldValues<Long> values) {
-        super(name, values);
-    }
+    /** Return all the values as a {@code List}. */
+    List<Long> getValues();
 
-    // UnsignedLongFields must define their own conversions as they are in x-pack
-    @Override
-    public <CT, CF extends Field<CT>> Field<CT> convert(Converter<CT, CF> converter) {
-        if (converter.getTargetClass() == BigInteger.class) {
-            BigIntegerField bigIntegerField = UnsignedLongToBigInteger(this);
-            return converter.getFieldClass().cast(bigIntegerField);
-        }
+    /** Returns the 0th index value as an {@code long} if it exists, otherwise {@code defaultValue}. */
+    long getValue(long defaultValue);
 
-        return super.as(converter);
-    }
+    /** Returns the value at {@code index} as an {@code long} if it exists, otherwise {@code defaultValue}. */
+    long getValue(int index, long defaultValue);
 
-    static BigIntegerField UnsignedLongToBigInteger(UnsignedLongField sourceField) {
-        FieldValues<Long> fv = sourceField.getFieldValues();
-        return new BigIntegerField(sourceField.getName(), new Converters.DelegatingFieldValues<java.math.BigInteger, Long>(fv) {
-            protected BigInteger toBigInteger(long formatted) {
-                return java.math.BigInteger.valueOf(formatted).and(BIGINTEGER_2_64_MINUS_ONE);
-            }
+    /** Converts all the values to {@code BigInteger} and returns them as a {@code List}. */
+    List<BigInteger> asBigIntegers();
 
-            @Override
-            public List<BigInteger> getValues() {
-                return values.getValues().stream().map(this::toBigInteger).collect(Collectors.toList());
-            }
+    /** Returns the 0th index value as a {@code BigInteger} if it exists, otherwise {@code defaultValue}. */
+    BigInteger asBigInteger(BigInteger defaultValue);
 
-            @Override
-            public BigInteger getNonPrimitiveValue() {
-                return toBigInteger(values.getLongValue());
-            }
-        });
-    }
+    /** Returns the value at {@code index} as a {@code BigInteger} if it exists, otherwise {@code defaultValue}. */
+    BigInteger asBigInteger(int index, BigInteger defaultValue);
 }

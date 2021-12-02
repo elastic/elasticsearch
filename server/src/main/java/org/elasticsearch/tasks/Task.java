@@ -6,14 +6,13 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.tasks;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
 import java.util.Map;
@@ -67,8 +66,16 @@ public class Task {
         this(id, type, action, description, parentTask, System.currentTimeMillis(), System.nanoTime(), headers);
     }
 
-    public Task(long id, String type, String action, String description, TaskId parentTask, long startTime, long startTimeNanos,
-                Map<String, String> headers) {
+    public Task(
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTask,
+        long startTime,
+        long startTimeNanos,
+        Map<String, String> headers
+    ) {
         this.id = id;
         this.type = type;
         this.action = action;
@@ -104,17 +111,18 @@ public class Task {
      */
     protected final TaskInfo taskInfo(String localNodeId, String description, Status status) {
         return new TaskInfo(
-                new TaskId(localNodeId, getId()),
-                getType(),
-                getAction(),
-                description,
-                status,
-                startTime,
-                System.nanoTime() - startTimeNanos,
-                this instanceof CancellableTask,
-                this instanceof CancellableTask && ((CancellableTask)this).isCancelled(),
-                parentTask,
-                headers);
+            new TaskId(localNodeId, getId()),
+            getType(),
+            getAction(),
+            description,
+            status,
+            startTime,
+            System.nanoTime() - startTimeNanos,
+            this instanceof CancellableTask,
+            this instanceof CancellableTask && ((CancellableTask) this).isCancelled(),
+            parentTask,
+            headers
+        );
     }
 
     /**

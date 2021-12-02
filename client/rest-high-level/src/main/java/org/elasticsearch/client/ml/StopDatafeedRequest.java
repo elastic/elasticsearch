@@ -9,13 +9,13 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.security.InvalidParameterException;
@@ -36,12 +36,16 @@ public class StopDatafeedRequest implements Validatable, ToXContentObject {
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<StopDatafeedRequest, Void> PARSER = new ConstructingObjectParser<>(
         "stop_datafeed_request",
-         a -> new StopDatafeedRequest((List<String>) a[0]));
+        a -> new StopDatafeedRequest((List<String>) a[0])
+    );
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
             p -> Arrays.asList(Strings.commaDelimitedListToStringArray(p.text())),
-            DatafeedConfig.ID, ObjectParser.ValueType.STRING_ARRAY);
+            DatafeedConfig.ID,
+            ObjectParser.ValueType.STRING_ARRAY
+        );
         PARSER.declareString((obj, val) -> obj.setTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
         PARSER.declareBoolean(StopDatafeedRequest::setForce, FORCE);
         PARSER.declareBoolean(StopDatafeedRequest::setAllowNoMatch, ALLOW_NO_MATCH);
@@ -59,7 +63,7 @@ public class StopDatafeedRequest implements Validatable, ToXContentObject {
      *
      * @return a {@link StopDatafeedRequest} for all existing datafeeds
      */
-    public static StopDatafeedRequest stopAllDatafeedsRequest(){
+    public static StopDatafeedRequest stopAllDatafeedsRequest() {
         return new StopDatafeedRequest(ALL_DATAFEEDS);
     }
 
@@ -148,10 +152,10 @@ public class StopDatafeedRequest implements Validatable, ToXContentObject {
         }
 
         StopDatafeedRequest that = (StopDatafeedRequest) other;
-        return Objects.equals(datafeedIds, that.datafeedIds) &&
-            Objects.equals(timeout, that.timeout) &&
-            Objects.equals(force, that.force) &&
-            Objects.equals(allowNoMatch, that.allowNoMatch);
+        return Objects.equals(datafeedIds, that.datafeedIds)
+            && Objects.equals(timeout, that.timeout)
+            && Objects.equals(force, that.force)
+            && Objects.equals(allowNoMatch, that.allowNoMatch);
     }
 
     @Override

@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.ShutdownPluginsStatus;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -46,11 +47,18 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
     }
 
     public static SingleNodeShutdownMetadata randomNodeShutdownMetadata() {
+        final SingleNodeShutdownMetadata.Type type = randomFrom(EnumSet.allOf(SingleNodeShutdownMetadata.Type.class));
+        final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
+        final TimeValue allocationDelay = type == SingleNodeShutdownMetadata.Type.RESTART && randomBoolean()
+            ? TimeValue.parseTimeValue(randomPositiveTimeValue(), GetShutdownStatusResponseTests.class.getSimpleName())
+            : null;
         return SingleNodeShutdownMetadata.builder()
             .setNodeId(randomAlphaOfLength(5))
-            .setType(randomFrom(EnumSet.allOf(SingleNodeShutdownMetadata.Type.class)))
+            .setType(type)
             .setReason(randomAlphaOfLength(5))
             .setStartedAtMillis(randomNonNegativeLong())
+            .setTargetNodeName(targetNodeName)
+            .setAllocationDelay(allocationDelay)
             .build();
     }
 

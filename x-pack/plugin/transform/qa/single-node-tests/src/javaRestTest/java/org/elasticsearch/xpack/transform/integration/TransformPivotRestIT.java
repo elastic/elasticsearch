@@ -13,8 +13,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -27,7 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -1133,13 +1133,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS
         );
 
-        String config = "{"
-            + " \"source\": {\"index\":\""
-            + indexName
-            + "\"},"
-            + " \"dest\": {\"index\":\""
-            + transformIndex
-            + "\"},";
+        String config = "{" + " \"source\": {\"index\":\"" + indexName + "\"}," + " \"dest\": {\"index\":\"" + transformIndex + "\"},";
 
         config += " \"pivot\": {"
             + "   \"group_by\": {"
@@ -1454,7 +1448,9 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
         Map<String, Object> searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_4");
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", searchResult));
-        String actual = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.top_business.business_id", searchResult)).get(0);
+        String actual = (String) ((List<?>) XContentMapValues.extractValue("hits.hits._source.top_business.business_id", searchResult)).get(
+            0
+        );
         assertEquals("business_9", actual);
 
         searchResult = getAsMap(transformIndex + "/_search?q=reviewer:user_1");
@@ -1512,7 +1508,7 @@ public class TransformPivotRestIT extends TransformRestTestCase {
     public void testContinuousStopWaitForCheckpoint() throws Exception {
         Request updateLoggingLevels = new Request("PUT", "/_cluster/settings");
         updateLoggingLevels.setJsonEntity(
-            "{\"transient\": {"
+            "{\"persistent\": {"
                 + "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"trace\","
                 + "\"logger.org.elasticsearch.xpack.transform\": \"trace\"}}"
         );
@@ -1813,11 +1809,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
 
         createPivotReviewsTransform(transformId, transformIndex, null, null, BASIC_AUTH_VALUE_TRANSFORM_ADMIN_WITH_SOME_DATA_ACCESS);
 
-        Response response = adminClient().performRequest(new Request("GET",
-            getTransformEndpoint() + transformId + "?exclude_generated=true"));
-        Map<String, Object> storedConfig = ((List<Map<String, Object>>) XContentMapValues.extractValue(
-            "transforms",
-            entityAsMap(response)))
+        Response response = adminClient().performRequest(
+            new Request("GET", getTransformEndpoint() + transformId + "?exclude_generated=true")
+        );
+        Map<String, Object> storedConfig = ((List<Map<String, Object>>) XContentMapValues.extractValue("transforms", entityAsMap(response)))
             .get(0);
         storedConfig.remove("id");
         try (XContentBuilder builder = jsonBuilder()) {
@@ -1827,11 +1822,10 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             adminClient().performRequest(putTransform);
         }
 
-        response = adminClient().performRequest(new Request("GET",
-            getTransformEndpoint() + transformId + "-import" + "?exclude_generated=true"));
-        Map<String, Object> importConfig = ((List<Map<String, Object>>) XContentMapValues.extractValue(
-            "transforms",
-            entityAsMap(response)))
+        response = adminClient().performRequest(
+            new Request("GET", getTransformEndpoint() + transformId + "-import" + "?exclude_generated=true")
+        );
+        Map<String, Object> importConfig = ((List<Map<String, Object>>) XContentMapValues.extractValue("transforms", entityAsMap(response)))
             .get(0);
         importConfig.remove("id");
         assertThat(storedConfig, equalTo(importConfig));

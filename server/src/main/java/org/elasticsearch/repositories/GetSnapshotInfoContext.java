@@ -125,7 +125,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
     @Override
     public void onFailure(Exception e) {
         assert Repository.assertSnapshotMetaThread();
-        if (abortOnFailure) {
+        if (abortOnFailure || isCancelled()) {
             if (counter.fastForward()) {
                 failDoneListener(e);
             }

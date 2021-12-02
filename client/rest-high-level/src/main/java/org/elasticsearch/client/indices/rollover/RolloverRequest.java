@@ -16,8 +16,8 @@ import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -32,7 +32,7 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
     private final String newIndexName;
     private boolean dryRun;
     private final Map<String, Condition<?>> conditions = new HashMap<>(2);
-    //the index name "_na_" is never read back, what matters are settings, mappings and aliases
+    // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private final CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
     public RolloverRequest(String alias, String newIndexName) {
@@ -57,7 +57,6 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
         return newIndexName;
     }
 
-
     /**
      * Sets if the rollover should not be executed when conditions are met
      */
@@ -65,6 +64,7 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
         this.dryRun = dryRun;
         return this;
     }
+
     /**
      * Returns if the rollover should not be executed when conditions are met
      */

@@ -185,11 +185,13 @@ API key information. For example:
 {
   "id": "VuaCfGcBCdbkQm-e5aOx",
   "name": "application-key-1",
-  "api_key": "ui2lp2axTNmsyakw9tvNnw"
+  "api_key": "ui2lp2axTNmsyakw9tvNnw",
+  "encoded": "VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw=="
 }
 ----
 // TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
+// TESTRESPONSE[s/VnVhQ2ZHY0JDZGJrUW0tZTVhT3g6dWkybHAyYXhUTm1zeWFrdzl0dk5udw==/$body.encoded/]
 
 Use the information from the response to retrieve the API key by ID:
 

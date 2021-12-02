@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -55,7 +56,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
-            null // Make sure it works with the default - we'll check this override in other tests
+            null, // Make sure it works with the default - we'll check this override in other tests
+            null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
         assertTrue(putShutdownResponse.isAcknowledged());
@@ -93,7 +95,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
-            TimeValue.timeValueMillis(randomIntBetween(10, 1000))
+            TimeValue.timeValueMillis(randomIntBetween(10, 1000)),
+            null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
         assertTrue(putShutdownResponse.isAcknowledged());
@@ -124,7 +127,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
-            TimeValue.timeValueMillis(0) // No delay for reallocating these shards, IF this timeout is used.
+            TimeValue.timeValueMillis(0), // No delay for reallocating these shards, IF this timeout is used.
+            null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
         assertTrue(putShutdownResponse.isAcknowledged());
@@ -151,7 +155,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
-            TimeValue.timeValueMillis(1)
+            TimeValue.timeValueMillis(1),
+            null
         );
         AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
         assertTrue(putShutdownResponse.isAcknowledged());
@@ -197,7 +202,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
                 nodeToRestartId,
                 SingleNodeShutdownMetadata.Type.RESTART,
                 this.getTestName(),
-                TimeValue.timeValueHours(3)
+                TimeValue.timeValueHours(3),
+                null
             );
             AcknowledgedResponse putShutdownResponse = client().execute(PutShutdownNodeAction.INSTANCE, putShutdownRequest).get();
             assertTrue(putShutdownResponse.isAcknowledged());
@@ -223,7 +229,7 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
     private String findIdOfNodeWithShard() {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        List<ShardRouting> startedShards = state.routingTable().shardsWithState(ShardRoutingState.STARTED);
+        List<ShardRouting> startedShards = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
         Collections.shuffle(startedShards, random());
         return startedShards.get(0).currentNodeId();
     }

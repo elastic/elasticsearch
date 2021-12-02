@@ -77,9 +77,7 @@ public class MathProcessor implements Processor {
         LOG10(Math::log10),
         PI(() -> Math.PI),
         RADIANS(Math::toRadians),
-        RANDOM((Object l) -> l != null ?
-                new Random(((Number) l).longValue()).nextDouble() :
-                Randomness.get().nextDouble(), true),
+        RANDOM((Object l) -> l != null ? new Random(((Number) l).longValue()).nextDouble() : Randomness.get().nextDouble(), true),
         SIGN((Object l) -> {
             if (l instanceof Double) {
                 return (int) Math.signum((Double) l);

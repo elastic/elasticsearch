@@ -42,7 +42,7 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         // Index some source data for the datafeeds.
         createSourceData();
 
-        // Open 6 jobs.  Since there are 3 nodes in the cluster we should get 2 jobs per node.
+        // Open 6 jobs. Since there are 3 nodes in the cluster we should get 2 jobs per node.
         setupJobAndDatafeed("shutdown-job-1", ByteSizeValue.ofMb(2));
         setupJobAndDatafeed("shutdown-job-2", ByteSizeValue.ofMb(2));
         setupJobAndDatafeed("shutdown-job-3", ByteSizeValue.ofMb(2));
@@ -50,50 +50,68 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         setupJobAndDatafeed("shutdown-job-5", ByteSizeValue.ofMb(2));
         setupJobAndDatafeed("shutdown-job-6", ByteSizeValue.ofMb(2));
 
-        // Choose a node to shut down.  Choose a non-master node most of the time, as ML nodes in Cloud
+        // Choose a node to shut down. Choose a non-master node most of the time, as ML nodes in Cloud
         // will never be master, and Cloud is where the node shutdown API will primarily be used.
-        String nodeNameToShutdown = rarely() ? internalCluster().getMasterName() : Arrays.stream(internalCluster().getNodeNames())
-            .filter(nodeName -> internalCluster().getMasterName().equals(nodeName) == false).findFirst().get();
+        String nodeNameToShutdown = rarely()
+            ? internalCluster().getMasterName()
+            : Arrays.stream(internalCluster().getNodeNames())
+                .filter(nodeName -> internalCluster().getMasterName().equals(nodeName) == false)
+                .findFirst()
+                .get();
         SetOnce<String> nodeIdToShutdown = new SetOnce<>();
 
         // Wait for the desired initial state of 2 jobs running on each node.
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(Metadata.ALL)).actionGet();
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(Metadata.ALL)
+            ).actionGet();
             QueryPage<GetJobsStatsAction.Response.JobStats> jobStats = statsResponse.getResponse();
             assertThat(jobStats, notNullValue());
-            long numJobsOnNodeToShutdown = jobStats.results().stream()
-                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName())).count();
-            long numJobsOnOtherNodes = jobStats.results().stream()
-                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()) == false).count();
+            long numJobsOnNodeToShutdown = jobStats.results()
+                .stream()
+                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()))
+                .count();
+            long numJobsOnOtherNodes = jobStats.results()
+                .stream()
+                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()) == false)
+                .count();
             assertThat(numJobsOnNodeToShutdown, is(2L));
             assertThat(numJobsOnOtherNodes, is(4L));
-            nodeIdToShutdown.set(jobStats.results().stream()
-                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()))
-                .map(stats -> stats.getNode().getId()).findFirst().get());
+            nodeIdToShutdown.set(
+                jobStats.results()
+                    .stream()
+                    .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()))
+                    .map(stats -> stats.getNode().getId())
+                    .findFirst()
+                    .get()
+            );
         });
 
         // Call the shutdown API for the chosen node.
+        final SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
+        final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(
-                nodeIdToShutdown.get(),
-                randomFrom(SingleNodeShutdownMetadata.Type.values()),
-                "just testing",
-                null
-            )
+            new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), type, "just testing", null, targetNodeName)
         ).actionGet();
 
         // Wait for the desired end state of all 6 jobs running on nodes that are not shutting down.
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(Metadata.ALL)).actionGet();
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(Metadata.ALL)
+            ).actionGet();
             QueryPage<GetJobsStatsAction.Response.JobStats> jobStats = statsResponse.getResponse();
             assertThat(jobStats, notNullValue());
-            long numJobsOnNodeToShutdown = jobStats.results().stream()
-                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName())).count();
-            long numJobsOnOtherNodes = jobStats.results().stream()
-                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()) == false).count();
+            long numJobsOnNodeToShutdown = jobStats.results()
+                .stream()
+                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()))
+                .count();
+            long numJobsOnOtherNodes = jobStats.results()
+                .stream()
+                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()) == false)
+                .count();
             assertThat(numJobsOnNodeToShutdown, is(0L));
             assertThat(numJobsOnOtherNodes, is(6L));
         }, 30, TimeUnit.SECONDS);
@@ -107,7 +125,7 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         // Index some source data for the datafeeds.
         createSourceData();
 
-        // Open 6 jobs.  Since there are 3 nodes in the cluster we should get 2 jobs per node.
+        // Open 6 jobs. Since there are 3 nodes in the cluster we should get 2 jobs per node.
         setupJobAndDatafeed("shutdown-close-job-1", ByteSizeValue.ofMb(2));
         setupJobAndDatafeed("shutdown-close-job-2", ByteSizeValue.ofMb(2));
         setupJobAndDatafeed("shutdown-close-job-3", ByteSizeValue.ofMb(2));
@@ -118,42 +136,58 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         // Choose a node to shut down, and one job on that node to close after the shutdown request has been sent.
         // Choose a non-master node most of the time, as ML nodes in Cloud will never be master, and Cloud is where
         // the node shutdown API will primarily be used.
-        String nodeNameToShutdown = rarely() ? internalCluster().getMasterName() : Arrays.stream(internalCluster().getNodeNames())
-            .filter(nodeName -> internalCluster().getMasterName().equals(nodeName) == false).findFirst().get();
+        String nodeNameToShutdown = rarely()
+            ? internalCluster().getMasterName()
+            : Arrays.stream(internalCluster().getNodeNames())
+                .filter(nodeName -> internalCluster().getMasterName().equals(nodeName) == false)
+                .findFirst()
+                .get();
         SetOnce<String> nodeIdToShutdown = new SetOnce<>();
         SetOnce<String> jobIdToClose = new SetOnce<>();
 
         // Wait for the desired initial state of 2 jobs running on each node.
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(Metadata.ALL)).actionGet();
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(Metadata.ALL)
+            ).actionGet();
             QueryPage<GetJobsStatsAction.Response.JobStats> jobStats = statsResponse.getResponse();
             assertThat(jobStats, notNullValue());
-            long numJobsOnNodeToShutdown = jobStats.results().stream()
-                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName())).count();
-            long numJobsOnOtherNodes = jobStats.results().stream()
-                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()) == false).count();
+            long numJobsOnNodeToShutdown = jobStats.results()
+                .stream()
+                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()))
+                .count();
+            long numJobsOnOtherNodes = jobStats.results()
+                .stream()
+                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()) == false)
+                .count();
             assertThat(numJobsOnNodeToShutdown, is(2L));
             assertThat(numJobsOnOtherNodes, is(4L));
-            nodeIdToShutdown.set(jobStats.results().stream()
-                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()))
-                .map(stats -> stats.getNode().getId()).findFirst().get());
-            jobIdToClose.set(jobStats.results().stream()
-                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()))
-                .map(GetJobsStatsAction.Response.JobStats::getJobId).findAny().get());
+            nodeIdToShutdown.set(
+                jobStats.results()
+                    .stream()
+                    .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()))
+                    .map(stats -> stats.getNode().getId())
+                    .findFirst()
+                    .get()
+            );
+            jobIdToClose.set(
+                jobStats.results()
+                    .stream()
+                    .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()))
+                    .map(GetJobsStatsAction.Response.JobStats::getJobId)
+                    .findAny()
+                    .get()
+            );
         });
 
         // Call the shutdown API for the chosen node.
+        final SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
+        final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(
-                nodeIdToShutdown.get(),
-                randomFrom(SingleNodeShutdownMetadata.Type.values()),
-                "just testing",
-                null
-            )
-        )
-            .actionGet();
+            new PutShutdownNodeAction.Request(nodeIdToShutdown.get(), type, "just testing", null, targetNodeName)
+        ).actionGet();
 
         if (randomBoolean()) {
             // This isn't waiting for something to happen - just adding timing variation
@@ -163,30 +197,36 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
 
         // There are several different scenarios for this request:
         // 1. It might arrive at the original node that is shutting down before the job has transitioned into the
-        //    vacating state.  Then it's just a normal close that node shut down should not interfere with.
+        // vacating state. Then it's just a normal close that node shut down should not interfere with.
         // 2. It might arrive at the original node that is shutting down while the job is vacating, but early enough
-        //    that the vacate can be promoted to a close (since the early part of the work they do is the same).
+        // that the vacate can be promoted to a close (since the early part of the work they do is the same).
         // 3. It might arrive at the original node that is shutting down while the job is vacating, but too late
-        //    to promote the vacate to a close (since the request to unassign the persistent task has already been
-        //    sent to the master node).  In this case fallback code in the job task should delete the persistent
-        //    task to effectively force-close the job on its new node.
+        // to promote the vacate to a close (since the request to unassign the persistent task has already been
+        // sent to the master node). In this case fallback code in the job task should delete the persistent
+        // task to effectively force-close the job on its new node.
         // 4. It might arrive after the job has been unassigned from its original node after vacating but before it's
-        //    been assigned to a new node.  In this case the close job action will delete the persistent task.
-        // 5. It might arrive after the job has been assigned to its new node.  In this case it's just a normal close
-        //    on a node that isn't even shutting down.
+        // been assigned to a new node. In this case the close job action will delete the persistent task.
+        // 5. It might arrive after the job has been assigned to its new node. In this case it's just a normal close
+        // on a node that isn't even shutting down.
         client().execute(CloseJobAction.INSTANCE, new CloseJobAction.Request(jobIdToClose.get())).actionGet();
 
         // Wait for the desired end state of the 5 jobs that were not closed running on nodes that are not shutting
         // down, and the closed job not running anywhere.
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(Metadata.ALL)).actionGet();
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(Metadata.ALL)
+            ).actionGet();
             QueryPage<GetJobsStatsAction.Response.JobStats> jobStats = statsResponse.getResponse();
             assertThat(jobStats, notNullValue());
-            long numJobsOnNodeToShutdown = jobStats.results().stream()
-                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName())).count();
-            long numJobsOnOtherNodes = jobStats.results().stream()
-                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()) == false).count();
+            long numJobsOnNodeToShutdown = jobStats.results()
+                .stream()
+                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()))
+                .count();
+            long numJobsOnOtherNodes = jobStats.results()
+                .stream()
+                .filter(stats -> stats.getNode() != null && nodeNameToShutdown.equals(stats.getNode().getName()) == false)
+                .count();
             assertThat(numJobsOnNodeToShutdown, is(0L));
             assertThat(numJobsOnOtherNodes, is(5L)); // 5 rather than 6 because we closed one
         }, 30, TimeUnit.SECONDS);
@@ -204,8 +244,10 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
 
         client().execute(OpenJobAction.INSTANCE, new OpenJobAction.Request(job.getId()));
         assertBusy(() -> {
-            GetJobsStatsAction.Response statsResponse =
-                client().execute(GetJobsStatsAction.INSTANCE, new GetJobsStatsAction.Request(job.getId())).actionGet();
+            GetJobsStatsAction.Response statsResponse = client().execute(
+                GetJobsStatsAction.INSTANCE,
+                new GetJobsStatsAction.Request(job.getId())
+            ).actionGet();
             assertEquals(JobState.OPENED, statsResponse.getResponse().results().get(0).getState());
         }, 30, TimeUnit.SECONDS);
 
@@ -218,9 +260,7 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
     }
 
     private void createSourceData() {
-        client().admin().indices().prepareCreate("data")
-            .setMapping("time", "type=date")
-            .get();
+        client().admin().indices().prepareCreate("data").setMapping("time", "type=date").get();
         long numDocs = randomIntBetween(50, 100);
         long now = System.currentTimeMillis();
         long weekAgo = now - 604800000;

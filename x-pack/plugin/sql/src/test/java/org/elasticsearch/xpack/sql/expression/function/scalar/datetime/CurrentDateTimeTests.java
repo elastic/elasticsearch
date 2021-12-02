@@ -49,18 +49,18 @@ public class CurrentDateTimeTests extends AbstractNodeTestCase<CurrentDateTime, 
     @Override
     protected CurrentDateTime mutate(CurrentDateTime instance) {
         ZonedDateTime now = instance.configuration().now();
-        ZoneId mutatedZoneId = randomValueOtherThanMany(o -> Objects.equals(now.getOffset(), o.getRules().getOffset(now.toInstant())),
-            ESTestCase::randomZone);
+        ZoneId mutatedZoneId = randomValueOtherThanMany(
+            o -> Objects.equals(now.getOffset(), o.getRules().getOffset(now.toInstant())),
+            ESTestCase::randomZone
+        );
         return new CurrentDateTime(instance.source(), literal(randomInt(9)), SqlTestUtils.randomConfiguration(mutatedZoneId));
     }
 
     @Override
-    public void testTransform() {
-    }
+    public void testTransform() {}
 
     @Override
-    public void testReplaceChildren() {
-    }
+    public void testReplaceChildren() {}
 
     public void testNanoPrecision() {
         ZonedDateTime zdt = ZonedDateTime.parse("2018-01-23T12:34:45.123456789Z");
@@ -89,17 +89,23 @@ public class CurrentDateTimeTests extends AbstractNodeTestCase<CurrentDateTime, 
 
     public void testInvalidPrecision() {
         SqlParser parser = new SqlParser();
-        IndexResolution indexResolution = IndexResolution.valid(new EsIndex("test",
-                SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json")));
+        IndexResolution indexResolution = IndexResolution.valid(
+            new EsIndex("test", SqlTypesTests.loadMapping("mapping-multi-field-with-nested.json"))
+        );
 
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), indexResolution,
-            new Verifier(new Metrics(), SqlTestUtils.TEST_CFG.version()));
-        ParsingException e = expectThrows(ParsingException.class, () ->
-            analyzer.analyze(parser.createStatement("SELECT CURRENT_TIMESTAMP(100000000000000)"), true));
+        Analyzer analyzer = new Analyzer(
+            SqlTestUtils.TEST_CFG,
+            new SqlFunctionRegistry(),
+            indexResolution,
+            new Verifier(new Metrics(), SqlTestUtils.TEST_CFG.version())
+        );
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> analyzer.analyze(parser.createStatement("SELECT CURRENT_TIMESTAMP(100000000000000)"), true)
+        );
         assertEquals("line 1:27: invalid precision; [100000000000000] out of [integer] range", e.getMessage());
 
-        e = expectThrows(ParsingException.class, () ->
-            analyzer.analyze(parser.createStatement("SELECT CURRENT_TIMESTAMP(100)"), true));
+        e = expectThrows(ParsingException.class, () -> analyzer.analyze(parser.createStatement("SELECT CURRENT_TIMESTAMP(100)"), true));
         assertEquals("line 1:27: precision needs to be between [0-9], received [100]", e.getMessage());
     }
 }

@@ -14,13 +14,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -45,6 +45,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     public static ContextParser<Void, PipelineConfiguration> getParser() {
         return (parser, context) -> PARSER.apply(parser, null).build();
     }
+
     private static class Builder {
 
         private String id;
@@ -94,6 +95,22 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     // pkg-private for tests
     BytesReference getConfig() {
         return config;
+    }
+
+    public Integer getVersion() {
+        var configMap = getConfigAsMap();
+        if (configMap.containsKey("version")) {
+            Object o = configMap.get("version");
+            if (o == null) {
+                return null;
+            } else if (o instanceof Number) {
+                return ((Number) o).intValue();
+            } else {
+                throw new IllegalStateException("unexpected version type [" + o.getClass().getName() + "]");
+            }
+        } else {
+            return null;
+        }
     }
 
     @Override

@@ -169,7 +169,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
     }
 
     protected <A extends Aggregator> A createAggregator(AggregationBuilder aggregationBuilder, AggregationContext context)
@@ -1272,7 +1272,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
                 null,
                 b -> {},
-                PipelineTree.EMPTY
+                PipelineTree.EMPTY,
+                () -> false
             );
             for (InternalAggregation internalAgg : aggs) {
                 InternalAggregation mergedAggs = internalAgg.reduce(aggs, ctx);
@@ -2200,7 +2201,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             bigArrays,
             getMockScriptService(),
             reduceBucketConsumer,
-            PipelineTree.EMPTY
+            PipelineTree.EMPTY,
+            () -> false
         );
 
         @SuppressWarnings("unchecked")

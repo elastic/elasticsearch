@@ -10,8 +10,8 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.support.ServiceAccountInfo;
 import org.elasticsearch.client.security.user.privileges.Role;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,10 +36,8 @@ public final class GetServiceAccountsResponse {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         GetServiceAccountsResponse that = (GetServiceAccountsResponse) o;
         return serviceAccountInfos.equals(that.serviceAccountInfos);
     }

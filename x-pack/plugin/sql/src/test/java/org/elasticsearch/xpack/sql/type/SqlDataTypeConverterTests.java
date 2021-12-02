@@ -7,11 +7,6 @@
 
 package org.elasticsearch.xpack.sql.type;
 
-import java.math.BigInteger;
-import java.time.OffsetTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -20,6 +15,11 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.Converter;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+
+import java.math.BigInteger;
+import java.time.OffsetTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
@@ -348,8 +348,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             Converter back = converterFor(KEYWORD, DATETIME);
             assertEquals(dt, back.convert(forward.convert(dt)));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert("0xff"));
-            assertEquals("cannot cast [0xff] to [datetime]: Text '0xff' could not be parsed at index 0",
-                    e.getMessage());
+            assertEquals("cannot cast [0xff] to [datetime]: Text '0xff' could not be parsed at index 0", e.getMessage());
         }
     }
 
@@ -776,9 +775,7 @@ public class SqlDataTypeConverterTests extends ESTestCase {
     }
 
     private DataType randomInterval() {
-        return randomFrom(SqlDataTypes.types().stream()
-                .filter(SqlDataTypes::isInterval)
-                .collect(toList()));
+        return randomFrom(SqlDataTypes.types().stream().filter(SqlDataTypes::isInterval).collect(toList()));
     }
 
     static ZonedDateTime dateTime(long millisSinceEpoch) {

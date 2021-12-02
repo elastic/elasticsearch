@@ -12,9 +12,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -27,8 +27,6 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.test.rest.ESRestTestCase.expectWarnings;
 
 public class DataLoader {
 
@@ -81,7 +79,7 @@ public class DataLoader {
         createEmptyIndex(client, index);
         Request request = new Request("POST", "/" + index + "/_bulk");
         request.addParameter("refresh", "true");
-        request.setJsonEntity("{\"index\":{}\n{}\n" + "{\"index\":{}\n{}\n");
+        request.setJsonEntity("{\"index\":{}}\n{}\n" + "{\"index\":{}}\n{}\n");
         client.performRequest(request);
     }
 
@@ -412,12 +410,6 @@ public class DataLoader {
     protected static void freeze(RestClient client, String... indices) throws Exception {
         for (String index : indices) {
             Request freezeRequest = new Request("POST", "/" + index + "/_freeze");
-            freezeRequest.setOptions(
-                expectWarnings(
-                    "Frozen indices are deprecated because they provide no benefit given improvements in "
-                        + "heap memory utilization. They will be removed in a future release."
-                )
-            );
             client.performRequest(freezeRequest);
         }
     }

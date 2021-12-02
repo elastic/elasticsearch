@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'nebula.optional-base'
 apply plugin: 'elasticsearch.publish'
@@ -27,12 +29,13 @@ dependencies {
   api project(':libs:elasticsearch-secure-sm')
   api project(':libs:elasticsearch-x-content')
   api project(":libs:elasticsearch-geo")
+  api project(":libs:elasticsearch-lz4")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
 
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
-  api "org.apache.lucene:lucene-analyzers-common:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-common:${versions.lucene}"
   api "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
   api "org.apache.lucene:lucene-grouping:${versions.lucene}"
   api "org.apache.lucene:lucene-highlighter:${versions.lucene}"
@@ -42,7 +45,6 @@ dependencies {
   api "org.apache.lucene:lucene-queries:${versions.lucene}"
   api "org.apache.lucene:lucene-queryparser:${versions.lucene}"
   api "org.apache.lucene:lucene-sandbox:${versions.lucene}"
-  api "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
@@ -50,27 +52,16 @@ dependencies {
   api project(":libs:elasticsearch-cli")
   api 'com.carrotsearch:hppc:0.8.1'
 
-  // LZ4
-  api 'org.lz4:lz4-java:1.8.0'
-
-  // time handling, remove with java 8 time
-  api "joda-time:joda-time:${versions.joda}"
-
   // percentiles aggregation
   api 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'
 
-  // lucene spatial
-  api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
-  api "org.locationtech.jts:jts-core:${versions.jts}", optional
-
   // logging
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
 
-  // repackaged jna with native bits linked against all elastic supported platforms
-  api "org.elasticsearch:jna:${versions.jna}"
+  api "net.java.dev.jna:jna:${versions.jna}"
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
@@ -137,6 +128,15 @@ tasks.named("processResources").configure {
     dependsOn generateModulesList, generatePluginsList
 }
 
+if (BuildParams.isSnapshotBuild() == false) {
+    tasks.named("test").configure {
+        systemProperty 'es.index_mode_feature_flag_registered', 'true'
+    }
+    tasks.named("internalClusterTest").configure {
+        systemProperty 'es.index_mode_feature_flag_registered', 'true'
+    }
+}
+
 tasks.named("thirdPartyAudit").configure {
     ignoreMissingClasses(
             // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
@@ -165,7 +165,6 @@ tasks.named("thirdPartyAudit").configure {
             'com.fasterxml.jackson.dataformat.xml.JacksonXmlModule',
             'com.fasterxml.jackson.dataformat.xml.XmlMapper',
             'com.fasterxml.jackson.dataformat.xml.util.DefaultXmlPrettyPrinter',
-            'com.fasterxml.jackson.databind.node.ObjectNode',
             'org.fusesource.jansi.Ansi',
             'org.fusesource.jansi.AnsiRenderer$Code',
             'com.lmax.disruptor.BlockingWaitStrategy',
@@ -233,27 +232,8 @@ tasks.named("thirdPartyAudit").configure {
             'org.zeromq.ZMQ$Context',
             'org.zeromq.ZMQ$Socket',
             'org.zeromq.ZMQ',
-
-            // from org.locationtech.spatial4j.io.GeoJSONReader (spatial4j)
-            'org.noggit.JSONParser',
-
-            // from lucene-spatial
-            'com.fasterxml.jackson.databind.JsonSerializer',
-            'com.fasterxml.jackson.databind.JsonDeserializer',
-            'com.fasterxml.jackson.databind.node.ArrayNode',
-            'com.google.common.geometry.S2Cell',
-            'com.google.common.geometry.S2CellId',
-            'com.google.common.geometry.S2Projections',
-            'com.google.common.geometry.S2Point',
-            'com.google.common.geometry.S2$Metric',
-            'com.google.common.geometry.S2LatLng'
     )
     ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
-
-    ignoreViolations(
-      // from java-lz4
-      'net.jpountz.util.UnsafeUtils'
-    )
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -276,52 +256,7 @@ tasks.named("licenseHeaders").configure {
 
 tasks.named('splitPackagesAudit').configure {
     // Lucene packages should be owned by Lucene!
-  ignoreClasses 'org.apache.lucene.analysis.miscellaneous.DeDuplicatingTokenFilter',
-    'org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute',
-    'org.apache.lucene.analysis.miscellaneous.DisableGraphAttributeImpl',
-    'org.apache.lucene.analysis.miscellaneous.DuplicateByteSequenceSpotter',
-    'org.apache.lucene.analysis.miscellaneous.DuplicateSequenceAttribute',
-    'org.apache.lucene.analysis.miscellaneous.DuplicateSequenceAttributeImpl',
-    'org.apache.lucene.document.BinaryRange',
-    'org.apache.lucene.queryparser.classic.XQueryParser',
-    'org.apache.lucene.queries.BinaryDocValuesRangeQuery',
-    'org.apache.lucene.queries.BlendedTermQuery',
-    'org.apache.lucene.queries.MinDocQuery',
-    'org.apache.lucene.queries.SearchAfterSortedDocQuery',
-    'org.apache.lucene.queries.SpanMatchNoDocsQuery',
-    'org.apache.lucene.search.grouping.CollapseTopFieldDocs',
-    'org.apache.lucene.search.grouping.CollapsingDocValuesSource',
-    'org.apache.lucene.search.grouping.CollapsingTopDocsCollector',
-    'org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner',
-    'org.apache.lucene.search.uhighlight.CustomFieldHighlighter',
-    'org.apache.lucene.search.uhighlight.CustomPassageFormatter',
-    'org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter',
-    'org.apache.lucene.search.uhighlight.Snippet',
-    'org.apache.lucene.util.CombinedBitSet',
-    'org.apache.lucene.search.vectorhighlight.CustomFieldQuery',
-
     // These are tricky because Lucene itself splits the index package,
     // but this should be fixed in Lucene 9
-    'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper',
-    'org.apache.lucene.index.OneMergeHelper',
-    'org.apache.lucene.index.ShuffleForcedMergePolicy',
-
-    // Joda should own its own packages! This should be a simple move.
-    'org.joda.time.format.StrictISODateTimeFormat',
-
-    // xcontent should not have common, all it's common packages should be renamed to xcontent
-    'org.elasticsearch.common.xcontent.*',
-    'org.elasticsearch.common.xcontent.support.XContentMapValues',
-
-    // cli is owned by the libs/cli, so these should be moved to o.e.server.cli
-    'org.elasticsearch.cli.CommandLoggingConfigurator',
-    'org.elasticsearch.cli.EnvironmentAwareCommand',
-    'org.elasticsearch.cli.KeyStoreAwareCommand',
-    'org.elasticsearch.cli.LoggingAwareCommand',
-    'org.elasticsearch.cli.LoggingAwareMultiCommand',
-
-    // these should be temporary, query needs package private access to TermScorer though
-   'org.apache.lucene.search.XCombinedFieldQuery',
-   'org.apache.lucene.search.XMultiNormsLeafSimScorer'
-
+  ignoreClasses 'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper'
 }

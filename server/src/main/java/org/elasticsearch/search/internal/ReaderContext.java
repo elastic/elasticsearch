@@ -8,10 +8,10 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -53,12 +53,14 @@ public class ReaderContext implements Releasable {
 
     private Map<String, Object> context;
 
-    public ReaderContext(ShardSearchContextId id,
-                         IndexService indexService,
-                         IndexShard indexShard,
-                         Engine.SearcherSupplier searcherSupplier,
-                         long keepAliveInMillis,
-                         boolean singleSession) {
+    public ReaderContext(
+        ShardSearchContextId id,
+        IndexService indexService,
+        IndexShard indexShard,
+        Engine.SearcherSupplier searcherSupplier,
+        long keepAliveInMillis,
+        boolean singleSession
+    ) {
         this.id = id;
         this.indexService = indexService;
         this.indexShard = indexShard;
@@ -66,12 +68,7 @@ public class ReaderContext implements Releasable {
         this.singleSession = singleSession;
         this.keepAlive = new AtomicLong(keepAliveInMillis);
         this.lastAccessTime = new AtomicLong(nowInMillis());
-        this.refCounted = new AbstractRefCounted("reader_context") {
-            @Override
-            protected void closeInternal() {
-                doClose();
-            }
-        };
+        this.refCounted = AbstractRefCounted.of(this::doClose);
     }
 
     public void validate(TransportRequest request) {

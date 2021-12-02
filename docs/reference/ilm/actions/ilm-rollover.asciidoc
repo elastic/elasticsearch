@@ -12,7 +12,7 @@ policy execution waits until the leader index rolls over (or is
 then converts the follower index into a regular index with the
 <<ilm-unfollow, Unfollow action>>.
 
-A rollover target can be a <<data-streams, data stream>> or an <<alias,index
+A rollover target can be a <<data-streams, data stream>> or an <<aliases,index
 alias>>. When targeting a data stream, the new index becomes the data stream's
 write index and its generation is incremented.
 

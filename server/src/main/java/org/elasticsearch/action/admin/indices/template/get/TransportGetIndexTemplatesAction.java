@@ -8,6 +8,7 @@
 package org.elasticsearch.action.admin.indices.template.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
@@ -24,18 +25,29 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
-public class TransportGetIndexTemplatesAction extends
-    TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
+public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
 
     @Inject
-    public TransportGetIndexTemplatesAction(TransportService transportService, ClusterService clusterService,
-                                            ThreadPool threadPool, ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetIndexTemplatesAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetIndexTemplatesRequest::new, indexNameExpressionResolver, GetIndexTemplatesResponse::new, ThreadPool.Names.SAME);
+    public TransportGetIndexTemplatesAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetIndexTemplatesAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetIndexTemplatesRequest::new,
+            indexNameExpressionResolver,
+            GetIndexTemplatesResponse::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
@@ -44,13 +56,17 @@ public class TransportGetIndexTemplatesAction extends
     }
 
     @Override
-    protected void masterOperation(Task task, GetIndexTemplatesRequest request, ClusterState state,
-                                   ActionListener<GetIndexTemplatesResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        GetIndexTemplatesRequest request,
+        ClusterState state,
+        ActionListener<GetIndexTemplatesResponse> listener
+    ) {
         List<IndexTemplateMetadata> results;
 
         // If we did not ask for a specific name, then we return all templates
         if (request.names().length == 0) {
-            results = Arrays.asList(state.metadata().templates().values().toArray(IndexTemplateMetadata.class));
+            results = new ArrayList<>(state.metadata().templates().values());
         } else {
             results = new ArrayList<>();
         }

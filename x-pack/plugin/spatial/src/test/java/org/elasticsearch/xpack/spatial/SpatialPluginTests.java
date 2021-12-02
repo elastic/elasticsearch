@@ -40,12 +40,16 @@ public class SpatialPluginTests extends ESTestCase {
                 GeoCentroidAggregationBuilder.REGISTRY_KEY,
                 new ValuesSourceConfig(GeoShapeValuesSourceType.instance(), null, true, null, null, null, null, null, null)
             );
-            if (License.OperationMode.TRIAL != operationMode &&
-                    License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
-                ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class,
-                    () -> centroidSupplier.build(null, null, null, null, null));
-                assertThat(exception.getMessage(),
-                    equalTo("current license is non-compliant for [geo_centroid aggregation on geo_shape fields]"));
+            if (License.OperationMode.TRIAL != operationMode
+                && License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
+                ElasticsearchSecurityException exception = expectThrows(
+                    ElasticsearchSecurityException.class,
+                    () -> centroidSupplier.build(null, null, null, null, null)
+                );
+                assertThat(
+                    exception.getMessage(),
+                    equalTo("current license is non-compliant for [geo_centroid aggregation on geo_shape fields]")
+                );
             }
         }
     }
@@ -65,12 +69,14 @@ public class SpatialPluginTests extends ESTestCase {
                     registryKey,
                     new ValuesSourceConfig(GeoShapeValuesSourceType.instance(), null, true, null, null, null, null, null, null)
                 );
-                if (License.OperationMode.TRIAL != operationMode &&
-                    License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
-                    ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class,
-                        () -> supplier.build(null, null, null, 0, null,
-                            0,0,  null, null, CardinalityUpperBound.NONE, null));
-                    assertThat(exception.getMessage(),
+                if (License.OperationMode.TRIAL != operationMode
+                    && License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
+                    ElasticsearchSecurityException exception = expectThrows(
+                        ElasticsearchSecurityException.class,
+                        () -> supplier.build(null, null, null, 0, null, 0, 0, null, null, CardinalityUpperBound.NONE, null)
+                    );
+                    assertThat(
+                        exception.getMessage(),
                         equalTo("current license is non-compliant for [" + registryKey.getName() + " aggregation on geo_shape fields]")
                     );
                 }
@@ -82,7 +88,7 @@ public class SpatialPluginTests extends ESTestCase {
         return new SpatialPlugin() {
             protected XPackLicenseState getLicenseState() {
                 TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
-                licenseState.update(operationMode, true, Long.MAX_VALUE);
+                licenseState.update(operationMode, true, null);
                 return licenseState;
             }
         };

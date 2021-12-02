@@ -9,8 +9,8 @@
 package org.elasticsearch.search.geo;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -22,7 +22,7 @@ public class GeoShapeIT extends GeoShapeIntegTestCase {
     }
 
     @Override
-    protected Version getVersion() {
+    protected Version randomSupportedVersion() {
         return VersionUtils.randomIndexCompatibleVersion(random());
     }
 

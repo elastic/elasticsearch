@@ -12,9 +12,9 @@ import org.apache.lucene.store.ByteArrayDataOutput;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -77,9 +77,22 @@ public class TranslogDeletionPolicyTests extends ESTestCase {
                 Mockito.doReturn(writer.getLastModifiedTime()).when(reader).getLastModifiedTime();
                 readers.add(reader);
             }
-            writer = TranslogWriter.create(new ShardId("index", "uuid", 0), translogUUID, gen,
-                tempDir.resolve(Translog.getFilename(gen)), FileChannel::open, TranslogConfig.DEFAULT_BUFFER_SIZE, 1L, 1L, () -> 1L,
-                () -> 1L, randomNonNegativeLong(), new TragicExceptionHolder(), seqNo -> {}, BigArrays.NON_RECYCLING_INSTANCE);
+            writer = TranslogWriter.create(
+                new ShardId("index", "uuid", 0),
+                translogUUID,
+                gen,
+                tempDir.resolve(Translog.getFilename(gen)),
+                FileChannel::open,
+                TranslogConfig.DEFAULT_BUFFER_SIZE,
+                1L,
+                1L,
+                () -> 1L,
+                () -> 1L,
+                randomNonNegativeLong(),
+                new TragicExceptionHolder(),
+                seqNo -> {},
+                BigArrays.NON_RECYCLING_INSTANCE
+            );
             writer = Mockito.spy(writer);
             byte[] bytes = new byte[4];
             ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);

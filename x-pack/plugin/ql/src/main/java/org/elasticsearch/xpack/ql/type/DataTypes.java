@@ -53,31 +53,28 @@ public final class DataTypes {
     //@formatter:on
 
     private static final Collection<DataType> TYPES = Arrays.asList(
-            UNSUPPORTED,
-            NULL,
-            BOOLEAN,
-            BYTE,
-            SHORT,
-            INTEGER,
-            LONG,
-            UNSIGNED_LONG,
-            DOUBLE,
-            FLOAT,
-            HALF_FLOAT,
-            SCALED_FLOAT,
-            KEYWORD,
-            TEXT,
-            DATETIME,
-            IP,
-            BINARY,
-            OBJECT,
-            NESTED)
-            .stream()
-            .sorted(Comparator.comparing(DataType::typeName))
-            .collect(toUnmodifiableList());
+        UNSUPPORTED,
+        NULL,
+        BOOLEAN,
+        BYTE,
+        SHORT,
+        INTEGER,
+        LONG,
+        UNSIGNED_LONG,
+        DOUBLE,
+        FLOAT,
+        HALF_FLOAT,
+        SCALED_FLOAT,
+        KEYWORD,
+        TEXT,
+        DATETIME,
+        IP,
+        BINARY,
+        OBJECT,
+        NESTED
+    ).stream().sorted(Comparator.comparing(DataType::typeName)).collect(toUnmodifiableList());
 
-    private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream()
-            .collect(toUnmodifiableMap(DataType::typeName, t -> t));
+    private static final Map<String, DataType> NAME_TO_TYPE = TYPES.stream().collect(toUnmodifiableMap(DataType::typeName, t -> t));
 
     private static Map<String, DataType> ES_TO_TYPE;
 
@@ -172,11 +169,10 @@ public final class DataTypes {
         if (left == right) {
             return true;
         } else {
-            return
-                (left == NULL || right == NULL)
-                    || (isString(left) && isString(right))
-                    || (left.isNumeric() && right.isNumeric())
-                    || (isDateTime(left) && isDateTime(right));
+            return (left == NULL || right == NULL)
+                || (isString(left) && isString(right))
+                || (left.isNumeric() && right.isNumeric())
+                || (isDateTime(left) && isDateTime(right));
         }
     }
 }

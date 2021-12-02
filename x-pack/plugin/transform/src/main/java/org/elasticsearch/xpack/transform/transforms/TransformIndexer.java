@@ -140,7 +140,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformCheckpoint nextCheckpoint,
         TransformContext context
     ) {
-        super(threadPool, initialState, initialPosition, jobStats);
+        // important: note that we pass the context object as lock object
+        super(threadPool, initialState, initialPosition, jobStats, context);
         ExceptionsHelper.requireNonNull(transformServices, "transformServices");
         this.transformsConfigManager = transformServices.getConfigManager();
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
@@ -523,10 +524,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
 
             if (lastCheckpoint != null) {
-                long docsIndexed = 0;
-                long docsProcessed = 0;
-                docsIndexed = progress.getDocumentsIndexed();
-                docsProcessed = progress.getDocumentsProcessed();
+                long docsIndexed = progress.getDocumentsIndexed();
+                long docsProcessed = progress.getDocumentsProcessed();
 
                 long durationMs = System.currentTimeMillis() - lastCheckpoint.getTimestamp();
                 getStats().incrementCheckpointExponentialAverages(durationMs < 0 ? 0 : durationMs, docsIndexed, docsProcessed);
@@ -571,36 +570,42 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     @Override
-    public synchronized boolean maybeTriggerAsyncJob(long now) {
+    public boolean maybeTriggerAsyncJob(long now) {
+        boolean triggered;
+
         if (context.getTaskState() == TransformTaskState.FAILED) {
             logger.debug("[{}] schedule was triggered for transform but task is failed. Ignoring trigger.", getJobId());
             return false;
         }
 
-        // ignore trigger if indexer is running, prevents log spam in A2P indexer
-        IndexerState indexerState = getState();
-        if (IndexerState.INDEXING.equals(indexerState) || IndexerState.STOPPING.equals(indexerState)) {
-            logger.debug("[{}] indexer for transform has state [{}]. Ignoring trigger.", getJobId(), indexerState);
-            return false;
+        synchronized (context) {
+            // ignore trigger if indexer is running, prevents log spam in A2P indexer
+            IndexerState indexerState = getState();
+            if (IndexerState.INDEXING.equals(indexerState) || IndexerState.STOPPING.equals(indexerState)) {
+                logger.debug("[{}] indexer for transform has state [{}]. Ignoring trigger.", getJobId(), indexerState);
+                return false;
+            }
+
+            /*
+             * ignore if indexer thread is shutting down (after finishing a checkpoint)
+             * shutting down means:
+             *  - indexer has finished a checkpoint and called onFinish
+             *  - indexer state has changed from indexing to started
+             *  - state persistence has been called but has _not_ returned yet
+             *
+             *  If we trigger the indexer in this situation the 2nd indexer thread might
+             *  try to save state at the same time, causing a version conflict
+             *  see gh#67121
+             */
+            if (indexerThreadShuttingDown) {
+                logger.debug("[{}] indexer thread is shutting down. Ignoring trigger.", getJobId());
+                return false;
+            }
+
+            triggered = super.maybeTriggerAsyncJob(now);
         }
 
-        /*
-         * ignore if indexer thread is shutting down (after finishing a checkpoint)
-         * shutting down means:
-         *  - indexer has finished a checkpoint and called onFinish
-         *  - indexer state has changed from indexing to started
-         *  - state persistence has been called but has _not_ returned yet
-         *
-         *  If we trigger the indexer in this situation the 2nd indexer thread might
-         *  try to save state at the same time, causing a version conflict
-         *  see gh#67121
-         */
-        if (indexerThreadShuttingDown) {
-            logger.debug("[{}] indexer thread is shutting down. Ignoring trigger.", getJobId());
-            return false;
-        }
-
-        return super.maybeTriggerAsyncJob(now);
+        return triggered;
     }
 
     /**
@@ -792,111 +797,114 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
     }
 
-    private synchronized boolean addSetStopAtCheckpointListener(
-        boolean shouldStopAtCheckpoint,
-        ActionListener<Void> shouldStopAtCheckpointListener
-    ) throws InterruptedException {
-        // in case the indexer is already shutting down
-        if (indexerThreadShuttingDown) {
-            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
-            saveStateRequestedDuringIndexerThreadShutdown = true;
-            return false;
-        }
+    private boolean addSetStopAtCheckpointListener(boolean shouldStopAtCheckpoint, ActionListener<Void> shouldStopAtCheckpointListener)
+        throws InterruptedException {
 
-        IndexerState state = getState();
-
-        // in case the indexer isn't running, respond immediately
-        if (state == IndexerState.STARTED && context.shouldStopAtCheckpoint() != shouldStopAtCheckpoint) {
-            IndexerState newIndexerState = IndexerState.STARTED;
-            TransformTaskState newtaskState = context.getTaskState();
-
-            // check if the transform is at a checkpoint, if so, we will shortcut and stop it below
-            // otherwise we set shouldStopAtCheckpoint, for this case the transform needs to get
-            // triggered, complete the checkpoint and stop
-            if (shouldStopAtCheckpoint && initialRun()) {
-                newIndexerState = IndexerState.STOPPED;
-                newtaskState = TransformTaskState.STOPPED;
-                logger.debug("[{}] transform is at a checkpoint, initiating stop.", transformConfig.getId());
-            } else {
+        synchronized (context) {
+            // in case the indexer is already shutting down
+            if (indexerThreadShuttingDown) {
                 context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
+                saveStateRequestedDuringIndexerThreadShutdown = true;
+                return false;
             }
 
-            final TransformState newTransformState = new TransformState(
-                newtaskState,
-                newIndexerState,
-                getPosition(),
-                context.getCheckpoint(),
-                context.getStateReason(),
-                getProgress(),
-                null,
-                newIndexerState == IndexerState.STARTED
-            );
+            IndexerState state = getState();
 
-            // because save state is async we need to block the call until state is persisted, so that the job can not
-            // be triggered (ensured by synchronized)
-            CountDownLatch latch = new CountDownLatch(1);
-            logger.debug("[{}] persisting stop at checkpoint", getJobId());
+            // in case the indexer isn't running, respond immediately
+            if (state == IndexerState.STARTED && context.shouldStopAtCheckpoint() != shouldStopAtCheckpoint) {
+                IndexerState newIndexerState = IndexerState.STARTED;
+                TransformTaskState newtaskState = context.getTaskState();
 
-            persistState(newTransformState, ActionListener.wrap(() -> latch.countDown()));
+                // check if the transform is at a checkpoint, if so, we will shortcut and stop it below
+                // otherwise we set shouldStopAtCheckpoint, for this case the transform needs to get
+                // triggered, complete the checkpoint and stop
+                if (shouldStopAtCheckpoint && initialRun()) {
+                    newIndexerState = IndexerState.STOPPED;
+                    newtaskState = TransformTaskState.STOPPED;
+                    logger.debug("[{}] transform is at a checkpoint, initiating stop.", transformConfig.getId());
+                } else {
+                    context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
+                }
 
-            if (latch.await(PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC, TimeUnit.SECONDS) == false) {
-                logger.error(
-                    new ParameterizedMessage(
-                        "[{}] Timed out ({}s) waiting for transform state to be stored.",
-                        getJobId(),
-                        PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC
-                    )
+                final TransformState newTransformState = new TransformState(
+                    newtaskState,
+                    newIndexerState,
+                    getPosition(),
+                    context.getCheckpoint(),
+                    context.getStateReason(),
+                    getProgress(),
+                    null,
+                    newIndexerState == IndexerState.STARTED
                 );
+
+                // because save state is async we need to block the call until state is persisted, so that the job can not
+                // be triggered (ensured by synchronized)
+                CountDownLatch latch = new CountDownLatch(1);
+                logger.debug("[{}] persisting stop at checkpoint", getJobId());
+
+                persistState(newTransformState, ActionListener.wrap(() -> latch.countDown()));
+
+                if (latch.await(PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC, TimeUnit.SECONDS) == false) {
+                    logger.error(
+                        new ParameterizedMessage(
+                            "[{}] Timed out ({}s) waiting for transform state to be stored.",
+                            getJobId(),
+                            PERSIST_STOP_AT_CHECKPOINT_TIMEOUT_SEC
+                        )
+                    );
+                }
+
+                // stop the transform if the decision was to stop it above
+                if (newtaskState.equals(TransformTaskState.STOPPED)) {
+                    context.shutdown();
+                }
+
+                return false;
             }
 
-            // stop the transform if the decision was to stop it above
-            if (newtaskState.equals(TransformTaskState.STOPPED)) {
-                context.shutdown();
+            if (state != IndexerState.INDEXING) {
+                return false;
             }
 
-            return false;
-        }
-
-        if (state != IndexerState.INDEXING) {
-            return false;
-        }
-
-        if (saveStateListeners.updateAndGet(currentListeners -> {
-            // check the state again (optimistic locking), while we checked the last time, the indexing thread could have
-            // saved the state and is finishing. As it first set the state and _than_ gets saveStateListeners, it's safe
-            // to just check the indexer state again
-            if (getState() != IndexerState.INDEXING) {
-                return null;
-            }
-
-            if (currentListeners == null) {
-                // in case shouldStopAtCheckpoint has already the desired value _and_ we know its _persisted_, respond immediately
-                if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint) {
+            if (saveStateListeners.updateAndGet(currentListeners -> {
+                // check the state again (optimistic locking), while we checked the last time, the indexing thread could have
+                // saved the state and is finishing. As it first set the state and _than_ gets saveStateListeners, it's safe
+                // to just check the indexer state again
+                if (getState() != IndexerState.INDEXING) {
                     return null;
                 }
 
-                return Collections.singletonList(shouldStopAtCheckpointListener);
-            }
-            return CollectionUtils.appendToCopy(currentListeners, shouldStopAtCheckpointListener);
-        }) == null) {
-            return false;
-        }
+                if (currentListeners == null) {
+                    // in case shouldStopAtCheckpoint has already the desired value _and_ we know its _persisted_, respond immediately
+                    if (context.shouldStopAtCheckpoint() == shouldStopAtCheckpoint) {
+                        return null;
+                    }
 
-        context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
+                    return Collections.singletonList(shouldStopAtCheckpointListener);
+                }
+                return CollectionUtils.appendToCopy(currentListeners, shouldStopAtCheckpointListener);
+            }) == null) {
+                return false;
+            }
+
+            context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
+        }
         // in case of throttling the indexer might wait for the next search, fast forward, so stop listeners do not wait to long
         runSearchImmediately();
         return true;
     }
 
-    synchronized void stopAndMaybeSaveState() {
-        onStop();
-        IndexerState state = stop();
+    void stopAndMaybeSaveState() {
+        synchronized (context) {
+            onStop();
+            IndexerState state = stop();
 
-        if (indexerThreadShuttingDown) {
-            saveStateRequestedDuringIndexerThreadShutdown = true;
-            // if stop() returned STOPPED we need to persist state, otherwise the indexer does it for us
-        } else if (state == IndexerState.STOPPED) {
-            doSaveState(IndexerState.STOPPED, getPosition(), () -> {});
+            if (indexerThreadShuttingDown) {
+                saveStateRequestedDuringIndexerThreadShutdown = true;
+                // if stop() returned STOPPED we need to persist state, otherwise the indexer does it for us
+            } else if (state == IndexerState.STOPPED) {
+                doSaveState(IndexerState.STOPPED, getPosition(), () -> {});
+            }
         }
     }
 
@@ -1114,7 +1122,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
         // reduce the indexes to query to the ones that have changes
         SearchRequest request = new SearchRequest(
-            TransformCheckpoint.getChangedIndices(getLastCheckpoint(), getNextCheckpoint()).toArray(new String[0])
+            // gh#77329 optimization turned off
+            TransformCheckpoint.getChangedIndices(TransformCheckpoint.EMPTY, getNextCheckpoint()).toArray(new String[0])
         );
 
         request.allowPartialSearchResults(false) // shard failures should fail the request
@@ -1131,7 +1140,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // TODO: if buildChangesQuery changes the query it get overwritten
         sourceBuilder.query(filteredQuery);
 
-        logger.debug("[{}] Querying for changes: {}", getJobId(), sourceBuilder);
+        logger.debug("[{}] Querying {} for changes: {}", getJobId(), request.indices(), sourceBuilder);
         return request.source(sourceBuilder);
     }
 
@@ -1168,7 +1177,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
 
         sourceBuilder.query(queryBuilder);
-        logger.debug(() -> new ParameterizedMessage("[{}] Querying for data: {}", getJobId(), sourceBuilder));
+        logger.debug("[{}] Querying {} for data: {}", getJobId(), request.indices(), sourceBuilder);
 
         return request.source(sourceBuilder)
             .allowPartialSearchResults(false) // shard failures should fail the request
@@ -1285,20 +1294,24 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }
     }
 
-    private synchronized void startIndexerThreadShutdown() {
-        indexerThreadShuttingDown = true;
-        saveStateRequestedDuringIndexerThreadShutdown = false;
+    private void startIndexerThreadShutdown() {
+        synchronized (context) {
+            indexerThreadShuttingDown = true;
+            saveStateRequestedDuringIndexerThreadShutdown = false;
+        }
     }
 
-    private synchronized void finishIndexerThreadShutdown() {
-        indexerThreadShuttingDown = false;
-        if (saveStateRequestedDuringIndexerThreadShutdown) {
-            // if stop has been called and set shouldStopAtCheckpoint to true,
-            // we should stop if we just finished a checkpoint
-            if (context.shouldStopAtCheckpoint() && nextCheckpoint == null) {
-                stop();
+    private void finishIndexerThreadShutdown() {
+        synchronized (context) {
+            indexerThreadShuttingDown = false;
+            if (saveStateRequestedDuringIndexerThreadShutdown) {
+                // if stop has been called and set shouldStopAtCheckpoint to true,
+                // we should stop if we just finished a checkpoint
+                if (context.shouldStopAtCheckpoint() && nextCheckpoint == null) {
+                    stop();
+                }
+                doSaveState(getState(), getPosition(), () -> {});
             }
-            doSaveState(getState(), getPosition(), () -> {});
         }
     }
 

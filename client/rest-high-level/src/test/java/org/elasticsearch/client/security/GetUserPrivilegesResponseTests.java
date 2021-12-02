@@ -12,9 +12,9 @@ import org.elasticsearch.client.security.user.privileges.GlobalOperationPrivileg
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
 import org.elasticsearch.common.util.iterable.Iterables;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Iterator;
 import java.util.List;
@@ -30,32 +30,32 @@ import static org.hamcrest.Matchers.nullValue;
 public class GetUserPrivilegesResponseTests extends ESTestCase {
 
     public void testParse() throws Exception {
-        String json = "{" +
-            "\"cluster\":[\"manage\",\"manage_security\",\"monitor\"]," +
-            "\"global\":[" +
-            " {\"application\":{\"manage\":{\"applications\":[\"test-*\"]}}}," +
-            " {\"application\":{\"manage\":{\"applications\":[\"apps-*\"]}}}" +
-            "]," +
-            "\"indices\":[" +
-            " {\"names\":[\"test-1-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": false}," +
-            " {\"names\":[\"test-4-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": true," +
-            "  \"field_security\":[{\"grant\":[\"*\"],\"except\":[\"private-*\"]}]}," +
-            " {\"names\":[\"test-6-*\",\"test-7-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": true," +
-            "  \"query\":[\"{\\\"term\\\":{\\\"test\\\":true}}\"]}," +
-            " {\"names\":[\"test-2-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": false," +
-            "  \"field_security\":[{\"grant\":[\"*\"],\"except\":[\"secret-*\",\"private-*\"]},{\"grant\":[\"apps-*\"]}]," +
-            "  \"query\":[\"{\\\"term\\\":{\\\"test\\\":true}}\",\"{\\\"term\\\":{\\\"apps\\\":true}}\"]}," +
-            " {\"names\":[\"test-3-*\",\"test-6-*\"],\"privileges\":[\"read\",\"write\"],\"allow_restricted_indices\": true}," +
-            " {\"names\":[\"test-3-*\",\"test-4-*\",\"test-5-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": false," +
-            "  \"field_security\":[{\"grant\":[\"test-*\"]}]}," +
-            " {\"names\":[\"test-1-*\",\"test-9-*\"],\"privileges\":[\"all\"],\"allow_restricted_indices\": true}" +
-            "]," +
-            "\"applications\":[" +
-            " {\"application\":\"app-dne\",\"privileges\":[\"all\"],\"resources\":[\"*\"]}," +
-            " {\"application\":\"test-app\",\"privileges\":[\"read\"],\"resources\":[\"object/1\",\"object/2\"]}," +
-            " {\"application\":\"test-app\",\"privileges\":[\"user\",\"dne\"],\"resources\":[\"*\"]}" +
-            "]," +
-            "\"run_as\":[\"app-*\",\"test-*\"]}";
+        String json = "{"
+            + "\"cluster\":[\"manage\",\"manage_security\",\"monitor\"],"
+            + "\"global\":["
+            + " {\"application\":{\"manage\":{\"applications\":[\"test-*\"]}}},"
+            + " {\"application\":{\"manage\":{\"applications\":[\"apps-*\"]}}}"
+            + "],"
+            + "\"indices\":["
+            + " {\"names\":[\"test-1-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": false},"
+            + " {\"names\":[\"test-4-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": true,"
+            + "  \"field_security\":[{\"grant\":[\"*\"],\"except\":[\"private-*\"]}]},"
+            + " {\"names\":[\"test-6-*\",\"test-7-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": true,"
+            + "  \"query\":[\"{\\\"term\\\":{\\\"test\\\":true}}\"]},"
+            + " {\"names\":[\"test-2-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": false,"
+            + "  \"field_security\":[{\"grant\":[\"*\"],\"except\":[\"secret-*\",\"private-*\"]},{\"grant\":[\"apps-*\"]}],"
+            + "  \"query\":[\"{\\\"term\\\":{\\\"test\\\":true}}\",\"{\\\"term\\\":{\\\"apps\\\":true}}\"]},"
+            + " {\"names\":[\"test-3-*\",\"test-6-*\"],\"privileges\":[\"read\",\"write\"],\"allow_restricted_indices\": true},"
+            + " {\"names\":[\"test-3-*\",\"test-4-*\",\"test-5-*\"],\"privileges\":[\"read\"],\"allow_restricted_indices\": false,"
+            + "  \"field_security\":[{\"grant\":[\"test-*\"]}]},"
+            + " {\"names\":[\"test-1-*\",\"test-9-*\"],\"privileges\":[\"all\"],\"allow_restricted_indices\": true}"
+            + "],"
+            + "\"applications\":["
+            + " {\"application\":\"app-dne\",\"privileges\":[\"all\"],\"resources\":[\"*\"]},"
+            + " {\"application\":\"test-app\",\"privileges\":[\"read\"],\"resources\":[\"object/1\",\"object/2\"]},"
+            + " {\"application\":\"test-app\",\"privileges\":[\"user\",\"dne\"],\"resources\":[\"*\"]}"
+            + "],"
+            + "\"run_as\":[\"app-*\",\"test-*\"]}";
         final XContentParser parser = createParser(XContentType.JSON.xContent(), json);
         final GetUserPrivilegesResponse response = GetUserPrivilegesResponse.fromXContent(parser);
 

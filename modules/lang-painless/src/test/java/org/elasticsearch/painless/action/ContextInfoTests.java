@@ -9,8 +9,8 @@
 package org.elasticsearch.painless.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -36,9 +36,7 @@ public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContex
                 for (int parameter = 0; parameter < parameterSize; ++parameter) {
                     parameters.add(randomAlphaOfLengthBetween(1, 20));
                 }
-                constructors.add(new PainlessContextConstructorInfo(
-                        randomAlphaOfLength(randomIntBetween(4, 10)),
-                        parameters));
+                constructors.add(new PainlessContextConstructorInfo(randomAlphaOfLength(randomIntBetween(4, 10)), parameters));
             }
             ;
 
@@ -50,11 +48,14 @@ public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContex
                 for (int parameter = 0; parameter < parameterSize; ++parameter) {
                     parameters.add(randomAlphaOfLengthBetween(1, 20));
                 }
-                staticMethods.add(new PainlessContextMethodInfo(
+                staticMethods.add(
+                    new PainlessContextMethodInfo(
                         randomAlphaOfLength(randomIntBetween(4, 10)),
                         randomAlphaOfLength(randomIntBetween(4, 10)),
                         randomAlphaOfLength(randomIntBetween(4, 10)),
-                        parameters));
+                        parameters
+                    )
+                );
             }
 
             int methodsSize = randomInt(10);
@@ -65,34 +66,51 @@ public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContex
                 for (int parameter = 0; parameter < parameterSize; ++parameter) {
                     parameters.add(randomAlphaOfLengthBetween(1, 20));
                 }
-                methods.add(new PainlessContextMethodInfo(
+                methods.add(
+                    new PainlessContextMethodInfo(
                         randomAlphaOfLength(randomIntBetween(4, 10)),
                         randomAlphaOfLength(randomIntBetween(4, 10)),
                         randomAlphaOfLength(randomIntBetween(4, 10)),
-                        parameters));
+                        parameters
+                    )
+                );
             }
 
             int staticFieldsSize = randomInt(10);
             List<PainlessContextFieldInfo> staticFields = new ArrayList<>();
             for (int staticField = 0; staticField < staticFieldsSize; ++staticField) {
-                staticFields.add(new PainlessContextFieldInfo(
+                staticFields.add(
+                    new PainlessContextFieldInfo(
                         randomAlphaOfLength(randomIntBetween(4, 10)),
                         randomAlphaOfLength(randomIntBetween(4, 10)),
-                        randomAlphaOfLength(randomIntBetween(4, 10))));
+                        randomAlphaOfLength(randomIntBetween(4, 10))
+                    )
+                );
             }
 
             int fieldsSize = randomInt(4);
             List<PainlessContextFieldInfo> fields = new ArrayList<>();
             for (int field = 0; field < fieldsSize; ++field) {
-                fields.add(new PainlessContextFieldInfo(
+                fields.add(
+                    new PainlessContextFieldInfo(
                         randomAlphaOfLength(randomIntBetween(4, 10)),
                         randomAlphaOfLength(randomIntBetween(4, 10)),
-                        randomAlphaOfLength(randomIntBetween(4, 10))));
+                        randomAlphaOfLength(randomIntBetween(4, 10))
+                    )
+                );
             }
 
-            classes.add(new PainlessContextClassInfo(
-                    randomAlphaOfLength(randomIntBetween(3, 200)), randomBoolean(),
-                    constructors, staticMethods, methods, fields, staticFields));
+            classes.add(
+                new PainlessContextClassInfo(
+                    randomAlphaOfLength(randomIntBetween(3, 200)),
+                    randomBoolean(),
+                    constructors,
+                    staticMethods,
+                    methods,
+                    fields,
+                    staticFields
+                )
+            );
         }
 
         int importedMethodsSize = randomInt(4);
@@ -103,11 +121,14 @@ public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContex
             for (int parameter = 0; parameter < parameterSize; ++parameter) {
                 parameters.add(randomAlphaOfLengthBetween(1, 20));
             }
-            importedMethods.add(new PainlessContextMethodInfo(
+            importedMethods.add(
+                new PainlessContextMethodInfo(
                     randomAlphaOfLength(randomIntBetween(4, 10)),
                     randomAlphaOfLength(randomIntBetween(4, 10)),
                     randomAlphaOfLength(randomIntBetween(4, 10)),
-                    parameters));
+                    parameters
+                )
+            );
         }
 
         int classBindingsSize = randomInt(3);
@@ -119,12 +140,15 @@ public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContex
             for (int parameter = 0; parameter < parameterSize; ++parameter) {
                 parameters.add(randomAlphaOfLengthBetween(1, 20));
             }
-            classBindings.add(new PainlessContextClassBindingInfo(
+            classBindings.add(
+                new PainlessContextClassBindingInfo(
                     randomAlphaOfLength(randomIntBetween(4, 10)),
                     randomAlphaOfLength(randomIntBetween(4, 10)),
                     randomAlphaOfLength(randomIntBetween(4, 10)),
                     readOnly,
-                    parameters));
+                    parameters
+                )
+            );
         }
 
         int instanceBindingsSize = randomInt(3);
@@ -135,15 +159,17 @@ public class ContextInfoTests extends AbstractSerializingTestCase<PainlessContex
             for (int parameter = 0; parameter < parameterSize; ++parameter) {
                 parameters.add(randomAlphaOfLengthBetween(1, 20));
             }
-            instanceBindings.add(new PainlessContextInstanceBindingInfo(
+            instanceBindings.add(
+                new PainlessContextInstanceBindingInfo(
                     randomAlphaOfLength(randomIntBetween(4, 10)),
                     randomAlphaOfLength(randomIntBetween(4, 10)),
                     randomAlphaOfLength(randomIntBetween(4, 10)),
-                    parameters));
+                    parameters
+                )
+            );
         }
 
-        return new PainlessContextInfo(randomAlphaOfLength(20),
-                classes, importedMethods, classBindings, instanceBindings);
+        return new PainlessContextInfo(randomAlphaOfLength(20), classes, importedMethods, classBindings, instanceBindings);
     }
 
     @Override

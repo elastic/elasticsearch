@@ -8,12 +8,12 @@
 
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
@@ -25,13 +25,12 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class LifecycleManagementStatusResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
+        xContentTester(
+            this::createParser,
             LifecycleManagementStatusResponseTests::createTestInstance,
             LifecycleManagementStatusResponseTests::toXContent,
-            LifecycleManagementStatusResponse::fromXContent)
-            .supportsUnknownFields(true)
-            .assertToXContentEquivalence(false)
-            .test();
+            LifecycleManagementStatusResponse::fromXContent
+        ).supportsUnknownFields(true).assertToXContentEquivalence(false).test();
     }
 
     private static XContentBuilder toXContent(LifecycleManagementStatusResponse response, XContentBuilder builder) throws IOException {
@@ -52,18 +51,25 @@ public class LifecycleManagementStatusResponseTests extends ESTestCase {
 
     public void testXContent() throws IOException {
         XContentType xContentType = XContentType.JSON;
-        String mode = randomFrom(EnumSet.allOf(OperationMode.class)
-            .stream().map(Enum::name).collect(Collectors.toList()));
-        XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, "{\"operation_mode\" : \"" + mode + "\"}");
+        String mode = randomFrom(EnumSet.allOf(OperationMode.class).stream().map(Enum::name).collect(Collectors.toList()));
+        XContentParser parser = xContentType.xContent()
+            .createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                "{\"operation_mode\" : \"" + mode + "\"}"
+            );
         assertEquals(LifecycleManagementStatusResponse.fromXContent(parser).getOperationMode(), OperationMode.fromString(mode));
     }
 
     public void testXContentInvalid() throws IOException {
         XContentType xContentType = XContentType.JSON;
         String mode = randomAlphaOfLength(10);
-        XContentParser parser = xContentType.xContent().createParser(NamedXContentRegistry.EMPTY,
-            DeprecationHandler.THROW_UNSUPPORTED_OPERATION, "{\"operation_mode\" : \"" + mode + "\"}");
+        XContentParser parser = xContentType.xContent()
+            .createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                "{\"operation_mode\" : \"" + mode + "\"}"
+            );
         Exception e = expectThrows(IllegalArgumentException.class, () -> LifecycleManagementStatusResponse.fromXContent(parser));
         assertThat(e.getMessage(), CoreMatchers.containsString("failed to parse field [operation_mode]"));
     }

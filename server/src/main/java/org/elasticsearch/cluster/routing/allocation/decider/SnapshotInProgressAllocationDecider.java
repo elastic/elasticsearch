@@ -15,6 +15,8 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 
+import java.util.Iterator;
+
 /**
  * This {@link org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider} prevents shards that
  * are currently been snapshotted to be moved to other nodes.
@@ -44,30 +46,46 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
         return canMove(shardRouting, allocation);
     }
 
+    @Override
+    public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+        return canAllocate(shardRouting, node, allocation);
+    }
+
     private Decision canMove(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
             // Only primary shards are snapshotted
 
             SnapshotsInProgress snapshotsInProgress = allocation.custom(SnapshotsInProgress.TYPE);
-            if (snapshotsInProgress == null || snapshotsInProgress.entries().isEmpty()) {
+            if (snapshotsInProgress == null || snapshotsInProgress.isEmpty()) {
                 // Snapshots are not running
                 return allocation.decision(Decision.YES, NAME, "no snapshots are currently running");
             }
 
-            for (SnapshotsInProgress.Entry snapshot : snapshotsInProgress.entries()) {
+            final Iterator<SnapshotsInProgress.Entry> entryIterator = snapshotsInProgress.asStream().iterator();
+            while (entryIterator.hasNext()) {
+                final SnapshotsInProgress.Entry snapshot = entryIterator.next();
                 if (snapshot.isClone()) {
                     continue;
                 }
                 SnapshotsInProgress.ShardSnapshotStatus shardSnapshotStatus = snapshot.shards().get(shardRouting.shardId());
-                if (shardSnapshotStatus != null && shardSnapshotStatus.state().completed() == false &&
-                        shardSnapshotStatus.nodeId() != null && shardSnapshotStatus.nodeId().equals(shardRouting.currentNodeId())) {
+                if (shardSnapshotStatus != null
+                    && shardSnapshotStatus.state().completed() == false
+                    && shardSnapshotStatus.nodeId() != null
+                    && shardSnapshotStatus.nodeId().equals(shardRouting.currentNodeId())) {
                     if (logger.isTraceEnabled()) {
-                        logger.trace("Preventing snapshotted shard [{}] from being moved away from node [{}]",
-                                shardRouting.shardId(), shardSnapshotStatus.nodeId());
+                        logger.trace(
+                            "Preventing snapshotted shard [{}] from being moved away from node [{}]",
+                            shardRouting.shardId(),
+                            shardSnapshotStatus.nodeId()
+                        );
                     }
-                    return allocation.decision(Decision.THROTTLE, NAME,
+                    return allocation.decision(
+                        Decision.THROTTLE,
+                        NAME,
                         "waiting for snapshotting of shard [%s] to complete on this node [%s]",
-                        shardRouting.shardId(), shardSnapshotStatus.nodeId());
+                        shardRouting.shardId(),
+                        shardSnapshotStatus.nodeId()
+                    );
                 }
             }
         }

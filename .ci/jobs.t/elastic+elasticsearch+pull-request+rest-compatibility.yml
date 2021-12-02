@@ -18,8 +18,10 @@
           github-hooks: true
           status-context: elasticsearch-ci/rest-compatibility
           cancel-builds-on-update: true
-          white-list-target-branches:
-            - master
+          black-list-target-branches:
+            - 7.16
+            - 7.15
+            - 6.8
           excluded-regions:
             - ^docs/.*
           black-list-labels:
@@ -32,7 +34,7 @@
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             JAVA8_HOME=$HOME/.java/java8
             JAVA11_HOME=$HOME/.java/java11
-            JAVA15_HOME=$HOME/.java/openjdk15
+            JAVA16_HOME=$HOME/.java/openjdk16
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
           $WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed checkRestCompat

@@ -11,6 +11,7 @@ package org.elasticsearch.packaging.util;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.packaging.util.Shell.Result;
 
 import java.io.IOException;
@@ -18,8 +19,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -75,7 +78,12 @@ public class Packages {
         return runPackageManager(distribution, new Shell(), PackageManagerCommand.QUERY);
     }
 
-    public static Installation installPackage(Shell sh, Distribution distribution) throws IOException {
+    public static Installation installPackage(Shell sh, Distribution distribution) throws Exception {
+        return installPackage(sh, distribution, null);
+    }
+
+    public static Installation installPackage(Shell sh, Distribution distribution, @Nullable Predicate<String> outputPredicate)
+        throws IOException {
         String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
         if (distribution.hasJdk == false) {
             sh.getEnv().put("ES_JAVA_HOME", systemJavaHome);
@@ -84,9 +92,11 @@ public class Packages {
         if (result.exitCode != 0) {
             throw new RuntimeException("Installing distribution " + distribution + " failed: " + result);
         }
-
+        if (null != outputPredicate) {
+            assertThat(outputPredicate.test(result.stdout), is(true));
+        }
         Installation installation = Installation.ofPackage(sh, distribution);
-
+        installation.setElasticPassword(captureElasticPasswordFromOutput(result));
         if (distribution.hasJdk == false) {
             Files.write(installation.envFile, List.of("ES_JAVA_HOME=" + systemJavaHome), StandardOpenOption.APPEND);
         }
@@ -94,10 +104,16 @@ public class Packages {
         if (Version.fromString(distribution.baseVersion).onOrAfter(Version.V_7_13_0)) {
             ServerUtils.disableGeoIpDownloader(installation);
         }
-        // https://github.com/elastic/elasticsearch/issues/75940
-        // TODO Figure out how to run all packaging tests with security enabled which is now the default behavior
-        ServerUtils.possiblyDisableSecurityFeatures(installation);
+
         return installation;
+    }
+
+    private static String captureElasticPasswordFromOutput(Result result) {
+        return Arrays.stream(result.stdout.split(System.lineSeparator()))
+            .filter(l -> l.contains("The generated password for the elastic built-in superuser is : "))
+            .map(l -> l.substring(63, 83))
+            .findFirst()
+            .orElse(null);
     }
 
     public static Installation upgradePackage(Shell sh, Distribution distribution) throws IOException {
@@ -156,7 +172,7 @@ public class Packages {
         });
     }
 
-    public static void verifyPackageInstallation(Installation installation, Distribution distribution, Shell sh) {
+    public static void verifyPackageInstallation(Installation installation, Distribution distribution, Shell sh) throws IOException {
         verifyOssInstallation(installation, distribution, sh);
         verifyDefaultInstallation(installation, distribution);
     }
@@ -247,12 +263,18 @@ public class Packages {
     /**
      * Starts Elasticsearch, without checking that startup is successful.
      */
-    public static Shell.Result runElasticsearchStartCommand(Shell sh) throws IOException {
+    public static Shell.Result runElasticsearchStartCommand(Shell sh) {
         if (isSystemd()) {
+            Packages.JournaldWrapper journald = new Packages.JournaldWrapper(sh);
             sh.run("systemctl daemon-reload");
             sh.run("systemctl enable elasticsearch.service");
             sh.run("systemctl is-enabled elasticsearch.service");
-            return sh.runIgnoreExitCode("systemctl start elasticsearch.service");
+            Result exitCode = sh.runIgnoreExitCode("systemctl start elasticsearch.service");
+            if (exitCode.isSuccess() == false) {
+                logger.warn(sh.runIgnoreExitCode("systemctl status elasticsearch.service").stdout);
+                logger.warn(journald.getLogs().stdout);
+            }
+            return exitCode;
         }
         return sh.runIgnoreExitCode("service elasticsearch start");
     }

@@ -8,10 +8,10 @@
 package org.elasticsearch.client.ml.calendars;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -32,9 +32,11 @@ public class Calendar implements ToXContentObject {
     public static final ParseField DESCRIPTION = new ParseField("description");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Calendar, Void> PARSER =
-            new ConstructingObjectParser<>(CALENDAR_TYPE, true, a ->
-                    new Calendar((String) a[0], (List<String>) a[1], (String) a[2]));
+    public static final ConstructingObjectParser<Calendar, Void> PARSER = new ConstructingObjectParser<>(
+        CALENDAR_TYPE,
+        true,
+        a -> new Calendar((String) a[0], (List<String>) a[1], (String) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID);
@@ -75,7 +77,7 @@ public class Calendar implements ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID.getPreferredName(), id);
-        builder.field(JOB_IDS.getPreferredName(), jobIds);
+        builder.stringListField(JOB_IDS.getPreferredName(), jobIds);
         if (description != null) {
             builder.field(DESCRIPTION.getPreferredName(), description);
         }

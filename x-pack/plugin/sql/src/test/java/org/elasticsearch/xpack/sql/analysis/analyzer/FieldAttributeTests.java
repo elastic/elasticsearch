@@ -142,11 +142,12 @@ public class FieldAttributeTests extends ESTestCase {
         assertThat(attr.name(), is("some.ambiguous"));
         assertThat(attr.dataType(), is(TEXT));
         assertFalse(attr.getExactInfo().hasExact());
-        assertThat(attr.getExactInfo().errorMsg(),
-            is("Multiple exact keyword candidates available for [ambiguous]; specify which one to use"));
+        assertThat(
+            attr.getExactInfo().errorMsg(),
+            is("Multiple exact keyword candidates available for [ambiguous]; specify which one to use")
+        );
         QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class, () -> attr.exactAttribute());
-        assertThat(e.getMessage(),
-                is("Multiple exact keyword candidates available for [ambiguous]; specify which one to use"));
+        assertThat(e.getMessage(), is("Multiple exact keyword candidates available for [ambiguous]; specify which one to use"));
     }
 
     public void testNormalizedKeyword() {
@@ -162,13 +163,14 @@ public class FieldAttributeTests extends ESTestCase {
     }
 
     public void testDottedFieldPathDeeper() {
-        assertThat(error("some.dotted"),
-                is("Found 1 problem\nline 1:8: Cannot use field [some.dotted] type [object] only its subfields"));
+        assertThat(error("some.dotted"), is("Found 1 problem\nline 1:8: Cannot use field [some.dotted] type [object] only its subfields"));
     }
 
     public void testDottedFieldPathTypo() {
-        assertThat(error("some.dotted.fild"),
-                is("Found 1 problem\nline 1:8: Unknown column [some.dotted.fild], did you mean [some.dotted.field]?"));
+        assertThat(
+            error("some.dotted.fild"),
+            is("Found 1 problem\nline 1:8: Unknown column [some.dotted.fild], did you mean [some.dotted.field]?")
+        );
     }
 
     public void testStarExpansionExcludesObjectAndUnsupportedTypes() {
@@ -191,15 +193,17 @@ public class FieldAttributeTests extends ESTestCase {
 
         VerificationException ex = expectThrows(VerificationException.class, () -> plan("SELECT test.bar FROM test"));
         assertEquals(
-                "Found 1 problem\nline 1:8: Reference [test.bar] is ambiguous (to disambiguate use quotes or qualifiers); "
-                        + "matches any of [line 1:22 [\"test\".\"bar\"], line 1:22 [\"test\".\"test.bar\"]]",
-                ex.getMessage());
+            "Found 1 problem\nline 1:8: Reference [test.bar] is ambiguous (to disambiguate use quotes or qualifiers); "
+                + "matches any of [line 1:22 [\"test\".\"bar\"], line 1:22 [\"test\".\"test.bar\"]]",
+            ex.getMessage()
+        );
 
         ex = expectThrows(VerificationException.class, () -> plan("SELECT test.test FROM test"));
         assertEquals(
-                "Found 1 problem\nline 1:8: Reference [test.test] is ambiguous (to disambiguate use quotes or qualifiers); "
-                        + "matches any of [line 1:23 [\"test\".\"test\"], line 1:23 [\"test\".\"test.test\"]]",
-                ex.getMessage());
+            "Found 1 problem\nline 1:8: Reference [test.test] is ambiguous (to disambiguate use quotes or qualifiers); "
+                + "matches any of [line 1:23 [\"test\".\"test\"], line 1:23 [\"test\".\"test.test\"]]",
+            ex.getMessage()
+        );
 
         LogicalPlan plan = plan("SELECT test.test FROM test AS x");
         assertThat(plan, instanceOf(Project.class));
@@ -255,36 +259,48 @@ public class FieldAttributeTests extends ESTestCase {
         getIndexResult = IndexResolution.valid(index);
         analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
 
-        VerificationException ex = expectThrows(VerificationException.class,
-            () -> plan("SELECT gender AS g, sum(salary) AS g FROM test GROUP BY g"));
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> plan("SELECT gender AS g, sum(salary) AS g FROM test GROUP BY g")
+        );
         assertEquals(
-            "Found 1 problem\nline 1:57: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
-                "matches any of [line 1:8 [g], line 1:21 [g]]",
-            ex.getMessage());
+            "Found 1 problem\nline 1:57: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); "
+                + "matches any of [line 1:8 [g], line 1:21 [g]]",
+            ex.getMessage()
+        );
 
-        ex = expectThrows(VerificationException.class,
-            () -> plan("SELECT gender AS g, max(salary) AS g, min(salary) AS g FROM test GROUP BY g"));
+        ex = expectThrows(
+            VerificationException.class,
+            () -> plan("SELECT gender AS g, max(salary) AS g, min(salary) AS g FROM test GROUP BY g")
+        );
         assertEquals(
-            "Found 1 problem\nline 1:75: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
-                "matches any of [line 1:8 [g], line 1:21 [g], line 1:39 [g]]",
-            ex.getMessage());
+            "Found 1 problem\nline 1:75: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); "
+                + "matches any of [line 1:8 [g], line 1:21 [g], line 1:39 [g]]",
+            ex.getMessage()
+        );
 
-        ex = expectThrows(VerificationException.class,
-            () -> plan("SELECT gender AS g, last_name AS g, sum(salary) AS s FROM test GROUP BY g"));
+        ex = expectThrows(
+            VerificationException.class,
+            () -> plan("SELECT gender AS g, last_name AS g, sum(salary) AS s FROM test GROUP BY g")
+        );
         assertEquals(
-            "Found 1 problem\nline 1:73: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); " +
-                "matches any of [line 1:8 [g], line 1:21 [g]]",
-            ex.getMessage());
+            "Found 1 problem\nline 1:73: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); "
+                + "matches any of [line 1:8 [g], line 1:21 [g]]",
+            ex.getMessage()
+        );
 
-        ex = expectThrows(VerificationException.class,
-            () -> plan("SELECT gender AS g, last_name AS g, min(salary) AS m, max(salary) as m FROM test GROUP BY g, m"));
+        ex = expectThrows(
+            VerificationException.class,
+            () -> plan("SELECT gender AS g, last_name AS g, min(salary) AS m, max(salary) as m FROM test GROUP BY g, m")
+        );
         assertEquals(
-            "Found 2 problems\n" +
-                "line 1:91: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); "
-                + "matches any of [line 1:8 [g], line 1:21 [g]]\n" +
-                "line 1:94: Reference [m] is ambiguous (to disambiguate use quotes or qualifiers); "
+            "Found 2 problems\n"
+                + "line 1:91: Reference [g] is ambiguous (to disambiguate use quotes or qualifiers); "
+                + "matches any of [line 1:8 [g], line 1:21 [g]]\n"
+                + "line 1:94: Reference [m] is ambiguous (to disambiguate use quotes or qualifiers); "
                 + "matches any of [line 1:37 [m], line 1:55 [m]]",
-            ex.getMessage());
+            ex.getMessage()
+        );
     }
 
     public void testUnsignedLongVersionCompatibility() {
@@ -301,15 +317,18 @@ public class FieldAttributeTests extends ESTestCase {
         SqlVersion preUnsignedLong = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER);
         SqlVersion postUnsignedLong = SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER);
 
-
         for (String sql : List.of(query, queryWithLiteral, queryWithAlias, queryWithArithmetic, queryWithCast)) {
             SqlConfiguration sqlConfig = SqlTestUtils.randomConfiguration(preUnsignedLong);
             analyzer = new Analyzer(sqlConfig, functionRegistry, getIndexResult, new Verifier(new Metrics(), sqlConfig.version()));
             VerificationException ex = expectThrows(VerificationException.class, () -> plan(sql));
             assertEquals(
-                "Found 1 problem\nline 1:8: Cannot use field [unsigned_long] with type [UNSIGNED_LONG] unsupported in version [" +
-                    preUnsignedLong + "], upgrade required (to version [" + INTRODUCING_UNSIGNED_LONG + "] or higher)",
-                ex.getMessage());
+                "Found 1 problem\nline 1:8: Cannot use field [unsigned_long] with type [UNSIGNED_LONG] unsupported in version ["
+                    + preUnsignedLong
+                    + "], upgrade required (to version ["
+                    + INTRODUCING_UNSIGNED_LONG
+                    + "] or higher)",
+                ex.getMessage()
+            );
 
             for (SqlVersion v : List.of(INTRODUCING_UNSIGNED_LONG, postUnsignedLong)) {
                 analyzer = new Analyzer(SqlTestUtils.randomConfiguration(v), functionRegistry, getIndexResult, verifier);
@@ -334,8 +353,8 @@ public class FieldAttributeTests extends ESTestCase {
         analyzer = new Analyzer(sqlConfig, functionRegistry, getIndexResult, new Verifier(new Metrics(), sqlConfig.version()));
 
         String query = "SELECT unsigned_long = 1, unsigned_long::double FROM test";
-        String queryWithSubquery = "SELECT l = 1, SQRT(ul) FROM " +
-            "(SELECT unsigned_long AS ul, long AS l FROM test WHERE ul > 10) WHERE l < 100 ";
+        String queryWithSubquery = "SELECT l = 1, SQRT(ul) FROM "
+            + "(SELECT unsigned_long AS ul, long AS l FROM test WHERE ul > 10) WHERE l < 100 ";
 
         for (String sql : List.of(query, queryWithSubquery)) {
             LogicalPlan plan = plan(sql);
@@ -377,8 +396,10 @@ public class FieldAttributeTests extends ESTestCase {
         getIndexResult = IndexResolution.valid(index);
         analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
 
-        VerificationException ex = expectThrows(VerificationException.class, () ->
-            plan("SELECT sum(missing) AS missing FROM test WHERE missing = 0"));
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> plan("SELECT sum(missing) AS missing FROM test WHERE missing = 0")
+        );
         assertEquals("Found 1 problem\nline 1:12: Unknown column [missing]", ex.getMessage());
     }
 
@@ -388,8 +409,10 @@ public class FieldAttributeTests extends ESTestCase {
         getIndexResult = IndexResolution.valid(index);
         analyzer = new Analyzer(SqlTestUtils.TEST_CFG, functionRegistry, getIndexResult, verifier);
 
-        VerificationException ex = expectThrows(VerificationException.class, () ->
-            plan("SELECT LENGTH(CONCAT(missing, 'x')) + 1 AS missing FROM test WHERE missing = 0"));
+        VerificationException ex = expectThrows(
+            VerificationException.class,
+            () -> plan("SELECT LENGTH(CONCAT(missing, 'x')) + 1 AS missing FROM test WHERE missing = 0")
+        );
         assertEquals("Found 1 problem\nline 1:22: Unknown column [missing]", ex.getMessage());
     }
 

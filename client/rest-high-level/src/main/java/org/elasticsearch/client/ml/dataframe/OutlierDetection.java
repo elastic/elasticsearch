@@ -8,11 +8,11 @@
 
 package org.elasticsearch.client.ml.dataframe;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -81,8 +81,14 @@ public class OutlierDetection implements DataFrameAnalysis {
      */
     private final Boolean standardizationEnabled;
 
-    private OutlierDetection(Integer nNeighbors, Method method, Double featureInfluenceThreshold, Boolean computeFeatureInfluence,
-                             Double outlierFraction, Boolean standardizationEnabled) {
+    private OutlierDetection(
+        Integer nNeighbors,
+        Method method,
+        Double featureInfluenceThreshold,
+        Boolean computeFeatureInfluence,
+        Double outlierFraction,
+        Boolean standardizationEnabled
+    ) {
         this.nNeighbors = nNeighbors;
         this.method = method;
         this.featureInfluenceThreshold = featureInfluenceThreshold;
@@ -161,8 +167,14 @@ public class OutlierDetection implements DataFrameAnalysis {
 
     @Override
     public int hashCode() {
-        return Objects.hash(nNeighbors, method, featureInfluenceThreshold, computeFeatureInfluence, outlierFraction,
-            standardizationEnabled);
+        return Objects.hash(
+            nNeighbors,
+            method,
+            featureInfluenceThreshold,
+            computeFeatureInfluence,
+            outlierFraction,
+            standardizationEnabled
+        );
     }
 
     @Override
@@ -171,7 +183,10 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     public enum Method {
-        LOF, LDOF, DISTANCE_KTH_NN, DISTANCE_KNN;
+        LOF,
+        LDOF,
+        DISTANCE_KTH_NN,
+        DISTANCE_KNN;
 
         public static Method fromString(String value) {
             return Method.valueOf(value.toUpperCase(Locale.ROOT));
@@ -194,8 +209,8 @@ public class OutlierDetection implements DataFrameAnalysis {
 
         private Builder() {}
 
-        public Builder setNNeighbors(Integer nNeighbors) {
-            this.nNeighbors = nNeighbors;
+        public Builder setNNeighbors(Integer nNeighborsValue) {
+            this.nNeighbors = nNeighborsValue;
             return this;
         }
 
@@ -225,8 +240,14 @@ public class OutlierDetection implements DataFrameAnalysis {
         }
 
         public OutlierDetection build() {
-            return new OutlierDetection(nNeighbors, method, featureInfluenceThreshold, computeFeatureInfluence, outlierFraction,
-                standardizationEnabled);
+            return new OutlierDetection(
+                nNeighbors,
+                method,
+                featureInfluenceThreshold,
+                computeFeatureInfluence,
+                outlierFraction,
+                standardizationEnabled
+            );
         }
     }
 }

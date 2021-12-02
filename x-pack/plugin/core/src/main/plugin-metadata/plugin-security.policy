@@ -1,4 +1,6 @@
 grant {
+  // CommandLineHttpClient
+  permission java.lang.RuntimePermission "setFactory";
   // bouncy castle
   permission java.security.SecurityPermission "putProviderProperty.BC";
 

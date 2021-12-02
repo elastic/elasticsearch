@@ -8,14 +8,15 @@
 
 package org.elasticsearch.indices;
 
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.List;
 import java.util.Map;
@@ -33,32 +34,30 @@ public class SystemIndexDescriptorTests extends ESTestCase {
      */
     public void testValidation() {
         {
-            Exception ex = expectThrows(NullPointerException.class,
-                () -> new SystemIndexDescriptor(null, randomAlphaOfLength(5)));
+            Exception ex = expectThrows(NullPointerException.class, () -> new SystemIndexDescriptor(null, randomAlphaOfLength(5)));
             assertThat(ex.getMessage(), containsString("must not be null"));
         }
 
         {
-            Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new SystemIndexDescriptor("", randomAlphaOfLength(5)));
+            Exception ex = expectThrows(IllegalArgumentException.class, () -> new SystemIndexDescriptor("", randomAlphaOfLength(5)));
             assertThat(ex.getMessage(), containsString("must at least 2 characters in length"));
         }
 
         {
-            Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new SystemIndexDescriptor(".", randomAlphaOfLength(5)));
+            Exception ex = expectThrows(IllegalArgumentException.class, () -> new SystemIndexDescriptor(".", randomAlphaOfLength(5)));
             assertThat(ex.getMessage(), containsString("must at least 2 characters in length"));
         }
 
         {
-            Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new SystemIndexDescriptor(randomAlphaOfLength(10), randomAlphaOfLength(5)));
+            Exception ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> new SystemIndexDescriptor(randomAlphaOfLength(10), randomAlphaOfLength(5))
+            );
             assertThat(ex.getMessage(), containsString("must start with the character [.]"));
         }
 
         {
-            Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new SystemIndexDescriptor(".*", randomAlphaOfLength(5)));
+            Exception ex = expectThrows(IllegalArgumentException.class, () -> new SystemIndexDescriptor(".*", randomAlphaOfLength(5)));
             assertThat(ex.getMessage(), containsString("must not start with the character sequence [.*] to prevent conflicts"));
         }
         {
@@ -127,68 +126,82 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         SystemIndexDescriptor prior = priorSystemIndexDescriptorBuilder().build();
 
         // same minimum node version
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> priorSystemIndexDescriptorBuilder()
-            .setPriorSystemIndexDescriptors(List.of(prior))
-            .build());
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> priorSystemIndexDescriptorBuilder().setPriorSystemIndexDescriptors(List.of(prior)).build()
+        );
         assertThat(iae.getMessage(), containsString("same minimum node version"));
 
         // different min version but prior is after latest!
-        iae = expectThrows(IllegalArgumentException.class, () -> priorSystemIndexDescriptorBuilder()
-            .setMinimumNodeVersion(Version.fromString("6.8.0"))
-            .setPriorSystemIndexDescriptors(List.of(prior))
-            .build());
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(Version.fromString("6.8.0"))
+                .setPriorSystemIndexDescriptors(List.of(prior))
+                .build()
+        );
         assertThat(iae.getMessage(), containsString("has minimum node version [7.0.0] which is after [6.8.0]"));
 
         // prior has another prior!
-        iae = expectThrows(IllegalArgumentException.class, () -> priorSystemIndexDescriptorBuilder()
-            .setMinimumNodeVersion(Version.V_7_5_0)
-            .setPriorSystemIndexDescriptors(List.of(
-                SystemIndexDescriptor.builder()
-                    .setIndexPattern(".system*")
-                    .setDescription("system stuff")
-                    .setPrimaryIndex(".system-1")
-                    .setAliasName(".system")
-                    .setType(Type.INTERNAL_MANAGED)
-                    .setSettings(Settings.EMPTY)
-                    .setMappings(MAPPINGS)
-                    .setVersionMetaKey("version")
-                    .setOrigin("system")
-                    .setMinimumNodeVersion(Version.V_7_4_1)
-                    .setPriorSystemIndexDescriptors(List.of(prior))
-                    .build()
-            ))
-            .build());
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(Version.V_7_5_0)
+                .setPriorSystemIndexDescriptors(
+                    List.of(
+                        SystemIndexDescriptor.builder()
+                            .setIndexPattern(".system*")
+                            .setDescription("system stuff")
+                            .setPrimaryIndex(".system-1")
+                            .setAliasName(".system")
+                            .setType(Type.INTERNAL_MANAGED)
+                            .setSettings(Settings.EMPTY)
+                            .setMappings(MAPPINGS)
+                            .setVersionMetaKey("version")
+                            .setOrigin("system")
+                            .setMinimumNodeVersion(Version.V_7_4_1)
+                            .setPriorSystemIndexDescriptors(List.of(prior))
+                            .build()
+                    )
+                )
+                .build()
+        );
         assertThat(iae.getMessage(), containsString("has its own prior descriptors"));
 
         // different index patterns
-        iae = expectThrows(IllegalArgumentException.class, () -> priorSystemIndexDescriptorBuilder()
-            .setIndexPattern(".system1*")
-            .setMinimumNodeVersion(Version.V_7_5_0)
-            .setPriorSystemIndexDescriptors(List.of(prior))
-            .build());
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> priorSystemIndexDescriptorBuilder().setIndexPattern(".system1*")
+                .setMinimumNodeVersion(Version.V_7_5_0)
+                .setPriorSystemIndexDescriptors(List.of(prior))
+                .build()
+        );
         assertThat(iae.getMessage(), containsString("index pattern must be the same"));
 
         // different primary index
-        iae = expectThrows(IllegalArgumentException.class, () -> priorSystemIndexDescriptorBuilder()
-            .setPrimaryIndex(".system-2")
-            .setMinimumNodeVersion(Version.V_7_5_0)
-            .setPriorSystemIndexDescriptors(List.of(prior))
-            .build());
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> priorSystemIndexDescriptorBuilder().setPrimaryIndex(".system-2")
+                .setMinimumNodeVersion(Version.V_7_5_0)
+                .setPriorSystemIndexDescriptors(List.of(prior))
+                .build()
+        );
         assertThat(iae.getMessage(), containsString("primary index must be the same"));
 
         // different alias
-        iae = expectThrows(IllegalArgumentException.class, () -> priorSystemIndexDescriptorBuilder()
-            .setAliasName(".system1")
-            .setMinimumNodeVersion(Version.V_7_5_0)
-            .setPriorSystemIndexDescriptors(List.of(prior))
-            .build());
+        iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> priorSystemIndexDescriptorBuilder().setAliasName(".system1")
+                .setMinimumNodeVersion(Version.V_7_5_0)
+                .setPriorSystemIndexDescriptors(List.of(prior))
+                .build()
+        );
         assertThat(iae.getMessage(), containsString("alias name must be the same"));
 
         // success!
-        assertNotNull(priorSystemIndexDescriptorBuilder()
-            .setMinimumNodeVersion(Version.V_7_5_0)
-            .setPriorSystemIndexDescriptors(List.of(prior))
-            .build());
+        assertNotNull(
+            priorSystemIndexDescriptorBuilder().setMinimumNodeVersion(Version.V_7_5_0)
+                .setPriorSystemIndexDescriptors(List.of(prior))
+                .build()
+        );
     }
 
     public void testGetDescriptorCompatibleWith() {
@@ -231,7 +244,8 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         assertSame(prior, compat);
 
         compat = descriptor.getDescriptorCompatibleWith(
-            VersionUtils.randomVersionBetween(random(), prior.getMinimumNodeVersion(), priorToMin));
+            VersionUtils.randomVersionBetween(random(), prior.getMinimumNodeVersion(), priorToMin)
+        );
         assertSame(prior, compat);
     }
 
@@ -246,14 +260,31 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setVersionMetaKey("version")
             .setOrigin("system");
 
-        builder.setSettings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
-                    .build());
+        builder.setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
 
         assertThat(e.getMessage(), equalTo("System indices cannot have index.hidden set to true."));
+    }
+
+    public void testSpecialCharactersAreReplacedWhenConvertingToAutomaton() {
+        CharacterRunAutomaton automaton = new CharacterRunAutomaton(
+            SystemIndexDescriptor.buildAutomaton(".system-index*", ".system-alias")
+        );
+
+        // None of these should match, ever.
+        assertFalse(automaton.run(".my-system-index"));
+        assertFalse(automaton.run("my.system-index"));
+        assertFalse(automaton.run("some-other-index"));
+
+        // These should only fail if the trailing `*` doesn't get properly replaced with `.*`
+        assertTrue("if the trailing * isn't replaced, suffixes won't match properly", automaton.run(".system-index-1"));
+        assertTrue("if the trailing * isn't replaced, suffixes won't match properly", automaton.run(".system-index-asdf"));
+
+        // These should only fail if the leading `.` doesn't get properly replaced with `\\.`
+        assertFalse("if the leading dot isn't replaced, it can match date math", automaton.run("<system-index-{now/d}>"));
+        assertFalse("if the leading dot isn't replaced, it can match any single-char prefix", automaton.run("Osystem-index"));
+        assertFalse("the leading dot got dropped", automaton.run("system-index-1"));
     }
 
     private SystemIndexDescriptor.Builder priorSystemIndexDescriptorBuilder() {

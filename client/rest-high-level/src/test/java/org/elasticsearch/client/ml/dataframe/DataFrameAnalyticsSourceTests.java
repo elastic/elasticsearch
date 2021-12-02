@@ -9,11 +9,11 @@
 package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -23,15 +23,16 @@ import java.util.function.Predicate;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.client.ml.dataframe.QueryConfigTests.randomQueryConfig;
 
-
 public class DataFrameAnalyticsSourceTests extends AbstractXContentTestCase<DataFrameAnalyticsSource> {
 
     public static DataFrameAnalyticsSource randomSourceConfig() {
         FetchSourceContext sourceFiltering = null;
         if (randomBoolean()) {
-            sourceFiltering = new FetchSourceContext(true,
+            sourceFiltering = new FetchSourceContext(
+                true,
                 generateRandomStringArray(10, 10, false, false),
-                generateRandomStringArray(10, 10, false, false));
+                generateRandomStringArray(10, 10, false, false)
+            );
         }
         Map<String, Object> runtimeMappings = null;
         if (randomBoolean()) {

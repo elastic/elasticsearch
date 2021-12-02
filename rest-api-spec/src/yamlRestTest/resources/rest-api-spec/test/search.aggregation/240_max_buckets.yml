@@ -70,7 +70,7 @@ setup:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             search.max_buckets: null
 
 ---
@@ -79,7 +79,7 @@ setup:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             search.max_buckets: 3
 
   - do:
@@ -97,7 +97,7 @@ setup:
   - do:
       cluster.put_settings:
         body:
-          transient:
+          persistent:
             search.max_buckets: 6
 
   - do:

@@ -13,12 +13,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -44,7 +44,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         @Nullable
         private String name;
 
-        public Request() { }
+        public Request() {}
 
         public Request(String name) {
             this.name = name;

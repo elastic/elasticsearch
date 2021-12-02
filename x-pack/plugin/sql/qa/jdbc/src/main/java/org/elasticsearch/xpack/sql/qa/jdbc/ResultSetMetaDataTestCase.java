@@ -65,11 +65,12 @@ public abstract class ResultSetMetaDataTestCase extends JdbcIntegrationTestCase 
         String q = "SELECT " + String.join(", ", fieldsNames) + " FROM test";
         doWithQuery(q, r -> assertColumnNamesAndLabels(r.getMetaData(), fieldsNames));
 
-
         String selectedFields = fieldsNames.stream().map(x -> x + " AS " + x.replace("_", "")).collect(Collectors.joining(", "));
         q = "SELECT " + selectedFields + " FROM test";
-        doWithQuery(q, r -> assertColumnNamesAndLabels(r.getMetaData(), fieldsNames.stream()
-            .map(x -> x.replace("_", "")).collect(Collectors.toList())));
+        doWithQuery(
+            q,
+            r -> assertColumnNamesAndLabels(r.getMetaData(), fieldsNames.stream().map(x -> x.replace("_", "")).collect(Collectors.toList()))
+        );
     }
 
     public void testUnsignedLongConditionallyReturnedOnStarExpansion() throws IOException, SQLException {

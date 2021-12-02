@@ -34,12 +34,16 @@ import java.util.regex.Pattern;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
+import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
+import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.isQualified;
+import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.splitQualifiedIndex;
 import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.displaySize;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDataType;
@@ -81,32 +85,33 @@ public class SysColumns extends Command {
         // ODBC expects some fields as SHORT while JDBC as Integer
         // which causes conversion issues and CCE
         DataType clientBasedType = odbcCompatible ? SHORT : INTEGER;
-        return asList(keyword("TABLE_CAT"),
-                      keyword("TABLE_SCHEM"),
-                      keyword("TABLE_NAME"),
-                      keyword("COLUMN_NAME"),
-                      field("DATA_TYPE", clientBasedType),
-                      keyword("TYPE_NAME"),
-                      field("COLUMN_SIZE", INTEGER),
-                      field("BUFFER_LENGTH", INTEGER),
-                      field("DECIMAL_DIGITS", clientBasedType),
-                      field("NUM_PREC_RADIX", clientBasedType),
-                      field("NULLABLE", clientBasedType),
-                      keyword("REMARKS"),
-                      keyword("COLUMN_DEF"),
-                      field("SQL_DATA_TYPE", clientBasedType),
-                      field("SQL_DATETIME_SUB", clientBasedType),
-                      field("CHAR_OCTET_LENGTH", INTEGER),
-                      field("ORDINAL_POSITION", INTEGER),
-                      keyword("IS_NULLABLE"),
-                      // JDBC specific
-                      keyword("SCOPE_CATALOG"),
-                      keyword("SCOPE_SCHEMA"),
-                      keyword("SCOPE_TABLE"),
-                      field("SOURCE_DATA_TYPE", SHORT),
-                      keyword("IS_AUTOINCREMENT"),
-                      keyword("IS_GENERATEDCOLUMN")
-                      );
+        return asList(
+            keyword("TABLE_CAT"),
+            keyword("TABLE_SCHEM"),
+            keyword("TABLE_NAME"),
+            keyword("COLUMN_NAME"),
+            field("DATA_TYPE", clientBasedType),
+            keyword("TYPE_NAME"),
+            field("COLUMN_SIZE", INTEGER),
+            field("BUFFER_LENGTH", INTEGER),
+            field("DECIMAL_DIGITS", clientBasedType),
+            field("NUM_PREC_RADIX", clientBasedType),
+            field("NULLABLE", clientBasedType),
+            keyword("REMARKS"),
+            keyword("COLUMN_DEF"),
+            field("SQL_DATA_TYPE", clientBasedType),
+            field("SQL_DATETIME_SUB", clientBasedType),
+            field("CHAR_OCTET_LENGTH", INTEGER),
+            field("ORDINAL_POSITION", INTEGER),
+            keyword("IS_NULLABLE"),
+            // JDBC specific
+            keyword("SCOPE_CATALOG"),
+            keyword("SCOPE_SCHEMA"),
+            keyword("SCOPE_TABLE"),
+            field("SOURCE_DATA_TYPE", SHORT),
+            keyword("IS_AUTOINCREMENT"),
+            keyword("IS_GENERATEDCOLUMN")
+        );
     }
 
     @Override
@@ -115,56 +120,109 @@ public class SysColumns extends Command {
         List<Attribute> output = output(mode == Mode.ODBC);
         String cluster = session.indexResolver().clusterName();
 
-        // bail-out early if the catalog is present but differs
-        if (Strings.hasText(catalog) && cluster.equals(catalog) == false) {
-            listener.onResponse(Page.last(Rows.empty(output)));
-            return;
-        }
-
         // save original index name (as the pattern can contain special chars)
-        String indexName = index != null ? index :
-            (pattern != null ? StringUtils.likeToUnescaped(pattern.pattern(), pattern.escape()) : "");
+        String indexName = index != null
+            ? index
+            : (pattern != null ? StringUtils.likeToUnescaped(pattern.pattern(), pattern.escape()) : "");
         String idx = index != null ? index : (pattern != null ? pattern.asIndexNameWildcard() : "*");
         String regex = pattern != null ? pattern.asJavaRegex() : null;
 
         Pattern columnMatcher = columnPattern != null ? Pattern.compile(columnPattern.asJavaRegex()) : null;
         boolean includeFrozen = session.configuration().includeFrozen();
 
+        // disallow double catalog specification, like: SYS COLUMNS CATALOG 'catA' TABLE LIKE 'catB:index_expression'
+        if (isQualified(idx)) {
+            throw new IllegalArgumentException(
+                "illegal character ["
+                    + REMOTE_CLUSTER_INDEX_SEPARATOR
+                    + "] (the catalog delimiter) "
+                    + "found in the table expression ["
+                    + idx
+                    + "]"
+            );
+        }
+
+        String indexPattern = idx;
+        String tableCat;
+        if (Strings.hasText(catalog)) {
+            // SYS COLUMNS's catalog "cannot contain a string search pattern" (by xDBC specs) -> it must match local or a remote cluster.
+            // Require an exact match for local cluster, since a pattern might match local and remote clusters, which cannot be searched.
+            if (catalog.equals(cluster) == false) {
+                indexPattern = buildRemoteIndexName(catalog, idx);
+            }
+            tableCat = catalog;
+        } else {
+            tableCat = cluster;
+        }
+
         // special case for '%' (translated to *)
         if ("*".equals(idx)) {
-            session.indexResolver().resolveAsSeparateMappings(idx, regex, includeFrozen, emptyMap(),
-                ActionListener.wrap(esIndices -> {
+            session.indexResolver()
+                .resolveAsSeparateMappings(indexPattern, regex, includeFrozen, emptyMap(), ActionListener.wrap(esIndices -> {
                     List<List<?>> rows = new ArrayList<>();
                     for (EsIndex esIndex : esIndices) {
-                        fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode,
-                            session.configuration().version());
+                        fillInRows(
+                            tableCat,
+                            esIndex.name(),
+                            esIndex.mapping(),
+                            null,
+                            rows,
+                            columnMatcher,
+                            mode,
+                            session.configuration().version()
+                        );
                     }
-                listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
-            }, listener::onFailure));
+                    listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
+                }, listener::onFailure));
         }
         // otherwise use a merged mapping
         else {
-            session.indexResolver().resolveAsMergedMapping(idx, regex, includeFrozen, emptyMap(),
-                ActionListener.wrap(r -> {
-                    List<List<?>> rows = new ArrayList<>();
-                    // populate the data only when a target is found
-                    if (r.isValid()) {
-                        EsIndex esIndex = r.get();
-                        fillInRows(cluster, indexName, esIndex.mapping(), null, rows, columnMatcher, mode,
-                            session.configuration().version());
-                    }
+            session.indexResolver().resolveAsMergedMapping(indexPattern, includeFrozen, emptyMap(), ActionListener.wrap(r -> {
+                List<List<?>> rows = new ArrayList<>();
+                // populate the data only when a target is found
+                if (r.isValid()) {
+                    EsIndex esIndex = r.get();
+                    fillInRows(tableCat, indexName, esIndex.mapping(), null, rows, columnMatcher, mode, session.configuration().version());
+                }
                 listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
             }, listener::onFailure));
         }
     }
 
-    static void fillInRows(String clusterName, String indexName, Map<String, EsField> mapping, String prefix, List<List<?>> rows,
-            Pattern columnMatcher, Mode mode, SqlVersion version) {
-        fillInRows(clusterName, indexName, mapping, prefix, rows, columnMatcher, Counter.newCounter(), mode, version);
+    static void fillInRows(
+        String clusterName,
+        String indexName,
+        Map<String, EsField> mapping,
+        String prefix,
+        List<List<?>> rows,
+        Pattern columnMatcher,
+        Mode mode,
+        SqlVersion version
+    ) {
+        fillInRows(
+            clusterName,
+            splitQualifiedIndex(indexName).v2(),
+            mapping,
+            prefix,
+            rows,
+            columnMatcher,
+            Counter.newCounter(),
+            mode,
+            version
+        );
     }
 
-    private static void fillInRows(String clusterName, String indexName, Map<String, EsField> mapping, String prefix, List<List<?>> rows,
-            Pattern columnMatcher, Counter position, Mode mode, SqlVersion version) {
+    private static void fillInRows(
+        String clusterName,
+        String indexName,
+        Map<String, EsField> mapping,
+        String prefix,
+        List<List<?>> rows,
+        Pattern columnMatcher,
+        Counter position,
+        Mode mode,
+        SqlVersion version
+    ) {
         boolean isOdbcClient = mode == Mode.ODBC;
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             position.addAndGet(1); // JDBC is 1-based so we start with 1 here
@@ -177,7 +235,9 @@ public class SysColumns extends Command {
             // skip the nested, object and unsupported types
             if (isPrimitive(type) && isTypeSupportedInVersion(type, version)) {
                 if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
-                    rows.add(asList(clusterName,
+                    rows.add(
+                        asList(
+                            clusterName,
                             // schema is not supported
                             null,
                             indexName,
@@ -211,7 +271,8 @@ public class SysColumns extends Command {
                             null,
                             "NO",
                             "NO"
-                            ));
+                        )
+                    );
                 }
             }
             // skip nested fields
@@ -245,8 +306,8 @@ public class SysColumns extends Command {
 
         SysColumns other = (SysColumns) obj;
         return Objects.equals(catalog, other.catalog)
-                && Objects.equals(index, other.index)
-                && Objects.equals(pattern, other.pattern)
-                && Objects.equals(columnPattern, other.columnPattern);
+            && Objects.equals(index, other.index)
+            && Objects.equals(pattern, other.pattern)
+            && Objects.equals(columnPattern, other.columnPattern);
     }
 }

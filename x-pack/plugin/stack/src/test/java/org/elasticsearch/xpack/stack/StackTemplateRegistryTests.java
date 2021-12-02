@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateA
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -27,33 +26,28 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecycleType;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
-import org.elasticsearch.xpack.core.ilm.RolloverAction;
-import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -61,7 +55,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.mock.orig.Mockito.when;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -69,10 +63,10 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class StackTemplateRegistryTests extends ESTestCase {
     private StackTemplateRegistry registry;
-    private NamedXContentRegistry xContentRegistry;
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private VerifyingClient client;
@@ -82,20 +76,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
-        entries.addAll(
-            Arrays.asList(
-                new NamedXContentRegistry.Entry(
-                    LifecycleType.class,
-                    new ParseField(TimeseriesLifecycleType.TYPE),
-                    (p) -> TimeseriesLifecycleType.INSTANCE
-                ),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)
-            )
-        );
-        xContentRegistry = new NamedXContentRegistry(entries);
-        registry = new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
+        registry = new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
     }
 
     @After
@@ -107,9 +88,15 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
     public void testDisabledDoesNotAddTemplates() {
         Settings settings = Settings.builder().put(StackTemplateRegistry.STACK_TEMPLATES_ENABLED.getKey(), false).build();
-        StackTemplateRegistry disabledRegistry = new StackTemplateRegistry(settings, clusterService, threadPool, client, xContentRegistry);
-        assertThat(disabledRegistry.getComponentTemplateConfigs(), hasSize(0));
-        assertThat(disabledRegistry.getComposableTemplateConfigs(), hasSize(0));
+        StackTemplateRegistry disabledRegistry = new StackTemplateRegistry(
+            settings,
+            clusterService,
+            threadPool,
+            client,
+            NamedXContentRegistry.EMPTY
+        );
+        assertThat(disabledRegistry.getComponentTemplateConfigs(), anEmptyMap());
+        assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
         assertThat(disabledRegistry.getPolicyConfigs(), hasSize(0));
     }
 
@@ -154,7 +141,12 @@ public class StackTemplateRegistryTests extends ESTestCase {
                     anyOf(
                         equalTo(StackTemplateRegistry.LOGS_ILM_POLICY_NAME),
                         equalTo(StackTemplateRegistry.METRICS_ILM_POLICY_NAME),
-                        equalTo(StackTemplateRegistry.SYNTHETICS_ILM_POLICY_NAME)
+                        equalTo(StackTemplateRegistry.SYNTHETICS_ILM_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.ILM_7_DAYS_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.ILM_30_DAYS_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.ILM_90_DAYS_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.ILM_180_DAYS_POLICY_NAME),
+                        equalTo(StackTemplateRegistry.ILM_365_DAYS_POLICY_NAME)
                     )
                 );
                 assertNotNull(listener);
@@ -173,7 +165,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(3)));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(8)));
     }
 
     public void testPolicyAlreadyExists() {
@@ -181,11 +173,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs()
-            .stream()
-            .map(policyConfig -> policyConfig.load(xContentRegistry))
-            .collect(Collectors.toList());
-        assertThat(policies, hasSize(3));
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        assertThat(policies, hasSize(8));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
@@ -210,11 +199,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs()
-            .stream()
-            .map(policyConfig -> policyConfig.load(xContentRegistry))
-            .collect(Collectors.toList());
-        assertThat(policies, hasSize(3));
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
+        assertThat(policies, hasSize(8));
         policies.forEach(p -> policyMap.put(p.getName(), p));
 
         client.setVerifier((action, request, listener) -> {
@@ -231,7 +217,20 @@ public class StackTemplateRegistryTests extends ESTestCase {
 
         try (
             XContentParser parser = XContentType.JSON.xContent()
-                .createParser(xContentRegistry, LoggingDeprecationHandler.THROW_UNSUPPORTED_OPERATION, policyStr)
+                .createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(
+                        new NamedXContentRegistry(
+                            List.of(
+                                new NamedXContentRegistry.Entry(
+                                    LifecycleAction.class,
+                                    new ParseField(DeleteAction.NAME),
+                                    DeleteAction::parse
+                                )
+                            )
+                        )
+                    ),
+                    policyStr
+                )
         ) {
             LifecyclePolicy different = LifecyclePolicy.parse(parser, policies.get(0).getName());
             policyMap.put(policies.get(0).getName(), different);

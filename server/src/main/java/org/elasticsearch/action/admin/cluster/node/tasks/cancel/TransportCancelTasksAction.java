@@ -36,40 +36,45 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     @Inject
     public TransportCancelTasksAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
         super(
-                CancelTasksAction.NAME,
-                clusterService,
-                transportService,
-                actionFilters,
-                CancelTasksRequest::new,
-                CancelTasksResponse::new,
-                TaskInfo::new,
-                // Cancellation is usually lightweight, and runs on the transport thread if the task didn't even start yet, but some
-                // implementations of CancellableTask#onCancelled() are nontrivial so we use GENERIC here. TODO could it be SAME?
-                ThreadPool.Names.GENERIC);
+            CancelTasksAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            CancelTasksRequest::new,
+            CancelTasksResponse::new,
+            TaskInfo::new,
+            // Cancellation is usually lightweight, and runs on the transport thread if the task didn't even start yet, but some
+            // implementations of CancellableTask#onCancelled() are nontrivial so we use GENERIC here. TODO could it be SAME?
+            ThreadPool.Names.GENERIC
+        );
     }
 
     @Override
-    protected CancelTasksResponse newResponse(CancelTasksRequest request, List<TaskInfo> tasks, List<TaskOperationFailure>
-        taskOperationFailures, List<FailedNodeException> failedNodeExceptions) {
+    protected CancelTasksResponse newResponse(
+        CancelTasksRequest request,
+        List<TaskInfo> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    ) {
         return new CancelTasksResponse(tasks, taskOperationFailures, failedNodeExceptions);
     }
 
     protected void processTasks(CancelTasksRequest request, Consumer<CancellableTask> operation) {
-        if (request.getTaskId().isSet()) {
+        if (request.getTargetTaskId().isSet()) {
             // we are only checking one task, we can optimize it
-            CancellableTask task = taskManager.getCancellableTask(request.getTaskId().getId());
+            CancellableTask task = taskManager.getCancellableTask(request.getTargetTaskId().getId());
             if (task != null) {
                 if (request.match(task)) {
                     operation.accept(task);
                 } else {
-                    throw new IllegalArgumentException("task [" + request.getTaskId() + "] doesn't support this operation");
+                    throw new IllegalArgumentException("task [" + request.getTargetTaskId() + "] doesn't support this operation");
                 }
             } else {
-                if (taskManager.getTask(request.getTaskId().getId()) != null) {
+                if (taskManager.getTask(request.getTargetTaskId().getId()) != null) {
                     // The task exists, but doesn't support cancellation
-                    throw new IllegalArgumentException("task [" + request.getTaskId() + "] doesn't support cancellation");
+                    throw new IllegalArgumentException("task [" + request.getTargetTaskId() + "] doesn't support cancellation");
                 } else {
-                    throw new ResourceNotFoundException("task [{}] is not found", request.getTaskId());
+                    throw new ResourceNotFoundException("task [{}] is not found", request.getTargetTaskId());
                 }
             }
         } else {
@@ -84,8 +89,11 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     @Override
     protected void taskOperation(CancelTasksRequest request, CancellableTask cancellableTask, ActionListener<TaskInfo> listener) {
         String nodeId = clusterService.localNode().getId();
-        taskManager.cancelTaskAndDescendants(cancellableTask, request.getReason(), request.waitForCompletion(),
-                listener.map(r -> cancellableTask.taskInfo(nodeId, false)));
+        taskManager.cancelTaskAndDescendants(
+            cancellableTask,
+            request.getReason(),
+            request.waitForCompletion(),
+            listener.map(r -> cancellableTask.taskInfo(nodeId, false))
+        );
     }
 }
-

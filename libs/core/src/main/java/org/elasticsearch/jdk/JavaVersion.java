@@ -80,10 +80,8 @@ public class JavaVersion implements Comparable<JavaVersion> {
         for (int i = 0; i < len; i++) {
             int d = (i < version.size() ? version.get(i) : 0);
             int s = (i < o.version.size() ? o.version.get(i) : 0);
-            if (s < d)
-                return 1;
-            if (s > d)
-                return -1;
+            if (s < d) return 1;
+            if (s > d) return -1;
         }
         if (prePart != null && o.prePart == null) {
             return -1;
@@ -95,13 +93,11 @@ public class JavaVersion implements Comparable<JavaVersion> {
         return 0;
     }
 
-    private int comparePrePart(String prePart, String otherPrePart) {
-        if (prePart.matches("\\d+")) {
-            return otherPrePart.matches("\\d+") ?
-                (new BigInteger(prePart)).compareTo(new BigInteger(otherPrePart)) : -1;
+    private int comparePrePart(String leftPrePart, String rightPrePart) {
+        if (leftPrePart.matches("\\d+")) {
+            return rightPrePart.matches("\\d+") ? (new BigInteger(leftPrePart)).compareTo(new BigInteger(rightPrePart)) : -1;
         } else {
-            return otherPrePart.matches("\\d+") ?
-                1 : prePart.compareTo(otherPrePart);
+            return rightPrePart.matches("\\d+") ? 1 : leftPrePart.compareTo(rightPrePart);
         }
     }
 

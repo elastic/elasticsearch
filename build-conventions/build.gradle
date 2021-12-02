@@ -45,6 +45,14 @@ gradlePlugin {
             id = 'elasticsearch.build-tools'
             implementationClass = 'org.elasticsearch.gradle.internal.conventions.BuildToolsConventionsPlugin'
         }
+        versions {
+            id = 'elasticsearch.versions'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin'
+        }
+        formatting {
+            id = 'elasticsearch.formatting'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.precommit.FormattingPrecommitPlugin'
+        }
     }
 }
 
@@ -58,6 +66,9 @@ dependencies {
     api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
     api 'org.apache.rat:apache-rat:0.11'
     compileOnly "com.puppycrawl.tools:checkstyle:8.42"
+    api('com.diffplug.spotless:spotless-plugin-gradle:6.0.0') {
+      exclude module: "groovy-xml"
+    }
 }
 
 project.getPlugins().withType(JavaBasePlugin.class) {

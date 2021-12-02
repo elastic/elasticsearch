@@ -10,18 +10,22 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
+
+import java.net.InetSocketAddress;
 
 public abstract class TransportMessage implements Writeable, RefCounted {
 
-    private TransportAddress remoteAddress;
+    @Nullable // set by the transport service on inbound messages; unset on outbound messages
+    private InetSocketAddress remoteAddress;
 
-    public void remoteAddress(TransportAddress remoteAddress) {
+    public void remoteAddress(InetSocketAddress remoteAddress) {
         this.remoteAddress = remoteAddress;
     }
 
-    public TransportAddress remoteAddress() {
+    @Nullable // set by the transport service on inbound messages; unset on outbound messages
+    public InetSocketAddress remoteAddress() {
         return remoteAddress;
     }
 
@@ -43,6 +47,7 @@ public abstract class TransportMessage implements Writeable, RefCounted {
 
     @Override
     public boolean tryIncRef() {
+        // noop, override to manage the life-cycle of resources held by a transport message
         return true;
     }
 
@@ -50,5 +55,11 @@ public abstract class TransportMessage implements Writeable, RefCounted {
     public boolean decRef() {
         // noop, override to manage the life-cycle of resources held by a transport message
         return false;
+    }
+
+    @Override
+    public boolean hasReferences() {
+        // noop, override to manage the life-cycle of resources held by a transport message
+        return true;
     }
 }

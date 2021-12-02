@@ -11,7 +11,6 @@ package org.elasticsearch.search.runtime;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.GeoUtils;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
@@ -26,7 +25,6 @@ import org.elasticsearch.script.Script;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 
 public final class GeoPointScriptFieldDistanceFeatureQuery extends AbstractScriptFieldQuery<AbstractLongFieldScript> {
@@ -78,9 +76,6 @@ public final class GeoPointScriptFieldDistanceFeatureQuery extends AbstractScrip
             public boolean isCacheable(LeafReaderContext ctx) {
                 return false;
             }
-
-            @Override
-            public void extractTerms(Set<Term> terms) {}
 
             @Override
             public Scorer scorer(LeafReaderContext context) {

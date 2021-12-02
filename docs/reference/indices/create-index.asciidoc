@@ -186,7 +186,7 @@ PUT /test
 [[create-index-aliases]]
 ===== Aliases
 
-The create index API allows also to provide a set of <<alias,aliases>>:
+The create index API allows also to provide a set of <<aliases,aliases>>:
 
 [source,console]
 --------------------------------------------------

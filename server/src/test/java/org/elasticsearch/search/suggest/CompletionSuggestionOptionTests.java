@@ -10,14 +10,14 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitTests;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Option;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -77,8 +77,11 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
             // where we cannot add random stuff. We also exclude the root level, this is done for SearchHits as all unknown fields
             // for SearchHit on a root level are interpreted as meta-fields and will be kept
             Predicate<String> excludeFilter = (path) -> path.endsWith(CompletionSuggestion.Entry.Option.CONTEXTS.getPreferredName())
-                    || path.endsWith("highlight") || path.contains("fields") || path.contains("_source") || path.contains("inner_hits")
-                    || path.isEmpty();
+                || path.endsWith("highlight")
+                || path.contains("fields")
+                || path.contains("_source")
+                || path.contains("inner_hits")
+                || path.isEmpty();
             mutated = insertRandomFields(xContentType, originalBytes, excludeFilter, random());
         } else {
             mutated = originalBytes;
@@ -100,7 +103,6 @@ public class CompletionSuggestionOptionTests extends ESTestCase {
         Map<String, Set<String>> contexts = Collections.singletonMap("key", Collections.singleton("value"));
         CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(1, new Text("someText"), 1.3f, contexts);
         BytesReference xContent = toXContent(option, XContentType.JSON, randomBoolean());
-        assertEquals("{\"text\":\"someText\",\"score\":1.3,\"contexts\":{\"key\":[\"value\"]}}"
-                   , xContent.utf8ToString());
+        assertEquals("{\"text\":\"someText\",\"score\":1.3,\"contexts\":{\"key\":[\"value\"]}}", xContent.utf8ToString());
     }
 }

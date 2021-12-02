@@ -9,9 +9,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -23,113 +23,127 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
 
     public void testNumericDetection() throws Exception {
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject(MapperService.SINGLE_MAPPING_NAME)
-                        .field("numeric_detection", false)
-                    .endObject()
-                .endObject());
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .field("numeric_detection", false)
+                .endObject()
+                .endObject()
+        );
         MapperService mapperService = createMapperService(mapping);
         assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
 
         // update with a different explicit value
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
+        String mapping2 = Strings.toString(
+            XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .field("numeric_detection", true)
+                .field("numeric_detection", true)
                 .endObject()
-            .endObject());
+                .endObject()
+        );
         merge(mapperService, reason, mapping2);
         assertEquals(mapping2, mapperService.documentMapper().mappingSource().toString());
 
         // update with an implicit value: no change
-        String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .endObject()
-            .endObject());
+        String mapping3 = Strings.toString(
+            XContentFactory.jsonBuilder().startObject().startObject(MapperService.SINGLE_MAPPING_NAME).endObject().endObject()
+        );
         merge(mapperService, reason, mapping3);
         assertEquals(mapping2, mapperService.documentMapper().mappingSource().toString());
     }
 
     public void testDateDetection() throws Exception {
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject(MapperService.SINGLE_MAPPING_NAME)
-                        .field("date_detection", true)
-                    .endObject()
-                .endObject());
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .field("date_detection", true)
+                .endObject()
+                .endObject()
+        );
         MapperService mapperService = createMapperService(mapping);
         assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
 
         // update with a different explicit value
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
+        String mapping2 = Strings.toString(
+            XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .field("date_detection", false)
+                .field("date_detection", false)
                 .endObject()
-            .endObject());
+                .endObject()
+        );
         merge(mapperService, reason, mapping2);
         assertEquals(mapping2, mapperService.documentMapper().mappingSource().toString());
 
         // update with an implicit value: no change
-        String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .endObject()
-            .endObject());
+        String mapping3 = Strings.toString(
+            XContentFactory.jsonBuilder().startObject().startObject(MapperService.SINGLE_MAPPING_NAME).endObject().endObject()
+        );
         merge(mapperService, reason, mapping3);
         assertEquals(mapping2, mapperService.documentMapper().mappingSource().toString());
     }
 
     public void testDateFormatters() throws Exception {
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE);
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
                 .startObject()
-                    .startObject(MapperService.SINGLE_MAPPING_NAME)
-                        .field("dynamic_date_formats", Collections.singletonList("yyyy-MM-dd"))
-                    .endObject()
-                .endObject());
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .field("dynamic_date_formats", Collections.singletonList("yyyy-MM-dd"))
+                .endObject()
+                .endObject()
+        );
         MapperService mapperService = createMapperService(mapping);
         assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
 
         // no update if formatters are not set explicitly
-        String mapping2 = Strings.toString(XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject(MapperService.SINGLE_MAPPING_NAME)
-                .endObject()
-            .endObject());
+        String mapping2 = Strings.toString(
+            XContentFactory.jsonBuilder().startObject().startObject(MapperService.SINGLE_MAPPING_NAME).endObject().endObject()
+        );
         merge(mapperService, reason, mapping2);
         assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
 
-        String mapping3 = Strings.toString(XContentFactory.jsonBuilder()
+        String mapping3 = Strings.toString(
+            XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .field("dynamic_date_formats", Collections.emptyList())
+                .field("dynamic_date_formats", Collections.emptyList())
                 .endObject()
-            .endObject());
+                .endObject()
+        );
         merge(mapperService, reason, mapping3);
         assertEquals(mapping3, mapperService.documentMapper().mappingSource().toString());
     }
 
     public void testIllegalFormatField() throws Exception {
-        String dynamicMapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
+        String dynamicMapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
                 .startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .startArray("dynamic_date_formats")
-                        .startArray().value("test_format").endArray()
-                    .endArray()
+                .startArray("dynamic_date_formats")
+                .startArray()
+                .value("test_format")
+                .endArray()
+                .endArray()
                 .endObject()
-            .endObject());
-        String mapping = Strings.toString(XContentFactory.jsonBuilder()
-            .startObject()
+                .endObject()
+        );
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
                 .startObject(MapperService.SINGLE_MAPPING_NAME)
-                    .startArray("date_formats")
-                        .startArray().value("test_format").endArray()
-                    .endArray()
+                .startArray("date_formats")
+                .startArray()
+                .value("test_format")
+                .endArray()
+                .endArray()
                 .endObject()
-            .endObject());
+                .endObject()
+        );
         for (String m : Arrays.asList(mapping, dynamicMapping)) {
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(m));
             assertEquals("Failed to parse mapping: Invalid format: [[test_format]]: expected string value", e.getMessage());
@@ -170,21 +184,23 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
             builder.startObject("another_field").field("type", "geo_point").endObject();
             builder.endObject();
             builder.startObject("properties");
-            //try changing the type of the existing concrete field, so that merge fails
+            // try changing the type of the existing concrete field, so that merge fails
             builder.startObject("concrete").field("type", "text").endObject();
             builder.endObject();
             builder.endObject().endObject();
 
             expectThrows(IllegalArgumentException.class, () -> merge(mapperService, builder));
 
-            //make sure that the whole rejected update, including changes to runtime fields, has not been applied
+            // make sure that the whole rejected update, including changes to runtime fields, has not been applied
             MappedFieldType concrete = mapperService.fieldType("concrete");
             assertThat(concrete, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
             MappedFieldType field = mapperService.fieldType("field");
             assertThat(field, instanceOf(LongScriptFieldType.class));
             assertNull(mapperService.fieldType("another_field"));
-            assertEquals("{\"_doc\":{\"runtime\":{\"field\":{\"type\":\"long\"}},\"properties\":{\"concrete\":{\"type\":\"keyword\"}}}}",
-                Strings.toString(mapperService.documentMapper().mapping().getRoot()));
+            assertEquals(
+                "{\"_doc\":{\"runtime\":{\"field\":{\"type\":\"long\"}},\"properties\":{\"concrete\":{\"type\":\"keyword\"}}}}",
+                Strings.toString(mapperService.documentMapper().mapping().getRoot())
+            );
         }
     }
 
@@ -204,59 +220,64 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                 builder.startObject("field2").field("type", "long").endObject();
             }));
             merge(mapperService, mapping);
-            //field overrides now the concrete field already defined
-            KeywordScriptFieldType field = (KeywordScriptFieldType)mapperService.fieldType("field");
+            // field overrides now the concrete field already defined
+            KeywordScriptFieldType field = (KeywordScriptFieldType) mapperService.fieldType("field");
             assertEquals(KeywordFieldMapper.CONTENT_TYPE, field.typeName());
-            field2 = (LongScriptFieldType)mapperService.fieldType("field2");
+            field2 = (LongScriptFieldType) mapperService.fieldType("field2");
             assertEquals(NumberFieldMapper.NumberType.LONG.typeName(), field2.typeName());
         }
         {
-            String mapping = Strings.toString(runtimeMapping(
-                //the existing runtime field gets updated
-                builder -> builder.startObject("field").field("type", "double").endObject()));
+            String mapping = Strings.toString(
+                runtimeMapping(
+                    // the existing runtime field gets updated
+                    builder -> builder.startObject("field").field("type", "double").endObject()
+                )
+            );
             merge(mapperService, mapping);
-            DoubleScriptFieldType field = (DoubleScriptFieldType)mapperService.fieldType("field");
+            DoubleScriptFieldType field = (DoubleScriptFieldType) mapperService.fieldType("field");
             assertEquals(NumberFieldMapper.NumberType.DOUBLE.typeName(), field.typeName());
-            LongScriptFieldType field2Updated = (LongScriptFieldType)mapperService.fieldType("field2");
+            LongScriptFieldType field2Updated = (LongScriptFieldType) mapperService.fieldType("field2");
             assertSame(field2, field2Updated);
         }
         {
             String mapping = Strings.toString(mapping(builder -> builder.startObject("concrete").field("type", "keyword").endObject()));
             merge(mapperService, mapping);
-            DoubleScriptFieldType field = (DoubleScriptFieldType)mapperService.fieldType("field");
+            DoubleScriptFieldType field = (DoubleScriptFieldType) mapperService.fieldType("field");
             assertEquals(NumberFieldMapper.NumberType.DOUBLE.typeName(), field.typeName());
-            LongScriptFieldType field2Updated = (LongScriptFieldType)mapperService.fieldType("field2");
+            LongScriptFieldType field2Updated = (LongScriptFieldType) mapperService.fieldType("field2");
             assertSame(field2, field2Updated);
             MappedFieldType concrete = mapperService.fieldType("concrete");
             assertThat(concrete, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         }
         {
-            String mapping = Strings.toString(runtimeMapping(
-                builder -> builder.startObject("field3").field("type", "date").endObject()));
+            String mapping = Strings.toString(runtimeMapping(builder -> builder.startObject("field3").field("type", "date").endObject()));
             merge(mapperService, mapping);
-            assertEquals("{\"_doc\":" +
-                    "{\"runtime\":{" +
-                    "\"field\":{\"type\":\"double\"}," +
-                    "\"field2\":{\"type\":\"long\"}," +
-                    "\"field3\":{\"type\":\"date\"}}," +
-                    "\"properties\":{" +
-                    "\"concrete\":{\"type\":\"keyword\"}," +
-                    "\"field\":{\"type\":\"keyword\"}}}}",
-                mapperService.documentMapper().mappingSource().toString());
+            assertEquals(
+                "{\"_doc\":"
+                    + "{\"runtime\":{"
+                    + "\"field\":{\"type\":\"double\"},"
+                    + "\"field2\":{\"type\":\"long\"},"
+                    + "\"field3\":{\"type\":\"date\"}},"
+                    + "\"properties\":{"
+                    + "\"concrete\":{\"type\":\"keyword\"},"
+                    + "\"field\":{\"type\":\"keyword\"}}}}",
+                mapperService.documentMapper().mappingSource().toString()
+            );
         }
         {
-            //remove a runtime field
-            String mapping = Strings.toString(runtimeMapping(
-                builder -> builder.nullField("field3")));
+            // remove a runtime field
+            String mapping = Strings.toString(runtimeMapping(builder -> builder.nullField("field3")));
             merge(mapperService, mapping);
-            assertEquals("{\"_doc\":" +
-                    "{\"runtime\":{" +
-                    "\"field\":{\"type\":\"double\"}," +
-                    "\"field2\":{\"type\":\"long\"}}," +
-                    "\"properties\":{" +
-                    "\"concrete\":{\"type\":\"keyword\"}," +
-                    "\"field\":{\"type\":\"keyword\"}}}}",
-                mapperService.documentMapper().mappingSource().toString());
+            assertEquals(
+                "{\"_doc\":"
+                    + "{\"runtime\":{"
+                    + "\"field\":{\"type\":\"double\"},"
+                    + "\"field2\":{\"type\":\"long\"}},"
+                    + "\"properties\":{"
+                    + "\"concrete\":{\"type\":\"keyword\"},"
+                    + "\"field\":{\"type\":\"keyword\"}}}}",
+                mapperService.documentMapper().mappingSource().toString()
+            );
         }
     }
 
@@ -281,8 +302,10 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testRuntimeSectionWrongFormat() throws IOException {
         XContentBuilder mapping = runtimeMapping(builder -> builder.field("field", 123));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: Expected map for runtime field [field] definition but got a java.lang.Integer",
-            e.getMessage());
+        assertEquals(
+            "Failed to parse mapping: Expected map for runtime field [field] definition but got a java.lang.Integer",
+            e.getMessage()
+        );
     }
 
     public void testRuntimeSectionRemainingField() throws IOException {

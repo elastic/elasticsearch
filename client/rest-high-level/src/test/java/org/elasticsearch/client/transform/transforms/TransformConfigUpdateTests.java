@@ -11,10 +11,10 @@ package org.elasticsearch.client.transform.transforms;
 import org.elasticsearch.client.transform.TransformNamedXContentProvider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -23,6 +23,7 @@ import java.util.List;
 import static org.elasticsearch.client.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.client.transform.transforms.SettingsConfigTests.randomSettingsConfig;
 import static org.elasticsearch.client.transform.transforms.SourceConfigTests.randomSourceConfig;
+import static org.elasticsearch.client.transform.transforms.TransformConfigTests.randomMetadata;
 import static org.elasticsearch.client.transform.transforms.TransformConfigTests.randomRetentionPolicyConfig;
 import static org.elasticsearch.client.transform.transforms.TransformConfigTests.randomSyncConfig;
 
@@ -36,6 +37,7 @@ public class TransformConfigUpdateTests extends AbstractXContentTestCase<Transfo
             randomBoolean() ? null : randomSyncConfig(),
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             randomBoolean() ? null : randomSettingsConfig(),
+            randomBoolean() ? null : randomMetadata(),
             randomBoolean() ? null : randomRetentionPolicyConfig()
         );
     }

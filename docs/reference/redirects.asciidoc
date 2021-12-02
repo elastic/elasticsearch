@@ -3,7 +3,150 @@
 
 The following pages have moved or been deleted.
 
+// [START] Snapshot and restore
+
+[role="exclude",id="snapshot-lifecycle-management"]
+=== {slm-cap} ({slm-init})
+
+See <<automate-snapshots-slm>>.
+
+[role="exclude",id="getting-started-snapshot-lifecycle-management"]
+=== Tutorial: Automate backups with {slm-init}
+
+See <<automate-snapshots-slm>>.
+
+[role="exclude",id="slm-and-security"]
+=== Security and {slm-init}
+
+See <<slm-security>>.
+
+[role="exclude",id="slm-retention"]
+=== Snapshot retention
+
+See <<slm-retention-task>>.
+
+[role="exclude",id="delete-snapshots"]
+=== Delete a snapshot
+
+See <<delete-snapshot>>.
+
+[role="exclude",id="snapshots-monitor-snapshot-restore"]
+=== Monitor snapshot progress
+
+See <<monitor-snapshot>>.
+
+[role="exclude",id="backup-cluster"]
+=== Back up a cluster
+
+See <<snapshots-take-snapshot>>.
+
+[role="exclude",id="backup-cluster-data"]
+=== Back up a cluster's data
+
+See <<snapshots-take-snapshot>>.
+
+[role="exclude",id="backup-cluster-configuration"]
+=== Back up a cluster's configuration
+
+See <<back-up-config-files>>.
+
+[role="exclude",id="security-backup"]
+=== Back up a cluster's security configuration
+
+See <<back-up-config-files>> and <<cluster-state-snapshots>>.
+
+// [END] Snapshot and restore
+
+[role="exclude",id="configuring-tls-docker"]
+== Encrypting communications in an {es} Docker Container
+
+Refer to <<docker-compose-file,Starting a multi-node cluster with Docker Compose>>.
+
+[role="exclude",id="next-getting-started-tls-docker"]
+=== Start a multi-node cluster with TLS enabled
+
+Refer to <<docker-compose-file,Starting a multi-node cluster with Docker Compose>>.
+
+// [START] Remote clusters
+
+[role="exclude",id="ccs-clients-integrations"]
+== {ccs-cap}, clients, and integrations
+
+Refer to <<security-clients-integrations,Securing clients and integrations>>.
+
+[role="exclude",id="cross-cluster-configuring"]
+=== {ccs-cap} and security
+
+Refer to <<remote-clusters-security,configure remote clusters with security>>.
+
+[role="exclude",id="cross-cluster-kibana"]
+==== {ccs-cap} and {kib}
+
+Refer to <<clusters-privileges-ccs-kibana,Configure privileges for {ccs} and {kib}>>.
+
+[role="exclude",id="ccr-getting-started"]
+=== Configure {ccr}
+
+Refer to <<ccr-getting-started-tutorial,Set up {ccr}>>.
+
+[role="exclude",id="ccr-getting-started-remote-cluster"]
+==== Connect a remote cluster
+
+Refer to <<remote-clusters-connect,Connecting remote clusters>>.
+
+[role="exclude",id="modules-remote-clusters"]
+=== Remote clusters
+
+Refer to <<remote-clusters,Remote clusters>>.
+
+[role="exclude",id="configuring-remote-clusters"]
+==== Configuring remote clusters
+
+Refer to <<remote-clusters-connect,Connect remote clusters>>.
+
+[role="exclude",id="remote-cluster-settings"]
+==== Remote cluster settings
+
+Refer to <<remote-clusters-settings,Remote clusters settings>>.
+
+// [END] Remote clusters
+
+[role="exclude",id="restore-cluster-data"]
+=== Restore a cluster's data
+
+See <<restore-entire-cluster>>.
+
+[role="exclude",id="freeze-index-api"]
+=== Freeze index API
+
+The freeze index API was removed in 8.0.
+// tag::frozen-removal-explanation[]
+Frozen indices are no longer useful due to
+https://www.elastic.co/blog/significantly-decrease-your-elasticsearch-heap-memory-usage[recent
+improvements in heap memory usage].
+// end::frozen-removal-explanation[]
+
+[role="exclude",id="ilm-freeze"]
+=== Freeze {ilm-init} action
+
+The freeze {ilm-init} action was removed in 8.0.
+include::redirects.asciidoc[tag=frozen-removal-explanation]
+
+[role="exclude",id="ilm-freeze-action"]
+=== Freeze {ilm-init} action
+
+The freeze {ilm-init} action was removed in 8.0.
+include::redirects.asciidoc[tag=frozen-removal-explanation]
+
+[role="exclude",id="alias"]
+=== Aliases
+
+For field aliases, refer to the <<field-alias,alias field type>>.
+
+For index and data stream aliases, refer to <<aliases>>.
+
 [role="exclude",id="modules-scripting-other-layers"]
+
 === Other security layers
 
 Refer to <<modules-scripting-security>>.
@@ -416,7 +559,7 @@ See <<getting-started-index>>.
 See <<indices-delete-index>>.
 
 [role="exclude", id="getting-started-modify-data"]
-== Modifying your data
+=== Modifying your data
 See <<docs-update>>.
 
 [role="exclude", id="indexing-replacing-documents"]
@@ -755,12 +898,12 @@ See <<snapshot-restore>>.
 [role="exclude",id="_repository_plugins"]
 ==== Repository plugins
 
-See <<snapshots-repository-plugins>>.
+See <<self-managed-repo-types>>.
 
 [role="exclude",id="_changing_index_settings_during_restore"]
 ==== Change index settings during restore
 
-See <<change-index-settings-during-restore>>.
+See <<restore-snapshot-api-index-settings>>.
 
 [role="exclude",id="restore-snapshot"]
 === Restore snapshot
@@ -982,11 +1125,6 @@ See <<ilm-delete>>.
 
 See <<ilm-forcemerge>>.
 
-[role="exclude",id="ilm-freeze-action"]
-==== Freeze action
-
-See <<ilm-freeze>>.
-
 [role="exclude",id="ilm-migrate-action"]
 ==== Migrate action
 
@@ -1091,7 +1229,7 @@ For other information, see:
 * <<modules-threadpool>>
 * <<modules-node>>
 * <<modules-plugins>>
-* <<modules-remote-clusters>>
+* <<remote-clusters>>
 
 [role="exclude",id="modules-http"]
 === HTTP
@@ -1579,9 +1717,8 @@ See <<search-terms-enum>>.
 === Frozen indices
 
 // tag::frozen-index-redirect[]
-include::{es-repo-dir}/indices/apis/freeze.asciidoc[tag=freeze-api-dep]
 
-For API documentation, see <<freeze-index-api>> and <<unfreeze-index-api>>.
+For API documentation, see <<unfreeze-index-api>>.
 // end::frozen-index-redirect[]
 
 [role="exclude",id="best_practices"]
@@ -1606,16 +1743,16 @@ See the {glossary}/terms.html[Elastic glossary].
 [role="exclude",id="multi-index"]
 === Multi-target syntax
 
-See <<api-multi-index>>. 
+See <<api-multi-index>>.
 
 [float]
 [[hidden]]
 ==== Hidden data streams and indices
 
-See <<multi-hidden>>. 
+See <<multi-hidden>>.
 
 [role="exclude",id="date-math-index-names"]
-=== Date math support in system and index alias names 
+=== Date math support in system and index alias names
 
 See <<api-date-math-index-names>>.
 
@@ -1644,3 +1781,5 @@ See <<security-api-kibana-enrollment>>.
 
 See the <<sql-search-api-request-body,request body parameters>> for the
 <<sql-search-api,SQL search API>>.
+
+

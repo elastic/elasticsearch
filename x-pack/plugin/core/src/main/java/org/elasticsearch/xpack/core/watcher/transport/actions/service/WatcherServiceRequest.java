@@ -17,7 +17,10 @@ import java.util.Locale;
 
 public class WatcherServiceRequest extends MasterNodeRequest<WatcherServiceRequest> {
 
-    public enum Command { START, STOP }
+    public enum Command {
+        START,
+        STOP
+    }
 
     private Command command;
 
@@ -26,8 +29,7 @@ public class WatcherServiceRequest extends MasterNodeRequest<WatcherServiceReque
         command = Command.valueOf(in.readString().toUpperCase(Locale.ROOT));
     }
 
-    public WatcherServiceRequest() {
-    }
+    public WatcherServiceRequest() {}
 
     /**
      * Starts the watcher service if not already started.

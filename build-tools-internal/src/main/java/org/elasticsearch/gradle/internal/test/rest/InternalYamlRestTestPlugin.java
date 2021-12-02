@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
 import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
@@ -30,8 +29,6 @@ public class InternalYamlRestTestPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(RestTestBasePlugin.class);
         project.getPluginManager().apply(RestResourcesPlugin.class);
-
-        ElasticsearchJavaPlugin.configureConfigurations(project);
 
         // create source set
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);

@@ -17,7 +17,7 @@ import java.security.InvalidParameterException;
  *     aid to establish the compatibility between them.
  * </p>
  */
-public class SqlVersion implements Comparable<SqlVersion>{
+public class SqlVersion implements Comparable<SqlVersion> {
 
     public final int id;
     public final String version; // originally provided String representation
@@ -54,16 +54,17 @@ public class SqlVersion implements Comparable<SqlVersion>{
         revision = parts[2];
         build = (parts.length >= 4) ? parts[3] : REVISION_MULTIPLIER - 1;
 
-        if ((major | minor | revision | build) < 0 ||
-                minor >= REVISION_MULTIPLIER || revision >= REVISION_MULTIPLIER || build >= REVISION_MULTIPLIER) {
-            throw new InvalidParameterException("Invalid version initialisers [" + major + ", " + minor + ", " + revision + ", " +
-                build + "]");
+        if ((major | minor | revision | build) < 0
+            || minor >= REVISION_MULTIPLIER
+            || revision >= REVISION_MULTIPLIER
+            || build >= REVISION_MULTIPLIER) {
+            throw new InvalidParameterException(
+                "Invalid version initialisers [" + major + ", " + minor + ", " + revision + ", " + build + "]"
+            );
         }
 
-        id = Integer.valueOf(major) * MAJOR_MULTIPLIER
-            + Integer.valueOf(minor) * MINOR_MULTIPLIER
-            + Integer.valueOf(revision) * REVISION_MULTIPLIER
-            + Integer.valueOf(build);
+        id = Integer.valueOf(major) * MAJOR_MULTIPLIER + Integer.valueOf(minor) * MINOR_MULTIPLIER + Integer.valueOf(revision)
+            * REVISION_MULTIPLIER + Integer.valueOf(build);
     }
 
     public static SqlVersion fromString(String version) {
@@ -100,7 +101,7 @@ public class SqlVersion implements Comparable<SqlVersion>{
     private static String toString(byte... parts) {
         assert parts.length >= 1 : "Version must contain at least a Major component";
         String ver = String.valueOf(parts[0]);
-        for (int i = 1; i < parts.length; i ++) {
+        for (int i = 1; i < parts.length; i++) {
             ver += "." + parts[i];
         }
         return ver;

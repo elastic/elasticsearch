@@ -20,14 +20,14 @@
       index:
           index:   test_1
           id:      1
-          routing: 5
+          routing: "5"
           body:    { foo: bar }
 
  - do:
       exists:
           index:   test_1
           id:      1
-          routing: 5
+          routing: "5"
 
  - is_true: ''
 

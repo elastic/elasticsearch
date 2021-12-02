@@ -10,8 +10,8 @@ package org.elasticsearch.client.watcher;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -90,7 +90,7 @@ public final class PutWatchRequest implements Validatable {
      */
     public PutWatchRequest setIfSeqNo(long seqNo) {
         if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
-            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" + seqNo + "].");
         }
         ifSeqNo = seqNo;
         return this;
@@ -129,7 +129,6 @@ public final class PutWatchRequest implements Validatable {
     public long ifPrimaryTerm() {
         return ifPrimaryTerm;
     }
-
 
     public static boolean isValidId(String id) {
         return Strings.isEmpty(id) == false && NO_WS_PATTERN.matcher(id).matches();

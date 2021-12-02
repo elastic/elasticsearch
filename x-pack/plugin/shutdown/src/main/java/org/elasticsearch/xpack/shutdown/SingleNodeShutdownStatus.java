@@ -15,9 +15,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -33,6 +33,7 @@ public class SingleNodeShutdownStatus implements Writeable, ToXContentObject {
     private static final ParseField SHARD_MIGRATION_FIELD = new ParseField("shard_migration");
     private static final ParseField PERSISTENT_TASKS_FIELD = new ParseField("persistent_tasks");
     private static final ParseField PLUGINS_STATUS = new ParseField("plugins");
+    private static final ParseField TARGET_NODE_NAME_FIELD = new ParseField("target_node_name");
 
     public SingleNodeShutdownStatus(
         SingleNodeShutdownMetadata metadata,
@@ -128,6 +129,9 @@ public class SingleNodeShutdownStatus implements Writeable, ToXContentObject {
             builder.field(SHARD_MIGRATION_FIELD.getPreferredName(), shardMigrationStatus);
             builder.field(PERSISTENT_TASKS_FIELD.getPreferredName(), persistentTasksStatus);
             builder.field(PLUGINS_STATUS.getPreferredName(), pluginsStatus);
+            if (metadata.getTargetNodeName() != null) {
+                builder.field(TARGET_NODE_NAME_FIELD.getPreferredName(), metadata.getTargetNodeName());
+            }
         }
         builder.endObject();
         return builder;

@@ -190,3 +190,14 @@ Defaults to `network.tcp.receive_buffer_size`.
 `http.client_stats.enabled`::
 (<<dynamic-cluster-setting,Dynamic>>)
 Enable or disable collection of HTTP client stats. Defaults to `true`.
+
+`http.client_stats.closed_channels.max_count`::
+(<<static-cluster-setting,Static>>)
+When `http.client_stats.enabled` is `true`, sets the maximum number of closed
+HTTP channels for which {es} reports statistics. Defaults to `10000`.
+
+`http.client_stats.closed_channels.max_age`::
+(<<static-cluster-setting,Static>>)
+When `http.client_stats.enabled` is `true`, sets the maximum length of time
+after closing a HTTP channel that {es} will report that channel's statistics.
+Defaults to `5m`.

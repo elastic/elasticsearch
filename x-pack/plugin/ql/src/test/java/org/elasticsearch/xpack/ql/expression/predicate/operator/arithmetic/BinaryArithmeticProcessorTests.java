@@ -24,9 +24,10 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestCase<BinaryArithmeticProcessor> {
     public static BinaryArithmeticProcessor randomProcessor() {
         return new BinaryArithmeticProcessor(
-                new ConstantProcessor(randomLong()),
-                new ConstantProcessor(randomLong()),
-                randomFrom(DefaultBinaryArithmeticOperation.values()));
+            new ConstantProcessor(randomLong()),
+            new ConstantProcessor(randomLong()),
+            randomFrom(DefaultBinaryArithmeticOperation.values())
+        );
     }
 
     @Override
@@ -119,7 +120,7 @@ public class BinaryArithmeticProcessorTests extends AbstractWireSerializingTestC
         assertEquals(BigInteger.ZERO, bd.process(null));
 
         bd = new Div(EMPTY, l(BigInteger.valueOf(7)), l(3f)).makePipe().asProcessor();
-        assertEquals(7/3f, bd.process(null));
+        assertEquals(7 / 3f, bd.process(null));
 
         Processor proc = new Div(EMPTY, l(BigInteger.valueOf(7)), l(-2)).makePipe().asProcessor();
         expectThrows(ArithmeticException.class, () -> proc.process(null));

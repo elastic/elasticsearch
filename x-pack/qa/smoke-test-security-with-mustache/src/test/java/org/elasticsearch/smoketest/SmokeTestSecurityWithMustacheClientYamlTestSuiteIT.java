@@ -17,8 +17,10 @@ import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
 public class SmokeTestSecurityWithMustacheClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("test_admin",
-            new SecureString("x-pack-test-password".toCharArray()));
+    private static final String BASIC_AUTH_VALUE = basicAuthHeaderValue(
+        "test_admin",
+        new SecureString("x-pack-test-password".toCharArray())
+    );
 
     public SmokeTestSecurityWithMustacheClientYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -31,8 +33,6 @@ public class SmokeTestSecurityWithMustacheClientYamlTestSuiteIT extends ESClient
 
     @Override
     protected Settings restClientSettings() {
-        return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE)
-                .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", BASIC_AUTH_VALUE).build();
     }
 }

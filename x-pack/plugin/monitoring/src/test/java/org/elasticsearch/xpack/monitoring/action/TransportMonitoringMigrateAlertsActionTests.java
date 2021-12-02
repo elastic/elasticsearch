@@ -7,28 +7,10 @@
 
 package org.elasticsearch.xpack.monitoring.action;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.monitoring.exporter.http.ClusterAlertHttpResource.CLUSTER_ALERT_VERSION_PARAMETERS;
-import static org.elasticsearch.xpack.monitoring.exporter.http.WatcherExistsHttpResource.WATCHER_CHECK_PARAMETERS;
-import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.http.MockRequest;
@@ -42,12 +24,12 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkResponse;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsRequest;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsResponse;
-import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
+import org.elasticsearch.xpack.monitoring.MonitoringTemplateRegistry;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
@@ -55,6 +37,24 @@ import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporterIntegTests
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.monitoring.exporter.http.ClusterAlertHttpResource.CLUSTER_ALERT_VERSION_PARAMETERS;
+import static org.elasticsearch.xpack.monitoring.exporter.http.WatcherExistsHttpResource.WATCHER_CHECK_PARAMETERS;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 3)
 public class TransportMonitoringMigrateAlertsActionTests extends MonitoringIntegTestCase {
@@ -96,27 +96,37 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
     }
 
     private void stopMonitoring() {
-        // Clean up any transient settings we have added
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-            .putNull(MonitoringService.ENABLED.getKey())
-            .putNull("xpack.monitoring.elasticsearch.collection.enabled")
-            .putNull("xpack.monitoring.exporters._local.type")
-            .putNull("xpack.monitoring.exporters._local.enabled")
-            .putNull("xpack.monitoring.exporters._local.cluster_alerts.management.enabled")
-            .putNull("xpack.monitoring.exporters.remoteCluster.type")
-            .putNull("xpack.monitoring.exporters.remoteCluster.enabled")
-            .putNull("xpack.monitoring.exporters.remoteCluster.host")
-            .putNull("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled")
-        ));
+        // Clean up any persistent settings we have added
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder()
+                        .putNull(MonitoringService.ENABLED.getKey())
+                        .putNull("xpack.monitoring.elasticsearch.collection.enabled")
+                        .putNull("xpack.monitoring.exporters._local.type")
+                        .putNull("xpack.monitoring.exporters._local.enabled")
+                        .putNull("xpack.monitoring.exporters._local.cluster_alerts.management.enabled")
+                        .putNull("xpack.monitoring.exporters.remoteCluster.type")
+                        .putNull("xpack.monitoring.exporters.remoteCluster.enabled")
+                        .putNull("xpack.monitoring.exporters.remoteCluster.host")
+                        .putNull("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled")
+                )
+        );
         // Make sure to clean up the migration setting if it is set
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(Settings.builder()
-            .putNull(Monitoring.MIGRATION_DECOMMISSION_ALERTS.getKey())
-        ));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().putNull(Monitoring.MIGRATION_DECOMMISSION_ALERTS.getKey()))
+        );
     }
 
     @TestLogging(
         value = "org.elasticsearch.xpack.monitoring.exporter.local:trace",
-        reason = "to ensure we log local exporter on trace level")
+        reason = "to ensure we log local exporter on trace level"
+    )
     public void testLocalAlertsRemoval() throws Exception {
         try {
             // start monitoring service
@@ -127,14 +137,16 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.exporters._local.cluster_alerts.management.enabled", true);
 
             // enable local exporter
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
 
             // ensure resources exist
             ensureInitialLocalResources();
 
             // call migration api
-            MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
-                new MonitoringMigrateAlertsRequest()).actionGet();
+            MonitoringMigrateAlertsResponse response = client().execute(
+                MonitoringMigrateAlertsAction.INSTANCE,
+                new MonitoringMigrateAlertsRequest()
+            ).actionGet();
 
             // check response
             assertThat(response.getExporters().size(), is(1));
@@ -153,7 +165,8 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
 
     @TestLogging(
         value = "org.elasticsearch.xpack.monitoring.exporter.local:trace",
-        reason = "to ensure we log local exporter on trace level")
+        reason = "to ensure we log local exporter on trace level"
+    )
     public void testRepeatedLocalAlertsRemoval() throws Exception {
         try {
             // start monitoring service
@@ -164,14 +177,16 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.exporters._local.cluster_alerts.management.enabled", true);
 
             // enable local exporter
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
 
             // ensure resources exist
             ensureInitialLocalResources();
 
             // call migration api
-            MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
-                new MonitoringMigrateAlertsRequest()).actionGet();
+            MonitoringMigrateAlertsResponse response = client().execute(
+                MonitoringMigrateAlertsAction.INSTANCE,
+                new MonitoringMigrateAlertsRequest()
+            ).actionGet();
 
             // check response
             assertThat(response.getExporters().size(), is(1));
@@ -210,7 +225,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.exporters._local.cluster_alerts.management.enabled", true);
 
             // enable local exporter
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
 
             // ensure resources exist
             ensureInitialLocalResources();
@@ -221,11 +236,13 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.exporters._local.type", LocalExporter.TYPE)
                 .put("xpack.monitoring.exporters._local.enabled", false)
                 .put("xpack.monitoring.exporters._local.cluster_alerts.management.enabled", true);
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(disableSettings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(disableSettings));
 
             // call migration api
-            MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
-                new MonitoringMigrateAlertsRequest()).actionGet();
+            MonitoringMigrateAlertsResponse response = client().execute(
+                MonitoringMigrateAlertsAction.INSTANCE,
+                new MonitoringMigrateAlertsRequest()
+            ).actionGet();
 
             // check response
             assertThat(response.getExporters().size(), is(1));
@@ -253,7 +270,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.exporters._local.cluster_alerts.management.enabled", true);
 
             // enable local exporter
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
 
             // ensure resources exist
             ensureInitialLocalResources();
@@ -264,11 +281,13 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.exporters._local.type", LocalExporter.TYPE)
                 .put("xpack.monitoring.exporters._local.enabled", true)
                 .put("xpack.monitoring.exporters._local.cluster_alerts.management.enabled", false);
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(disableSettings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(disableSettings));
 
             // call migration api
-            MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
-                new MonitoringMigrateAlertsRequest()).actionGet();
+            MonitoringMigrateAlertsResponse response = client().execute(
+                MonitoringMigrateAlertsAction.INSTANCE,
+                new MonitoringMigrateAlertsRequest()
+            ).actionGet();
 
             // check response
             assertThat(response.getExporters().size(), is(1));
@@ -296,14 +315,16 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled", true);
 
             // enable http exporter
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
 
             // enqueue delete request expectations for alerts
             enqueueWatcherResponses(webServer, true);
 
             // call migration api
-            MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
-                new MonitoringMigrateAlertsRequest()).actionGet();
+            MonitoringMigrateAlertsResponse response = client().execute(
+                MonitoringMigrateAlertsAction.INSTANCE,
+                new MonitoringMigrateAlertsRequest()
+            ).actionGet();
 
             // check that all "remote watches" were deleted by the exporter
             assertThat(response.getExporters().size(), is(1));
@@ -334,14 +355,16 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled", true);
 
             // configure disabled http exporter
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
 
             // enqueue delete request expectations for alerts
             enqueueWatcherResponses(webServer, true);
 
             // call migration api
-            MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
-                new MonitoringMigrateAlertsRequest()).actionGet();
+            MonitoringMigrateAlertsResponse response = client().execute(
+                MonitoringMigrateAlertsAction.INSTANCE,
+                new MonitoringMigrateAlertsRequest()
+            ).actionGet();
 
             // check that the disabled http exporter was enabled this one time in order to remove watches
             assertThat(response.getExporters().size(), is(1));
@@ -372,11 +395,13 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled", true);
 
             // create a disabled http exporter
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
 
             // call migration api
-            MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
-                new MonitoringMigrateAlertsRequest()).actionGet();
+            MonitoringMigrateAlertsResponse response = client().execute(
+                MonitoringMigrateAlertsAction.INSTANCE,
+                new MonitoringMigrateAlertsRequest()
+            ).actionGet();
 
             // check that migration failed due to monitoring cluster not responding
             assertThat(response.getExporters().size(), is(1));
@@ -405,15 +430,17 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled", true);
 
             // enable http exporter
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
 
             // enqueue a "watcher available" response, but then a "failure to delete watch" response
             enqueueResponse(webServer, 200, "{\"features\":{\"watcher\":{\"available\":true,\"enabled\":true}}}");
             enqueueResponse(webServer, 500, "{\"error\":{}}");
 
             // call migration api
-            MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
-                new MonitoringMigrateAlertsRequest()).actionGet();
+            MonitoringMigrateAlertsResponse response = client().execute(
+                MonitoringMigrateAlertsAction.INSTANCE,
+                new MonitoringMigrateAlertsRequest()
+            ).actionGet();
 
             // check that an error is reported while trying to remove a remote watch
             assertThat(response.getExporters().size(), is(1));
@@ -422,8 +449,10 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
             assertThat(localExporterResult.getType(), is(HttpExporter.TYPE));
             assertThat(localExporterResult.isMigrationComplete(), is(false));
             assertThat(localExporterResult.getReason().getMessage(), startsWith("method [DELETE], host ["));
-            assertThat(localExporterResult.getReason().getMessage(),
-                endsWith("status line [HTTP/1.1 500 Internal Server Error]\n{\"error\":{}}"));
+            assertThat(
+                localExporterResult.getReason().getMessage(),
+                endsWith("status line [HTTP/1.1 500 Internal Server Error]\n{\"error\":{}}")
+            );
 
         } finally {
             stopMonitoring();
@@ -444,14 +473,16 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 .put("xpack.monitoring.exporters.remoteCluster.cluster_alerts.management.enabled", true);
 
             // enable http exporter
-            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(exporterSettings));
 
             // enqueue a "watcher available" response, but then a "failure to delete watch" response
             enqueueWatcherResponses(webServer, false);
 
             // call migration api
-            MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
-                new MonitoringMigrateAlertsRequest()).actionGet();
+            MonitoringMigrateAlertsResponse response = client().execute(
+                MonitoringMigrateAlertsAction.INSTANCE,
+                new MonitoringMigrateAlertsRequest()
+            ).actionGet();
 
             // Migration is marked as complete since watcher is disabled on remote cluster.
             assertThat(response.getExporters().size(), is(1));
@@ -521,9 +552,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
     }
 
     protected List<String> monitoringTemplateNames() {
-        return Arrays.stream(MonitoringTemplateUtils.TEMPLATE_IDS)
-            .map(MonitoringTemplateUtils::templateName)
-            .collect(Collectors.toList());
+        return Arrays.stream(MonitoringTemplateRegistry.TEMPLATE_NAMES).collect(Collectors.toList());
     }
 
     private void enqueueWatcherResponses(final MockWebServer webServer, final boolean remoteClusterAllowsWatcher) throws IOException {
@@ -578,7 +607,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
     }
 
     private void assertMonitorWatches(final MockWebServer webServer, final boolean remoteClusterAllowsWatcher) {
-        MockRequest request  = webServer.takeRequest();
+        MockRequest request = webServer.takeRequest();
 
         // GET /_xpack
         assertThat(request.getMethod(), equalTo("GET"));

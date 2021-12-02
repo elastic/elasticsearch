@@ -65,37 +65,36 @@ public class ShowFunctionsTests extends ESTestCase {
         ShowColumns.fillInRows(loadMapping("mapping-multi-field-variation.json", true), prefix, SqlVersion.fromId(CURRENT.id), rows);
 
         List<List<?>> expect = asList(
-            asList("bool",                      JDBCType.BOOLEAN.getName(),   BOOLEAN.typeName()),
-            asList("int",                       JDBCType.INTEGER.getName(),   INTEGER.typeName()),
-            asList("unsigned_long",             JDBCType.NUMERIC.getName(),   UNSIGNED_LONG.typeName()),
-            asList("float",                     JDBCType.REAL.getName(),      FLOAT.typeName()),
-            asList("text",                      JDBCType.VARCHAR.getName(),   TEXT.typeName()),
-            asList("keyword",                   JDBCType.VARCHAR.getName(),   KEYWORD.typeName()),
-            asList("date",                      JDBCType.TIMESTAMP.getName(), DATETIME.typeName()),
-            asList("date_nanos",                JDBCType.TIMESTAMP.getName(), DATETIME.typeName()),
-            asList("unsupported",               JDBCType.OTHER.getName(),     UNSUPPORTED.typeName()),
-            asList("some",                      JDBCType.STRUCT.getName(),    OBJECT.typeName()),
-            asList("some.dotted",               JDBCType.STRUCT.getName(),    OBJECT.typeName()),
-            asList("some.dotted.field",         JDBCType.VARCHAR.getName(),   KEYWORD.typeName()),
-            asList("some.string",               JDBCType.VARCHAR.getName(),   TEXT.typeName()),
-            asList("some.string.normalized",    JDBCType.VARCHAR.getName(),   KEYWORD.typeName()),
-            asList("some.string.typical",       JDBCType.VARCHAR.getName(),   KEYWORD.typeName()),
-            asList("some.ambiguous",            JDBCType.VARCHAR.getName(),   TEXT.typeName()),
-            asList("some.ambiguous.one",        JDBCType.VARCHAR.getName(),   KEYWORD.typeName()),
-            asList("some.ambiguous.two",        JDBCType.VARCHAR.getName(),   KEYWORD.typeName()),
-            asList("some.ambiguous.normalized", JDBCType.VARCHAR.getName(),   KEYWORD.typeName()),
-            asList("foo_type",                  JDBCType.OTHER.getName(),     UNSUPPORTED.typeName()),
-            asList("point",                     JDBC_TYPE_GEOMETRY,           GEO_POINT.typeName()),
-            asList("shape",                     JDBC_TYPE_GEOMETRY,           GEO_SHAPE.typeName()),
-            asList("nested",                    JDBCType.STRUCT.getName(),    NESTED.typeName()),
-            asList("nested.point",              JDBC_TYPE_GEOMETRY,           GEO_POINT.typeName())
+            asList("bool", JDBCType.BOOLEAN.getName(), BOOLEAN.typeName()),
+            asList("int", JDBCType.INTEGER.getName(), INTEGER.typeName()),
+            asList("unsigned_long", JDBCType.NUMERIC.getName(), UNSIGNED_LONG.typeName()),
+            asList("float", JDBCType.REAL.getName(), FLOAT.typeName()),
+            asList("text", JDBCType.VARCHAR.getName(), TEXT.typeName()),
+            asList("keyword", JDBCType.VARCHAR.getName(), KEYWORD.typeName()),
+            asList("date", JDBCType.TIMESTAMP.getName(), DATETIME.typeName()),
+            asList("date_nanos", JDBCType.TIMESTAMP.getName(), DATETIME.typeName()),
+            asList("unsupported", JDBCType.OTHER.getName(), UNSUPPORTED.typeName()),
+            asList("some", JDBCType.STRUCT.getName(), OBJECT.typeName()),
+            asList("some.dotted", JDBCType.STRUCT.getName(), OBJECT.typeName()),
+            asList("some.dotted.field", JDBCType.VARCHAR.getName(), KEYWORD.typeName()),
+            asList("some.string", JDBCType.VARCHAR.getName(), TEXT.typeName()),
+            asList("some.string.normalized", JDBCType.VARCHAR.getName(), KEYWORD.typeName()),
+            asList("some.string.typical", JDBCType.VARCHAR.getName(), KEYWORD.typeName()),
+            asList("some.ambiguous", JDBCType.VARCHAR.getName(), TEXT.typeName()),
+            asList("some.ambiguous.one", JDBCType.VARCHAR.getName(), KEYWORD.typeName()),
+            asList("some.ambiguous.two", JDBCType.VARCHAR.getName(), KEYWORD.typeName()),
+            asList("some.ambiguous.normalized", JDBCType.VARCHAR.getName(), KEYWORD.typeName()),
+            asList("foo_type", JDBCType.OTHER.getName(), UNSUPPORTED.typeName()),
+            asList("point", JDBC_TYPE_GEOMETRY, GEO_POINT.typeName()),
+            asList("shape", JDBC_TYPE_GEOMETRY, GEO_SHAPE.typeName()),
+            asList("nested", JDBCType.STRUCT.getName(), NESTED.typeName()),
+            asList("nested.point", JDBC_TYPE_GEOMETRY, GEO_POINT.typeName())
         );
-
 
         assertEquals(expect.size(), rows.size());
         assertEquals(expect.get(0).size(), rows.get(0).size());
 
-        for (int i = 0; i < expect.size(); i ++) {
+        for (int i = 0; i < expect.size(); i++) {
             List<?> expectedRow = expect.get(i);
             List<?> receivedRow = rows.get(i);
             assertEquals("Name mismatch in row " + i, prefix + "." + expectedRow.get(0), receivedRow.get(0));
@@ -105,12 +104,14 @@ public class ShowFunctionsTests extends ESTestCase {
     }
 
     public void testUnsignedLongFiltering() {
-        Set<SqlVersion> versions = new HashSet<>(List.of(
-            SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER),
-            INTRODUCING_UNSIGNED_LONG,
-            SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER),
-            SqlVersion.fromId(Version.CURRENT.id)
-        ));
+        Set<SqlVersion> versions = new HashSet<>(
+            List.of(
+                SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id - SqlVersion.MINOR_MULTIPLIER),
+                INTRODUCING_UNSIGNED_LONG,
+                SqlVersion.fromId(INTRODUCING_UNSIGNED_LONG.id + SqlVersion.MINOR_MULTIPLIER),
+                SqlVersion.fromId(Version.CURRENT.id)
+            )
+        );
 
         for (SqlVersion version : versions) {
             List<List<?>> rows = new ArrayList<>();

@@ -56,7 +56,6 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isInterval;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isYearMonthInterval;
 
-
 public final class SqlDataTypeConverter {
 
     private SqlDataTypeConverter() {}

@@ -13,9 +13,6 @@ import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -24,6 +21,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -44,6 +44,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
             boolean hasScript, // probably redundant with the config, but currently we check this two different ways...
             String format,
             boolean missingBucket,
+            MissingOrder missingOrder,
             SortOrder order
         );
     }
@@ -87,7 +88,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         builder.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
-            (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> {
+            (valuesSourceConfig, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 final DocValueFormat docValueFormat;
                 if (format == null && valuesSourceConfig.valueSourceType() == CoreValuesSourceType.DATE) {
                     // defaults to the raw format on date fields (preserve timestamp as longs).
@@ -102,6 +103,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                     docValueFormat,
                     order,
                     missingBucket,
+                    missingOrder,
                     hasScript,
                     (
                         BigArrays bigArrays,
@@ -118,6 +120,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                                 vs::doubleValues,
                                 compositeValuesSourceConfig.format(),
                                 compositeValuesSourceConfig.missingBucket(),
+                                compositeValuesSourceConfig.missingOrder(),
                                 size,
                                 compositeValuesSourceConfig.reverseMul()
                             );
@@ -132,6 +135,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                                 rounding,
                                 compositeValuesSourceConfig.format(),
                                 compositeValuesSourceConfig.missingBucket(),
+                                compositeValuesSourceConfig.missingOrder(),
                                 size,
                                 compositeValuesSourceConfig.reverseMul()
                             );
@@ -146,13 +150,14 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
         builder.register(
             REGISTRY_KEY,
             List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
-            (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> new CompositeValuesSourceConfig(
+            (valuesSourceConfig, name, hasScript, format, missingBucket, missingOrder, order) -> new CompositeValuesSourceConfig(
                 name,
                 valuesSourceConfig.fieldType(),
                 valuesSourceConfig.getValuesSource(),
                 valuesSourceConfig.format(),
                 order,
                 missingBucket,
+                missingOrder,
                 hasScript,
                 (
                     BigArrays bigArrays,
@@ -163,13 +168,13 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
                     if (valuesSourceConfig.hasOrdinals() && reader instanceof DirectoryReader) {
                         ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig.valuesSource();
-                        return new OrdinalValuesSource(
+                        return new GlobalOrdinalValuesSource(
                             bigArrays,
-                            addRequestCircuitBreakerBytes,
                             compositeValuesSourceConfig.fieldType(),
-                            vs::ordinalsValues,
+                            vs::globalOrdinalsValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
+                            compositeValuesSourceConfig.missingOrder(),
                             size,
                             compositeValuesSourceConfig.reverseMul()
                         );
@@ -182,6 +187,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                             vs::bytesValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
+                            compositeValuesSourceConfig.missingOrder(),
                             size,
                             compositeValuesSourceConfig.reverseMul()
                         );
@@ -199,6 +205,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
     @Override
     protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
-        return registry.getAggregator(REGISTRY_KEY, config).apply(config, name, script() != null, format(), missingBucket(), order());
+        return registry.getAggregator(REGISTRY_KEY, config)
+            .apply(config, name, script() != null, format(), missingBucket(), missingOrder(), order());
     }
 }

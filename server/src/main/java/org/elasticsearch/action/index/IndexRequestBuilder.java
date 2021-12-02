@@ -12,11 +12,11 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.action.support.replication.ReplicationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 
@@ -24,7 +24,8 @@ import java.util.Map;
  * An index document action request builder.
  */
 public class IndexRequestBuilder extends ReplicationRequestBuilder<IndexRequest, IndexResponse, IndexRequestBuilder>
-        implements WriteRequestBuilder<IndexRequestBuilder> {
+    implements
+        WriteRequestBuilder<IndexRequestBuilder> {
 
     public IndexRequestBuilder(ElasticsearchClient client, IndexAction action) {
         super(client, action, new IndexRequest());

@@ -11,11 +11,11 @@ package org.elasticsearch.client.core;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,8 +23,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public final class GetSourceResponseTests extends
-    AbstractResponseTestCase<GetSourceResponseTests.SourceOnlyResponse, GetSourceResponse> {
+public final class GetSourceResponseTests extends AbstractResponseTestCase<GetSourceResponseTests.SourceOnlyResponse, GetSourceResponse> {
 
     static class SourceOnlyResponse implements ToXContentObject {
 

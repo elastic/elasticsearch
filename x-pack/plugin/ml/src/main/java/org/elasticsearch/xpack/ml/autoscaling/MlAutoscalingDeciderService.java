@@ -174,26 +174,25 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
     static Optional<Tuple<NativeMemoryCapacity, List<NodeLoad>>> determineUnassignableJobs(
         List<String> unassignedJobs,
-        List<String> unassignedSnapshotUpgrades,
         Function<String, Long> sizeFunction,
         int maxNumInQueue,
         List<NodeLoad> nodeLoads
     ) {
-        if (unassignedJobs.isEmpty() && unassignedSnapshotUpgrades.isEmpty()) {
+        if (unassignedJobs.isEmpty()) {
             return Optional.empty();
         }
-        if (unassignedJobs.size() + unassignedSnapshotUpgrades.size() < maxNumInQueue) {
+        if (unassignedJobs.size() < maxNumInQueue) {
             return Optional.empty();
         }
         PriorityQueue<NodeLoad.Builder> mostFreeMemoryFirst = new PriorityQueue<>(
             nodeLoads.size(),
-            // If we have no more remaining jobs, its the same as having no more free memory
+            // If we have no more remaining jobs, it's the same as having no more free memory
             Comparator.<NodeLoad.Builder>comparingLong(v -> v.remainingJobs() == 0 ? 0L : v.getFreeMemory()).reversed()
         );
         for (NodeLoad load : nodeLoads) {
             mostFreeMemoryFirst.add(NodeLoad.builder(load));
         }
-        List<Long> jobSizes = Stream.concat(unassignedJobs.stream(), unassignedSnapshotUpgrades.stream())
+        List<Long> jobSizes = unassignedJobs.stream()
             .map(sizeFunction)
             .map(l -> l == null ? 0L : l)
             .sorted(Comparator.comparingLong(Long::longValue).reversed())
@@ -737,7 +736,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             .merge(allocatedModelCapacity.orElse(NativeMemoryCapacity.ZERO));
         // If we still have calculated zero, this means the ml memory tracker does not have the required info.
         // So, request a scale for the default. This is only for the 0 -> N scaling case.
-        if (updatedCapacity.getNode() == 0L) {
+        if (updatedCapacity.getNodeMlNativeMemoryRequirement() == 0L) {
             updatedCapacity.merge(
                 new NativeMemoryCapacity(
                     ByteSizeValue.ofMb(AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB).getBytes(),
@@ -781,8 +780,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             || waitingAllocatedModels.size() > 0) {
 
             Tuple<NativeMemoryCapacity, List<NodeLoad>> anomalyCapacityAndNewLoad = determineUnassignableJobs(
-                waitingAnomalyJobs,
-                waitingSnapshotUpgrades,
+                Stream.concat(waitingAnomalyJobs.stream(), waitingSnapshotUpgrades.stream()).collect(Collectors.toList()),
                 this::getAnomalyMemoryRequirement,
                 numAnomalyJobsInQueue,
                 nodeLoads
@@ -790,7 +788,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
             Tuple<NativeMemoryCapacity, List<NodeLoad>> analyticsCapacityAndNewLoad = determineUnassignableJobs(
                 waitingAnalyticsJobs,
-                waitingSnapshotUpgrades,
                 this::getAnalyticsMemoryRequirement,
                 numAnalyticsJobsInQueue,
                 anomalyCapacityAndNewLoad.v2()
@@ -798,7 +795,6 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
 
             Tuple<NativeMemoryCapacity, List<NodeLoad>> modelCapacityAndNewLoad = determineUnassignableJobs(
                 waitingAllocatedModels,
-                waitingSnapshotUpgrades,
                 this::getAllocatedModelRequirement,
                 0,
                 analyticsCapacityAndNewLoad.v2()
@@ -847,9 +843,9 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                         waitingSnapshotUpgrades.stream().map(mlMemoryTracker::getAnomalyDetectorJobMemoryRequirement)
                     )
                 ).filter(Objects::nonNull).max(Long::compareTo);
-                if (maxSize.isPresent() && maxSize.get() > currentScale.getNode()) {
+                if (maxSize.isPresent() && maxSize.get() > currentScale.getNodeMlNativeMemoryRequirement()) {
                     AutoscalingCapacity requiredCapacity = new NativeMemoryCapacity(
-                        Math.max(currentScale.getTier(), maxSize.get()),
+                        Math.max(currentScale.getTierMlNativeMemoryRequirement(), maxSize.get()),
                         maxSize.get()
                     ).autoscalingCapacity(maxMachineMemoryPercent, useAuto);
                     return Optional.of(
@@ -866,7 +862,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             }
             long newTierNeeded = 0L;
             // could any of the nodes actually run the job?
-            long newNodeMax = currentScale.getNode();
+            long newNodeMax = currentScale.getNodeMlNativeMemoryRequirement();
             for (String analyticsJob : waitingAnalyticsJobs) {
                 Long requiredMemory = mlMemoryTracker.getDataFrameAnalyticsJobMemoryRequirement(analyticsJob);
                 // it is OK to continue here as we have not breached our queuing limit
@@ -874,7 +870,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                     continue;
                 }
                 // Is there "future capacity" on a node that could run this job? If not, we need that much more in the tier.
-                if (futureFreedCapacity.getNode() < requiredMemory) {
+                if (futureFreedCapacity.getNodeMlNativeMemoryRequirement() < requiredMemory) {
                     newTierNeeded = Math.max(requiredMemory, newTierNeeded);
                 }
                 newNodeMax = Math.max(newNodeMax, requiredMemory);
@@ -886,7 +882,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                     continue;
                 }
                 // Is there "future capacity" on a node that could run this job? If not, we need that much more in the tier.
-                if (futureFreedCapacity.getNode() < requiredMemory) {
+                if (futureFreedCapacity.getNodeMlNativeMemoryRequirement() < requiredMemory) {
                     newTierNeeded = Math.max(requiredMemory, newTierNeeded);
                 }
                 newNodeMax = Math.max(newNodeMax, requiredMemory);
@@ -898,12 +894,12 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                     continue;
                 }
                 // Is there "future capacity" on a node that could run this job? If not, we need that much more in the tier.
-                if (futureFreedCapacity.getNode() < requiredMemory) {
+                if (futureFreedCapacity.getNodeMlNativeMemoryRequirement() < requiredMemory) {
                     newTierNeeded = Math.max(requiredMemory, newTierNeeded);
                 }
                 newNodeMax = Math.max(newNodeMax, requiredMemory);
             }
-            if (newNodeMax > currentScale.getNode() || newTierNeeded > 0L) {
+            if (newNodeMax > currentScale.getNodeMlNativeMemoryRequirement() || newTierNeeded > 0L) {
                 NativeMemoryCapacity newCapacity = new NativeMemoryCapacity(newTierNeeded, newNodeMax);
                 AutoscalingCapacity requiredCapacity = NativeMemoryCapacity.from(currentScale)
                     .merge(newCapacity)
@@ -1027,15 +1023,16 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         }
         // We consider a scale down if we are not fully utilizing the tier
         // Or our largest job could be on a smaller node (meaning the same size tier but smaller nodes are possible).
-        if (currentlyNecessaryTier < currentCapacity.getTier() || currentlyNecessaryNode < currentCapacity.getNode()) {
+        if (currentlyNecessaryTier < currentCapacity.getTierMlNativeMemoryRequirement()
+            || currentlyNecessaryNode < currentCapacity.getNodeMlNativeMemoryRequirement()) {
             NativeMemoryCapacity nativeMemoryCapacity = new NativeMemoryCapacity(
                 // Since we are in the `scaleDown` branch, we know jobs are running and we could be smaller
                 // If we have some weird rounding errors, it may be that the `currentlyNecessary` values are larger than
                 // current capacity. We never want to accidentally say "scale up" via a scale down.
-                Math.min(currentlyNecessaryTier, currentCapacity.getTier()),
-                Math.min(currentlyNecessaryNode, currentCapacity.getNode()),
+                Math.min(currentlyNecessaryTier, currentCapacity.getTierMlNativeMemoryRequirement()),
+                Math.min(currentlyNecessaryNode, currentCapacity.getNodeMlNativeMemoryRequirement()),
                 // If our newly suggested native capacity is the same, we can use the previously stored jvm size
-                currentlyNecessaryNode == currentCapacity.getNode() ? currentCapacity.getJvmSize() : null
+                currentlyNecessaryNode == currentCapacity.getNodeMlNativeMemoryRequirement() ? currentCapacity.getJvmSize() : null
             );
             AutoscalingCapacity requiredCapacity = nativeMemoryCapacity.autoscalingCapacity(maxMachineMemoryPercent, useAuto);
             return Optional.of(

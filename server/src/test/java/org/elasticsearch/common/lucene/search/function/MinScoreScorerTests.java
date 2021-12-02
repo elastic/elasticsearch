@@ -168,7 +168,8 @@ public class MinScoreScorerTests extends ESTestCase {
         };
         final ScoreMode scoreMode = RandomPicks.randomFrom(
             random(),
-            new ScoreMode[]{ScoreMode.COMPLETE, ScoreMode.TOP_SCORES, ScoreMode.TOP_DOCS_WITH_SCORES});
+            new ScoreMode[] { ScoreMode.COMPLETE, ScoreMode.TOP_SCORES, ScoreMode.TOP_DOCS_WITH_SCORES }
+        );
         final Scorer assertingScorer = AssertingScorer.wrap(random(), scorer, scoreMode);
         if (twoPhase && randomBoolean()) {
             return hideTwoPhaseIterator(assertingScorer);
@@ -239,7 +240,7 @@ public class MinScoreScorerTests extends ESTestCase {
 
     public void testConjunction() throws Exception {
         final int maxDoc = randomIntBetween(10, 10000);
-        final Map<Integer, Integer> intersectedDocs = new HashMap<>();
+        final Map<Integer, Integer> matchedDocs = new HashMap<>();
         final List<Scorer> scorers = new ArrayList<>();
         final int numScorers = randomIntBetween(2, 10);
         for (int s = 0; s < numScorers; s++) {
@@ -254,7 +255,7 @@ public class MinScoreScorerTests extends ESTestCase {
             final float minScore;
             if (randomBoolean()) {
                 minScore = randomFloat();
-                MinScoreScorer minScoreScorer = new MinScoreScorer(fakeWeight(), scorer, minScore);
+                MinScoreScorer minScoreScorer = new MinScoreScorer(scorer.getWeight(), scorer, minScore);
                 scorers.add(minScoreScorer);
             } else {
                 scorers.add(scorer);
@@ -262,7 +263,7 @@ public class MinScoreScorerTests extends ESTestCase {
             }
             for (int i = 0; i < numDocs; i++) {
                 if (scores[i] >= minScore) {
-                    intersectedDocs.compute(docs[i], (k, v) -> v == null ? 1 : v + 1);
+                    matchedDocs.compute(docs[i], (k, v) -> v == null ? 1 : v + 1);
                 }
             }
         }
@@ -272,9 +273,12 @@ public class MinScoreScorerTests extends ESTestCase {
         while (disi.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
             actualDocs.add(disi.docID());
         }
-        final List<Integer> expectedDocIterator = intersectedDocs.entrySet().stream()
+        final List<Integer> expectedDocs = matchedDocs.entrySet()
+            .stream()
             .filter(v -> v.getValue() == numScorers)
-            .map(Map.Entry::getKey).sorted().collect(Collectors.toList());
-        assertThat(actualDocs, equalTo(expectedDocIterator));
+            .map(Map.Entry::getKey)
+            .sorted()
+            .collect(Collectors.toList());
+        assertThat(actualDocs, equalTo(expectedDocs));
     }
 }

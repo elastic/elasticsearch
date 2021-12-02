@@ -224,7 +224,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
     public void testRejectsMismatchedBuildHash() {
         final Settings settings = Settings.builder()
             .put("cluster.name", "a")
-            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true)
+            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
             .build();
         final NetworkHandle handleA = startServices("TS_A", settings, Version.CURRENT);
         final NetworkHandle handleB = startServices("TS_B", settings, Version.CURRENT);

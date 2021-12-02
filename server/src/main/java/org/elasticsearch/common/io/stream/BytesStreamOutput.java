@@ -14,7 +14,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.transport.BytesRefRecycler;
 
 import java.io.ByteArrayOutputStream;
@@ -135,7 +134,6 @@ public class BytesStreamOutput extends BytesStream {
 
     @Override
     public void reset() {
-        Releasables.close(pages);
         pages.clear();
         pageIndex = -1;
         currentCapacity = 0;
@@ -159,13 +157,7 @@ public class BytesStreamOutput extends BytesStream {
     }
 
     @Override
-    public void close() {
-        try {
-            Releasables.close(pages);
-        } finally {
-            pages.clear();
-        }
-    }
+    public void close() {}
 
     /**
      * Returns the current size of the buffer.

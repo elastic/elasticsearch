@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  * A @link {@link StreamOutput} that uses {@link Recycler.V<BytesRef>} to acquire pages of bytes, which
@@ -28,4 +29,18 @@ public class ReleasableBytesStreamOutput extends BytesStreamOutput implements Re
         super(expectedSize, recycler);
     }
 
+    @Override
+    public void reset() {
+        Releasables.close(pages);
+        super.reset();
+    }
+
+    @Override
+    public void close() {
+        try {
+            Releasables.close(pages);
+        } finally {
+            pages.clear();
+        }
+    }
 }

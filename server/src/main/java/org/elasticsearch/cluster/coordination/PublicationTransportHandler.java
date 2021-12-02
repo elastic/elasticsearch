@@ -142,6 +142,7 @@ public class PublicationTransportHandler {
                     incomingState = ClusterState.readFrom(input, transportService.getLocalNode());
                 } catch (Exception e) {
                     logger.warn("unexpected error while deserializing an incoming cluster state", e);
+                    assert false : e;
                     throw e;
                 }
                 fullClusterStateReceivedCount.incrementAndGet();
@@ -169,6 +170,7 @@ public class PublicationTransportHandler {
                         throw e;
                     } catch (Exception e) {
                         logger.warn("unexpected error while deserializing an incoming cluster state", e);
+                        assert false : e;
                         throw e;
                     }
                     compatibleClusterStateDiffReceivedCount.incrementAndGet();

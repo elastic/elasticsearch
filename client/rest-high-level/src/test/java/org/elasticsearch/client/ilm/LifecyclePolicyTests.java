@@ -29,7 +29,12 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePolicy> {
-    private static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, RolloverAction.NAME);
+    private static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(
+        UnfollowAction.NAME,
+        SetPriorityAction.NAME,
+        RolloverAction.NAME,
+        ReadOnlyAction.NAME
+    );
     private static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(
         UnfollowAction.NAME,
         SetPriorityAction.NAME,
@@ -43,7 +48,8 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
         SetPriorityAction.NAME,
         AllocateAction.NAME,
         FreezeAction.NAME,
-        SearchableSnapshotAction.NAME
+        SearchableSnapshotAction.NAME,
+        ReadOnlyAction.NAME
     );
     private static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(DeleteAction.NAME, WaitForSnapshotAction.NAME);
 

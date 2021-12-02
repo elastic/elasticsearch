@@ -52,7 +52,7 @@ public class LifecyclePolicy implements ToXContentObject {
             PHASES_FIELD
         );
 
-        ALLOWED_ACTIONS.put("hot", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, RolloverAction.NAME));
+        ALLOWED_ACTIONS.put("hot", Sets.newHashSet(UnfollowAction.NAME, SetPriorityAction.NAME, RolloverAction.NAME, ReadOnlyAction.NAME));
         ALLOWED_ACTIONS.put(
             "warm",
             Sets.newHashSet(
@@ -73,7 +73,8 @@ public class LifecyclePolicy implements ToXContentObject {
                 MigrateAction.NAME,
                 AllocateAction.NAME,
                 FreezeAction.NAME,
-                SearchableSnapshotAction.NAME
+                SearchableSnapshotAction.NAME,
+                ReadOnlyAction.NAME
             )
         );
         ALLOWED_ACTIONS.put("delete", Sets.newHashSet(DeleteAction.NAME, WaitForSnapshotAction.NAME));

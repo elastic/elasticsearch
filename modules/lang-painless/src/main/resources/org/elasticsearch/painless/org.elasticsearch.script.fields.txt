@@ -67,3 +67,8 @@ class org.elasticsearch.script.field.ShortDocValuesField @dynamic_type {
   short get(int)
   short get(int, int)
 }
+
+class org.elasticsearch.script.field.KeywordDocValuesField @dynamic_type {
+  String get(String)
+  String get(int, String)
+}

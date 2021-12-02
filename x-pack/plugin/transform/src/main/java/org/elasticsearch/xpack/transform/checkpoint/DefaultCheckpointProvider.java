@@ -104,8 +104,6 @@ class DefaultCheckpointProvider implements CheckpointProvider {
     }
 
     protected void getIndexCheckpoints(ActionListener<Map<String, long[]>> listener) {
-        logger.info("getting index checkpoints");
-
         try {
             ResolvedIndices resolvedIndexes = remoteClusterResolver.resolve(transformConfig.getSource().getIndex());
             ActionListener<Map<String, long[]>> groupedListener = listener;

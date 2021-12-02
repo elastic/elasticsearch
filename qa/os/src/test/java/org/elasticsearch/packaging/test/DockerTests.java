@@ -79,6 +79,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -418,12 +419,12 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that the JDK uses the Cloudflare zlib, instead of the default one.
      */
-    public void test060JavaUsesCloudflareZlib() throws Exception {
+    public void test060JavaUsesCloudflareZlib() {
         waitForElasticsearch(installation, "elastic", PASSWORD);
 
-        final boolean matches = sh.run("bash -c 'pmap -p $(pidof java)'").stdout.lines().anyMatch(line -> line.contains("cloudflare-zlib"));
+        final List<String> output = sh.run("bash -c 'pmap -p $(pidof java)'").stdout.lines().collect(Collectors.toList());
 
-        assertTrue("Expect java to be using cloudflare-zlib", matches);
+        assertThat("Expected java to be using cloudflare-zlib", output, hasItem(containsString("cloudflare-zlib")));
     }
 
     /**

@@ -303,13 +303,15 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 }
             }
             if (enrollResponse == null || enrollResponse.getHttpStatus() != 200) {
+                terminal.println("Attempting to remove " + instantAutoConfigDir.toString());
                 deleteDirectory(instantAutoConfigDir);
+                terminal.println("Removed " + instantAutoConfigDir.toString());
                 throw new UserException(
                     ExitCodes.UNAVAILABLE,
                     "Aborting enrolling to cluster. "
                         + "Could not communicate with the node on any of the addresses from the enrollment token. All of "
                         + enrollmentToken.getBoundAddress()
-                        + " where attempted."
+                        + " were attempted."
                 );
             }
             final Map<String, Object> responseMap = enrollResponse.getResponseBody();

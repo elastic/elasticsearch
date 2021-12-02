@@ -17,6 +17,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.test.SecuritySettingsSourceField;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -132,5 +133,10 @@ public abstract class AbstractUpgradeTestCase extends ESRestTestCase {
                 fail("Some expected templates are missing: " + missingTemplates + ". The templates that exist are: " + templates + "");
             }
         });
+    }
+
+    @Override
+    protected void deleteAllNodeShutdownMetadata() throws IOException {
+        // do not delete node shutdown
     }
 }

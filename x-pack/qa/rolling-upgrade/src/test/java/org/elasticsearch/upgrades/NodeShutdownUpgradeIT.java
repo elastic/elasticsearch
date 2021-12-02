@@ -56,9 +56,22 @@ public class NodeShutdownUpgradeIT extends AbstractUpgradeTestCase {
 
             case MIXED:
                 if (FIRST_MIXED_ROUND) {
+                    assertBusy(
+                        () -> assertThat(getShutdownStatus(nodeIdToShutdown(0)), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE)),
+                        30,
+                        TimeUnit.SECONDS
+                    );
                     nodeIdToShutdown = nodeIdToShutdown(1);
                 } else {
                     nodeIdToShutdown = nodeIdToShutdown(2);
+                    assertBusy(
+                        () -> {
+                            assertThat(getShutdownStatus(nodeIdToShutdown(0)), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE));
+                            assertThat(getShutdownStatus(nodeIdToShutdown(1)), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE));
+                        },
+                        30,
+                        TimeUnit.SECONDS
+                    );
                 }
                 assertOK(client().performRequest(shutdownNode(nodeIdToShutdown)));
                 assertBusy(
@@ -69,6 +82,15 @@ public class NodeShutdownUpgradeIT extends AbstractUpgradeTestCase {
                 break;
 
             case UPGRADED:
+                assertBusy(
+                    () -> {
+                        assertThat(getShutdownStatus(nodeIdToShutdown(0)), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE));
+                        assertThat(getShutdownStatus(nodeIdToShutdown(1)), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE));
+                        assertThat(getShutdownStatus(nodeIdToShutdown(2)), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE));
+                    },
+                    30,
+                    TimeUnit.SECONDS
+                );
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");

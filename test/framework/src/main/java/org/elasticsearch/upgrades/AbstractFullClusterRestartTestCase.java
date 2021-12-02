@@ -12,6 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
+import java.io.IOException;
+
 public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase {
 
     private final boolean runningAgainstOldCluster = Booleans.parseBoolean(System.getProperty("tests.is_old_cluster"));
@@ -70,4 +72,10 @@ public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase 
     protected boolean preserveDataStreamsUponCompletion() {
         return true;
     }
+
+
+    protected void deleteAllNodeShutdownMetadata() throws IOException {
+        //do not delete node shutdown metadata
+    }
+
 }

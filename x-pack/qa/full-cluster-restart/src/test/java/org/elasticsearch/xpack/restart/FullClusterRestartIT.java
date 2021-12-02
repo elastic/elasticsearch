@@ -863,7 +863,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
     @SuppressWarnings("unchecked")
     public void testNodeShutdown() throws Exception {
-        assumeTrue("no data streams in versions before " + Version.V_7_15_0, getOldClusterVersion().onOrAfter(Version.V_7_15_0));
+        assumeTrue("no shutdown in versions before " + Version.V_7_15_0, getOldClusterVersion().onOrAfter(Version.V_7_15_0));
 
         if (isRunningAgainstOldCluster()) {
             final Request getNodesReq = new Request("GET", "_nodes");
@@ -886,22 +886,28 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertOK(client().performRequest(putShutdownRequest));
         }
 
-        final Request getShutdownsReq = new Request("GET", "_nodes/shutdown");
-        final Response getShutdownsResp = client().performRequest(getShutdownsReq);
-        final List<Map<String, Object>> shutdowns = (List<Map<String, Object>>) entityAsMap(getShutdownsResp).get("nodes");
-        assertThat("there should be exactly one shutdown registered", shutdowns, hasSize(1));
-        final Map<String, Object> shutdown = shutdowns.get(0);
-        assertThat(shutdown.get("node_id"), notNullValue()); // Since we randomly determine the node ID, we can't check it
-        assertThat(shutdown.get("reason"), equalTo(this.getTestName()));
-        assertThat(
-            (String) shutdown.get("status"),
-            anyOf(
-                Arrays.stream(SingleNodeShutdownMetadata.Status.values())
-                    .map(value -> equalToIgnoringCase(value.toString()))
-                    .collect(Collectors.toList())
-            )
-        );
+        assertBusy(() -> {
+            final Request getShutdownsReq = new Request("GET", "_nodes/shutdown");
+            final Response getShutdownsResp = client().performRequest(getShutdownsReq);
+            final Map<String, Object> stringObjectMap = entityAsMap(getShutdownsResp);
+
+            final List<Map<String, Object>> shutdowns = (List<Map<String, Object>>) stringObjectMap.get("nodes");
+            assertThat("there should be exactly one shutdown registered "+getShutdownsResp.toString()+" "+stringObjectMap, shutdowns, hasSize(1));
+            final Map<String, Object> shutdown = shutdowns.get(0);
+            assertThat(shutdown.get("node_id"), notNullValue()); // Since we randomly determine the node ID, we can't check it
+            assertThat(shutdown.get("reason"), equalTo(this.getTestName()));
+            assertThat(
+                (String) shutdown.get("status"),
+                anyOf(
+                    Arrays.stream(SingleNodeShutdownMetadata.Status.values())
+                        .map(value -> equalToIgnoringCase(value.toString()))
+                        .collect(Collectors.toList())
+                )
+            );
+        }, 30, TimeUnit.SECONDS);
+
     }
+
 
     private static void createComposableTemplate(RestClient client, String templateName, String indexPattern) throws IOException {
         StringEntity templateJSON = new StringEntity(
@@ -912,4 +918,5 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         createIndexTemplateRequest.setEntity(templateJSON);
         client.performRequest(createIndexTemplateRequest);
     }
+
 }

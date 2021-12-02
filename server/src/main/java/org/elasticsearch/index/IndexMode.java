@@ -89,7 +89,8 @@ public enum IndexMode {
                 }
             }
             settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
-            // TODO make start and stop time required
+            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
+            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
         }
 
         private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {

@@ -314,7 +314,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
         String min = "2021-01-01T00:00:00Z";
         long minMillis = FORMATTER.parseMillis(min);
         int iterationBuckets = scaledRandomIntBetween(50, 100);
-        int bucketCount = scaledRandomIntBetween(iterationBuckets * 2, iterationBuckets * 100);
+        int bucketCount = scaledRandomIntBetween(iterationBuckets * 2, iterationBuckets * 10);
         long maxMillis = minMillis + bucketCount * TimeUnit.SECONDS.toMillis(5);
         List<IndexRequestBuilder> docs = new ArrayList<>(bucketCount);
         for (long millis = minMillis; millis < maxMillis; millis += TimeUnit.SECONDS.toMillis(5)) {

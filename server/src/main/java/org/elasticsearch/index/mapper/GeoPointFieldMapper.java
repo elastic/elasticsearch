@@ -368,5 +368,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         protected void reset(GeoPoint in, double x, double y) {
             in.reset(y, x);
         }
+
+        @Override
+        public GeoPoint normalizeFromSource(GeoPoint point) {
+            // normalize during parsing
+            return point;
+        }
     }
 }

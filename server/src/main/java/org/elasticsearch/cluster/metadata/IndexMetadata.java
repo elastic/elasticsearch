@@ -1826,6 +1826,23 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     } else if ("mappings".equals(currentFieldName)) {
                         // don't try to parse these for now
                         parser.skipChildren();
+                    } else if ("in_sync_allocations".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (token == XContentParser.Token.START_ARRAY) {
+                                String shardId = currentFieldName;
+                                Set<String> allocationIds = new HashSet<>();
+                                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                    if (token == XContentParser.Token.VALUE_STRING) {
+                                        allocationIds.add(parser.text());
+                                    }
+                                }
+                                builder.putInSyncAllocationIds(Integer.valueOf(shardId), allocationIds);
+                            } else {
+                                throw new IllegalArgumentException("Unexpected token: " + token);
+                            }
+                        }
                     } else {
                         // assume it's custom index metadata
                         parser.skipChildren();
@@ -1856,6 +1873,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 }
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+
+            builder.putMapping(MappingMetadata.EMPTY_MAPPINGS); // just make sure it's not empty so that _source can be read
 
             IndexMetadata indexMetadata = builder.build();
             assert indexMetadata.getCreationVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion());

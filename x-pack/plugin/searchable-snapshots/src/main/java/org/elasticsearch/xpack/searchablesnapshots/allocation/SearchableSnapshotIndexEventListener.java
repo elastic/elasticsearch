@@ -96,6 +96,11 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     private static void associateNewEmptyTranslogWithIndex(IndexShard indexShard) {
         final ShardId shardId = indexShard.shardId();
         assert isSearchableSnapshotStore(indexShard.indexSettings().getSettings()) : "Expected a searchable snapshot shard " + shardId;
+        if (indexShard.routingEntry().primary()
+            && indexShard.routingEntry().recoverySource().getType().equals(RecoverySource.Type.SNAPSHOT)) {
+            // translog initialization is done later in the restore step
+            return;
+        }
         try {
             final SegmentInfos segmentInfos = indexShard.store().readLastCommittedSegmentsInfo();
             final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));

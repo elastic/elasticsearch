@@ -691,7 +691,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .get()
             .getSnapshots()
             .get(0);
-        assertThat(snapshotTwoStatus.getStats().getTotalFileCount(), equalTo(numShards)); // one segment_N per shard
+        assertThat(snapshotTwoStatus.getStats().getTotalFileCount(), equalTo(0));
         assertThat(snapshotTwoStatus.getStats().getIncrementalFileCount(), equalTo(0));
         assertThat(snapshotTwoStatus.getStats().getProcessedFileCount(), equalTo(0));
     }
@@ -888,9 +888,9 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             assertTrue(snapshotStatus.getIndices().containsKey(restoredIndexName));
             for (final SnapshotIndexShardStatus snapshotIndexShardStatus : snapshotStatus.getShards()) {
                 final SnapshotStats stats = snapshotIndexShardStatus.getStats();
-                assertThat(stats.getIncrementalFileCount(), equalTo(1));
-                assertThat(stats.getProcessedFileCount(), equalTo(1));
-                assertThat(stats.getTotalFileCount(), equalTo(1));
+                assertThat(stats.getIncrementalFileCount(), equalTo(0));
+                assertThat(stats.getProcessedFileCount(), equalTo(0));
+                assertThat(stats.getTotalFileCount(), equalTo(0));
             }
         }
         assertAcked(client().admin().indices().prepareDelete(restoredIndexName));

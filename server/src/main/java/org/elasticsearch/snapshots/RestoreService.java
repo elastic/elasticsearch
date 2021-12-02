@@ -56,7 +56,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
@@ -358,8 +357,8 @@ public class RestoreService implements ClusterStateApplier {
             snapshotId,
             snapshotInfo,
             globalMetadata,
-            // include system data stream names in argument to this method
-            Stream.concat(requestIndices.stream(), featureStateDataStreams.stream()).collect(Collectors.toList()),
+            requestIndices,
+            featureStateDataStreams,
             request.includeAliases()
         );
         Map<String, DataStream> dataStreamsToRestore = result.v1();
@@ -369,47 +368,75 @@ public class RestoreService implements ClusterStateApplier {
         requestIndices.removeAll(dataStreamsToRestore.keySet());
 
         // And add the backing indices
-        Set<String> dataStreamIndices = dataStreamsToRestore.values()
-            .stream()
-            .flatMap(ds -> ds.getIndices().stream())
-            .map(Index::getName)
+        final Set<String> nonSystemDataStreamIndices;
+        final Set<String> systemDataStreamIndices;
+        {
+            Map<Boolean, Set<String>> dataStreamIndices = dataStreamsToRestore.values()
+                .stream()
+                .flatMap(ds -> ds.getIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
+                .collect(Collectors.partitioningBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toSet())));
+            systemDataStreamIndices = dataStreamIndices.get(true);
+            nonSystemDataStreamIndices = dataStreamIndices.get(false);
+        }
+        requestIndices.addAll(nonSystemDataStreamIndices);
+        final Set<String> allSystemIndicesToRestore = Stream.of(systemDataStreamIndices, featureStateIndices)
+            .flatMap(Collection::stream)
             .collect(Collectors.toSet());
-        requestIndices.addAll(dataStreamIndices);
+
+        // Strip system indices out of the list of "available" indices - these should only come from feature states.
+        List<String> availableNonSystemIndices;
+        {
+            Set<String> systemIndicesInSnapshot = new HashSet<>();
+            snapshotInfo.featureStates().stream().flatMap(state -> state.getIndices().stream()).forEach(systemIndicesInSnapshot::add);
+            // And the system data stream backing indices too
+            snapshotInfo.indices().stream().filter(systemIndices::isSystemIndexBackingDataStream).forEach(systemIndicesInSnapshot::add);
+
+            Set<String> explicitlyRequestedSystemIndices = new HashSet<>(requestIndices);
+            explicitlyRequestedSystemIndices.retainAll(systemIndicesInSnapshot);
+
+            if (explicitlyRequestedSystemIndices.size() > 0) {
+                throw new IllegalArgumentException(
+                    new ParameterizedMessage(
+                        "requested system indices {}, but system indices can only be restored as part of a feature state",
+                        explicitlyRequestedSystemIndices
+                    ).getFormattedMessage()
+                );
+            }
+
+            availableNonSystemIndices = snapshotInfo.indices()
+                .stream()
+                .filter(idxName -> systemIndicesInSnapshot.contains(idxName) == false)
+                .collect(Collectors.toList());
+        }
 
         // Resolve the indices that were directly requested
         final List<String> requestedIndicesInSnapshot = filterIndices(
-            snapshotInfo.indices(),
+            availableNonSystemIndices,
             requestIndices.toArray(String[]::new),
             request.indicesOptions()
         );
 
         // Combine into the final list of indices to be restored
-        final List<String> requestedIndicesIncludingSystem = Stream.concat(
-            requestedIndicesInSnapshot.stream(),
-            featureStateIndices.stream()
-        ).distinct().collect(Collectors.toList());
+        final List<String> requestedIndicesIncludingSystem = Stream.of(
+            requestedIndicesInSnapshot,
+            featureStateIndices,
+            systemDataStreamIndices
+        ).flatMap(Collection::stream).distinct().collect(Collectors.toList());
 
         final Set<String> explicitlyRequestedSystemIndices = new HashSet<>();
         for (IndexId indexId : repositoryData.resolveIndices(requestedIndicesIncludingSystem).values()) {
             IndexMetadata snapshotIndexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
             if (snapshotIndexMetaData.isSystem()) {
-                if (requestedIndicesInSnapshot.contains(indexId.getName())) {
+                if (requestIndices.contains(indexId.getName())) {
                     explicitlyRequestedSystemIndices.add(indexId.getName());
                 }
             }
             metadataBuilder.put(snapshotIndexMetaData, false);
         }
 
-        // log a deprecation warning if the any of the indexes to delete were included in the request and the snapshot
-        // is from a version that should have feature states
-        if (snapshotInfo.version().onOrAfter(Version.V_7_12_0) && explicitlyRequestedSystemIndices.isEmpty() == false) {
-            deprecationLogger.warn(
-                DeprecationCategory.API,
-                "restore-system-index-from-snapshot",
-                "Restoring system indices by name is deprecated. Use feature states instead. System indices: "
-                    + explicitlyRequestedSystemIndices
-            );
-        }
+        assert explicitlyRequestedSystemIndices.size() == 0
+            : "it should be impossible to reach this point with explicitly requested system indices, but got: "
+                + explicitlyRequestedSystemIndices;
 
         // Now we can start the actual restore process by adding shards to be recovered in the cluster state
         // and updating cluster metadata (global and index) as needed
@@ -421,7 +448,13 @@ public class RestoreService implements ClusterStateApplier {
                 featureStatesToRestore.keySet(),
                 // Apply renaming on index names, returning a map of names where
                 // the key is the renamed index and the value is the original name
-                renamedIndices(request, requestedIndicesIncludingSystem, dataStreamIndices, featureStateIndices, repositoryData),
+                renamedIndices(
+                    request,
+                    requestedIndicesIncludingSystem,
+                    nonSystemDataStreamIndices,
+                    allSystemIndicesToRestore,
+                    repositoryData
+                ),
                 snapshotInfo,
                 metadataBuilder.dataStreams(dataStreamsToRestore, dataStreamAliasesToRestore).build(),
                 dataStreamsToRestore.values(),
@@ -504,13 +537,14 @@ public class RestoreService implements ClusterStateApplier {
         SnapshotInfo snapshotInfo,
         Metadata globalMetadata,
         List<String> requestIndices,
+        Collection<String> featureStateDataStreams,
         boolean includeAliases
     ) {
         Map<String, DataStream> dataStreams;
         Map<String, DataStreamAlias> dataStreamAliases;
         List<String> requestedDataStreams = filterIndices(
             snapshotInfo.dataStreams(),
-            requestIndices.toArray(String[]::new),
+            Stream.of(requestIndices, featureStateDataStreams).flatMap(Collection::stream).toArray(String[]::new),
             IndicesOptions.fromOptions(true, true, true, true)
         );
         if (requestedDataStreams.isEmpty()) {
@@ -525,13 +559,30 @@ public class RestoreService implements ClusterStateApplier {
             for (String requestedDataStream : requestedDataStreams) {
                 final DataStream dataStreamInSnapshot = dataStreamsInSnapshot.get(requestedDataStream);
                 assert dataStreamInSnapshot != null : "DataStream [" + requestedDataStream + "] not found in snapshot";
-                dataStreams.put(requestedDataStream, dataStreamInSnapshot);
+
+                if (dataStreamInSnapshot.isSystem() == false) {
+                    dataStreams.put(requestedDataStream, dataStreamInSnapshot);
+                } else if (requestIndices.contains(requestedDataStream)) {
+                    throw new IllegalArgumentException(
+                        new ParameterizedMessage(
+                            "requested system data stream [{}], but system data streams can only be restored as part of a feature state",
+                            requestedDataStream
+                        ).getFormattedMessage()
+                    );
+                } else if (featureStateDataStreams.contains(requestedDataStream)) {
+                    dataStreams.put(requestedDataStream, dataStreamInSnapshot);
+                } else {
+                    logger.debug(
+                        "omitting system data stream [{}] from snapshot restoration because its feature state was not requested",
+                        requestedDataStream
+                    );
+                }
             }
             if (includeAliases) {
                 dataStreamAliases = new HashMap<>();
                 final Map<String, DataStreamAlias> dataStreamAliasesInSnapshot = globalMetadata.dataStreamAliases();
                 for (DataStreamAlias alias : dataStreamAliasesInSnapshot.values()) {
-                    DataStreamAlias copy = alias.intersect(requestedDataStreams::contains);
+                    DataStreamAlias copy = alias.intersect(dataStreams.keySet()::contains);
                     if (copy.getDataStreams().isEmpty() == false) {
                         dataStreamAliases.put(alias.getName(), copy);
                     }

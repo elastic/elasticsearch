@@ -76,6 +76,7 @@ setup:
           body:
               rank: 3
               boolean: [true, false, true]
+              keyword: ["one string", "another string"]
               long: [1152921504606846976, 576460752303423488]
               integer: [5, 17, 29]
               short: [6, 18, 30, 45]
@@ -369,6 +370,59 @@ setup:
                         script:
                             source: "doc['keyword'].value"
     - match: { hits.hits.0.fields.field.0: "not split at all" }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('keyword').get('missing')"
+    - match: { hits.hits.0.fields.field.0: "not split at all" }
+    - match: { hits.hits.1.fields.field.0: "missing" }
+    - match: { hits.hits.2.fields.field.0: "another string" } # doc values are sorted
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid yaml stash */ $('keyword', 'missing')"
+    # same as `field('keyword').get('missing')`
+    - match: { hits.hits.0.fields.field.0: "not split at all" }
+    - match: { hits.hits.1.fields.field.0: "missing" }
+    - match: { hits.hits.2.fields.field.0: "another string" }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "field('keyword').get(1, 'dne')"
+    - match: { hits.hits.0.fields.field.0: "dne" }
+    - match: { hits.hits.1.fields.field.0: "dne" }
+    - match: { hits.hits.2.fields.field.0: "one string" } # doc values are sorted
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            sort: [ { rank: asc } ]
+            script_fields:
+              field:
+                script:
+                  source: "String.join(', ', field('keyword'))"
+    - match: { hits.hits.0.fields.field.0: "not split at all" }
+    - match: { hits.hits.1.fields.field.0: "" }
+    - match: { hits.hits.2.fields.field.0: "another string, one string" }
 
 ---
 "long":

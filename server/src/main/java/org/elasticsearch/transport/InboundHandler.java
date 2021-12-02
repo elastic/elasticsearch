@@ -338,17 +338,14 @@ public class InboundHandler {
             response = handler.read(stream);
             response.remoteAddress(remoteAddress);
         } catch (Exception e) {
-            try {
-                final Exception serializationException = new TransportSerializationException(
-                    "Failed to deserialize response from handler [" + handler + "]",
-                    e
-                );
-                logger.warn(new ParameterizedMessage("Failed to deserialize response from [{}]", remoteAddress), serializationException);
-                handleException(handler, serializationException);
-                return;
-            } finally {
-                assert ignoreDeserializationErrors : e;
-            }
+            final Exception serializationException = new TransportSerializationException(
+                "Failed to deserialize response from handler [" + handler + "]",
+                e
+            );
+            logger.warn(new ParameterizedMessage("Failed to deserialize response from [{}]", remoteAddress), serializationException);
+            assert ignoreDeserializationErrors : e;
+            handleException(handler, serializationException);
+            return;
         }
         final String executor = handler.executor();
         if (ThreadPool.Names.SAME.equals(executor)) {
@@ -378,21 +375,16 @@ public class InboundHandler {
 
     private void handlerResponseError(StreamInput stream, final TransportResponseHandler<?> handler) {
         Exception error;
-        boolean readSuccess = false;
         try {
             error = stream.readException();
-            readSuccess = true;
         } catch (Exception e) {
             error = new TransportSerializationException(
                 "Failed to deserialize exception response from stream for handler [" + handler + "]",
                 e
             );
+            assert ignoreDeserializationErrors : error;
         }
-        try {
-            handleException(handler, error);
-        } finally {
-            assert readSuccess || ignoreDeserializationErrors : error;
-        }
+        handleException(handler, error);
     }
 
     private void handleException(final TransportResponseHandler<?> handler, Throwable error) {

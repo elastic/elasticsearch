@@ -11,6 +11,8 @@ setup:
                             type: boolean
                         date:
                             type: date
+                        nanos:
+                            type: date_nanos
                         geo_point:
                             type: geo_point
                         ip:
@@ -49,6 +51,7 @@ setup:
                 rank: 1
                 boolean: true
                 date: 2017-01-01T12:11:12
+                nanos: 2015-01-01T12:10:30.123456789Z
                 geo_point: 41.12,-71.34
                 ip: 192.168.0.1
                 keyword: not split at all
@@ -76,6 +79,8 @@ setup:
           body:
               rank: 3
               boolean: [true, false, true]
+              date: [2017-01-01T12:11:12, 2018-01-01T12:11:12]
+              nanos: [2015-01-01T12:10:30.123456789Z, 2015-01-01T12:10:30.987654321Z]
               keyword: ["one string", "another string"]
               long: [1152921504606846976, 576460752303423488]
               integer: [5, 17, 29]
@@ -227,6 +232,193 @@ setup:
                         script:
                             source: "doc.date.value"
     - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "field('date').get(null)"
+    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid yaml stash */ $('date', null)"
+    - match: { hits.hits.0.fields.field.0: '2017-01-01T12:11:12.000Z' }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 2 } }
+            script_fields:
+              field:
+                script:
+                  source: "field('date').get(ZonedDateTime.parse('2018-01-01T12:11:12.000Z'))"
+    - match: { hits.hits.0.fields.field.0: '2018-01-01T12:11:12.000Z' }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 2 } }
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid yaml stash */ $('date', ZonedDateTime.parse('2018-01-01T12:11:12.000Z'))"
+    - match: { hits.hits.0.fields.field.0: '2018-01-01T12:11:12.000Z' }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "doc['nanos'].value"
+    - match: { hits.hits.0.fields.field.0: '2015-01-01T12:10:30.123456789Z' }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "field('nanos').get(null)"
+    - match: { hits.hits.0.fields.field.0: '2015-01-01T12:10:30.123456789Z' }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid yaml stash */ $('nanos', null)"
+    - match: { hits.hits.0.fields.field.0: '2015-01-01T12:10:30.123456789Z' }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 2 } }
+            script_fields:
+              field:
+                script:
+                  source: "field('nanos').get(ZonedDateTime.parse('2016-01-01T12:10:30.123Z'))"
+    - match: { hits.hits.0.fields.field.0: '2016-01-01T12:10:30.123Z' }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 2 } }
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid yaml stash */ $('nanos', ZonedDateTime.parse('2016-01-01T12:10:30.123Z'))"
+    - match: { hits.hits.0.fields.field.0: '2016-01-01T12:10:30.123Z' }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "doc['nanos'].value.getNano()"
+    - match: { hits.hits.0.fields.field.0: 123456789 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "field('nanos').get(null).getNano()"
+    - match: { hits.hits.0.fields.field.0: 123456789 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 1 } }
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid yaml stash */ $('nanos', null).getNano()"
+    - match: { hits.hits.0.fields.field.0: 123456789 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 2 } }
+            script_fields:
+              field:
+                script:
+                  source: "field('nanos').get(ZonedDateTime.parse('2016-01-01T12:10:30.123Z')).getNano()"
+    - match: { hits.hits.0.fields.field.0: 123000000 }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 3 } }
+            script_fields:
+              field:
+                script:
+                  source: "field('date').get(1, null)"
+    - match: { hits.hits.0.fields.field.0: "2018-01-01T12:11:12.000Z" }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 3 } }
+            script_fields:
+              field:
+                script:
+                  source: "field('nanos').get(1, null)"
+    - match: { hits.hits.0.fields.field.0: "2015-01-01T12:10:30.987654321Z" }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 3 } }
+            script_fields:
+              field:
+                script:
+                  source: "List times = new ArrayList(); for (ZonedDateTime zdt : field('date')) times.add(zdt); times"
+    - match: { hits.hits.0.fields.field: ["2017-01-01T12:11:12.000Z", "2018-01-01T12:11:12.000Z"] }
+
+    - do:
+        search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 3 } }
+            script_fields:
+              field:
+                script:
+                  source: "List times = new ArrayList(); for (ZonedDateTime zdt : field('nanos')) times.add(zdt); times"
+    - match: { hits.hits.0.fields.field: ["2015-01-01T12:10:30.123456789Z", "2015-01-01T12:10:30.987654321Z"] }
 
 ---
 "geo_point":

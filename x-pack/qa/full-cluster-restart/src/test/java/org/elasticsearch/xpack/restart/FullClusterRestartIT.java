@@ -892,7 +892,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             final Map<String, Object> stringObjectMap = entityAsMap(getShutdownsResp);
 
             final List<Map<String, Object>> shutdowns = (List<Map<String, Object>>) stringObjectMap.get("nodes");
-            assertThat("there should be exactly one shutdown registered "+getShutdownsResp.toString()+" "+stringObjectMap, shutdowns, hasSize(1));
+            assertThat("there should be exactly one shutdown registered", shutdowns, hasSize(1));
             final Map<String, Object> shutdown = shutdowns.get(0);
             assertThat(shutdown.get("node_id"), notNullValue()); // Since we randomly determine the node ID, we can't check it
             assertThat(shutdown.get("reason"), equalTo(this.getTestName()));
@@ -907,7 +907,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }, 30, TimeUnit.SECONDS);
 
     }
-
 
     private static void createComposableTemplate(RestClient client, String templateName, String indexPattern) throws IOException {
         StringEntity templateJSON = new StringEntity(

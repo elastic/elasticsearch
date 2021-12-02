@@ -73,9 +73,8 @@ public abstract class AbstractFullClusterRestartTestCase extends ESRestTestCase 
         return true;
     }
 
-
     protected void deleteAllNodeShutdownMetadata() throws IOException {
-        //do not delete node shutdown metadata
+        // do not delete node shutdown metadata
     }
 
 }

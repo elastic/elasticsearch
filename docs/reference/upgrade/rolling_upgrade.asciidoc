@@ -16,8 +16,8 @@ configured with `node.master: false`.
 .. If you are using data tiers, or a hot-warm-cold architecture based on node 
 attributes, you should upgrade the nodes tier-by-tier, completing the upgrade
 of each tier before starting the next. Upgrade the frozen tier first, then the
-cold tier, then the warm tier, and finally the hot tier.
-This is to ensure ILM can continue to move between the phases and ensure version
+cold tier, then the warm tier, and finally the hot tier.  This is to ensure ILM
+can continue to move between the phases and ensure version
 compatibility.
 
 You can get the list of nodes from specific tiers by `GET 

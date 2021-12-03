@@ -212,11 +212,14 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
         map = ImmutableOpenMap.<String, Integer>builder().fPut("foo", 1).build();
         assertTrue(map.containsKey("foo"));
+        assertTrue(map.entrySet().contains(entry("foo", 1)));
         assertFalse(map.entrySet().contains(entry("foo", 17)));
 
         // Try with a null value
         map = ImmutableOpenMap.<String, Integer>builder().fPut("foo", null).build();
         assertTrue(map.containsKey("foo"));
+        assertTrue(map.entrySet().contains(entry("foo", null)));
+        assertFalse(map.containsKey("bar"));
         assertFalse(map.entrySet().contains(entry("bar", null)));
     }
 
@@ -225,11 +228,14 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
         map = ImmutableOpenIntMap.<String>builder().fPut(1, "foo").build();
         assertTrue(map.containsKey(1));
+        assertTrue(map.entrySet().contains(entry(1, "foo")));
         assertFalse(map.entrySet().contains(entry(1, "bar")));
 
         // Try with a null value
         map = ImmutableOpenIntMap.<String>builder().fPut(1, null).build();
         assertTrue(map.containsKey(1));
+        assertTrue(map.entrySet().contains(entry(1, null)));
+        assertFalse(map.containsKey(2));
         assertFalse(map.entrySet().contains(entry(2, null)));
     }
 

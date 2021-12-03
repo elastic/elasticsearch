@@ -35,9 +35,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
  */
 public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
-    private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(
-        newHashSet("_uid", IdFieldMapper.NAME, RoutingFieldMapper.NAME)
-    );
+    private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(IdFieldMapper.NAME, RoutingFieldMapper.NAME));
 
     private final boolean loadSource;
     private final String sourceFieldName;
@@ -66,6 +64,10 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         // This works because _ignored is added as the first metadata mapper,
         // so its stored fields always appear first in the list.
         if (IgnoredFieldMapper.NAME.equals(fieldInfo.name)) {
+            return Status.YES;
+        }
+        // support _uid for loading older indices
+        if ("_uid".equals(fieldInfo.name)) {
             return Status.YES;
         }
         // All these fields are single-valued so we can stop when the set is

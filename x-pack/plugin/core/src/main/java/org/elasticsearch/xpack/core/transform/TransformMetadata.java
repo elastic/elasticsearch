@@ -54,7 +54,7 @@ public class TransformMetadata implements XPackPlugin.XPackMetadataCustom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumIndexCompatibilityVersion();
+        return Version.V_7_13_0;
     }
 
     @Override
@@ -112,6 +112,11 @@ public class TransformMetadata implements XPackPlugin.XPackMetadataCustom {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(resetMode);
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_13_0;
         }
 
         @Override

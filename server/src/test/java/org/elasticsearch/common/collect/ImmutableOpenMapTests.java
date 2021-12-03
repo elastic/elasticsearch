@@ -219,6 +219,19 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
         assertTrue(another.containsKey("foo"));
         assertFalse(another.entrySet().contains(entry));
+
+        // Try with a null value
+        other = new HashMap<>();
+        other.put("bar", null);
+        entry = other.entrySet().iterator().next();
+
+        builder = ImmutableOpenMap.builder();
+        builder.put("foo", null);
+
+        another = builder.build();
+
+        assertTrue(another.containsKey("foo"));
+        assertFalse(another.entrySet().contains(entry));
     }
 
     public void testIntMapEntrySetContains() {
@@ -233,6 +246,20 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
         assertTrue(another.containsKey(1));
         assertFalse(another.entrySet().contains(entry));
+
+        // Try with a null value
+        other = new HashMap<>();
+        other.put(2, null);
+        entry = other.entrySet().iterator().next();
+
+        builder = ImmutableOpenIntMap.builder();
+        builder.put(1, null);
+
+        another = builder.build();
+
+        assertTrue(another.containsKey(1));
+        assertFalse(another.entrySet().contains(entry));
+
     }
 
     private static ImmutableOpenMap<Long, String> randomImmutableOpenMap() {

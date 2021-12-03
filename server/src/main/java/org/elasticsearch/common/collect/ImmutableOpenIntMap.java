@@ -215,7 +215,7 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
         }
 
         public void clear() {
-            map.clear();
+            throw new UnsupportedOperationException("removal is unsupported");
         }
 
         public Iterator<Map.Entry<Integer, VType>> iterator() {
@@ -229,6 +229,9 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
             }
             Map.Entry<Integer, ?> e = (Map.Entry<Integer, ?>) o;
             int key = e.getKey();
+            if (map.containsKey(key) == false) {
+                return false;
+            }
             Object val = map.get(key);
             return Objects.equals(val, e.getValue());
         }

@@ -183,7 +183,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         }
 
         public void clear() {
-            map.clear();
+            throw new UnsupportedOperationException("removal is unsupported");
         }
 
         public Iterator<Map.Entry<KType, VType>> iterator() {
@@ -197,6 +197,9 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
             }
             Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
             Object key = e.getKey();
+            if (map.containsKey((KType) key) == false) {
+                return false;
+            }
             Object val = map.get((KType) key);
             return Objects.equals(val, e.getValue());
         }

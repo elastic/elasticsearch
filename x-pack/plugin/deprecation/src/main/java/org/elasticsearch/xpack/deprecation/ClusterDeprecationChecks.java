@@ -285,7 +285,6 @@ public class ClusterDeprecationChecks {
                     // the type name is the root value, reduce it
                     mapping = (Map<String, Object>) mapping.get("_doc");
                 }
-                logger.info("Checking component template {}, contents: [{}]", templateName, mapping);
                 List<String> mappingIssues = IndexDeprecationChecks.findInDynamicTemplates(
                     "_doc",
                     mapping,

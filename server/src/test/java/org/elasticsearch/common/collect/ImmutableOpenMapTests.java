@@ -207,6 +207,34 @@ public class ImmutableOpenMapTests extends ESTestCase {
         assertThat(collectedViaStream, equalTo(collectedIteratively));
     }
 
+    public void testEntrySetContains() {
+        Map<String, Integer> other = new HashMap<>();
+        other.put("foo", 17);
+        Map.Entry<String, Integer> entry = other.entrySet().iterator().next();
+
+        ImmutableOpenMap.Builder<String, Integer> builder = ImmutableOpenMap.builder();
+        builder.put("foo", 1);
+
+        ImmutableOpenMap<String, Integer> another = builder.build();
+
+        assertTrue(another.containsKey("foo"));
+        assertFalse(another.entrySet().contains(entry));
+    }
+
+    public void testIntMapEntrySetContains() {
+        Map<Integer, String> other = new HashMap<>();
+        other.put(1, "bar");
+        Map.Entry<Integer, String> entry = other.entrySet().iterator().next();
+
+        ImmutableOpenIntMap.Builder<String> builder = ImmutableOpenIntMap.builder();
+        builder.put(1, "foo");
+
+        ImmutableOpenIntMap<String> another = builder.build();
+
+        assertTrue(another.containsKey(1));
+        assertFalse(another.entrySet().contains(entry));
+    }
+
     private static ImmutableOpenMap<Long, String> randomImmutableOpenMap() {
         return Randomness.get()
             .longs(randomIntBetween(1, 1000))

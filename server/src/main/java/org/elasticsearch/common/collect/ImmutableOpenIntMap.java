@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.procedures.IntObjectProcedure;
 import java.util.AbstractSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -221,13 +222,15 @@ public final class ImmutableOpenIntMap<VType> implements Iterable<IntObjectCurso
             return new ConversionIterator();
         }
 
+        @SuppressWarnings("unchecked")
         public boolean contains(Object o) {
             if (o instanceof Map.Entry<?, ?> == false) {
                 return false;
             }
-            Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
-            Object key = e.getKey();
-            return map.containsKey((Integer) key);
+            Map.Entry<Integer, ?> e = (Map.Entry<Integer, ?>) o;
+            int key = e.getKey();
+            Object val = map.get(key);
+            return Objects.equals(val, e.getValue());
         }
 
         public boolean remove(Object o) {

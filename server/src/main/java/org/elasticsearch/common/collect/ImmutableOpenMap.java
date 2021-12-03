@@ -26,6 +26,7 @@ import java.util.AbstractSet;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterator;
 import java.util.Spliterators;
@@ -196,7 +197,8 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
             }
             Map.Entry<?, ?> e = (Map.Entry<?, ?>) o;
             Object key = e.getKey();
-            return map.containsKey((KType) key);
+            Object val = map.get((KType) key);
+            return Objects.equals(val, e.getValue());
         }
 
         public boolean remove(Object o) {

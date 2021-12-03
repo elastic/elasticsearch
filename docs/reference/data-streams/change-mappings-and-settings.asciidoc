@@ -560,7 +560,7 @@ stream's oldest backing index.
   "data_streams": [
     {
       "name": "my-data-stream",
-      "type" : "DEFAULT",
+      "type" : "standard",
       "timestamp_field": {
         "name": "@timestamp"
       },

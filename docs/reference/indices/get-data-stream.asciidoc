@@ -234,7 +234,7 @@ The API returns the following response:
   "data_streams": [
     {
       "name": "my-data-stream",
-      "type" : "DEFAULT",
+      "type" : "standard",
       "timestamp_field": {
         "name": "@timestamp"
       },
@@ -265,7 +265,7 @@ The API returns the following response:
       "timestamp_field": {
         "name": "@timestamp"
       },
-      "type" : "DEFAULT",
+      "type" : "standard",
       "indices": [
         {
           "index_name": ".ds-my-data-stream-two-2099.03.08-000001",

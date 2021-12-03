@@ -45,7 +45,7 @@ public class RestGetActionsAction extends BaseRestHandler {
             (PrivilegedAction<Map<ActionType, TransportAction>>) () -> {
                 try {
                     final Field actionsField = client.getClass().getDeclaredField("actions");
-                    actionsField.setAccessible(true);
+                    actionsField.setAccessible(true);  // ####: requires server to open the request package
                     return (Map<ActionType, TransportAction>) actionsField.get(client);
                 } catch (NoSuchFieldException | IllegalAccessException e) {
                     throw new ElasticsearchException(e);

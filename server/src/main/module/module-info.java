@@ -341,6 +341,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.usage;
     exports org.elasticsearch.watcher;
 
+    opens org.elasticsearch.client.node; // for a test, replace with command line flag
     opens org.elasticsearch.common.logging to org.apache.logging.log4j.core;
 
     provides java.util.spi.CalendarDataProvider with org.elasticsearch.common.time.IsoCalendarDataProvider;

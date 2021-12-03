@@ -1147,23 +1147,26 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(removedAutoFollower2.removed, is(true));
     }
 
-    public void testUpdateAutoFollowersResetsMetadata() {
-        //given coordinator with some initial patterns
+    public void testUpdateAutoFollowersRevertMetadata() {
+        // given coordinator with some initial patterns
         var autoFollowCoordinator = createAutoFollowCoordinator();
-        autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(Map.of(
-            "pattern1", createAutoFollowPattern("remote1", "logs-*"),
-            "pattern2", createAutoFollowPattern("remote2", "logs-*"),
-            "pattern3", createAutoFollowPattern("remote2", "metrics-*")
-        )));
+
+        // with some initial patterns
+        var pattern1 = createAutoFollowPattern("remote1", "logs-*");
+        var pattern2 = createAutoFollowPattern("remote2", "logs-*");
+        var pattern3 = createAutoFollowPattern("remote2", "metrics-*");// same remote
+        autoFollowCoordinator.updateAutoFollowers(
+            createClusterStateWith(Map.of("pattern1", pattern1, "pattern2", pattern2, "pattern3", pattern3))
+        );
         var initialAutoFollowers = autoFollowCoordinator.getAutoFollowers();
 
-        //when resetting the state
+        // when resetting the state
         autoFollowCoordinator.updateAutoFollowers(createClusterStateWith(null));
         var newAutoFollowers = autoFollowCoordinator.getAutoFollowers();
 
-        //then auto-followers are removed
+        // then auto-followers are removed
         assertThat(newAutoFollowers.entrySet(), empty());
-        //and remotes are stopped
+        // and remotes are stopped
         assertThat(initialAutoFollowers.get("remote1").removed, equalTo(true));
         assertThat(initialAutoFollowers.get("remote2").removed, equalTo(true));
     }

@@ -28,6 +28,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
 
     private static final ParseField INDEX_FIELD = new ParseField("index");
     private static final ParseField INDEX_CREATION_DATE_MILLIS_FIELD = new ParseField("index_creation_date_millis");
+    private static final ParseField INDEX_CREATION_DATE_FIELD = new ParseField("index_creation_date");
     private static final ParseField MANAGED_BY_ILM_FIELD = new ParseField("managed");
     private static final ParseField POLICY_NAME_FIELD = new ParseField("policy");
     private static final ParseField LIFECYCLE_DATE_MILLIS_FIELD = new ParseField("lifecycle_date_millis");
@@ -259,7 +260,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                         + ", "
                         + INDEX_FIELD
                         + ", "
-                        + INDEX_CREATION_DATE_MILLIS_FIELD
+                        + INDEX_CREATION_DATE_FIELD
                         + ", "
                         + INDEX_AGE_FIELD
                         + "]"
@@ -445,7 +446,11 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(INDEX_FIELD.getPreferredName(), index);
-        builder.timeField(INDEX_CREATION_DATE_MILLIS_FIELD.getPreferredName(), indexCreationDate);
+        builder.timeField(
+            INDEX_CREATION_DATE_MILLIS_FIELD.getPreferredName(),
+            INDEX_CREATION_DATE_FIELD.getPreferredName(),
+            indexCreationDate
+        );
         builder.field(INDEX_AGE_FIELD.getPreferredName(), getIndexAge().toHumanReadableString(2));
         builder.field(MANAGED_BY_ILM_FIELD.getPreferredName(), managedByILM);
         if (managedByILM) {

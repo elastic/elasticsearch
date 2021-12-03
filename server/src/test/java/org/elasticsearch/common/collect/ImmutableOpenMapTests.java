@@ -208,58 +208,35 @@ public class ImmutableOpenMapTests extends ESTestCase {
     }
 
     public void testEntrySetContains() {
-        Map<String, Integer> other = new HashMap<>();
-        other.put("foo", 17);
-        Map.Entry<String, Integer> entry = other.entrySet().iterator().next();
+        ImmutableOpenMap<String, Integer> map;
 
-        ImmutableOpenMap.Builder<String, Integer> builder = ImmutableOpenMap.builder();
-        builder.put("foo", 1);
-
-        ImmutableOpenMap<String, Integer> another = builder.build();
-
-        assertTrue(another.containsKey("foo"));
-        assertFalse(another.entrySet().contains(entry));
+        map = ImmutableOpenMap.<String, Integer>builder().fPut("foo", 1).build();
+        assertTrue(map.containsKey("foo"));
+        assertFalse(map.entrySet().contains(entry("foo", 17)));
 
         // Try with a null value
-        other = new HashMap<>();
-        other.put("bar", null);
-        entry = other.entrySet().iterator().next();
-
-        builder = ImmutableOpenMap.builder();
-        builder.put("foo", null);
-
-        another = builder.build();
-
-        assertTrue(another.containsKey("foo"));
-        assertFalse(another.entrySet().contains(entry));
+        map = ImmutableOpenMap.<String, Integer>builder().fPut("foo", null).build();
+        assertTrue(map.containsKey("foo"));
+        assertFalse(map.entrySet().contains(entry("bar", null)));
     }
 
     public void testIntMapEntrySetContains() {
-        Map<Integer, String> other = new HashMap<>();
-        other.put(1, "bar");
-        Map.Entry<Integer, String> entry = other.entrySet().iterator().next();
+        ImmutableOpenIntMap<String> map;
 
-        ImmutableOpenIntMap.Builder<String> builder = ImmutableOpenIntMap.builder();
-        builder.put(1, "foo");
-
-        ImmutableOpenIntMap<String> another = builder.build();
-
-        assertTrue(another.containsKey(1));
-        assertFalse(another.entrySet().contains(entry));
+        map = ImmutableOpenIntMap.<String>builder().fPut(1, "foo").build();
+        assertTrue(map.containsKey(1));
+        assertFalse(map.entrySet().contains(entry(1, "bar")));
 
         // Try with a null value
-        other = new HashMap<>();
-        other.put(2, null);
-        entry = other.entrySet().iterator().next();
+        map = ImmutableOpenIntMap.<String>builder().fPut(1, null).build();
+        assertTrue(map.containsKey(1));
+        assertFalse(map.entrySet().contains(entry(2, null)));
+    }
 
-        builder = ImmutableOpenIntMap.builder();
-        builder.put(1, null);
-
-        another = builder.build();
-
-        assertTrue(another.containsKey(1));
-        assertFalse(another.entrySet().contains(entry));
-
+    private static <KType, VType> Map.Entry<KType, VType> entry(KType key, VType value) {
+        Map<KType, VType> map = new HashMap<>(1);
+        map.put(key, value);
+        return map.entrySet().iterator().next();
     }
 
     private static ImmutableOpenMap<Long, String> randomImmutableOpenMap() {

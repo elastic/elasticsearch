@@ -1166,7 +1166,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
 
         // then auto-followers are removed
         assertThat(newAutoFollowers.entrySet(), empty());
-        // and remotes are stopped
+        // and auto-followers are stopped
         assertThat(initialAutoFollowers.get("remote1").removed, equalTo(true));
         assertThat(initialAutoFollowers.get("remote2").removed, equalTo(true));
     }

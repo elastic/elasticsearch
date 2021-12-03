@@ -244,6 +244,10 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         final AutoFollowMetadata autoFollowMetadata = followerClusterState.getMetadata()
             .custom(AutoFollowMetadata.TYPE, AutoFollowMetadata.EMPTY);
 
+        if (autoFollowMetadata.getPatterns().isEmpty() && this.autoFollowers.isEmpty()) {
+            return;
+        }
+
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             // TODO: set non-compliant status on auto-follow coordination that can be viewed via a stats API
             LOGGER.warn("skipping auto-follower coordination", LicenseUtils.newComplianceException("ccr"));

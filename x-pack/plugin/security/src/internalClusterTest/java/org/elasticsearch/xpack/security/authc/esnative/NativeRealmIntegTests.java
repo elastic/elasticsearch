@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -449,6 +450,10 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testSnapshotDeleteRestore() {
+        // This feature name is different from "standard" because of how the XPack IntegTests are set up. See
+        // LocalStateSecurity and its superclass LocalStateCompositeXPackPlugin for details, in particular their
+        // `getFeatureName()` methods.
+        final String SECURITY_FEATURE_NAME = LocalStateSecurity.class.getSimpleName();
         logger.error("--> creating role");
         preparePutRole("test_role").cluster("all")
             .addIndices(new String[] { "*" }, new String[] { "create_index" }, null, null, null, true)
@@ -478,7 +483,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             .prepareCreateSnapshot("test-repo", "test-snap-1")
             .setWaitForCompletion(true)
             .setIncludeGlobalState(false)
-            .setIndices(SECURITY_MAIN_ALIAS)
+            .setFeatureStates(SECURITY_FEATURE_NAME)
             .get()
             .getSnapshotInfo();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
@@ -502,7 +507,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             .cluster()
             .prepareRestoreSnapshot("test-repo", "test-snap-1")
             .setWaitForCompletion(true)
-            .setIncludeAliases(true)
+            .setIncludeAliases(randomBoolean()) // Aliases are always restored for system indices
+            .setFeatureStates(SECURITY_FEATURE_NAME)
             .get();
         assertThat(response.status(), equalTo(RestStatus.OK));
         assertThat(response.getRestoreInfo().indices(), contains(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7));

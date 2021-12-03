@@ -768,7 +768,7 @@ public class Node implements Closeable {
                 repositoryService,
                 transportService,
                 actionModule.getActionFilters(),
-                systemIndices.getFeatures()
+                systemIndices
             );
             SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
                 settings,

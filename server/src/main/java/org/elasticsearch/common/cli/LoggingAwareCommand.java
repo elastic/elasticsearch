@@ -6,7 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.cli;
+package org.elasticsearch.common.cli;
+
+import org.elasticsearch.cli.Command;
 
 /**
  * A command that is aware of logging. This class should be preferred over the base {@link Command} class for any CLI tools that depend on

@@ -146,7 +146,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
      */
     public void cancelTask(Runnable runnable, String reason) {
         if (isCancelled() == false && isCancelling.compareAndSet(false, true)) {
-            CancelTasksRequest req = new CancelTasksRequest().setTaskId(searchId.getTaskId()).setReason(reason);
+            CancelTasksRequest req = new CancelTasksRequest().setTargetTaskId(searchId.getTaskId()).setReason(reason);
             client.admin().cluster().cancelTasks(req, new ActionListener<>() {
                 @Override
                 public void onResponse(CancelTasksResponse cancelTasksResponse) {

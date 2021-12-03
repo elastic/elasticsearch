@@ -472,7 +472,7 @@ public class PublishableHttpResourceTests extends AbstractPublishableHttpResourc
         verifyNoMoreInteractions(client, response, logger, mockEntity);
     }
 
-    @SuppressWarnings({"unchecked", "HiddenField"})
+    @SuppressWarnings({ "unchecked", "HiddenField" })
     private void assertCheckForResource(
         final RestClient client,
         final Logger logger,

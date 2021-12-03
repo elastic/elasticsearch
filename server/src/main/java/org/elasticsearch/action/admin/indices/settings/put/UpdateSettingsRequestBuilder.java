@@ -83,4 +83,12 @@ public class UpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<
         request.setPreserveExisting(preserveExisting);
         return this;
     }
+
+    /**
+     * Sets the origin to use, only set this when the settings update is requested by ES internal processes.
+     */
+    public UpdateSettingsRequestBuilder origin(String origin) {
+        request.origin(origin);
+        return this;
+    }
 }

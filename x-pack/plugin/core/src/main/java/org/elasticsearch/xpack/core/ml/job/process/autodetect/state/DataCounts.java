@@ -502,8 +502,7 @@ public class DataCounts implements ToXContentObject, Writeable {
     }
 
     public void updateLatestSparseBucketTimeStamp(Date timestamp) {
-        if (timestamp != null
-            && (this.latestSparseBucketTimeStamp == null || timestamp.after(this.latestSparseBucketTimeStamp))) {
+        if (timestamp != null && (this.latestSparseBucketTimeStamp == null || timestamp.after(this.latestSparseBucketTimeStamp))) {
             this.latestSparseBucketTimeStamp = timestamp;
         }
     }

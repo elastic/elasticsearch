@@ -303,7 +303,7 @@ specific indices or data streams instead.
 If you're restoring to a different cluster, see <<restore-different-cluster>>
 before you start.
 
-. If you <<backup-cluster-configuration,backed up the cluster's configuration
+. If you <<back-up-config-files,backed up the cluster's configuration
 files>>, you can restore them to each node. This step is optional and requires a
 <<restart-upgrade,full cluster restart>>.
 +

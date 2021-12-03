@@ -39,14 +39,18 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseFrozenSearch
     }
 
     public void testCannotMountSystemIndex() throws Exception {
-        executeTest(TestSystemIndexPlugin.INDEX_NAME, new OriginSettingClient(client(), ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN));
+        executeTest(
+            TestSystemIndexPlugin.INDEX_NAME,
+            SearchableSnapshotsSystemIndicesIntegTests.class.getSimpleName(),
+            new OriginSettingClient(client(), ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN)
+        );
     }
 
     public void testCannotMountSnapshotBlobCacheIndex() throws Exception {
-        executeTest(SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX, client());
+        executeTest(SearchableSnapshots.SNAPSHOT_BLOB_CACHE_INDEX, "searchable_snapshots", client());
     }
 
-    private void executeTest(final String indexName, final Client client) throws Exception {
+    private void executeTest(final String indexName, final String featureName, final Client client) throws Exception {
         final boolean isHidden = randomBoolean();
         createAndPopulateIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, isHidden));
 
@@ -55,7 +59,13 @@ public class SearchableSnapshotsSystemIndicesIntegTests extends BaseFrozenSearch
 
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int numPrimaries = getNumShards(indexName).numPrimaries;
-        final SnapshotInfo snapshotInfo = createSnapshot(repositoryName, snapshotName, Collections.singletonList(indexName));
+        final SnapshotInfo snapshotInfo = createSnapshot(
+            repositoryName,
+            snapshotName,
+            Collections.singletonList("-*"),
+            Collections.singletonList(featureName)
+        );
+        // NOTE: The below assertion assumes that the only index in the feature is the named one. If that's not the case, this will fail.
         assertThat(snapshotInfo.successfulShards(), equalTo(numPrimaries));
         assertThat(snapshotInfo.failedShards(), equalTo(0));
 

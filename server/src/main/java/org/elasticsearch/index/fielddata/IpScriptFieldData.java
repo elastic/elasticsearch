@@ -14,6 +14,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Strings;
+import org.elasticsearch.index.fielddata.ScriptDocValues.StringsSupplier;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.IpFieldScript;
@@ -53,7 +55,7 @@ public class IpScriptFieldData extends BinaryScriptFieldData {
         return new BinaryScriptLeafFieldData() {
             @Override
             public DocValuesField<?> getScriptField(String name) {
-                return new DelegateDocValuesField(new IpScriptDocValues(getBytesValues()), name);
+                return new DelegateDocValuesField(new Strings(new IpSupplier(getBytesValues())), name);
             }
 
             @Override
@@ -69,18 +71,19 @@ public class IpScriptFieldData extends BinaryScriptFieldData {
     }
 
     /**
-     * Doc values implementation for ips. We can't share
+     * Doc values supplier implementation for ips. We can't share
      * {@link IpFieldMapper.IpFieldType.IpScriptDocValues} because it is based
      * on global ordinals and we don't have those.
      */
-    public static class IpScriptDocValues extends ScriptDocValues.Strings {
-        public IpScriptDocValues(SortedBinaryDocValues in) {
+    public static class IpSupplier extends StringsSupplier {
+
+        public IpSupplier(SortedBinaryDocValues in) {
             super(in);
         }
 
         @Override
-        protected String bytesToString(BytesRef bytes) {
-            InetAddress addr = InetAddressPoint.decode(BytesReference.toBytes(new BytesArray(bytes)));
+        protected String bytesToString(BytesRef bytesRef) {
+            InetAddress addr = InetAddressPoint.decode(BytesReference.toBytes(new BytesArray(bytesRef)));
             return InetAddresses.toAddrString(addr);
         }
     }

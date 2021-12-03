@@ -92,7 +92,7 @@ public class PersistentTasksService {
      */
     void sendCancelRequest(final long taskId, final String reason, final ActionListener<CancelTasksResponse> listener) {
         CancelTasksRequest request = new CancelTasksRequest();
-        request.setTaskId(new TaskId(clusterService.localNode().getId(), taskId));
+        request.setTargetTaskId(new TaskId(clusterService.localNode().getId(), taskId));
         request.setReason(reason);
         try {
             client.admin().cluster().cancelTasks(request, listener);

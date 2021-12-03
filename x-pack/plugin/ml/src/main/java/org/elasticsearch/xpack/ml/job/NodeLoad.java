@@ -193,6 +193,10 @@ public class NodeLoad {
             return this;
         }
 
+        public long getMaxMemory() {
+            return maxMemory;
+        }
+
         public Builder setMaxJobs(int maxJobs) {
             this.maxJobs = maxJobs;
             return this;

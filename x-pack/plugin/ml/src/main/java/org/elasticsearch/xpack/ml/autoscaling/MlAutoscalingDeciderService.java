@@ -968,6 +968,19 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         long currentlyNecessaryTier = nodeLoads.stream().mapToLong(NodeLoad::getAssignedJobMemory).sum();
         // The required NATIVE node memory is the largest job and our static overhead.
         long currentlyNecessaryNode = largestJob == 0 ? 0 : largestJob + MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
+        // If we are using `auto` && have at least one job, that means our native node size should be at least native capacity provided
+        // via our `MINIMUM_AUTOMATIC_NODE_SIZE`. Otherwise, if we have to auto-calculate the JVM size, it could be much smaller than
+        // what will truly be used.
+        if (currentlyNecessaryNode > 0 && useAuto) {
+            currentlyNecessaryNode = Math.max(
+                currentlyNecessaryNode,
+                NativeMemoryCalculator.allowedBytesForMl(
+                    NativeMemoryCalculator.MINIMUM_AUTOMATIC_NODE_SIZE,
+                    maxMachineMemoryPercent,
+                    useAuto
+                )
+            );
+        }
         // We consider a scale down if we are not fully utilizing the tier
         // Or our largest job could be on a smaller node (meaning the same size tier but smaller nodes are possible).
         if (currentlyNecessaryTier < currentCapacity.getTier() || currentlyNecessaryNode < currentCapacity.getNode()) {

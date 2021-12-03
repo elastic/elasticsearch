@@ -561,6 +561,45 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         assert numberOfShards * routingFactor == routingNumShards : routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
+    IndexMetadata withMappingMetadata(MappingMetadata mapping) {
+        ImmutableOpenMap.Builder<String, MappingMetadata> mappingBuilder = ImmutableOpenMap.builder();
+        mappingBuilder.put(MapperService.SINGLE_MAPPING_NAME, mapping);
+
+        return new IndexMetadata(
+            this.index,
+            this.version,
+            this.mappingVersion,
+            this.settingsVersion,
+            this.aliasesVersion,
+            this.primaryTerms,
+            this.state,
+            this.numberOfShards,
+            this.numberOfReplicas,
+            this.settings,
+            mappingBuilder.build(),
+            this.aliases,
+            this.customData,
+            this.inSyncAllocationIds,
+            this.requireFilters,
+            this.initialRecoveryFilters,
+            this.includeFilters,
+            this.excludeFilters,
+            this.indexCreatedVersion,
+            this.routingNumShards,
+            this.routingPartitionSize,
+            this.routingPaths,
+            this.waitForActiveShards,
+            this.rolloverInfos,
+            this.isSystem,
+            this.isHidden,
+            this.timestampRange,
+            this.priority,
+            this.creationDate,
+            this.ignoreDiskWatermarks,
+            this.tierPreference
+        );
+    }
+
     public Index getIndex() {
         return index;
     }

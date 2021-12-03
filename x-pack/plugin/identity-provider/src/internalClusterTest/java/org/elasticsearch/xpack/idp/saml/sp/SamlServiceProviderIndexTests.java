@@ -83,7 +83,6 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         final int count = randomIntBetween(3, 5);
         List<SamlServiceProviderDocument> documents = new ArrayList<>(count);
 
-        final ClusterService clusterService = super.getInstanceFromNode(ClusterService.class);
         // Install the template
         assertTrue("Template should have been installed", installTemplate());
         // No need to install it again

@@ -385,7 +385,7 @@ public class Querier {
         ) {
             super(listener, client, cfg, output, query, request);
 
-            isPivot = query.fields().stream().anyMatch(t -> t.v1() instanceof PivotColumnRef);
+            isPivot = query.fields().stream().anyMatch(t -> t.extraction() instanceof PivotColumnRef);
         }
 
         @Override
@@ -463,12 +463,12 @@ public class Querier {
 
         protected List<BucketExtractor> initBucketExtractors(SearchResponse response) {
             // create response extractors for the first time
-            List<Tuple<FieldExtraction, String>> refs = query.fields();
+            List<QueryContainer.FieldInfo> refs = query.fields();
 
             List<BucketExtractor> exts = new ArrayList<>(refs.size());
             ConstantExtractor totalCount = new ConstantExtractor(response.getHits().getTotalHits().value);
-            for (Tuple<FieldExtraction, String> ref : refs) {
-                exts.add(createExtractor(ref.v1(), totalCount));
+            for (QueryContainer.FieldInfo ref : refs) {
+                exts.add(createExtractor(ref.extraction(), totalCount));
             }
             return exts;
         }
@@ -538,11 +538,11 @@ public class Querier {
         @Override
         protected void handleResponse(SearchResponse response, ActionListener<Page> listener) {
             // create response extractors for the first time
-            List<Tuple<FieldExtraction, String>> refs = query.fields();
+            List<QueryContainer.FieldInfo> refs = query.fields();
 
             List<HitExtractor> exts = new ArrayList<>(refs.size());
-            for (Tuple<FieldExtraction, String> ref : refs) {
-                exts.add(createExtractor(ref.v1()));
+            for (QueryContainer.FieldInfo ref : refs) {
+                exts.add(createExtractor(ref.extraction()));
             }
 
             ScrollCursor.handle(

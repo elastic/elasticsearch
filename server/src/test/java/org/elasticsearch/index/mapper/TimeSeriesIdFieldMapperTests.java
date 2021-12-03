@@ -43,6 +43,8 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.name())
                 .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), 200) // Increase dimension limit
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPath)
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                 .build(),
             mappings
         ).documentMapper();

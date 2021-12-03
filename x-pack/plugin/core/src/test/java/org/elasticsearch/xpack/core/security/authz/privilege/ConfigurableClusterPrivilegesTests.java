@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -34,7 +33,7 @@ public class ConfigurableClusterPrivilegesTests extends ESTestCase {
         final ConfigurableClusterPrivilege[] original = buildSecurityPrivileges();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             ConfigurableClusterPrivileges.writeArray(out, original);
-            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin(Settings.EMPTY).getNamedWriteables());
+            final NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
                 final ConfigurableClusterPrivilege[] copy = ConfigurableClusterPrivileges.readArray(in);
                 assertThat(copy, equalTo(original));

@@ -56,7 +56,7 @@ public class BooleanDocValuesField implements DocValuesField<Boolean>, ScriptDoc
     }
 
     @Override
-    public ScriptDocValues<?> getScriptDocValues() {
+    public ScriptDocValues<Boolean> getScriptDocValues() {
         if (booleans == null) {
             booleans = new ScriptDocValues.Booleans(this);
         }

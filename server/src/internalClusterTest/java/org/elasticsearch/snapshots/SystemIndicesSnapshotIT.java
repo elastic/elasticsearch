@@ -337,6 +337,13 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .setIncludeGlobalState(randomBoolean())
                 .get()
         );
+        assertThat(
+            error.getMessage(),
+            equalTo(
+                "the [indices] parameter includes system indices [.test-system-idx]; to include or exclude system indices from a snapshot, "
+                    + "use the [include_global_state] or [feature_states] parameters"
+            )
+        );
 
         // And create a successful snapshot so we don't upset the test framework
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")

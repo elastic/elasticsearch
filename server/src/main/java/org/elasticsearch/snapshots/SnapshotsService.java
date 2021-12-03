@@ -317,8 +317,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     if (explicitlyRequestedSystemIndices.isEmpty() == false) {
                         throw new IllegalArgumentException(
                             new ParameterizedMessage(
-                                "system indices [{}] were explicitly requested, but snapshots should use the "
-                                    + "[include_global_state] or [feature_states] parameters to control inclusion of system indices",
+                                "the [indices] parameter includes system indices {}; to include or exclude system indices from a " +
+                                    "snapshot, use the [include_global_state] or [feature_states] parameters",
                                 explicitlyRequestedSystemIndices
                             ).getFormattedMessage()
                         );

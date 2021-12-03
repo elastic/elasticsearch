@@ -26,6 +26,7 @@ if (buildNumber) {
             include("**/reaper.log")
             include("**/build/test-results/**/*.xml")
             include("**/build/testclusters/**")
+            include("**/build/profile-out*/**")
             exclude("**/build/testclusters/**/data/**")
             exclude("**/build/testclusters/**/distro/**")
             exclude("**/build/testclusters/**/repo/**")

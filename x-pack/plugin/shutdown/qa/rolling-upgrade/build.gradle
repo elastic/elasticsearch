@@ -33,15 +33,11 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
 BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
   String oldVersion = bwcVersion.toString()
 
-  // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
-  String searchableSnapshotRepository = "${buildDir}/cluster/shared/searchable-snapshots-repo/${baseName}"
 
   def baseCluster = testClusters.register(baseName) {
     testDistribution = "DEFAULT"
     versions = [oldVersion, project.version]
     numberOfNodes = 3
-    setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
-    setting 'path.repo', "['${buildDir}/cluster/shared/repo/${baseName}', '${searchableSnapshotRepository}']"
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'xpack.security.enabled', 'true'
     setting 'xpack.security.transport.ssl.enabled', 'true'
@@ -124,20 +120,7 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
     systemProperty 'tests.upgrade_from_version', oldVersion
     systemProperty 'tests.path.searchable.snapshots.repo', searchableSnapshotRepository
     // We only need to run these tests once so we may as well do it when we're two thirds upgraded
-    systemProperty 'tests.rest.blacklist', [
-      'mixed_cluster/10_basic/Start scroll in mixed cluster on upgraded node that we will continue after upgrade',
-      'mixed_cluster/30_ml_jobs_crud/Create a job in the mixed cluster and write some data',
-      'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed in mixed cluster',
-      'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed without aggs in mixed cluster',
-      'mixed_cluster/40_ml_datafeed_crud/Put job and datafeed with aggs in mixed cluster',
-      'mixed_cluster/80_transform_jobs_crud/Test put batch transform on mixed cluster',
-      'mixed_cluster/80_transform_jobs_crud/Test put continuous transform on mixed cluster',
-      'mixed_cluster/90_ml_data_frame_analytics_crud/Put an outlier_detection job on the mixed cluster',
-      'mixed_cluster/110_enrich/Enrich stats query smoke test for mixed cluster',
-      'mixed_cluster/120_api_key/Test API key authentication will work in a mixed cluster',
-      'mixed_cluster/120_api_key/Create API key with metadata in a mixed cluster',
-      'mixed_cluster/130_operator_privileges/Test operator privileges will work in the mixed cluster'
-    ].join(',')
+
   }
 
   tasks.register("${baseName}#twoThirdsUpgradedTest", StandaloneRestIntegTestTask) {

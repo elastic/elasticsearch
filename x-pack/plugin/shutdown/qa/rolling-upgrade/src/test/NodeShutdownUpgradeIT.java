@@ -55,7 +55,7 @@ public class NodeShutdownUpgradeIT extends AbstractUpgradeTestCase {
                     assertBusy(() -> assertThat(getShutdownStatus(), containsInAnyOrder(shutdownStatusCompleteFor(0))));
 
                     nodeIdToShutdown = nodeIdToShutdown(1);
-                    assertOK(adminClient().performRequest(shutdownNode(nodeIdToShutdown)));
+                    assertOK(client().performRequest(shutdownNode(nodeIdToShutdown)));
 
                     assertBusy(
                         () -> assertThat(
@@ -73,7 +73,7 @@ public class NodeShutdownUpgradeIT extends AbstractUpgradeTestCase {
                     );
 
                     nodeIdToShutdown = nodeIdToShutdown(2);
-                    assertOK(adminClient().performRequest(shutdownNode(nodeIdToShutdown)));
+                    assertOK(client().performRequest(shutdownNode(nodeIdToShutdown)));
 
                     assertBusy(
                         () -> assertThat(
@@ -109,7 +109,7 @@ public class NodeShutdownUpgradeIT extends AbstractUpgradeTestCase {
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> getShutdownStatus() throws IOException {
         final Request getShutdownsReq = new Request("GET", "_nodes/shutdown");
-        final Response getShutdownsResp = adminClient().performRequest(getShutdownsReq);
+        final Response getShutdownsResp = client().performRequest(getShutdownsReq);
         return (List<Map<String, Object>>) entityAsMap(getShutdownsResp).get("nodes");
     }
 

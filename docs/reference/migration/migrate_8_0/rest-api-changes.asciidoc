@@ -830,9 +830,12 @@ If you previously used the `indices` parameter to back up or restore system
 indices, update your {slm-init} policies and application to use the
 `include_global_state` and `feature_states` parameters instead.
 
-Snapshot API requests that explicitly specify a system index in the `indices`
-parameter will return an error. If the `indices` value includes a wildcard (`*`)
-pattern, the pattern will no longer match system indices.
+An {slm-init} policy that explicitly specifies a system index in the `indices`
+parameter will fail to create snapshots. Similarly, a create snapshot API or
+restore snapshot API request that explicitly specifies a system index in the
+`indices` parameter will fail and return an error. If the `indices` value
+includes a wildcard (`*`) pattern, the pattern will no longer match system
+indices.
 ====
 
 .Snapshots compress metadata files by default.

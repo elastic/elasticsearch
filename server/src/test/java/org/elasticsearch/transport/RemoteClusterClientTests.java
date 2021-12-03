@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.removeRoles;
+import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.elasticsearch.transport.RemoteClusterConnectionTests.startTransport;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -42,7 +43,10 @@ public class RemoteClusterClientTests extends ESTestCase {
     }
 
     public void testConnectAndExecuteRequest() throws Exception {
-        Settings remoteSettings = Settings.builder().put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "foo_bar_cluster").build();
+        Settings remoteSettings = Settings.builder()
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "foo_bar_cluster")
+            .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true) // suppress assertions to test production error-handling
+            .build();
         try (
             MockTransportService remoteTransport = startTransport(
                 "remote_node",

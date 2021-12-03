@@ -10,13 +10,14 @@ matches the fingerprint.
 
 If the auto-configuration process already completed, you can still obtain the 
 fingerprint of the security certificate. Run the following command on any
-running node in the {es} cluster that you want to connect to. Modify
-`<host>:<port>` to match where your {es} node is running.
+node in the {es} cluster that you want to connect to.
 
 [source,sh]
 ----
-echo | openssl s_client -connect <host>:<port> 2>/dev/null | openssl x509 -issuer -fingerprint -sha256 | sed 's/://g'
+openssl x509 -fingerprint -sha256 -in config/tls_auto_config_<timestamp>/http_ca.crt
 ----
+
+`<timestamp>`:: The timestamp of when the auto-configuration process created the security files directory.
 
 The command returns the the security certificate, including the fingerprint.
 The `issuer` should be `Elasticsearch security auto-configuration HTTP CA`.

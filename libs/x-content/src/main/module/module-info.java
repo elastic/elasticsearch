@@ -21,5 +21,6 @@ module org.elasticsearch.xcontent {
     exports org.elasticsearch.xcontent.support.filtering;
     exports org.elasticsearch.xcontent.yaml;
 
+    uses org.elasticsearch.xcontent.ErrorOnUnknown;
     uses org.elasticsearch.xcontent.XContentBuilderExtension;
 }

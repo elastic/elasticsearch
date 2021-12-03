@@ -161,7 +161,8 @@ public class BootstrapForTesting {
                             || runnerPolicy.implies(domain, permission);
                     }
                 });
-                System.setSecurityManager(SecureSM.createTestSecureSM());
+                Security.prepopulateSecurityCaller();
+                Security.setSecurityManager(SecureSM.createTestSecureSM());
                 Security.selfTest();
 
                 // guarantee plugin classes are initialized first, in case they have one-time hacks.

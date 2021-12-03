@@ -14,26 +14,3 @@ You can use the following APIs to perform {ml} {dfanalytics} activities:
 * <<start-dfanalytics,Start {dfanalytics-jobs}>>
 * <<stop-dfanalytics,Stop {dfanalytics-jobs}>>
 * <<update-dfanalytics,Update {dfanalytics-jobs}>>
-
-You can use the following APIs to perform {infer} operations:
-
-* <<put-trained-models>>
-* <<put-trained-model-definition-part>>
-* <<put-trained-model-vocabulary>>
-* <<put-trained-models-aliases>>
-* <<delete-trained-models>>
-* <<delete-trained-models-aliases>>
-* <<get-trained-models>>
-* <<get-trained-models-stats>>
-
-You can deploy a trained model to make predictions in an ingest pipeline or in
-an aggregation. Refer to the following documentation to learn more:
-
-* <<search-aggregations-pipeline-inference-bucket-aggregation,{infer-cap} bucket aggregation>>
-* <<inference-processor,{infer-cap} processor>>
-* <<infer-trained-model-deployment>>
-* <<start-trained-model-deployment>>
-* <<stop-trained-model-deployment>>
-
-
-See also <<ml-apis>>.

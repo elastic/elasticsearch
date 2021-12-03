@@ -10,7 +10,8 @@ matches the fingerprint.
 
 If the auto-configuration process already completed, you can still obtain the 
 fingerprint of the security certificate. Run the following command on any
-node in the {es} cluster that you want to connect to.
+node in the {es} cluster that you want to connect to. The path is to the
+auto-generated certificate for the HTTP layer.
 
 [source,sh]
 ----
@@ -27,3 +28,9 @@ The `issuer` should be `Elasticsearch security auto-configuration HTTP CA`.
 issuer= /CN=Elasticsearch security auto-configuration HTTP CA
 SHA256 Fingerprint=<fingerprint>
 ----
+
+If your library doesn't support a method of validating the fingerprint, the 
+auto-generated CA certificate is created in the
+`config/tls_auto_config_<timestamp>` directory on each {es} node. Copy the
+`http_ca.crt` file to your machine and configure your client to use this
+certificate to establish trust when it connects to {es}.

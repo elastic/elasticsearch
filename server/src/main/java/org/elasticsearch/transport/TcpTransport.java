@@ -1117,7 +1117,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private static final class ChannelOpenTraceLogger implements ActionListener<Void> {
         private final TcpChannel channel;
 
-        public ChannelOpenTraceLogger(TcpChannel channel) {
+        ChannelOpenTraceLogger(TcpChannel channel) {
             this.channel = channel;
         }
 

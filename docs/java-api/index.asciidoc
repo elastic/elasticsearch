@@ -35,8 +35,8 @@ https://github.com/elastic/elasticsearch/issues/27205[Java high-level REST
 client completeness].
 
 Any missing APIs can always be implemented today by using the
-link:/guide/en/elasticsearch/client/java-rest/current/java-rest-low.html[low
-level Java REST Client] with JSON request and response bodies.
+{java-rest}/java-rest-low.html[low level Java REST Client] with JSON request and
+response bodies.
 
 ===================================
 

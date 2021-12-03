@@ -75,12 +75,12 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
         ConstructingObjectParser<T, Void> parser = new ConstructingObjectParser<>(name, true, constructingObjects -> {
             int i = 0;
             @SuppressWarnings("unchecked")
-            List<TaskInfo> tasks = (List<TaskInfo>) constructingObjects[i++];
+            List<TaskInfo> taskInfos = (List<TaskInfo>) constructingObjects[i++];
             @SuppressWarnings("unchecked")
             List<TaskOperationFailure> tasksFailures = (List<TaskOperationFailure>) constructingObjects[i++];
             @SuppressWarnings("unchecked")
             List<ElasticsearchException> nodeFailures = (List<ElasticsearchException>) constructingObjects[i];
-            return ctor.apply(tasks, tasksFailures, nodeFailures);
+            return ctor.apply(taskInfos, tasksFailures, nodeFailures);
         });
         parser.declareObjectArray(optionalConstructorArg(), TaskInfo.PARSER, new ParseField(TASKS));
         parser.declareObjectArray(optionalConstructorArg(), (p, c) -> TaskOperationFailure.fromXContent(p), new ParseField(TASK_FAILURES));

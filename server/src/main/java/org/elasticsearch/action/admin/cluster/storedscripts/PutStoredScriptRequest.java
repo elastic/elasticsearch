@@ -104,10 +104,10 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     /**
      * Set the script source and the content type of the bytes.
      */
-    public PutStoredScriptRequest content(BytesReference content, XContentType xContentType) {
-        this.content = content;
-        this.xContentType = Objects.requireNonNull(xContentType);
-        this.source = StoredScriptSource.parse(content, xContentType);
+    public PutStoredScriptRequest content(BytesReference contentRef, XContentType type) {
+        this.content = contentRef;
+        this.xContentType = Objects.requireNonNull(type);
+        this.source = StoredScriptSource.parse(contentRef, type);
         return this;
     }
 
@@ -123,10 +123,10 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
 
     @Override
     public String toString() {
-        String source = "_na_";
+        String json = "_na_";
 
         try {
-            source = XContentHelper.convertToJson(content, false, xContentType);
+            json = XContentHelper.convertToJson(content, false, xContentType);
         } catch (Exception e) {
             // ignore
         }
@@ -136,7 +136,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
             + "]"
             + (context != null ? ", context [" + context + "]" : "")
             + ", content ["
-            + source
+            + json
             + "]}";
     }
 

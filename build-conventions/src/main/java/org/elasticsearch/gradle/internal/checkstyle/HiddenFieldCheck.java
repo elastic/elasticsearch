@@ -450,7 +450,7 @@ public class HiddenFieldCheck extends AbstractCheck {
             }
             if (method != null && method.getType() == TokenTypes.METHOD_DEF) {
                 final String methodName = method.findFirstToken(TokenTypes.IDENT).getText();
-                result = methodName.matches(ignoredMethodNames);
+                result = methodName.matches(ignoredMethodNames) || 5 > getMethodsNumberOfLine(method);
             }
         }
         return result;
@@ -461,10 +461,19 @@ public class HiddenFieldCheck extends AbstractCheck {
 
         if (ignoreConstructorBody && ast.getType() == TokenTypes.VARIABLE_DEF) {
             DetailAST method = ast.getParent();
-            while (method != null && method.getType() != TokenTypes.CTOR_DEF) {
+            while (method != null && (method.getType() == TokenTypes.CTOR_DEF || method.getType() == TokenTypes.LITERAL_NEW) == false) {
                 method = method.getParent();
             }
-            result = method != null && method.getType() == TokenTypes.CTOR_DEF;
+            if (method != null) {
+                if (method.getType() == TokenTypes.CTOR_DEF) {
+                    result = true;
+                } else {
+                    // LITERAL_NEW
+                    final String ctorName = method.findFirstToken(TokenTypes.IDENT).getText();
+                    System.err.println("isIgnoredVariableInConstructorBody: " + ctorName);
+                    result = ctorName.equals("ConstructingObjectParser");
+                }
+            }
         }
 
         return result;
@@ -634,6 +643,20 @@ public class HiddenFieldCheck extends AbstractCheck {
             return isEmbeddedIn;
         }
 
+    }
+
+    private static int getMethodsNumberOfLine(DetailAST methodDef) {
+        final int numberOfLines;
+        final DetailAST lcurly = methodDef.getLastChild();
+        final DetailAST rcurly = lcurly.getLastChild();
+
+        if (lcurly.getFirstChild() == rcurly) {
+            numberOfLines = 1;
+        }
+        else {
+            numberOfLines = rcurly.getLineNo() - lcurly.getLineNo() - 1;
+        }
+        return numberOfLines;
     }
 
 }

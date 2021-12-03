@@ -126,9 +126,8 @@ public class ElasticsearchJavaBasePlugin implements Plugin<Project> {
 
             boolean hasModuleInfo = hasModuleInfo(project);
             if (hasModuleInfo == true) {
-                moduleLintSuppressions = ",-requires-automatic,-requires-transitive-automatic";
-                moduleLintSuppressions += ",-exports"; // TODO: server has a lot of exports warnings, fix'em
-                moduleLintSuppressions += ",-module"; // TODO: qualified exports, should fix with module-source-path
+                moduleLintSuppressions += ",-exports"; // TODO: server has a lot of exports warnings, first reduce exports then fix remains
+                // moduleLintSuppressions += ",-module"; // TODO: qualified exports, should fix with module-source-path
                 moduleLintSuppressions += ",-missing-explicit-ctor"; // TODO: this should be fixed by adding explicit ctors
                 compileOptions.getCompilerArgumentProviders().add(new ModulePathArgumentProvider(project));
             }

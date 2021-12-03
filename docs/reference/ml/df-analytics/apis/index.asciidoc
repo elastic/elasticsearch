@@ -1,13 +1,6 @@
 include::ml-df-analytics-apis.asciidoc[leveloffset=+1]
 //CREATE
 include::put-dfanalytics.asciidoc[leveloffset=+2]
-<<<<<<< HEAD
-include::put-trained-models-aliases.asciidoc[leveloffset=+2]
-include::put-trained-models.asciidoc[leveloffset=+2]
-//UPDATE
-include::update-dfanalytics.asciidoc[leveloffset=+2]
-=======
->>>>>>> 429bdd9afc0 ([DOCS] Move trained model APIs out of dataframe analytics (#81315))
 //DELETE
 include::delete-dfanalytics.asciidoc[leveloffset=+2]
 //EVALUATE
@@ -17,18 +10,10 @@ include::explain-dfanalytics.asciidoc[leveloffset=+2]
 //GET
 include::get-dfanalytics.asciidoc[leveloffset=+2]
 include::get-dfanalytics-stats.asciidoc[leveloffset=+2]
-<<<<<<< HEAD
-include::get-trained-models.asciidoc[leveloffset=+2]
-include::get-trained-models-stats.asciidoc[leveloffset=+2]
-=======
->>>>>>> 429bdd9afc0 ([DOCS] Move trained model APIs out of dataframe analytics (#81315))
 //PREVIEW
 include::preview-dfanalytics.asciidoc[leveloffset=+2]
 //SET/START/STOP
 include::start-dfanalytics.asciidoc[leveloffset=+2]
 include::stop-dfanalytics.asciidoc[leveloffset=+2]
-<<<<<<< HEAD
-=======
 //UPDATE
 include::update-dfanalytics.asciidoc[leveloffset=+2]
->>>>>>> 429bdd9afc0 ([DOCS] Move trained model APIs out of dataframe analytics (#81315))

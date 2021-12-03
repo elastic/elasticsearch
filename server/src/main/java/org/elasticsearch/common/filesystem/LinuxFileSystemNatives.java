@@ -41,7 +41,7 @@ final class LinuxFileSystemNatives implements FileSystemNatives.Provider {
      * To allow the `struct stat' structure bits to vary without changing shared library major version number, the `stat' function is often
      * an inline wrapper around `xstat' which takes a leading version-number argument designating the data structure and bits used.
      *
-     * In glibc this version is defined in <bits/stat.h> (or <bits/struct_stat.h> in glibc 2.33) as:
+     * In glibc this version is defined in bits/stat.h (or bits/struct_stat.h in glibc 2.33) as:
      *  # define _STAT_VER_LINUX	1
      *  # define _STAT_VER _STAT_VER_LINUX
      **/

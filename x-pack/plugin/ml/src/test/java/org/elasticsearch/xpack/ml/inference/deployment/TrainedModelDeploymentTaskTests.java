@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationNod
 import java.util.Map;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX;
+import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_ACTION;
 import static org.elasticsearch.xpack.core.ml.MlTasks.TRAINED_MODEL_ALLOCATION_TASK_TYPE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -32,7 +32,7 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
         TrainedModelDeploymentTask task = new TrainedModelDeploymentTask(
             0,
             TRAINED_MODEL_ALLOCATION_TASK_TYPE,
-            TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX + modelId,
+            TRAINED_MODEL_ALLOCATION_TASK_ACTION,
             TaskId.EMPTY_TASK_ID,
             Map.of(),
             new StartTrainedModelDeploymentAction.TaskParams(

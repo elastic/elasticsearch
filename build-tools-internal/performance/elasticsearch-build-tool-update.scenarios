@@ -2,7 +2,7 @@
 default-scenarios = ["buildConfiguration"]
 
 buildConfiguration {
-    title = "new"
+    title = "configuration phase"
     tasks = ["help"]
     # cleanup-tasks = ["clean"]
     versions = ["@oldGradleVersion@", "@gradleVersion@"]

@@ -2,8 +2,7 @@
 === Java Client and security
 
 The {es} {security-features} support the Java
-http://www.elastic.co/guide/en/elasticsearch/client/java-api/current/transport-client.html[transport client]
-for Elasticsearch.
+{javaclient}/transport-client.html[transport client] for Elasticsearch.
 
 The transport client uses the same transport protocol that the cluster nodes use
 for inter-node communication. It is very efficient as it does not have to marshall
@@ -34,8 +33,8 @@ https://github.com/elastic/elasticsearch/issues/27205[Java high-level REST
 client completeness].
 
 Any missing APIs can always be implemented today by using the
-link:/guide/en/elasticsearch/client/java-rest/current/java-rest-low.html[low
-level Java REST Client] with JSON request and response bodies.
+{java-rest}/java-rest-low.html[low level Java REST Client] with JSON request and
+response bodies.
 
 ===================================
 

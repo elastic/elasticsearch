@@ -20,6 +20,17 @@ configure(subprojects - project('elasticsearch-log4j')) {
     ]
   }
 
+  plugins.withType(JavaPlugin) {
+    // Configure the version attribute.
+    tasks.withType(JavaCompile).configureEach {
+      it.options.javaModuleVersion.set(
+        provider {
+          return project.version.toString()
+        }
+      )
+    }
+  }
+
   /*
    * Subprojects may depend on the "core" lib but may not depend on any
    * other libs. This keeps our dependencies simpler.

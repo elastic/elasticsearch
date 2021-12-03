@@ -30,12 +30,18 @@ sourceSets {
   ]
 }
 
-// TODO: check modular jar for version, and centralized in base java plugin?
-// TODO: write a basic test for modules? but how
-// TODO: get in to CI, see what else fails.
-// TODO: Maybe update framework to help at least unit test each module as a module, e.g. core, xcontent, etc
-// TODO: IDEA plugin/
-//
+allprojects {
+  plugins.withType(JavaPlugin) {
+    // Configure the version attribute.
+    tasks.withType(JavaCompile).configureEach {
+      it.options.javaModuleVersion.set(
+        provider {
+          return project.version.toString()
+        }
+      )
+    }
+  }
+}
 
 dependencies {
 

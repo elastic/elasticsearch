@@ -22,19 +22,6 @@ dependencies {
   }
 }
 
-allprojects {
-  plugins.withType(JavaPlugin) {
-    // Configure the version attribute.
-    tasks.withType(JavaCompile).configureEach {
-      it.options.javaModuleVersion.set(
-        provider {
-          return project.version.toString()
-        }
-      )
-    }
-  }
-}
-
 tasks.named('forbiddenApisMain').configure {
   // :libs:elasticsearch-core does not depend on server
   // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server

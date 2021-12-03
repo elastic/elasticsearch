@@ -93,15 +93,12 @@ public class Criterion<Q extends QueryRequest> {
             tbreaker = (Comparable<Object>) tb;
         }
 
-        Object extractedImplicitTiebreaker = implicitTiebreaker.extract(hit);
-        if (extractedImplicitTiebreaker instanceof Number == false) {
-            throw new EqlIllegalArgumentException(
-                "Expected _shard_doc/implicit tiebreaker as long but got [{}]",
-                extractedImplicitTiebreaker
-            );
+        Object implicitTbreaker = implicitTiebreaker.extract(hit);
+        if (implicitTbreaker instanceof Number == false) {
+            throw new EqlIllegalArgumentException("Expected _shard_doc/implicit tiebreaker as long but got [{}]", implicitTbreaker);
         }
-        long implicitTiebreakerValue = ((Number) extractedImplicitTiebreaker).longValue();
-        return new Ordinal((Timestamp) ts, tbreaker, implicitTiebreakerValue);
+        long timebreakerValue = ((Number) implicitTbreaker).longValue();
+        return new Ordinal((Timestamp) ts, tbreaker, timebreakerValue);
     }
 
     @Override

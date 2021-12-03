@@ -57,6 +57,7 @@ public class HostsTests extends ESTestCase {
             assertThat(node.nodeId(), anyOf(equalTo("node1"), equalTo("node2")));
         }
         assertEquals(2, nodeCount);
+        assertEquals(1, hosts.getHostCount());
     }
 
     public void testBuildHostsWithoutAddressAndName() {
@@ -87,6 +88,7 @@ public class HostsTests extends ESTestCase {
         List<RoutingNode> nodes = List.of(new RoutingNode(dn1.getId(), dn1), new RoutingNode(dn2.getId(), dn2));
         Hosts hosts = new Hosts(nodes);
         assertNull(hosts.getHost("node1"));
+        assertEquals(0, hosts.getHostCount());
     }
 
 }

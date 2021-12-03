@@ -13,7 +13,9 @@ import org.elasticsearch.common.Strings;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * {@link Hosts} hosts records the mapping relationship between nodes and hosts,
@@ -21,21 +23,26 @@ import java.util.Map;
  */
 public class Hosts {
     private final Map<String, Host> node2Host;
+    private final int hostCount;
 
     public Hosts(Iterable<RoutingNode> nodes) {
-        Map<String, HostBuilder> node2HostBuilder = new HashMap<>();
+        Set<HostBuilder> hostBuilderSet = new HashSet<>();
         Map<String, HostBuilder> hostNameMap = new HashMap<>();
         Map<String, HostBuilder> hostAddressMap = new HashMap<>();
         for (RoutingNode checkNode : nodes) {
             HostBuilder hostBuilder = getOrCreateHost(checkNode, hostNameMap, hostAddressMap);
             if (hostBuilder != null) {
                 hostBuilder.addNode(checkNode);
-                node2HostBuilder.put(checkNode.nodeId(), hostBuilder);
+                hostBuilderSet.add(hostBuilder);
             }
         }
-        Map<String, Host> tmpNode2Host = new HashMap<>(node2HostBuilder.size());
-        for (String node : node2HostBuilder.keySet()) {
-            tmpNode2Host.put(node, node2HostBuilder.get(node).builder());
+        this.hostCount = hostBuilderSet.size();
+        Map<String, Host> tmpNode2Host = new HashMap<>();
+        for (HostBuilder hostBuilder : hostBuilderSet) {
+            Host host = hostBuilder.build();
+            for (RoutingNode node : host) {
+                tmpNode2Host.put(node.nodeId(), host);
+            }
         }
         this.node2Host = Collections.unmodifiableMap(tmpNode2Host);
     }
@@ -72,5 +79,9 @@ public class Hosts {
 
     public Host getHost(String nodeId) {
         return node2Host.get(nodeId);
+    }
+
+    public int getHostCount() {
+        return hostCount;
     }
 }

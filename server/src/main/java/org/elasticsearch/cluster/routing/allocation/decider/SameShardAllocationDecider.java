@@ -10,6 +10,8 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.Host;
+import org.elasticsearch.cluster.routing.allocation.Hosts;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -85,13 +87,14 @@ public class SameShardAllocationDecider extends AllocationDecider {
             .expandToAllNodes()) {
             return YES_AUTO_EXPAND_ALL;
         }
-        if (node.node() != null) {
-            for (RoutingNode checkNode : allocation.getHosts().getHost(node.nodeId())) {
-                if (checkNode.node() == null || checkNode.nodeId().equals(node.nodeId())) {
-                    continue;
-                }
-                for (ShardRouting assignedShard : assignedShards) {
-                    if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
+        Hosts hosts = allocation.getHosts();
+        Host host = hosts.getHost(node.nodeId());
+        // return yes if can not find the host info of candidate node(no host name & address)
+        if (node.node() != null && host != null) {
+            for (ShardRouting assignedShard : assignedShards) {
+                if (hosts.getHost(assignedShard.currentNodeId()) == host) {
+                    if (allocation.debugDecision()) {
+                        RoutingNode checkNode = allocation.routingNodes().node(assignedShard.currentNodeId());
                         // check if its on the same host as the one we want to allocate to
                         boolean checkNodeOnSameHostAddress = false;
                         if (Strings.hasLength(checkNode.node().getHostAddress()) && Strings.hasLength(node.node().getHostAddress())) {
@@ -99,10 +102,9 @@ public class SameShardAllocationDecider extends AllocationDecider {
                                 checkNodeOnSameHostAddress = true;
                             }
                         }
-
-                        return allocation.debugDecision()
-                            ? debugNoAlreadyAllocatedToHost(node, allocation, checkNodeOnSameHostAddress)
-                            : Decision.NO;
+                        return debugNoAlreadyAllocatedToHost(node, allocation, checkNodeOnSameHostAddress);
+                    } else {
+                        return Decision.NO;
                     }
                 }
             }

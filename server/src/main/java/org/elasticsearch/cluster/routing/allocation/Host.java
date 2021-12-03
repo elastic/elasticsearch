@@ -21,6 +21,7 @@ public final class Host implements Iterable<RoutingNode> {
     private final List<RoutingNode> nodes;
 
     Host(List<RoutingNode> nodes) {
+        assert nodes.isEmpty() == false;
         this.nodes = List.copyOf(nodes);
     }
 

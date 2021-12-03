@@ -19,16 +19,12 @@ import java.util.List;
  */
 public final class HostBuilder {
     private final List<RoutingNode> nodes = new LinkedList<>();
-    private Host host;
 
     public void addNode(RoutingNode node) {
         nodes.add(node);
     }
 
-    public Host builder() {
-        if (host == null) {
-            host = new Host(nodes);
-        }
-        return host;
+    public Host build() {
+        return new Host(nodes);
     }
 }

@@ -30,6 +30,36 @@ Other versions:
 
 // tag::notable-highlights[]
 [discrete]
+
+=== SQL: Support for cross-cluster search
+
+Cross-cluster search (CCS) is now supported in SQL using the CCS-specific
+`cluster:index` notation where `cluster` maps to a SQL catalog and
+`index` to a table.
+
+=== Search: Node-level can-match action
+
+
+
+=== Frozen tier: Cached requests and queries
+
+Requests and queries against indices in the frozen tier are now cached
+which improves performance for subsequent queries.
+
+=== Enrich processor: Allow range types for enrich matching
+
+The enrich processor has supported only the keyword data type for the match
+field on the enrich index. The enrich processor will now use a range type in
+the enrich index if the data type in all the source indices is a range type.
+This enables enrichment on range types such as ip_range.
+
+=== Data streams: Segment sorter
+
+Sorts segments in data stream backing indices by desc order of their max
+timestamp field so that the most recent segments will be first. This
+speeds up queries sort on the @timestamp field which are the most common
+type of queries for data streams.
+
 === EQL: `with runs` statements for repeated events
 
 In 7.16, we added the `with runs` statement syntax to EQL sequence queries.
@@ -38,4 +68,14 @@ succession. Rather than type the same event criteria multiple times, you can use
 a `with runs` statement to declare the criteria once and run it successively.
 For more details, check out the
 {ref}/eql-syntax.html#eql-with-runs-statement[EQL syntax documentation].
+
+
+=== Field capabilities: Results gathered by node rather than index
+
+Previously, field caps were gathered by sending a request per index to the
+appropriate nodes in the cluster resulting in high overhead when many indices
+are targeted. Now requests that target indices on a single node are grouped
+together resulting in no more than a single request per node.
+
 // end::notable-highlights[]
+

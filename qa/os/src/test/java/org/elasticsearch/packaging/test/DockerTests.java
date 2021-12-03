@@ -18,7 +18,6 @@ import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.elasticsearch.packaging.util.docker.DockerRun;
-import org.elasticsearch.packaging.util.docker.DockerShell;
 import org.elasticsearch.packaging.util.docker.MockServer;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -396,22 +395,6 @@ public class DockerTests extends PackagingTestCase {
         assertTrue(existsInContainer(installation.logs.resolve("gc.log")));
 
         ServerUtils.runElasticsearchTests();
-    }
-
-    /**
-     * Check that the JDK uses the Cloudflare zlib, instead of the default one.
-     */
-    public void test060JavaUsesCloudflareZlib() throws Exception {
-        waitForElasticsearch(installation);
-
-        // Since the Docker image before 8.0 runs as `root`, not `elasticsearch`, it's
-        // necessary to specify the user when we run `docker exec` in order to successfully
-        // run `pmap`. Surprisingly, running this as `root` in the container doesn't work.
-        // The `pmap` command also doesn't work if we don't specify the group.
-        ((DockerShell) sh).setUser("elasticsearch:root");
-        final String output = sh.run("bash -c 'pmap -p $(pidof java)'").stdout;
-
-        assertThat("Expected java to be using cloudflare-zlib", output, containsString("cloudflare-zlib"));
     }
 
     /**

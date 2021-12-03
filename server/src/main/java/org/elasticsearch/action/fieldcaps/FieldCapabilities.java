@@ -54,7 +54,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
     private static final ParseField NON_SEARCHABLE_INDICES_FIELD = new ParseField("non_searchable_indices");
     private static final ParseField NON_AGGREGATABLE_INDICES_FIELD = new ParseField("non_aggregatable_indices");
     private static final ParseField NON_DIMENSION_INDICES_FIELD = new ParseField("non_dimension_indices");
-    private static final ParseField METRIC_CONFLICTS_INDICES_FIELD = new ParseField("mertric_conflicts_indices");
+    private static final ParseField METRIC_CONFLICTS_INDICES_FIELD = new ParseField("metric_conflicts_indices");
     private static final ParseField META_FIELD = new ParseField("meta");
 
     private final String name;
@@ -480,7 +480,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
         private boolean isAggregatable;
         private boolean isDimension;
         private TimeSeriesParams.MetricType metricType;
-        private boolean mertricTypeIsSet;
+        private boolean metricTypeIsSet;
         private List<IndexCaps> indiceList;
         private Map<String, Set<String>> meta;
 
@@ -491,7 +491,7 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.isAggregatable = true;
             this.isDimension = true;
             this.metricType = null;
-            this.mertricTypeIsSet = false;
+            this.metricTypeIsSet = false;
             this.indiceList = new ArrayList<>();
             this.meta = new HashMap<>();
         }
@@ -516,12 +516,12 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             this.isDimension &= isDimension;
             // If we have discrepancy in metric types or in some indices this field is not marked as a metric field - we will
             // treat is a non-metric field and report this discrepancy in metricConflictsIndices
-            if (this.mertricTypeIsSet) {
+            if (this.metricTypeIsSet) {
                 if (this.metricType != metricType) {
                     this.metricType = null;
                 }
             } else {
-                this.mertricTypeIsSet = true;
+                this.metricTypeIsSet = true;
                 this.metricType = metricType;
             }
             for (Map.Entry<String, String> entry : meta.entrySet()) {

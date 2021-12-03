@@ -148,3 +148,15 @@ time_series rollover:
   - do:
       indices.rollover:
         alias: 'k8s'
+
+  - do:
+      indices.get_data_stream:
+        name: '*'
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: 'k8s' }
+  - match: { data_streams.0.type: 'time_series' }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 2 }
+  - length: { data_streams.0.indices: 2 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-k8s-\d{4}\.\d{2}\.\d{2}-000001/' }
+  - match: { data_streams.0.indices.1.index_name: '/\.ds-k8s-\d{4}\.\d{2}\.\d{2}-000002/' }

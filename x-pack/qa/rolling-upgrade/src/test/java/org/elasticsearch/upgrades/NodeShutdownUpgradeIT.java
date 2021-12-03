@@ -13,19 +13,17 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.equalToIgnoringCase;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasEntry;
 
 public class NodeShutdownUpgradeIT extends AbstractUpgradeTestCase {
     List<String> namesSorted;
@@ -47,66 +45,72 @@ public class NodeShutdownUpgradeIT extends AbstractUpgradeTestCase {
             case OLD:
                 nodeIdToShutdown = nodeIdToShutdown(0);
                 assertOK(client().performRequest(shutdownNode(nodeIdToShutdown)));
-                assertBusy(
-                    () -> assertThat(getShutdownStatus(nodeIdToShutdown), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE)),
-                    30,
-                    TimeUnit.SECONDS
-                );
+
+                assertBusy(() -> assertThat(getShutdownStatus(), containsInAnyOrder(shutdownStatusCompleteFor(0))));
                 break;
 
             case MIXED:
                 if (FIRST_MIXED_ROUND) {
-                    assertBusy(
-                        () -> assertThat(getShutdownStatus(nodeIdToShutdown(0)), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE)),
-                        30,
-                        TimeUnit.SECONDS
-                    );
+                    // after upgrade the record still exist
+                    assertBusy(() -> assertThat(getShutdownStatus(), containsInAnyOrder(shutdownStatusCompleteFor(0))));
+
                     nodeIdToShutdown = nodeIdToShutdown(1);
+                    assertOK(client().performRequest(shutdownNode(nodeIdToShutdown)));
+
+                    assertBusy(
+                        () -> assertThat(
+                            getShutdownStatus(),
+                            containsInAnyOrder(shutdownStatusCompleteFor(0), shutdownStatusCompleteFor(1))
+                        )
+                    );
+
                 } else {
+                    assertBusy(
+                        () -> assertThat(
+                            getShutdownStatus(),
+                            containsInAnyOrder(shutdownStatusCompleteFor(0), shutdownStatusCompleteFor(1))
+                        )
+                    );
+
                     nodeIdToShutdown = nodeIdToShutdown(2);
-                    assertBusy(() -> {
-                        assertThat(getShutdownStatus(nodeIdToShutdown(0)), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE));
-                        assertThat(getShutdownStatus(nodeIdToShutdown(1)), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE));
-                    }, 30, TimeUnit.SECONDS);
+                    assertOK(client().performRequest(shutdownNode(nodeIdToShutdown)));
+
+                    assertBusy(
+                        () -> assertThat(
+                            getShutdownStatus(),
+                            containsInAnyOrder(shutdownStatusCompleteFor(0), shutdownStatusCompleteFor(1), shutdownStatusCompleteFor(2))
+                        )
+                    );
                 }
-                assertOK(client().performRequest(shutdownNode(nodeIdToShutdown)));
-                assertBusy(
-                    () -> assertThat(getShutdownStatus(nodeIdToShutdown), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE)),
-                    30,
-                    TimeUnit.SECONDS
-                );
+
                 break;
 
             case UPGRADED:
-                assertBusy(() -> {
-                    assertThat(getShutdownStatus(nodeIdToShutdown(0)), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE));
-                    assertThat(getShutdownStatus(nodeIdToShutdown(1)), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE));
-                    assertThat(getShutdownStatus(nodeIdToShutdown(2)), equalTo(SingleNodeShutdownMetadata.Status.COMPLETE));
-                }, 30, TimeUnit.SECONDS);
+                assertBusy(
+                    () -> assertThat(
+                        getShutdownStatus(),
+                        containsInAnyOrder(shutdownStatusCompleteFor(0), shutdownStatusCompleteFor(1), shutdownStatusCompleteFor(2))
+                    )
+                );
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown cluster type [" + CLUSTER_TYPE + "]");
         }
     }
 
+    private Matcher<Map<String, Object>> shutdownStatusCompleteFor(int i) {
+        return allOf(
+            hasEntry("node_id", nodeIdToShutdown(i)),
+            hasEntry("reason", this.getTestName()),
+            hasEntry("status", SingleNodeShutdownMetadata.Status.COMPLETE.toString())
+        );
+    }
+
     @SuppressWarnings("unchecked")
-    private SingleNodeShutdownMetadata.Status getShutdownStatus(String nodeIdToShutdown) throws IOException {
+    private List<Map<String, Object>> getShutdownStatus() throws IOException {
         final Request getShutdownsReq = new Request("GET", "_nodes/shutdown");
         final Response getShutdownsResp = client().performRequest(getShutdownsReq);
-        final List<Map<String, Object>> shutdowns = (List<Map<String, Object>>) entityAsMap(getShutdownsResp).get("nodes");
-        assertThat("there should be exactly one shutdown registered", shutdowns, hasSize(1));
-        final Map<String, Object> shutdown = shutdowns.get(0);
-        assertThat(shutdown.get("node_id"), equalTo(nodeIdToShutdown));
-        assertThat(shutdown.get("reason"), equalTo(this.getTestName()));
-        assertThat(
-            (String) shutdown.get("status"),
-            anyOf(
-                Arrays.stream(SingleNodeShutdownMetadata.Status.values())
-                    .map(value -> equalToIgnoringCase(value.toString()))
-                    .collect(Collectors.toList())
-            )
-        );
-        return SingleNodeShutdownMetadata.Status.valueOf((String) shutdown.get("status"));
+        return (List<Map<String, Object>>) entityAsMap(getShutdownsResp).get("nodes");
     }
 
     private Request shutdownNode(String nodeIdToShutdown) throws IOException {

@@ -17,6 +17,14 @@ import java.util.List;
  * Extends {@link Shell} so that executed commands happen in the currently running Docker container.
  */
 public class DockerShell extends Shell {
+    private String user = null;
+
+    @Override
+    public void reset() {
+        super.reset();
+        this.user = null;
+    }
+
     @Override
     protected String[] getScriptCommand(String script) {
         assert Docker.containerId != null;
@@ -25,6 +33,11 @@ public class DockerShell extends Shell {
         cmd.add("docker");
         cmd.add("exec");
         cmd.add("--tty");
+
+        if (this.user != null) {
+            cmd.add("--user");
+            cmd.add(user);
+        }
 
         env.forEach((key, value) -> cmd.add("--env " + key + "=\"" + value + "\""));
 
@@ -63,5 +76,13 @@ public class DockerShell extends Shell {
             }
             throw e;
         }
+    }
+
+    /**
+     * Sets the user to run `docker exec` with.
+     * @param user the user specification, e.g. `user`, `uid`, `user:group`, `uid:gid`.
+     */
+    public void setUser(String user) {
+        this.user = user;
     }
 }

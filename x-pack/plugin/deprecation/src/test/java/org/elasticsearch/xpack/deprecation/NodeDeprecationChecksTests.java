@@ -69,7 +69,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.coordination.JoinHelper.JOIN_TIMEOUT_SETTING;
@@ -2088,8 +2087,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(FaultDetection.PING_RETRIES_SETTING.getKey(), randomInt())
             .put(FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING.getKey(), randomBoolean())
             .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), randomInt())
-            .putList(DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(),
-                Arrays.asList(generateRandomStringArray(10, 20, false)))
+            .putList(
+                DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(),
+                Arrays.asList(generateRandomStringArray(10, 20, false))
+            )
             .put(ZenDiscovery.JOIN_RETRY_ATTEMPTS_SETTING.getKey(), randomInt())
             .put(ZenDiscovery.JOIN_RETRY_DELAY_SETTING.getKey(), randomTimeValue())
             .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), randomTimeValue())
@@ -2098,8 +2099,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(ZenDiscovery.MAX_PINGS_FROM_ANOTHER_MASTER_SETTING.getKey(), randomInt())
             .put(NoMasterBlockService.LEGACY_NO_MASTER_BLOCK_SETTING.getKey(), "metadata_write")
             .put(SeedHostsResolver.LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.getKey(), randomInt())
-            .putList(SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(),
-                Arrays.asList(generateRandomStringArray(10, 20, false)))
+            .putList(
+                SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(),
+                Arrays.asList(generateRandomStringArray(10, 20, false))
+            )
             .put(SeedHostsResolver.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.getKey(), randomPositiveTimeValue())
             .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), randomPositiveTimeValue())
             .put(ZenDiscovery.MAX_PENDING_CLUSTER_STATES_SETTING.getKey(), randomInt())

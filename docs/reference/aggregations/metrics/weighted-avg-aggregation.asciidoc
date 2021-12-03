@@ -210,8 +210,7 @@ Which should look like:
 The `missing` parameter defines how documents that are missing a value should be treated.
 The default behavior is different for `value` and `weight`:
 
-By default, if the `value` field is missing the document is ignored and the aggregation moves on to the next document.
-If the `weight` field is missing, it is assumed to have a weight of `1` (like a normal average).
+By default, if the `value` or `weight` field is missing the document is ignored and the aggregation moves on to the next document.
 
 Both of these defaults can be overridden with the `missing` parameter:
 

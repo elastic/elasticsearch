@@ -102,23 +102,23 @@ public class CircleBuilder extends ShapeBuilder<Circle, org.elasticsearch.geomet
 
     /**
      * Set the radius of the circle
-     * @param radius value of the circles radius
-     * @param unit unit name of the radius value (see {@link DistanceUnit})
+     * @param radiusValue value of the circles radius
+     * @param unitValue unit name of the radius value (see {@link DistanceUnit})
      * @return this
      */
-    public CircleBuilder radius(double radius, String unit) {
-        return radius(radius, DistanceUnit.fromString(unit));
+    public CircleBuilder radius(double radiusValue, String unitValue) {
+        return radius(radiusValue, DistanceUnit.fromString(unitValue));
     }
 
     /**
      * Set the radius of the circle
-     * @param radius value of the circles radius
-     * @param unit unit of the radius value (see {@link DistanceUnit})
+     * @param radiusValue value of the circles radius
+     * @param unitValue unit of the radius value (see {@link DistanceUnit})
      * @return this
      */
-    public CircleBuilder radius(double radius, DistanceUnit unit) {
-        this.unit = unit;
-        this.radius = radius;
+    public CircleBuilder radius(double radiusValue, DistanceUnit unitValue) {
+        this.unit = unitValue;
+        this.radius = radiusValue;
         return this;
     }
 

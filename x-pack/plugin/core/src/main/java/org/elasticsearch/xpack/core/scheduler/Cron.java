@@ -795,7 +795,7 @@ public class Cron implements ToXContentFragment {
     //
     ////////////////////////////////////////////////////////////////////////////
 
-    private void buildExpression(String expression) {
+    private void buildExpression(@SuppressWarnings("HiddenField") String expression) {
 
         try {
 

@@ -262,11 +262,11 @@ public final class IndicesPermission {
                 return org.elasticsearch.core.List.of(indexAbstraction.getName());
             } else {
                 final List<Index> indices = indexAbstraction.getIndices();
-                final List<String> concreteIndices = new ArrayList<>(indices.size());
+                final List<String> concreteIndexNames = new ArrayList<>(indices.size());
                 for (final Index idx : indices) {
-                    concreteIndices.add(idx.getName());
+                    concreteIndexNames.add(idx.getName());
                 }
-                return concreteIndices;
+                return concreteIndexNames;
             }
         }
 

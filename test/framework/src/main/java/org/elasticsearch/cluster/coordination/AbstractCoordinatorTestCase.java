@@ -802,14 +802,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return getAnyNodeExcept();
         }
 
-        ClusterNode getAnyNodeExcept(ClusterNode... clusterNodes) {
-            List<ClusterNode> filteredNodes = getAllNodesExcept(clusterNodes);
+        ClusterNode getAnyNodeExcept(ClusterNode... clusterNodesToExclude) {
+            List<ClusterNode> filteredNodes = getAllNodesExcept(clusterNodesToExclude);
             assert filteredNodes.isEmpty() == false;
             return randomFrom(filteredNodes);
         }
 
-        List<ClusterNode> getAllNodesExcept(ClusterNode... clusterNodes) {
-            Set<String> forbiddenIds = Arrays.stream(clusterNodes).map(ClusterNode::getId).collect(Collectors.toSet());
+        List<ClusterNode> getAllNodesExcept(ClusterNode... clusterNodesToExclude) {
+            Set<String> forbiddenIds = Arrays.stream(clusterNodesToExclude).map(ClusterNode::getId).collect(Collectors.toSet());
             return this.clusterNodes.stream().filter(n -> forbiddenIds.contains(n.getId()) == false).collect(Collectors.toList());
         }
 
@@ -1250,7 +1250,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             ClusterNode restartedNode(
                 Function<Metadata, Metadata> adaptGlobalMetadata,
                 Function<Long, Long> adaptCurrentTerm,
-                Settings nodeSettings
+                Settings settings
             ) {
                 final TransportAddress address = randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress();
                 final DiscoveryNode newLocalNode = new DiscoveryNode(
@@ -1261,7 +1261,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     address.getAddress(),
                     address,
                     Collections.emptyMap(),
-                    localNode.isMasterNode() && DiscoveryNode.isMasterNode(nodeSettings) ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(),
+                    localNode.isMasterNode() && DiscoveryNode.isMasterNode(settings) ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(),
                     Version.CURRENT
                 );
                 try {
@@ -1269,7 +1269,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                         nodeIndex,
                         newLocalNode,
                         node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetadata, adaptCurrentTerm),
-                        nodeSettings,
+                        settings,
                         nodeHealthService
                     );
                 } finally {

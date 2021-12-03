@@ -236,7 +236,7 @@ public class ClusterDeprecationChecks {
             deprecationIssue = null;
         } else if (templatesWithMultipleTypes.isEmpty()) {
             deprecationIssue = new DeprecationIssue(
-                DeprecationIssue.Level.CRITICAL,
+                DeprecationIssue.Level.WARNING,
                 "Custom mapping types in index templates are deprecated",
                 "https://ela.st/es-deprecation-7-custom-types",
                 "Update or remove the following index templates before upgrading to 8.0: "

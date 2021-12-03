@@ -38,12 +38,17 @@ data is received.
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
+[[ml-open-job-query-parms]]
+== {api-query-parms-title}
+
+`timeout`::
+(Optional, time) Controls the time to wait until a job has opened. The default
+value is 30 minutes.
+
 [[ml-open-job-request-body]]
 == {api-request-body-title}
 
-`timeout`::
-  (Optional, time) Controls the time to wait until a job has opened. The default
-  value is 30 minutes.
+You can also specify the `timeout` query parameter in the request body.
 
 [[ml-open-job-response-body]]
 == {api-response-body-title}

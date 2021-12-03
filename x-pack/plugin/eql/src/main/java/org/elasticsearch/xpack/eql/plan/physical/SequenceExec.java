@@ -112,8 +112,8 @@ public class SequenceExec extends PhysicalPlan {
         return direction;
     }
 
-    public SequenceExec with(Limit limit) {
-        return new SequenceExec(source(), children(), keys(), timestamp(), tiebreaker(), limit, direction, maxSpan);
+    public SequenceExec with(Limit limitValue) {
+        return new SequenceExec(source(), children(), keys(), timestamp(), tiebreaker(), limitValue, direction, maxSpan);
     }
 
     @Override

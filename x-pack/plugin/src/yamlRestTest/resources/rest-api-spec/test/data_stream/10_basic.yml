@@ -56,11 +56,11 @@ setup:
   - match: { data_streams.0.hidden: false }
   - match: { data_streams.1.name: simple-data-stream2 }
   - match: { data_streams.1.timestamp_field.name: '@timestamp' }
-  - match: { data_streams.0.generation: 1 }
+  - match: { data_streams.1.generation: 1 }
   - length: { data_streams.1.indices: 1 }
   - match: { data_streams.1.indices.0.index_name: '/\.ds-simple-data-stream2-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - match: { data_streams.1.template: 'my-template2' }
-  - match: { data_streams.0.hidden: false }
+  - match: { data_streams.1.hidden: false }
 
   # save the backing index names for later use
   - set: { data_streams.0.indices.0.index_name: idx0name }
@@ -620,3 +620,53 @@ setup:
       catch: /cannot create index with name \[logs-foobar\], because it matches with template \[generic_logs_template\] that creates data streams only, use create data stream api instead/
       indices.create:
         index: logs-foobar
+
+---
+"Get data stream api check existence of replicated and allow_custom_routing fields":
+  - skip:
+      version: " - 7.16.0"
+      reason: "replicated and allow_custom_routing fields only supported in 7.16+"
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-simple-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.status: 'GREEN' }
+  - match: { data_streams.0.template: 'my-template1' }
+  - match: { data_streams.0.hidden: false }
+  - match: { data_streams.0.replicated: false }
+  - match: { data_streams.0.allow_custom_routing: false }
+  - match: { data_streams.1.name: simple-data-stream2 }
+  - match: { data_streams.1.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.1.generation: 1 }
+  - length: { data_streams.1.indices: 1 }
+  - match: { data_streams.1.indices.0.index_name: '/\.ds-simple-data-stream2-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.1.template: 'my-template2' }
+  - match: { data_streams.1.hidden: false }
+  - match: { data_streams.1.replicated: false }
+  - match: { data_streams.1.allow_custom_routing: false }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+

@@ -116,7 +116,7 @@ public class DefaultConstantFoldingOptimizationPhase extends IRTreeBaseVisitor<C
     @Override
     public void visitForLoop(ForLoopNode irForLoopNode, Consumer<ExpressionNode> scope) {
         if (irForLoopNode.getInitializerNode() != null) {
-            irForLoopNode.getInitializerNode().visit(this, irForLoopNode::setInitialzerNode);
+            irForLoopNode.getInitializerNode().visit(this, irForLoopNode::setInitializerNode);
         }
 
         if (irForLoopNode.getConditionNode() != null) {

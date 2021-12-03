@@ -17,7 +17,7 @@ return an error and the job waits in the `opening` state until sufficient {ml}
 node capacity is available.
 end::allow-lazy-open[]
 
-tag::allow-no-datafeeds[]
+tag::allow-no-match-datafeeds[]
 Specifies what to do when the request:
 +
 --
@@ -30,9 +30,9 @@ there are no matches and the subset of results when there are partial matches.
 If this parameter is `false`, the request returns a `404` status code when there
 are no matches or only partial matches.
 --
-end::allow-no-datafeeds[]
+end::allow-no-match-datafeeds[]
 
-tag::allow-no-jobs[]
+tag::allow-no-match-jobs[]
 Specifies what to do when the request:
 +
 --
@@ -45,7 +45,7 @@ when there are no matches and the subset of results when there are partial
 matches. If this parameter is `false`, the request returns a `404` status code
 when there are no matches or only partial matches.
 --
-end::allow-no-jobs[]
+end::allow-no-match-jobs[]
 
 tag::allow-no-match[]
  Specifies what to do when the request:
@@ -109,19 +109,19 @@ Contains messages relating to the selection of a node.
 end::assignment-explanation-dfanalytics[]
 
 tag::assignment-memory-basis[]
-Where should the memory requirement used for deciding which node the job
-will run on come from? The possible values are:
+Indicates where to find the memory requirement that is used to decide where the
+job runs. The possible values are:
 +
 --
-* `model_memory_limit`: The job's memory requirement will be calculated on
-the basis that its model memory will grow to the `model_memory_limit`
-specified in the `analysis_limits` of its config.
-* `current_model_bytes`: The job's memory requirement will be calculated on
-the basis that its current model memory size is a good reflection of what
-it will be in the future.
-* `peak_model_bytes`: The job's memory requirement will be calculated on
-the basis that its peak model memory size is a good reflection of what
-the model size will be in the future.
+* `model_memory_limit`: The job's memory requirement is calculated on the basis
+that its model memory will grow to the `model_memory_limit` specified in the
+`analysis_limits` of its config.
+* `current_model_bytes`: The job's memory requirement is calculated on the basis
+that its current model memory size is a good reflection of what it will be in
+the future.
+* `peak_model_bytes`: The job's memory requirement is calculated on the basis
+that its peak model memory size is a good reflection of what the model size will
+be in the future.
 --
 end::assignment-memory-basis[]
 

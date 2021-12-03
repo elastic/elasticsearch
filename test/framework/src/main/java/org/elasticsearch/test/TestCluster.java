@@ -55,11 +55,11 @@ public abstract class TestCluster implements Closeable {
     /**
      * This method should be executed before each test to reset the cluster to its initial state.
      */
-    public void beforeTest(Random random, double transportClientRatio) throws IOException, InterruptedException {
+    public void beforeTest(Random randomGenerator, double transportClientRatioValue) throws IOException, InterruptedException {
         assert transportClientRatio >= 0.0 && transportClientRatio <= 1.0;
-        logger.debug("Reset test cluster with transport client ratio: [{}]", transportClientRatio);
-        this.transportClientRatio = transportClientRatio;
-        this.random = new Random(random.nextLong());
+        logger.debug("Reset test cluster with transport client ratio: [{}]", transportClientRatioValue);
+        this.transportClientRatio = transportClientRatioValue;
+        this.random = new Random(randomGenerator.nextLong());
     }
 
     /**

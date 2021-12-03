@@ -171,17 +171,17 @@ final class QueryAnalyzer {
                 this.verified = false;
                 return QueryVisitor.EMPTY_VISITOR;
             }
-            int minimumShouldMatch = 0;
+            int minimumShouldMatchValue = 0;
             if (parent instanceof BooleanQuery) {
                 BooleanQuery bq = (BooleanQuery) parent;
                 if (bq.getMinimumNumberShouldMatch() == 0
                     && bq.clauses().stream().anyMatch(c -> c.getOccur() == Occur.MUST || c.getOccur() == Occur.FILTER)) {
                     return QueryVisitor.EMPTY_VISITOR;
                 }
-                minimumShouldMatch = bq.getMinimumNumberShouldMatch();
+                minimumShouldMatchValue = bq.getMinimumNumberShouldMatch();
             }
             ResultBuilder child = new ResultBuilder(version, false);
-            child.minimumShouldMatch = minimumShouldMatch;
+            child.minimumShouldMatch = minimumShouldMatchValue;
             children.add(child);
             return child;
         }
@@ -200,9 +200,9 @@ final class QueryAnalyzer {
         }
 
         @Override
-        public void consumeTerms(Query query, Term... terms) {
-            boolean verified = isVerified(query);
-            Set<QueryExtraction> qe = Arrays.stream(terms).map(QueryExtraction::new).collect(Collectors.toSet());
+        public void consumeTerms(Query query, Term... termsToConsume) {
+            boolean isVerified = isVerified(query);
+            Set<QueryExtraction> qe = Arrays.stream(termsToConsume).map(QueryExtraction::new).collect(Collectors.toSet());
             if (qe.size() > 0) {
                 if (version.before(Version.V_6_1_0) && conjunction) {
                     Optional<QueryExtraction> longest = qe.stream()
@@ -212,7 +212,7 @@ final class QueryAnalyzer {
                         qe = Collections.singleton(longest.get());
                     }
                 }
-                this.terms.add(new Result(verified, qe, conjunction ? qe.size() : 1));
+                this.terms.add(new Result(isVerified, qe, conjunction ? qe.size() : 1));
             }
         }
 

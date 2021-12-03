@@ -564,11 +564,11 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setParsedDefinition(TrainedModelDefinition.Builder definition) {
-            if (definition == null) {
+        public Builder setParsedDefinition(TrainedModelDefinition.Builder definitionRef) {
+            if (definitionRef == null) {
                 return this;
             }
-            this.definition = LazyModelDefinition.fromParsedDefinition(definition.build());
+            this.definition = LazyModelDefinition.fromParsedDefinition(definitionRef.build());
             return this;
         }
 

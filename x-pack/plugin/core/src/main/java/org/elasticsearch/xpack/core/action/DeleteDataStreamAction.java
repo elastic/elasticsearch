@@ -47,7 +47,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         private final boolean wildcardExpressionsOriginallySpecified;
         private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
 
-        public Request(String[] names) {
+        public Request(String... names) {
             this.names = Objects.requireNonNull(names);
             this.wildcardExpressionsOriginallySpecified = Arrays.stream(names).anyMatch(Regex::isSimpleMatchPattern);
         }
@@ -113,8 +113,8 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             return indicesOptions;
         }
 
-        public IndicesRequest indicesOptions(IndicesOptions indicesOptions) {
-            this.indicesOptions = indicesOptions;
+        public IndicesRequest indicesOptions(IndicesOptions options) {
+            this.indicesOptions = options;
             return this;
         }
 

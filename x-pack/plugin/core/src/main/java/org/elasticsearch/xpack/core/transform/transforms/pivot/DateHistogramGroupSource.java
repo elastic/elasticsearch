@@ -194,9 +194,9 @@ public class DateHistogramGroupSource extends SingleGroupSource {
         }
     }
 
-    private void writeInterval(Interval interval, StreamOutput out) throws IOException {
-        out.write(interval.getIntervalTypeId());
-        interval.writeTo(out);
+    private void writeInterval(Interval anInterval, StreamOutput out) throws IOException {
+        out.write(anInterval.getIntervalTypeId());
+        anInterval.writeTo(out);
     }
 
     private static final String NAME = "data_frame_date_histogram_group";

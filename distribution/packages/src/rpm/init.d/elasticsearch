@@ -61,6 +61,10 @@ export JAVA_HOME
 export ES_PATH_CONF
 export ES_STARTUP_SLEEP_TIME
 
+if [ -n "$LIBFFI_TMPDIR" ]; then
+  export LIBFFI_TMPDIR
+fi
+
 lockfile=/var/lock/subsys/$prog
 
 if [ ! -x "$exec" ]; then

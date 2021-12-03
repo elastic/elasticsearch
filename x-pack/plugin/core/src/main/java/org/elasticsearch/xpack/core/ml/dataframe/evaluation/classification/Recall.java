@@ -96,18 +96,18 @@ public class Recall implements EvaluationMetric {
         EvaluationParameters parameters,
         EvaluationFields fields
     ) {
-        String actualField = fields.getActualField();
+        String actualFieldName = fields.getActualField();
         String predictedField = fields.getPredictedField();
         // Store given {@code actualField} for the purpose of generating error message in {@code process}.
-        this.actualField.trySet(actualField);
+        this.actualField.trySet(actualFieldName);
         if (result.get() != null) {
             return Tuple.tuple(Collections.emptyList(), Collections.emptyList());
         }
-        Script script = PainlessScripts.buildIsEqualScript(actualField, predictedField);
+        Script script = PainlessScripts.buildIsEqualScript(actualFieldName, predictedField);
         return Tuple.tuple(
             Arrays.asList(
                 AggregationBuilders.terms(BY_ACTUAL_CLASS_AGG_NAME)
-                    .field(actualField)
+                    .field(actualFieldName)
                     .order(Arrays.asList(BucketOrder.count(false), BucketOrder.key(true)))
                     .size(MAX_CLASSES_CARDINALITY)
                     .subAggregation(AggregationBuilders.avg(PER_ACTUAL_CLASS_RECALL_AGG_NAME).script(script))

@@ -42,7 +42,7 @@ final class LinuxFileSystemNatives implements FileSystemNatives.Provider {
      * an inline wrapper around `xstat' which takes a leading version-number argument designating the data structure and bits used.
      *
      * In glibc this version is defined in bits/stat.h (or bits/struct_stat.h in glibc 2.33) as:
-     *  # define _STAT_VER_LINUX	1
+     *  # define _STAT_VER_LINUX    1
      *  # define _STAT_VER _STAT_VER_LINUX
      **/
     private static final int STAT_VER_LINUX = 1;

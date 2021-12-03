@@ -16,6 +16,8 @@ apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
 apply plugin: 'elasticsearch.rest-resources'
 
+ext.cloudflareZlibVersion = '1.2.8'
+
 String buildId = providers.systemProperty('build.id').forUseAtConfigurationTime().getOrNull()
 boolean useLocalArtifacts = buildId != null && buildId.isBlank() == false
 
@@ -32,6 +34,15 @@ repositories {
     }
     metadataSources { artifact() }
     content { includeGroup 'krallin' }
+  }
+
+  ivy {
+    url 'https://github.com/'
+    patternLayout {
+      artifact '/[organisation]/[module]/archive/refs/tags/v[revision].[ext]'
+    }
+    metadataSources { artifact() }
+    content { includeGroup 'cloudflare' }
   }
 
   // Cloud builds bundle some beats
@@ -63,6 +74,7 @@ configurations {
   nonRepositoryPlugins
   filebeat
   metricbeat
+  cloudflareZlib
 }
 
 String beatsArch = Architecture.current() == Architecture.AARCH64 ? 'arm64' : 'x86_64'
@@ -77,6 +89,7 @@ dependencies {
   nonRepositoryPlugins project(path: ':plugins', configuration: 'nonRepositoryPlugins')
   filebeat "beats:filebeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
   metricbeat "beats:metricbeat:${VersionProperties.elasticsearch}:${beatsArch}@tar.gz"
+  cloudflareZlib "cloudflare:zlib:${cloudflareZlibVersion}@tar.gz"
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
@@ -100,7 +113,8 @@ ext.expansions = { Architecture architecture, DockerBase base ->
     'docker_base'        : base.name().toLowerCase(),
     'version'            : VersionProperties.elasticsearch,
     'major_minor_version': "${major}.${minor}",
-    'retry'              : ShellRetry
+    'retry'              : ShellRetry,
+    'zlib_version'       : cloudflareZlibVersion
   ]
 }
 
@@ -259,6 +273,7 @@ void addBuildDockerContextTask(Architecture architecture, DockerBase base) {
         boolean includeBeats = VersionProperties.isElasticsearchSnapshot() == true || buildId != null
 
         from configurations.repositoryPlugins
+
         if (includeBeats) {
           from configurations.filebeat
           from configurations.metricbeat
@@ -289,7 +304,10 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
     from(tarTree("${project.buildDir}/distributions/${archiveName}.tar.gz")) {
       eachFile { FileCopyDetails details ->
         if (details.name.equals("Dockerfile")) {
-          filter { it.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /tmp/elasticsearch.tar.gz") }
+          filter { String filename ->
+            String result = filename.replaceAll('^RUN curl.*artifacts-no-kpi.*$', "COPY ${distributionName} /tmp/elasticsearch.tar.gz")
+            return result.replaceAll('^RUN curl.*cloudflare/zlib.*$', "COPY zlib-${cloudflareZlibVersion}.tar.gz /tmp")
+          }
         }
       }
     }
@@ -301,6 +319,8 @@ void addTransformDockerContextTask(Architecture architecture, DockerBase base) {
     } else {
       from configurations.dockerSource
     }
+
+    from configurations.cloudflareZlib
 
     if (base == DockerBase.IRON_BANK) {
       from (configurations.tini) {

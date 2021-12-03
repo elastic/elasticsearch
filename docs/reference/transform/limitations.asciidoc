@@ -78,19 +78,10 @@ occur at `frequency` interval.
 == Operational limitations
 
 [discrete]
-[[transform-rolling-upgrade-limitation]]
-=== {transforms-cap} reassignment suspended during a rolling upgrade from 7.2 and 7.3
-
-If your cluster contains mixed version nodes, for example during a rolling
-upgrade from 7.2 or 7.3 to a newer version, {transforms} whose nodes are stopped 
-will not be reassigned until the upgrade is complete. After the upgrade is done, 
-{transforms} resume automatically; no action is required.
-
-[discrete]
 [[transform-aggresponse-limitations]]
 === Aggregation responses may be incompatible with destination index mappings
 
-When a {transform} is first started, it will deduce the mappings 
+When a pivot {transform} is first started, it will deduce the mappings 
 required for the destination index. This process is based on the field types of 
 the source index and the aggregations used. If the fields are derived from 
 <<search-aggregations-metrics-scripted-metric-aggregation,`scripted_metrics`>>
@@ -101,13 +92,13 @@ overflows might occur or dynamically mapped fields might contain both numbers
 and strings. Please check {es} logs if you think this may have occurred. 
 
 You can view the deduced mappings by using the 
-https://www.elastic.co/guide/en/elasticsearch/reference/current/preview-transform.html[Preview transform API].
+<<preview-transform,preview transform API>>.
 See the `generated_dest_index` object in the API response.
 
 If it's required, you may define custom mappings prior to starting the 
 {transform} by creating a custom destination index using the 
-https://www.elastic.co/guide/en/elasticsearch/reference/current/indices-create-index.html[Create index API].
-As deduced mappings cannot be overwritten by an index template, use the Create 
+<<indices-create-index,create index API>>.
+As deduced mappings cannot be overwritten by an index template, use the create 
 index API to define custom mappings. The index templates only apply to fields 
 derived from scripts that use dynamic mappings. 
 
@@ -282,16 +273,15 @@ that belong to your space. However, this limited scope does not apply to
 {transforms}; they are visible in all spaces.
 
 [discrete]
-[[transform-rolling-upgrade-ui-limitation]]
-=== {transforms-cap} UI will not work during a rolling upgrade from 7.2
-
-If your cluster contains mixed version nodes, for example during a rolling 
-upgrade from 7.2 to a newer version, and {transforms} have been created in 7.2, 
-the {transforms} UI (earler {dataframe} UI) will not work. Please wait until all 
-nodes have been upgraded to the newer version before using the {transforms} UI.
-
-[discrete]
 [[transform-kibana-limitations]]
 === Up to 1,000 {transforms} are listed in {kib}
 
 The {transforms} management page in {kib} lists up to 1000 {transforms}.
+
+[discrete]
+[[transform-ui-support]]
+=== {kib} might not support every {transform} configuration option
+
+There might be configuration options available via the {transform} APIs that are 
+not supported in {kib}. For an exhaustive list of configuration options, refer 
+to the <<transform-apis,documentation>>.

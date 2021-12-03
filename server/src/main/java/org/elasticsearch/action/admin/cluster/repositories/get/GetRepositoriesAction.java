@@ -23,4 +23,3 @@ public class GetRepositoriesAction extends ActionType<GetRepositoriesResponse> {
     }
 
 }
-

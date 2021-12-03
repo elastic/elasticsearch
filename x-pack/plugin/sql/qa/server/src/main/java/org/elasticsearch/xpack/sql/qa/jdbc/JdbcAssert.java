@@ -1,5 +1,4 @@
 /*
- /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
@@ -57,8 +56,6 @@ public class JdbcAssert {
     private static final Calendar UTC_CALENDAR = Calendar.getInstance(TimeZone.getTimeZone("UTC"), Locale.ROOT);
 
     private static final IntObjectHashMap<EsType> SQL_TO_TYPE = new IntObjectHashMap<>();
-
-    private static final WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
 
     static {
         for (EsType type : EsType.values()) {
@@ -315,7 +312,7 @@ public class JdbcAssert {
                         if (actualObject instanceof Geometry) {
                             // We need to convert the expected object to libs/geo Geometry for comparision
                             try {
-                                expectedObject = WKT.fromWKT(expectedObject.toString());
+                                expectedObject = WellKnownText.fromWKT(StandardValidator.instance(true), true, expectedObject.toString());
                             } catch (IOException | ParseException ex) {
                                 fail(ex.getMessage());
                             }

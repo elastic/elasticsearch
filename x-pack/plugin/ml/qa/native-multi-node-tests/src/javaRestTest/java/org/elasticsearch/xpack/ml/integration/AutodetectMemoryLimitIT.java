@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
@@ -24,10 +24,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.anyOf;
 
 /**
  * A set of tests that ensure we comply to the model memory limit
@@ -56,7 +56,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         AnalysisLimits limits = new AnalysisLimits(30L, null);
         job.setAnalysisLimits(limits);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -66,7 +65,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         while (timestamp < now) {
             for (int i = 0; i < 11000; i++) {
                 // It's important that the values used here are either always represented in less than 16 UTF-8 bytes or
-                // always represented in more than 22 UTF-8 bytes.  Otherwise platform differences in when the small string
+                // always represented in more than 22 UTF-8 bytes. Otherwise platform differences in when the small string
                 // optimisation is used will make the results of this test very different for the different platforms.
                 data.add(createJsonRecord(createRecord(timestamp, String.valueOf(i), "")));
             }
@@ -81,8 +80,10 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
         assertThat(modelSizeStats.getModelBytes(), lessThan(32000000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(24000000L));
-        assertThat(modelSizeStats.getMemoryStatus(), anyOf(equalTo(ModelSizeStats.MemoryStatus.SOFT_LIMIT),
-                                                           equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT)));
+        assertThat(
+            modelSizeStats.getMemoryStatus(),
+            anyOf(equalTo(ModelSizeStats.MemoryStatus.SOFT_LIMIT), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT))
+        );
     }
 
     public void testTooManyByFields() throws Exception {
@@ -102,7 +103,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         AnalysisLimits limits = new AnalysisLimits(30L, null);
         job.setAnalysisLimits(limits);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -112,7 +112,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         while (timestamp < now) {
             for (int i = 0; i < 10000; i++) {
                 // It's important that the values used here are either always represented in less than 16 UTF-8 bytes or
-                // always represented in more than 22 UTF-8 bytes.  Otherwise platform differences in when the small string
+                // always represented in more than 22 UTF-8 bytes. Otherwise platform differences in when the small string
                 // optimisation is used will make the results of this test very different for the different platforms.
                 data.add(createJsonRecord(createRecord(timestamp, String.valueOf(i), "")));
             }
@@ -148,7 +148,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         AnalysisLimits limits = new AnalysisLimits(30L, null);
         job.setAnalysisLimits(limits);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -159,10 +158,13 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
                 List<String> data = new ArrayList<>();
                 for (int user = 0; user < 10000; user++) {
                     // It's important that the values used here are either always represented in less than 16 UTF-8 bytes or
-                    // always represented in more than 22 UTF-8 bytes.  Otherwise platform differences in when the small string
+                    // always represented in more than 22 UTF-8 bytes. Otherwise platform differences in when the small string
                     // optimisation is used will make the results of this test very different for the different platforms.
-                    data.add(createJsonRecord(createRecord(
-                            timestamp, String.valueOf(department) + "_" + String.valueOf(user), String.valueOf(department))));
+                    data.add(
+                        createJsonRecord(
+                            createRecord(timestamp, String.valueOf(department) + "_" + String.valueOf(user), String.valueOf(department))
+                        )
+                    );
                 }
                 postData(job.getId(), data.stream().collect(Collectors.joining()));
             }
@@ -196,7 +198,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         AnalysisLimits limits = new AnalysisLimits(110L, null);
         job.setAnalysisLimits(limits);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -207,7 +208,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
             List<String> data = new ArrayList<>();
             for (int i = 0; i < 10000; i++) {
                 // It's important that the values used here are either always represented in less than 16 UTF-8 bytes or
-                // always represented in more than 22 UTF-8 bytes.  Otherwise platform differences in when the small string
+                // always represented in more than 22 UTF-8 bytes. Otherwise platform differences in when the small string
                 // optimisation is used will make the results of this test very different for the different platforms.
                 Map<String, Object> record = new HashMap<>();
                 record.put("time", timestamp);

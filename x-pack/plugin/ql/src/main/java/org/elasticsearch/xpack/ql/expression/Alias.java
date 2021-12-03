@@ -86,9 +86,9 @@ public class Alias extends NamedExpression {
     @Override
     public Attribute toAttribute() {
         if (lazyAttribute == null) {
-            lazyAttribute = resolved() ?
-                new ReferenceAttribute(source(), name(), dataType(), qualifier, nullable(), id(), synthetic()) :
-                new UnresolvedAttribute(source(), name(), qualifier);
+            lazyAttribute = resolved()
+                ? new ReferenceAttribute(source(), name(), dataType(), qualifier, nullable(), id(), synthetic())
+                : new UnresolvedAttribute(source(), name(), qualifier);
         }
         return lazyAttribute;
     }
@@ -96,5 +96,10 @@ public class Alias extends NamedExpression {
     @Override
     public String toString() {
         return child + " AS " + name() + "#" + id();
+    }
+
+    @Override
+    public String nodeString() {
+        return child.nodeString() + " AS " + name();
     }
 }

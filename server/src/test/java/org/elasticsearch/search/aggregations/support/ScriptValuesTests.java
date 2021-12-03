@@ -60,8 +60,7 @@ public class ScriptValuesTests extends ESTestCase {
         }
 
         @Override
-        public void setScorer(Scorable scorer) {
-        }
+        public void setScorer(Scorable scorer) {}
 
         @Override
         public void setDocument(int doc) {

@@ -9,9 +9,9 @@
 package org.elasticsearch;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.commons.codec.DecoderException;
 import org.apache.lucene.index.CorruptIndexException;
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -90,7 +90,7 @@ public class ExceptionsHelperTests extends ESTestCase {
     }
 
     public void testGroupBy() {
-        ShardOperationFailedException[] failures = new ShardOperationFailedException[]{
+        ShardOperationFailedException[] failures = new ShardOperationFailedException[] {
             createShardFailureParsingException("error", "node0", "index", 0, null),
             createShardFailureParsingException("error", "node1", "index", 1, null),
             createShardFailureParsingException("error", "node2", "index2", 2, null),
@@ -100,13 +100,12 @@ public class ExceptionsHelperTests extends ESTestCase {
             createShardFailureParsingException("error", "node0", "index", 0, "cluster2"),
             createShardFailureParsingException("error", "node1", "index", 1, "cluster2"),
             createShardFailureParsingException("error", "node2", "index", 2, "cluster2"),
-            createShardFailureParsingException("another error", "node2", "index", 2, "cluster2")
-        };
+            createShardFailureParsingException("another error", "node2", "index", 2, "cluster2") };
 
         ShardOperationFailedException[] groupBy = ExceptionsHelper.groupBy(failures);
         assertThat(groupBy.length, equalTo(5));
-        String[] expectedIndices = new String[]{"index", "index2", "cluster1:index", "cluster2:index", "cluster2:index"};
-        String[] expectedErrors = new String[]{"error", "error", "error", "error", "another error"};
+        String[] expectedIndices = new String[] { "index", "index2", "cluster1:index", "cluster2:index", "cluster2:index" };
+        String[] expectedErrors = new String[] { "error", "error", "error", "error", "another error" };
         int i = 0;
         for (ShardOperationFailedException shardOperationFailedException : groupBy) {
             assertThat(shardOperationFailedException.getCause().getMessage(), equalTo(expectedErrors[i]));
@@ -114,16 +113,20 @@ public class ExceptionsHelperTests extends ESTestCase {
         }
     }
 
-    private static ShardSearchFailure createShardFailureParsingException(String error, String nodeId,
-                                                                         String index, int shardId, String clusterAlias) {
+    private static ShardSearchFailure createShardFailureParsingException(
+        String error,
+        String nodeId,
+        String index,
+        int shardId,
+        String clusterAlias
+    ) {
         ParsingException ex = new ParsingException(0, 0, error, new IllegalArgumentException("some bad argument"));
         ex.setIndex(index);
         return new ShardSearchFailure(ex, createSearchShardTarget(nodeId, shardId, index, clusterAlias));
     }
 
     private static SearchShardTarget createSearchShardTarget(String nodeId, int shardId, String index, String clusterAlias) {
-        return new SearchShardTarget(nodeId,
-            new ShardId(new Index(index, IndexMetadata.INDEX_UUID_NA_VALUE), shardId), clusterAlias, OriginalIndices.NONE);
+        return new SearchShardTarget(nodeId, new ShardId(new Index(index, IndexMetadata.INDEX_UUID_NA_VALUE), shardId), clusterAlias);
     }
 
     public void testGroupByNullTarget() {
@@ -137,13 +140,12 @@ public class ExceptionsHelperTests extends ESTestCase {
             createShardFailureQueryShardException("error", "index", "cluster2"),
             createShardFailureQueryShardException("error", "index", "cluster2"),
             createShardFailureQueryShardException("error", "index2", null),
-            createShardFailureQueryShardException("another error", "index2", null),
-        };
+            createShardFailureQueryShardException("another error", "index2", null), };
 
         ShardOperationFailedException[] groupBy = ExceptionsHelper.groupBy(failures);
         assertThat(groupBy.length, equalTo(5));
-        String[] expectedIndices = new String[]{"index", "cluster1:index", "cluster2:index", "index2", "index2"};
-        String[] expectedErrors = new String[]{"error", "error", "error", "error", "another error"};
+        String[] expectedIndices = new String[] { "index", "cluster1:index", "cluster2:index", "index2", "index2" };
+        String[] expectedErrors = new String[] { "error", "error", "error", "error", "another error" };
         int i = 0;
         for (ShardOperationFailedException shardOperationFailedException : groupBy) {
             assertThat(shardOperationFailedException.index(), nullValue());
@@ -163,8 +165,7 @@ public class ExceptionsHelperTests extends ESTestCase {
     public void testGroupByNullIndex() {
         ShardOperationFailedException[] failures = new ShardOperationFailedException[] {
             new ShardSearchFailure(new IllegalArgumentException("error")),
-            new ShardSearchFailure(new ParsingException(0, 0, "error", null)),
-        };
+            new ShardSearchFailure(new ParsingException(0, 0, "error", null)), };
 
         ShardOperationFailedException[] groupBy = ExceptionsHelper.groupBy(failures);
         assertThat(groupBy.length, equalTo(2));

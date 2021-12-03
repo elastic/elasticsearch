@@ -20,8 +20,18 @@ import com.carrotsearch.hppc.predicates.ObjectObjectPredicate;
 import com.carrotsearch.hppc.predicates.ObjectPredicate;
 import com.carrotsearch.hppc.procedures.ObjectObjectProcedure;
 
+import java.util.AbstractCollection;
+import java.util.AbstractMap;
+import java.util.AbstractSet;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.function.Consumer;
+import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 /**
  * An immutable map implementation based on open hash map.
@@ -117,7 +127,9 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         final Iterator<ObjectCursor<KType>> iterator = map.keys().iterator();
         return new Iterator<KType>() {
             @Override
-            public boolean hasNext() { return iterator.hasNext(); }
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
 
             @Override
             public KType next() {
@@ -132,10 +144,26 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
     }
 
     /**
-     * @return Returns a container with all values stored in this map.
+     * Returns a {@link Set} view of the keys contained in this map.
      */
-    public ObjectContainer<VType> values() {
-        return map.values();
+    public Set<KType> keySet() {
+        return new AbstractSet<>() {
+            @Override
+            public Iterator<KType> iterator() {
+                return keysIt();
+            }
+
+            @Override
+            public int size() {
+                return map.size();
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public boolean contains(Object o) {
+                return map.containsKey((KType) o);
+            }
+        };
     }
 
     /**
@@ -145,11 +173,30 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         return iterator(map.values());
     }
 
+    /**
+     * Returns a {@link Collection} view of the values contained in the map.
+     */
+    public Collection<VType> values() {
+        return new AbstractCollection<VType>() {
+            @Override
+            public Iterator<VType> iterator() {
+                return valuesIt();
+            }
+
+            @Override
+            public int size() {
+                return map.size();
+            }
+        };
+    }
+
     static <T> Iterator<T> iterator(ObjectCollection<T> collection) {
         final Iterator<ObjectCursor<T>> iterator = collection.iterator();
         return new Iterator<>() {
             @Override
-            public boolean hasNext() { return iterator.hasNext(); }
+            public boolean hasNext() {
+                return iterator.hasNext();
+            }
 
             @Override
             public T next() {
@@ -161,6 +208,26 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
                 throw new UnsupportedOperationException();
             }
         };
+    }
+
+    /**
+     * Returns a sequential unordered stream of the map entries.
+     *
+     * @return a {@link Stream} of the map entries as {@link Map.Entry}
+     */
+    public Stream<Map.Entry<KType, VType>> stream() {
+        final Iterator<ObjectObjectCursor<KType, VType>> mapIterator = map.iterator();
+        return StreamSupport.stream(new Spliterators.AbstractSpliterator<>(map.size(), Spliterator.SIZED | Spliterator.DISTINCT) {
+            @Override
+            public boolean tryAdvance(Consumer<? super Map.Entry<KType, VType>> action) {
+                if (mapIterator.hasNext() == false) {
+                    return false;
+                }
+                ObjectObjectCursor<KType, VType> cursor = mapIterator.next();
+                action.accept(new AbstractMap.SimpleImmutableEntry<>(cursor.key, cursor.value));
+                return true;
+            }
+        }, false);
     }
 
     @Override
@@ -186,7 +253,7 @@ public final class ImmutableOpenMap<KType, VType> implements Iterable<ObjectObje
         return map.hashCode();
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     private static final ImmutableOpenMap EMPTY = new ImmutableOpenMap(new ObjectObjectHashMap());
 
     @SuppressWarnings("unchecked")

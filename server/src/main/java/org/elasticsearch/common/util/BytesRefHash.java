@@ -11,8 +11,8 @@ package org.elasticsearch.common.util;
 import com.carrotsearch.hppc.BitMixer;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  *  Specialized hash table implementation similar to Lucene's BytesRefHash that maps
@@ -33,7 +33,7 @@ public final class BytesRefHash extends AbstractHash {
         this(capacity, DEFAULT_MAX_LOAD_FACTOR, bigArrays);
     }
 
-    //Constructor with configurable capacity and load factor.
+    // Constructor with configurable capacity and load factor.
     public BytesRefHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
         boolean success = false;
@@ -74,7 +74,7 @@ public final class BytesRefHash extends AbstractHash {
      */
     public long find(BytesRef key, int code) {
         final long slot = slot(rehash(code), mask);
-        for (long index = slot; ; index = nextSlot(index, mask)) {
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long id = id(index);
             if (id == -1L || key.bytesEquals(get(id, spare))) {
                 return id;
@@ -91,7 +91,7 @@ public final class BytesRefHash extends AbstractHash {
         assert rehash(key.hashCode()) == code;
         assert size < maxSize;
         final long slot = slot(code, mask);
-        for (long index = slot; ; index = nextSlot(index, mask)) {
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
                 id(index, id);
@@ -123,7 +123,7 @@ public final class BytesRefHash extends AbstractHash {
     private void reset(int code, long id) {
         assert assertConsistent(id, code);
         final long slot = slot(code, mask);
-        for (long index = slot; ; index = nextSlot(index, mask)) {
+        for (long index = slot;; index = nextSlot(index, mask)) {
             final long curId = id(index);
             if (curId == -1) { // means unset
                 id(index, id);

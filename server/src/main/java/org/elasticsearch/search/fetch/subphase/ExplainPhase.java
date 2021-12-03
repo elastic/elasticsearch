@@ -20,7 +20,6 @@ import java.io.IOException;
  * Explains the scoring calculations for the top hits.
  */
 public final class ExplainPhase implements FetchSubPhase {
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext context) {
         if (context.explain() == false) {
@@ -35,7 +34,7 @@ public final class ExplainPhase implements FetchSubPhase {
             @Override
             public void process(HitContext hitContext) throws IOException {
                 final int topLevelDocId = hitContext.hit().docId();
-                Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);
+                Explanation explanation = context.searcher().explain(context.rewrittenQuery(), topLevelDocId);
 
                 for (RescoreContext rescore : context.rescore()) {
                     explanation = rescore.rescorer().explain(topLevelDocId, context.searcher(), rescore, explanation);

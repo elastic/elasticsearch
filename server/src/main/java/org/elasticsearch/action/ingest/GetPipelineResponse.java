@@ -8,25 +8,24 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -42,7 +41,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         for (int i = 0; i < size; i++) {
             pipelines.add(PipelineConfiguration.readFrom(in));
         }
-        summary = in.getVersion().onOrAfter(Version.V_7_13_0) ? in.readBoolean() : false;
+        summary = in.readBoolean();
     }
 
     public GetPipelineResponse(List<PipelineConfiguration> pipelines, boolean summary) {
@@ -69,9 +68,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         for (PipelineConfiguration pipeline : pipelines) {
             pipeline.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeBoolean(summary);
-        }
+        out.writeBoolean(summary);
     }
 
     public boolean isFound() {
@@ -106,13 +103,16 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
     public static GetPipelineResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         List<PipelineConfiguration> pipelines = new ArrayList<>();
-        while(parser.nextToken().equals(Token.FIELD_NAME)) {
+        while (parser.nextToken().equals(Token.FIELD_NAME)) {
             String pipelineId = parser.currentName();
             parser.nextToken();
             try (XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent())) {
                 contentBuilder.generator().copyCurrentStructure(parser);
-                PipelineConfiguration pipeline =
-                    new PipelineConfiguration(pipelineId, BytesReference.bytes(contentBuilder), contentBuilder.contentType());
+                PipelineConfiguration pipeline = new PipelineConfiguration(
+                    pipelineId,
+                    BytesReference.bytes(contentBuilder),
+                    contentBuilder.contentType()
+                );
                 pipelines.add(pipeline);
             }
         }
@@ -124,17 +124,17 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
     public boolean equals(Object other) {
         if (other == null) {
             return false;
-        } else if (other instanceof GetPipelineResponse){
-            GetPipelineResponse otherResponse = (GetPipelineResponse)other;
+        } else if (other instanceof GetPipelineResponse) {
+            GetPipelineResponse otherResponse = (GetPipelineResponse) other;
             if (pipelines == null) {
                 return otherResponse.pipelines == null;
             } else {
                 // We need a map here because order does not matter for equality
                 Map<String, PipelineConfiguration> otherPipelineMap = new HashMap<>();
-                for (PipelineConfiguration pipeline: otherResponse.pipelines) {
+                for (PipelineConfiguration pipeline : otherResponse.pipelines) {
                     otherPipelineMap.put(pipeline.getId(), pipeline);
                 }
-                for (PipelineConfiguration pipeline: pipelines) {
+                for (PipelineConfiguration pipeline : pipelines) {
                     PipelineConfiguration otherPipeline = otherPipelineMap.get(pipeline.getId());
                     if (pipeline.equals(otherPipeline) == false) {
                         return false;
@@ -155,7 +155,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
     @Override
     public int hashCode() {
         int result = 1;
-        for (PipelineConfiguration pipeline: pipelines) {
+        for (PipelineConfiguration pipeline : pipelines) {
             // We only take the sum here to ensure that the order does not matter.
             result += (pipeline == null ? 0 : pipeline.hashCode());
         }

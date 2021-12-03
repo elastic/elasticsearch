@@ -11,8 +11,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -141,13 +141,12 @@ public final class TransformNodes {
     /**
      * Get the number of transform nodes in the cluster
      *
-     * @param clusterState state
+     * @param nodes nodes to examine
      * @return number of transform nodes
      */
-    public static long getNumberOfTransformNodes(ClusterState clusterState) {
-        return StreamSupport.stream(clusterState.getNodes().spliterator(), false)
-            .filter(node -> node.getRoles().contains(DiscoveryNodeRole.TRANSFORM_ROLE))
-            .count();
+    public static boolean hasAnyTransformNode(DiscoveryNodes nodes) {
+        return StreamSupport.stream(nodes.spliterator(), false)
+            .anyMatch(node -> node.getRoles().contains(DiscoveryNodeRole.TRANSFORM_ROLE));
     }
 
     /**
@@ -160,8 +159,7 @@ public final class TransformNodes {
      */
     public static void warnIfNoTransformNodes(ClusterState clusterState) {
         if (TransformMetadata.getTransformMetadata(clusterState).isResetMode() == false) {
-            long transformNodes = getNumberOfTransformNodes(clusterState);
-            if (transformNodes == 0) {
+            if (hasAnyTransformNode(clusterState.getNodes()) == false) {
                 HeaderWarning.addWarning(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
             }
         }
@@ -174,8 +172,7 @@ public final class TransformNodes {
      * @param clusterState state
      */
     public static void throwIfNoTransformNodes(ClusterState clusterState) {
-        long transformNodes = getNumberOfTransformNodes(clusterState);
-        if (transformNodes == 0) {
+        if (hasAnyTransformNode(clusterState.getNodes()) == false) {
             throw ExceptionsHelper.badRequestException(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
         }
     }
@@ -202,7 +199,8 @@ public final class TransformNodes {
                     appropriateNode.get(),
                     actionName,
                     request,
-                    new ActionListenerResponseHandler<>(listener, reader));
+                    new ActionListenerResponseHandler<>(listener, reader)
+                );
             } else {
                 Map<String, String> explain = new TreeMap<>();
                 for (DiscoveryNode node : nodes) {
@@ -212,7 +210,9 @@ public final class TransformNodes {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
                         "No appropriate node to run on, reasons [{}]",
-                        explain.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining("|"))));
+                        explain.entrySet().stream().map(e -> e.getKey() + ":" + e.getValue()).collect(Collectors.joining("|"))
+                    )
+                );
             }
             return true;
         }
@@ -237,15 +237,19 @@ public final class TransformNodes {
             .findAny();
     }
 
-    public static boolean nodeCanRunThisTransform(DiscoveryNode node,
-                                                  Version minRequiredVersion,
-                                                  boolean requiresRemote,
-                                                  Map<String, String> explain) {
+    public static boolean nodeCanRunThisTransform(
+        DiscoveryNode node,
+        Version minRequiredVersion,
+        boolean requiresRemote,
+        Map<String, String> explain
+    ) {
         // version of the transform run on a node that has at least the same version
         if (node.getVersion().onOrAfter(minRequiredVersion) == false) {
             if (explain != null) {
                 explain.put(
-                    node.getId(), "node has version: " + node.getVersion() + " but transform requires at least " + minRequiredVersion);
+                    node.getId(),
+                    "node has version: " + node.getVersion() + " but transform requires at least " + minRequiredVersion
+                );
             }
             return false;
         }

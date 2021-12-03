@@ -37,16 +37,21 @@ public class SearchRequestBuilderTests extends ESTestCase {
     public void testSearchSourceBuilderToString() {
         SearchRequestBuilder searchRequestBuilder = makeBuilder();
         searchRequestBuilder.setSource(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
-        assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder()
-            .query(QueryBuilders.termQuery("field", "value")).toString()));
+        assertThat(
+            searchRequestBuilder.toString(),
+            equalTo(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).toString())
+        );
     }
 
     public void testThatToStringDoesntWipeRequestSource() {
-        SearchRequestBuilder searchRequestBuilder = makeBuilder()
-            .setSource(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
+        SearchRequestBuilder searchRequestBuilder = makeBuilder().setSource(
+            new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value"))
+        );
         String preToString = searchRequestBuilder.request().toString();
-        assertThat(searchRequestBuilder.toString(), equalTo(new SearchSourceBuilder()
-            .query(QueryBuilders.termQuery("field", "value")).toString()));
+        assertThat(
+            searchRequestBuilder.toString(),
+            equalTo(new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).toString())
+        );
         String postToString = searchRequestBuilder.request().toString();
         assertThat(preToString, equalTo(postToString));
     }

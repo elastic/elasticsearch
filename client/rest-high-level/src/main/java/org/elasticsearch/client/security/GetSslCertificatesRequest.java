@@ -19,8 +19,7 @@ public final class GetSslCertificatesRequest implements Validatable {
 
     public static final GetSslCertificatesRequest INSTANCE = new GetSslCertificatesRequest();
 
-    private GetSslCertificatesRequest() {
-    }
+    private GetSslCertificatesRequest() {}
 
     public Request getRequest() {
         return new Request(HttpGet.METHOD_NAME, "/_ssl/certificates");

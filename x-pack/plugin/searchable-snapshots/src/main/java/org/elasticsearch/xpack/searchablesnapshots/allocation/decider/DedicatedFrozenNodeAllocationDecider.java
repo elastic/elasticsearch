@@ -16,10 +16,9 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
 
 public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
 
@@ -83,7 +82,7 @@ public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
         }
 
         final Settings indexSettings = indexMetadata.getSettings();
-        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings) && SNAPSHOT_PARTIAL_SETTING.get(indexSettings)) {
+        if (SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(indexSettings)) {
             return YES_IS_PARTIAL_SEARCHABLE_SNAPSHOT;
         }
 

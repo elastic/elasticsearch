@@ -38,11 +38,17 @@
       "estimated_heap_memory_usage_bytes": {
         "type": "long"
       },
+      "model_size_bytes": {
+        "type": "long"
+      },
       "doc_num": {
         "type": "long"
       },
       "definition": {
         "enabled": false
+      },
+      "binary_definition": {
+        "type": "binary"
       },
       "compression_version": {
         "type": "long"
@@ -135,7 +141,10 @@
           "supplied": {
             "type": "boolean"
           }
-        } 
+        }
+      },
+      "vocab": {
+        "enabled": false
       }
     }
   }

@@ -8,7 +8,7 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
@@ -62,8 +62,7 @@ public class SubSearchContext extends FilteredSearchContext {
     }
 
     @Override
-    public void preProcess(boolean rewrite) {
-    }
+    public void preProcess() {}
 
     @Override
     public Query buildFilteredQuery(Query query) {

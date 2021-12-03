@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -21,6 +23,10 @@ public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
     protected Client client;
     protected AdminClient adminClient;
     protected IndicesAdminClient indicesClient;
+
+    public static ClusterState emptyClusterState() {
+        return ClusterState.builder(ClusterName.DEFAULT).build();
+    }
 
     @Before
     public void setupClient() {
@@ -36,7 +42,9 @@ public abstract class AbstractStepTestCase<T extends Step> extends ESTestCase {
     protected static final TimeValue MASTER_TIMEOUT = TimeValue.timeValueSeconds(30);
 
     protected abstract T createRandomInstance();
+
     protected abstract T mutateInstance(T instance);
+
     protected abstract T copyInstance(T instance);
 
     public void testHashcodeAndEquals() {

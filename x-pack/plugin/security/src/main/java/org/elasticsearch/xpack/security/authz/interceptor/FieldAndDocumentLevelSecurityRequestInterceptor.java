@@ -10,17 +10,19 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.common.MemoizedSupplier;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 
 /**
  * Base class for interceptors that disables features when field level security is configured for indices a request
@@ -39,50 +41,58 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
     }
 
     @Override
-    public void intercept(RequestInfo requestInfo, AuthorizationEngine authorizationEngine, AuthorizationInfo authorizationInfo,
-                          ActionListener<Void> listener) {
+    public void intercept(
+        RequestInfo requestInfo,
+        AuthorizationEngine authorizationEngine,
+        AuthorizationInfo authorizationInfo,
+        ActionListener<Void> listener
+    ) {
         if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
             IndicesRequest indicesRequest = (IndicesRequest) requestInfo.getRequest();
-            boolean shouldIntercept = licenseState.isSecurityEnabled();
-            var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
-            if (supports(indicesRequest) && shouldIntercept) {
-                final IndicesAccessControl indicesAccessControl =
-                    threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-                boolean fieldLevelSecurityEnabled = false;
-                boolean documentLevelSecurityEnabled = false;
-                final String[] requestIndices = requestIndices(indicesRequest);
-                for (String index : requestIndices) {
+            // TODO: should we check is DLS/FLS feature allowed here
+            if (supports(indicesRequest)) {
+                final boolean isDlsLicensed = DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState);
+                final IndicesAccessControl indicesAccessControl = threadContext.getTransient(
+                    AuthorizationServiceField.INDICES_PERMISSIONS_KEY
+                );
+                final Map<String, IndicesAccessControl.IndexAccessControl> accessControlByIndex = new HashMap<>();
+                for (String index : requestIndices(indicesRequest)) {
                     IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
                     if (indexAccessControl != null) {
-                        fieldLevelSecurityEnabled =
-                            fieldLevelSecurityEnabled || indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                        documentLevelSecurityEnabled =
-                            documentLevelSecurityEnabled || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                        if (fieldLevelSecurityEnabled && documentLevelSecurityEnabled) {
-                            break;
+                        final boolean flsEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
+                        final boolean dlsEnabled = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
+                        if ((flsEnabled || dlsEnabled) && isDlsLicensed) {
+                            logger.trace(
+                                "intercepted request for index [{}] with field level access controls [{}] "
+                                    + "document level access controls [{}]. disabling conflicting features",
+                                index,
+                                flsEnabled,
+                                dlsEnabled
+                            );
+                            accessControlByIndex.put(index, indexAccessControl);
                         }
+                    } else {
+                        logger.trace("intercepted request for index [{}] without field or document level access controls", index);
                     }
                 }
-                if ((fieldLevelSecurityEnabled || documentLevelSecurityEnabled) && licenseChecker.get()) {
-                    logger.trace("intercepted request for indices [{}] with field level access controls [{}] " +
-                            "document level access controls [{}]. disabling conflicting features",
-                        Strings.arrayToDelimitedString(requestIndices, ","), fieldLevelSecurityEnabled, documentLevelSecurityEnabled);
-                    disableFeatures(indicesRequest, fieldLevelSecurityEnabled, documentLevelSecurityEnabled, listener);
+                if (false == accessControlByIndex.isEmpty()) {
+                    disableFeatures(indicesRequest, accessControlByIndex, listener);
                     return;
                 }
-                logger.trace("intercepted request for indices [{}] without field or document level access controls",
-                    Strings.arrayToDelimitedString(requestIndices, ","));
             }
         }
         listener.onResponse(null);
     }
 
+    abstract void disableFeatures(
+        IndicesRequest indicesRequest,
+        Map<String, IndicesAccessControl.IndexAccessControl> indicesAccessControlByIndex,
+        ActionListener<Void> listener
+    );
+
     String[] requestIndices(IndicesRequest indicesRequest) {
         return indicesRequest.indices();
     }
-
-    abstract void disableFeatures(IndicesRequest request, boolean fieldLevelSecurityEnabled, boolean documentLevelSecurityEnabled,
-                                  ActionListener<Void> listener);
 
     abstract boolean supports(IndicesRequest request);
 }

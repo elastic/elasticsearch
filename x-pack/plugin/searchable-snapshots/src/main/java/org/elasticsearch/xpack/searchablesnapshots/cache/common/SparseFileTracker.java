@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collections;

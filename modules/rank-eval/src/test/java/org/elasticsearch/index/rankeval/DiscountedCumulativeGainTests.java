@@ -8,21 +8,20 @@
 
 package org.elasticsearch.index.rankeval;
 
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,7 +61,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         for (int i = 0; i < 6; i++) {
             rated.add(new RatedDocument("index", Integer.toString(i), relevanceRatings[i]));
             hits[i] = new SearchHit(i, Integer.toString(i), Collections.emptyMap(), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         assertEquals(EXPECTED_DCG, dcg.evaluate("id", hits, rated).metricScore(), DELTA);
@@ -112,7 +111,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
                 }
             }
             hits[i] = new SearchHit(i, Integer.toString(i), Collections.emptyMap(), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         EvalQueryQuality result = dcg.evaluate("id", hits, rated);
@@ -169,7 +168,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         SearchHit[] hits = new SearchHit[4];
         for (int i = 0; i < 4; i++) {
             hits[i] = new SearchHit(i, Integer.toString(i), Collections.emptyMap(), Collections.emptyMap());
-            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null, OriginalIndices.NONE));
+            hits[i].shard(new SearchShardTarget("testnode", new ShardId("index", "uuid", 0), null));
         }
         DiscountedCumulativeGain dcg = new DiscountedCumulativeGain();
         EvalQueryQuality result = dcg.evaluate("id", hits, ratedDocs);
@@ -233,7 +232,7 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
     }
 
     private void assertParsedCorrect(String xContent, Integer expectedUnknownDocRating, boolean expectedNormalize, int expectedK)
-            throws IOException {
+        throws IOException {
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
             DiscountedCumulativeGain dcgAt = DiscountedCumulativeGain.fromXContent(parser);
             assertEquals(expectedUnknownDocRating, dcgAt.getUnknownDocRating());
@@ -270,8 +269,10 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
             parser.nextToken();
             parser.nextToken();
-            XContentParseException exception = expectThrows(XContentParseException.class,
-                    () -> DiscountedCumulativeGain.fromXContent(parser));
+            XContentParseException exception = expectThrows(
+                XContentParseException.class,
+                () -> DiscountedCumulativeGain.fromXContent(parser)
+            );
             assertThat(exception.getMessage(), containsString("[dcg] unknown field"));
         }
     }
@@ -287,8 +288,18 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
         assertEquals(expectedNdcg, detail.getNDCG(), 0.0);
         assertEquals(unratedDocs, detail.getUnratedDocs());
         if (idcg != 0) {
-            assertEquals("{\"dcg\":{\"dcg\":" + dcg + ",\"ideal_dcg\":" + idcg + ",\"normalized_dcg\":" + expectedNdcg
-                    + ",\"unrated_docs\":" + unratedDocs + "}}", Strings.toString(detail));
+            assertEquals(
+                "{\"dcg\":{\"dcg\":"
+                    + dcg
+                    + ",\"ideal_dcg\":"
+                    + idcg
+                    + ",\"normalized_dcg\":"
+                    + expectedNdcg
+                    + ",\"unrated_docs\":"
+                    + unratedDocs
+                    + "}}",
+                Strings.toString(detail)
+            );
         } else {
             assertEquals("{\"dcg\":{\"dcg\":" + dcg + ",\"unrated_docs\":" + unratedDocs + "}}", Strings.toString(detail));
         }
@@ -296,31 +307,42 @@ public class DiscountedCumulativeGainTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         DiscountedCumulativeGain original = createTestItem();
-        DiscountedCumulativeGain deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
-                DiscountedCumulativeGain::new);
+        DiscountedCumulativeGain deserialized = ESTestCase.copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            DiscountedCumulativeGain::new
+        );
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
     }
 
     public void testEqualsAndHash() throws IOException {
-        checkEqualsAndHashCode(createTestItem(), original -> {
-            return new DiscountedCumulativeGain(original.getNormalize(), original.getUnknownDocRating(), original.getK());
-        }, DiscountedCumulativeGainTests::mutateTestItem);
+        checkEqualsAndHashCode(
+            createTestItem(),
+            original -> { return new DiscountedCumulativeGain(original.getNormalize(), original.getUnknownDocRating(), original.getK()); },
+            DiscountedCumulativeGainTests::mutateTestItem
+        );
     }
 
     private static DiscountedCumulativeGain mutateTestItem(DiscountedCumulativeGain original) {
         switch (randomIntBetween(0, 2)) {
-        case 0:
-            return new DiscountedCumulativeGain(original.getNormalize() == false, original.getUnknownDocRating(), original.getK());
-        case 1:
-            return new DiscountedCumulativeGain(original.getNormalize(),
-                    randomValueOtherThan(original.getUnknownDocRating(), () -> randomIntBetween(0, 10)), original.getK());
-        case 2:
-            return new DiscountedCumulativeGain(original.getNormalize(), original.getUnknownDocRating(),
-                    randomValueOtherThan(original.getK(), () -> randomIntBetween(1, 10)));
-        default:
-            throw new IllegalArgumentException("mutation variant not allowed");
+            case 0:
+                return new DiscountedCumulativeGain(original.getNormalize() == false, original.getUnknownDocRating(), original.getK());
+            case 1:
+                return new DiscountedCumulativeGain(
+                    original.getNormalize(),
+                    randomValueOtherThan(original.getUnknownDocRating(), () -> randomIntBetween(0, 10)),
+                    original.getK()
+                );
+            case 2:
+                return new DiscountedCumulativeGain(
+                    original.getNormalize(),
+                    original.getUnknownDocRating(),
+                    randomValueOtherThan(original.getK(), () -> randomIntBetween(1, 10))
+                );
+            default:
+                throw new IllegalArgumentException("mutation variant not allowed");
         }
     }
 }

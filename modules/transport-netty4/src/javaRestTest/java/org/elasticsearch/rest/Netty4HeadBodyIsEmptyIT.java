@@ -11,9 +11,9 @@ package org.elasticsearch.rest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -21,9 +21,9 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
@@ -117,15 +117,18 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             // The warnings only need to be checked in FIPS mode because we run default distribution for FIPS,
             // while the integ-test distribution is used otherwise.
             if (inFipsJvm()) {
-                request.setOptions(expectWarnings(
-                    "legacy template [template] has index patterns [*] matching patterns from existing composable templates " +
-                    "[.deprecation-indexing-template,.slm-history,.watch-history-14,ilm-history,logs," +
-                    "metrics,synthetics] with patterns (.deprecation-indexing-template => [.logs-deprecation.elasticsearch-default]," +
-                    ".slm-history => [.slm-history-5*]," +
-                    ".watch-history-14 => [.watcher-history-14*],ilm-history => [ilm-history-5*]," +
-                    "logs => [logs-*-*],metrics => [metrics-*-*],synthetics => [synthetics-*-*]" +
-                    "); this template [template] may be ignored in favor of a composable template at index creation time",
-                    RestPutIndexTemplateAction.DEPRECATION_WARNING));
+                request.setOptions(
+                    expectWarnings(
+                        "legacy template [template] has index patterns [*] matching patterns from existing composable templates "
+                            + "[.deprecation-indexing-template,.slm-history,.watch-history-14,ilm-history,logs,"
+                            + "metrics,synthetics] with patterns (.deprecation-indexing-template => "
+                            + "[.logs-deprecation.elasticsearch-default],.slm-history => [.slm-history-5*],"
+                            + ".watch-history-14 => [.watcher-history-14*],ilm-history => [ilm-history-5*],"
+                            + "logs => [logs-*-*],metrics => [metrics-*-*],synthetics => [synthetics-*-*]"
+                            + "); this template [template] may be ignored in favor of a composable template at index creation time",
+                        RestPutIndexTemplateAction.DEPRECATION_WARNING
+                    )
+                );
             } else {
                 request.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
             }
@@ -178,11 +181,12 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
     }
 
     private void headTestCase(
-            final String url,
-            final Map<String, String> params,
-            final int expectedStatusCode,
-            final Matcher<Integer> matcher,
-            final String... expectedWarnings) throws IOException {
+        final String url,
+        final Map<String, String> params,
+        final int expectedStatusCode,
+        final Matcher<Integer> matcher,
+        final String... expectedWarnings
+    ) throws IOException {
         Request request = new Request("HEAD", url);
         for (Map.Entry<String, String> param : params.entrySet()) {
             request.addParameter(param.getKey(), param.getValue());

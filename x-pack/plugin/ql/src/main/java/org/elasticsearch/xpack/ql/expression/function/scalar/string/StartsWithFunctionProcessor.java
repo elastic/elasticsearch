@@ -101,7 +101,6 @@ public class StartsWithFunctionProcessor implements Processor {
         return Objects.hash(source(), pattern(), isCaseInsensitive());
     }
 
-
     @Override
     public String getWriteableName() {
         return NAME;

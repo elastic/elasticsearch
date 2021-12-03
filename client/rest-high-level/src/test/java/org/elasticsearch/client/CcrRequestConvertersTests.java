@@ -28,7 +28,7 @@ import org.elasticsearch.client.ccr.ResumeAutoFollowPatternRequest;
 import org.elasticsearch.client.ccr.ResumeFollowRequest;
 import org.elasticsearch.client.ccr.UnfollowRequest;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -42,7 +42,10 @@ import static org.hamcrest.Matchers.nullValue;
 public class CcrRequestConvertersTests extends ESTestCase {
 
     public void testPutFollow() throws Exception {
-        PutFollowRequest putFollowRequest = new PutFollowRequest(randomAlphaOfLength(4), randomAlphaOfLength(4), randomAlphaOfLength(4),
+        PutFollowRequest putFollowRequest = new PutFollowRequest(
+            randomAlphaOfLength(4),
+            randomAlphaOfLength(4),
+            randomAlphaOfLength(4),
             randomBoolean() ? randomFrom(ActiveShardCount.NONE, ActiveShardCount.ONE, ActiveShardCount.DEFAULT, ActiveShardCount.ALL) : null
         );
         randomizeRequest(putFollowRequest);
@@ -87,11 +90,12 @@ public class CcrRequestConvertersTests extends ESTestCase {
 
     public void testForgetFollower() throws IOException {
         final ForgetFollowerRequest request = new ForgetFollowerRequest(
-                randomAlphaOfLength(8),
-                randomAlphaOfLength(8),
-                randomAlphaOfLength(8),
-                randomAlphaOfLength(8),
-                randomAlphaOfLength(8));
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8),
+            randomAlphaOfLength(8)
+        );
         final Request convertedRequest = CcrRequestConverters.forgetFollower(request);
         assertThat(convertedRequest.getMethod(), equalTo(HttpPost.METHOD_NAME));
         assertThat(convertedRequest.getEndpoint(), equalTo("/" + request.leaderIndex() + "/_ccr/forget_follower"));
@@ -100,8 +104,12 @@ public class CcrRequestConvertersTests extends ESTestCase {
     }
 
     public void testPutAutofollowPattern() throws Exception {
-        PutAutoFollowPatternRequest putAutoFollowPatternRequest = new PutAutoFollowPatternRequest(randomAlphaOfLength(4),
-            randomAlphaOfLength(4), Arrays.asList(generateRandomStringArray(4, 4, false)));
+        PutAutoFollowPatternRequest putAutoFollowPatternRequest = new PutAutoFollowPatternRequest(
+            randomAlphaOfLength(4),
+            randomAlphaOfLength(4),
+            Arrays.asList(generateRandomStringArray(4, 4, false)),
+            Arrays.asList(generateRandomStringArray(4, 4, false))
+        );
         if (randomBoolean()) {
             putAutoFollowPatternRequest.setFollowIndexNamePattern(randomAlphaOfLength(4));
         }

@@ -17,10 +17,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -30,6 +31,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A system index descriptor describes one or more system indices. It can match a number of indices using
@@ -37,8 +39,13 @@ import java.util.Set;
  * indices that are managed internally to Elasticsearch, a descriptor can also include information for
  * creating the system index, upgrading its mappings, and creating an alias.
  */
-public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> {
-    /** A pattern, either with a wildcard or simple regex. Indices that match one of these patterns are considered system indices. */
+public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<SystemIndexDescriptor> {
+    /**
+     * A pattern, either with a wildcard or simple regex. Indices that match one of these patterns are considered system indices.
+     * Note that this pattern must not overlap with any other {@link SystemIndexDescriptor}s and must allow an alphanumeric suffix
+     * (see {@link SystemIndices#UPGRADED_INDEX_SUFFIX} for the specific suffix that's checked) to ensure that there's a name within the
+     * pattern we can use to create a new index when upgrading.
+     * */
     private final String indexPattern;
 
     /**
@@ -95,36 +102,79 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
      */
     private final List<SystemIndexDescriptor> priorSystemIndexDescriptors;
 
+    private final boolean isNetNew;
+
+    /**
+     * The thread pools that actions will use to operate on this descriptor's system indices
+     */
+    private final ExecutorNames executorNames;
+
     /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
      * by Elasticsearch internally.
-     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
+     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character, must not
+     *                     overlap with any other descriptor patterns, and must allow a suffix (see note on
+     *                     {@link SystemIndexDescriptor#indexPattern} for details).
      * @param description The name of the plugin responsible for this system index.
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
-        this(indexPattern, null, description, null, null, null, 0, null, null, Version.CURRENT.minimumCompatibilityVersion(),
-            Type.INTERNAL_UNMANAGED, List.of(), List.of());
+        this(
+            indexPattern,
+            null,
+            description,
+            null,
+            null,
+            null,
+            0,
+            null,
+            null,
+            Version.CURRENT.minimumCompatibilityVersion(),
+            Type.INTERNAL_UNMANAGED,
+            List.of(),
+            List.of(),
+            null,
+            false
+        );
     }
 
     /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
      * by Elasticsearch internally.
-     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
+     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character, must not
+     *                            overlap with any other descriptor patterns, and must allow a suffix (see note on
+     *                            {@link SystemIndexDescriptor#indexPattern} for details).
      * @param description The name of the plugin responsible for this system index.
      * @param type The {@link Type} of system index
      * @param allowedElasticProductOrigins A list of allowed origin values that should be allowed access in the case of external system
      *                                     indices
      */
     public SystemIndexDescriptor(String indexPattern, String description, Type type, List<String> allowedElasticProductOrigins) {
-        this(indexPattern, null, description, null, null, null, 0, null, null, Version.CURRENT.minimumCompatibilityVersion(), type,
-            allowedElasticProductOrigins, List.of());
+        this(
+            indexPattern,
+            null,
+            description,
+            null,
+            null,
+            null,
+            0,
+            null,
+            null,
+            Version.CURRENT.minimumCompatibilityVersion(),
+            type,
+            allowedElasticProductOrigins,
+            List.of(),
+            null,
+            false
+        );
     }
 
     /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will be managed
      * by Elasticsearch internally if mappings or settings are provided.
      *
-     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
+     * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character, must not
+     *                            overlap with any other descriptor patterns, and must allow a suffix (see note on
+     *                            {@link SystemIndexDescriptor#indexPattern} for details).
      * @param primaryIndex The primary index name of this descriptor. Used when creating the system index for the first time.
      * @param description The name of the plugin responsible for this system index.
      * @param mappings The mappings to apply to this index when auto-creating, if appropriate
@@ -154,7 +204,9 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         Version minimumNodeVersion,
         Type type,
         List<String> allowedElasticProductOrigins,
-        List<SystemIndexDescriptor> priorSystemIndexDescriptors
+        List<SystemIndexDescriptor> priorSystemIndexDescriptors,
+        ExecutorNames executorNames,
+        boolean isNetNew
     ) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
@@ -201,7 +253,8 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             Strings.requireNonEmpty(primaryIndex, "Must supply primaryIndex for a managed system index");
             Strings.requireNonEmpty(versionMetaKey, "Must supply versionMetaKey for a managed system index");
             Strings.requireNonEmpty(origin, "Must supply origin for a managed system index");
-            this.mappingVersion = extractVersionFromMappings(mappings, versionMetaKey);;
+            this.mappingVersion = extractVersionFromMappings(mappings, versionMetaKey);
+            ;
         } else {
             this.mappingVersion = null;
         }
@@ -220,7 +273,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             // 1. No values with the same minimum node version
             // 2. All prior system index descriptors must have a minimumNodeVersion before this one
             // 3. Prior system index descriptors may not have other prior system index descriptors
-            //    to avoid multiple branches that need followed
+            // to avoid multiple branches that need followed
             // 4. Must have same indexPattern, primaryIndex, and alias
             Set<Version> versions = new HashSet<>(priorSystemIndexDescriptors.size() + 1);
             versions.add(minimumNodeVersion);
@@ -229,8 +282,9 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
                     throw new IllegalArgumentException(prior + " has the same minimum node version as another descriptor");
                 }
                 if (prior.minimumNodeVersion.after(minimumNodeVersion)) {
-                    throw new IllegalArgumentException(prior + " has minimum node version [" + prior.minimumNodeVersion +
-                        "] which is after [" + minimumNodeVersion + "]");
+                    throw new IllegalArgumentException(
+                        prior + " has minimum node version [" + prior.minimumNodeVersion + "] which is after [" + minimumNodeVersion + "]"
+                    );
                 }
                 if (prior.priorSystemIndexDescriptors.isEmpty() == false) {
                     throw new IllegalArgumentException(prior + " has its own prior descriptors but only a depth of 1 is allowed");
@@ -247,16 +301,35 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             }
         }
 
+        if (Objects.nonNull(executorNames)) {
+            if (ThreadPool.THREAD_POOL_TYPES.containsKey(executorNames.threadPoolForGet()) == false) {
+                throw new IllegalArgumentException(executorNames.threadPoolForGet() + " is not a valid thread pool");
+            }
+            if (ThreadPool.THREAD_POOL_TYPES.containsKey(executorNames.threadPoolForSearch()) == false) {
+                throw new IllegalArgumentException(executorNames.threadPoolForGet() + " is not a valid thread pool");
+            }
+            if (ThreadPool.THREAD_POOL_TYPES.containsKey(executorNames.threadPoolForWrite()) == false) {
+                throw new IllegalArgumentException(executorNames.threadPoolForGet() + " is not a valid thread pool");
+            }
+        }
+
         this.indexPattern = indexPattern;
         this.primaryIndex = primaryIndex;
+        this.aliasName = aliasName;
 
         final Automaton automaton = buildAutomaton(indexPattern, aliasName);
         this.indexPatternAutomaton = new CharacterRunAutomaton(automaton);
+        if (primaryIndex != null && indexPatternAutomaton.run(primaryIndex) == false) {
+            throw new IllegalArgumentException("primary index does not match the index pattern!");
+        }
 
         this.description = description;
         this.mappings = mappings;
+
+        if (Objects.nonNull(settings) && settings.getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
+            throw new IllegalArgumentException("System indices cannot have " + IndexMetadata.SETTING_INDEX_HIDDEN + " set to true.");
+        }
         this.settings = settings;
-        this.aliasName = aliasName;
         this.indexFormat = indexFormat;
         this.versionMetaKey = versionMetaKey;
         this.origin = origin;
@@ -275,12 +348,16 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             sortedPriorSystemIndexDescriptors = List.copyOf(copy);
         }
         this.priorSystemIndexDescriptors = sortedPriorSystemIndexDescriptors;
+        this.executorNames = Objects.nonNull(executorNames) ? executorNames : ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS;
+        this.isNetNew = isNetNew;
     }
 
-
     /**
-     * @return The pattern of index names that this descriptor will be used for.
+     * @return The pattern of index names that this descriptor will be used for. Must start with a '.' character, must not
+     *         overlap with any other descriptor patterns, and must allow a suffix (see note on
+     *         {@link SystemIndexDescriptor#indexPattern} for details).
      */
+    @Override
     public String getIndexPattern() {
         return indexPattern;
     }
@@ -311,15 +388,9 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
      * @param metadata The current metadata to get the list of matching indices from
      * @return A list of index names that match this descriptor
      */
+    @Override
     public List<String> getMatchingIndices(Metadata metadata) {
-        ArrayList<String> matchingIndices = new ArrayList<>();
-        metadata.indices().keysIt().forEachRemaining(indexName -> {
-            if (matchesIndexPattern(indexName)) {
-                matchingIndices.add(indexName);
-            }
-        });
-
-        return Collections.unmodifiableList(matchingIndices);
+        return metadata.indices().keySet().stream().filter(this::matchesIndexPattern).collect(Collectors.toUnmodifiableList());
     }
 
     /**
@@ -382,9 +453,13 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         return allowedElasticProductOrigins;
     }
 
+    public boolean isNetNew() {
+        return isNetNew;
+    }
+
     public Version getMappingVersion() {
         if (type.isManaged() == false) {
-            throw new IllegalStateException(toString() + " is not managed so there are no mappings or version");
+            throw new IllegalStateException(this + " is not managed so there are no mappings or version");
         }
         return mappingVersion;
     }
@@ -398,8 +473,9 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
      */
     public String getMinimumNodeVersionMessage(String cause) {
         Objects.requireNonNull(cause);
-        final Version actualMinimumVersion = priorSystemIndexDescriptors.isEmpty() ? minimumNodeVersion :
-            priorSystemIndexDescriptors.get(priorSystemIndexDescriptors.size() - 1).minimumNodeVersion;
+        final Version actualMinimumVersion = priorSystemIndexDescriptors.isEmpty()
+            ? minimumNodeVersion
+            : priorSystemIndexDescriptors.get(priorSystemIndexDescriptors.size() - 1).minimumNodeVersion;
         return String.format(
             Locale.ROOT,
             "[%s] failed - system index [%s] requires all data and master nodes to be at least version [%s]",
@@ -427,6 +503,14 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             }
         }
         return null;
+    }
+
+    /**
+     * @return The names of thread pools that should be used for operations on this
+     *    system index.
+     */
+    public ExecutorNames getThreadPoolNames() {
+        return this.executorNames;
     }
 
     public static Builder builder() {
@@ -496,6 +580,8 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         private Type type = Type.INTERNAL_MANAGED;
         private List<String> allowedElasticProductOrigins = List.of();
         private List<SystemIndexDescriptor> priorSystemIndexDescriptors = List.of();
+        private ExecutorNames executorNames;
+        private boolean isNetNew = false;
 
         private Builder() {}
 
@@ -569,6 +655,16 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             return this;
         }
 
+        public Builder setThreadPools(ExecutorNames executorNames) {
+            this.executorNames = executorNames;
+            return this;
+        }
+
+        public Builder setNetNew() {
+            this.isNetNew = true;
+            return this;
+        }
+
         /**
          * Builds a {@link SystemIndexDescriptor} using the fields supplied to this builder.
          * @return a populated descriptor.
@@ -588,7 +684,9 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
                 minimumNodeVersion,
                 type,
                 allowedElasticProductOrigins,
-                priorSystemIndexDescriptors
+                priorSystemIndexDescriptors,
+                executorNames,
+                isNetNew
             );
         }
     }
@@ -624,7 +722,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
      */
     private static String patternToRegex(String input) {
         String output = input;
-        output = output.replaceAll("\\.", "\\.");
+        output = output.replaceAll("\\.", "\\\\.");
         output = output.replaceAll("\\*", ".*");
         return output;
     }
@@ -657,6 +755,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         return false;
     }
 
+    @SuppressWarnings("unchecked")
     private static Version extractVersionFromMappings(String mappings, String versionMetaKey) {
         final Map<String, Object> mappingsMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), mappings, false);
         final Map<String, Object> doc = (Map<String, Object>) mappingsMap.get("_doc");
@@ -675,4 +774,5 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         }
         return Version.fromString(value);
     }
+
 }

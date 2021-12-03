@@ -1,0 +1,40 @@
+++++
+<div class="tabs" data-tab-group="host">
+  <div role="tablist" aria-label="Check CPU usage">
+    <button role="tab"
+            aria-selected="true"
+            aria-controls="cloud-tab-cpu"
+            id="cloud-cpu">
+      Elasticsearch Service
+    </button>
+    <button role="tab"
+            aria-selected="false"
+            aria-controls="self-managed-tab-cpu"
+            id="self-managed-cpu"
+            tabindex="-1">
+      Self-managed
+    </button>
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="cloud-tab-cpu"
+       aria-labelledby="cloud-cpu">
+++++
+
+include::cpu-usage.asciidoc[tag=cloud]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="self-managed-tab-cpu"
+       aria-labelledby="self-managed-cpu"
+       hidden="">
+++++
+
+include::cpu-usage.asciidoc[tag=self-managed]
+
+++++
+  </div>
+</div>
+++++

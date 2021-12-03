@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.recycler;
 
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 
 /**
  * A recycled object, note, implementations should support calling obtain and then recycle

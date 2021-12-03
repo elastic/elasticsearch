@@ -21,46 +21,58 @@ public class BulkStatsTests extends AbstractWireSerializingTestCase<BulkStats> {
 
     @Override
     protected BulkStats createTestInstance() {
-        return new BulkStats(randomNonNegativeLong(),
+        return new BulkStats(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomNonNegativeLong());
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
     }
 
     @Override
     protected BulkStats mutateInstance(BulkStats instance) {
         switch (between(0, 4)) {
             case 0:
-                return new BulkStats(randomValueOtherThan(instance.getTotalOperations(), ESTestCase::randomNonNegativeLong),
+                return new BulkStats(
+                    randomValueOtherThan(instance.getTotalOperations(), ESTestCase::randomNonNegativeLong),
                     instance.getTotalTimeInMillis(),
                     instance.getTotalSizeInBytes(),
                     instance.getAvgTimeInMillis(),
-                    instance.getAvgTimeInMillis());
+                    instance.getAvgTimeInMillis()
+                );
             case 1:
-                return new BulkStats(instance.getTotalOperations(),
+                return new BulkStats(
+                    instance.getTotalOperations(),
                     randomValueOtherThan(instance.getTotalTimeInMillis(), ESTestCase::randomNonNegativeLong),
                     instance.getTotalSizeInBytes(),
                     instance.getAvgTimeInMillis(),
-                    instance.getAvgTimeInMillis());
+                    instance.getAvgTimeInMillis()
+                );
             case 2:
-                return new BulkStats(instance.getTotalOperations(),
+                return new BulkStats(
+                    instance.getTotalOperations(),
                     instance.getTotalTimeInMillis(),
                     randomValueOtherThan(instance.getTotalSizeInBytes(), ESTestCase::randomNonNegativeLong),
                     instance.getAvgTimeInMillis(),
-                    instance.getAvgTimeInMillis());
+                    instance.getAvgTimeInMillis()
+                );
             case 3:
-                return new BulkStats(instance.getTotalOperations(),
+                return new BulkStats(
+                    instance.getTotalOperations(),
                     instance.getTotalTimeInMillis(),
                     instance.getTotalSizeInBytes(),
                     randomValueOtherThan(instance.getAvgTimeInMillis(), ESTestCase::randomNonNegativeLong),
-                    instance.getAvgTimeInMillis());
+                    instance.getAvgTimeInMillis()
+                );
             case 4:
-                return new BulkStats(instance.getTotalOperations(),
+                return new BulkStats(
+                    instance.getTotalOperations(),
                     instance.getTotalTimeInMillis(),
                     instance.getTotalSizeInBytes(),
                     instance.getAvgTimeInMillis(),
-                    randomValueOtherThan(instance.getAvgSizeInBytes(), ESTestCase::randomNonNegativeLong));
+                    randomValueOtherThan(instance.getAvgSizeInBytes(), ESTestCase::randomNonNegativeLong)
+                );
             default:
                 throw new AssertionError("failure, got illegal switch case");
         }
@@ -87,4 +99,3 @@ public class BulkStatsTests extends AbstractWireSerializingTestCase<BulkStats> {
     }
 
 }
-

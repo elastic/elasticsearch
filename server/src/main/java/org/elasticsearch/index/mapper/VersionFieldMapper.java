@@ -11,11 +11,18 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
+import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
+import org.elasticsearch.index.fielddata.ScriptDocValues.LongsSupplier;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
+import java.util.function.Supplier;
 
 /** Mapper for the _version field. */
 public class VersionFieldMapper extends MetadataFieldMapper {
@@ -23,7 +30,9 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_version";
     public static final String CONTENT_TYPE = "_version";
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new VersionFieldMapper());
+    public static final VersionFieldMapper INSTANCE = new VersionFieldMapper();
+
+    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
     static final class VersionFieldType extends MappedFieldType {
 
@@ -45,7 +54,17 @@ public class VersionFieldMapper extends MetadataFieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
+        }
+
+        @Override
+        public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
+            failIfNoDocValues();
+            return new SortedNumericIndexFieldData.Builder(
+                name(),
+                NumericType.LONG,
+                (dv, n) -> new DelegateDocValuesField(new Longs(new LongsSupplier(dv)), n)
+            );
         }
     }
 
@@ -54,20 +73,24 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) {
-        // see InternalEngine.updateVersion to see where the real version value is set
-        final Field version = new NumericDocValuesField(NAME, -1L);
+    public void preParse(DocumentParserContext context) {
+        final Field version = versionField();
         context.version(version);
         context.doc().add(version);
     }
 
+    public static Field versionField() {
+        // see InternalEngine.updateVersion to see where the real version value is set
+        return new NumericDocValuesField(NAME, -1L);
+    }
+
     @Override
-    public void postParse(ParseContext context) {
+    public void postParse(DocumentParserContext context) {
         // In the case of nested docs, let's fill nested docs with version=1 so that Lucene doesn't write a Bitset for documents
         // that don't have the field. This is consistent with the default value for efficiency.
         Field version = context.version();
         assert version != null;
-        for (Document doc : context.nonRootDocuments()) {
+        for (LuceneDocument doc : context.nonRootDocuments()) {
             doc.add(version);
         }
     }

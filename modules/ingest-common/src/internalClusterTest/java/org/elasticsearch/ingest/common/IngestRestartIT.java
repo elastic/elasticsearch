@@ -13,13 +13,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -53,9 +53,7 @@ public class IngestRestartIT extends ESIntegTestCase {
             return Map.of("my_script", ctx -> {
                 ctx.put("z", 0);
                 return null;
-            }, "throwing_script", ctx -> {
-                throw new RuntimeException("this script always fails");
-            });
+            }, "throwing_script", ctx -> { throw new RuntimeException("this script always fails"); });
         }
     }
 
@@ -63,26 +61,38 @@ public class IngestRestartIT extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(1);
         internalCluster().startMasterOnlyNode();
         final String pipelineId = "foo";
-        client().admin().cluster().preparePutPipeline(pipelineId,
-            new BytesArray("{\n" +
-                "  \"processors\" : [\n" +
-                "  {\"set\" : {\"field\": \"any_field\", \"value\": \"any_value\"}},\n" +
-                "  {\"set\" : {" + "" +
-                "    \"if\" : " + "{\"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"throwing_script\"}," +
-                "    \"field\": \"any_field2\"," +
-                "    \"value\": \"any_value2\"}" +
-                "  }\n" +
-                "  ]\n" +
-                "}"), XContentType.JSON).get();
+        client().admin()
+            .cluster()
+            .preparePutPipeline(
+                pipelineId,
+                new BytesArray(
+                    "{\n"
+                        + "  \"processors\" : [\n"
+                        + "  {\"set\" : {\"field\": \"any_field\", \"value\": \"any_value\"}},\n"
+                        + "  {\"set\" : {"
+                        + ""
+                        + "    \"if\" : "
+                        + "{\"lang\": \""
+                        + MockScriptEngine.NAME
+                        + "\", \"source\": \"throwing_script\"},"
+                        + "    \"field\": \"any_field2\","
+                        + "    \"value\": \"any_value2\"}"
+                        + "  }\n"
+                        + "  ]\n"
+                        + "}"
+                ),
+                XContentType.JSON
+            )
+            .get();
 
         Exception e = expectThrows(
             Exception.class,
-            () ->
-                client().prepareIndex("index").setId("1")
-                    .setSource("x", 0)
-                    .setPipeline(pipelineId)
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .get()
+            () -> client().prepareIndex("index")
+                .setId("1")
+                .setSource("x", 0)
+                .setPipeline(pipelineId)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .get()
         );
         assertTrue(e.getMessage().contains("this script always fails"));
 
@@ -101,26 +111,29 @@ public class IngestRestartIT extends ESIntegTestCase {
         String pipelineIdWithScript = pipelineIdWithoutScript + "_script";
         internalCluster().startNode();
 
-        BytesReference pipelineWithScript = new BytesArray("{\n" +
-            "  \"processors\" : [\n" +
-            "      {\"script\" : {\"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"my_script\"}}\n" +
-            "  ]\n" +
-            "}");
-        BytesReference pipelineWithoutScript = new BytesArray("{\n" +
-            "  \"processors\" : [\n" +
-            "      {\"set\" : {\"field\": \"y\", \"value\": 0}}\n" +
-            "  ]\n" +
-            "}");
+        BytesReference pipelineWithScript = new BytesArray(
+            "{\n"
+                + "  \"processors\" : [\n"
+                + "      {\"script\" : {\"lang\": \""
+                + MockScriptEngine.NAME
+                + "\", \"source\": \"my_script\"}}\n"
+                + "  ]\n"
+                + "}"
+        );
+        BytesReference pipelineWithoutScript = new BytesArray(
+            "{\n" + "  \"processors\" : [\n" + "      {\"set\" : {\"field\": \"y\", \"value\": 0}}\n" + "  ]\n" + "}"
+        );
 
-        Consumer<String> checkPipelineExists = (id) -> assertThat(client().admin().cluster().prepareGetPipeline(id)
-                .get().pipelines().get(0).getId(), equalTo(id));
+        Consumer<String> checkPipelineExists = (id) -> assertThat(
+            client().admin().cluster().prepareGetPipeline(id).get().pipelines().get(0).getId(),
+            equalTo(id)
+        );
 
         client().admin().cluster().preparePutPipeline(pipelineIdWithScript, pipelineWithScript, XContentType.JSON).get();
         client().admin().cluster().preparePutPipeline(pipelineIdWithoutScript, pipelineWithoutScript, XContentType.JSON).get();
 
         checkPipelineExists.accept(pipelineIdWithScript);
         checkPipelineExists.accept(pipelineIdWithoutScript);
-
 
         internalCluster().restartNode(internalCluster().getMasterName(), new InternalTestCluster.RestartCallback() {
 
@@ -134,23 +147,35 @@ public class IngestRestartIT extends ESIntegTestCase {
         checkPipelineExists.accept(pipelineIdWithoutScript);
         checkPipelineExists.accept(pipelineIdWithScript);
 
-        client().prepareIndex("index").setId("1")
+        client().prepareIndex("index")
+            .setId("1")
             .setSource("x", 0)
             .setPipeline(pipelineIdWithoutScript)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> client().prepareIndex("index").setId("2")
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> client().prepareIndex("index")
+                .setId("2")
                 .setSource("x", 0)
                 .setPipeline(pipelineIdWithScript)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get());
-        assertThat(exception.getMessage(),
-            equalTo("pipeline with id [" + pipelineIdWithScript + "] could not be loaded, caused by " +
-                "[org.elasticsearch.ElasticsearchParseException: Error updating pipeline with id [" + pipelineIdWithScript + "]; " +
-                "org.elasticsearch.ElasticsearchException: java.lang.IllegalArgumentException: cannot execute [inline] scripts; " +
-                "java.lang.IllegalArgumentException: cannot execute [inline] scripts]"));
+                .get()
+        );
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "pipeline with id ["
+                    + pipelineIdWithScript
+                    + "] could not be loaded, caused by "
+                    + "[org.elasticsearch.ElasticsearchParseException: Error updating pipeline with id ["
+                    + pipelineIdWithScript
+                    + "]; "
+                    + "org.elasticsearch.ElasticsearchException: java.lang.IllegalArgumentException: cannot execute [inline] scripts; "
+                    + "java.lang.IllegalArgumentException: cannot execute [inline] scripts]"
+            )
+        );
 
         Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
@@ -160,24 +185,31 @@ public class IngestRestartIT extends ESIntegTestCase {
     public void testPipelineWithScriptProcessorThatHasStoredScript() throws Exception {
         internalCluster().startNode();
 
-        client().admin().cluster().preparePutStoredScript()
-                .setId("1")
-                .setContent(new BytesArray("{\"script\": {\"lang\": \"" + MockScriptEngine.NAME +
-                        "\", \"source\": \"my_script\"} }"), XContentType.JSON)
-                .get();
-        BytesReference pipeline = new BytesArray("{\n" +
-                "  \"processors\" : [\n" +
-                "      {\"set\" : {\"field\": \"y\", \"value\": 0}},\n" +
-                "      {\"script\" : {\"id\": \"1\"}}\n" +
-                "  ]\n" +
-                "}");
+        client().admin()
+            .cluster()
+            .preparePutStoredScript()
+            .setId("1")
+            .setContent(
+                new BytesArray("{\"script\": {\"lang\": \"" + MockScriptEngine.NAME + "\", \"source\": \"my_script\"} }"),
+                XContentType.JSON
+            )
+            .get();
+        BytesReference pipeline = new BytesArray(
+            "{\n"
+                + "  \"processors\" : [\n"
+                + "      {\"set\" : {\"field\": \"y\", \"value\": 0}},\n"
+                + "      {\"script\" : {\"id\": \"1\"}}\n"
+                + "  ]\n"
+                + "}"
+        );
         client().admin().cluster().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
-        client().prepareIndex("index").setId("1")
-                .setSource("x", 0)
-                .setPipeline("_id")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+        client().prepareIndex("index")
+            .setId("1")
+            .setSource("x", 0)
+            .setPipeline("_id")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
 
         Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
@@ -191,11 +223,12 @@ public class IngestRestartIT extends ESIntegTestCase {
         internalCluster().fullRestart();
         ensureYellow("index");
 
-        client().prepareIndex("index").setId("2")
-                .setSource("x", 0)
-                .setPipeline("_id")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+        client().prepareIndex("index")
+            .setId("2")
+            .setSource("x", 0)
+            .setPipeline("_id")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
 
         source = client().prepareGet("index", "2").get().getSource();
         assertThat(source.get("x"), equalTo(0));
@@ -207,18 +240,17 @@ public class IngestRestartIT extends ESIntegTestCase {
         String node = internalCluster().startNode();
         String ingestNode = internalCluster().startNode(onlyRole(DiscoveryNodeRole.INGEST_ROLE));
 
-        BytesReference pipeline = new BytesArray("{\n" +
-                "  \"processors\" : [\n" +
-                "      {\"set\" : {\"field\": \"y\", \"value\": 0}}\n" +
-                "  ]\n" +
-                "}");
+        BytesReference pipeline = new BytesArray(
+            "{\n" + "  \"processors\" : [\n" + "      {\"set\" : {\"field\": \"y\", \"value\": 0}}\n" + "  ]\n" + "}"
+        );
         client().admin().cluster().preparePutPipeline("_id", pipeline, XContentType.JSON).get();
 
-        client().prepareIndex("index").setId("1")
-                .setSource("x", 0)
-                .setPipeline("_id")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+        client().prepareIndex("index")
+            .setId("1")
+            .setSource("x", 0)
+            .setPipeline("_id")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
 
         Map<String, Object> source = client().prepareGet("index", "1").get().getSource();
         assertThat(source.get("x"), equalTo(0));
@@ -227,11 +259,12 @@ public class IngestRestartIT extends ESIntegTestCase {
         logger.info("Stopping");
         internalCluster().restartNode(node, new InternalTestCluster.RestartCallback());
 
-        client(ingestNode).prepareIndex("index").setId("2")
-                .setSource("x", 0)
-                .setPipeline("_id")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .get();
+        client(ingestNode).prepareIndex("index")
+            .setId("2")
+            .setSource("x", 0)
+            .setPipeline("_id")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
 
         source = client(ingestNode).prepareGet("index", "2").get().getSource();
         assertThat(source.get("x"), equalTo(0));

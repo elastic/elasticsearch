@@ -69,11 +69,11 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
             }
         }
         Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put("xpack.notification.email.account.test.smtp.auth", true)
-                .put("xpack.notification.email.account.test.smtp.port", server.port())
-                .put("xpack.notification.email.account.test.smtp.host", "localhost")
-                .put("xpack.watcher.encrypt_sensitive_data", encryptSensitiveData);
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("xpack.notification.email.account.test.smtp.auth", true)
+            .put("xpack.notification.email.account.test.smtp.port", server.port())
+            .put("xpack.notification.email.account.test.smtp.host", "localhost")
+            .put("xpack.watcher.encrypt_sensitive_data", encryptSensitiveData);
         if (encryptSensitiveData) {
             MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setFile(WatcherField.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
@@ -83,18 +83,16 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
     }
 
     public void testEmail() throws Exception {
-        new PutWatchRequestBuilder(client(), "_id")
-                .setSource(watchBuilder()
-                        .trigger(schedule(cron("0 0 0 1 * ? 2020")))
-                        .input(simpleInput())
-                        .condition(InternalAlwaysCondition.INSTANCE)
-                        .addAction("_email", ActionBuilders.emailAction(
-                                EmailTemplate.builder()
-                                        .from("from@example.org")
-                                        .to("to@example.org")
-                                        .subject("_subject"))
-                                .setAuthentication(EmailServer.USERNAME, EmailServer.PASSWORD.toCharArray())))
-                .get();
+        new PutWatchRequestBuilder(client(), "_id").setSource(
+            watchBuilder().trigger(schedule(cron("0 0 0 1 * ? 2020")))
+                .input(simpleInput())
+                .condition(InternalAlwaysCondition.INSTANCE)
+                .addAction(
+                    "_email",
+                    ActionBuilders.emailAction(EmailTemplate.builder().from("from@example.org").to("to@example.org").subject("_subject"))
+                        .setAuthentication(EmailServer.USERNAME, EmailServer.PASSWORD.toCharArray())
+                )
+        ).get();
 
         // verifying the email password is stored encrypted in the index
         GetResponse response = client().prepareGet().setIndex(Watch.INDEX).setId("_id").get();
@@ -138,11 +136,10 @@ public class EmailSecretsIntegrationTests extends AbstractWatcherIntegrationTest
         });
 
         TriggerEvent triggerEvent = new ScheduleTriggerEvent(ZonedDateTime.now(ZoneOffset.UTC), ZonedDateTime.now(ZoneOffset.UTC));
-        ExecuteWatchResponse executeResponse = new ExecuteWatchRequestBuilder(client(), "_id")
-                .setRecordExecution(false)
-                .setTriggerEvent(triggerEvent)
-                .setActionMode("_all", ActionExecutionMode.FORCE_EXECUTE)
-                .get();
+        ExecuteWatchResponse executeResponse = new ExecuteWatchRequestBuilder(client(), "_id").setRecordExecution(false)
+            .setTriggerEvent(triggerEvent)
+            .setActionMode("_all", ActionExecutionMode.FORCE_EXECUTE)
+            .get();
         assertThat(executeResponse, notNullValue());
         contentSource = executeResponse.getRecordSource();
 

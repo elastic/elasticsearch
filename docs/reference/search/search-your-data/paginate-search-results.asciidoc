@@ -98,8 +98,8 @@ GET /_search
     }
   },
   "pit": {
-	    "id":  "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <1>
-	    "keep_alive": "1m"
+    "id":  "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <1>
+    "keep_alive": "1m"
   },
   "sort": [ <2>
     {"@timestamp": {"order": "asc", "format": "strict_date_optional_time_nanos", "numeric_type" : "date_nanos" }}
@@ -129,8 +129,8 @@ GET /_search
     }
   },
   "pit": {
-	    "id":  "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <1>
-	    "keep_alive": "1m"
+    "id":  "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <1>
+    "keep_alive": "1m"
   },
   "sort": [ <2>
     {"@timestamp": {"order": "asc", "format": "strict_date_optional_time_nanos"}},
@@ -192,8 +192,8 @@ GET /_search
     }
   },
   "pit": {
-	    "id":  "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <1>
-	    "keep_alive": "1m"
+    "id":  "46ToAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwADaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQADaWR5BXV1aWQyKgZub2RlXzIAAAAAAAAAAAwBYgACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <1>
+    "keep_alive": "1m"
   },
   "sort": [
     {"@timestamp": {"order": "asc", "format": "strict_date_optional_time_nanos"}}
@@ -225,7 +225,6 @@ DELETE /_pit
 }
 ----
 // TEST[catch:missing]
-
 
 [discrete]
 [[scroll-search-results]]
@@ -437,8 +436,8 @@ DELETE /_search/scroll/DXF1ZXJ5QW5kRmV0Y2gBAAAAAAAAAD4WYm9laVYtZndUQlNsdDcwakFMN
 [[slice-scroll]]
 ==== Sliced scroll
 
-For scroll queries that return a lot of documents it is possible to split the scroll in multiple slices which
-can be consumed independently:
+When paging through a large number of documents, it can be helpful to split the search into multiple slices
+to consume them independently:
 
 [source,console]
 --------------------------------------------------
@@ -472,24 +471,27 @@ GET /my-index-000001/_search?scroll=1m
 <1> The id of the slice
 <2> The maximum number of slices
 
-The result from the first request returned documents that belong to the first slice (id: 0) and the result from the
-second request returned documents that belong to the second slice. Since the maximum number of slices is set to 2
- the union of the results of the two requests is equivalent to the results of a scroll query without slicing.
-By default the splitting is done on the shards first and then locally on each shard using the _id field
-with the following formula:
-`slice(doc) = floorMod(hashCode(doc._id), max)`
-For instance if the number of shards is equal to 2 and the user requested 4 slices then the slices 0 and 2 are assigned
-to the first shard and the slices 1 and 3 are assigned to the second shard.
+The result from the first request returned documents that belong to the first slice (id: 0) and
+the result from the second request returned documents that belong to the second slice. Since the
+maximum number of slices is set to 2 the union of the results of the two requests is equivalent
+to the results of a scroll query without slicing. By default the splitting is done first on the
+shards, then locally on each shard using the `_id` field. The local splitting follows the formula
+`slice(doc) = floorMod(hashCode(doc._id), max))`.
 
 Each scroll is independent and can be processed in parallel like any scroll request.
 
-NOTE: If the number of slices is bigger than the number of shards the slice filter is very slow on the first calls, it has a complexity of O(N) and a memory cost equals
-to N bits per slice where N is the total number of documents in the shard.
-After few calls the filter should be cached and subsequent calls should be faster but you should limit the number of
- sliced query you perform in parallel to avoid the memory explosion.
+NOTE: If the number of slices is bigger than the number of shards the slice filter is very slow on
+the first calls, it has a complexity of O(N) and a memory cost equals to N bits per slice where N
+is the total number of documents in the shard. After few calls the filter should be cached and
+subsequent calls should be faster but you should limit the number of sliced query you perform in
+parallel to avoid the memory explosion.
 
-To avoid this cost entirely it is possible to use the `doc_values` of another field to do the slicing
-but the user must ensure that the field has the following properties:
+The <<point-in-time-api,point-in-time>> API supports a more efficient partitioning strategy and
+does not suffer from this problem. When possible, it's recommended to use a point-in-time search
+with slicing instead of a scroll.
+
+Another way to avoid this high cost is to use the `doc_values` of another field to do the slicing.
+The field must have the following properties:
 
     * The field is numeric.
 
@@ -521,6 +523,3 @@ GET /my-index-000001/_search?scroll=1m
 // TEST[setup:my_index_big]
 
 For append only time-based indices, the `timestamp` field can be used safely.
-
-NOTE: By default the maximum number of slices allowed per scroll is limited to 1024.
-You can update the `index.max_slices_per_scroll` index setting to bypass this limit.

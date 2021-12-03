@@ -24,8 +24,8 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
 
     @SuppressWarnings("unchecked")
     public void testSystemIndicesUpgrades() throws Exception {
-        final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct " +
-            "access to system indices will be prevented by default";
+        final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
+            + "access to system indices will be prevented by default";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             // create index
             Request createTestIndex = new Request("PUT", "/test_index_old");
@@ -34,21 +34,21 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
 
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
-            bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\"}}\n" +
-                "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+            bulk.setJsonEntity("{\"index\": {\"_index\": \"test_index_old\"}}\n" + "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
             client().performRequest(bulk);
 
             // start a async reindex job
             Request reindex = new Request("POST", "/_reindex");
             reindex.setJsonEntity(
-                "{\n" +
-                    "  \"source\":{\n" +
-                    "    \"index\":\"test_index_old\"\n" +
-                    "  },\n" +
-                    "  \"dest\":{\n" +
-                    "    \"index\":\"test_index_reindex\"\n" +
-                    "  }\n" +
-                    "}");
+                "{\n"
+                    + "  \"source\":{\n"
+                    + "    \"index\":\"test_index_old\"\n"
+                    + "  },\n"
+                    + "  \"dest\":{\n"
+                    + "    \"index\":\"test_index_reindex\"\n"
+                    + "  }\n"
+                    + "}"
+            );
             reindex.addParameter("wait_for_completion", "false");
             Map<String, Object> response = entityAsMap(client().performRequest(reindex));
             String taskId = (String) response.get("task");
@@ -83,12 +83,14 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
             if (minimumNodeVersion().before(SYSTEM_INDEX_ENFORCEMENT_VERSION)) {
                 // Create an alias to make sure it gets upgraded properly
                 Request putAliasRequest = new Request("POST", "/_aliases");
-                putAliasRequest.setJsonEntity("{\n" +
-                    "  \"actions\": [\n" +
-                    "    {\"add\":  {\"index\":  \".tasks\", \"alias\": \"test-system-alias\"}},\n" +
-                    "    {\"add\":  {\"index\":  \"test_index_reindex\", \"alias\": \"test-system-alias\"}}\n" +
-                    "  ]\n" +
-                    "}");
+                putAliasRequest.setJsonEntity(
+                    "{\n"
+                        + "  \"actions\": [\n"
+                        + "    {\"add\":  {\"index\":  \".tasks\", \"alias\": \"test-system-alias\"}},\n"
+                        + "    {\"add\":  {\"index\":  \"test_index_reindex\", \"alias\": \"test-system-alias\"}}\n"
+                        + "  ]\n"
+                        + "}"
+                );
                 putAliasRequest.setOptions(expectVersionSpecificWarnings(v -> {
                     v.current(systemIndexWarning);
                     v.compatible(systemIndexWarning);
@@ -98,8 +100,9 @@ public class SystemIndicesUpgradeIT extends AbstractRollingTestCase {
         } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
             assertBusy(() -> {
                 Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");
-                Map<String, Object> indices = new JsonMapView(entityAsMap(client().performRequest(clusterStateRequest)))
-                    .get("metadata.indices");
+                Map<String, Object> indices = new JsonMapView(entityAsMap(client().performRequest(clusterStateRequest))).get(
+                    "metadata.indices"
+                );
 
                 // Make sure our non-system index is still non-system
                 assertThat(new JsonMapView(indices).get("test_index_old.system"), is(false));

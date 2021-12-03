@@ -12,6 +12,7 @@ out/
 !.idea/scopes/x_pack.xml
 !.idea/inspectionProfiles/Project_Default.xml
 !.idea/runConfigurations/Debug_Elasticsearch.xml
+!.idea/checkstyle-idea.xml
 
 # These files are generated in the main tree by IntelliJ
 benchmarks/src/main/generated/*
@@ -59,8 +60,10 @@ eclipse-build
 # projects using testfixtures
 testfixtures_shared/
 
-# These are generated from .ci/jobs.t
+# These are generated from .ci/jobs.t, .ci/templates.t and .ci/views.t
 .ci/jobs/
+.ci/templates/
+.ci/views/
 
 # Generated
 checkstyle_ide.xml

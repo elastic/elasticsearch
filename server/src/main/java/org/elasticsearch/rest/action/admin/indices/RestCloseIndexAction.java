@@ -31,9 +31,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/_close"),
-            new Route(POST, "/{index}/_close"));
+        return List.of(new Route(POST, "/_close"), new Route(POST, "/{index}/_close"));
     }
 
     @Override
@@ -49,15 +47,19 @@ public class RestCloseIndexAction extends BaseRestHandler {
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");
         if ("index-setting".equalsIgnoreCase(waitForActiveShards)) {
-            deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "close-index-wait_for_active_shards-index-setting",
-                    "?wait_for_active_shards=index-setting is now the default behaviour; the 'index-setting' value for this parameter " +
-                            "should no longer be used since it will become unsupported in version " + (Version.V_7_0_0.major + 2));
+            deprecationLogger.warn(
+                DeprecationCategory.SETTINGS,
+                "close-index-wait_for_active_shards-index-setting",
+                "?wait_for_active_shards=index-setting is now the default behaviour; the 'index-setting' value for this parameter "
+                    + "should no longer be used since it will become unsupported in version "
+                    + (Version.V_7_0_0.major + 2)
+            );
             // TODO in v9:
-            //  - throw an IllegalArgumentException here
-            //  - record the removal of support for this value as a breaking change.
-            //  - mention Version.V_8_0_0 in the code to ensure that we revisit this in v10
+            // - throw an IllegalArgumentException here
+            // - record the removal of support for this value as a breaking change.
+            // - mention Version.V_8_0_0 in the code to ensure that we revisit this in v10
             // TODO in v10:
-            //  - remove the IllegalArgumentException here
+            // - remove the IllegalArgumentException here
         } else if (waitForActiveShards != null) {
             closeIndexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }

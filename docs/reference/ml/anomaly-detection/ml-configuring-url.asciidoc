@@ -21,7 +21,7 @@ image::images/ml-customurl-edit.gif["Add a custom URL in {kib}",width=75%]
 For each custom URL, you must supply the URL and a label, which is the link text
 that appears in the anomalies table. You can also optionally supply a time 
 range. When you link to *Discover* or a {kib} dashboard, you'll have additional
-options for specifying the pertinent index pattern or dashboard name and query
+options for specifying the pertinent {data-source} or dashboard name and query
 entities.
 
 [discrete]
@@ -90,7 +90,7 @@ your web browser so that it does not block pop-up windows or create an exception
 for your {kib} URL.
 * When creating a link to a {kib} dashboard, the URLs for dashboards can be very
 long. Be careful of typos, end of line characters, and URL encoding. Also ensure
-you use the appropriate index ID for the target {kib} index pattern.
+you use the appropriate index ID for the target {kib} {data-source}.
 * If you use an influencer name for string substitution, keep in mind that it
 might not always be available in the analysis results and the URL is invalid in
 those cases. There is not always a statistically significant influencer for each

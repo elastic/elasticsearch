@@ -10,7 +10,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
@@ -40,32 +40,32 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
 
     @After
-    public void cleanup(){
+    public void cleanup() {
         cleanUp();
     }
 
     public void testRealtime() throws Exception {
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
-        aggs.addAggregator(AggregationBuilders.dateHistogram("time").field("time")
-            .fixedInterval(new DateHistogramInterval("1000ms"))
-            .subAggregation(AggregationBuilders.max("time").field("time")));
-        testDfWithAggs(
-            aggs,
-            new Detector.Builder("count", null),
-            "datafeed-with-aggs-rt-job",
-            "datafeed-with-aggs-rt-data"
+        aggs.addAggregator(
+            AggregationBuilders.dateHistogram("time")
+                .field("time")
+                .fixedInterval(new DateHistogramInterval("1000ms"))
+                .subAggregation(AggregationBuilders.max("time").field("time"))
         );
+        testDfWithAggs(aggs, new Detector.Builder("count", null), "datafeed-with-aggs-rt-job", "datafeed-with-aggs-rt-data");
     }
 
     public void testRealtimeComposite() throws Exception {
         AggregatorFactories.Builder aggs = new AggregatorFactories.Builder();
-        aggs.addAggregator(AggregationBuilders.composite("buckets",
-            Arrays.asList(
-                new DateHistogramValuesSourceBuilder("time").field("time").fixedInterval(new DateHistogramInterval("1000ms")),
-                new TermsValuesSourceBuilder("field").field("field")
-            ))
-            .size(1000)
-            .subAggregation(AggregationBuilders.max("time").field("time")));
+        aggs.addAggregator(
+            AggregationBuilders.composite(
+                "buckets",
+                Arrays.asList(
+                    new DateHistogramValuesSourceBuilder("time").field("time").fixedInterval(new DateHistogramInterval("1000ms")),
+                    new TermsValuesSourceBuilder("field").field("field")
+                )
+            ).size(1000).subAggregation(AggregationBuilders.max("time").field("time"))
+        );
         testDfWithAggs(
             aggs,
             new Detector.Builder("count", null).setByFieldName("field"),
@@ -101,16 +101,13 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig datafeed = datafeedBuilder.build();
 
         // Create stuff and open job
-        registerJob(jobBuilder);
         putJob(jobBuilder);
-        registerDatafeed(datafeed);
+
         putDatafeed(datafeed);
         openJob(jobId);
 
         // Now let's index the data
-        client().admin().indices().prepareCreate(dfId)
-            .setMapping("time", "type=date", "field", "type=keyword")
-            .get();
+        client().admin().indices().prepareCreate(dfId).setMapping("time", "type=date", "field", "type=keyword").get();
 
         // Index a doc per second from a minute ago to a minute later
         long now = System.currentTimeMillis();
@@ -124,9 +121,7 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
             bulkRequestBuilder.add(indexRequest);
             curTime += TimeValue.timeValueSeconds(1).millis();
         }
-        BulkResponse bulkResponse = bulkRequestBuilder
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         if (bulkResponse.hasFailures()) {
             fail("Failed to index docs: " + bulkResponse.buildFailureMessage());
         }

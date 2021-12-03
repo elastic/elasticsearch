@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -42,15 +42,13 @@ public class InterimResultsDeletedAfterReopeningJobIT extends MlNativeAutodetect
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setByFieldName("by_field");
 
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
-                Arrays.asList(detector.build()));
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
         analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         Job.Builder job = new Job.Builder("interim-results-deleted-after-reopening-job-test");
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -110,8 +108,7 @@ public class InterimResultsDeletedAfterReopeningJobIT extends MlNativeAutodetect
 
     private void assertNoInterimResults(String jobId) {
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
-        SearchResponse search = client().prepareSearch(indexName).setSize(1000)
-                .setQuery(QueryBuilders.termQuery("is_interim", true)).get();
+        SearchResponse search = client().prepareSearch(indexName).setSize(1000).setQuery(QueryBuilders.termQuery("is_interim", true)).get();
         assertThat(search.getHits().getTotalHits().value, equalTo(0L));
     }
 }

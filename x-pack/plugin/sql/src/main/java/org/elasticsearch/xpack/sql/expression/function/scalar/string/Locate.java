@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -26,6 +25,9 @@ import java.util.Locale;
 
 import static java.lang.String.format;
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -55,25 +57,28 @@ public class Locate extends ScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution patternResolution = isStringAndExact(pattern, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution patternResolution = isStringAndExact(pattern, sourceText(), FIRST);
         if (patternResolution.unresolved()) {
             return patternResolution;
         }
 
-        TypeResolution sourceResolution = isStringAndExact(input, sourceText(), ParamOrdinal.SECOND);
+        TypeResolution sourceResolution = isStringAndExact(input, sourceText(), SECOND);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
 
-        return start == null ? TypeResolution.TYPE_RESOLVED : isNumeric(start, sourceText(), ParamOrdinal.THIRD);
+        return start == null ? TypeResolution.TYPE_RESOLVED : isNumeric(start, sourceText(), THIRD);
     }
 
     @Override
     protected Pipe makePipe() {
-        return new LocateFunctionPipe(source(), this,
+        return new LocateFunctionPipe(
+            source(),
+            this,
             Expressions.pipe(pattern),
             Expressions.pipe(input),
-            start == null ? null : Expressions.pipe(start));
+            start == null ? null : Expressions.pipe(start)
+        );
     }
 
     @Override
@@ -88,9 +93,7 @@ public class Locate extends ScalarFunction implements OptionalArgument {
 
     @Override
     public boolean foldable() {
-        return pattern.foldable()
-                && input.foldable()
-                && (start == null || start.foldable());
+        return pattern.foldable() && input.foldable() && (start == null || start.foldable());
     }
 
     @Override
@@ -109,31 +112,34 @@ public class Locate extends ScalarFunction implements OptionalArgument {
 
     private ScriptTemplate asScriptFrom(ScriptTemplate patternScript, ScriptTemplate inputScript, ScriptTemplate startScript) {
         if (start == null) {
-            return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s)"),
-                    "locate",
-                    patternScript.template(),
-                    inputScript.template()),
-                    paramsBuilder()
-                        .script(patternScript.params()).script(inputScript.params())
-                        .build(), dataType());
+            return new ScriptTemplate(
+                format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s)"), "locate", patternScript.template(), inputScript.template()),
+                paramsBuilder().script(patternScript.params()).script(inputScript.params()).build(),
+                dataType()
+            );
         }
         // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2,...)
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s,%s)"),
+        return new ScriptTemplate(
+            format(
+                Locale.ROOT,
+                formatTemplate("{sql}.%s(%s,%s,%s)"),
                 "locate",
                 patternScript.template(),
                 inputScript.template(),
-                startScript.template()),
-                paramsBuilder()
-                    .script(patternScript.params()).script(inputScript.params())
-                    .script(startScript.params())
-                    .build(), dataType());
+                startScript.template()
+            ),
+            paramsBuilder().script(patternScript.params()).script(inputScript.params()).script(startScript.params()).build(),
+            dataType()
+        );
     }
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
-                paramsBuilder().variable(field.exactAttribute().name()).build(),
-                dataType());
+        return new ScriptTemplate(
+            processScript(Scripts.DOC_VALUE),
+            paramsBuilder().variable(field.exactAttribute().name()).build(),
+            dataType()
+        );
     }
 
     @Override

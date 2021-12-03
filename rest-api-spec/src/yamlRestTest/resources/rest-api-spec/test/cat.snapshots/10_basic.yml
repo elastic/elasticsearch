@@ -1,8 +1,5 @@
 ---
 "Help":
-  - skip:
-      version: " - 7.99.99"
-      reason: Repository field added in 8.0
 
   - do:
       cat.snapshots:
@@ -26,10 +23,6 @@
                $/
 ---
 "Test cat snapshots output":
-  - skip:
-      version: " - 7.99.99"
-      reason: Repository field added in 8.0
-
   - do:
       snapshot.create_repository:
         repository: test_cat_snapshots_1

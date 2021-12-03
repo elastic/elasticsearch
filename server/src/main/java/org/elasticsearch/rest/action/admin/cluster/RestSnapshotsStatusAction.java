@@ -13,6 +13,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -31,7 +32,8 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
         return List.of(
             new Route(GET, "/_snapshot/{repository}/{snapshot}/_status"),
             new Route(GET, "/_snapshot/{repository}/_status"),
-            new Route(GET, "/_snapshot/_status"));
+            new Route(GET, "/_snapshot/_status")
+        );
     }
 
     @Override
@@ -50,6 +52,8 @@ public class RestSnapshotsStatusAction extends BaseRestHandler {
         snapshotsStatusRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", snapshotsStatusRequest.ignoreUnavailable()));
 
         snapshotsStatusRequest.masterNodeTimeout(request.paramAsTime("master_timeout", snapshotsStatusRequest.masterNodeTimeout()));
-        return channel -> client.admin().cluster().snapshotsStatus(snapshotsStatusRequest, new RestToXContentListener<>(channel));
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
+            .cluster()
+            .snapshotsStatus(snapshotsStatusRequest, new RestToXContentListener<>(channel));
     }
 }

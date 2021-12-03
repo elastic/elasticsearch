@@ -17,21 +17,24 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.AbstractMap;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex;
 
 /**
  * This service is responsible for verifying index metadata when an index is introduced
@@ -53,8 +56,13 @@ public class IndexMetadataVerifier {
     private final IndexScopedSettings indexScopedSettings;
     private final ScriptCompiler scriptService;
 
-    public IndexMetadataVerifier(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-                                 IndexScopedSettings indexScopedSettings, ScriptCompiler scriptCompiler) {
+    public IndexMetadataVerifier(
+        Settings settings,
+        NamedXContentRegistry xContentRegistry,
+        MapperRegistry mapperRegistry,
+        IndexScopedSettings indexScopedSettings,
+        ScriptCompiler scriptCompiler
+    ) {
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
@@ -74,6 +82,10 @@ public class IndexMetadataVerifier {
 
         // First convert any shared_cache searchable snapshot indices to only use _tier_preference: data_frozen
         IndexMetadata newMetadata = convertSharedCacheTierPreference(indexMetadata);
+        // Remove _tier routing settings if available, because though these are technically not
+        // invalid settings, since they are now removed the FilterAllocationDecider treats them as
+        // regular attribute filters, and shards cannot be allocated.
+        newMetadata = removeTierFiltering(newMetadata);
         // Next we have to run this otherwise if we try to create IndexSettings
         // with broken settings it would fail in checkMappingsCompatibility
         newMetadata = archiveBrokenIndexSettings(newMetadata);
@@ -88,10 +100,19 @@ public class IndexMetadataVerifier {
     private void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
         boolean isSupportedVersion = indexMetadata.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion);
         if (isSupportedVersion == false) {
-            throw new IllegalStateException("The index " + indexMetadata.getIndex() + " was created with version ["
-                + indexMetadata.getCreationVersion() + "] but the minimum compatible version is ["
-                + minimumIndexCompatibilityVersion + "]. It should be re-indexed in Elasticsearch "
-                + minimumIndexCompatibilityVersion.major + ".x before upgrading to " + Version.CURRENT + ".");
+            throw new IllegalStateException(
+                "The index "
+                    + indexMetadata.getIndex()
+                    + " was created with version ["
+                    + indexMetadata.getCreationVersion()
+                    + "] but the minimum compatible version is ["
+                    + minimumIndexCompatibilityVersion
+                    + "]. It should be re-indexed in Elasticsearch "
+                    + minimumIndexCompatibilityVersion.major
+                    + ".x before upgrading to "
+                    + Version.CURRENT
+                    + "."
+            );
         }
     }
 
@@ -118,8 +139,9 @@ public class IndexMetadataVerifier {
 
             IndexSettings indexSettings = new IndexSettings(indexMetadata, this.settings);
 
-            final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarityMap
-                    = new AbstractMap<String, TriFunction<Settings, Version, ScriptService, Similarity>>() {
+            final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarityMap = new AbstractMap<
+                String,
+                TriFunction<Settings, Version, ScriptService, Similarity>>() {
                 @Override
                 public boolean containsKey(Object key) {
                     return true;
@@ -150,7 +172,7 @@ public class IndexMetadataVerifier {
                 @Override
                 public NamedAnalyzer get(Object key) {
                     assert key instanceof String : "key must be a string but was: " + key.getClass();
-                    return new NamedAnalyzer((String)key, AnalyzerScope.INDEX, fakeDefault.analyzer());
+                    return new NamedAnalyzer((String) key, AnalyzerScope.INDEX, fakeDefault.analyzer());
                 }
 
                 // this entrySet impl isn't fully correct but necessary as IndexAnalyzers will iterate
@@ -160,10 +182,17 @@ public class IndexMetadataVerifier {
                     return Collections.emptySet();
                 }
             };
-            try (IndexAnalyzers fakeIndexAnalzyers =
-                     new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
-                MapperService mapperService = new MapperService(indexSettings, fakeIndexAnalzyers, xContentRegistry, similarityService,
-                        mapperRegistry, () -> null, () -> false, scriptService);
+            try (IndexAnalyzers fakeIndexAnalzyers = new IndexAnalyzers(analyzerMap, analyzerMap, analyzerMap)) {
+                MapperService mapperService = new MapperService(
+                    indexSettings,
+                    fakeIndexAnalzyers,
+                    xContentRegistry,
+                    similarityService,
+                    mapperRegistry,
+                    () -> null,
+                    IdFieldMapper.NO_FIELD_DATA,
+                    scriptService
+                );
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);
             }
         } catch (Exception ex) {
@@ -180,10 +209,22 @@ public class IndexMetadataVerifier {
         final Settings settings = indexMetadata.getSettings();
         final Settings newSettings = indexScopedSettings.archiveUnknownOrInvalidSettings(
             settings,
-            e -> logger.warn("{} ignoring unknown index setting: [{}] with value [{}]; archiving",
-                indexMetadata.getIndex(), e.getKey(), e.getValue()),
-            (e, ex) -> logger.warn(() -> new ParameterizedMessage("{} ignoring invalid index setting: [{}] with value [{}]; archiving",
-                indexMetadata.getIndex(), e.getKey(), e.getValue()), ex));
+            e -> logger.warn(
+                "{} ignoring unknown index setting: [{}] with value [{}]; archiving",
+                indexMetadata.getIndex(),
+                e.getKey(),
+                e.getValue()
+            ),
+            (e, ex) -> logger.warn(
+                () -> new ParameterizedMessage(
+                    "{} ignoring invalid index setting: [{}] with value [{}]; archiving",
+                    indexMetadata.getIndex(),
+                    e.getKey(),
+                    e.getValue()
+                ),
+                ex
+            )
+        );
         if (newSettings != settings) {
             return IndexMetadata.builder(indexMetadata).settings(newSettings).build();
         } else {
@@ -198,7 +239,7 @@ public class IndexMetadataVerifier {
     IndexMetadata convertSharedCacheTierPreference(IndexMetadata indexMetadata) {
         final Settings settings = indexMetadata.getSettings();
         // Only remove these settings for a shared_cache searchable snapshot
-        if ("snapshot".equals(settings.get("index.store.type", "")) && settings.getAsBoolean("index.store.snapshot.partial", false)) {
+        if (isPartialSearchableSnapshotIndex(settings)) {
             final Settings.Builder settingsBuilder = Settings.builder().put(settings);
             // Clear any allocation rules other than preference for tier
             settingsBuilder.remove("index.routing.allocation.include._tier");
@@ -214,6 +255,24 @@ public class IndexMetadataVerifier {
             }
         } else {
             return indexMetadata;
+        }
+    }
+
+    /**
+     * Removes index level ._tier allocation filters, if they exist
+     */
+    IndexMetadata removeTierFiltering(IndexMetadata indexMetadata) {
+        final Settings settings = indexMetadata.getSettings();
+        final Settings.Builder settingsBuilder = Settings.builder().put(settings);
+        // Clear any allocation rules other than preference for tier
+        settingsBuilder.remove("index.routing.allocation.include._tier");
+        settingsBuilder.remove("index.routing.allocation.exclude._tier");
+        settingsBuilder.remove("index.routing.allocation.require._tier");
+        final Settings newSettings = settingsBuilder.build();
+        if (settings.equals(newSettings)) {
+            return indexMetadata;
+        } else {
+            return IndexMetadata.builder(indexMetadata).settings(newSettings).build();
         }
     }
 }

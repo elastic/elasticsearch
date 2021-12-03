@@ -102,11 +102,14 @@ If you want to disassemble a single method do something like this:
 gradlew -p benchmarks run --args ' MemoryStatsBenchmark -jvmArgs "-XX:+UnlockDiagnosticVMOptions -XX:CompileCommand=print,*.yourMethodName -XX:PrintAssemblyOptions=intel"
 ```
 
-If you want `perf` to find the hot methods for you then do add `-prof:perfasm`.
+If you want `perf` to find the hot methods for you then do add `-prof perfasm`.
 
 ## Async Profiler
 
 Note: Linux and Mac only. Sorry Windows.
+
+IMPORTANT: The 2.0 version of the profiler doesn't seem to be with compatible
+with JMH as of 2021-04-30.
 
 The async profiler is neat because it does not suffer from the safepoint
 bias problem. And because it makes pretty flame graphs!

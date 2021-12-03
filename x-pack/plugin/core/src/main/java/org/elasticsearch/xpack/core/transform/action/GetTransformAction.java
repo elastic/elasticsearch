@@ -9,13 +9,14 @@ package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -113,7 +114,8 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
             builder.startArray();
             for (TransformConfig configResponse : getResources().results()) {
                 configResponse.toXContent(builder, params);
-                if (configResponse.isValid() == false) {
+                ValidationException validationException = configResponse.validate(null);
+                if (validationException != null) {
                     invalidTransforms.add(configResponse.getId());
                 }
             }
@@ -123,8 +125,12 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
                 builder.field(TransformField.COUNT.getPreferredName(), invalidTransforms.size());
                 builder.field(TransformField.TRANSFORMS.getPreferredName(), invalidTransforms);
                 builder.endObject();
-                deprecationLogger.deprecate(DeprecationCategory.OTHER, "invalid_transforms",
-                    INVALID_TRANSFORMS_DEPRECATION_WARNING, invalidTransforms.size());
+                deprecationLogger.warn(
+                    DeprecationCategory.OTHER,
+                    "invalid_transforms",
+                    INVALID_TRANSFORMS_DEPRECATION_WARNING,
+                    invalidTransforms.size()
+                );
             }
 
             builder.endObject();

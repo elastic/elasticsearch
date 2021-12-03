@@ -10,8 +10,8 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -52,8 +52,7 @@ public class StartDataFrameAnalyticsRequest implements Validatable {
         if (o == null || getClass() != o.getClass()) return false;
 
         StartDataFrameAnalyticsRequest other = (StartDataFrameAnalyticsRequest) o;
-        return Objects.equals(id, other.id)
-            && Objects.equals(timeout, other.timeout);
+        return Objects.equals(id, other.id) && Objects.equals(timeout, other.timeout);
     }
 
     @Override

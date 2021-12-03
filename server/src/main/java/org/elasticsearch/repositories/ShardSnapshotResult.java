@@ -21,7 +21,7 @@ import java.util.Objects;
  */
 public class ShardSnapshotResult implements Writeable {
 
-    private final String generation;
+    private final ShardGeneration generation;
 
     private final ByteSizeValue size;
 
@@ -33,7 +33,7 @@ public class ShardSnapshotResult implements Writeable {
      *                     restored
      * @param segmentCount the number of segments in this shard snapshot
      */
-    public ShardSnapshotResult(String generation, ByteSizeValue size, int segmentCount) {
+    public ShardSnapshotResult(ShardGeneration generation, ByteSizeValue size, int segmentCount) {
         this.generation = Objects.requireNonNull(generation);
         this.size = Objects.requireNonNull(size);
         assert segmentCount >= 0;
@@ -41,7 +41,7 @@ public class ShardSnapshotResult implements Writeable {
     }
 
     public ShardSnapshotResult(StreamInput in) throws IOException {
-        generation = in.readString();
+        generation = new ShardGeneration(in);
         size = new ByteSizeValue(in);
         segmentCount = in.readVInt();
     }
@@ -49,7 +49,7 @@ public class ShardSnapshotResult implements Writeable {
     /**
      * @return the shard generation UUID, which uniquely identifies the specific snapshot of the shard
      */
-    public String getGeneration() {
+    public ShardGeneration getGeneration() {
         return generation;
     }
 
@@ -69,8 +69,26 @@ public class ShardSnapshotResult implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(generation);
+        generation.writeTo(out);
         size.writeTo(out);
         out.writeVInt(segmentCount);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ShardSnapshotResult that = (ShardSnapshotResult) o;
+        return segmentCount == that.segmentCount && generation.equals(that.generation) && size.equals(that.size);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(generation, size, segmentCount);
+    }
+
+    @Override
+    public String toString() {
+        return "ShardSnapshotResult{" + "generation='" + generation + '\'' + ", size=" + size + ", segmentCount=" + segmentCount + '}';
     }
 }

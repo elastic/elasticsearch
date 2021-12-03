@@ -19,7 +19,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -75,14 +75,14 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             .allowPartialSearchResults(false);
         searchRequest.setCcsMinimizeRoundtrips(false);
         transportSearchAction.executeRequest(
-            task,
+            (SearchTask) task,
             searchRequest,
             "open_search_context",
             true,
-            (searchTask, shardTarget, connection, phaseListener) -> {
+            (searchTask, shardIt, connection, phaseListener) -> {
                 final ShardOpenReaderRequest shardRequest = new ShardOpenReaderRequest(
-                    shardTarget.getShardId(),
-                    shardTarget.getOriginalIndices(),
+                    shardIt.shardId(),
+                    shardIt.getOriginalIndices(),
                     request.keepAlive()
                 );
                 transportService.sendChildRequest(

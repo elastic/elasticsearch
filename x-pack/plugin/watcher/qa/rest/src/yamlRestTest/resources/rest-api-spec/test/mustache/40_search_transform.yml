@@ -99,8 +99,8 @@ setup:
   - match: { "watch_record.result.transform.payload.hits.total": 1 }
   - match: { "watch_record.result.transform.payload.hits.hits.0._id": "3" }
   # makes sure that the mustache template snippets have been resolved  correctly:
-  - match: { "watch_record.result.transform.search.request.body.query.bool.filter.0.range.date.gte": "2015-01-04T00:00:00.000Z||-1d" }
-  - match: { "watch_record.result.transform.search.request.body.query.bool.filter.0.range.date.lte": "2015-01-04T00:00:00.000Z" }
+  - match: { "watch_record.result.transform.search.request.body.query.bool.filter.0.range.date.gte": "2015-01-04T00:00Z||-1d" }
+  - match: { "watch_record.result.transform.search.request.body.query.bool.filter.0.range.date.lte": "2015-01-04T00:00Z" }
   - match: { "watch_record.result.transform.search.request.body.query.bool.filter.1.term.value": "val_3" }
 
 ---

@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.plugins.Plugin;
@@ -43,9 +44,17 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
     public void setup() {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
-        indexService = new AsyncTaskIndexService<>(index, clusterService,
+        BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
+        indexService = new AsyncTaskIndexService<>(
+            index,
+            clusterService,
             transportService.getThreadPool().getThreadContext(),
-            client(), "test_origin", AsyncSearchResponse::new, writableRegistry());
+            client(),
+            "test_origin",
+            AsyncSearchResponse::new,
+            writableRegistry(),
+            bigArrays
+        );
     }
 
     @Override
@@ -76,10 +85,10 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testEnsuredAuthenticatedUserIsSame() throws IOException {
-        Authentication original =
-            new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null);
-        Authentication current = randomBoolean() ? original :
-            new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null);
+        Authentication original = new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null);
+        Authentication current = randomBoolean()
+            ? original
+            : new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null);
         assertTrue(original.canAccessResourcesOf(current));
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         original.writeToContext(threadContext);
@@ -92,14 +101,20 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
 
         // original user being run as
         User user = new User(new User("test", "role"), new User("authenticated", "runas"));
-        current = new Authentication(user, new Authentication.RealmRef("realm", "file", "node"),
-            new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"));
+        current = new Authentication(
+            user,
+            new Authentication.RealmRef("realm", "file", "node"),
+            new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node")
+        );
         assertTrue(original.canAccessResourcesOf(current));
         assertTrue(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), current));
 
         // both user are run as
-        current = new Authentication(user, new Authentication.RealmRef("realm", "file", "node"),
-            new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"));
+        current = new Authentication(
+            user,
+            new Authentication.RealmRef("realm", "file", "node"),
+            new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node")
+        );
         Authentication runAs = current;
         assertTrue(runAs.canAccessResourcesOf(current));
         threadContext = new ThreadContext(Settings.EMPTY);
@@ -107,27 +122,39 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         assertTrue(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), current));
 
         // different authenticated by type
-        Authentication differentRealmType =
-            new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", randomAlphaOfLength(5), "node"), null);
+        Authentication differentRealmType = new Authentication(
+            new User("test", "role"),
+            new Authentication.RealmRef("realm", randomAlphaOfLength(5), "node"),
+            null
+        );
         threadContext = new ThreadContext(Settings.EMPTY);
         original.writeToContext(threadContext);
         assertFalse(original.canAccessResourcesOf(differentRealmType));
         assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), differentRealmType));
 
         // wrong user
-        Authentication differentUser =
-            new Authentication(new User("test2", "role"), new Authentication.RealmRef("realm", "realm", "node"), null);
+        Authentication differentUser = new Authentication(
+            new User("test2", "role"),
+            new Authentication.RealmRef("realm", "realm", "node"),
+            null
+        );
         assertFalse(original.canAccessResourcesOf(differentUser));
 
         // run as different user
-        Authentication diffRunAs = new Authentication(new User(new User("test2", "role"), new User("authenticated", "runas")),
-            new Authentication.RealmRef("realm", "file", "node1"), new Authentication.RealmRef("realm", "file", "node1"));
+        Authentication diffRunAs = new Authentication(
+            new User(new User("test2", "role"), new User("authenticated", "runas")),
+            new Authentication.RealmRef("realm", "file", "node1"),
+            new Authentication.RealmRef("realm", "file", "node1")
+        );
         assertFalse(original.canAccessResourcesOf(diffRunAs));
         assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), diffRunAs));
 
         // run as different looked up by type
-        Authentication runAsDiffType = new Authentication(user, new Authentication.RealmRef("realm", "file", "node"),
-            new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLengthBetween(5, 12), "node"));
+        Authentication runAsDiffType = new Authentication(
+            user,
+            new Authentication.RealmRef("realm", "file", "node"),
+            new Authentication.RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLengthBetween(5, 12), "node")
+        );
         assertFalse(original.canAccessResourcesOf(runAsDiffType));
         assertFalse(indexService.ensureAuthenticatedUserIsSame(threadContext.getHeaders(), runAsDiffType));
     }
@@ -180,8 +207,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
     }
 
     private void assertSettings() {
-        GetIndexResponse getIndexResponse = client().admin().indices().getIndex(
-            new GetIndexRequest().indices(index)).actionGet();
+        GetIndexResponse getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(index)).actionGet();
         Settings settings = getIndexResponse.getSettings().get(index);
         Settings expected = AsyncTaskIndexService.settings();
         assertEquals(expected, settings.filter(expected::hasValue));

@@ -9,11 +9,10 @@ package org.elasticsearch.license;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.transport.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
@@ -36,11 +35,6 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         return nodeSettingsBuilder(nodeOrdinal, otherSettings).build();
     }
 
-    @Override
-    protected boolean addMockHttpTransport() {
-        return false; // enable http
-    }
-
     private Settings.Builder nodeSettingsBuilder(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(addRoles(super.nodeSettings(nodeOrdinal, otherSettings), Set.of(DiscoveryNodeRole.DATA_ROLE)))
@@ -49,7 +43,7 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, CommonAnalysisPlugin.class, Netty4Plugin.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, CommonAnalysisPlugin.class);
     }
 
     public void testClusterRestartWithLicense() throws Exception {
@@ -84,7 +78,6 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         assertTrue(License.LicenseType.isBasic(licensingClient.prepareGetLicense().get().license().type()));
         assertOperationMode(License.OperationMode.BASIC);
 
-
         wipeAllLicenses();
     }
 
@@ -98,8 +91,12 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
 
         logger.info("--> put signed license");
         LicensingClient licensingClient = new LicensingClient(client());
-        License license = TestUtils.generateSignedLicense("cloud_internal", License.VERSION_CURRENT, System.currentTimeMillis(),
-                TimeValue.timeValueMinutes(1));
+        License license = TestUtils.generateSignedLicense(
+            "cloud_internal",
+            License.VERSION_CURRENT,
+            System.currentTimeMillis(),
+            TimeValue.timeValueMinutes(1)
+        );
         putLicense(license);
         assertThat(licensingClient.prepareGetLicense().get().license(), equalTo(license));
         assertOperationMode(License.OperationMode.PLATINUM);
@@ -150,7 +147,7 @@ public class LicenseServiceClusterTests extends AbstractLicensesIntegrationTestC
         logger.info("--> await node for enabled");
         assertLicenseActive(true);
         licensingClient = new LicensingClient(client());
-        assertThat(licensingClient.prepareGetLicense().get().license().version(), equalTo(License.VERSION_CURRENT)); //license updated
+        assertThat(licensingClient.prepareGetLicense().get().license().version(), equalTo(License.VERSION_CURRENT)); // license updated
         internalCluster().fullRestart(); // restart once more and verify updated license is active
         ensureYellow();
         logger.info("--> await node for enabled");

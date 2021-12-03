@@ -134,7 +134,7 @@ SELECT WEEK(birth_date) week, birth_date FROM test_emp ORDER BY WEEK(birth_date)
 isoDayOfWeek
 SELECT ISO_DAY_OF_WEEK(birth_date) AS d, SUM(salary) s FROM test_emp GROUP BY d ORDER BY d DESC;
 
-      d:i      |      s:i       
+      d:i      |      s:l
 ---------------+---------------
 7              |386466       
 6              |643304       

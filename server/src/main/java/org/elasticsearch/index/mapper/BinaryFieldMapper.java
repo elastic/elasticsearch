@@ -9,21 +9,22 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -44,7 +45,7 @@ public class BinaryFieldMapper extends FieldMapper {
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
-        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues,  false);
+        private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -62,9 +63,14 @@ public class BinaryFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BinaryFieldMapper build(ContentPath contentPath) {
-            return new BinaryFieldMapper(name, new BinaryFieldType(buildFullName(contentPath), stored.getValue(),
-                hasDocValues.getValue(), meta.getValue()), multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+        public BinaryFieldMapper build(MapperBuilderContext context) {
+            return new BinaryFieldMapper(
+                name,
+                new BinaryFieldType(context.buildFullName(name), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                this
+            );
         }
     }
 
@@ -129,26 +135,30 @@ public class BinaryFieldMapper extends FieldMapper {
     private final boolean stored;
     private final boolean hasDocValues;
 
-    protected BinaryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                                MultiFields multiFields, CopyTo copyTo, Builder builder) {
+    protected BinaryFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Builder builder
+    ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    protected void parseCreateField(DocumentParserContext context) throws IOException {
         if (stored == false && hasDocValues == false) {
             return;
         }
-        byte[] value = context.parseExternalValue(byte[].class);
-        if (value == null) {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                return;
-            } else {
-                value = context.parser().binaryValue();
-            }
+        if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+            return;
         }
+        indexValue(context, context.parser().binaryValue());
+    }
+
+    public void indexValue(DocumentParserContext context, byte[] value) {
         if (value == null) {
             return;
         }
@@ -168,7 +178,7 @@ public class BinaryFieldMapper extends FieldMapper {
             // Only add an entry to the field names field if the field is stored
             // but has no doc values so exists query will work on a field with
             // no doc values
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 
@@ -204,16 +214,15 @@ public class BinaryFieldMapper extends FieldMapper {
             try {
                 CollectionUtils.sortAndDedup(bytesList);
                 int size = bytesList.size();
-                final byte[] bytes = new byte[totalSize + (size + 1) * 5];
-                ByteArrayDataOutput out = new ByteArrayDataOutput(bytes);
+                BytesStreamOutput out = new BytesStreamOutput(totalSize + (size + 1) * 5);
                 out.writeVInt(size);  // write total number of values
-                for (int i = 0; i < size; i ++) {
+                for (int i = 0; i < size; i++) {
                     final byte[] value = bytesList.get(i);
                     int valueLength = value.length;
                     out.writeVInt(valueLength);
                     out.writeBytes(value, 0, valueLength);
                 }
-                return new BytesRef(bytes, 0, out.getPosition());
+                return out.bytes().toBytesRef();
             } catch (IOException e) {
                 throw new ElasticsearchException("Failed to get binary value", e);
             }

@@ -183,15 +183,16 @@ public abstract class NetworkUtils {
     /** Returns all global scope addresses for interfaces that are up. */
     static InetAddress[] getGlobalAddresses() throws IOException {
         return filterAllAddresses(
-                address -> address.isLoopbackAddress() == false
-                        && address.isSiteLocalAddress() == false
-                        && address.isLinkLocalAddress() == false,
-                "no up-and-running global-scope (public) addresses found");
+            address -> address.isLoopbackAddress() == false
+                && address.isSiteLocalAddress() == false
+                && address.isLinkLocalAddress() == false,
+            "no up-and-running global-scope (public) addresses found"
+        );
     }
 
     /** Returns all addresses (any scope) for interfaces that are up.
      *  This is only used to pick a publish address, when the user set network.host to a wildcard */
-    static InetAddress[] getAllAddresses() throws IOException {
+    public static InetAddress[] getAllAddresses() throws IOException {
         return filterAllAddresses(address -> true, "no up-and-running addresses found");
     }
 
@@ -204,18 +205,34 @@ public abstract class NetworkUtils {
         Optional<NetworkInterface> networkInterface = maybeGetInterfaceByName(getInterfaces(), interfaceName);
 
         if (networkInterface.isPresent() == false) {
-            throw new IllegalArgumentException("setting [" + settingValue + "] matched no network interfaces; valid values include [" +
-                    getInterfaces().stream().map(otherInterface -> "_" + otherInterface.getName() + suffix + "_")
-                            .collect(Collectors.joining(", ")) + "]");
+            throw new IllegalArgumentException(
+                "setting ["
+                    + settingValue
+                    + "] matched no network interfaces; valid values include ["
+                    + getInterfaces().stream()
+                        .map(otherInterface -> "_" + otherInterface.getName() + suffix + "_")
+                        .collect(Collectors.joining(", "))
+                    + "]"
+            );
         }
         if (networkInterface.get().isUp() == false) {
-            throw new IllegalArgumentException("setting [" + settingValue + "] matched network interface [" +
-                    networkInterface.get().getName() + "] but this interface is not up and running");
+            throw new IllegalArgumentException(
+                "setting ["
+                    + settingValue
+                    + "] matched network interface ["
+                    + networkInterface.get().getName()
+                    + "] but this interface is not up and running"
+            );
         }
         List<InetAddress> list = Collections.list(networkInterface.get().getInetAddresses());
         if (list.isEmpty()) {
-            throw new IllegalArgumentException("setting [" + settingValue + "] matched network interface [" +
-                    networkInterface.get().getName() + "] but this interface has no internet addresses");
+            throw new IllegalArgumentException(
+                "setting ["
+                    + settingValue
+                    + "] matched network interface ["
+                    + networkInterface.get().getName()
+                    + "] but this interface has no internet addresses"
+            );
         }
         return list.toArray(new InetAddress[list.size()]);
     }
@@ -246,5 +263,19 @@ public abstract class NetworkUtils {
             throw new IllegalArgumentException("No ipv6 addresses found in " + Arrays.toString(addresses));
         }
         return list.toArray(new InetAddress[list.size()]);
+    }
+
+    /**
+     * @return all IPv4 addresses for interfaces that are up.
+     */
+    public static InetAddress[] getAllIPV4Addresses() throws IOException {
+        return filterIPV4(getAllAddresses());
+    }
+
+    /**
+     * @return all IPv6 addresses for interfaces that are up.
+     */
+    public static InetAddress[] getAllIPV6Addresses() throws IOException {
+        return filterIPV6(getAllAddresses());
     }
 }

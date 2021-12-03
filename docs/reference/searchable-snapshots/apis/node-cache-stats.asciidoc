@@ -1,12 +1,12 @@
 [role="xpack"]
-[testenv="enterprise"]
 [[searchable-snapshots-api-cache-stats]]
 === Cache stats API
 ++++
 <titleabbrev>Cache stats</titleabbrev>
 ++++
 
-Provide statistics about the searchable snapshots <<shared-cache,shared cache>>.
+Retrieves statistics about the shared cache for <<partially-mounted,partially
+mounted indices>>.
 
 [[searchable-snapshots-api-cache-stats-request]]
 ==== {api-request-title}
@@ -21,12 +21,6 @@ Provide statistics about the searchable snapshots <<shared-cache,shared cache>>.
 If the {es} {security-features} are enabled, you must have the
 `manage` cluster privilege to use this API.
 For more information, see <<security-privileges>>.
-
-[[searchable-snapshots-api-cache-stats-desc]]
-==== {api-description-title}
-
-You can use the Cache Stats API to retrieve statistics about the
-usage of the <<shared-cache,shared cache>> on nodes in a cluster.
 
 [[searchable-snapshots-api-cache-stats-path-params]]
 ==== {api-path-parms-title}
@@ -97,7 +91,8 @@ Contains statistics about the shared cache file.
 [[searchable-snapshots-api-cache-stats-example]]
 ==== {api-examples-title}
 
-Retrieves the searchable snapshots shared cache file statistics for all data nodes:
+Gets the statistics about the shared cache for partially mounted indices from
+all data nodes:
 
 [source,console]
 --------------------------------------------------

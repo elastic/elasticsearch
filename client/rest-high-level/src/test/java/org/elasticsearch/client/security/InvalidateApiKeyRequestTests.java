@@ -29,7 +29,8 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         } else {
             request = InvalidateApiKeyRequest.usingApiKeyIds(
                 IntStream.range(1, randomIntBetween(2, 5)).mapToObj(ignored -> randomAlphaOfLength(5)).collect(Collectors.toList()),
-                randomBoolean());
+                randomBoolean()
+            );
         }
         Optional<ValidationException> ve = request.validate();
         assertThat(ve.isPresent(), is(false));
@@ -52,27 +53,34 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
 
     public void testRequestValidationFailureScenarios() throws IOException {
         String[][] inputs = new String[][] {
-                { randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), "false" },
-                { randomNullOrEmptyString(), "user", "api-kid", "api-kname", "false" },
-                { "realm", randomNullOrEmptyString(), "api-kid", "api-kname", "false" },
-                { "realm", "user", "api-kid", randomNullOrEmptyString(), "false" },
-                { randomNullOrEmptyString(), randomNullOrEmptyString(), "api-kid", "api-kname", "false" },
-                { "realm", randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), "true" },
-                { randomNullOrEmptyString(), "user", randomNullOrEmptyString(), randomNullOrEmptyString(), "true" } };
+            { randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), "false" },
+            { randomNullOrEmptyString(), "user", "api-kid", "api-kname", "false" },
+            { "realm", randomNullOrEmptyString(), "api-kid", "api-kname", "false" },
+            { "realm", "user", "api-kid", randomNullOrEmptyString(), "false" },
+            { randomNullOrEmptyString(), randomNullOrEmptyString(), "api-kid", "api-kname", "false" },
+            { "realm", randomNullOrEmptyString(), randomNullOrEmptyString(), randomNullOrEmptyString(), "true" },
+            { randomNullOrEmptyString(), "user", randomNullOrEmptyString(), randomNullOrEmptyString(), "true" } };
         String[] expectedErrorMessages = new String[] {
-                "One of [api key id(s), api key name, username, realm name] must be specified if [owner] flag is false",
-                "username or realm name must not be specified when the api key id(s) or api key name is specified",
-                "username or realm name must not be specified when the api key id(s) or api key name is specified",
-                "username or realm name must not be specified when the api key id(s) or api key name is specified",
-                "only one of [api key id(s), api key name] can be specified",
-                "neither username nor realm-name may be specified when invalidating owned API keys",
-                "neither username nor realm-name may be specified when invalidating owned API keys" };
+            "One of [api key id(s), api key name, username, realm name] must be specified if [owner] flag is false",
+            "username or realm name must not be specified when the api key id(s) or api key name is specified",
+            "username or realm name must not be specified when the api key id(s) or api key name is specified",
+            "username or realm name must not be specified when the api key id(s) or api key name is specified",
+            "only one of [api key id(s), api key name] can be specified",
+            "neither username nor realm-name may be specified when invalidating owned API keys",
+            "neither username nor realm-name may be specified when invalidating owned API keys" };
 
         for (int i = 0; i < inputs.length; i++) {
             final int caseNo = i;
-            IllegalArgumentException ve = expectThrows(IllegalArgumentException.class,
-                    () -> new InvalidateApiKeyRequest(inputs[caseNo][0], inputs[caseNo][1], inputs[caseNo][3],
-                        Boolean.valueOf(inputs[caseNo][4]), apiKeyIdToIds(inputs[caseNo][2])));
+            IllegalArgumentException ve = expectThrows(
+                IllegalArgumentException.class,
+                () -> new InvalidateApiKeyRequest(
+                    inputs[caseNo][0],
+                    inputs[caseNo][1],
+                    inputs[caseNo][3],
+                    Boolean.valueOf(inputs[caseNo][4]),
+                    apiKeyIdToIds(inputs[caseNo][2])
+                )
+            );
             assertNotNull(ve);
             assertThat(ve.getMessage(), equalTo(expectedErrorMessages[caseNo]));
         }

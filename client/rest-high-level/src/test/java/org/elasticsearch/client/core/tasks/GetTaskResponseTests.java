@@ -11,13 +11,13 @@ package org.elasticsearch.client.core.tasks;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.tasks.GetTaskResponse;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.tasks.RawTaskStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -28,15 +28,12 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class GetTaskResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(
-            this::createParser,
-            this::createTestInstance,
-            this::toXContent,
-            GetTaskResponse::fromXContent)
-            .supportsUnknownFields(true)
+        xContentTester(this::createParser, this::createTestInstance, this::toXContent, GetTaskResponse::fromXContent).supportsUnknownFields(
+            true
+        )
             .assertEqualsConsumer(this::assertEqualInstances)
             .assertToXContentEquivalence(true)
-            .randomFieldsExcludeFilter(field ->field.endsWith("headers") || field.endsWith("status"))
+            .randomFieldsExcludeFilter(field -> field.endsWith("headers") || field.endsWith("status"))
             .test();
     }
 
@@ -69,11 +66,24 @@ public class GetTaskResponseTests extends ESTestCase {
         long startTime = randomLong();
         long runningTimeNanos = randomLong();
         boolean cancellable = randomBoolean();
+        boolean cancelled = cancellable && randomBoolean();
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
-        Map<String, String> headers = randomBoolean() ?
-                Collections.emptyMap() :
-                Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
-        return new TaskInfo(taskId, type, action, description, status, startTime, runningTimeNanos, cancellable, parentTaskId, headers);
+        Map<String, String> headers = randomBoolean()
+            ? Collections.emptyMap()
+            : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
+        return new TaskInfo(
+            taskId,
+            type,
+            action,
+            description,
+            status,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            cancelled,
+            parentTaskId,
+            headers
+        );
     }
 
     private static TaskId randomTaskId() {

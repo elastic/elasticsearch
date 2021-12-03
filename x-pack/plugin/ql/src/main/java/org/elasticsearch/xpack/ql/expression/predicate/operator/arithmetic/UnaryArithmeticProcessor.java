@@ -69,7 +69,6 @@ public class UnaryArithmeticProcessor implements Processor {
         throw new QlIllegalArgumentException("A number is required; received {}", input);
     }
 
-
     @Override
     public String toString() {
         return operation.symbol() + super.toString();

@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
 public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider {
 
@@ -64,7 +64,7 @@ public class SearchableSnapshotEnableAllocationDecider extends AllocationDecider
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         final IndexMetadata indexMetadata = allocation.metadata().getIndexSafe(shardRouting.index());
-        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexMetadata.getSettings())) {
+        if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings())) {
             EnableAllocationDecider.Allocation enableAllocation = this.enableAllocation;
             boolean allocateOnRollingRestart = this.allocateOnRollingRestart;
             if (enableAllocation == EnableAllocationDecider.Allocation.PRIMARIES) {

@@ -12,22 +12,25 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,10 +38,10 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
@@ -156,6 +159,9 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         testCaseBody.runTest(restoredIndexName, numDocs);
 
+        logger.info("deleting mounted index [{}]", indexName);
+        deleteIndex(restoredIndexName);
+
         logger.info("deleting snapshot [{}]", SNAPSHOT_NAME);
         deleteSnapshot(SNAPSHOT_NAME, false);
     }
@@ -164,17 +170,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
             for (int i = 0; i < 10; i++) {
                 assertSearchResults(restoredIndexName, numDocs, randomFrom(Boolean.TRUE, Boolean.FALSE, null));
-            }
-        });
-    }
-
-    public void testSearchResultsWhenFrozen() throws Exception {
-        runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
-            final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
-            assertOK(client().performRequest(freezeRequest));
-            ensureGreen(restoredIndexName);
-            for (int i = 0; i < 10; i++) {
-                assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
             }
         });
     }
@@ -260,20 +255,13 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
             assertBusy(() -> {
                 final long bytesInCacheAfterSearch = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
-                assertThat(bytesInCacheAfterSearch, greaterThan(bytesInCacheBeforeClear));
+                assertThat(bytesInCacheAfterSearch, greaterThanOrEqualTo(bytesInCacheBeforeClear));
             });
         });
     }
 
     public void testSnapshotOfSearchableSnapshot() throws Exception {
         runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
-
-            final boolean frozen = randomBoolean();
-            if (frozen) {
-                logger.info("--> freezing index [{}]", restoredIndexName);
-                final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
-                assertOK(client().performRequest(freezeRequest));
-            }
 
             if (randomBoolean()) {
                 logger.info("--> closing index [{}]", restoredIndexName);
@@ -311,8 +299,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
             assertThat(snapshotShardsStats.size(), equalTo(1));
             for (Map<String, Object> value : snapshotShardsStats.get(0).values()) {
-                assertThat(extractValue(value, "stats.total.file_count"), equalTo(1));
-                assertThat(extractValue(value, "stats.incremental.file_count"), lessThanOrEqualTo(1));
+                assertThat(extractValue(value, "stats.total.file_count"), equalTo(0));
+                assertThat(extractValue(value, "stats.incremental.file_count"), equalTo(0));
             }
 
             deleteIndex(restoredIndexName);
@@ -322,7 +310,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
             deleteSnapshot(snapshot2Name, false);
 
-            assertSearchResults(restoredIndexName, numDocs, frozen ? Boolean.FALSE : randomFrom(Boolean.TRUE, Boolean.FALSE, null));
+            assertSearchResults(restoredIndexName, numDocs, randomFrom(Boolean.TRUE, Boolean.FALSE, null));
         });
     }
 
@@ -447,9 +435,27 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     protected static Map<String, Object> search(String index, QueryBuilder query, Boolean ignoreThrottled) throws IOException {
         final Request request = new Request(HttpPost.METHOD_NAME, '/' + index + "/_search");
         request.setJsonEntity(new SearchSourceBuilder().trackTotalHits(true).query(query).toString());
+
+        // If warning are returned than these must exist in this set:
+        Set<String> expectedWarnings = new HashSet<>();
+        expectedWarnings.add(TransportSearchAction.FROZEN_INDICES_DEPRECATION_MESSAGE.replace("{}", index));
         if (ignoreThrottled != null) {
             request.addParameter("ignore_throttled", ignoreThrottled.toString());
+            expectedWarnings.add(
+                "[ignore_throttled] parameter is deprecated because frozen indices have been deprecated. "
+                    + "Consider cold or frozen tiers in place of frozen indices."
+            );
         }
+
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
+            for (String warning : warnings) {
+                if (expectedWarnings.contains(warning) == false) {
+                    return true;
+                }
+            }
+            return false;
+        }).build();
+        request.setOptions(requestOptions);
 
         final Response response = client().performRequest(request);
         assertThat(
@@ -499,8 +505,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     @SuppressWarnings("unchecked")
     protected static void waitForIdlingSearchableSnapshotsThreadPools() throws Exception {
         final Set<String> searchableSnapshotsThreadPools = Set.of(
-            SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
-            SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME
+            SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
+            SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME
         );
         assertBusy(() -> {
             final Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "/_nodes/stats/thread_pool"));

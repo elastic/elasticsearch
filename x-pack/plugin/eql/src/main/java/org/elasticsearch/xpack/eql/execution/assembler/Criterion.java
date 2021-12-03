@@ -11,6 +11,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
+import org.elasticsearch.xpack.eql.execution.search.Timestamp;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.util.List;
@@ -22,21 +23,26 @@ public class Criterion<Q extends QueryRequest> {
     private final List<HitExtractor> keys;
     private final HitExtractor timestamp;
     private final HitExtractor tiebreaker;
+    private final HitExtractor implicitTiebreaker;
 
     private final boolean descending;
     private final int keySize;
 
-    public Criterion(int stage,
-              Q queryRequest,
-              List<HitExtractor> keys,
-              HitExtractor timestamp,
-              HitExtractor tiebreaker,
-              boolean descending) {
+    public Criterion(
+        int stage,
+        Q queryRequest,
+        List<HitExtractor> keys,
+        HitExtractor timestamp,
+        HitExtractor tiebreaker,
+        HitExtractor implicitTiebreaker,
+        boolean descending
+    ) {
         this.stage = stage;
         this.queryRequest = queryRequest;
         this.keys = keys;
         this.timestamp = timestamp;
         this.tiebreaker = tiebreaker;
+        this.implicitTiebreaker = implicitTiebreaker;
 
         this.descending = descending;
 
@@ -73,15 +79,12 @@ public class Criterion<Q extends QueryRequest> {
 
     @SuppressWarnings({ "unchecked" })
     public Ordinal ordinal(SearchHit hit) {
-
         Object ts = timestamp.extract(hit);
-        if (ts instanceof Number == false) {
-            throw new EqlIllegalArgumentException("Expected timestamp as long but got {}", ts);
+        if (ts instanceof Timestamp == false) {
+            throw new EqlIllegalArgumentException("Expected timestamp as a Timestamp but got {}", ts.getClass());
         }
 
-        long timestamp = ((Number) ts).longValue();
         Comparable<Object> tbreaker = null;
-
         if (tiebreaker != null) {
             Object tb = tiebreaker.extract(hit);
             if (tb != null && tb instanceof Comparable == false) {
@@ -89,7 +92,16 @@ public class Criterion<Q extends QueryRequest> {
             }
             tbreaker = (Comparable<Object>) tb;
         }
-        return new Ordinal(timestamp, tbreaker);
+
+        Object extractedImplicitTiebreaker = implicitTiebreaker.extract(hit);
+        if (extractedImplicitTiebreaker instanceof Number == false) {
+            throw new EqlIllegalArgumentException(
+                "Expected _shard_doc/implicit tiebreaker as long but got [{}]",
+                extractedImplicitTiebreaker
+            );
+        }
+        long implicitTiebreakerValue = ((Number) extractedImplicitTiebreaker).longValue();
+        return new Ordinal((Timestamp) ts, tbreaker, implicitTiebreakerValue);
     }
 
     @Override

@@ -48,7 +48,7 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
  *
  * @author crazybob@google.com (Bob Lee)
  */
-@Target({METHOD, CONSTRUCTOR, FIELD})
+@Target({ METHOD, CONSTRUCTOR, FIELD })
 @Retention(RUNTIME)
 @Documented
 public @interface Inject {

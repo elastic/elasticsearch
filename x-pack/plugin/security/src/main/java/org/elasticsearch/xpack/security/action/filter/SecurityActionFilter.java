@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.action.filter;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -29,9 +28,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.privilege.HealthAndStatsPrivilege;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.security.action.SecurityActionMapper;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -45,7 +42,6 @@ import java.util.function.Predicate;
 public class SecurityActionFilter implements ActionFilter {
 
     private static final Predicate<String> LICENSE_EXPIRATION_ACTION_MATCHER = HealthAndStatsPrivilege.INSTANCE.predicate();
-    private static final Predicate<String> SECURITY_ACTION_MATCHER = Automatons.predicate("cluster:admin/xpack/security*");
     private static final Logger logger = LogManager.getLogger(SecurityActionFilter.class);
 
     private final AuthenticationService authcService;
@@ -57,9 +53,15 @@ public class SecurityActionFilter implements ActionFilter {
     private final SecurityContext securityContext;
     private final DestructiveOperations destructiveOperations;
 
-    public SecurityActionFilter(AuthenticationService authcService, AuthorizationService authzService,
-                                AuditTrailService auditTrailService, XPackLicenseState licenseState, ThreadPool threadPool,
-                                SecurityContext securityContext, DestructiveOperations destructiveOperations) {
+    public SecurityActionFilter(
+        AuthenticationService authcService,
+        AuthorizationService authzService,
+        AuditTrailService auditTrailService,
+        XPackLicenseState licenseState,
+        ThreadPool threadPool,
+        SecurityContext securityContext,
+        DestructiveOperations destructiveOperations
+    ) {
         this.authcService = authcService;
         this.authzService = authzService;
         this.auditTrailService = auditTrailService;
@@ -70,9 +72,13 @@ public class SecurityActionFilter implements ActionFilter {
     }
 
     @Override
-    public <Request extends ActionRequest, Response extends ActionResponse> void apply(Task task, String action, Request request,
-                                                                                       ActionListener<Response> listener,
-                                                                                       ActionFilterChain<Request, Response> chain) {
+    public <Request extends ActionRequest, Response extends ActionResponse> void apply(
+        Task task,
+        String action,
+        Request request,
+        ActionListener<Response> listener,
+        ActionFilterChain<Request, Response> chain
+    ) {
         /*
           A functional requirement - when the license of security is disabled (invalid/expires), security will continue
           to operate normally, except the following read operations will be blocked:
@@ -82,44 +88,40 @@ public class SecurityActionFilter implements ActionFilter {
             - cluster:monitor/nodes/stats*
           */
         if (licenseState.isActive() == false && LICENSE_EXPIRATION_ACTION_MATCHER.test(action)) {
-            logger.error("blocking [{}] operation due to expired license. Cluster health, cluster stats and indices stats \n" +
-                "operations are blocked on license expiration. All data operations (read and write) continue to work. \n" +
-                "If you have a new license, please update it. Otherwise, please reach out to your support contact.", action);
+            logger.error(
+                "blocking [{}] operation due to expired license. Cluster health, cluster stats and indices stats \n"
+                    + "operations are blocked on license expiration. All data operations (read and write) continue to work. \n"
+                    + "If you have a new license, please update it. Otherwise, please reach out to your support contact.",
+                action
+            );
             throw LicenseUtils.newComplianceException(XPackField.SECURITY);
         }
 
-        if (licenseState.isSecurityEnabled()) {
-            final ActionListener<Response> contextPreservingListener =
-                    ContextPreservingActionListener.wrapPreservingContext(listener, threadContext);
-            final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
-            try {
-                if (useSystemUser) {
-                    securityContext.executeAsUser(SystemUser.INSTANCE, (original) -> {
-                        applyInternal(task, chain, action, request, contextPreservingListener);
-                    }, Version.CURRENT);
-                } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadContext)) {
-                    AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(threadContext, securityContext, (original) -> {
-                        applyInternal(task, chain, action, request, contextPreservingListener);
-                    });
-                } else {
-                    try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(true)) {
-                        applyInternal(task, chain, action, request, contextPreservingListener);
-                    }
-                }
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        } else if (SECURITY_ACTION_MATCHER.test(action)) {
-            if (licenseState.isSecurityEnabled() == false) {
-                listener.onFailure(new ElasticsearchException("Security must be explicitly enabled when using a [" +
-                        licenseState.getOperationMode().description() + "] license. " +
-                        "Enable security by setting [xpack.security.enabled] to [true] in the elasticsearch.yml file " +
-                        "and restart the node."));
+        final ActionListener<Response> contextPreservingListener = ContextPreservingActionListener.wrapPreservingContext(
+            listener,
+            threadContext
+        );
+        final boolean useSystemUser = AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, action);
+        try {
+            if (useSystemUser) {
+                securityContext.executeAsUser(
+                    SystemUser.INSTANCE,
+                    (original) -> { applyInternal(task, chain, action, request, contextPreservingListener); },
+                    Version.CURRENT
+                );
+            } else if (AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadContext)) {
+                AuthorizationUtils.switchUserBasedOnActionOriginAndExecute(
+                    threadContext,
+                    securityContext,
+                    (original) -> { applyInternal(task, chain, action, request, contextPreservingListener); }
+                );
             } else {
-                listener.onFailure(LicenseUtils.newComplianceException(XPackField.SECURITY));
+                try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(true)) {
+                    applyInternal(task, chain, action, request, contextPreservingListener);
+                }
             }
-        } else {
-            chain.proceed(task, action, request, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
         }
     }
 
@@ -128,8 +130,13 @@ public class SecurityActionFilter implements ActionFilter {
         return Integer.MIN_VALUE;
     }
 
-    private <Request extends ActionRequest, Response extends ActionResponse> void applyInternal(Task task,
-            ActionFilterChain<Request, Response> chain, String action, Request request, ActionListener<Response> listener) {
+    private <Request extends ActionRequest, Response extends ActionResponse> void applyInternal(
+        Task task,
+        ActionFilterChain<Request, Response> chain,
+        String action,
+        Request request,
+        ActionListener<Response> listener
+    ) {
         if (CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action) || DeleteIndexAction.NAME.equals(action)) {
             IndicesRequest indicesRequest = (IndicesRequest) request;
             try {
@@ -151,31 +158,22 @@ public class SecurityActionFilter implements ActionFilter {
          here if a request is not associated with any other user.
          */
         final String securityAction = actionMapper.action(action, request);
-        authcService.authenticate(securityAction, request, SystemUser.INSTANCE,
-                ActionListener.wrap((authc) -> {
-                    if (authc != null) {
-                        final String requestId = AuditUtil.extractRequestId(threadContext);
-                        assert Strings.hasText(requestId);
-                        authorizeRequest(authc, securityAction, request, listener.delegateFailure(
-                                (ll, aVoid) -> chain.proceed(task, action, request, ll.delegateFailure((l, response) -> {
-                                    auditTrailService.get().coordinatingActionResponse(requestId, authc, action, request,
-                                            response);
-                                    l.onResponse(response);
-                                }))));
-                    } else if (licenseState.isSecurityEnabled() == false) {
-                        listener.onResponse(null);
-                    } else {
-                        listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
-                    }
-                }, listener::onFailure));
-    }
-
-    private <Request extends ActionRequest> void authorizeRequest(Authentication authentication, String securityAction, Request request,
-                                                                  ActionListener<Void> listener) {
-        if (authentication == null) {
-            listener.onFailure(new IllegalArgumentException("authentication must be non null for authorization"));
-        } else {
-            authzService.authorize(authentication, securityAction, request, listener);
-        }
+        authcService.authenticate(securityAction, request, SystemUser.INSTANCE, ActionListener.wrap((authc) -> {
+            if (authc != null) {
+                final String requestId = AuditUtil.extractRequestId(threadContext);
+                assert Strings.hasText(requestId);
+                authzService.authorize(
+                    authc,
+                    securityAction,
+                    request,
+                    listener.delegateFailure((ll, aVoid) -> chain.proceed(task, action, request, ll.delegateFailure((l, response) -> {
+                        auditTrailService.get().coordinatingActionResponse(requestId, authc, action, request, response);
+                        l.onResponse(response);
+                    })))
+                );
+            } else {
+                listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
+            }
+        }, listener::onFailure));
     }
 }

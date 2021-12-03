@@ -14,10 +14,10 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.search.DocValueFormat;
@@ -31,6 +31,7 @@ import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
  * A {@link SingleDimensionValuesSource} for global ordinals.
  */
 class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
+    public static final long MISSING_VALUE_FLAG = -1L;
     private final CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc;
     private LongArray values;
     private SortedSetDocValues lookup;
@@ -41,40 +42,52 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private long lastLookupOrd = -1;
     private BytesRef lastLookupValue;
 
-    GlobalOrdinalValuesSource(BigArrays bigArrays, MappedFieldType type,
-                              CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
-                              DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
-        super(bigArrays, format, type, missingBucket, size, reverseMul);
+    GlobalOrdinalValuesSource(
+        BigArrays bigArrays,
+        MappedFieldType type,
+        CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
+        DocValueFormat format,
+        boolean missingBucket,
+        MissingOrder missingOrder,
+        int size,
+        int reverseMul
+    ) {
+        super(bigArrays, format, type, missingBucket, missingOrder, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.values = bigArrays.newLongArray(Math.min(size, 100), false);
     }
 
     @Override
     void copyCurrent(int slot) {
-        values = bigArrays.grow(values, slot+1);
+        values = bigArrays.grow(values, slot + 1);
         values.set(slot, currentValue);
+    }
+
+    private int compareInternal(long lhs, long rhs) {
+        int mul = (lhs == MISSING_VALUE_FLAG || rhs == MISSING_VALUE_FLAG) ? missingOrder.compareAnyValueToMissing(reverseMul) : reverseMul;
+        return Long.compare(lhs, rhs) * mul;
     }
 
     @Override
     int compare(int from, int to) {
-        return Long.compare(values.get(from), values.get(to)) * reverseMul;
+        return compareInternal(values.get(from), values.get(to));
     }
 
     @Override
     int compareCurrent(int slot) {
-        return Long.compare(currentValue, values.get(slot)) * reverseMul;
+        return compareInternal(currentValue, values.get(slot));
     }
 
     @Override
     int compareCurrentWithAfter() {
-        int cmp = Long.compare(currentValue, afterValueGlobalOrd);
+        int cmp = compareInternal(currentValue, afterValueGlobalOrd);
         if (cmp == 0 && isTopValueInsertionPoint) {
             // the top value is missing in this shard, the comparison is against
             // the insertion point of the top value so equality means that the value
             // is "after" the insertion point.
-            return reverseMul;
+            return missingOrder.compareAnyValueToMissing(reverseMul);
         }
-        return cmp * reverseMul;
+        return cmp;
     }
 
     @Override
@@ -88,10 +101,10 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    void setAfter(Comparable value) {
+    void setAfter(Comparable<?> value) {
         if (missingBucket && value == null) {
             afterValue = null;
-            afterValueGlobalOrd = -1L;
+            afterValueGlobalOrd = MISSING_VALUE_FLAG;
         } else if (value.getClass() == String.class || (missingBucket && fieldType == null)) {
             // the value might be not string if this field is missing in this shard but present in other shards
             // and doesn't have a string type
@@ -104,7 +117,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     @Override
     BytesRef toComparable(int slot) throws IOException {
         long globalOrd = values.get(slot);
-        if (missingBucket && globalOrd == -1) {
+        if (missingBucket && globalOrd == MISSING_VALUE_FLAG) {
             return null;
         } else if (globalOrd == lastLookupOrd) {
             return lastLookupValue;
@@ -131,7 +144,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                         next.collect(doc, bucket);
                     }
                 } else if (missingBucket) {
-                    currentValue = -1;
+                    currentValue = MISSING_VALUE_FLAG;
                     next.collect(doc, bucket);
                 }
             }
@@ -139,7 +152,8 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     }
 
     @Override
-    LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) throws IOException {
+    LeafBucketCollector getLeafCollector(Comparable<BytesRef> value, LeafReaderContext context, LeafBucketCollector next)
+        throws IOException {
         if (value.getClass() != BytesRef.class) {
             throw new IllegalArgumentException("Expected BytesRef, got " + value.getClass());
         }
@@ -173,9 +187,9 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                fieldType instanceof StringFieldType == false ||
-                    (query != null && query.getClass() != MatchAllDocsQuery.class)) {
+        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false
+            || fieldType instanceof StringFieldType == false
+            || (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;
         }
         return new TermsSortedDocsProducer(fieldType.name());

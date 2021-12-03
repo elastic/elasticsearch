@@ -30,11 +30,11 @@
 #
 # Path to directory where to store the data (separate multiple locations by comma):
 #
-${path.data}
+@path.data@
 #
 # Path to log files:
 #
-${path.logs}
+@path.logs@
 #
 # ----------------------------------- Memory -----------------------------------
 #

@@ -21,8 +21,9 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
 
     @Override
     protected InternalBucketMetricValue createTestInstance(String name, Map<String, Object> metadata) {
-        double value = frequently() ? randomDoubleBetween(-10000, 100000, true)
-                : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN });
+        double value = frequently()
+            ? randomDoubleBetween(-10000, 100000, true)
+            : randomFrom(new Double[] { Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, Double.NaN });
         String[] keys = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < keys.length; i++) {
             keys[i] = randomAlphaOfLength(10);
@@ -62,30 +63,30 @@ public class InternalBucketMetricValueTests extends InternalAggregationTestCase<
         DocValueFormat formatter = instance.formatter();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            if (Double.isFinite(value)) {
-                value += between(1, 100);
-            } else {
-                value = randomDoubleBetween(0, 100000, true);
-            }
-            break;
-        case 2:
-            keys = Arrays.copyOf(keys, keys.length + 1);
-            keys[keys.length - 1] = randomAlphaOfLengthBetween(1, 20);
-            break;
-        case 3:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                if (Double.isFinite(value)) {
+                    value += between(1, 100);
+                } else {
+                    value = randomDoubleBetween(0, 100000, true);
+                }
+                break;
+            case 2:
+                keys = Arrays.copyOf(keys, keys.length + 1);
+                keys[keys.length - 1] = randomAlphaOfLengthBetween(1, 20);
+                break;
+            case 3:
+                if (metadata == null) {
+                    metadata = new HashMap<>(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalBucketMetricValue(name, keys, value, formatter, metadata);
     }

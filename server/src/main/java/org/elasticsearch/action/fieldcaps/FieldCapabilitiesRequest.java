@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -17,9 +16,9 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -31,9 +30,10 @@ import java.util.Set;
 
 public final class FieldCapabilitiesRequest extends ActionRequest implements IndicesRequest.Replaceable, ToXContentObject {
     public static final String NAME = "field_caps_request";
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpen();
 
     private String[] indices = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private String[] fields = Strings.EMPTY_ARRAY;
     private boolean includeUnmapped = false;
     // pkg private API mainly for cross cluster search to signal that we do multiple reductions ie. the results should not be merged
@@ -48,14 +48,13 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         mergeResults = in.readBoolean();
-        includeUnmapped = in.getVersion().onOrAfter(Version.V_7_2_0) ? in.readBoolean() : false;
-        indexFilter = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
-        nowInMillis = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readOptionalLong() : null;
-        runtimeFields = in.getVersion().onOrAfter(Version.V_7_12_0) ? in.readMap() : Collections.emptyMap();
+        includeUnmapped = in.readBoolean();
+        indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        nowInMillis = in.readOptionalLong();
+        runtimeFields = in.readMap();
     }
 
-    public FieldCapabilitiesRequest() {
-    }
+    public FieldCapabilitiesRequest() {}
 
     /**
      * Returns <code>true</code> iff the results should be merged.
@@ -83,22 +82,10 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeBoolean(mergeResults);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeBoolean(includeUnmapped);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeOptionalNamedWriteable(indexFilter);
-            out.writeOptionalLong(nowInMillis);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeMap(runtimeFields);
-        } else {
-            if (false == runtimeFields.isEmpty()) {
-                throw new IllegalArgumentException(
-                    "Versions before 7.12.0 don't support [runtime_mappings], but trying to send _field_caps request to a node "
-                    + "with version [" + out.getVersion() + "]");
-            }
-        }
+        out.writeBoolean(includeUnmapped);
+        out.writeOptionalNamedWriteable(indexFilter);
+        out.writeOptionalLong(nowInMillis);
+        out.writeMap(runtimeFields);
     }
 
     @Override
@@ -160,6 +147,11 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     }
 
     @Override
+    public boolean allowsRemoteIndices() {
+        return true;
+    }
+
+    @Override
     public boolean includeDataStreams() {
         return true;
     }
@@ -179,6 +171,7 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
     public QueryBuilder indexFilter() {
         return indexFilter;
     }
+
     /**
      * Allows adding search runtime fields if provided.
      */
@@ -213,14 +206,14 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesRequest that = (FieldCapabilitiesRequest) o;
-        return includeUnmapped == that.includeUnmapped &&
-            mergeResults == that.mergeResults &&
-            Arrays.equals(indices, that.indices) &&
-            indicesOptions.equals(that.indicesOptions) &&
-            Arrays.equals(fields, that.fields) &&
-            Objects.equals(indexFilter, that.indexFilter) &&
-            Objects.equals(nowInMillis, that.nowInMillis) &&
-            Objects.equals(runtimeFields, that.runtimeFields);
+        return includeUnmapped == that.includeUnmapped
+            && mergeResults == that.mergeResults
+            && Arrays.equals(indices, that.indices)
+            && indicesOptions.equals(that.indicesOptions)
+            && Arrays.equals(fields, that.fields)
+            && Objects.equals(indexFilter, that.indexFilter)
+            && Objects.equals(nowInMillis, that.nowInMillis)
+            && Objects.equals(runtimeFields, that.runtimeFields);
     }
 
     @Override
@@ -230,4 +223,15 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         result = 31 * result + Arrays.hashCode(fields);
         return result;
     }
+
+    @Override
+    public String getDescription() {
+        final StringBuilder stringBuilder = new StringBuilder("indices[");
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(indices), ",", "", "", 1024, stringBuilder);
+        stringBuilder.append("], fields[");
+        Strings.collectionToDelimitedStringWithLimit(Arrays.asList(fields), ",", "", "", 1024, stringBuilder);
+        stringBuilder.append("]");
+        return stringBuilder.toString();
+    }
+
 }

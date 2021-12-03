@@ -8,7 +8,8 @@
 
 package org.elasticsearch.index.store;
 
-import org.elasticsearch.common.Nullable;
+import org.apache.lucene.index.IndexFileNames;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -67,9 +68,19 @@ public enum LuceneFilesExtensions {
     TVF("tvf", "Term Vector Fields", false, false),
     TVM("tvm", "Term Vector Metadata", true, false),
     TVX("tvx", "Term Vector Index", false, false),
-    VEC("vec", "Vector Data", false, false),
-    // Lucene 9.0 indexed vectors metadata
-    VEM("vem","Vector Metadata", true, false);
+    // kNN vectors format
+    VEC("vec", "Vector Data", false, true),
+    VEX("vex", "Vector Index", false, true),
+    VEM("vem", "Vector Metadata", true, false);
+
+    /**
+     * Allow plugin developers of custom codecs to opt out of the assertion in {@link #fromExtension}
+     * that checks that all encountered file extensions are known to this class.
+     * In the future, we would like to add a proper plugin extension point for this.
+     */
+    private static boolean allowUnknownLuceneFileExtensions() {
+        return Boolean.parseBoolean(System.getProperty("es.allow_unknown_lucene_file_extensions", "false"));
+    }
 
     /**
      * Lucene file's extension.
@@ -128,9 +139,14 @@ public enum LuceneFilesExtensions {
     public static LuceneFilesExtensions fromExtension(String ext) {
         if (ext != null && ext.isEmpty() == false) {
             final LuceneFilesExtensions extension = extensions.get(ext);
-            assert extension != null: "unknown Lucene file extension [" + ext + ']';
+            assert allowUnknownLuceneFileExtensions() || extension != null : "unknown Lucene file extension [" + ext + ']';
             return extension;
         }
         return null;
+    }
+
+    @Nullable
+    public static LuceneFilesExtensions fromFile(String fileName) {
+        return fromExtension(IndexFileNames.getExtension(fileName));
     }
 }

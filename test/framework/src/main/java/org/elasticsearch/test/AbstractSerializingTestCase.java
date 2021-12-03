@@ -10,10 +10,10 @@ package org.elasticsearch.test;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -29,8 +29,9 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
      * both for equality and asserts equality on the two instances.
      */
     public final void testFromXContent() throws IOException {
-        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance)
-            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
+        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance).numberOfTestRuns(
+            NUMBER_OF_TEST_RUNS
+        )
             .supportsUnknownFields(supportsUnknownFields())
             .shuffleFieldsExceptions(getShuffleFieldsExceptions())
             .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
@@ -83,8 +84,8 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
     }
 
     /**
-     * Whether or not to assert equivalence of the {@link org.elasticsearch.common.xcontent.XContent} of the test instance and the instance
-     * parsed from the {@link org.elasticsearch.common.xcontent.XContent} of the test instance.
+     * Whether or not to assert equivalence of the {@link org.elasticsearch.xcontent.XContent} of the test instance and the instance
+     * parsed from the {@link org.elasticsearch.xcontent.XContent} of the test instance.
      *
      * @return true if equivalence should be asserted, otherwise false
      */

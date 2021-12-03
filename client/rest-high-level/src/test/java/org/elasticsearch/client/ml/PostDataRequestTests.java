@@ -7,15 +7,14 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-
 
 public class PostDataRequestTests extends AbstractXContentTestCase<PostDataRequest> {
 
@@ -26,7 +25,7 @@ public class PostDataRequestTests extends AbstractXContentTestCase<PostDataReque
 
         PostDataRequest request = new PostDataRequest(jobId, contentType, new byte[0]);
         if (randomBoolean()) {
-           request.setResetEnd(randomAlphaOfLength(10));
+            request.setResetEnd(randomAlphaOfLength(10));
         }
         if (randomBoolean()) {
             request.setResetStart(randomAlphaOfLength(10));
@@ -60,17 +59,21 @@ public class PostDataRequestTests extends AbstractXContentTestCase<PostDataReque
 
         PostDataRequest request = new PostDataRequest(jobId, builder);
 
-        assertEquals("{\"entry1\":\"value1\",\"entry2\":\"value2\"}{\"entry3\":\"value3\"}{\"entry4\":\"value4\"}",
-            request.getContent().utf8ToString());
+        assertEquals(
+            "{\"entry1\":\"value1\",\"entry2\":\"value2\"}{\"entry3\":\"value3\"}{\"entry4\":\"value4\"}",
+            request.getContent().utf8ToString()
+        );
         assertEquals(XContentType.JSON, request.getXContentType());
         assertEquals(jobId, request.getJobId());
     }
 
     public void testFromByteArray() {
         String jobId = randomAlphaOfLength(10);
-        PostDataRequest request = new PostDataRequest(jobId,
+        PostDataRequest request = new PostDataRequest(
+            jobId,
             XContentType.JSON,
-            "{\"others\":{\"foo\":100}}".getBytes(StandardCharsets.UTF_8));
+            "{\"others\":{\"foo\":100}}".getBytes(StandardCharsets.UTF_8)
+        );
 
         assertEquals("{\"others\":{\"foo\":100}}", request.getContent().utf8ToString());
         assertEquals(XContentType.JSON, request.getXContentType());

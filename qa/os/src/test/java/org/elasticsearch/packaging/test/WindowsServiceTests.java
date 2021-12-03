@@ -9,6 +9,7 @@
 package org.elasticsearch.packaging.test;
 
 import junit.framework.TestCase;
+
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -27,7 +28,6 @@ import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.mv;
-import static org.elasticsearch.packaging.util.ServerUtils.disableGeoIpDownloader;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -93,8 +93,8 @@ public class WindowsServiceTests extends PackagingTestCase {
     public void test10InstallArchive() throws Exception {
         installation = installArchive(sh, distribution());
         verifyArchiveInstallation(installation, distribution());
+        setFileSuperuser("test_superuser", "test_superuser_password");
         serviceScript = installation.bin("elasticsearch-service.bat").toString();
-        disableGeoIpDownloader(installation);
     }
 
     public void test11InstallServiceExeMissing() throws IOException {
@@ -173,7 +173,7 @@ public class WindowsServiceTests extends PackagingTestCase {
     // NOTE: service description is not attainable through any powershell api, so checking it is not possible...
     public void assertStartedAndStop() throws Exception {
         ServerUtils.waitForElasticsearch(installation);
-        ServerUtils.runElasticsearchTests();
+        runElasticsearchTests();
 
         assertCommand(serviceScript + " stop");
         assertService(DEFAULT_ID, "Stopped", DEFAULT_DISPLAY_NAME);

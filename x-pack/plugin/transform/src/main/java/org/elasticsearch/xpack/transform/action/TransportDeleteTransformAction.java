@@ -53,30 +53,16 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         TransformServices transformServices,
         Client client
     ) {
-        this(
+        super(
             DeleteTransformAction.NAME,
             transportService,
-            actionFilters,
-            threadPool,
             clusterService,
+            threadPool,
+            actionFilters,
+            Request::new,
             indexNameExpressionResolver,
-            transformServices,
-            client
+            ThreadPool.Names.SAME
         );
-    }
-
-    protected TransportDeleteTransformAction(
-        String name,
-        TransportService transportService,
-        ActionFilters actionFilters,
-        ThreadPool threadPool,
-        ClusterService clusterService,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        TransformServices transformServices,
-        Client client
-    ) {
-        super(name, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver,
-                ThreadPool.Names.SAME);
         this.transformConfigManager = transformServices.getConfigManager();
         this.auditor = transformServices.getAuditor();
         this.client = client;

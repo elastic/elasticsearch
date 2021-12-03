@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
-
 /**
  * The categorizer state does not need to be understood on the Java side.
  * The Java code only needs to know how to form the document IDs so that
@@ -48,7 +47,5 @@ public class CategorizerState {
         return suffixIndex <= 0 ? null : docId.substring(0, suffixIndex);
     }
 
-    private CategorizerState() {
-    }
+    private CategorizerState() {}
 }
-

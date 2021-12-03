@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -80,10 +80,12 @@ public class ReleasableLockTests extends ESTestCase {
     }
 
     private void acquire(final ReleasableLock lockToAcquire, final ReleasableLock otherLock) {
-        try (@SuppressWarnings("unused") Releasable outer = randomAcquireMethod(lockToAcquire)) {
+        try (@SuppressWarnings("unused")
+        Releasable outer = randomAcquireMethod(lockToAcquire)) {
             assertTrue(lockToAcquire.isHeldByCurrentThread());
             assertFalse(otherLock.isHeldByCurrentThread());
-            try (@SuppressWarnings("unused") Releasable inner = randomAcquireMethod(lockToAcquire)) {
+            try (@SuppressWarnings("unused")
+            Releasable inner = randomAcquireMethod(lockToAcquire)) {
                 assertTrue(lockToAcquire.isHeldByCurrentThread());
                 assertFalse(otherLock.isHeldByCurrentThread());
             }
@@ -115,19 +117,18 @@ public class ReleasableLockTests extends ESTestCase {
         CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         AtomicInteger lockedCounter = new AtomicInteger();
         int timeout = randomFrom(0, 5, 10);
-        List<Thread> threads =
-            IntStream.range(0, numberOfThreads).mapToObj(i -> new Thread(() -> {
-                try {
-                    barrier.await(10, TimeUnit.SECONDS);
-                    try (ReleasableLock locked = lock.tryAcquire(TimeValue.timeValueMillis(timeout))) {
-                        if (locked != null) {
-                            lockedCounter.incrementAndGet();
-                        }
+        List<Thread> threads = IntStream.range(0, numberOfThreads).mapToObj(i -> new Thread(() -> {
+            try {
+                barrier.await(10, TimeUnit.SECONDS);
+                try (ReleasableLock locked = lock.tryAcquire(TimeValue.timeValueMillis(timeout))) {
+                    if (locked != null) {
+                        lockedCounter.incrementAndGet();
                     }
-                } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
-                    throw new AssertionError(e);
                 }
-            })).collect(Collectors.toList());
+            } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+                throw new AssertionError(e);
+            }
+        })).collect(Collectors.toList());
         threads.forEach(Thread::start);
         try (ReleasableLock locked = randomBoolean() ? lock.acquire() : null) {
             barrier.await(10, TimeUnit.SECONDS);

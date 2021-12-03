@@ -1,0 +1,2 @@
+If you do not use the Elastic GeoIP Database Service, this product uses the legacy GeoLite2 Data created by MaxMind
+and licensed under the Creative Commons Attribution-ShareAlike 4.0 International License.

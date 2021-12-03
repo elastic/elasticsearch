@@ -25,10 +25,11 @@ import org.elasticsearch.action.main.MainRequest;
 import org.elasticsearch.action.main.MainResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.RequestMatcher;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -43,7 +44,8 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -51,6 +53,7 @@ import static org.mockito.Mockito.when;
 /**
  * Test and demonstrates how {@link RestHighLevelClient} can be extended to support custom endpoints.
  */
+@SuppressWarnings("removal")
 public class CustomRestHighLevelClientTests extends ESTestCase {
 
     private static final String ENDPOINT = "/_custom";
@@ -61,17 +64,15 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
     public void initClients() throws IOException {
         if (restHighLevelClient == null) {
             final RestClient restClient = mock(RestClient.class);
+            RestHighLevelClientTests.mockGetRoot(restClient);
             restHighLevelClient = new CustomRestClient(restClient);
 
-            doAnswer(inv -> mockPerformRequest((Request) inv.getArguments()[0]))
-                    .when(restClient)
-                    .performRequest(any(Request.class));
+            doAnswer(inv -> mockPerformRequest((Request) inv.getArguments()[0])).when(restClient)
+                .performRequest(argThat(new RequestMatcher("GET", ENDPOINT)::matches));
 
-            doAnswer(inv -> mockPerformRequestAsync(
-                        ((Request) inv.getArguments()[0]),
-                        (ResponseListener) inv.getArguments()[1]))
-                    .when(restClient)
-                    .performRequestAsync(any(Request.class), any(ResponseListener.class));
+            doAnswer(inv -> mockPerformRequestAsync(((Request) inv.getArguments()[0]), (ResponseListener) inv.getArguments()[1])).when(
+                restClient
+            ).performRequestAsync(argThat(new RequestMatcher("GET", ENDPOINT)::matches), any(ResponseListener.class));
         }
     }
 
@@ -111,21 +112,21 @@ public class CustomRestHighLevelClientTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "We're forced to uses Class#getDeclaredMethods() here because this test checks protected methods")
     public void testMethodsVisibility() {
-        final String[] methodNames = new String[]{"convertExistsResponse",
-                                                  "parseEntity",
-                                                  "parseResponseException",
-                                                  "performRequest",
-                                                  "performRequestAndParseEntity",
-                                                  "performRequestAndParseOptionalEntity",
-                                                  "performRequestAsync",
-                                                  "performRequestAsyncAndParseEntity",
-                                                  "performRequestAsyncAndParseOptionalEntity"
-                                                  };
+        final String[] methodNames = new String[] {
+            "convertExistsResponse",
+            "parseEntity",
+            "parseResponseException",
+            "performRequest",
+            "performRequestAndParseEntity",
+            "performRequestAndParseOptionalEntity",
+            "performRequestAsync",
+            "performRequestAsyncAndParseEntity",
+            "performRequestAsyncAndParseOptionalEntity" };
 
-        final Set<String> protectedMethods =  Arrays.stream(RestHighLevelClient.class.getDeclaredMethods())
-                                                     .filter(method -> Modifier.isProtected(method.getModifiers()))
-                                                     .map(Method::getName)
-                                                     .collect(Collectors.toCollection(TreeSet::new));
+        final Set<String> protectedMethods = Arrays.stream(RestHighLevelClient.class.getDeclaredMethods())
+            .filter(method -> Modifier.isProtected(method.getModifiers()))
+            .map(Method::getName)
+            .collect(Collectors.toCollection(TreeSet::new));
 
         assertThat(protectedMethods, contains(methodNames));
     }

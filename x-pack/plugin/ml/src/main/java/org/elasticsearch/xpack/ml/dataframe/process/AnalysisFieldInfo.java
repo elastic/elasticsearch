@@ -25,9 +25,7 @@ public class AnalysisFieldInfo implements DataFrameAnalysis.FieldInfo {
 
     @Override
     public Set<String> getTypes(String field) {
-        Optional<ExtractedField> extractedField = extractedFields.getAllFields().stream()
-            .filter(f -> f.getName().equals(field))
-            .findAny();
+        Optional<ExtractedField> extractedField = extractedFields.getAllFields().stream().filter(f -> f.getName().equals(field)).findAny();
         return extractedField.isPresent() ? extractedField.get().getTypes() : null;
     }
 

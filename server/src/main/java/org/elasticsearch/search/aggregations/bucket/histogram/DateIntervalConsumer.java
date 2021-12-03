@@ -15,15 +15,7 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
  * defintions for the old interval/dateHisto interval parameters
  */
 public interface DateIntervalConsumer<T> {
-    @Deprecated
-    T interval(long interval);
-    @Deprecated
-    T dateHistogramInterval(DateHistogramInterval dateHistogramInterval);
     T calendarInterval(DateHistogramInterval interval);
-    T fixedInterval(DateHistogramInterval interval);
 
-    @Deprecated
-    long interval();
-    @Deprecated
-    DateHistogramInterval dateHistogramInterval();
+    T fixedInterval(DateHistogramInterval interval);
 }

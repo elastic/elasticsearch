@@ -9,7 +9,7 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;
@@ -27,11 +27,19 @@ public final class EWMATrackingEsThreadPoolExecutor extends EsThreadPoolExecutor
     private final Function<Runnable, WrappedRunnable> runnableWrapper;
     private final ExponentiallyWeightedMovingAverage executionEWMA;
 
-    EWMATrackingEsThreadPoolExecutor(String name, int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit,
-                                     BlockingQueue<Runnable> workQueue, Function<Runnable, WrappedRunnable> runnableWrapper,
-                                     ThreadFactory threadFactory, XRejectedExecutionHandler handler, ThreadContext contextHolder) {
-        super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit,
-            workQueue, threadFactory, handler, contextHolder);
+    EWMATrackingEsThreadPoolExecutor(
+        String name,
+        int corePoolSize,
+        int maximumPoolSize,
+        long keepAliveTime,
+        TimeUnit unit,
+        BlockingQueue<Runnable> workQueue,
+        Function<Runnable, WrappedRunnable> runnableWrapper,
+        ThreadFactory threadFactory,
+        XRejectedExecutionHandler handler,
+        ThreadContext contextHolder
+    ) {
+        super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
         this.runnableWrapper = runnableWrapper;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(EWMA_ALPHA, 0);
     }
@@ -76,9 +84,11 @@ public final class EWMATrackingEsThreadPoolExecutor extends EsThreadPoolExecutor
         final TimedRunnable timedRunnable = (TimedRunnable) super.unwrap(r);
         final boolean failedOrRejected = timedRunnable.getFailedOrRejected();
         final long taskExecutionNanos = timedRunnable.getTotalExecutionNanos();
-        assert taskExecutionNanos >= 0 || (failedOrRejected && taskExecutionNanos == -1) :
-            "expected task to always take longer than 0 nanoseconds or have '-1' failure code, got: " + taskExecutionNanos +
-                ", failedOrRejected: " + failedOrRejected;
+        assert taskExecutionNanos >= 0 || (failedOrRejected && taskExecutionNanos == -1)
+            : "expected task to always take longer than 0 nanoseconds or have '-1' failure code, got: "
+                + taskExecutionNanos
+                + ", failedOrRejected: "
+                + failedOrRejected;
         if (taskExecutionNanos != -1) {
             // taskExecutionNanos may be -1 if the task threw an exception
             executionEWMA.addValue(taskExecutionNanos);

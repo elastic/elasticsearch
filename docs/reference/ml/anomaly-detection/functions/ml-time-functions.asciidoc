@@ -1,5 +1,4 @@
-[role="xpack"]
-[[ml-time-functions]]
+["appendix",role="exclude",id="ml-time-functions"]
 = Time functions
 
 The time functions detect events that happen at unusual times, either of the day

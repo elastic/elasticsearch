@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.eql.plan.physical;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.eql.execution.assembler.ExecutionManager;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.session.EqlSession;
@@ -36,26 +36,30 @@ public class SequenceExec extends PhysicalPlan {
     private final OrderDirection direction;
     private final TimeValue maxSpan;
 
-    public SequenceExec(Source source,
-                        List<List<Attribute>> keys,
-                        List<PhysicalPlan> matches,
-                        List<Attribute> untilKeys,
-                        PhysicalPlan until,
-                        Attribute timestamp,
-                        Attribute tiebreaker,
-                        OrderDirection direction,
-                        TimeValue maxSpan) {
+    public SequenceExec(
+        Source source,
+        List<List<Attribute>> keys,
+        List<PhysicalPlan> matches,
+        List<Attribute> untilKeys,
+        PhysicalPlan until,
+        Attribute timestamp,
+        Attribute tiebreaker,
+        OrderDirection direction,
+        TimeValue maxSpan
+    ) {
         this(source, combine(matches, until), combine(keys, singletonList(untilKeys)), timestamp, tiebreaker, null, direction, maxSpan);
     }
 
-    private SequenceExec(Source source,
-                         List<PhysicalPlan> children,
-                         List<List<Attribute>> keys,
-                         Attribute ts,
-                         Attribute tb,
-                         Limit limit,
-                         OrderDirection direction,
-                         TimeValue maxSpan) {
+    private SequenceExec(
+        Source source,
+        List<PhysicalPlan> children,
+        List<List<Attribute>> keys,
+        Attribute ts,
+        Attribute tb,
+        Limit limit,
+        OrderDirection direction,
+        TimeValue maxSpan
+    ) {
         super(source, children);
         this.keys = keys;
         this.timestamp = ts;
@@ -108,14 +112,13 @@ public class SequenceExec extends PhysicalPlan {
         return direction;
     }
 
-    public SequenceExec with(Limit limit) {
-        return new SequenceExec(source(), children(), keys(), timestamp(), tiebreaker(), limit, direction, maxSpan);
+    public SequenceExec with(Limit limitValue) {
+        return new SequenceExec(source(), children(), keys(), timestamp(), tiebreaker(), limitValue, direction, maxSpan);
     }
 
     @Override
     public void execute(EqlSession session, ActionListener<Payload> listener) {
-        new ExecutionManager(session)
-            .assemble(keys(), children(), timestamp(), tiebreaker(), direction, maxSpan, limit())
+        new ExecutionManager(session).assemble(keys(), children(), timestamp(), tiebreaker(), direction, maxSpan, limit())
             .execute(listener);
     }
 
@@ -136,10 +139,10 @@ public class SequenceExec extends PhysicalPlan {
 
         SequenceExec other = (SequenceExec) obj;
         return Objects.equals(timestamp, other.timestamp)
-                && Objects.equals(tiebreaker, other.tiebreaker)
-                && Objects.equals(limit, other.limit)
-                && Objects.equals(direction, other.direction)
-                && Objects.equals(children(), other.children())
-                && Objects.equals(keys, other.keys);
+            && Objects.equals(tiebreaker, other.tiebreaker)
+            && Objects.equals(limit, other.limit)
+            && Objects.equals(direction, other.direction)
+            && Objects.equals(children(), other.children())
+            && Objects.equals(keys, other.keys);
     }
 }

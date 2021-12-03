@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.client.graph;
 
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.client.graph.GraphExploreRequest.TermBoost;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -33,7 +33,6 @@ public class VertexRequest implements ToXContentObject {
     private int minDocCount = DEFAULT_MIN_DOC_COUNT;
     public static final int DEFAULT_SHARD_MIN_DOC_COUNT = 2;
     private int shardMinDocCount = DEFAULT_SHARD_MIN_DOC_COUNT;
-
 
     public VertexRequest() {
 
@@ -130,7 +129,6 @@ public class VertexRequest implements ToXContentObject {
         minDocCount = value;
         return this;
     }
-
 
     public int shardMinDocCount() {
         return Math.min(shardMinDocCount, minDocCount);

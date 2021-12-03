@@ -55,7 +55,7 @@ public class IncidentEventDefaults {
 
             @Override
             public boolean equals(Object obj) {
-                if (obj == null || getClass() != obj.getClass()){
+                if (obj == null || getClass() != obj.getClass()) {
                     return false;
                 }
                 final LinkDefaults other = (LinkDefaults) obj;
@@ -82,7 +82,7 @@ public class IncidentEventDefaults {
 
             @Override
             public boolean equals(Object obj) {
-                if (obj == null || getClass() != obj.getClass()){
+                if (obj == null || getClass() != obj.getClass()) {
                     return false;
                 }
                 final ImageDefaults other = (ImageDefaults) obj;
@@ -90,6 +90,5 @@ public class IncidentEventDefaults {
             }
         }
     }
-
 
 }

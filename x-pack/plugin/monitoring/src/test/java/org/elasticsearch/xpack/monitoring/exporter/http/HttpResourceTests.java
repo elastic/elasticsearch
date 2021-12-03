@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter.http;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.monitoring.exporter.http.HttpResource.ResourcePublishResult;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.monitoring.exporter.http.AsyncHttpResourceHelper.mockBooleanActionListener;
@@ -85,8 +85,9 @@ public class HttpResourceTests extends ESTestCase {
 
     public void testCheckAndPublish() {
         final ActionListener<ResourcePublishResult> listener = mockPublishResultActionListener();
-        final ResourcePublishResult expected = randomBoolean() ? ResourcePublishResult.ready() : ResourcePublishResult
-            .notReady("test unready");
+        final ResourcePublishResult expected = randomBoolean()
+            ? ResourcePublishResult.ready()
+            : ResourcePublishResult.notReady("test unready");
         // the default dirtiness should be irrelevant; it should always be run!
         final HttpResource resource = new HttpResource(owner) {
             @Override
@@ -131,17 +132,14 @@ public class HttpResourceTests extends ESTestCase {
         final boolean response = randomBoolean();
         final ActionListener<Boolean> listener = mockBooleanActionListener();
         // listener used while checking is blocked, and thus should be ignored
-        final ActionListener<Boolean> checkingListener = ActionListener.wrap(
-            success -> {
-                // busy checking, so this should be ignored
-                assertFalse(success);
-                secondCheck.countDown();
-            },
-            e -> {
-                fail(e.getMessage());
-                secondCheck.countDown();
-            }
-        );
+        final ActionListener<Boolean> checkingListener = ActionListener.wrap(success -> {
+            // busy checking, so this should be ignored
+            assertFalse(success);
+            secondCheck.countDown();
+        }, e -> {
+            fail(e.getMessage());
+            secondCheck.countDown();
+        });
 
         // the default dirtiness should be irrelevant; it should always be run!
         final HttpResource resource = new HttpResource(owner) {

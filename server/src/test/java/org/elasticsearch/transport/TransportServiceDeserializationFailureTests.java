@@ -12,10 +12,11 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
 import org.elasticsearch.tasks.TaskId;
@@ -26,7 +27,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
@@ -38,9 +38,7 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
         final DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNode otherNode = new DiscoveryNode("other", buildNewFakeTransportAddress(), Version.CURRENT);
 
-        final Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "local").build();
-
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(settings, random());
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
 
         final String testActionName = "internal:test-action";
 
@@ -48,56 +46,69 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 if (action.equals(TransportService.HANDSHAKE_ACTION_NAME)) {
-                    handleResponse(requestId, new TransportService.HandshakeResponse(
-                            Version.CURRENT,
-                            Build.CURRENT.hash(),
-                            otherNode,
-                            new ClusterName("")));
+                    handleResponse(
+                        requestId,
+                        new TransportService.HandshakeResponse(Version.CURRENT, Build.CURRENT.hash(), otherNode, new ClusterName(""))
+                    );
                 }
             }
         };
-        final TransportService transportService = transport.createTransportService(Settings.EMPTY,
-                deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR, ignored -> localNode, null,
-                Collections.emptySet());
+        final TransportService transportService = transport.createTransportService(
+            Settings.EMPTY,
+            deterministicTaskQueue.getThreadPool(),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            ignored -> localNode,
+            null,
+            Collections.emptySet()
+        );
 
-        transportService.registerRequestHandler(testActionName, ThreadPool.Names.SAME, TransportRequest.Empty::new,
-                (request, channel, task) -> channel.sendResponse(TransportResponse.Empty.INSTANCE));
+        transportService.registerRequestHandler(
+            testActionName,
+            ThreadPool.Names.SAME,
+            TransportRequest.Empty::new,
+            (request, channel, task) -> channel.sendResponse(TransportResponse.Empty.INSTANCE)
+        );
 
         transportService.start();
         transportService.acceptIncomingRequests();
 
-        final PlainActionFuture<Void> connectionFuture = new PlainActionFuture<>();
+        final PlainActionFuture<Releasable> connectionFuture = new PlainActionFuture<>();
         transportService.connectToNode(otherNode, connectionFuture);
         assertTrue(connectionFuture.isDone());
 
         {
             // requests without a parent task are recorded directly in the response context
 
-            transportService.sendRequest(otherNode, testActionName, TransportRequest.Empty.INSTANCE,
-                    TransportRequestOptions.EMPTY, new TransportResponseHandler<TransportResponse.Empty>() {
-                        @Override
-                        public void handleResponse(TransportResponse.Empty response) {
-                            fail("should not be called");
-                        }
+            transportService.sendRequest(
+                otherNode,
+                testActionName,
+                TransportRequest.Empty.INSTANCE,
+                TransportRequestOptions.EMPTY,
+                new TransportResponseHandler<TransportResponse.Empty>() {
+                    @Override
+                    public void handleResponse(TransportResponse.Empty response) {
+                        fail("should not be called");
+                    }
 
-                        @Override
-                        public void handleException(TransportException exp) {
-                            fail("should not be called");
-                        }
+                    @Override
+                    public void handleException(TransportException exp) {
+                        fail("should not be called");
+                    }
 
-                        @Override
-                        public TransportResponse.Empty read(StreamInput in) {
-                            throw new AssertionError("should not be called");
-                        }
+                    @Override
+                    public TransportResponse.Empty read(StreamInput in) {
+                        throw new AssertionError("should not be called");
+                    }
 
-                        @Override
-                        public String toString() {
-                            return "test handler without parent";
-                        }
-                    });
+                    @Override
+                    public String toString() {
+                        return "test handler without parent";
+                    }
+                }
+            );
 
-            final List<Transport.ResponseContext<? extends TransportResponse>> responseContexts
-                    = transport.getResponseHandlers().prune(ignored -> true);
+            final List<Transport.ResponseContext<? extends TransportResponse>> responseContexts = transport.getResponseHandlers()
+                .prune(ignored -> true);
             assertThat(responseContexts, hasSize(1));
             final TransportResponseHandler<? extends TransportResponse> handler = responseContexts.get(0).handler();
             assertThat(handler, hasToString(containsString("test handler without parent")));
@@ -118,31 +129,37 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                 }
             });
 
-            transportService.sendChildRequest(otherNode, testActionName, TransportRequest.Empty.INSTANCE, parentTask,
-                    TransportRequestOptions.EMPTY, new TransportResponseHandler<TransportResponse.Empty>() {
-                        @Override
-                        public void handleResponse(TransportResponse.Empty response) {
-                            fail("should not be called");
-                        }
+            transportService.sendChildRequest(
+                otherNode,
+                testActionName,
+                TransportRequest.Empty.INSTANCE,
+                parentTask,
+                TransportRequestOptions.EMPTY,
+                new TransportResponseHandler<TransportResponse.Empty>() {
+                    @Override
+                    public void handleResponse(TransportResponse.Empty response) {
+                        fail("should not be called");
+                    }
 
-                        @Override
-                        public void handleException(TransportException exp) {
-                            fail("should not be called");
-                        }
+                    @Override
+                    public void handleException(TransportException exp) {
+                        fail("should not be called");
+                    }
 
-                        @Override
-                        public TransportResponse.Empty read(StreamInput in) {
-                            throw new AssertionError("should not be called");
-                        }
+                    @Override
+                    public TransportResponse.Empty read(StreamInput in) {
+                        throw new AssertionError("should not be called");
+                    }
 
-                        @Override
-                        public String toString() {
-                            return "test handler with parent";
-                        }
-                    });
+                    @Override
+                    public String toString() {
+                        return "test handler with parent";
+                    }
+                }
+            );
 
-            final List<Transport.ResponseContext<? extends TransportResponse>> responseContexts
-                    = transport.getResponseHandlers().prune(ignored -> true);
+            final List<Transport.ResponseContext<? extends TransportResponse>> responseContexts = transport.getResponseHandlers()
+                .prune(ignored -> true);
             assertThat(responseContexts, hasSize(1));
             final TransportResponseHandler<? extends TransportResponse> handler = responseContexts.get(0).handler();
             assertThat(handler, hasToString(allOf(containsString("test handler with parent"), containsString(testActionName))));

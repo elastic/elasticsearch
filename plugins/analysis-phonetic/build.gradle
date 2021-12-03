@@ -5,16 +5,16 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.'
-  classname 'org.elasticsearch.plugin.analysis.AnalysisPhoneticPlugin'
+  classname 'org.elasticsearch.plugin.analysis.phonetic.AnalysisPhoneticPlugin'
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-analyzers-phonetic:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-phonetic:${versions.lucene}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
 }
 

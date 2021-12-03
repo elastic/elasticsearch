@@ -63,13 +63,13 @@ public class DeleteServiceAccountTokenRequest extends ActionRequest {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         DeleteServiceAccountTokenRequest that = (DeleteServiceAccountTokenRequest) o;
-        return Objects.equals(namespace, that.namespace) && Objects.equals(serviceName, that.serviceName)
-            && Objects.equals(tokenName, that.tokenName) && refreshPolicy == that.refreshPolicy;
+        return Objects.equals(namespace, that.namespace)
+            && Objects.equals(serviceName, that.serviceName)
+            && Objects.equals(tokenName, that.tokenName)
+            && refreshPolicy == that.refreshPolicy;
     }
 
     @Override
@@ -98,7 +98,7 @@ public class DeleteServiceAccountTokenRequest extends ActionRequest {
         }
 
         if (false == Validation.isValidServiceAccountTokenName(tokenName)) {
-            validationException = addValidationError(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE, validationException);
+            validationException = addValidationError(Validation.formatInvalidServiceTokenNameErrorMessage(tokenName), validationException);
         }
         return validationException;
     }

@@ -13,9 +13,48 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 
 public abstract class DateFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("date_field", Factory.class);
+
+    public static final Factory PARSE_FROM_SOURCE = new Factory() {
+        @Override
+        public LeafFactory newFactory(String field, Map<String, Object> params, SearchLookup lookup, DateFormatter formatter) {
+            return ctx -> new DateFieldScript(field, params, lookup, formatter, ctx) {
+                @Override
+                public void execute() {
+                    emitFromSource();
+                }
+            };
+        }
+
+        @Override
+        public boolean isResultDeterministic() {
+            return true;
+        }
+    };
+
+    public static Factory leafAdapter(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentFactory) {
+        return (leafFieldName, params, searchLookup, formatter) -> {
+            CompositeFieldScript.LeafFactory parentLeafFactory = parentFactory.apply(searchLookup);
+            return (LeafFactory) ctx -> {
+                CompositeFieldScript compositeFieldScript = parentLeafFactory.newInstance(ctx);
+                return new DateFieldScript(leafFieldName, params, searchLookup, formatter, ctx) {
+                    @Override
+                    public void setDocument(int docId) {
+                        compositeFieldScript.setDocument(docId);
+                    }
+
+                    @Override
+                    public void execute() {
+                        emitFromCompositeScript(compositeFieldScript);
+                    }
+                };
+            };
+        };
+    }
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
@@ -39,6 +78,15 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
     ) {
         super(fieldName, params, searchLookup, ctx);
         this.formatter = formatter;
+    }
+
+    @Override
+    protected void emitFromObject(Object v) {
+        try {
+            emit(formatter.parseMillis(Objects.toString(v)));
+        } catch (Exception e) {
+            // ignore
+        }
     }
 
     public static class Emit {

@@ -52,7 +52,6 @@ public class OrderExec extends UnaryExec implements Unexecutable {
 
         OrderExec other = (OrderExec) obj;
 
-        return Objects.equals(order, other.order)
-                && Objects.equals(child(), other.child());
+        return Objects.equals(order, other.order) && Objects.equals(child(), other.child());
     }
 }

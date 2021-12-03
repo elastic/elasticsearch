@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Random;
@@ -23,11 +23,9 @@ public class BlockMasterServiceOnMaster extends SingleNodeDisruption {
 
     AtomicReference<CountDownLatch> disruptionLatch = new AtomicReference<>();
 
-
     public BlockMasterServiceOnMaster(Random random) {
         super(random);
     }
-
 
     @Override
     public void startDisrupting() {
@@ -44,8 +42,7 @@ public class BlockMasterServiceOnMaster extends SingleNodeDisruption {
         boolean success = disruptionLatch.compareAndSet(null, new CountDownLatch(1));
         assert success : "startDisrupting called without waiting on stopDisrupting to complete";
         final CountDownLatch started = new CountDownLatch(1);
-        clusterService.getMasterService().submitStateUpdateTask(
-                "service_disruption_block", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
+        clusterService.getMasterService().submitStateUpdateTask("service_disruption_block", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
@@ -68,8 +65,7 @@ public class BlockMasterServiceOnMaster extends SingleNodeDisruption {
         });
         try {
             started.await();
-        } catch (InterruptedException e) {
-        }
+        } catch (InterruptedException e) {}
     }
 
     @Override

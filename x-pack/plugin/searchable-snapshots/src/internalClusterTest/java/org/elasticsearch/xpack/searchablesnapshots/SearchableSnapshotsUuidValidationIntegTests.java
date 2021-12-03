@@ -35,7 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.containsString;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class SearchableSnapshotsUuidValidationIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+public class SearchableSnapshotsUuidValidationIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     public static class TestPlugin extends Plugin implements ActionPlugin {
 

@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.protocol.xpack.license;
 
-import java.io.IOException;
-
 import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
 
 public class LicenseStatusTests extends ESTestCase {
     public void testSerialization() throws IOException {

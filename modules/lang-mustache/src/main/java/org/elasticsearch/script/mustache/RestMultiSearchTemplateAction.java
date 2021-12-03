@@ -10,6 +10,7 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -27,7 +28,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchTemplateAction extends BaseRestHandler {
-
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]"
+        + " Specifying types in multi search template requests is deprecated.";
     private static final Set<String> RESPONSE_PARAMS;
 
     static {
@@ -36,7 +38,6 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         );
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
-
 
     private final boolean allowExplicitIndex;
 
@@ -50,7 +51,10 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             new Route(GET, "/_msearch/template"),
             new Route(POST, "/_msearch/template"),
             new Route(GET, "/{index}/_msearch/template"),
-            new Route(POST, "/{index}/_msearch/template"));
+            new Route(POST, "/{index}/_msearch/template"),
+            Route.builder(GET, "/{index}/{type}/_msearch/template").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/{type}/_msearch/template").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -68,22 +72,30 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchTemplateRequest}
      */
     public static MultiSearchTemplateRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
+        if (restRequest.getRestApiVersion() == RestApiVersion.V_7 && restRequest.hasParam("type")) {
+            restRequest.param("type");
+        }
+
         MultiSearchTemplateRequest multiRequest = new MultiSearchTemplateRequest();
         if (restRequest.hasParam("max_concurrent_searches")) {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
 
-        RestMultiSearchAction.parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex,
-                (searchRequest, bytes) -> {
-                    SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
-                    if (searchTemplateRequest.getScript() != null) {
-                        searchTemplateRequest.setRequest(searchRequest);
-                        multiRequest.add(searchTemplateRequest);
-                    } else {
-                        throw new IllegalArgumentException("Malformed search template");
-                    }
-                    RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
-                });
+        RestMultiSearchAction.parseMultiLineRequest(
+            restRequest,
+            multiRequest.indicesOptions(),
+            allowExplicitIndex,
+            (searchRequest, bytes) -> {
+                SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
+                if (searchTemplateRequest.getScript() != null) {
+                    searchTemplateRequest.setRequest(searchRequest);
+                    multiRequest.add(searchTemplateRequest);
+                } else {
+                    throw new IllegalArgumentException("Malformed search template");
+                }
+                RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
+            }
+        );
         return multiRequest;
     }
 

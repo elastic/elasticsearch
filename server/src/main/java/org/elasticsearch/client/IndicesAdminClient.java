@@ -90,7 +90,7 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 /**
  * Administrative actions/operations against indices.
@@ -331,7 +331,7 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * @param listener A listener to be notified with a result
      * @see org.elasticsearch.client.Requests#flushRequest(String...)
      */
-    void flush(FlushRequest request, ActionListener <FlushResponse> listener);
+    void flush(FlushRequest request, ActionListener<FlushResponse> listener);
 
     /**
      * Explicitly flush one or more indices (releasing memory from the node).

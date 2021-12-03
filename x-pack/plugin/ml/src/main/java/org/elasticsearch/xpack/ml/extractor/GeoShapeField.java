@@ -28,8 +28,6 @@ public class GeoShapeField extends SourceField {
 
     private static final Set<String> TYPES = Collections.singleton(TYPE);
 
-    private static final WellKnownText wkt = new WellKnownText(true, new StandardValidator(true));
-
     public GeoShapeField(String name) {
         super(name, TYPES);
     }
@@ -59,11 +57,11 @@ public class GeoShapeField extends SourceField {
     private String handleString(String geoString) {
         try {
             if (geoString.startsWith("POINT")) { // Entry is of the form "POINT (-77.03653 38.897676)"
-                Geometry geometry = wkt.fromWKT(geoString);
+                Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, geoString);
                 if (geometry.type() != ShapeType.POINT) {
                     throw new IllegalArgumentException("Unexpected non-point geo_shape type: " + geometry.type().name());
                 }
-                Point pt = ((Point)geometry);
+                Point pt = ((Point) geometry);
                 return pt.getY() + "," + pt.getX();
             } else {
                 throw new IllegalArgumentException("Unexpected value for a geo_shape field: " + geoString);

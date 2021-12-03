@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.client.ml.datafeed;
 
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;

@@ -20,7 +20,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
@@ -38,7 +38,8 @@ public class RestSearchScrollAction extends BaseRestHandler {
             new Route(GET, "/_search/scroll"),
             new Route(POST, "/_search/scroll"),
             new Route(GET, "/_search/scroll/{scroll_id}"),
-            new Route(POST, "/_search/scroll/{scroll_id}"));
+            new Route(POST, "/_search/scroll/{scroll_id}")
+        );
     }
 
     @Override
@@ -59,7 +60,8 @@ public class RestSearchScrollAction extends BaseRestHandler {
                 } catch (IOException e) {
                     throw new IllegalArgumentException("Failed to parse request body", e);
                 }
-            }});
+            }
+        });
         return channel -> client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<>(channel));
     }
 

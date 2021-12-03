@@ -250,14 +250,6 @@ setup:
         job_id: "none-matching-*"
         allow_no_match: false
 
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      catch: missing
-      ml.get_overall_buckets:
-        job_id: "none-matching-*"
-        allow_no_jobs: false
-
 ---
 "Test overall buckets given top_n is 0":
   - do:
@@ -619,6 +611,18 @@ setup:
   - match: {overall_buckets.0.jobs.2.max_anomaly_score: 20.0 }
   - match: { overall_buckets.0.is_interim: true }
   - match: { overall_buckets.0.result_type: overall_bucket }
+
+---
+"Test overall buckets given no matching jobs":
+  - do:
+      ml.get_overall_buckets:
+        job_id: "jobs-that-do-not-exist-*"
+        bucket_span: "2h"
+        overall_score: "41.0"
+        allow_no_match: true
+
+  - match: { count: 0 }
+  - length: { overall_buckets: 0 }
 
 ---
 "Test overall buckets given bucket_span is smaller than max job bucket_span":

@@ -1,5 +1,3 @@
-package org.elasticsearch.ingest.attachment;
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -8,10 +6,12 @@ package org.elasticsearch.ingest.attachment;
  * Side Public License, v 1.
  */
 
+package org.elasticsearch.ingest.attachment;
+
 import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.apache.lucene.util.TestUtil;
 import org.apache.tika.metadata.Metadata;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.DirectoryStream;
@@ -41,8 +41,8 @@ public class TikaDocTests extends ESTestCase {
 
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(tmp)) {
             for (Path doc : stream) {
-              logger.debug("parsing: {}", doc);
-              assertParseable(doc);
+                logger.debug("parsing: {}", doc);
+                assertParseable(doc);
             }
         }
     }

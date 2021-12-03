@@ -45,25 +45,9 @@ public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScr
         return DUMMY;
     }
 
-    public void testAsDocValues() {
-        BooleanFieldScript script = new BooleanFieldScript(
-                "test",
-                Map.of(),
-                new SearchLookup(field -> null, (ft, lookup) -> null),
-                null
-        ) {
-            @Override
-            public void execute() {
-                emit(true);
-                emit(false);
-                emit(true);
-                emit(true);
-                emit(false);
-            }
-        };
-        script.execute();
-
-        assertArrayEquals(new boolean[] {false, false, true, true, true}, script.asDocValues());
+    @Override
+    protected BooleanFieldScript.Factory fromSource() {
+        return BooleanFieldScript.PARSE_FROM_SOURCE;
     }
 
     public void testTooManyValues() throws IOException {

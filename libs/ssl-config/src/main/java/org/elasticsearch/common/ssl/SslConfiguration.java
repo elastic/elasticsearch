@@ -8,12 +8,10 @@
 
 package org.elasticsearch.common.ssl;
 
-import javax.net.ssl.SSLContext;
-import javax.net.ssl.X509ExtendedKeyManager;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -23,6 +21,10 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
+
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.X509ExtendedKeyManager;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * A object encapsulating all necessary configuration for an SSL context (client or server).
@@ -56,6 +58,7 @@ public class SslConfiguration {
         ORDERED_PROTOCOL_ALGORITHM_MAP = Collections.unmodifiableMap(protocolAlgorithmMap);
     }
 
+    private final boolean explicitlyConfigured;
     private final SslTrustConfig trustConfig;
     private final SslKeyConfig keyConfig;
     private final SslVerificationMode verificationMode;
@@ -63,8 +66,16 @@ public class SslConfiguration {
     private final List<String> ciphers;
     private final List<String> supportedProtocols;
 
-    public SslConfiguration(SslTrustConfig trustConfig, SslKeyConfig keyConfig, SslVerificationMode verificationMode,
-                            SslClientAuthenticationMode clientAuth, List<String> ciphers, List<String> supportedProtocols) {
+    public SslConfiguration(
+        boolean explicitlyConfigured,
+        SslTrustConfig trustConfig,
+        SslKeyConfig keyConfig,
+        SslVerificationMode verificationMode,
+        SslClientAuthenticationMode clientAuth,
+        List<String> ciphers,
+        List<String> supportedProtocols
+    ) {
+        this.explicitlyConfigured = explicitlyConfigured;
         if (ciphers == null || ciphers.isEmpty()) {
             throw new SslConfigException("cannot configure SSL/TLS without any supported cipher suites");
         }
@@ -115,6 +126,18 @@ public class SslConfiguration {
     }
 
     /**
+     * @return A collection of {@link StoredCertificate certificates} that are used by this SSL configuration.
+     * This includes certificates used for identity (with a private key) and those used for trust, but excludes
+     * certificates that are provided by the JRE.
+     */
+    public Collection<? extends StoredCertificate> getConfiguredCertificates() {
+        List<StoredCertificate> certificates = new ArrayList<>();
+        certificates.addAll(keyConfig.getConfiguredCertificates());
+        certificates.addAll(trustConfig.getConfiguredCertificates());
+        return certificates;
+    }
+
+    /**
      * Dynamically create a new SSL context based on the current state of the configuration.
      * Because the {@link #getKeyConfig() key config} and {@link #getTrustConfig() trust config} may change based on the
      * contents of their referenced files (see {@link #getDependentFiles()}, consecutive calls to this method may
@@ -145,20 +168,28 @@ public class SslConfiguration {
                 return entry.getValue();
             }
         }
-        throw new SslConfigException("no supported SSL/TLS protocol was found in the configured supported protocols: "
-            + supportedProtocols);
+        throw new SslConfigException(
+            "no supported SSL/TLS protocol was found in the configured supported protocols: " + supportedProtocols
+        );
     }
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + '{' +
-            "trustConfig=" + trustConfig +
-            ", keyConfig=" + keyConfig +
-            ", verificationMode=" + verificationMode +
-            ", clientAuth=" + clientAuth +
-            ", ciphers=" + ciphers +
-            ", supportedProtocols=" + supportedProtocols +
-            '}';
+        return getClass().getSimpleName()
+            + '{'
+            + "trustConfig="
+            + trustConfig
+            + ", keyConfig="
+            + keyConfig
+            + ", verificationMode="
+            + verificationMode
+            + ", clientAuth="
+            + clientAuth
+            + ", ciphers="
+            + ciphers
+            + ", supportedProtocols="
+            + supportedProtocols
+            + '}';
     }
 
     @Override
@@ -166,16 +197,20 @@ public class SslConfiguration {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         final SslConfiguration that = (SslConfiguration) o;
-        return Objects.equals(this.trustConfig, that.trustConfig) &&
-            Objects.equals(this.keyConfig, that.keyConfig) &&
-            this.verificationMode == that.verificationMode &&
-            this.clientAuth == that.clientAuth &&
-            Objects.equals(this.ciphers, that.ciphers) &&
-            Objects.equals(this.supportedProtocols, that.supportedProtocols);
+        return Objects.equals(this.trustConfig, that.trustConfig)
+            && Objects.equals(this.keyConfig, that.keyConfig)
+            && this.verificationMode == that.verificationMode
+            && this.clientAuth == that.clientAuth
+            && Objects.equals(this.ciphers, that.ciphers)
+            && Objects.equals(this.supportedProtocols, that.supportedProtocols);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(trustConfig, keyConfig, verificationMode, clientAuth, ciphers, supportedProtocols);
+    }
+
+    public boolean isExplicitlyConfigured() {
+        return explicitlyConfigured;
     }
 }

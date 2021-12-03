@@ -1,5 +1,5 @@
 [[important-settings]]
-== Important Elasticsearch configuration
+=== Important {es} configuration
 
 {es} requires very little configuration to get started, but there are a number
 of items which *must* be considered before using your cluster in production:

@@ -4,6 +4,10 @@ teardown:
       ingest.delete_pipeline:
         id: "1"
         ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "2"
+        ignore: 404
 
 ---
 "Test escape_dot processor":
@@ -36,3 +40,40 @@ teardown:
         index: test
         id: 1
   - match: { _source.foo.bar: "baz" }
+---
+"Test escape_dot processor with override and wildcard":
+  - do:
+      ingest.put_pipeline:
+        id: "2"
+        body:  >
+          {
+            "processors": [
+              {
+                "dot_expander" : {
+                  "field" : "*",
+                  "override": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 2
+        pipeline: "2"
+        body: {
+          foo.bar: "baz",
+          foo: {
+            bar: "override_me",
+            qux: "quux"
+          }
+        }
+
+  - do:
+      get:
+        index: test
+        id: 2
+  - match: { _source.foo.bar: "baz" }
+  - match: { _source.foo.qux: "quux" }

@@ -15,8 +15,10 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 /**
  * Builder for a cluster reroute request
  */
-public class ClusterRerouteRequestBuilder
-        extends AcknowledgedRequestBuilder<ClusterRerouteRequest, ClusterRerouteResponse, ClusterRerouteRequestBuilder> {
+public class ClusterRerouteRequestBuilder extends AcknowledgedRequestBuilder<
+    ClusterRerouteRequest,
+    ClusterRerouteResponse,
+    ClusterRerouteRequestBuilder> {
     public ClusterRerouteRequestBuilder(ElasticsearchClient client, ClusterRerouteAction action) {
         super(client, action, new ClusterRerouteRequest());
     }

@@ -13,7 +13,9 @@ import java.util.Locale;
  * T-test type, paired, unpaired equal variance, unpaired unequal variance
  */
 public enum TTestType {
-    PAIRED, HOMOSCEDASTIC, HETEROSCEDASTIC;
+    PAIRED,
+    HOMOSCEDASTIC,
+    HETEROSCEDASTIC;
 
     public static TTestType resolve(String name) {
         return TTestType.valueOf(name.toUpperCase(Locale.ROOT));

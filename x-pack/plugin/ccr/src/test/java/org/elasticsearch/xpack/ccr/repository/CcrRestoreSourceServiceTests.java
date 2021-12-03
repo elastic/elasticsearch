@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.ccr.repository;
 
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
@@ -27,8 +27,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-
 public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
 
     private CcrRestoreSourceService restoreSourceService;
@@ -37,10 +35,11 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        Settings settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build();
-        taskQueue = new DeterministicTaskQueue(settings, random());
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, CcrSettings.getSettings()
-            .stream().filter(s -> s.hasNodeScope()).collect(Collectors.toSet()));
+        taskQueue = new DeterministicTaskQueue();
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            CcrSettings.getSettings().stream().filter(s -> s.hasNodeScope()).collect(Collectors.toSet())
+        );
         restoreSourceService = new CcrRestoreSourceService(taskQueue.getThreadPool(), new CcrSettings(Settings.EMPTY, clusterSettings));
     }
 
@@ -54,16 +53,20 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         restoreSourceService.openSession(sessionUUID1, indexShard1);
         restoreSourceService.openSession(sessionUUID2, indexShard1);
 
-        try (CcrRestoreSourceService.SessionReader reader1 = restoreSourceService.getSessionReader(sessionUUID1);
-             CcrRestoreSourceService.SessionReader reader2 = restoreSourceService.getSessionReader(sessionUUID2)) {
+        try (
+            CcrRestoreSourceService.SessionReader reader1 = restoreSourceService.getSessionReader(sessionUUID1);
+            CcrRestoreSourceService.SessionReader reader2 = restoreSourceService.getSessionReader(sessionUUID2)
+        ) {
             // Would throw exception if missing
         }
 
         restoreSourceService.openSession(sessionUUID3, indexShard2);
 
-        try (CcrRestoreSourceService.SessionReader reader1 = restoreSourceService.getSessionReader(sessionUUID1);
-             CcrRestoreSourceService.SessionReader reader2 = restoreSourceService.getSessionReader(sessionUUID2);
-             CcrRestoreSourceService.SessionReader reader3 = restoreSourceService.getSessionReader(sessionUUID3)) {
+        try (
+            CcrRestoreSourceService.SessionReader reader1 = restoreSourceService.getSessionReader(sessionUUID1);
+            CcrRestoreSourceService.SessionReader reader2 = restoreSourceService.getSessionReader(sessionUUID2);
+            CcrRestoreSourceService.SessionReader reader3 = restoreSourceService.getSessionReader(sessionUUID3)
+        ) {
             // Would throw exception if missing
         }
 
@@ -92,9 +95,11 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         restoreSourceService.openSession(sessionUUID2, indexShard1);
         restoreSourceService.openSession(sessionUUID3, indexShard2);
 
-        try (CcrRestoreSourceService.SessionReader reader1 = restoreSourceService.getSessionReader(sessionUUID1);
-             CcrRestoreSourceService.SessionReader reader2 = restoreSourceService.getSessionReader(sessionUUID2);
-             CcrRestoreSourceService.SessionReader reader3 = restoreSourceService.getSessionReader(sessionUUID3)) {
+        try (
+            CcrRestoreSourceService.SessionReader reader1 = restoreSourceService.getSessionReader(sessionUUID1);
+            CcrRestoreSourceService.SessionReader reader2 = restoreSourceService.getSessionReader(sessionUUID2);
+            CcrRestoreSourceService.SessionReader reader3 = restoreSourceService.getSessionReader(sessionUUID3)
+        ) {
             // Would throw exception if missing
         }
 
@@ -127,9 +132,11 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
         restoreSourceService.openSession(sessionUUID2, indexShard1);
         restoreSourceService.openSession(sessionUUID3, indexShard2);
 
-        try (CcrRestoreSourceService.SessionReader reader1 = restoreSourceService.getSessionReader(sessionUUID1);
-             CcrRestoreSourceService.SessionReader reader2 = restoreSourceService.getSessionReader(sessionUUID2);
-             CcrRestoreSourceService.SessionReader reader3 = restoreSourceService.getSessionReader(sessionUUID3)) {
+        try (
+            CcrRestoreSourceService.SessionReader reader1 = restoreSourceService.getSessionReader(sessionUUID1);
+            CcrRestoreSourceService.SessionReader reader2 = restoreSourceService.getSessionReader(sessionUUID2);
+            CcrRestoreSourceService.SessionReader reader3 = restoreSourceService.getSessionReader(sessionUUID3)
+        ) {
             // Would throw exception if missing
         }
 

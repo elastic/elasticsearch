@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.action.search;
 
-import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
@@ -38,8 +37,7 @@ public class CountedCollectorTests extends ESTestCase {
                 runnable.run();
             }
         };
-        CountedCollector<SearchPhaseResult> collector = new CountedCollector<>(consumer, numResultsExpected,
-            latch::countDown, context);
+        CountedCollector<SearchPhaseResult> collector = new CountedCollector<>(consumer, numResultsExpected, latch::countDown, context);
         for (int i = 0; i < numResultsExpected; i++) {
             int shardID = i;
             switch (randomIntBetween(0, 2)) {
@@ -51,16 +49,24 @@ public class CountedCollectorTests extends ESTestCase {
                     state.add(1);
                     executor.execute(() -> {
                         DfsSearchResult dfsSearchResult = new DfsSearchResult(
-                            new ShardSearchContextId(UUIDs.randomBase64UUID(), shardID), null, null);
+                            new ShardSearchContextId(UUIDs.randomBase64UUID(), shardID),
+                            null,
+                            null
+                        );
                         dfsSearchResult.setShardIndex(shardID);
-                        dfsSearchResult.setSearchShardTarget(new SearchShardTarget("foo",
-                            new ShardId("bar", "baz", shardID), null, OriginalIndices.NONE));
-                        collector.onResult(dfsSearchResult);});
+                        dfsSearchResult.setSearchShardTarget(new SearchShardTarget("foo", new ShardId("bar", "baz", shardID), null));
+                        collector.onResult(dfsSearchResult);
+                    });
                     break;
                 case 2:
                     state.add(2);
-                    executor.execute(() -> collector.onFailure(shardID, new SearchShardTarget("foo", new ShardId("bar", "baz", shardID),
-                        null, OriginalIndices.NONE), new RuntimeException("boom")));
+                    executor.execute(
+                        () -> collector.onFailure(
+                            shardID,
+                            new SearchShardTarget("foo", new ShardId("bar", "baz", shardID), null),
+                            new RuntimeException("boom")
+                        )
+                    );
                     break;
                 default:
                     fail("unknown state");

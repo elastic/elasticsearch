@@ -150,9 +150,10 @@ setup:
 ---
 "Test filters agg with doc_count":
   - skip:
-      version: " - 7.12.99"
+      version: " - 7.99.99"
+      reason: profile info changed in 8.0.0 to be backported to 7.14.0
       features: default_shards
-      reason: "name changed in 7.13"
+
   - do:
       search:
         body:
@@ -177,7 +178,7 @@ setup:
   - match: { aggregations.f.buckets.abc.doc_count: 11 }
   - match: { aggregations.f.buckets.foo.doc_count: 8 }
   - match: { aggregations.f.buckets.xyz.doc_count: 5 }
-  - match: { profile.shards.0.aggregations.0.type: FiltersAggregator.FilterByFilter }
+  - match: { profile.shards.0.aggregations.0.type: FilterByFilterAggregator }
   # We can't assert that segments_with_doc_count_field is > 0 because we might
   # end up with two shards and all of the documents with the _doc_count field
   # may be on one field. We have a test for this in AggregationProfilerIT

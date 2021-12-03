@@ -10,15 +10,14 @@ package org.elasticsearch.common.geo;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
-import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -28,56 +27,25 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * An utility class with a geometry parser methods supporting different shape representation formats
+ * An utility class with to read geometries from a XContentParser or generic object.
  */
 public final class GeometryParser {
 
-    private final GeoJson geoJsonParser;
-    private final WellKnownText wellKnownTextParser;
-    private final boolean ignoreZValue;
+    private final boolean rightOrientation, coerce, ignoreZValue;
+    private final GeometryValidator validator;
 
     public GeometryParser(boolean rightOrientation, boolean coerce, boolean ignoreZValue) {
-        GeometryValidator validator = new StandardValidator(ignoreZValue);
-        geoJsonParser = new GeoJson(rightOrientation, coerce, validator);
-        wellKnownTextParser = new WellKnownText(coerce, validator);
+        this.rightOrientation = rightOrientation;
+        this.coerce = coerce;
         this.ignoreZValue = ignoreZValue;
+        this.validator = StandardValidator.instance(ignoreZValue);
     }
 
     /**
      * Parses supplied XContent into Geometry
      */
     public Geometry parse(XContentParser parser) throws IOException, ParseException {
-        return geometryFormat(parser).fromXContent(parser);
-    }
-
-    /**
-     * Returns a geometry format object that can parse and then serialize the object back to the same format.
-     */
-    public GeometryFormat<Geometry> geometryFormat(String format) {
-        if (format.equals(GeoJsonGeometryFormat.NAME)) {
-            return new GeoJsonGeometryFormat(geoJsonParser);
-        } else if (format.equals(WKTGeometryFormat.NAME)) {
-            return new WKTGeometryFormat(wellKnownTextParser);
-        } else {
-            throw new IllegalArgumentException("Unrecognized geometry format [" + format + "].");
-        }
-    }
-
-    /**
-     * Returns a geometry format object that can parse and then serialize the object back to the same format.
-     * This method automatically recognizes the format by examining the provided {@link XContentParser}.
-     */
-    public GeometryFormat<Geometry> geometryFormat(XContentParser parser) {
-        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            return new GeoJsonGeometryFormat(geoJsonParser);
-        } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            return new WKTGeometryFormat(wellKnownTextParser);
-        } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-            // We don't know the format of the original geometry - so going with default
-            return new GeoJsonGeometryFormat(geoJsonParser);
-        } else {
-            throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
-        }
+        return GeometryParserFormat.geometryFormat(parser).fromXContent(validator, coerce, rightOrientation, parser);
     }
 
     /**
@@ -91,7 +59,7 @@ public final class GeometryParser {
      * <p>
      * Json structure: valid geojson definition
      */
-    public  Geometry parseGeometry(Object value) throws ElasticsearchParseException {
+    public Geometry parseGeometry(Object value) throws ElasticsearchParseException {
         if (value instanceof List) {
             List<?> values = (List<?>) value;
             if (values.size() == 2 && values.get(0) instanceof Number) {
@@ -105,8 +73,14 @@ public final class GeometryParser {
                 return new GeometryCollection<>(geometries);
             }
         }
-        try (XContentParser parser = new MapXContentParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
-            Collections.singletonMap("null_value", value), null)) {
+        try (
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE,
+                Collections.singletonMap("null_value", value),
+                null
+            )
+        ) {
             parser.nextToken(); // start object
             parser.nextToken(); // field name
             parser.nextToken(); // field value

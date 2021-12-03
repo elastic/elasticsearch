@@ -1,6 +1,10 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+dependencies {
+  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
+}
 
 restResources {
   restApi {
@@ -8,11 +12,7 @@ restResources {
   }
 }
 
-dependencies {
-  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-}
-
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
 }

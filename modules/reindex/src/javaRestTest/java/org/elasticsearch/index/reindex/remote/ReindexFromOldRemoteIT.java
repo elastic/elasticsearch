@@ -14,7 +14,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -54,14 +54,17 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                             + "    \"index\": \"test\",\n"
                             + "    \"size\": 1,\n"
                             + "    \"remote\": {\n"
-                            + "      \"host\": \"http://127.0.0.1:" + oldEsPort + "\"\n"
+                            + "      \"host\": \"http://127.0.0.1:"
+                            + oldEsPort
+                            + "\"\n"
                             + "    }\n"
                             + "  },\n"
                             + "  \"dest\": {\n"
                             + "    \"index\": \"test\",\n"
                             + "    \"version_type\": \"external\"\n"
                             + "  }\n"
-                            + "}");
+                            + "}"
+                    );
                 } else {
                     // Reindex using the default internal version_type
                     reindex.setJsonEntity(
@@ -70,13 +73,16 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                             + "    \"index\": \"test\",\n"
                             + "    \"size\": 1,\n"
                             + "    \"remote\": {\n"
-                            + "      \"host\": \"http://127.0.0.1:" + oldEsPort + "\"\n"
+                            + "      \"host\": \"http://127.0.0.1:"
+                            + oldEsPort
+                            + "\"\n"
                             + "    }\n"
                             + "  },\n"
                             + "  \"dest\": {\n"
                             + "    \"index\": \"test\"\n"
                             + "  }\n"
-                            + "}");
+                            + "}"
+                    );
                 }
                 reindex.addParameter("refresh", "true");
                 reindex.addParameter("pretty", "true");

@@ -27,11 +27,14 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class GetSettingsBlocksIT extends ESIntegTestCase {
     public void testGetSettingsWithBlocks() throws Exception {
-        assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder()
-                        .put("index.refresh_interval", -1)
-                        .put("index.merge.policy.expunge_deletes_allowed", "30")
-                        .put(FieldMapper.IGNORE_MALFORMED_SETTING.getKey(), false)));
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put("index.refresh_interval", -1)
+                    .put("index.merge.policy.expunge_deletes_allowed", "30")
+                    .put(FieldMapper.IGNORE_MALFORMED_SETTING.getKey(), false)
+            )
+        );
 
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY, SETTING_READ_ONLY_ALLOW_DELETE)) {
             try {

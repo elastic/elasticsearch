@@ -8,12 +8,12 @@
 package org.elasticsearch.repositories.blobstore.testkit;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.List;
 
@@ -51,6 +51,9 @@ public class RestRepositoryAnalyzeAction extends BaseRestHandler {
         );
         analyzeRepositoryRequest.timeout(request.paramAsTime("timeout", analyzeRepositoryRequest.getTimeout()));
         analyzeRepositoryRequest.detailed(request.paramAsBoolean("detailed", analyzeRepositoryRequest.getDetailed()));
+        analyzeRepositoryRequest.abortWritePermitted(
+            request.paramAsBoolean("rarely_abort_writes", analyzeRepositoryRequest.isAbortWritePermitted())
+        );
 
         RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
         return channel -> cancelClient.execute(

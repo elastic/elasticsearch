@@ -22,6 +22,7 @@ public class LenientCompare {
     // will fail and `false` will be returned.
     //
     // may return `null` indicating v1 simply doesn't equal v2 (without any order association)
+    @SuppressWarnings("unchecked")
     public static Integer compare(Object v1, Object v2) {
         if (Objects.equals(v1, v2)) {
             return 0;
@@ -44,8 +45,9 @@ public class LenientCompare {
                     return null;
                 }
             }
-            return ((Number) v1).doubleValue() > ((Number) v2).doubleValue() ? 1 :
-                    ((Number) v1).doubleValue() < ((Number) v2).doubleValue() ? -1 : 0;
+            return ((Number) v1).doubleValue() > ((Number) v2).doubleValue() ? 1
+                : ((Number) v1).doubleValue() < ((Number) v2).doubleValue() ? -1
+                : 0;
         }
 
         // special case for strings. If v1 is not a string, we'll convert it to a string

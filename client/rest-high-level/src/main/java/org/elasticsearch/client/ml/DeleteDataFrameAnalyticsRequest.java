@@ -10,7 +10,7 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -73,9 +73,7 @@ public class DeleteDataFrameAnalyticsRequest implements Validatable {
         if (o == null || getClass() != o.getClass()) return false;
 
         DeleteDataFrameAnalyticsRequest other = (DeleteDataFrameAnalyticsRequest) o;
-        return Objects.equals(id, other.id)
-            && Objects.equals(force, other.force)
-            && Objects.equals(timeout, other.timeout);
+        return Objects.equals(id, other.id) && Objects.equals(force, other.force) && Objects.equals(timeout, other.timeout);
     }
 
     @Override

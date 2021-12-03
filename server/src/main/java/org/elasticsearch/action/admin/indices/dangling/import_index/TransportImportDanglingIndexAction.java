@@ -55,11 +55,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
     }
 
     @Override
-    protected void doExecute(
-        Task task,
-        ImportDanglingIndexRequest importRequest,
-        ActionListener<AcknowledgedResponse> importListener
-    ) {
+    protected void doExecute(Task task, ImportDanglingIndexRequest importRequest, ActionListener<AcknowledgedResponse> importListener) {
         findDanglingIndex(importRequest, new ActionListener<>() {
             @Override
             public void onResponse(IndexMetadata indexMetaDataToImport) {
@@ -97,7 +93,9 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
 
     private void findDanglingIndex(ImportDanglingIndexRequest request, ActionListener<IndexMetadata> listener) {
         final String indexUUID = request.getIndexUUID();
-        this.nodeClient.execute(FindDanglingIndexAction.INSTANCE, new FindDanglingIndexRequest(indexUUID),
+        this.nodeClient.execute(
+            FindDanglingIndexAction.INSTANCE,
+            new FindDanglingIndexRequest(indexUUID),
             listener.delegateFailure((l, response) -> {
                 if (response.hasFailures()) {
                     final String nodeIds = response.failures().stream().map(FailedNodeException::nodeId).collect(Collectors.joining(","));
@@ -130,6 +128,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                 );
 
                 l.onResponse(metaDataSortedByVersion.get(metaDataSortedByVersion.size() - 1));
-        }));
+            })
+        );
     }
 }

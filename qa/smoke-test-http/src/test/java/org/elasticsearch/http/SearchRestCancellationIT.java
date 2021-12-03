@@ -19,14 +19,13 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -40,6 +39,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -49,13 +49,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
+import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.greaterThan;
@@ -70,17 +69,23 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
 
     public void testAutomaticCancellationDuringQueryPhase() throws Exception {
         Request searchRequest = new Request("GET", "/test/_search");
-        SearchSourceBuilder searchSource = new SearchSourceBuilder().query(scriptQuery(
-            new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())));
+        SearchSourceBuilder searchSource = new SearchSourceBuilder().query(
+            scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()))
+        );
         searchRequest.setJsonEntity(Strings.toString(searchSource));
         verifyCancellationDuringQueryPhase(SearchAction.NAME, searchRequest);
     }
 
     public void testAutomaticCancellationMultiSearchDuringQueryPhase() throws Exception {
         XContentType contentType = XContentType.JSON;
-        MultiSearchRequest multiSearchRequest = new MultiSearchRequest().add(new SearchRequest("test")
-            .source(new SearchSourceBuilder().scriptField("test_field",
-                new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()))));
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest().add(
+            new SearchRequest("test").source(
+                new SearchSourceBuilder().scriptField(
+                    "test_field",
+                    new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())
+                )
+            )
+        );
         Request restRequest = new Request("POST", "/_msearch");
         byte[] requestBody = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, contentType.xContent());
         restRequest.setEntity(new NByteArrayEntity(requestBody, createContentType(contentType)));
@@ -93,43 +98,37 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> error = new AtomicReference<>();
-        Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                error.set(exception);
-                latch.countDown();
-            }
-        });
+        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, wrapAsRestResponseListener(future));
 
         awaitForBlock(plugins);
         cancellable.cancel();
         ensureSearchTaskIsCancelled(searchAction, nodeIdToName::get);
 
         disableBlocks(plugins);
-        latch.await();
-        assertThat(error.get(), instanceOf(CancellationException.class));
+        expectThrows(CancellationException.class, future::actionGet);
     }
 
     public void testAutomaticCancellationDuringFetchPhase() throws Exception {
         Request searchRequest = new Request("GET", "/test/_search");
-        SearchSourceBuilder searchSource = new SearchSourceBuilder().scriptField("test_field",
-            new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()));
+        SearchSourceBuilder searchSource = new SearchSourceBuilder().scriptField(
+            "test_field",
+            new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())
+        );
         searchRequest.setJsonEntity(Strings.toString(searchSource));
         verifyCancellationDuringFetchPhase(SearchAction.NAME, searchRequest);
     }
 
     public void testAutomaticCancellationMultiSearchDuringFetchPhase() throws Exception {
         XContentType contentType = XContentType.JSON;
-        MultiSearchRequest multiSearchRequest = new MultiSearchRequest().add(new SearchRequest("test")
-            .source(new SearchSourceBuilder().scriptField("test_field",
-                new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()))));
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest().add(
+            new SearchRequest("test").source(
+                new SearchSourceBuilder().scriptField(
+                    "test_field",
+                    new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())
+                )
+            )
+        );
         Request restRequest = new Request("POST", "/_msearch");
         byte[] requestBody = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, contentType.xContent());
         restRequest.setEntity(new NByteArrayEntity(requestBody, createContentType(contentType)));
@@ -142,28 +141,15 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> error = new AtomicReference<>();
-        Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                error.set(exception);
-                latch.countDown();
-            }
-        });
+        PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        Cancellable cancellable = getRestClient().performRequestAsync(searchRequest, wrapAsRestResponseListener(future));
 
         awaitForBlock(plugins);
         cancellable.cancel();
         ensureSearchTaskIsCancelled(searchAction, nodeIdToName::get);
 
         disableBlocks(plugins);
-        latch.await();
-        assertThat(error.get(), instanceOf(CancellationException.class));
+        expectThrows(CancellationException.class, future::actionGet);
     }
 
     private static Map<String, String> readNodesInfo() {
@@ -191,7 +177,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
             TaskManager taskManager = internalCluster().getInstance(TransportService.class, nodeName).getTaskManager();
             Task task = taskManager.getTask(taskId.getId());
             assertThat(task, instanceOf(CancellableTask.class));
-            assertTrue(((CancellableTask)task).isCancelled());
+            assertTrue(((CancellableTask) task).isCancelled());
         });
     }
 

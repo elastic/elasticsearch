@@ -11,7 +11,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -37,11 +37,19 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
     private final Query filterB;
     private Tuple<Weight, Weight> weights;
 
-    TTestAggregatorFactory(String name, Map<String, ValuesSourceConfig> configs, TTestType testType, int tails,
-                           QueryBuilder filterA, QueryBuilder filterB,
-                           DocValueFormat format, AggregationContext context, AggregatorFactory parent,
-                           AggregatorFactories.Builder subFactoriesBuilder,
-                           Map<String, Object> metadata) throws IOException {
+    TTestAggregatorFactory(
+        String name,
+        Map<String, ValuesSourceConfig> configs,
+        TTestType testType,
+        int tails,
+        QueryBuilder filterA,
+        QueryBuilder filterB,
+        DocValueFormat format,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, configs, format, context, parent, subFactoriesBuilder, metadata);
         this.testType = testType;
         this.tails = tails;
@@ -82,11 +90,9 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
                 }
                 return new PairedTTestAggregator(name, numericMultiVS, tails, format, context, parent, metadata);
             case HOMOSCEDASTIC:
-                return new UnpairedTTestAggregator(name, numericMultiVS, tails, true, this::getWeights, format, context, parent,
-                    metadata);
+                return new UnpairedTTestAggregator(name, numericMultiVS, tails, true, this::getWeights, format, context, parent, metadata);
             case HETEROSCEDASTIC:
-                return new UnpairedTTestAggregator(name, numericMultiVS, tails, false, this::getWeights, format, context,
-                    parent, metadata);
+                return new UnpairedTTestAggregator(name, numericMultiVS, tails, false, this::getWeights, format, context, parent, metadata);
             default:
                 throw new IllegalArgumentException("Unsupported t-test type " + testType);
         }

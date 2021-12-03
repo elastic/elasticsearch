@@ -19,6 +19,10 @@ updates, use the <<geoip-stats-api,GeoIP stats API>>.
 If your cluster can't connect to the Elastic GeoIP endpoint or you want to
 manage your own updates, see <<manage-geoip-database-updates>>.
 
+If {es} can't connect to the endpoint for 30 days all updated databases will become
+invalid. {es} will stop enriching documents with geoip data and will add `tags: ["_geoip_expired_database"]`
+field instead.
+
 [[using-ingest-geoip]]
 ==== Using the `geoip` Processor in a Pipeline
 
@@ -65,7 +69,7 @@ PUT _ingest/pipeline/geoip
 }
 PUT my-index-000001/_doc/my_id?pipeline=geoip
 {
-  "ip": "8.8.8.8"
+  "ip": "89.160.20.128"
 }
 GET my-index-000001/_doc/my_id
 --------------------------------------------------
@@ -82,12 +86,15 @@ Which returns:
   "_seq_no": 55,
   "_primary_term": 1,
   "_source": {
-    "ip": "8.8.8.8",
+    "ip": "89.160.20.128",
     "geoip": {
-      "continent_name": "North America",
-      "country_name": "United States",
-      "country_iso_code": "US",
-      "location": { "lat": 37.751, "lon": -97.822 }
+      "continent_name": "Europe",
+      "country_name": "Sweden",
+      "country_iso_code": "SE",
+      "city_name" : "Linköping",
+      "region_iso_code" : "SE-E",
+      "region_name" : "Östergötland County",
+      "location": { "lat": 58.4167, "lon": 15.6167 }
     }
   }
 }
@@ -115,7 +122,7 @@ PUT _ingest/pipeline/geoip
 }
 PUT my-index-000001/_doc/my_id?pipeline=geoip
 {
-  "ip": "8.8.8.8"
+  "ip": "89.160.20.128"
 }
 GET my-index-000001/_doc/my_id
 --------------------------------------------------
@@ -132,11 +139,11 @@ returns this:
   "_seq_no": 65,
   "_primary_term": 1,
   "_source": {
-    "ip": "8.8.8.8",
+    "ip": "89.160.20.128",
     "geo": {
-      "continent_name": "North America",
-      "country_name": "United States",
-      "country_iso_code": "US",
+      "continent_name": "Europe",
+      "country_name": "Sweden",
+      "country_iso_code": "SE"
     }
   }
 }
@@ -232,7 +239,7 @@ PUT _ingest/pipeline/geoip
 
 PUT my_ip_locations/_doc/1?refresh=true&pipeline=geoip
 {
-  "ip": "8.8.8.8"
+  "ip": "89.160.20.128"
 }
 
 GET /my_ip_locations/_search
@@ -246,8 +253,8 @@ GET /my_ip_locations/_search
         "geo_distance": {
           "distance": "1m",
           "geoip.location": {
-            "lon": -97.822,
-            "lat": 37.751
+            "lon": 15.6167,
+            "lat": 58.4167
           }
         }
       }
@@ -281,15 +288,18 @@ GET /my_ip_locations/_search
         "_score" : 1.0,
         "_source" : {
           "geoip" : {
-            "continent_name" : "North America",
-            "country_name" : "United States",
-            "country_iso_code" : "US",
+            "continent_name" : "Europe",
+            "country_name" : "Sweden",
+            "country_iso_code" : "SE",
+            "city_name" : "Linköping",
+            "region_iso_code" : "SE-E",
+            "region_name" : "Östergötland County",
             "location" : {
-              "lon" : -97.822,
-              "lat" : 37.751
+              "lon" : 15.6167,
+              "lat" : 58.4167
             }
           },
-          "ip" : "8.8.8.8"
+          "ip" : "89.160.20.128"
         }
       }
     ]
@@ -348,14 +358,14 @@ docker run -v my/source/dir:/usr/share/nginx/html:ro nginx
 of each node’s `elasticsearch.yml` file.
 +
 By default, {es} checks the endpoint for updates every three days. To use
-another polling interval, use the <<cluster-update-settings,update cluster
+another polling interval, use the <<cluster-update-settings,cluster update
 settings API>> to set
 <<ingest-geoip-downloader-poll-interval,`ingest.geoip.downloader.poll.interval`>>.
 
 [[manually-update-geoip-databases]]
 **Manually update your GeoIP2 databases**
 
-. Use the <<cluster-update-settings,update cluster settings API>> to set
+. Use the <<cluster-update-settings,cluster update settings API>> to set
 `ingest.geoip.downloader.enabled` to `false`. This disables automatic updates
 that may overwrite your database changes. This also deletes all downloaded
 databases.
@@ -367,7 +377,10 @@ You can also use custom city, country, and ASN `.mmdb` files. These files must
 be uncompressed and use the respective `-City.mmdb`, `-Country.mmdb`, or
 `-ASN.mmdb` extensions.
 
-. Copy the database files to `$ES_CONFIG/ingest-geoip`.
+. On {ess} deployments upload database using
+a {cloud}/ec-custom-bundles.html[custom bundle].
+
+. On self-managed deployments copy the database files to `$ES_CONFIG/ingest-geoip`.
 
 . In your `geoip` processors, configure the `database_file` parameter to use a
 custom database file.

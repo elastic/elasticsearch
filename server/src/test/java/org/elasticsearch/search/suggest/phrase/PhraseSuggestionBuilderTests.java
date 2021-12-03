@@ -41,7 +41,7 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
                 for (int i = 0; i < numParams; i++) {
                     collateParams.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
                 }
-                testBuilder.collateParams(collateParams );
+                testBuilder.collateParams(collateParams);
             }
         }
         if (randomBoolean()) {
@@ -65,16 +65,16 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
 
     private static SmoothingModel randomSmoothingModel() {
         SmoothingModel model = null;
-        switch (randomIntBetween(0,2)) {
-        case 0:
-            model = LaplaceModelTests.createRandomModel();
-            break;
-        case 1:
-            model = StupidBackoffModelTests.createRandomModel();
-            break;
-        case 2:
-            model = LinearInterpolationModelTests.createRandomModel();
-            break;
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                model = LaplaceModelTests.createRandomModel();
+                break;
+            case 1:
+                model = StupidBackoffModelTests.createRandomModel();
+                break;
+            case 2:
+                model = LinearInterpolationModelTests.createRandomModel();
+                break;
         }
         return model;
     }
@@ -82,59 +82,59 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
     @Override
     protected void mutateSpecificParameters(PhraseSuggestionBuilder builder) throws IOException {
         switch (randomIntBetween(0, 12)) {
-        case 0:
-            builder.maxErrors(randomValueOtherThan(builder.maxErrors(), () -> randomFloat()));
-            break;
-        case 1:
-            builder.realWordErrorLikelihood(randomValueOtherThan(builder.realWordErrorLikelihood(), () -> randomFloat()));
-            break;
-        case 2:
-            builder.confidence(randomValueOtherThan(builder.confidence(), () -> randomFloat()));
-            break;
-        case 3:
-            builder.gramSize(randomValueOtherThan(builder.gramSize(), () -> randomIntBetween(1, 5)));
-            break;
-        case 4:
-            builder.tokenLimit(randomValueOtherThan(builder.tokenLimit(), () -> randomIntBetween(1, 20)));
-            break;
-        case 5:
-            builder.separator(randomValueOtherThan(builder.separator(), () -> randomAlphaOfLengthBetween(1, 10)));
-            break;
-        case 6:
-            Script collateQuery = builder.collateQuery();
-            if (collateQuery != null) {
-                builder.collateQuery(randomValueOtherThan(collateQuery.getIdOrCode(), () -> randomAlphaOfLengthBetween(3, 20)));
-            } else {
-                builder.collateQuery(randomAlphaOfLengthBetween(3, 20));
-            }
-            break;
-        case 7:
-            builder.collatePrune(builder.collatePrune() == null ? randomBoolean() : builder.collatePrune() == false );
-            break;
-        case 8:
-            // preTag, postTag
-            String currentPre = builder.preTag();
-            if (currentPre != null) {
-                // simply double both values
-                builder.highlight(builder.preTag() + builder.preTag(), builder.postTag() + builder.postTag());
-            } else {
-                builder.highlight(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20));
-            }
-            break;
-        case 9:
-            builder.forceUnigrams(builder.forceUnigrams() == null ? randomBoolean() : builder.forceUnigrams() == false);
-            break;
-        case 10:
-            Map<String, Object> collateParams = builder.collateParams() == null ? new HashMap<>(1) : builder.collateParams();
-            collateParams.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
-            builder.collateParams(collateParams);
-            break;
-        case 11:
-            builder.smoothingModel(randomValueOtherThan(builder.smoothingModel(), PhraseSuggestionBuilderTests::randomSmoothingModel));
-            break;
-        case 12:
-            builder.addCandidateGenerator(DirectCandidateGeneratorTests.randomCandidateGenerator());
-            break;
+            case 0:
+                builder.maxErrors(randomValueOtherThan(builder.maxErrors(), () -> randomFloat()));
+                break;
+            case 1:
+                builder.realWordErrorLikelihood(randomValueOtherThan(builder.realWordErrorLikelihood(), () -> randomFloat()));
+                break;
+            case 2:
+                builder.confidence(randomValueOtherThan(builder.confidence(), () -> randomFloat()));
+                break;
+            case 3:
+                builder.gramSize(randomValueOtherThan(builder.gramSize(), () -> randomIntBetween(1, 5)));
+                break;
+            case 4:
+                builder.tokenLimit(randomValueOtherThan(builder.tokenLimit(), () -> randomIntBetween(1, 20)));
+                break;
+            case 5:
+                builder.separator(randomValueOtherThan(builder.separator(), () -> randomAlphaOfLengthBetween(1, 10)));
+                break;
+            case 6:
+                Script collateQuery = builder.collateQuery();
+                if (collateQuery != null) {
+                    builder.collateQuery(randomValueOtherThan(collateQuery.getIdOrCode(), () -> randomAlphaOfLengthBetween(3, 20)));
+                } else {
+                    builder.collateQuery(randomAlphaOfLengthBetween(3, 20));
+                }
+                break;
+            case 7:
+                builder.collatePrune(builder.collatePrune() == null ? randomBoolean() : builder.collatePrune() == false);
+                break;
+            case 8:
+                // preTag, postTag
+                String currentPre = builder.preTag();
+                if (currentPre != null) {
+                    // simply double both values
+                    builder.highlight(builder.preTag() + builder.preTag(), builder.postTag() + builder.postTag());
+                } else {
+                    builder.highlight(randomAlphaOfLengthBetween(3, 20), randomAlphaOfLengthBetween(3, 20));
+                }
+                break;
+            case 9:
+                builder.forceUnigrams(builder.forceUnigrams() == null ? randomBoolean() : builder.forceUnigrams() == false);
+                break;
+            case 10:
+                Map<String, Object> collateParams = builder.collateParams() == null ? new HashMap<>(1) : builder.collateParams();
+                collateParams.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
+                builder.collateParams(collateParams);
+                break;
+            case 11:
+                builder.smoothingModel(randomValueOtherThan(builder.smoothingModel(), PhraseSuggestionBuilderTests::randomSmoothingModel));
+                break;
+            case 12:
+                builder.addCandidateGenerator(DirectCandidateGeneratorTests.randomCandidateGenerator());
+                break;
         }
     }
 
@@ -184,11 +184,17 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
         assertOptionalEquals(builder.confidence(), phraseSuggesterCtx.confidence(), PhraseSuggestionContext.DEFAULT_CONFIDENCE);
         assertOptionalEquals(builder.collatePrune(), phraseSuggesterCtx.collatePrune(), PhraseSuggestionContext.DEFAULT_COLLATE_PRUNE);
         assertEquals(builder.separator(), phraseSuggesterCtx.separator().utf8ToString());
-        assertOptionalEquals(builder.realWordErrorLikelihood(), phraseSuggesterCtx.realworldErrorLikelihood(),
-                PhraseSuggestionContext.DEFAULT_RWE_ERRORLIKELIHOOD);
+        assertOptionalEquals(
+            builder.realWordErrorLikelihood(),
+            phraseSuggesterCtx.realworldErrorLikelihood(),
+            PhraseSuggestionContext.DEFAULT_RWE_ERRORLIKELIHOOD
+        );
         assertOptionalEquals(builder.maxErrors(), phraseSuggesterCtx.maxErrors(), PhraseSuggestionContext.DEFAULT_MAX_ERRORS);
-        assertOptionalEquals(builder.forceUnigrams(), phraseSuggesterCtx.getRequireUnigram(),
-                PhraseSuggestionContext.DEFAULT_REQUIRE_UNIGRAM);
+        assertOptionalEquals(
+            builder.forceUnigrams(),
+            phraseSuggesterCtx.getRequireUnigram(),
+            PhraseSuggestionContext.DEFAULT_REQUIRE_UNIGRAM
+        );
         assertOptionalEquals(builder.tokenLimit(), phraseSuggesterCtx.getTokenLimit(), NoisyChannelSpellChecker.DEFAULT_TOKEN_LIMIT);
         assertEquals(builder.preTag(), phraseSuggesterCtx.getPreTag() != null ? phraseSuggesterCtx.getPreTag().utf8ToString() : null);
         assertEquals(builder.postTag(), phraseSuggesterCtx.getPostTag() != null ? phraseSuggesterCtx.getPostTag().utf8ToString() : null);

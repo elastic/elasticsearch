@@ -10,6 +10,8 @@ package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -32,7 +34,7 @@ import java.io.UncheckedIOException;
  * to force their buffering in serialized format by calling
  * {@link #asSerialized(Reader, NamedWriteableRegistry)}.
  */
-public abstract class DelayableWriteable<T extends Writeable> implements Writeable {
+public abstract class DelayableWriteable<T extends Writeable> implements Writeable, Releasable {
     /**
      * Build a {@linkplain DelayableWriteable} that wraps an existing object
      * but is serialized so that deserializing it can be delayed.
@@ -40,13 +42,20 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
     public static <T extends Writeable> DelayableWriteable<T> referencing(T reference) {
         return new Referencing<>(reference);
     }
+
     /**
      * Build a {@linkplain DelayableWriteable} that copies a buffer from
      * the provided {@linkplain StreamInput} and deserializes the buffer
      * when {@link #expand()} is called.
      */
     public static <T extends Writeable> DelayableWriteable<T> delayed(Writeable.Reader<T> reader, StreamInput in) throws IOException {
-        return new Serialized<>(reader, in.getVersion(), in.namedWriteableRegistry(), in.readBytesReference());
+        return new Serialized<>(reader, in.getVersion(), in.namedWriteableRegistry(), in.readReleasableBytesReference());
+    }
+
+    public static <T extends Writeable> DelayableWriteable<T> referencing(Writeable.Reader<T> reader, StreamInput in) throws IOException {
+        try (ReleasableBytesReference serialized = in.readReleasableBytesReference()) {
+            return new Referencing<>(deserialize(reader, in.getVersion(), in.namedWriteableRegistry(), serialized));
+        }
     }
 
     private DelayableWriteable() {}
@@ -66,7 +75,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      * {@code true} if the {@linkplain Writeable} is being stored in
      * serialized form, {@code false} otherwise.
      */
-    abstract boolean isSerialized();
+    public abstract boolean isSerialized();
 
     /**
      * Returns the serialized size of the inner {@link Writeable}.
@@ -98,11 +107,12 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
             } catch (IOException e) {
                 throw new RuntimeException("unexpected error writing writeable to buffer", e);
             }
-            return new Serialized<>(reader, Version.CURRENT, registry, buffer.bytes());
+            // TODO: this path is currently not used in production code, if it ever is this should start using pooled buffers
+            return new Serialized<>(reader, Version.CURRENT, registry, ReleasableBytesReference.wrap(buffer.bytes()));
         }
 
         @Override
-        boolean isSerialized() {
+        public boolean isSerialized() {
             return false;
         }
 
@@ -118,19 +128,29 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
                 return buffer;
             }
         }
+
+        @Override
+        public void close() {
+            // noop
+        }
     }
 
     /**
-     * A {@link Writeable} stored in serialized form.
+     * A {@link Writeable} stored in serialized form backed by a {@link ReleasableBytesReference}. Once an instance is no longer used its
+     * backing memory must be manually released by invoking {@link #close()} on it.
      */
     public static class Serialized<T extends Writeable> extends DelayableWriteable<T> {
         private final Writeable.Reader<T> reader;
         private final Version serializedAtVersion;
         private final NamedWriteableRegistry registry;
-        private final BytesReference serialized;
+        private final ReleasableBytesReference serialized;
 
-        private Serialized(Writeable.Reader<T> reader, Version serializedAtVersion,
-                NamedWriteableRegistry registry, BytesReference serialized) {
+        private Serialized(
+            Writeable.Reader<T> reader,
+            Version serializedAtVersion,
+            NamedWriteableRegistry registry,
+            ReleasableBytesReference serialized
+        ) {
             this.reader = reader;
             this.serializedAtVersion = serializedAtVersion;
             this.registry = registry;
@@ -161,11 +181,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         @Override
         public T expand() {
             try {
-                try (StreamInput in = registry == null ?
-                        serialized.streamInput() : new NamedWriteableAwareStreamInput(serialized.streamInput(), registry)) {
-                    in.setVersion(serializedAtVersion);
-                    return reader.read(in);
-                }
+                return deserialize(reader, serializedAtVersion, registry, serialized);
             } catch (IOException e) {
                 throw new RuntimeException("unexpected error expanding serialized delayed writeable", e);
             }
@@ -177,7 +193,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         }
 
         @Override
-        boolean isSerialized() {
+        public boolean isSerialized() {
             return true;
         }
 
@@ -185,6 +201,11 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         public long getSerializedSize() {
             // We're already serialized
             return serialized.length();
+        }
+
+        @Override
+        public void close() {
+            serialized.close();
         }
     }
 
@@ -201,12 +222,28 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         }
     }
 
+    private static <T> T deserialize(
+        Reader<T> reader,
+        Version serializedAtVersion,
+        NamedWriteableRegistry registry,
+        BytesReference serialized
+    ) throws IOException {
+        try (
+            StreamInput in = registry == null
+                ? serialized.streamInput()
+                : new NamedWriteableAwareStreamInput(serialized.streamInput(), registry)
+        ) {
+            in.setVersion(serializedAtVersion);
+            return reader.read(in);
+        }
+    }
+
     private static class CountingStreamOutput extends StreamOutput {
         long size = 0;
 
         @Override
         public void writeByte(byte b) throws IOException {
-            ++ size;
+            ++size;
         }
 
         @Override

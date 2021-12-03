@@ -10,7 +10,7 @@ package org.elasticsearch.client.transform;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -99,10 +99,10 @@ public class StopTransformRequest implements Validatable {
         }
         StopTransformRequest other = (StopTransformRequest) obj;
         return Objects.equals(this.id, other.id)
-                && Objects.equals(this.waitForCompletion, other.waitForCompletion)
-                && Objects.equals(this.timeout, other.timeout)
-                && Objects.equals(this.waitForCheckpoint, other.waitForCheckpoint)
-                && Objects.equals(this.allowNoMatch, other.allowNoMatch);
+            && Objects.equals(this.waitForCompletion, other.waitForCompletion)
+            && Objects.equals(this.timeout, other.timeout)
+            && Objects.equals(this.waitForCheckpoint, other.waitForCheckpoint)
+            && Objects.equals(this.allowNoMatch, other.allowNoMatch);
     }
 
 }

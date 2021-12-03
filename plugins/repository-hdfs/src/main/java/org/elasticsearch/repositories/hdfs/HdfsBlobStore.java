@@ -48,6 +48,7 @@ final class HdfsBlobStore implements BlobStore {
         }
     }
 
+    @SuppressWarnings("HiddenField")
     private void mkdirs(Path path) throws IOException {
         execute((Operation<Void>) fileContext -> {
             fileContext.mkdir(path, null, true);
@@ -81,7 +82,7 @@ final class HdfsBlobStore implements BlobStore {
 
     private Path translateToHdfsPath(BlobPath blobPath) {
         Path path = root;
-        for (String p : blobPath) {
+        for (String p : blobPath.parts()) {
             path = new Path(path, p);
         }
         return path;

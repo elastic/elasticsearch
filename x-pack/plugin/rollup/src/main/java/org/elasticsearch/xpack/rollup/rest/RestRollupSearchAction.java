@@ -31,15 +31,22 @@ public class RestRollupSearchAction extends BaseRestHandler {
             new Route(GET, "_rollup_search"),
             new Route(POST, "_rollup_search"),
             new Route(GET, "{index}/_rollup_search"),
-            new Route(POST, "{index}/_rollup_search"));
+            new Route(POST, "{index}/_rollup_search")
+        );
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
-        restRequest.withContentOrSourceParamParserOrNull(parser ->
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser,
-                    client.getNamedWriteableRegistry(), size -> searchRequest.source().size(size)));
+        restRequest.withContentOrSourceParamParserOrNull(
+            parser -> RestSearchAction.parseSearchRequest(
+                searchRequest,
+                restRequest,
+                parser,
+                client.getNamedWriteableRegistry(),
+                size -> searchRequest.source().size(size)
+            )
+        );
         RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
         return channel -> client.execute(RollupSearchAction.INSTANCE, searchRequest, new RestToXContentListener<>(channel));
     }

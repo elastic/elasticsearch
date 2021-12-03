@@ -13,9 +13,9 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -73,8 +73,7 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
 
     protected final ClusterName clusterName = ClusterName.parse(System.getProperty("tests.rest.cluster_name"));
 
-    protected static final Version UPGRADE_FROM_VERSION =
-        Version.fromString(System.getProperty("tests.upgrade_from_version"));
+    protected static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
 
     private static RestClient leaderClient;
     private static RestClient followerClient;
@@ -162,9 +161,12 @@ public abstract class AbstractMultiClusterUpgradeTestCase extends ESRestTestCase
 
     private RestClient buildClient(final String url) throws IOException {
         int portSeparator = url.lastIndexOf(':');
-        HttpHost httpHost = new HttpHost(url.substring(0, portSeparator),
-            Integer.parseInt(url.substring(portSeparator + 1)), getProtocol());
-        return buildClient(restAdminSettings(), new HttpHost[]{httpHost});
+        HttpHost httpHost = new HttpHost(
+            url.substring(0, portSeparator),
+            Integer.parseInt(url.substring(portSeparator + 1)),
+            getProtocol()
+        );
+        return buildClient(restAdminSettings(), new HttpHost[] { httpHost });
     }
 
     protected static Map<?, ?> toMap(Response response) throws IOException {

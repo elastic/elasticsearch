@@ -22,7 +22,6 @@ public class PolishAnalyzerProvider extends AbstractIndexAnalyzerProvider<Polish
         super(indexSettings, name, settings);
 
         analyzer = new PolishAnalyzer(PolishAnalyzer.getDefaultStopSet());
-        analyzer.setVersion(version);
     }
 
     @Override

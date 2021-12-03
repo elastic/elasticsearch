@@ -19,7 +19,7 @@ import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 @ESIntegTestCase.ClusterScope(maxNumDataNodes = 1)
-public class SearchableSnapshotsShardLimitIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+public class SearchableSnapshotsShardLimitIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     private static final int MAX_NORMAL = 3;
     private static final int MAX_FROZEN = 20;

@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
@@ -181,13 +181,13 @@ public class AutoscalingMemoryInfoService {
     private void addNodeStats(ImmutableOpenMap.Builder<String, Long> builder, NodeStats nodeStats) {
         // we might add nodes that already died here, but those will be removed on next cluster state update anyway and is only a small
         // waste.
-        builder.put(nodeStats.getNode().getEphemeralId(), nodeStats.getOs().getMem().getTotal().getBytes());
+        builder.put(nodeStats.getNode().getEphemeralId(), nodeStats.getOs().getMem().getAdjustedTotal().getBytes());
     }
 
     public AutoscalingMemoryInfo snapshot() {
-        final ImmutableOpenMap<String, Long> nodeToMemory = this.nodeToMemory;
+        final ImmutableOpenMap<String, Long> nodeToMemoryRef = this.nodeToMemory;
         return node -> {
-            Long result = nodeToMemory.get(node.getEphemeralId());
+            Long result = nodeToMemoryRef.get(node.getEphemeralId());
             // noinspection NumberEquality
             if (result == FETCHING_SENTINEL) {
                 return null;

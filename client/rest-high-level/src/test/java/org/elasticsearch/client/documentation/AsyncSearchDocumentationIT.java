@@ -20,7 +20,7 @@ import org.elasticsearch.client.asyncsearch.SubmitAsyncSearchRequest;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.Before;
@@ -33,11 +33,13 @@ import java.util.concurrent.TimeUnit;
  * Documentation for Async Search APIs in the high level java client.
  * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
+@SuppressWarnings("removal")
 public class AsyncSearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
-    @Before void setUpIndex() throws IOException {
-        CreateIndexResponse createIndexResponse = highLevelClient().indices().create(new CreateIndexRequest("my-index"),
-            RequestOptions.DEFAULT);
+    @Before
+    void setUpIndex() throws IOException {
+        CreateIndexResponse createIndexResponse = highLevelClient().indices()
+            .create(new CreateIndexRequest("my-index"), RequestOptions.DEFAULT);
         assertTrue(createIndexResponse.isAcknowledged());
     }
 
@@ -75,7 +77,6 @@ public class AsyncSearchDocumentationIT extends ESRestHighLevelClientTestCase {
         response.getExpirationTime(); // <6>
         response.getFailure(); // <7>
         // end::asyncsearch-submit-response
-
 
         // tag::asyncsearch-submit-listener
         ActionListener<AsyncSearchResponse> listener =
@@ -140,7 +141,6 @@ public class AsyncSearchDocumentationIT extends ESRestHighLevelClientTestCase {
         response.getFailure(); // <7>
         // end::asyncsearch-get-response
 
-
         // tag::asyncsearch-get-listener
         ActionListener<AsyncSearchResponse> listener =
             new ActionListener<AsyncSearchResponse>() {
@@ -195,7 +195,6 @@ public class AsyncSearchDocumentationIT extends ESRestHighLevelClientTestCase {
         // tag::asyncsearch-delete-response
         response.isAcknowledged(); // <1>
         // end::asyncsearch-delete-response
-
 
         // tag::asyncsearch-delete-listener
         ActionListener<AcknowledgedResponse> listener =

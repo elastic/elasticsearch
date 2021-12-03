@@ -12,13 +12,13 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 public class SnapshotRequestsTests extends ESTestCase {
     public void testRestoreSnapshotRequestParsing() throws IOException {
@@ -75,11 +75,11 @@ public class SnapshotRequestsTests extends ESTestCase {
 
         assertEquals("test-repo", request.repository());
         assertEquals("test-snap", request.snapshot());
-        assertArrayEquals(request.indices(), new String[]{"foo", "bar", "baz"});
+        assertArrayEquals(request.indices(), new String[] { "foo", "bar", "baz" });
         assertEquals("rename-from", request.renamePattern());
         assertEquals("rename-to", request.renameReplacement());
         assertEquals(partial, request.partial());
-        assertArrayEquals(request.ignoreIndexSettings(), new String[]{"set2", "set3"});
+        assertArrayEquals(request.ignoreIndexSettings(), new String[] { "set2", "set3" });
         boolean expectedIgnoreAvailable = includeIgnoreUnavailable
             ? indicesOptions.ignoreUnavailable()
             : IndicesOptions.strictExpandOpen().ignoreUnavailable();
@@ -138,7 +138,7 @@ public class SnapshotRequestsTests extends ESTestCase {
 
         assertEquals("test-repo", request.repository());
         assertEquals("test-snap", request.snapshot());
-        assertArrayEquals(request.indices(), new String[]{"foo", "bar", "baz"});
+        assertArrayEquals(request.indices(), new String[] { "foo", "bar", "baz" });
         assertEquals(partial, request.partial());
         boolean expectedIgnoreAvailable = includeIgnoreUnavailable
             ? indicesOptions.ignoreUnavailable()

@@ -11,9 +11,9 @@ import org.elasticsearch.client.ml.dataframe.evaluation.MlEvaluationNamedXConten
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.ActualClass;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.PredictedClass;
 import org.elasticsearch.client.ml.dataframe.evaluation.classification.MulticlassConfusionMatrixMetric.Result;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,7 +43,9 @@ public class MulticlassConfusionMatrixMetricResultTests extends AbstractXContent
                     classNames.get(i),
                     randomBoolean() ? randomNonNegativeLong() : null,
                     predictedClasses,
-                    randomBoolean() ? randomNonNegativeLong() : null));
+                    randomBoolean() ? randomNonNegativeLong() : null
+                )
+            );
         }
         return new Result(actualClasses, randomBoolean() ? randomNonNegativeLong() : null);
     }

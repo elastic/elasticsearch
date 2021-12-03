@@ -18,9 +18,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * Response for {@link TransportFieldCapabilitiesIndexAction}.
- */
 public class FieldCapabilitiesIndexResponse extends ActionResponse implements Writeable {
     private final String indexName;
     private final Map<String, IndexFieldCapabilities> responseMap;
@@ -38,7 +35,7 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
         super(in);
         this.indexName = in.readString();
         this.responseMap = in.readMap(StreamInput::readString, IndexFieldCapabilities::new);
-        this.canMatch = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readBoolean() : true;
+        this.canMatch = in.readBoolean();
         this.originVersion = in.getVersion();
     }
 
@@ -76,9 +73,7 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(indexName);
         out.writeMap(responseMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
-        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-            out.writeBoolean(canMatch);
-        }
+        out.writeBoolean(canMatch);
     }
 
     @Override
@@ -86,9 +81,7 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesIndexResponse that = (FieldCapabilitiesIndexResponse) o;
-        return canMatch == that.canMatch &&
-            Objects.equals(indexName, that.indexName) &&
-            Objects.equals(responseMap, that.responseMap);
+        return canMatch == that.canMatch && Objects.equals(indexName, that.indexName) && Objects.equals(responseMap, that.responseMap);
     }
 
     @Override

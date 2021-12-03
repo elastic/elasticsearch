@@ -219,7 +219,7 @@ transportClient.delete(request, new ActionListener<DeleteResponse>() { // <2>
 });
 --------------------------------------------------
 <1> Create the `DeleteRequest` using its constructor
-<2> Execute the `DeleteRequest` by passing the request and a
+<2> Execute the `DeleteRequest` by passing the request and an
 `ActionListener` that gets called on execution completion or
 failure. This method does not block and returns immediately.
 <3> The `onResponse()` method is called when the response is
@@ -234,7 +234,7 @@ The same request asynchronously executed using the high-level client is:
 include-tagged::{doc-tests}/MigrationDocumentationIT.java[migration-request-async-execution]
 --------------------------------------------------
 <1> Create the `DeleteRequest` using its constructor
-<2> Execute the `DeleteRequest` by passing the request and a
+<2> Execute the `DeleteRequest` by passing the request and an
 `ActionListener` that gets called on execution completion or
 failure. This method does not block and returns immediately.
 <3> The `onResponse()` method is called when the response is

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
@@ -25,9 +26,16 @@ public class MlStatsIndex {
 
     private MlStatsIndex() {}
 
+    public static String wrappedMapping() {
+        return "{\n\"_doc\" : " + mapping() + "\n}";
+    }
+
     public static String mapping() {
-        return TemplateUtils.loadTemplate("/org/elasticsearch/xpack/core/ml/stats_index_mappings.json",
-            Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE);
+        return TemplateUtils.loadTemplate(
+            "/org/elasticsearch/xpack/core/ml/stats_index_mappings.json",
+            Version.CURRENT.toString(),
+            MAPPINGS_VERSION_VARIABLE
+        );
     }
 
     public static String indexPattern() {
@@ -44,8 +52,13 @@ public class MlStatsIndex {
      * The listener will be notified with a boolean to indicate if the index was created because of this call,
      * but unless there is a failure after this method returns the index and alias should be present.
      */
-    public static void createStatsIndexAndAliasIfNecessary(Client client, ClusterState state, IndexNameExpressionResolver resolver,
-                                                           ActionListener<Boolean> listener) {
-        MlIndexAndAlias.createIndexAndAliasIfNecessary(client, state, resolver, TEMPLATE_NAME, writeAlias(), listener);
+    public static void createStatsIndexAndAliasIfNecessary(
+        Client client,
+        ClusterState state,
+        IndexNameExpressionResolver resolver,
+        TimeValue masterNodeTimeout,
+        ActionListener<Boolean> listener
+    ) {
+        MlIndexAndAlias.createIndexAndAliasIfNecessary(client, state, resolver, TEMPLATE_NAME, writeAlias(), masterNodeTimeout, listener);
     }
 }

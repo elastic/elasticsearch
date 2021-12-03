@@ -12,8 +12,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
@@ -149,6 +149,7 @@ public final class UserToken implements Writeable, ToXContentObject {
         if (versionId == null) {
             throw new IllegalStateException("user token source document does not have the \"version\" field");
         }
+        @SuppressWarnings("unchecked")
         final Map<String, Object> metadata = (Map<String, Object>) source.get("metadata");
         final String authString = (String) source.get("authentication");
         if (authString == null) {

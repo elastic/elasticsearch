@@ -25,8 +25,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -44,7 +44,7 @@ public class AbstractNativeProcessTests extends ESTestCase {
     private Consumer<String> onProcessCrash;
     private ExecutorService executorService;
     // This must be counted down at the point where a real native process would terminate, thus
-    // causing an end-of-file on the stream tailing its logs.  This will be:
+    // causing an end-of-file on the stream tailing its logs. This will be:
     // 1) After close() for jobs that stop gracefully
     // 2) After kill() for jobs that are forcefully terminated
     // 3) After a simulated crash when we test simulated crash
@@ -58,11 +58,10 @@ public class AbstractNativeProcessTests extends ESTestCase {
         mockNativeProcessLoggingStreamEnds = new CountDownLatch(1);
         // This answer blocks the thread on the executor service.
         // In order to unblock it, the test needs to call mockNativeProcessLoggingStreamEnds.countDown().
-        doAnswer(
-            invocationOnMock -> {
-                mockNativeProcessLoggingStreamEnds.await();
-                return null;
-            }).when(cppLogHandler).tailStream();
+        doAnswer(invocationOnMock -> {
+            mockNativeProcessLoggingStreamEnds.await();
+            return null;
+        }).when(cppLogHandler).tailStream();
         when(cppLogHandler.getErrors()).thenReturn("");
         inputStream = mock(OutputStream.class);
         outputStream = mock(InputStream.class);
@@ -74,8 +73,14 @@ public class AbstractNativeProcessTests extends ESTestCase {
         when(processPipes.getProcessOutStream()).thenReturn(Optional.of(outputStream));
         when(processPipes.getRestoreStream()).thenReturn(Optional.of(restoreStream));
         onProcessCrash = mock(Consumer.class);
-        executorService = EsExecutors.newFixed("test", 1, 1, EsExecutors.daemonThreadFactory("test"), new ThreadContext(Settings.EMPTY),
-            false);
+        executorService = EsExecutors.newFixed(
+            "test",
+            1,
+            1,
+            EsExecutors.daemonThreadFactory("test"),
+            new ThreadContext(Settings.EMPTY),
+            false
+        );
     }
 
     @After
@@ -88,39 +93,36 @@ public class AbstractNativeProcessTests extends ESTestCase {
         when(processPipes.getProcessInStream()).thenReturn(Optional.empty());
         try (AbstractNativeProcess process = new TestNativeProcess()) {
             process.start(executorService);
-        } finally {
-            mockNativeProcessLoggingStreamEnds.countDown();
-            // Not detecting a crash is confirmed in terminateExecutorService()
         }
+        // Not detecting a crash during the close sequence is confirmed in terminateExecutorService()
     }
 
     public void testStart_DoNotDetectCrashWhenProcessIsBeingClosed() throws Exception {
         try (AbstractNativeProcess process = new TestNativeProcess()) {
             process.start(executorService);
-        } finally {
-            mockNativeProcessLoggingStreamEnds.countDown();
-            // Not detecting a crash is confirmed in terminateExecutorService()
         }
+        // Not detecting a crash during the close sequence is confirmed in terminateExecutorService()
     }
 
     public void testStart_DoNotDetectCrashWhenProcessIsBeingKilled() throws Exception {
-        AbstractNativeProcess process = new TestNativeProcess();
-        try {
-            process.start(executorService);
-            process.kill(randomBoolean());
-        } finally {
-            // It is critical that this comes after kill() but before close(), otherwise we
-            // would not be accurately simulating a kill().  This is why try-with-resources
-            // is not used in this case.
-            mockNativeProcessLoggingStreamEnds.countDown();
-            // Not detecting a crash is confirmed in terminateExecutorService()
-            process.close();
-        }
-    }
-
-    public void testStart_DetectCrashWhenInputPipeExists() throws Exception {
         try (AbstractNativeProcess process = new TestNativeProcess()) {
             process.start(executorService);
+            process.kill(randomBoolean());
+            // This ends the logging stream immediately after the kill() instead of part
+            // way through the close sequence. It is critical that this is done, otherwise
+            // we would not be accurately simulating what happens with the order streams
+            // receive end-of-file after a kill() of a real process. The latch is counted
+            // down again during the close() call, but that is harmless.
+            mockNativeProcessLoggingStreamEnds.countDown();
+        }
+        // Not detecting a crash during the close sequence is confirmed in terminateExecutorService()
+    }
+
+    public void testStart_DetectCrashBeforeFirstLogMessage() throws Exception {
+        try (AbstractNativeProcess process = new TestNativeProcess()) {
+            process.start(executorService);
+            // Even though we are simulating no log messages (by not mocking a PID via cppLogHandler.tryGetPid())
+            // we need to simulate disconnection of the logging stream.
             mockNativeProcessLoggingStreamEnds.countDown();
             ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
 
@@ -133,6 +135,8 @@ public class AbstractNativeProcessTests extends ESTestCase {
         when(cppLogHandler.getErrors()).thenReturn("Failed to find the answer");
         try (AbstractNativeProcess process = new TestNativeProcess()) {
             process.start(executorService);
+            // Losing the logging stream before the input stream is closed is how we
+            // detect crashes.
             mockNativeProcessLoggingStreamEnds.countDown();
             ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
 
@@ -143,13 +147,9 @@ public class AbstractNativeProcessTests extends ESTestCase {
     public void testWriteRecord() throws Exception {
         try (AbstractNativeProcess process = new TestNativeProcess()) {
             process.start(executorService);
-            process.writeRecord(new String[] {"a", "b", "c"});
+            process.writeRecord(new String[] { "a", "b", "c" });
             process.flushStream();
-
             verify(inputStream).write(any(), anyInt(), anyInt());
-
-        } finally {
-            mockNativeProcessLoggingStreamEnds.countDown();
         }
     }
 
@@ -157,9 +157,7 @@ public class AbstractNativeProcessTests extends ESTestCase {
         when(processPipes.getProcessInStream()).thenReturn(Optional.empty());
         try (AbstractNativeProcess process = new TestNativeProcess()) {
             process.start(executorService);
-            expectThrows(NullPointerException.class, () -> process.writeRecord(new String[] {"a", "b", "c"}));
-        } finally {
-            mockNativeProcessLoggingStreamEnds.countDown();
+            expectThrows(NullPointerException.class, () -> process.writeRecord(new String[] { "a", "b", "c" }));
         }
     }
 
@@ -167,10 +165,7 @@ public class AbstractNativeProcessTests extends ESTestCase {
         try (AbstractNativeProcess process = new TestNativeProcess()) {
             process.start(executorService);
             process.flushStream();
-
             verify(inputStream).flush();
-        } finally {
-            mockNativeProcessLoggingStreamEnds.countDown();
         }
     }
 
@@ -179,8 +174,6 @@ public class AbstractNativeProcessTests extends ESTestCase {
         try (AbstractNativeProcess process = new TestNativeProcess()) {
             process.start(executorService);
             expectThrows(NullPointerException.class, process::flushStream);
-        } finally {
-            mockNativeProcessLoggingStreamEnds.countDown();
         }
     }
 
@@ -190,8 +183,13 @@ public class AbstractNativeProcessTests extends ESTestCase {
             assertThat(process.isReady(), is(false));
             process.setReady();
             assertThat(process.isReady(), is(true));
-        } finally {
-            mockNativeProcessLoggingStreamEnds.countDown();
+        }
+    }
+
+    public void testConsumeAndCloseOutputStream_GivenNoOutputStream() throws Exception {
+        when(processPipes.getProcessOutStream()).thenReturn(Optional.empty());
+        try (AbstractNativeProcess process = new TestNativeProcess()) {
+            process.consumeAndCloseOutputStream();
         }
     }
 
@@ -210,11 +208,15 @@ public class AbstractNativeProcessTests extends ESTestCase {
         }
 
         @Override
-        public void persistState() {
-        }
+        public void persistState() {}
 
         @Override
-        public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
+        public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {}
+
+        @Override
+        protected void afterProcessInStreamClose() {
+            // This simulates the process's log stream disconnecting shortly after its input stream is closed
+            mockNativeProcessLoggingStreamEnds.countDown();
         }
     }
 }

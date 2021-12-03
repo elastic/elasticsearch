@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.graph.action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.protocol.xpack.graph.GraphExploreResponse;
@@ -87,7 +87,6 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
         return request.maxDocsPerDiversityValue();
     }
 
-
     /**
      * An optional timeout to control how long the graph exploration is allowed
      * to take.
@@ -128,7 +127,6 @@ public class GraphExploreRequestBuilder extends ActionRequestBuilder<GraphExplor
         request.useSignificance(value);
         return this;
     }
-
 
     /**
      * The number of top-matching documents that are considered during each hop (default is

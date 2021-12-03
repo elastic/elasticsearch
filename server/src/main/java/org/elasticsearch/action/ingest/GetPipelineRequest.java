@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
@@ -41,16 +40,14 @@ public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest
     public GetPipelineRequest(StreamInput in) throws IOException {
         super(in);
         ids = in.readStringArray();
-        summary = in.getVersion().onOrAfter(Version.V_7_13_0) ? in.readBoolean() : false;
+        summary = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(ids);
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            out.writeBoolean(summary);
-        }
+        out.writeBoolean(summary);
     }
 
     public String[] getIds() {

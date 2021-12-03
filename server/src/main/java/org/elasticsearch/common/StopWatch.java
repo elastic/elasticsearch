@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 
 import java.text.NumberFormat;
 import java.util.LinkedList;

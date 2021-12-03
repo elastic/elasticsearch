@@ -17,7 +17,6 @@ import org.elasticsearch.painless.phase.DefaultConstantFoldingOptimizationPhase;
 import org.elasticsearch.painless.phase.DefaultIRTreeToASMBytesPhase;
 import org.elasticsearch.painless.phase.DefaultStaticConstantExtractionPhase;
 import org.elasticsearch.painless.phase.DefaultStringConcatenationOptimizationPhase;
-import org.elasticsearch.painless.phase.DocFieldsPhase;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 import org.elasticsearch.painless.phase.PainlessSemanticAnalysisPhase;
 import org.elasticsearch.painless.phase.PainlessSemanticHeaderPhase;
@@ -168,12 +167,12 @@ final class Compiler {
     Compiler(Class<?> scriptClass, Class<?> factoryClass, Class<?> statefulFactoryClass, PainlessLookup painlessLookup) {
         this.scriptClass = scriptClass;
         this.painlessLookup = painlessLookup;
-        Map<String, Class<?>> additionalClasses = new HashMap<>();
-        additionalClasses.put(scriptClass.getName(), scriptClass);
-        addFactoryMethod(additionalClasses, factoryClass, "newInstance");
-        addFactoryMethod(additionalClasses, statefulFactoryClass, "newFactory");
-        addFactoryMethod(additionalClasses, statefulFactoryClass, "newInstance");
-        this.additionalClasses = Collections.unmodifiableMap(additionalClasses);
+        Map<String, Class<?>> additionalClassMap = new HashMap<>();
+        additionalClassMap.put(scriptClass.getName(), scriptClass);
+        addFactoryMethod(additionalClassMap, factoryClass, "newInstance");
+        addFactoryMethod(additionalClassMap, statefulFactoryClass, "newFactory");
+        addFactoryMethod(additionalClassMap, statefulFactoryClass, "newInstance");
+        this.additionalClasses = Collections.unmodifiableMap(additionalClassMap);
     }
 
     private static void addFactoryMethod(Map<String, Class<?>> additionalClasses, Class<?> factoryClass, String methodName) {
@@ -214,10 +213,8 @@ final class Compiler {
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
         new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
-        // TODO: Make this phase optional #60156
-        new DocFieldsPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
-        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        ClassNode classNode = (ClassNode) scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
@@ -251,9 +248,8 @@ final class Compiler {
         ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
         new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
-        new DocFieldsPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
-        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        ClassNode classNode = (ClassNode) scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
@@ -266,10 +262,15 @@ final class Compiler {
     /**
      * Runs the two-pass compiler to generate a Painless script with option visitors for each major phase.
      */
-    byte[] compile(String name, String source, CompilerSettings settings, Printer debugStream,
-                   UserTreeVisitor<ScriptScope> semanticPhaseVisitor,
-                   UserTreeVisitor<ScriptScope> irPhaseVisitor,
-                   IRTreeVisitor<WriteScope> asmPhaseVisitor) {
+    byte[] compile(
+        String name,
+        String source,
+        CompilerSettings settings,
+        Printer debugStream,
+        UserTreeVisitor<ScriptScope> semanticPhaseVisitor,
+        UserTreeVisitor<ScriptScope> irPhaseVisitor,
+        IRTreeVisitor<WriteScope> asmPhaseVisitor
+    ) {
         String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptName, source, settings);
@@ -281,13 +282,12 @@ final class Compiler {
             semanticPhaseVisitor.visitClass(root, scriptScope);
         }
 
-        new DocFieldsPhase().visitClass(root, scriptScope);
         new PainlessUserTreeToIRTreePhase().visitClass(root, scriptScope);
         if (irPhaseVisitor != null) {
             irPhaseVisitor.visitClass(root, scriptScope);
         }
 
-        ClassNode classNode = (ClassNode)scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
+        ClassNode classNode = (ClassNode) scriptScope.getDecoration(root, IRNodeDecoration.class).getIRNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);

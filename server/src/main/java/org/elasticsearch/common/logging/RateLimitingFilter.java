@@ -28,8 +28,20 @@ import java.util.Set;
 import static org.elasticsearch.common.logging.DeprecatedMessage.KEY_FIELD_NAME;
 import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
 
+/**
+ * A filter used for throttling deprecation logs.
+ * A throttling is based on a combined key which consists of `key` from the logged ESMessage and `x-opaque-id`
+ * passed by a user on a HTTP header.
+ * This filter works by using a lruKeyCache - a set of keys which prevents a second message with the same key to be logged.
+ * The lruKeyCache has a size limited to 128, which when breached will remove the oldest entries.
+ *
+ * It is possible to disable use of `x-opaque-id` as a key with {@link RateLimitingFilter#setUseXOpaqueId(boolean) }
+ * @see <a href="https://logging.apache.org/log4j/2.x/manual/filters.htmlf">Log4j2 Filters</a>
+ */
 @Plugin(name = "RateLimitingFilter", category = Node.CATEGORY, elementType = Filter.ELEMENT_TYPE)
 public class RateLimitingFilter extends AbstractFilter {
+
+    private volatile boolean useXOpaqueId = true;
 
     private final Set<String> lruKeyCache = Collections.newSetFromMap(Collections.synchronizedMap(new LinkedHashMap<>() {
         @Override
@@ -57,14 +69,21 @@ public class RateLimitingFilter extends AbstractFilter {
         if (message instanceof ESLogMessage) {
             final ESLogMessage esLogMessage = (ESLogMessage) message;
 
-            String xOpaqueId = esLogMessage.get(X_OPAQUE_ID_FIELD_NAME);
-            final String key = esLogMessage.get(KEY_FIELD_NAME);
-
-            return lruKeyCache.add(xOpaqueId + key) ? Result.ACCEPT : Result.DENY;
+            final String key = getKey(esLogMessage);
+            return lruKeyCache.add(key) ? Result.ACCEPT : Result.DENY;
 
         } else {
             return Result.NEUTRAL;
         }
+    }
+
+    private String getKey(ESLogMessage esLogMessage) {
+        final String key = esLogMessage.get(KEY_FIELD_NAME);
+        if (useXOpaqueId) {
+            String xOpaqueId = esLogMessage.get(X_OPAQUE_ID_FIELD_NAME);
+            return xOpaqueId + key;
+        }
+        return key;
     }
 
     @Override
@@ -83,5 +102,9 @@ public class RateLimitingFilter extends AbstractFilter {
         @PluginAttribute("onMismatch") final Result mismatch
     ) {
         return new RateLimitingFilter(match, mismatch);
+    }
+
+    public void setUseXOpaqueId(boolean useXOpaqueId) {
+        this.useXOpaqueId = useXOpaqueId;
     }
 }

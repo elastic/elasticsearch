@@ -36,9 +36,7 @@ public class RestSegmentsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_cat/segments"),
-            new Route(GET, "/_cat/segments/{index}"));
+        return List.of(new Route(GET, "/_cat/segments"), new Route(GET, "/_cat/segments/{index}"));
     }
 
     @Override
@@ -138,7 +136,7 @@ public class RestSegmentsAction extends AbstractCatAction {
                         table.addCell(segment.getNumDocs());
                         table.addCell(segment.getDeletedDocs());
                         table.addCell(segment.getSize());
-                        table.addCell(segment.getMemoryInBytes());
+                        table.addCell(0L);
                         table.addCell(segment.isCommitted());
                         table.addCell(segment.isSearch());
                         table.addCell(segment.getVersion());

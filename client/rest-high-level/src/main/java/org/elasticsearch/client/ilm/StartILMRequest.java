@@ -12,8 +12,7 @@ import org.elasticsearch.client.TimedRequest;
 
 public class StartILMRequest extends TimedRequest {
 
-    public StartILMRequest() {
-    }
+    public StartILMRequest() {}
 
     @Override
     public int hashCode() {

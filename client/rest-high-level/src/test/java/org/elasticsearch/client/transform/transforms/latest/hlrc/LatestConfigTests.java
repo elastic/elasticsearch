@@ -9,8 +9,8 @@
 package org.elasticsearch.client.transform.transforms.latest.hlrc;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 
 import java.io.IOException;
@@ -19,8 +19,9 @@ import java.util.ArrayList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class LatestConfigTests
-        extends AbstractResponseTestCase<LatestConfig, org.elasticsearch.client.transform.transforms.latest.LatestConfig> {
+public class LatestConfigTests extends AbstractResponseTestCase<
+    LatestConfig,
+    org.elasticsearch.client.transform.transforms.latest.LatestConfig> {
 
     public static LatestConfig randomLatestConfig() {
         return new LatestConfig(

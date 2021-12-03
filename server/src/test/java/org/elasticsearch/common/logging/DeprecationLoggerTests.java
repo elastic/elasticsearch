@@ -22,8 +22,7 @@ public class DeprecationLoggerTests extends ESTestCase {
         DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DeprecationLoggerTests.class);
         int numberOfLoggersBefore = context.getLoggers().size();
 
-        class LoggerTest{
-        }
+        class LoggerTest {}
         DeprecationLogger deprecationLogger2 = DeprecationLogger.getLogger(LoggerTest.class);
 
         context = (LoggerContext) LogManager.getContext(false);

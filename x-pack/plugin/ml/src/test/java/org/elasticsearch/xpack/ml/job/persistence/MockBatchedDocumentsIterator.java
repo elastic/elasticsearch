@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.job.persistence;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
@@ -49,8 +49,9 @@ public class MockBatchedDocumentsIterator<T> extends BatchedResultsIterator<T> {
     @Override
     public Deque<Result<T>> next() {
         if (requireIncludeInterim != null && requireIncludeInterim != includeInterim) {
-            throw new IllegalStateException("Required include interim value [" + requireIncludeInterim + "]; actual was ["
-                    + includeInterim + "]");
+            throw new IllegalStateException(
+                "Required include interim value [" + requireIncludeInterim + "]; actual was [" + includeInterim + "]"
+            );
         }
         if (wasTimeRangeCalled == false || hasNext() == false) {
             throw new NoSuchElementException();

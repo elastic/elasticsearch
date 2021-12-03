@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectHashSet;
+
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -22,12 +23,12 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -51,8 +52,19 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable {
 
     private static ObjectHashSet<String> RESERVED_FIELDS = ObjectHashSet.from(
-            "_uid", "_id", "_type", "_source",  "_all", "_analyzer", "_parent", "_routing", "_index",
-            "_size", "_timestamp", "_ttl", "_field_names"
+        "_uid",
+        "_id",
+        "_type",
+        "_source",
+        "_all",
+        "_analyzer",
+        "_parent",
+        "_routing",
+        "_index",
+        "_size",
+        "_timestamp",
+        "_ttl",
+        "_field_names"
     );
 
     private String[] indices;
@@ -84,8 +96,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         }
     }
 
-    public PutMappingRequest() {
-    }
+    public PutMappingRequest() {}
 
     /**
      * Constructs a new put mapping request against one or more indices. If nothing is set then
@@ -104,8 +115,13 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             validationException = addValidationError("mapping source is empty", validationException);
         }
         if (concreteIndex != null && CollectionUtils.isEmpty(indices) == false) {
-            validationException = addValidationError("either concrete index or unresolved indices can be set, concrete index: ["
-                + concreteIndex + "] and indices: " + Arrays.asList(indices) , validationException);
+            validationException = addValidationError(
+                "either concrete index or unresolved indices can be set, concrete index: ["
+                    + concreteIndex
+                    + "] and indices: "
+                    + Arrays.asList(indices),
+                validationException
+            );
         }
         return validationException;
     }

@@ -18,16 +18,21 @@ import java.util.stream.Collectors;
 public class GetSnapshottableFeaturesResponseTests extends AbstractWireSerializingTestCase<GetSnapshottableFeaturesResponse> {
 
     @Override
-    protected Writeable.Reader instanceReader() {
+    protected Writeable.Reader<GetSnapshottableFeaturesResponse> instanceReader() {
         return GetSnapshottableFeaturesResponse::new;
     }
 
     @Override
     protected GetSnapshottableFeaturesResponse createTestInstance() {
-        return new GetSnapshottableFeaturesResponse(randomList(10,
-            () -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(
-                randomAlphaOfLengthBetween(4, 10),
-                randomAlphaOfLengthBetween(5,10))));
+        return new GetSnapshottableFeaturesResponse(
+            randomList(
+                10,
+                () -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(
+                    randomAlphaOfLengthBetween(4, 10),
+                    randomAlphaOfLengthBetween(5, 10)
+                )
+            )
+        );
     }
 
     @Override
@@ -36,12 +41,19 @@ public class GetSnapshottableFeaturesResponseTests extends AbstractWireSerializi
         if (instance.getSnapshottableFeatures().size() == 0) {
             minSize = 1;
         }
-        Set<String> existingFeatureNames = instance.getSnapshottableFeatures().stream()
+        Set<String> existingFeatureNames = instance.getSnapshottableFeatures()
+            .stream()
             .map(feature -> feature.getFeatureName())
             .collect(Collectors.toSet());
-        return new GetSnapshottableFeaturesResponse(randomList(minSize, 10,
-            () -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(
-                randomValueOtherThanMany(existingFeatureNames::contains, () -> randomAlphaOfLengthBetween(4, 10)),
-                randomAlphaOfLengthBetween(5, 10))));
+        return new GetSnapshottableFeaturesResponse(
+            randomList(
+                minSize,
+                10,
+                () -> new GetSnapshottableFeaturesResponse.SnapshottableFeature(
+                    randomValueOtherThanMany(existingFeatureNames::contains, () -> randomAlphaOfLengthBetween(4, 10)),
+                    randomAlphaOfLengthBetween(5, 10)
+                )
+            )
+        );
     }
 }

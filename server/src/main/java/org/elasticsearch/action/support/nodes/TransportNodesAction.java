@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -36,11 +37,11 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
-public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest<NodesRequest>,
-                                           NodesResponse extends BaseNodesResponse,
-                                           NodeRequest extends TransportRequest,
-                                           NodeResponse extends BaseNodeResponse>
-    extends HandledTransportAction<NodesRequest, NodesResponse> {
+public abstract class TransportNodesAction<
+    NodesRequest extends BaseNodesRequest<NodesRequest>,
+    NodesResponse extends BaseNodesResponse<?>,
+    NodeRequest extends TransportRequest,
+    NodeResponse extends BaseNodeResponse> extends HandledTransportAction<NodesRequest, NodesResponse> {
 
     protected final ThreadPool threadPool;
     protected final ClusterService clusterService;
@@ -62,10 +63,18 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
      * @param finalExecutor     executor to execute final collection of all responses on
      * @param nodeResponseClass class of the node responses
      */
-    protected TransportNodesAction(String actionName, ThreadPool threadPool,
-                                   ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
-                                   Writeable.Reader<NodesRequest> request, Writeable.Reader<NodeRequest> nodeRequest, String nodeExecutor,
-                                   String finalExecutor, Class<NodeResponse> nodeResponseClass) {
+    protected TransportNodesAction(
+        String actionName,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<NodesRequest> request,
+        Writeable.Reader<NodeRequest> nodeRequest,
+        String nodeExecutor,
+        String finalExecutor,
+        Class<NodeResponse> nodeResponseClass
+    ) {
         super(actionName, transportService, actionFilters, request);
         this.threadPool = threadPool;
         this.clusterService = Objects.requireNonNull(clusterService);
@@ -74,8 +83,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
 
         this.transportNodeAction = actionName + "[n]";
         this.finalExecutor = finalExecutor;
-        transportService.registerRequestHandler(
-                transportNodeAction, nodeExecutor, nodeRequest, new NodeTransportHandler());
+        transportService.registerRequestHandler(transportNodeAction, nodeExecutor, nodeRequest, new NodeTransportHandler());
     }
 
     /**
@@ -85,12 +93,29 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
      * This constructor should only be used for actions for which the creation of the final response is fast enough to be safely executed
      * on a transport thread.
      */
-    protected TransportNodesAction(String actionName, ThreadPool threadPool,
-                                   ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
-                                   Writeable.Reader<NodesRequest> request, Writeable.Reader<NodeRequest> nodeRequest, String nodeExecutor,
-                                   Class<NodeResponse> nodeResponseClass) {
-        this(actionName, threadPool, clusterService, transportService, actionFilters, request, nodeRequest, nodeExecutor,
-                ThreadPool.Names.SAME, nodeResponseClass);
+    protected TransportNodesAction(
+        String actionName,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<NodesRequest> request,
+        Writeable.Reader<NodeRequest> nodeRequest,
+        String nodeExecutor,
+        Class<NodeResponse> nodeResponseClass
+    ) {
+        this(
+            actionName,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            request,
+            nodeRequest,
+            nodeExecutor,
+            ThreadPool.Names.SAME,
+            nodeResponseClass
+        );
     }
 
     @Override
@@ -122,7 +147,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
             Object response = nodesResponses.get(i);
 
             if (response instanceof FailedNodeException) {
-                failures.add((FailedNodeException)response);
+                failures.add((FailedNodeException) response);
             } else {
                 responses.add(nodeResponseClass.cast(response));
             }
@@ -147,17 +172,18 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
      * {@link #newResponse(BaseNodesRequest, List, List)}
      */
     protected void newResponseAsync(
-            Task task,
-            NodesRequest request,
-            List<NodeResponse> responses,
-            List<FailedNodeException> failures,
-            ActionListener<NodesResponse> listener) {
+        Task task,
+        NodesRequest request,
+        List<NodeResponse> responses,
+        List<FailedNodeException> failures,
+        ActionListener<NodesResponse> listener
+    ) {
         ActionListener.completeWith(listener, () -> newResponse(request, responses, failures));
     }
 
     protected abstract NodeRequest newNodeRequest(NodesRequest request);
 
-    protected abstract NodeResponse newNodeResponse(StreamInput in) throws IOException;
+    protected abstract NodeResponse newNodeResponse(StreamInput in, DiscoveryNode node) throws IOException;
 
     protected abstract NodeResponse nodeOperation(NodeRequest request, Task task);
 
@@ -199,9 +225,7 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         void start() {
             final DiscoveryNode[] nodes = request.concreteNodes();
             if (nodes.length == 0) {
-                // nothing to notify, so respond immediately, but always fork even if finalExecutor == SAME
-                final String executor = finalExecutor.equals(ThreadPool.Names.SAME) ? ThreadPool.Names.GENERIC : finalExecutor;
-                threadPool.executor(executor).execute(() -> newResponse(task, request, responses, listener));
+                finishHim();
                 return;
             }
             final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
@@ -215,23 +239,28 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
                         nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                     }
 
-                    transportService.sendRequest(node, getTransportNodeAction(node), nodeRequest, transportRequestOptions,
-                            new TransportResponseHandler<NodeResponse>() {
-                                @Override
-                                public NodeResponse read(StreamInput in) throws IOException {
-                                    return newNodeResponse(in);
-                                }
+                    transportService.sendRequest(
+                        node,
+                        getTransportNodeAction(node),
+                        nodeRequest,
+                        transportRequestOptions,
+                        new TransportResponseHandler<NodeResponse>() {
+                            @Override
+                            public NodeResponse read(StreamInput in) throws IOException {
+                                return newNodeResponse(in, node);
+                            }
 
-                                @Override
-                                public void handleResponse(NodeResponse response) {
-                                    onOperation(idx, response);
-                                }
+                            @Override
+                            public void handleResponse(NodeResponse response) {
+                                onOperation(idx, response);
+                            }
 
-                                @Override
-                                public void handleException(TransportException exp) {
-                                    onFailure(idx, node.getId(), exp);
-                                }
-                            });
+                            @Override
+                            public void handleException(TransportException exp) {
+                                onFailure(idx, node.getId(), exp);
+                            }
+                        }
+                    );
                 } catch (Exception e) {
                     onFailure(idx, nodeId, e);
                 }
@@ -254,14 +283,21 @@ public abstract class TransportNodesAction<NodesRequest extends BaseNodesRequest
         }
 
         private void finishHim() {
-            threadPool.executor(finalExecutor).execute(() -> newResponse(task, request, responses, listener));
+            if (task instanceof CancellableTask && ((CancellableTask) task).notifyIfCancelled(listener)) {
+                return;
+            }
+
+            final String executor = finalExecutor.equals(ThreadPool.Names.SAME) ? ThreadPool.Names.GENERIC : finalExecutor;
+            threadPool.executor(executor).execute(() -> newResponse(task, request, responses, listener));
         }
     }
 
     class NodeTransportHandler implements TransportRequestHandler<NodeRequest> {
-
         @Override
         public void messageReceived(NodeRequest request, TransportChannel channel, Task task) throws Exception {
+            if (task instanceof CancellableTask) {
+                ((CancellableTask) task).ensureNotCancelled();
+            }
             channel.sendResponse(nodeOperation(request, task));
         }
     }

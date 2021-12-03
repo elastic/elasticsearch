@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.percolator;
 
-import org.apache.lucene.document.BinaryRange;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.NumericDocValuesField;
@@ -19,9 +18,9 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.sandbox.search.CoveringQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.CoveringQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -34,23 +33,23 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
@@ -61,10 +60,12 @@ import org.elasticsearch.index.query.BoostingQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -82,7 +83,10 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
 public class PercolatorFieldMapper extends FieldMapper {
 
     static final Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING = Setting.boolSetting(
-        "index.percolator.map_unmapped_fields_as_text", false, Setting.Property.IndexScope);
+        "index.percolator.map_unmapped_fields_as_text",
+        false,
+        Setting.Property.IndexScope
+    );
     static final String CONTENT_TYPE = "percolator";
 
     static final byte FIELD_VALUE_SEPARATOR = 0;  // nul code point
@@ -120,52 +124,64 @@ public class PercolatorFieldMapper extends FieldMapper {
         }
 
         @Override
-        public PercolatorFieldMapper build(ContentPath contentPath) {
-            PercolatorFieldType fieldType = new PercolatorFieldType(buildFullName(contentPath), meta.getValue());
-            contentPath.add(name());
-            KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(EXTRACTED_TERMS_FIELD_NAME, contentPath);
+        public PercolatorFieldMapper build(MapperBuilderContext context) {
+            PercolatorFieldType fieldType = new PercolatorFieldType(context.buildFullName(name), meta.getValue());
+            // TODO should percolator even allow multifields?
+            MultiFields multiFields = multiFieldsBuilder.build(this, context);
+            context = context.createChildContext(name);
+            KeywordFieldMapper extractedTermsField = createExtractQueryFieldBuilder(EXTRACTED_TERMS_FIELD_NAME, context);
             fieldType.queryTermsField = extractedTermsField.fieldType();
-            KeywordFieldMapper extractionResultField = createExtractQueryFieldBuilder(EXTRACTION_RESULT_FIELD_NAME, contentPath);
+            KeywordFieldMapper extractionResultField = createExtractQueryFieldBuilder(EXTRACTION_RESULT_FIELD_NAME, context);
             fieldType.extractionResultField = extractionResultField.fieldType();
-            BinaryFieldMapper queryBuilderField = createQueryBuilderFieldBuilder(contentPath);
+            BinaryFieldMapper queryBuilderField = createQueryBuilderFieldBuilder(context);
             fieldType.queryBuilderField = queryBuilderField.fieldType();
             // Range field is of type ip, because that matches closest with BinaryRange field. Otherwise we would
             // have to introduce a new field type...
-            RangeFieldMapper rangeFieldMapper = createExtractedRangeFieldBuilder(RANGE_FIELD_NAME, RangeType.IP, contentPath);
+            RangeFieldMapper rangeFieldMapper = createExtractedRangeFieldBuilder(RANGE_FIELD_NAME, RangeType.IP, context);
             fieldType.rangeField = rangeFieldMapper.fieldType();
-            NumberFieldMapper minimumShouldMatchFieldMapper = createMinimumShouldMatchField(contentPath);
+            NumberFieldMapper minimumShouldMatchFieldMapper = createMinimumShouldMatchField(context);
             fieldType.minimumShouldMatchField = minimumShouldMatchFieldMapper.fieldType();
             fieldType.mapUnmappedFieldsAsText = mapUnmappedFieldsAsText;
 
-            contentPath.remove();
-            return new PercolatorFieldMapper(name(), fieldType,
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(), searchExecutionContext, extractedTermsField,
-                extractionResultField, queryBuilderField, rangeFieldMapper, minimumShouldMatchFieldMapper,
-                mapUnmappedFieldsAsText);
+            return new PercolatorFieldMapper(
+                name(),
+                fieldType,
+                multiFields,
+                copyTo.build(),
+                searchExecutionContext,
+                extractedTermsField,
+                extractionResultField,
+                queryBuilderField,
+                rangeFieldMapper,
+                minimumShouldMatchFieldMapper,
+                mapUnmappedFieldsAsText
+            );
         }
 
-        static KeywordFieldMapper createExtractQueryFieldBuilder(String name, ContentPath contentPath) {
+        static KeywordFieldMapper createExtractQueryFieldBuilder(String name, MapperBuilderContext context) {
             KeywordFieldMapper.Builder queryMetadataFieldBuilder = new KeywordFieldMapper.Builder(name);
             queryMetadataFieldBuilder.docValues(false);
-            return queryMetadataFieldBuilder.build(contentPath);
+            return queryMetadataFieldBuilder.build(context);
         }
 
-        static BinaryFieldMapper createQueryBuilderFieldBuilder(ContentPath contentPath) {
+        static BinaryFieldMapper createQueryBuilderFieldBuilder(MapperBuilderContext context) {
             BinaryFieldMapper.Builder builder = new BinaryFieldMapper.Builder(QUERY_BUILDER_FIELD_NAME, true);
-            return builder.build(contentPath);
+            return builder.build(context);
         }
 
-        static RangeFieldMapper createExtractedRangeFieldBuilder(String name, RangeType rangeType, ContentPath contentPath) {
+        static RangeFieldMapper createExtractedRangeFieldBuilder(String name, RangeType rangeType, MapperBuilderContext context) {
             RangeFieldMapper.Builder builder = new RangeFieldMapper.Builder(name, rangeType, true);
             // For now no doc values, because in processQuery(...) only the Lucene range fields get added:
             builder.docValues(false);
-            return builder.build(contentPath);
+            return builder.build(context);
         }
 
-        static NumberFieldMapper createMinimumShouldMatchField(ContentPath contentPath) {
-            NumberFieldMapper.Builder builder =
-                    NumberFieldMapper.Builder.docValuesOnly(MINIMUM_SHOULD_MATCH_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER);
-            return builder.build(contentPath);
+        static NumberFieldMapper createMinimumShouldMatchField(MapperBuilderContext context) {
+            NumberFieldMapper.Builder builder = NumberFieldMapper.Builder.docValuesOnly(
+                MINIMUM_SHOULD_MATCH_FIELD_NAME,
+                NumberFieldMapper.NumberType.INTEGER
+            );
+            return builder.build(context);
         }
 
     }
@@ -173,7 +189,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
             return new Builder(name, parserContext.searchExecutionContext(), getMapUnmappedFieldAsText(parserContext.getSettings()));
         }
     }
@@ -211,8 +227,14 @@ public class PercolatorFieldMapper extends FieldMapper {
             return SourceValueFetcher.identity(name(), context, format);
         }
 
-        Query percolateQuery(String name, PercolateQuery.QueryStore queryStore, List<BytesReference> documents,
-                             IndexSearcher searcher, boolean excludeNestedDocuments, Version indexVersion) throws IOException {
+        Query percolateQuery(
+            String name,
+            PercolateQuery.QueryStore queryStore,
+            List<BytesReference> documents,
+            IndexSearcher searcher,
+            boolean excludeNestedDocuments,
+            Version indexVersion
+        ) throws IOException {
             IndexReader indexReader = searcher.getIndexReader();
             Tuple<BooleanQuery, Boolean> t = createCandidateQuery(indexReader, indexVersion);
             Query candidateQuery = t.v1();
@@ -241,8 +263,8 @@ public class PercolatorFieldMapper extends FieldMapper {
             List<BytesRef> extractedTerms = t.v1();
             Map<String, List<byte[]>> encodedPointValuesByField = t.v2();
             // `1 + ` is needed to take into account the EXTRACTION_FAILED should clause
-            boolean canUseMinimumShouldMatchField = 1 + extractedTerms.size() + encodedPointValuesByField.size() <=
-                BooleanQuery.getMaxClauseCount();
+            boolean canUseMinimumShouldMatchField = 1 + extractedTerms.size() + encodedPointValuesByField.size() <= BooleanQuery
+                .getMaxClauseCount();
 
             List<Query> subQueries = new ArrayList<>();
             for (Map.Entry<String, List<byte[]>> entry : encodedPointValuesByField.entrySet()) {
@@ -315,11 +337,19 @@ public class PercolatorFieldMapper extends FieldMapper {
     private final RangeFieldMapper rangeFieldMapper;
     private final boolean mapUnmappedFieldsAsText;
 
-    PercolatorFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                          MultiFields multiFields, CopyTo copyTo, Supplier<SearchExecutionContext> searchExecutionContext,
-                          KeywordFieldMapper queryTermsField, KeywordFieldMapper extractionResultField,
-                          BinaryFieldMapper queryBuilderField, RangeFieldMapper rangeFieldMapper,
-                          NumberFieldMapper minimumShouldMatchFieldMapper, boolean mapUnmappedFieldsAsText) {
+    PercolatorFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Supplier<SearchExecutionContext> searchExecutionContext,
+        KeywordFieldMapper queryTermsField,
+        KeywordFieldMapper extractionResultField,
+        BinaryFieldMapper queryBuilderField,
+        RangeFieldMapper rangeFieldMapper,
+        NumberFieldMapper minimumShouldMatchFieldMapper,
+        boolean mapUnmappedFieldsAsText
+    ) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
         this.searchExecutionContext = searchExecutionContext;
         this.queryTermsField = queryTermsField;
@@ -331,8 +361,8 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     @Override
-    public void parse(ParseContext context) throws IOException {
-        SearchExecutionContext searchExecutionContext = this.searchExecutionContext.get();
+    public void parse(DocumentParserContext context) throws IOException {
+        SearchExecutionContext executionContext = this.searchExecutionContext.get();
         if (context.doc().getField(queryBuilderField.name()) != null) {
             // If a percolator query has been defined in an array object then multiple percolator queries
             // could be provided. In order to prevent this we fail if we try to parse more than one query
@@ -340,34 +370,35 @@ public class PercolatorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("a document can only contain one percolator query");
         }
 
-        configureContext(searchExecutionContext, isMapUnmappedFieldAsText());
+        configureContext(executionContext, isMapUnmappedFieldAsText());
 
         XContentParser parser = context.parser();
-        QueryBuilder queryBuilder = parseQueryBuilder(
-                parser, parser.getTokenLocation()
-        );
+        QueryBuilder queryBuilder = parseQueryBuilder(parser, parser.getTokenLocation());
         verifyQuery(queryBuilder);
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
-        Rewriteable.rewriteAndFetch(queryBuilder, searchExecutionContext, future);
+        Rewriteable.rewriteAndFetch(queryBuilder, executionContext, future);
         queryBuilder = future.actionGet();
 
         Version indexVersion = context.indexSettings().getIndexVersionCreated();
         createQueryBuilderField(indexVersion, queryBuilderField, queryBuilder, context);
 
-        QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new SearchExecutionContext(searchExecutionContext));
-        Query query = queryBuilderForProcessing.toQuery(searchExecutionContext);
+        QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new SearchExecutionContext(executionContext));
+        Query query = queryBuilderForProcessing.toQuery(executionContext);
         processQuery(query, context);
     }
 
-    static void createQueryBuilderField(Version indexVersion, BinaryFieldMapper qbField,
-                                        QueryBuilder queryBuilder, ParseContext context) throws IOException {
+    static void createQueryBuilderField(
+        Version indexVersion,
+        BinaryFieldMapper qbField,
+        QueryBuilder queryBuilder,
+        DocumentParserContext context
+    ) throws IOException {
         try (ByteArrayOutputStream stream = new ByteArrayOutputStream()) {
-            try (OutputStreamStreamOutput out  = new OutputStreamStreamOutput(stream)) {
+            try (OutputStreamStreamOutput out = new OutputStreamStreamOutput(stream)) {
                 out.setVersion(indexVersion);
                 out.writeNamedWriteable(queryBuilder);
-                byte[] queryBuilderAsBytes = stream.toByteArray();
-                qbField.parse(context.createExternalValueContext(queryBuilderAsBytes));
+                qbField.indexValue(context, stream.toByteArray());
             }
         }
     }
@@ -380,8 +411,8 @@ public class PercolatorFieldMapper extends FieldMapper {
         INDEXED_KEYWORD.freeze();
     }
 
-    void processQuery(Query query, ParseContext context) {
-        ParseContext.Document doc = context.doc();
+    void processQuery(Query query, DocumentParserContext context) {
+        LuceneDocument doc = context.doc();
         PercolatorFieldType pft = (PercolatorFieldType) this.fieldType();
         QueryAnalyzer.Result result;
         result = QueryAnalyzer.analyze(query);
@@ -414,7 +445,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             doc.add(new Field(extractionResultField.name(), EXTRACTION_PARTIAL, INDEXED_KEYWORD));
         }
 
-        createFieldNamesField(context);
+        context.addToFieldNames(fieldType().name());
         doc.add(new NumericDocValuesField(minimumShouldMatchFieldMapper.name(), result.minimumShouldMatch));
     }
 
@@ -446,12 +477,16 @@ public class PercolatorFieldMapper extends FieldMapper {
     @Override
     public Iterator<Mapper> iterator() {
         return Arrays.<Mapper>asList(
-                queryTermsField, extractionResultField, queryBuilderField, minimumShouldMatchFieldMapper, rangeFieldMapper
+            queryTermsField,
+            extractionResultField,
+            queryBuilderField,
+            minimumShouldMatchFieldMapper,
+            rangeFieldMapper
         ).iterator();
     }
 
     @Override
-    protected void parseCreateField(ParseContext context) {
+    protected void parseCreateField(DocumentParserContext context) {
         throw new UnsupportedOperationException("should not be invoked");
     }
 

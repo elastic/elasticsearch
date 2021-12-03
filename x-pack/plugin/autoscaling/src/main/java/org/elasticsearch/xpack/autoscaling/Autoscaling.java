@@ -17,16 +17,16 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -36,6 +36,8 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.autoscaling.action.DeleteAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingPolicyAction;
@@ -49,11 +51,13 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryInfoService;
+import org.elasticsearch.xpack.autoscaling.existence.FrozenExistenceDeciderService;
 import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.shards.FrozenShardsDeciderService;
+import org.elasticsearch.xpack.autoscaling.storage.FrozenStorageDeciderService;
 import org.elasticsearch.xpack.autoscaling.storage.ProactiveStorageDeciderService;
 import org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService;
 
@@ -77,8 +81,14 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         }
     }
 
+    static final LicensedFeature.Momentary AUTOSCALING_FEATURE = LicensedFeature.momentary(
+        null,
+        "autoscaling",
+        License.OperationMode.ENTERPRISE
+    );
+
     private final List<AutoscalingExtension> autoscalingExtensions;
-    private final SetOnce<ClusterService> clusterService = new SetOnce<>();
+    private final SetOnce<ClusterService> clusterServiceHolder = new SetOnce<>();
     private final SetOnce<AllocationDeciders> allocationDeciders = new SetOnce<>();
     private final AutoscalingLicenseChecker autoscalingLicenseChecker;
 
@@ -105,7 +115,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        this.clusterService.set(clusterService);
+        this.clusterServiceHolder.set(clusterService);
         return List.of(
             new AutoscalingCalculateCapacityService.Holder(this),
             autoscalingLicenseChecker,
@@ -170,6 +180,16 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 AutoscalingDeciderResult.Reason.class,
                 FrozenShardsDeciderService.NAME,
                 FrozenShardsDeciderService.FrozenShardsReason::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderResult.Reason.class,
+                FrozenStorageDeciderService.NAME,
+                FrozenStorageDeciderService.FrozenReason::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderResult.Reason.class,
+                FrozenExistenceDeciderService.NAME,
+                FrozenExistenceDeciderService.FrozenExistenceReason::new
             )
         );
     }
@@ -189,24 +209,19 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     @Override
     public Collection<AutoscalingDeciderService> deciders() {
         assert allocationDeciders.get() != null;
+        final ClusterService clusterService = clusterServiceHolder.get();
         return List.of(
             new FixedAutoscalingDeciderService(),
-            new ReactiveStorageDeciderService(
-                clusterService.get().getSettings(),
-                clusterService.get().getClusterSettings(),
-                allocationDeciders.get()
-            ),
-            new ProactiveStorageDeciderService(
-                clusterService.get().getSettings(),
-                clusterService.get().getClusterSettings(),
-                allocationDeciders.get()
-            ),
-            new FrozenShardsDeciderService()
+            new ReactiveStorageDeciderService(clusterService.getSettings(), clusterService.getClusterSettings(), allocationDeciders.get()),
+            new ProactiveStorageDeciderService(clusterService.getSettings(), clusterService.getClusterSettings(), allocationDeciders.get()),
+            new FrozenShardsDeciderService(),
+            new FrozenStorageDeciderService(),
+            new FrozenExistenceDeciderService()
         );
     }
 
-    public Set<AutoscalingDeciderService> createDeciderServices(AllocationDeciders allocationDeciders) {
-        this.allocationDeciders.set(allocationDeciders);
+    public Set<AutoscalingDeciderService> createDeciderServices(AllocationDeciders deciders) {
+        this.allocationDeciders.set(deciders);
         return autoscalingExtensions.stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toSet());
     }
 

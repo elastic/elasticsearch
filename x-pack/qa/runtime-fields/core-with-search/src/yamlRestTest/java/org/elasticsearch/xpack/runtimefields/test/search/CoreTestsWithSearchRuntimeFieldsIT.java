@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.runtimefields.test.search;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -209,7 +210,9 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                             // Try the next one
                         }
                         // Strings are funny, the regular dynamic mapping puts them in "name.keyword" so we follow along.
-                        indexRuntimeMappings.put(name + ".keyword", runtimeFieldLoadingFromSource("keyword"));
+                        Map<String, Object> keyword = new HashMap<>(runtimeFieldLoadingFromSource("keyword"));
+                        keyword.put("script", "emit(params._source." + name + ");");
+                        indexRuntimeMappings.put(name + ".keyword", keyword);
                     }
                     return true;
                 }

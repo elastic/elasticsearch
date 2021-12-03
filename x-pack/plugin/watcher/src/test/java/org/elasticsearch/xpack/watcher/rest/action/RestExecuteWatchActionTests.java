@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest.Builder;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.transport.actions.execute.ExecuteWatchRequest;
 
 import java.util.Arrays;
@@ -33,7 +33,9 @@ public class RestExecuteWatchActionTests extends ESTestCase {
                 for (String debugCondition : Arrays.asList("true", "false", null)) {
 
                     ExecuteWatchRequest request = RestExecuteWatchAction.parseRequest(
-                        createFakeRestRequest(randomId, recordExecution, ignoreCondition, debugCondition), client);
+                        createFakeRestRequest(randomId, recordExecution, ignoreCondition, debugCondition),
+                        client
+                    );
 
                     assertThat(request.getId(), is(randomId));
                     assertThat(request.isRecordExecution(), is(Boolean.parseBoolean(recordExecution)));

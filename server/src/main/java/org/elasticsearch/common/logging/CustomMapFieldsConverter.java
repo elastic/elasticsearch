@@ -21,7 +21,7 @@ import org.apache.logging.log4j.core.pattern.PatternConverter;
  * It will only populate these if the event have message of type <code>ESLogMessage</code>.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "CustomMapFields")
-@ConverterKeys({"CustomMapFields"})
+@ConverterKeys({ "CustomMapFields" })
 public final class CustomMapFieldsConverter extends LogEventPatternConverter {
 
     public CustomMapFieldsConverter() {
@@ -37,7 +37,7 @@ public final class CustomMapFieldsConverter extends LogEventPatternConverter {
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        if(event.getMessage() instanceof ESLogMessage) {
+        if (event.getMessage() instanceof ESLogMessage) {
             ESLogMessage logMessage = (ESLogMessage) event.getMessage();
             logMessage.addJsonNoBrackets(toAppendTo);
         }

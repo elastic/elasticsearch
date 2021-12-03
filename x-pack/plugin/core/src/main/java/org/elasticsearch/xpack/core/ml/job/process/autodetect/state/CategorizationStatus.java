@@ -19,7 +19,8 @@ import java.util.Locale;
  * means that inappropriate numbers of categories are being found
  */
 public enum CategorizationStatus implements Writeable {
-    OK, WARN;
+    OK,
+    WARN;
 
     public static CategorizationStatus fromString(String statusName) {
         return valueOf(statusName.trim().toUpperCase(Locale.ROOT));

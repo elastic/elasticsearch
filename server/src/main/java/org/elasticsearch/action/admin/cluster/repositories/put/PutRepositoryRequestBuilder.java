@@ -12,15 +12,17 @@ import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 
 /**
  * Register repository request builder
  */
-public class PutRepositoryRequestBuilder
-        extends AcknowledgedRequestBuilder<PutRepositoryRequest, AcknowledgedResponse, PutRepositoryRequestBuilder> {
+public class PutRepositoryRequestBuilder extends AcknowledgedRequestBuilder<
+    PutRepositoryRequest,
+    AcknowledgedResponse,
+    PutRepositoryRequestBuilder> {
 
     /**
      * Constructs register repository request

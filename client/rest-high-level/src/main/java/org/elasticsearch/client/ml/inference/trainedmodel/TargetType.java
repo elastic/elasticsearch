@@ -7,11 +7,16 @@
  */
 package org.elasticsearch.client.ml.inference.trainedmodel;
 
+import org.elasticsearch.xcontent.ParseField;
+
 import java.util.Locale;
 
 public enum TargetType {
 
-    REGRESSION, CLASSIFICATION;
+    REGRESSION,
+    CLASSIFICATION;
+
+    public static final ParseField TARGET_TYPE = new ParseField("target_type");
 
     public static TargetType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

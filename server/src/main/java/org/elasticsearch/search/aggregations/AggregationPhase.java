@@ -23,8 +23,7 @@ import java.util.List;
 public class AggregationPhase {
 
     @Inject
-    public AggregationPhase() {
-    }
+    public AggregationPhase() {}
 
     public void preProcess(SearchContext context) {
         if (context.aggregations() == null) {
@@ -38,8 +37,9 @@ public class AggregationPhase {
         } catch (IOException e) {
             throw new AggregationInitializationException("Could not initialize aggregators", e);
         }
-        Collector collector = context.getProfilers() == null ?
-            bucketCollector : new InternalProfileCollector(bucketCollector, CollectorResult.REASON_AGGREGATION, List.of());
+        Collector collector = context.getProfilers() == null
+            ? bucketCollector
+            : new InternalProfileCollector(bucketCollector, CollectorResult.REASON_AGGREGATION, List.of());
         context.queryCollectors().put(AggregationPhase.class, collector);
     }
 

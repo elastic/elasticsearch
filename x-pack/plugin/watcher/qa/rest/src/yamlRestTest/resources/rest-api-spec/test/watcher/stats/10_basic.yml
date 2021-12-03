@@ -8,7 +8,6 @@
 "Test watcher stats supports emit_stacktraces parameter":
   - do:
       watcher.stats:
-        metric: "all"
         emit_stacktraces: true
   - match: { "manually_stopped": false }
   - match: { "stats.0.watcher_state": "started" }

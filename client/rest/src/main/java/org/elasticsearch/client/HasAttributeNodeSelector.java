@@ -59,8 +59,7 @@ public final class HasAttributeNodeSelector implements NodeSelector {
             return false;
         }
         HasAttributeNodeSelector that = (HasAttributeNodeSelector) o;
-        return Objects.equals(key, that.key) &&
-                Objects.equals(value, that.value);
+        return Objects.equals(key, that.key) && Objects.equals(value, that.value);
     }
 
     @Override

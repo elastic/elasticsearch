@@ -29,7 +29,7 @@ the data. This data has the following retention requirements:
 * After rollover, keep indices in the hot data tier for 30 days.
 * 30 days after rollover:
 ** Move indices to the warm data tier.
-** Set <<glossary-replica-shard, replica shards>> to 1.
+** Set replica shards to 1.
 ** <<indices-forcemerge, Force merge>> multiple index segments to free up the
 space used by deleted documents.
 * Delete indices 90 days after rollover.

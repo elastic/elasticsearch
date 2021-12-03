@@ -98,7 +98,7 @@ GET /_search
 --------------------------------------------------
 // TEST[s/^/PUT my-index-000001\nPUT my-index-000002\n/]
 
-Index aliases and index patterns can also be used:
+Aliases and index patterns can also be used:
 
 [source,console]
 --------------------------------------------------

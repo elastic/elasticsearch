@@ -29,16 +29,23 @@ public class FeatureTestAugmentationObject {
     }
 
     public static int augmentInjectWithLambda(FeatureTestObject ft, int injected, Function<Short, Integer> fn, short arg) {
-        return ft.getX()*fn.apply(arg)*injected;
+        return ft.getX() * fn.apply(arg) * injected;
     }
 
     public static int augmentInjectMultiTimesX(FeatureTestObject ft, int inject1, int inject2, short user) {
         return ft.getX() * (inject1 + inject2) * user;
     }
 
-    public static int augmentInjectMultiWithLambda(FeatureTestObject ft,
-            int inject1, int inject2, int inject3, int inject4, Function<Short, Integer> fn, short arg) {
-        return ft.getX()*fn.apply(arg)*(inject1 + inject2 + inject3 + inject4);
+    public static int augmentInjectMultiWithLambda(
+        FeatureTestObject ft,
+        int inject1,
+        int inject2,
+        int inject3,
+        int inject4,
+        Function<Short, Integer> fn,
+        short arg
+    ) {
+        return ft.getX() * fn.apply(arg) * (inject1 + inject2 + inject3 + inject4);
     }
 
     private FeatureTestAugmentationObject() {}

@@ -35,11 +35,17 @@ import java.util.Map;
  */
 public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<SnowballAnalyzer> {
     private static final Map<String, CharArraySet> DEFAULT_LANGUAGE_STOP_WORDS = Map.of(
-        "English", EnglishAnalyzer.ENGLISH_STOP_WORDS_SET,
-        "Dutch", DutchAnalyzer.getDefaultStopSet(),
-        "German", GermanAnalyzer.getDefaultStopSet(),
-        "German2", GermanAnalyzer.getDefaultStopSet(),
-        "French", FrenchAnalyzer.getDefaultStopSet());
+        "English",
+        EnglishAnalyzer.ENGLISH_STOP_WORDS_SET,
+        "Dutch",
+        DutchAnalyzer.getDefaultStopSet(),
+        "German",
+        GermanAnalyzer.getDefaultStopSet(),
+        "German2",
+        GermanAnalyzer.getDefaultStopSet(),
+        "French",
+        FrenchAnalyzer.getDefaultStopSet()
+    );
 
     private final SnowballAnalyzer analyzer;
 
@@ -51,7 +57,6 @@ public class SnowballAnalyzerProvider extends AbstractIndexAnalyzerProvider<Snow
         CharArraySet stopWords = Analysis.parseStopWords(env, settings, defaultStopwords);
 
         analyzer = new SnowballAnalyzer(language, stopWords);
-        analyzer.setVersion(version);
     }
 
     @Override

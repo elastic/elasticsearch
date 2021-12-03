@@ -14,9 +14,9 @@ import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,10 +43,8 @@ public class RolloverResponseTests extends ESTestCase {
             this::createParser,
             RolloverResponseTests::createTestInstance,
             RolloverResponseTests::toXContent,
-            RolloverResponse::fromXContent)
-            .supportsUnknownFields(true)
-            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
-            .test();
+            RolloverResponse::fromXContent
+        ).supportsUnknownFields(true).randomFieldsExcludeFilter(getRandomFieldsExcludeFilter()).test();
     }
 
     private static RolloverResponse createTestInstance() {

@@ -6,8 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -56,7 +57,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         byte byteVal = randomByte();
         short shortVal = randomShort();
         BigDecimal bigDecimalVal = BigDecimal.valueOf(randomDouble());
-        long millis = randomNonNegativeLong();
+        long millis = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
         Calendar calendarVal = Calendar.getInstance(randomTimeZone(), Locale.ROOT);
         Timestamp timestampVal = new Timestamp(millis);
         Timestamp timestampValWithCal = new Timestamp(JdbcTestUtils.convertFromCalendarToUTC(timestampVal.getTime(), calendarVal));
@@ -136,7 +137,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testDatetime() throws IOException, SQLException {
-        long randomMillis = randomNonNegativeLong();
+        long randomMillis = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
         setupIndexForDateTimeTests(randomMillis);
 
         try (Connection connection = esJdbc()) {
@@ -154,16 +155,19 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testDatetimeWithNanos() throws IOException, SQLException {
-        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
-                versionSupportsDateNanos());
+        assumeTrue(
+            "Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+            versionSupportsDateNanos()
+        );
 
         long randomTimestampWitnNanos = randomTimeInNanos();
         int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
         setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
 
         try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement(
-                    "SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")) {
+            try (
+                PreparedStatement statement = connection.prepareStatement("SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")
+            ) {
                 Timestamp ts = new Timestamp(toMilliSeconds(randomTimestampWitnNanos));
                 statement.setObject(1, ts);
                 try (ResultSet results = statement.executeQuery()) {
@@ -183,16 +187,19 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testDateTimeWithNanosAgainstDriverWithoutSupport() throws IOException, SQLException {
-        assumeFalse("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
-                versionSupportsDateNanos());
+        assumeFalse(
+            "Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+            versionSupportsDateNanos()
+        );
 
         long randomTimestampWitnNanos = randomTimeInNanos();
         int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
         setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
 
         try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement(
-                    "SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")) {
+            try (
+                PreparedStatement statement = connection.prepareStatement("SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")
+            ) {
                 Timestamp ts = new Timestamp(toMilliSeconds(randomTimestampWitnNanos));
                 statement.setObject(1, ts);
                 try (ResultSet results = statement.executeQuery()) {
@@ -209,7 +216,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testDate() throws IOException, SQLException {
-        long randomMillis = randomNonNegativeLong();
+        long randomMillis = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
         setupIndexForDateTimeTests(randomMillis);
 
         try (Connection connection = esJdbc()) {
@@ -233,7 +240,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testTime() throws IOException, SQLException {
-        long randomMillis = randomNonNegativeLong();
+        long randomMillis = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
         setupIndexForDateTimeTests(randomMillis);
 
         try (Connection connection = esJdbc()) {

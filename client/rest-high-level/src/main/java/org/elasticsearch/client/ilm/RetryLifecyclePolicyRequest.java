@@ -8,10 +8,11 @@
 
 package org.elasticsearch.client.ilm;
 
+import org.elasticsearch.client.TimedRequest;
+
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import org.elasticsearch.client.TimedRequest;
 
 public class RetryLifecyclePolicyRequest extends TimedRequest {
 

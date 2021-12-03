@@ -20,11 +20,13 @@ import java.util.Map;
 
 public class GlobalAggregatorFactory extends AggregatorFactory {
 
-    public GlobalAggregatorFactory(String name,
-                                    AggregationContext context,
-                                    AggregatorFactory parent,
-                                    AggregatorFactories.Builder subFactories,
-                                    Map<String, Object> metadata) throws IOException {
+    public GlobalAggregatorFactory(
+        String name,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactories,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, subFactories, metadata);
     }
 
@@ -32,8 +34,14 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
     public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
         if (parent != null) {
-            throw new AggregationExecutionException("Aggregation [" + parent.name() + "] cannot have a global " + "sub-aggregation [" + name
-                    + "]. Global aggregations can only be defined as top level aggregations");
+            throw new AggregationExecutionException(
+                "Aggregation ["
+                    + parent.name()
+                    + "] cannot have a global "
+                    + "sub-aggregation ["
+                    + name
+                    + "]. Global aggregations can only be defined as top level aggregations"
+            );
         }
         if (cardinality != CardinalityUpperBound.ONE) {
             throw new AggregationExecutionException("Aggregation [" + name() + "] must have cardinality 1 but was [" + cardinality + "]");

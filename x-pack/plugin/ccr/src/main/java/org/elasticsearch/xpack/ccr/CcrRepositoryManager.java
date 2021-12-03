@@ -42,12 +42,10 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doStop() {
-    }
+    protected void doStop() {}
 
     @Override
-    protected void doClose() throws IOException {
-    }
+    protected void doClose() throws IOException {}
 
     private void putRepository(String repositoryName) {
         ActionRequest request = new PutInternalCcrRepositoryRequest(repositoryName, CcrRepository.TYPE);

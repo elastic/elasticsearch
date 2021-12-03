@@ -83,31 +83,25 @@ public class IndexOfFunctionProcessorTests extends ESTestCase {
     }
 
     public void testIndexOfFunctionInputsValidation() {
-        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
-            () -> indexOfUntyped(5, "foo", null));
+        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class, () -> indexOfUntyped(5, "foo", null));
         assertEquals("A string/char is required; received [5]", siae.getMessage());
-        siae = expectThrows(QlIllegalArgumentException.class,
-            () -> indexOfUntyped("bar", false, 2));
+        siae = expectThrows(QlIllegalArgumentException.class, () -> indexOfUntyped("bar", false, 2));
         assertEquals("A string/char is required; received [false]", siae.getMessage());
-        siae = expectThrows(QlIllegalArgumentException.class,
-            () -> indexOfUntyped("bar", "a", "1"));
+        siae = expectThrows(QlIllegalArgumentException.class, () -> indexOfUntyped("bar", "a", "1"));
         assertEquals("A number is required; received [1]", siae.getMessage());
     }
 
     public void testIndexOfFunctionWithRandomInvalidDataType() {
         Configuration config = randomConfiguration();
         Literal stringLiteral = randomValueOtherThanMany(v -> v.dataType() == KEYWORD, () -> LiteralTests.randomLiteral());
-        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class,
-            () -> indexOfUntyped(stringLiteral, "foo", 1));
+        QlIllegalArgumentException siae = expectThrows(QlIllegalArgumentException.class, () -> indexOfUntyped(stringLiteral, "foo", 1));
         assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
 
-        siae = expectThrows(QlIllegalArgumentException.class,
-            () -> indexOfUntyped("foo", stringLiteral, 2));
+        siae = expectThrows(QlIllegalArgumentException.class, () -> indexOfUntyped("foo", stringLiteral, 2));
         assertThat(siae.getMessage(), startsWith("A string/char is required; received"));
 
         Literal numericLiteral = randomValueOtherThanMany(v -> v.dataType().isNumeric(), () -> LiteralTests.randomLiteral());
-        siae = expectThrows(QlIllegalArgumentException.class,
-            () -> indexOfUntyped("foo", "o", numericLiteral));
+        siae = expectThrows(QlIllegalArgumentException.class, () -> indexOfUntyped("foo", "o", numericLiteral));
         assertThat(siae.getMessage(), startsWith("A number is required; received"));
     }
 }

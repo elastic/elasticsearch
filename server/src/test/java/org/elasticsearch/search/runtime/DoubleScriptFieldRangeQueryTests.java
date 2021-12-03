@@ -67,6 +67,23 @@ public class DoubleScriptFieldRangeQueryTests extends AbstractDoubleScriptFieldQ
         assertTrue(query.matches(new double[] { 2, 5 }, 2));
         assertTrue(query.matches(new double[] { 5, 2 }, 2));
         assertFalse(query.matches(new double[] { 5, 2 }, 1));
+
+        // test some special cases around 0.0
+        query = new DoubleScriptFieldRangeQuery(randomScript(), leafFactory, "test", Double.NEGATIVE_INFINITY, -0.0);
+        assertTrue(query.matches(new double[] { -0.0 }, 1));
+        assertFalse(query.matches(new double[] { 0.0 }, 1));
+
+        query = new DoubleScriptFieldRangeQuery(randomScript(), leafFactory, "test", Double.NEGATIVE_INFINITY, 0.0);
+        assertTrue(query.matches(new double[] { -0.0 }, 1));
+        assertTrue(query.matches(new double[] { 0.0 }, 1));
+
+        query = new DoubleScriptFieldRangeQuery(randomScript(), leafFactory, "test", -0.0, Double.POSITIVE_INFINITY);
+        assertTrue(query.matches(new double[] { -0.0 }, 1));
+        assertTrue(query.matches(new double[] { 0.0 }, 1));
+
+        query = new DoubleScriptFieldRangeQuery(randomScript(), leafFactory, "test", 0.0, Double.POSITIVE_INFINITY);
+        assertFalse(query.matches(new double[] { -0.0 }, 1));
+        assertTrue(query.matches(new double[] { 0.0 }, 1));
     }
 
     @Override

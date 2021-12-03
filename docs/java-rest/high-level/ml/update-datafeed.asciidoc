@@ -43,6 +43,7 @@ datafeed runs in real time.
 <7> Optional, the time interval behind real time that data is queried.
 <8> Optional, allows the use of script fields.
 <9> Optional, the `size` parameter used in the searches.
+<10> Optional, the runtime fields used in the datafeed.
 
 include::../execution.asciidoc[]
 

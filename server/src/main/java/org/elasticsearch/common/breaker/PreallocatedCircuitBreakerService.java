@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.breaker;
 
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.CircuitBreakerStats;
@@ -21,7 +21,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerStats;
  */
 public class PreallocatedCircuitBreakerService extends CircuitBreakerService implements Releasable {
     private final CircuitBreakerService next;
-    private final PreallocedCircuitBreaker preallocated;
+    private final PreallocatedCircuitBreaker preallocated;
 
     public PreallocatedCircuitBreakerService(
         CircuitBreakerService next,
@@ -35,7 +35,7 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
         CircuitBreaker nextBreaker = next.getBreaker(breakerToPreallocate);
         nextBreaker.addEstimateBytesAndMaybeBreak(bytesToPreallocate, "preallocate[" + label + "]");
         this.next = next;
-        this.preallocated = new PreallocedCircuitBreaker(nextBreaker, bytesToPreallocate);
+        this.preallocated = new PreallocatedCircuitBreaker(nextBreaker, bytesToPreallocate);
     }
 
     @Override
@@ -72,8 +72,8 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
      * <p>
      * If we're in the "used fewer bytes" state than we've allocated then
      * allocating new bytes just adds to
-     * {@link PreallocedCircuitBreaker#preallocationUsed}, maxing out at
-     * {@link PreallocedCircuitBreaker#preallocated}. If we max
+     * {@link PreallocatedCircuitBreaker#preallocationUsed}, maxing out at
+     * {@link PreallocatedCircuitBreaker#preallocated}. If we max
      * out we irreversibly switch to "used all" state. In that state any
      * additional allocations are passed directly to the underlying breaker.
      * <p>
@@ -83,17 +83,17 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
      * "used all" state all de-allocates are done directly on the underlying
      * breaker. So well behaved callers will naturally de-allocate everything.
      * <p>
-     * {@link PreallocedCircuitBreaker#close()} is only used to de-allocate
+     * {@link PreallocatedCircuitBreaker#close()} is only used to de-allocate
      * bytes from the underlying breaker if we're still in the "used fewer bytes"
      * state. There is nothing to de-allocate if we are in the "used all" state.
      */
-    private static class PreallocedCircuitBreaker implements CircuitBreaker, Releasable {
+    private static class PreallocatedCircuitBreaker implements CircuitBreaker, Releasable {
         private final CircuitBreaker next;
         private final long preallocated;
         private long preallocationUsed;
         private boolean closed;
 
-        PreallocedCircuitBreaker(CircuitBreaker next, long preallocated) {
+        PreallocatedCircuitBreaker(CircuitBreaker next, long preallocated) {
             this.next = next;
             this.preallocated = preallocated;
         }
@@ -116,8 +116,9 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
             long newUsed = preallocationUsed + bytes;
             if (newUsed > preallocated) {
                 // This request filled up the buffer
-                preallocationUsed = preallocated;
                 next.addEstimateBytesAndMaybeBreak(newUsed - preallocated, label);
+                // Adjust preallocationUsed only after we know we didn't circuit break!
+                preallocationUsed = preallocated;
                 return;
             }
             // This is the fast case. No volatile reads or writes here, ma!

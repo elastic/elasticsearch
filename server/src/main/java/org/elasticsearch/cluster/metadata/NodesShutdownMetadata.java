@@ -10,15 +10,16 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -27,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -66,6 +68,11 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         return new NodeShutdownMetadataDiff(in);
     }
 
+    public static Optional<NodesShutdownMetadata> getShutdowns(final ClusterState state) {
+        assert state != null : "cluster state should never be null";
+        return Optional.ofNullable(state).map(ClusterState::metadata).map(m -> m.custom(TYPE));
+    }
+
     private final Map<String, SingleNodeShutdownMetadata> nodes;
 
     public NodesShutdownMetadata(Map<String, SingleNodeShutdownMetadata> nodes) {
@@ -84,7 +91,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
     /**
      * @return A map of NodeID to shutdown metadata.
      */
-    public Map<String, SingleNodeShutdownMetadata> getAllNodeMetdataMap() {
+    public Map<String, SingleNodeShutdownMetadata> getAllNodeMetadataMap() {
         return Collections.unmodifiableMap(nodes);
     }
 
@@ -171,9 +178,7 @@ public class NodesShutdownMetadata implements Metadata.Custom {
 
         @Override
         public Metadata.Custom apply(Metadata.Custom part) {
-            TreeMap<String, SingleNodeShutdownMetadata> newNodes = new TreeMap<>(
-                nodesDiff.apply(((NodesShutdownMetadata) part).nodes)
-            );
+            TreeMap<String, SingleNodeShutdownMetadata> newNodes = new TreeMap<>(nodesDiff.apply(((NodesShutdownMetadata) part).nodes));
             return new NodesShutdownMetadata(newNodes);
         }
 

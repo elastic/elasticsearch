@@ -43,10 +43,9 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
     public void testExplain_GivenMissingSourceIndex() {
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
-            .setSource(new DataFrameAnalyticsSource(new String[] {"missing_index"}, null, null, Collections.emptyMap()))
-            .setAnalysis(new OutlierDetection.Builder().build())
-            .buildForExplain();
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setSource(
+            new DataFrameAnalyticsSource(new String[] { "missing_index" }, null, null, Collections.emptyMap())
+        ).setAnalysis(new OutlierDetection.Builder().build()).buildForExplain();
 
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> explainDataFrame(config));
         assertThat(e.getMessage(), equalTo("cannot retrieve data because index [missing_index] does not exist"));
@@ -59,12 +58,19 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
 
         String sourceIndex = "test-source-query-is-applied";
 
-        client().admin().indices().prepareCreate(sourceIndex)
+        client().admin()
+            .indices()
+            .prepareCreate(sourceIndex)
             .setMapping(
-                "numeric_1", "type=double",
-                "numeric_2", "type=unsigned_long",
-                "categorical", "type=keyword",
-                "filtered_field", "type=keyword")
+                "numeric_1",
+                "type=double",
+                "numeric_2",
+                "type=unsigned_long",
+                "categorical",
+                "type=keyword",
+                "filtered_field",
+                "type=keyword"
+            )
             .get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
@@ -73,10 +79,15 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
         for (int i = 0; i < 30; i++) {
             IndexRequest indexRequest = new IndexRequest(sourceIndex);
             indexRequest.source(
-                "numeric_1", 1.0,
-                "numeric_2", 2,
-                "categorical", i % 2 == 0 ? "class_1" : "class_2",
-                "filtered_field", i < 2 ? "bingo" : "rest"); // We tag bingo on the first two docs to ensure we have 2 classes
+                "numeric_1",
+                1.0,
+                "numeric_2",
+                2,
+                "categorical",
+                i % 2 == 0 ? "class_1" : "class_2",
+                "filtered_field",
+                i < 2 ? "bingo" : "rest"
+            ); // We tag bingo on the first two docs to ensure we have 2 classes
             bulkRequestBuilder.add(indexRequest);
         }
         BulkResponse bulkResponse = bulkRequestBuilder.get();
@@ -86,12 +97,15 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
 
         String id = "test_source_query_is_applied";
 
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
-            .setId(id)
-            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex },
-                QueryProvider.fromParsedQuery(QueryBuilders.termQuery("filtered_field", "bingo")),
-                null,
-                Collections.emptyMap()))
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(id)
+            .setSource(
+                new DataFrameAnalyticsSource(
+                    new String[] { sourceIndex },
+                    QueryProvider.fromParsedQuery(QueryBuilders.termQuery("filtered_field", "bingo")),
+                    null,
+                    Collections.emptyMap()
+                )
+            )
             .setAnalysis(new Classification("categorical"))
             .buildForExplain();
 
@@ -104,48 +118,61 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
         String sourceIndex = "test-training-percentage-applied";
         RegressionIT.indexData(sourceIndex, 100, 0);
 
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
-            .setId("dfa-training-100-" + sourceIndex)
-            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex },
-                QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()),
-                null,
-                Collections.emptyMap()))
-            .setAnalysis(new Regression(RegressionIT.DEPENDENT_VARIABLE_FIELD,
-                BoostedTreeParams.builder().build(),
-                null,
-                100.0,
-                null,
-                null,
-                null,
-                null,
-                null))
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId("dfa-training-100-" + sourceIndex)
+            .setSource(
+                new DataFrameAnalyticsSource(
+                    new String[] { sourceIndex },
+                    QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()),
+                    null,
+                    Collections.emptyMap()
+                )
+            )
+            .setAnalysis(
+                new Regression(
+                    RegressionIT.DEPENDENT_VARIABLE_FIELD,
+                    BoostedTreeParams.builder().build(),
+                    null,
+                    100.0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                )
+            )
             .buildForExplain();
 
         ExplainDataFrameAnalyticsAction.Response explainResponse = explainDataFrame(config);
 
         ByteSizeValue allDataUsedForTraining = explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk();
 
-        config = new DataFrameAnalyticsConfig.Builder()
-            .setId("dfa-training-50-" + sourceIndex)
-            .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex },
-                QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()),
-                null,
-                Collections.emptyMap()))
-            .setAnalysis(new Regression(RegressionIT.DEPENDENT_VARIABLE_FIELD,
-                BoostedTreeParams.builder().build(),
-                null,
-                50.0,
-                null,
-                null,
-                null,
-                null,
-                null))
+        config = new DataFrameAnalyticsConfig.Builder().setId("dfa-training-50-" + sourceIndex)
+            .setSource(
+                new DataFrameAnalyticsSource(
+                    new String[] { sourceIndex },
+                    QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()),
+                    null,
+                    Collections.emptyMap()
+                )
+            )
+            .setAnalysis(
+                new Regression(
+                    RegressionIT.DEPENDENT_VARIABLE_FIELD,
+                    BoostedTreeParams.builder().build(),
+                    null,
+                    50.0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                )
+            )
             .buildForExplain();
 
         explainResponse = explainDataFrame(config);
 
-        assertThat(explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk(),
-                   lessThanOrEqualTo(allDataUsedForTraining));
+        assertThat(explainResponse.getMemoryEstimation().getExpectedMemoryWithoutDisk(), lessThanOrEqualTo(allDataUsedForTraining));
     }
 
     public void testSimultaneousExplainSameConfig() throws IOException {
@@ -155,21 +182,28 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
         String sourceIndex = "test-simultaneous-explain";
         RegressionIT.indexData(sourceIndex, 100, 0);
 
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
-            .setId("dfa-simultaneous-explain-" + sourceIndex)
-            .setSource(new DataFrameAnalyticsSource(new String[]{sourceIndex},
-                QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()),
-                null,
-                Collections.emptyMap()))
-            .setAnalysis(new Regression(RegressionIT.DEPENDENT_VARIABLE_FIELD,
-                BoostedTreeParams.builder().build(),
-                null,
-                100.0,
-                null,
-                null,
-                null,
-                null,
-                null))
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId("dfa-simultaneous-explain-" + sourceIndex)
+            .setSource(
+                new DataFrameAnalyticsSource(
+                    new String[] { sourceIndex },
+                    QueryProvider.fromParsedQuery(QueryBuilders.matchAllQuery()),
+                    null,
+                    Collections.emptyMap()
+                )
+            )
+            .setAnalysis(
+                new Regression(
+                    RegressionIT.DEPENDENT_VARIABLE_FIELD,
+                    BoostedTreeParams.builder().build(),
+                    null,
+                    100.0,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null
+                )
+            )
             .buildForExplain();
 
         List<ActionFuture<ExplainDataFrameAnalyticsAction.Response>> futures = new ArrayList<>();
@@ -196,26 +230,23 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
 
     public void testRuntimeFields() {
         String sourceIndex = "test-explain-runtime-fields";
-        String mapping = "{\n" +
-            "      \"properties\": {\n" +
-            "        \"mapped_field\": {\n" +
-            "          \"type\": \"double\"\n" +
-            "        }\n" +
-            "      },\n" +
-            "      \"runtime\": {\n" +
-            "        \"mapped_runtime_field\": {\n" +
-            "          \"type\": \"double\"\n," +
-            "          \"script\": \"emit(doc['mapped_field'].value + 10.0)\"\n" +
-            "        }\n" +
-            "      }\n" +
-            "    }";
-        client().admin().indices().prepareCreate(sourceIndex)
-            .setMapping(mapping)
-            .get();
-        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk()
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        String mapping = "{\n"
+            + "      \"properties\": {\n"
+            + "        \"mapped_field\": {\n"
+            + "          \"type\": \"double\"\n"
+            + "        }\n"
+            + "      },\n"
+            + "      \"runtime\": {\n"
+            + "        \"mapped_runtime_field\": {\n"
+            + "          \"type\": \"double\"\n,"
+            + "          \"script\": \"emit(doc['mapped_field'].value + 10.0)\"\n"
+            + "        }\n"
+            + "      }\n"
+            + "    }";
+        client().admin().indices().prepareCreate(sourceIndex).setMapping(mapping).get();
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 10; i++) {
-            Object[] source = new Object[] {"mapped_field", i};
+            Object[] source = new Object[] { "mapped_field", i };
             IndexRequest indexRequest = new IndexRequest(sourceIndex).source(source).opType(DocWriteRequest.OpType.CREATE);
             bulkRequestBuilder.add(indexRequest);
         }
@@ -229,8 +260,7 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
         configRuntimeField.put("script", "emit(doc['mapped_field'].value + 20.0)");
         Map<String, Object> configRuntimeFields = Collections.singletonMap("config_runtime_field", configRuntimeField);
 
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
-            .setId(sourceIndex + "-job")
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(sourceIndex + "-job")
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null, configRuntimeFields))
             .setDest(new DataFrameAnalyticsDest(sourceIndex + "-results", null))
             .setAnalysis(new OutlierDetection.Builder().build())
@@ -240,8 +270,10 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
         List<FieldSelection> fieldSelection = explainResponse.getFieldSelection();
 
         assertThat(fieldSelection.size(), equalTo(3));
-        assertThat(fieldSelection.stream().map(FieldSelection::getName).collect(Collectors.toList()),
-            contains("config_runtime_field", "mapped_field", "mapped_runtime_field"));
+        assertThat(
+            fieldSelection.stream().map(FieldSelection::getName).collect(Collectors.toList()),
+            contains("config_runtime_field", "mapped_field", "mapped_runtime_field")
+        );
         assertThat(fieldSelection.stream().map(FieldSelection::isIncluded).allMatch(isIncluded -> isIncluded), is(true));
     }
 

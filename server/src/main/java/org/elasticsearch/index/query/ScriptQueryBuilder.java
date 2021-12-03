@@ -14,6 +14,7 @@ import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
@@ -22,10 +23,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -106,8 +109,10 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
                 if (token != XContentParser.Token.START_ARRAY) {
                     throw new AssertionError("Impossible token received: " + token.name());
                 }
-                throw new ParsingException(parser.getTokenLocation(),
-                    "[script] query does not support an array of scripts. Use a bool query with a clause per script instead.");
+                throw new ParsingException(
+                    parser.getTokenLocation(),
+                    "[script] query does not support an array of scripts. Use a bool query with a clause per script instead."
+                );
             }
         }
 
@@ -115,30 +120,32 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
             throw new ParsingException(parser.getTokenLocation(), "script must be provided with a [script] filter");
         }
 
-        return new ScriptQueryBuilder(script)
-                .boost(boost)
-                .queryName(queryName);
+        return new ScriptQueryBuilder(script).boost(boost).queryName(queryName);
     }
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException("[script] queries cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+            throw new ElasticsearchException(
+                "[script] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+            );
         }
         FilterScript.Factory factory = context.compile(script, FilterScript.CONTEXT);
-        FilterScript.LeafFactory filterScript = factory.newFactory(script.getParams(), context.lookup());
-        return new ScriptQuery(script, filterScript);
+        SearchLookup lookup = context.lookup();
+        FilterScript.LeafFactory filterScript = factory.newFactory(script.getParams(), lookup);
+        return new ScriptQuery(script, filterScript, lookup);
     }
 
     static class ScriptQuery extends Query {
 
         final Script script;
         final FilterScript.LeafFactory filterScript;
+        final SearchLookup lookup;
 
-        ScriptQuery(Script script, FilterScript.LeafFactory filterScript) {
+        ScriptQuery(Script script, FilterScript.LeafFactory filterScript, SearchLookup lookup) {
             this.script = script;
             this.filterScript = filterScript;
+            this.lookup = lookup;
         }
 
         @Override
@@ -152,8 +159,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
         @Override
         public boolean equals(Object obj) {
-            if (sameClassAs(obj) == false)
-                return false;
+            if (sameClassAs(obj) == false) return false;
             ScriptQuery other = (ScriptQuery) obj;
             return Objects.equals(script, other.script);
         }
@@ -166,13 +172,18 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
         }
 
         @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
         public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
             return new ConstantScoreWeight(this, boost) {
 
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
                     DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
-                    final FilterScript leafScript = filterScript.newInstance(context);
+                    final FilterScript leafScript = filterScript.newInstance(new DocValuesDocReader(lookup, context));
                     TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
 
                         @Override
@@ -210,6 +221,5 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
     protected boolean doEquals(ScriptQueryBuilder other) {
         return Objects.equals(script, other.script);
     }
-
 
 }

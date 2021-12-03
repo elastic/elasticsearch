@@ -5,6 +5,8 @@ setup:
         indices.create:
           index: test
           body:
+            settings:
+              number_of_shards: "1"
             mappings:
               properties:
                 foo:
@@ -154,3 +156,5 @@ setup:
     - match: { error.failed_shards.0.reason.caused_by.reason: "no paths escape from while loop" }
     - match: { error.failed_shards.0.reason.type: "script_exception" }
     - match: { error.failed_shards.0.reason.reason: "compile error" }
+
+

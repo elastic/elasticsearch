@@ -34,8 +34,12 @@ public class FileURLBlobStoreTests extends AbstractURLBlobStoreTests {
         file = createTempFile();
         blobName = file.getFileName().toString();
         Files.write(file, data);
-        blobStore = new URLBlobStore(Settings.EMPTY, file.getParent().toUri().toURL(), mock(URLHttpClient.class),
-            mock(URLHttpClientSettings.class));
+        blobStore = new URLBlobStore(
+            Settings.EMPTY,
+            file.getParent().toUri().toURL(),
+            mock(URLHttpClient.class),
+            mock(URLHttpClientSettings.class)
+        );
     }
 
     @Override
@@ -45,7 +49,7 @@ public class FileURLBlobStoreTests extends AbstractURLBlobStoreTests {
 
     @Override
     BlobContainer getBlobContainer() {
-        return blobStore.blobContainer(new BlobPath());
+        return blobStore.blobContainer(BlobPath.EMPTY);
     }
 
     @Override

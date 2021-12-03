@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.JavaClassPublicifier;
+import org.elasticsearch.gradle.internal.JavaClassPublicifier;
 
 apply plugin: 'elasticsearch.java'
 apply plugin: 'com.github.johnrengelman.shadow'

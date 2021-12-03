@@ -26,16 +26,24 @@ import org.elasticsearch.geometry.Rectangle;
  */
 public class StandardValidator implements GeometryValidator {
 
+    private static final GeometryValidator TRUE = new StandardValidator(true);
+    private static final GeometryValidator FALSE = new StandardValidator(false);
+
     private final boolean ignoreZValue;
 
-    public StandardValidator(boolean ignoreZValue) {
-       this.ignoreZValue = ignoreZValue;
+    private StandardValidator(boolean ignoreZValue) {
+        this.ignoreZValue = ignoreZValue;
+    }
+
+    public static GeometryValidator instance(boolean ignoreZValue) {
+        return ignoreZValue ? TRUE : FALSE;
     }
 
     protected void checkZ(double zValue) {
         if (ignoreZValue == false && Double.isNaN(zValue) == false) {
-            throw new IllegalArgumentException("found Z value [" + zValue + "] but [ignore_z_value] "
-                + "parameter is [" + ignoreZValue + "]");
+            throw new IllegalArgumentException(
+                "found Z value [" + zValue + "] but [ignore_z_value] " + "parameter is [" + ignoreZValue + "]"
+            );
         }
     }
 
@@ -114,4 +122,3 @@ public class StandardValidator implements GeometryValidator {
         }
     }
 }
-

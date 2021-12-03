@@ -45,9 +45,9 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
     protected MatchBoolPrefixQueryBuilder doCreateTestQueryBuilder() {
         final String fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
         final Object value = IntStream.rangeClosed(0, randomIntBetween(0, 3))
-                .mapToObj(i -> randomAlphaOfLengthBetween(1, 10) + " ")
-                .collect(Collectors.joining())
-                .trim();
+            .mapToObj(i -> randomAlphaOfLengthBetween(1, 10) + " ")
+            .collect(Collectors.joining())
+            .trim();
 
         final MatchBoolPrefixQueryBuilder queryBuilder = new MatchBoolPrefixQueryBuilder(fieldName, value);
 
@@ -87,9 +87,8 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
     }
 
     @Override
-    protected void doAssertLuceneQuery(MatchBoolPrefixQueryBuilder queryBuilder,
-                                       Query query,
-                                       SearchExecutionContext context) throws IOException {
+    protected void doAssertLuceneQuery(MatchBoolPrefixQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
+        throws IOException {
         assertThat(query, notNullValue());
         assertThat(query, anyOf(instanceOf(BooleanQuery.class), instanceOf(PrefixQuery.class)));
 
@@ -104,11 +103,14 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
                 .mapToObj(booleanQuery.clauses()::get)
                 .map(BooleanClause::getQuery)
                 .collect(Collectors.toSet());
-            assertThat(allQueriesExceptLast, anyOf(
-                everyItem(instanceOf(TermQuery.class)),
-                everyItem(instanceOf(SynonymQuery.class)),
-                everyItem(instanceOf(FuzzyQuery.class))
-            ));
+            assertThat(
+                allQueriesExceptLast,
+                anyOf(
+                    everyItem(instanceOf(TermQuery.class)),
+                    everyItem(instanceOf(SynonymQuery.class)),
+                    everyItem(instanceOf(FuzzyQuery.class))
+                )
+            );
 
             if (allQueriesExceptLast.stream().anyMatch(subQuery -> subQuery instanceof FuzzyQuery)) {
                 assertThat(queryBuilder.fuzziness(), notNullValue());
@@ -124,8 +126,10 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
             assertThat(shouldBePrefixQuery, instanceOf(PrefixQuery.class));
 
             if (queryBuilder.minimumShouldMatch() != null) {
-                final int optionalClauses =
-                    (int) booleanQuery.clauses().stream().filter(clause -> clause.getOccur() == BooleanClause.Occur.SHOULD).count();
+                final int optionalClauses = (int) booleanQuery.clauses()
+                    .stream()
+                    .filter(clause -> clause.getOccur() == BooleanClause.Occur.SHOULD)
+                    .count();
                 final int expected = Queries.calculateMinShouldMatch(optionalClauses, queryBuilder.minimumShouldMatch());
                 assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(expected));
             }
@@ -152,48 +156,41 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
     }
 
     public void testFromSimpleJson() throws IOException {
-        final String simple =
-            "{" +
-                "\"match_bool_prefix\": {" +
-                    "\"fieldName\": \"fieldValue\"" +
-                "}" +
-            "}";
-        final String expected =
-            "{" +
-                "\"match_bool_prefix\": {" +
-                    "\"fieldName\": {" +
-                        "\"query\": \"fieldValue\"," +
-                        "\"operator\": \"OR\"," +
-                        "\"prefix_length\": 0," +
-                        "\"max_expansions\": 50," +
-                        "\"fuzzy_transpositions\": true," +
-                        "\"boost\": 1.0" +
-                    "}" +
-                "}" +
-            "}";
+        final String simple = "{" + "\"match_bool_prefix\": {" + "\"fieldName\": \"fieldValue\"" + "}" + "}";
+        final String expected = "{"
+            + "\"match_bool_prefix\": {"
+            + "\"fieldName\": {"
+            + "\"query\": \"fieldValue\","
+            + "\"operator\": \"OR\","
+            + "\"prefix_length\": 0,"
+            + "\"max_expansions\": 50,"
+            + "\"fuzzy_transpositions\": true,"
+            + "\"boost\": 1.0"
+            + "}"
+            + "}"
+            + "}";
 
         final MatchBoolPrefixQueryBuilder builder = (MatchBoolPrefixQueryBuilder) parseQuery(simple);
         checkGeneratedJson(expected, builder);
     }
 
     public void testFromJson() throws IOException {
-        final String expected =
-            "{" +
-                "\"match_bool_prefix\": {" +
-                    "\"fieldName\": {" +
-                        "\"query\": \"fieldValue\"," +
-                        "\"analyzer\": \"simple\"," +
-                        "\"operator\": \"AND\"," +
-                        "\"minimum_should_match\": \"2\"," +
-                        "\"fuzziness\": \"1\"," +
-                        "\"prefix_length\": 1," +
-                        "\"max_expansions\": 10," +
-                        "\"fuzzy_transpositions\": false," +
-                        "\"fuzzy_rewrite\": \"constant_score\"," +
-                        "\"boost\": 2.0" +
-                    "}" +
-                "}" +
-            "}";
+        final String expected = "{"
+            + "\"match_bool_prefix\": {"
+            + "\"fieldName\": {"
+            + "\"query\": \"fieldValue\","
+            + "\"analyzer\": \"simple\","
+            + "\"operator\": \"AND\","
+            + "\"minimum_should_match\": \"2\","
+            + "\"fuzziness\": \"1\","
+            + "\"prefix_length\": 1,"
+            + "\"max_expansions\": 10,"
+            + "\"fuzzy_transpositions\": false,"
+            + "\"fuzzy_rewrite\": \"constant_score\","
+            + "\"boost\": 2.0"
+            + "}"
+            + "}"
+            + "}";
 
         final MatchBoolPrefixQueryBuilder builder = (MatchBoolPrefixQueryBuilder) parseQuery(expected);
         checkGeneratedJson(expected, builder);
@@ -201,33 +198,35 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
 
     public void testParseFailsWithMultipleFields() {
         {
-            final String json =
-                "{" +
-                    "\"match_bool_prefix\" : {" +
-                        "\"field_name_1\" : {" +
-                            "\"query\" : \"foo\"" +
-                        "}," +
-                        "\"field_name_2\" : {" +
-                            "\"query\" : \"foo\"\n" +
-                        "}" +
-                    "}" +
-                "}";
+            final String json = "{"
+                + "\"match_bool_prefix\" : {"
+                + "\"field_name_1\" : {"
+                + "\"query\" : \"foo\""
+                + "},"
+                + "\"field_name_2\" : {"
+                + "\"query\" : \"foo\"\n"
+                + "}"
+                + "}"
+                + "}";
             final ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
             assertEquals(
-                "[match_bool_prefix] query doesn't support multiple fields, found [field_name_1] and [field_name_2]", e.getMessage());
+                "[match_bool_prefix] query doesn't support multiple fields, found [field_name_1] and [field_name_2]",
+                e.getMessage()
+            );
         }
 
         {
-            final String simpleJson =
-                "{" +
-                    "\"match_bool_prefix\" : {" +
-                        "\"field_name_1\" : \"foo\"," +
-                        "\"field_name_2\" : \"foo\"" +
-                    "}" +
-                "}";
+            final String simpleJson = "{"
+                + "\"match_bool_prefix\" : {"
+                + "\"field_name_1\" : \"foo\","
+                + "\"field_name_2\" : \"foo\""
+                + "}"
+                + "}";
             final ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(simpleJson));
             assertEquals(
-                "[match_bool_prefix] query doesn't support multiple fields, found [field_name_1] and [field_name_2]", e.getMessage());
+                "[match_bool_prefix] query doesn't support multiple fields, found [field_name_1] and [field_name_2]",
+                e.getMessage()
+            );
         }
     }
 
@@ -235,11 +234,14 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
         final MatchBoolPrefixQueryBuilder builder = new MatchBoolPrefixQueryBuilder(TEXT_FIELD_NAME, "foo bar baz");
         final Query query = builder.toQuery(createSearchExecutionContext());
 
-        assertBooleanQuery(query, asList(
-            new TermQuery(new Term(TEXT_FIELD_NAME, "foo")),
-            new TermQuery(new Term(TEXT_FIELD_NAME, "bar")),
-            new PrefixQuery(new Term(TEXT_FIELD_NAME, "baz"))
-        ));
+        assertBooleanQuery(
+            query,
+            asList(
+                new TermQuery(new Term(TEXT_FIELD_NAME, "foo")),
+                new TermQuery(new Term(TEXT_FIELD_NAME, "bar")),
+                new PrefixQuery(new Term(TEXT_FIELD_NAME, "baz"))
+            )
+        );
     }
 
     public void testAnalysisSynonym() throws Exception {
@@ -247,11 +249,16 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
         matchQueryParser.setAnalyzer(new MockSynonymAnalyzer());
         final Query query = matchQueryParser.parse(MatchQueryParser.Type.BOOLEAN_PREFIX, TEXT_FIELD_NAME, "fox dogs red");
 
-        assertBooleanQuery(query, asList(
-            new TermQuery(new Term(TEXT_FIELD_NAME, "fox")),
-            new SynonymQuery(new Term(TEXT_FIELD_NAME, "dogs"), new Term(TEXT_FIELD_NAME, "dog")),
-            new PrefixQuery(new Term(TEXT_FIELD_NAME, "red"))
-        ));
+        assertBooleanQuery(
+            query,
+            asList(
+                new TermQuery(new Term(TEXT_FIELD_NAME, "fox")),
+                new SynonymQuery.Builder(TEXT_FIELD_NAME).addTerm(new Term(TEXT_FIELD_NAME, "dogs"))
+                    .addTerm(new Term(TEXT_FIELD_NAME, "dog"))
+                    .build(),
+                new PrefixQuery(new Term(TEXT_FIELD_NAME, "red"))
+            )
+        );
     }
 
     public void testAnalysisSingleTerm() throws Exception {

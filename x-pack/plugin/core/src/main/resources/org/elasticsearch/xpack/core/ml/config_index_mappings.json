@@ -180,6 +180,9 @@
       },
       "analysis_config" : {
         "properties" : {
+          "model_prune_window" : {
+            "type" : "keyword"
+          },
           "bucket_span" : {
             "type" : "keyword"
           },
@@ -290,6 +293,16 @@
       },
       "background_persist_interval" : {
         "type" : "keyword"
+      },
+      "blocked": {
+        "properties": {
+          "reason": {
+            "type": "keyword"
+          },
+          "task_id": {
+            "type": "keyword"
+          }
+        }
       },
       "chunking_config" : {
         "properties" : {

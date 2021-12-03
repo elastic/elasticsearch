@@ -17,28 +17,50 @@ import org.elasticsearch.test.ESTestCase;
 public class NamedAnalyzerTests extends ESTestCase {
 
     public void testCheckAllowedInMode() {
-        try (NamedAnalyzer testAnalyzer = new NamedAnalyzer("my_analyzer", AnalyzerScope.INDEX,
-                createAnalyzerWithMode("my_analyzer", AnalysisMode.INDEX_TIME), Integer.MIN_VALUE)) {
+        try (
+            NamedAnalyzer testAnalyzer = new NamedAnalyzer(
+                "my_analyzer",
+                AnalyzerScope.INDEX,
+                createAnalyzerWithMode("my_analyzer", AnalysisMode.INDEX_TIME),
+                Integer.MIN_VALUE
+            )
+        ) {
             testAnalyzer.checkAllowedInMode(AnalysisMode.INDEX_TIME);
             MapperException ex = expectThrows(MapperException.class, () -> testAnalyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
-            assertEquals("analyzer [my_analyzer] contains filters [my_analyzer] that are not allowed to run in search time mode.",
-                    ex.getMessage());
+            assertEquals(
+                "analyzer [my_analyzer] contains filters [my_analyzer] that are not allowed to run in search time mode.",
+                ex.getMessage()
+            );
             ex = expectThrows(MapperException.class, () -> testAnalyzer.checkAllowedInMode(AnalysisMode.ALL));
             assertEquals("analyzer [my_analyzer] contains filters [my_analyzer] that are not allowed to run in all mode.", ex.getMessage());
         }
 
-        try (NamedAnalyzer testAnalyzer = new NamedAnalyzer("my_analyzer", AnalyzerScope.INDEX,
-                createAnalyzerWithMode("my_analyzer", AnalysisMode.SEARCH_TIME), Integer.MIN_VALUE)) {
+        try (
+            NamedAnalyzer testAnalyzer = new NamedAnalyzer(
+                "my_analyzer",
+                AnalyzerScope.INDEX,
+                createAnalyzerWithMode("my_analyzer", AnalysisMode.SEARCH_TIME),
+                Integer.MIN_VALUE
+            )
+        ) {
             testAnalyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
             MapperException ex = expectThrows(MapperException.class, () -> testAnalyzer.checkAllowedInMode(AnalysisMode.INDEX_TIME));
-            assertEquals("analyzer [my_analyzer] contains filters [my_analyzer] that are not allowed to run in index time mode.",
-                    ex.getMessage());
+            assertEquals(
+                "analyzer [my_analyzer] contains filters [my_analyzer] that are not allowed to run in index time mode.",
+                ex.getMessage()
+            );
             ex = expectThrows(MapperException.class, () -> testAnalyzer.checkAllowedInMode(AnalysisMode.ALL));
             assertEquals("analyzer [my_analyzer] contains filters [my_analyzer] that are not allowed to run in all mode.", ex.getMessage());
         }
 
-        try (NamedAnalyzer testAnalyzer = new NamedAnalyzer("my_analyzer", AnalyzerScope.INDEX,
-                createAnalyzerWithMode("my_analyzer", AnalysisMode.ALL), Integer.MIN_VALUE)) {
+        try (
+            NamedAnalyzer testAnalyzer = new NamedAnalyzer(
+                "my_analyzer",
+                AnalyzerScope.INDEX,
+                createAnalyzerWithMode("my_analyzer", AnalysisMode.ALL),
+                Integer.MIN_VALUE
+            )
+        ) {
             testAnalyzer.checkAllowedInMode(AnalysisMode.ALL);
             testAnalyzer.checkAllowedInMode(AnalysisMode.INDEX_TIME);
             testAnalyzer.checkAllowedInMode(AnalysisMode.SEARCH_TIME);
@@ -63,12 +85,12 @@ public class NamedAnalyzerTests extends ESTestCase {
                 return mode;
             }
         };
-        TokenFilterFactory[] tokenfilters = new TokenFilterFactory[] { tokenFilter  };
+        TokenFilterFactory[] tokenfilters = new TokenFilterFactory[] { tokenFilter };
         CharFilterFactory[] charFilters = new CharFilterFactory[0];
         if (mode == AnalysisMode.SEARCH_TIME && randomBoolean()) {
             AnalyzerComponents components = new AnalyzerComponents(null, charFilters, tokenfilters);
             // sometimes also return reloadable custom analyzer
-            return new ReloadableCustomAnalyzer(components , TextFieldMapper.Defaults.POSITION_INCREMENT_GAP, -1);
+            return new ReloadableCustomAnalyzer(components, TextFieldMapper.Defaults.POSITION_INCREMENT_GAP, -1);
         }
         return new CustomAnalyzer(null, charFilters, tokenfilters);
     }

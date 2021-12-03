@@ -32,7 +32,8 @@ public class RestRefreshAction extends BaseRestHandler {
             new Route(GET, "/_refresh"),
             new Route(POST, "/_refresh"),
             new Route(GET, "/{index}/_refresh"),
-            new Route(POST, "/{index}/_refresh"));
+            new Route(POST, "/{index}/_refresh")
+        );
     }
 
     @Override

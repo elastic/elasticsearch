@@ -11,7 +11,8 @@ import org.elasticsearch.action.support.WriteRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
 public class DeleteUserRequestBuilder extends ActionRequestBuilder<DeleteUserRequest, DeleteUserResponse>
-        implements WriteRequestBuilder<DeleteUserRequestBuilder> {
+    implements
+        WriteRequestBuilder<DeleteUserRequestBuilder> {
 
     public DeleteUserRequestBuilder(ElasticsearchClient client) {
         this(client, DeleteUserAction.INSTANCE);

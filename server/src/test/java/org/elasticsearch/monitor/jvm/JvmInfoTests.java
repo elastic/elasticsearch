@@ -9,7 +9,7 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 public class JvmInfoTests extends ESTestCase {
@@ -30,13 +30,12 @@ public class JvmInfoTests extends ESTestCase {
         final boolean g1GCEnabled = flagIsEnabled(argline, "UseG1GC");
         // for JDK 9 the default collector when no collector is specified is G1 GC
         final boolean versionIsAtLeastJava9 = JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0;
-        final boolean noOtherCollectorSpecified =
-                argline == null ||
-                        (flagIsEnabled(argline, "UseParNewGC") == false &&
-                                flagIsEnabled(argline, "UseParallelGC") == false &&
-                                flagIsEnabled(argline, "UseParallelOldGC") == false &&
-                                flagIsEnabled(argline, "UseSerialGC") == false &&
-                                flagIsEnabled(argline, "UseConcMarkSweepGC") == false);
+        final boolean noOtherCollectorSpecified = argline == null
+            || (flagIsEnabled(argline, "UseParNewGC") == false
+                && flagIsEnabled(argline, "UseParallelGC") == false
+                && flagIsEnabled(argline, "UseParallelOldGC") == false
+                && flagIsEnabled(argline, "UseSerialGC") == false
+                && flagIsEnabled(argline, "UseConcMarkSweepGC") == false);
         return g1GCEnabled || (versionIsAtLeastJava9 && noOtherCollectorSpecified);
     }
 

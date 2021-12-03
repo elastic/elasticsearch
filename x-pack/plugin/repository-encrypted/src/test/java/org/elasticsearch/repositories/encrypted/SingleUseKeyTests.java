@@ -10,27 +10,28 @@ package org.elasticsearch.repositories.encrypted;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
-import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.equalTo;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class SingleUseKeyTests extends ESTestCase {
@@ -74,7 +75,7 @@ public class SingleUseKeyTests extends ESTestCase {
         assertThat(generatedSingleUseKey2.getKeyId(), equalTo(testKeyId));
         assertThat(generatedSingleUseKey2.getNonce(), equalTo(nonce + 1));
         assertThat(generatedSingleUseKey2.getKey().getEncoded(), equalTo(testKeyPlaintext));
-        verifyZeroInteractions(keyGenerator);
+        verifyNoMoreInteractions(keyGenerator);
     }
 
     public void testConcurrentWrapAround() throws Exception {

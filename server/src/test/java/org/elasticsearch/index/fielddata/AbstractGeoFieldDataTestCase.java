@@ -13,10 +13,11 @@ import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Point;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.geo.RandomShapeGenerator.randomPoint;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -26,8 +27,8 @@ public abstract class AbstractGeoFieldDataTestCase extends AbstractFieldDataImpl
     protected abstract String getFieldDataType();
 
     protected Field randomGeoPointField(String fieldName, Field.Store store) {
-        GeoPoint point = randomPoint(random());
-        return new LatLonDocValuesField(fieldName, point.lat(), point.lon());
+        Point point = GeometryTestUtils.randomPoint();
+        return new LatLonDocValuesField(fieldName, point.getLat(), point.getLon());
     }
 
     @Override

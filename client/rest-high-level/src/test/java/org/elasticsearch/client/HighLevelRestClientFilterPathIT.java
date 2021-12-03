@@ -28,9 +28,7 @@ public class HighLevelRestClientFilterPathIT extends ESRestHighLevelClientTestCa
         client().performRequest(doc);
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
 
-        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
-            .addParameter(FILTER_PATH_PARAM, FILTER_PATH_PARAM_VALUE)
-            .build();
+        RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder().addParameter(FILTER_PATH_PARAM, FILTER_PATH_PARAM_VALUE).build();
 
         SearchRequest searchRequest = new SearchRequest("company_one");
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync, requestOptions);

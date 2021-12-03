@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Objects;
@@ -77,7 +78,7 @@ public class TopHitsAggExtractor implements BucketExtractor {
             return null;
         }
 
-        Object value = agg.getHits().getAt(0).getFields().values().iterator().next().getValue();
+        Object value = agg.getHits().getAt(0).getDocumentFields().values().iterator().next().getValue();
         if (fieldDataType == DATETIME || fieldDataType == DATE) {
             return DateUtils.asDateTimeWithNanos(value.toString()).withZoneSameInstant(zoneId());
         } else if (SqlDataTypes.isTimeBased(fieldDataType)) {

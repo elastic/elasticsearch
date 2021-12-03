@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Optional;
@@ -56,7 +56,7 @@ public class CloseIndexRequestTests extends ESTestCase {
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(0, 1000));
         request.setTimeout(timeout);
 
-        final TimeValue masterTimeout = TimeValue.timeValueSeconds(randomIntBetween(0,1000));
+        final TimeValue masterTimeout = TimeValue.timeValueSeconds(randomIntBetween(0, 1000));
         request.setMasterTimeout(masterTimeout);
 
         assertEquals(request.timeout(), timeout);

@@ -14,9 +14,9 @@ import org.elasticsearch.xpack.core.watcher.watch.Payload;
 
 public final class ExecutableTransformInput extends ExecutableInput<TransformInput, TransformInput.Result> {
 
-    private final ExecutableTransform executableTransform;
+    private final ExecutableTransform<?, ?> executableTransform;
 
-    ExecutableTransformInput(TransformInput input, ExecutableTransform executableTransform) {
+    ExecutableTransformInput(TransformInput input, ExecutableTransform<?, ?> executableTransform) {
         super(input);
         this.executableTransform = executableTransform;
     }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.security.authc.ldap.support;
 
 import com.unboundid.ldap.sdk.SearchScope;
+
 import org.elasticsearch.common.Strings;
 
 import java.util.Locale;
@@ -33,9 +34,12 @@ public enum LdapSearchScope {
         }
         switch (scope.toLowerCase(Locale.ENGLISH)) {
             case "base":
-            case "object": return BASE;
-            case "one_level" : return ONE_LEVEL;
-            case "sub_tree" : return SUB_TREE;
+            case "object":
+                return BASE;
+            case "one_level":
+                return ONE_LEVEL;
+            case "sub_tree":
+                return SUB_TREE;
             default:
                 throw new IllegalArgumentException("unknown search scope [" + scope + "]");
         }

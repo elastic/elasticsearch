@@ -10,24 +10,30 @@ package org.elasticsearch.action.support.master;
 import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 /**
  * Abstract class that allows to mark action requests that support acknowledgements.
  * Facilitates consistency across different api.
  */
 public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Request>> extends MasterNodeRequest<Request>
-        implements AckedRequest {
+    implements
+        AckedRequest {
 
     public static final TimeValue DEFAULT_ACK_TIMEOUT = timeValueSeconds(30);
 
-    protected TimeValue timeout = DEFAULT_ACK_TIMEOUT;
+    protected TimeValue timeout;
 
     protected AcknowledgedRequest() {
+        this(DEFAULT_ACK_TIMEOUT);
+    }
+
+    protected AcknowledgedRequest(TimeValue timeout) {
+        this.timeout = timeout;
     }
 
     protected AcknowledgedRequest(StreamInput in) throws IOException {
@@ -43,7 +49,7 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     @SuppressWarnings("unchecked")
     public final Request timeout(String timeout) {
         this.timeout = TimeValue.parseTimeValue(timeout, this.timeout, getClass().getSimpleName() + ".timeout");
-        return (Request)this;
+        return (Request) this;
     }
 
     /**
@@ -62,7 +68,7 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
      * @return the current timeout as a {@link TimeValue}
      */
     public final TimeValue timeout() {
-        return  timeout;
+        return timeout;
     }
 
     @Override

@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -24,11 +24,11 @@ public class StartDatafeedResponse implements ToXContentObject {
     private static final ParseField STARTED = new ParseField("started");
     private static final ParseField NODE = new ParseField("node");
 
-    public static final ConstructingObjectParser<StartDatafeedResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "start_datafeed_response",
-            true,
-            (a) -> new StartDatafeedResponse((Boolean) a[0], (String) a[1]));
+    public static final ConstructingObjectParser<StartDatafeedResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "start_datafeed_response",
+        true,
+        (a) -> new StartDatafeedResponse((Boolean) a[0], (String) a[1])
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), STARTED);
@@ -79,8 +79,7 @@ public class StartDatafeedResponse implements ToXContentObject {
         }
 
         StartDatafeedResponse that = (StartDatafeedResponse) other;
-        return started == started
-            && Objects.equals(node, that.node);
+        return started == that.started && Objects.equals(node, that.node);
     }
 
     @Override

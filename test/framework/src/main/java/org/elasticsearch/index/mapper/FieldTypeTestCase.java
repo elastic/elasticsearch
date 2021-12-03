@@ -8,10 +8,12 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -32,6 +34,11 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     private static SearchExecutionContext createMockSearchExecutionContext(boolean allowExpensiveQueries) {
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(searchExecutionContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
+        when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
+        SourceLookup sourceLookup = mock(SourceLookup.class);
+        SearchLookup searchLookup = mock(SearchLookup.class);
+        when(searchLookup.source()).thenReturn(sourceLookup);
+        when(searchExecutionContext.lookup()).thenReturn(searchLookup);
         return searchExecutionContext;
     }
 
@@ -47,7 +54,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, sourceValue));
-        return fetcher.fetchValues(lookup);
+        return fetcher.fetchValues(lookup, new ArrayList<>());
     }
 
     public static List<?> fetchSourceValues(MappedFieldType fieldType, Object... values) throws IOException {
@@ -58,6 +65,6 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, null);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, List.of(values)));
-        return fetcher.fetchValues(lookup);
+        return fetcher.fetchValues(lookup, new ArrayList<>());
     }
 }

@@ -12,7 +12,8 @@ import java.util.Locale;
  * Rate mode - value_count or sum
  */
 public enum RateMode {
-    VALUE_COUNT, SUM;
+    VALUE_COUNT,
+    SUM;
 
     public static RateMode resolve(String name) {
         return RateMode.valueOf(name.toUpperCase(Locale.ROOT));

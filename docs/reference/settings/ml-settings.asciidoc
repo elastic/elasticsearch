@@ -32,25 +32,21 @@ the node. To learn more, refer to <<modules-node>>.
 ====
 * On dedicated coordinating nodes or dedicated master nodes, do not set
 the `ml` role.
-* It is strongly recommended that dedicated {ml} nodes also have the `remote_cluster_client` role; otherwise, {ccs} fails when used in {ml} jobs or {dfeeds}. See <<remote-node>>.
+* It is strongly recommended that dedicated {ml} nodes also have the
+`remote_cluster_client` role; otherwise, {ccs} fails when used in {ml} jobs or
+{dfeeds}. See <<remote-node>>.
 ====
 
 `xpack.ml.enabled`::
-(<<static-cluster-setting,Static>>) Set to `true` (default) to enable {ml} APIs
+(<<static-cluster-setting,Static>>) The default value (`true`) enables {ml} APIs
 on the node.
 +
-If set to `false`, the {ml} APIs are disabled on the node. Therefore the node
-cannot open jobs, start {dfeeds}, or receive transport (internal) communication
-requests related to {ml} APIs. If the node is a coordinating node, {ml} requests
-from clients (including {kib}) also fail. For more information about disabling
-{ml} in specific {kib} instances, see
-{kibana-ref}/ml-settings-kb.html[{kib} {ml} settings].
-+
 IMPORTANT: If you want to use {ml-features} in your cluster, it is recommended
-that you set `xpack.ml.enabled` to `true` on all nodes. This is the default
-behavior. At a minimum, it must be enabled on all master-eligible nodes. If you
-want to use {ml-features} in clients or {kib}, it must also be enabled on all
-coordinating nodes.
+that you use the default value for this setting on all nodes.
++
+If set to `false`, the {ml} APIs are disabled on the node. For example, the node
+cannot open jobs, start {dfeeds}, receive transport (internal) communication
+requests, or requests from clients (including {kib}) related to {ml} APIs.
 
 `xpack.ml.inference_model.cache_size`::
 (<<static-cluster-setting,Static>>) The maximum inference cache size allowed.
@@ -106,7 +102,11 @@ setting. If this setting is `0` or unset, there is no maximum
 requirements for a job, this lack of a maximum memory limit means it's possible
 to create jobs that cannot be assigned to any available nodes. For more
 information about the `model_memory_limit` property, see
-<<ml-put-job,Create {anomaly-jobs}>> or <<put-dfanalytics>>. Defaults to `0`.
+<<ml-put-job,Create {anomaly-jobs}>> or <<put-dfanalytics>>. Defaults to `0` if
+`xpack.ml.use_auto_machine_memory_percent` is `false`. If
+`xpack.ml.use_auto_machine_memory_percent` is `true` and
+`xpack.ml.max_model_memory_limit` is not explicitly set then it will default to
+the largest `model_memory_limit` that could be assigned in the cluster.
 
 [[xpack.ml.max_open_jobs]]
 `xpack.ml.max_open_jobs`::
@@ -118,7 +118,7 @@ allowed, fewer jobs will run on a node. Prior to version 7.1, this setting was a
 per-node non-dynamic setting. It became a cluster-wide dynamic setting in
 version 7.1. As a result, changes to its value after node startup are used only 
 after every node in the cluster is running version 7.1 or higher. The minimum
-value is `1`; the maximum value is `512`. Defaults to `20`.
+value is `1`; the maximum value is `512`. Defaults to `512`.
 
 `xpack.ml.nightly_maintenance_requests_per_second`::
 (<<cluster-update-settings,Dynamic>>) The rate at which the nightly maintenance 
@@ -197,10 +197,8 @@ users. The minimum value is `5s`. Defaults to `10s`.
 `xpack.ml.max_machine_memory_percent` setting is ignored. Instead, the maximum
 percentage of the machine's memory that can be used for running {ml} analytics
 processes is calculated automatically and takes into account the total node size
-and the size of the JVM on the node. If this setting differs between nodes, the
-value on the current master node is heeded. When the {operator-feature} is
-enabled, this setting can be updated only by operator users. The default value
-is `false`. 
+and the size of the JVM on the node. When the {operator-feature} is enabled, this
+setting can be updated only by operator users. The default value is `false`.
 +
 --
 [IMPORTANT]
@@ -213,6 +211,10 @@ analytics are the main purpose of the node.
 nodes in your cluster, you shouldn't use this setting.
 ====
 --
++
+If this setting is `true` it also affects the default value for
+`xpack.ml.max_model_memory_limit`. In this case `xpack.ml.max_model_memory_limit`
+defaults to the largest size that could be assigned in the current cluster.
 
 [discrete]
 [[model-inference-circuit-breaker]]

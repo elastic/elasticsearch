@@ -59,9 +59,9 @@ public class RestPreviewDataFrameAnalyticsAction extends BaseRestHandler {
                 DataFrameAnalyticsConfig.ID.getPreferredName()
             );
         }
-        final PreviewDataFrameAnalyticsAction.Request.Builder requestBuilder = Strings.isNullOrEmpty(jobId) ?
-            PreviewDataFrameAnalyticsAction.Request.fromXContent(restRequest.contentOrSourceParamParser()) :
-            new PreviewDataFrameAnalyticsAction.Request.Builder();
+        final PreviewDataFrameAnalyticsAction.Request.Builder requestBuilder = Strings.isNullOrEmpty(jobId)
+            ? PreviewDataFrameAnalyticsAction.Request.fromXContent(restRequest.contentOrSourceParamParser())
+            : new PreviewDataFrameAnalyticsAction.Request.Builder();
 
         return channel -> {
             RestToXContentListener<PreviewDataFrameAnalyticsAction.Response> listener = new RestToXContentListener<>(channel);
@@ -81,11 +81,7 @@ public class RestPreviewDataFrameAnalyticsAction extends BaseRestHandler {
                             )
                         );
                     } else {
-                        client.execute(
-                            PreviewDataFrameAnalyticsAction.INSTANCE,
-                            requestBuilder.setConfig(jobs.get(0)).build(),
-                            listener
-                        );
+                        client.execute(PreviewDataFrameAnalyticsAction.INSTANCE, requestBuilder.setConfig(jobs.get(0)).build(), listener);
                     }
                 }, listener::onFailure));
             }

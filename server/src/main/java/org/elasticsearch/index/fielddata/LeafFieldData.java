@@ -9,7 +9,8 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -20,9 +21,9 @@ import java.io.IOException;
 public interface LeafFieldData extends Accountable, Releasable {
 
     /**
-     * Returns field values for use in scripting.
+     * Returns an {@code Field} for use in accessing field values in scripting.
      */
-    ScriptDocValues<?> getScriptValues();
+    DocValuesField<?> getScriptField(String name);
 
     /**
      * Return a String representation of the values.

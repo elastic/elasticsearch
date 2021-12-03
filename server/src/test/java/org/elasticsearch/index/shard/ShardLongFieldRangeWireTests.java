@@ -58,14 +58,18 @@ public class ShardLongFieldRangeWireTests extends AbstractWireSerializingTestCas
                 return ShardLongFieldRange.EMPTY;
             case 3:
                 return instance.getMin() == Long.MAX_VALUE
-                        ? randomSpecificRange()
-                        : ShardLongFieldRange.of(randomValueOtherThan(instance.getMin(),
-                        () -> randomLongBetween(Long.MIN_VALUE, instance.getMax())), instance.getMax());
+                    ? randomSpecificRange()
+                    : ShardLongFieldRange.of(
+                        randomValueOtherThan(instance.getMin(), () -> randomLongBetween(Long.MIN_VALUE, instance.getMax())),
+                        instance.getMax()
+                    );
             case 4:
                 return instance.getMax() == Long.MIN_VALUE
-                        ? randomSpecificRange()
-                        : ShardLongFieldRange.of(instance.getMin(), randomValueOtherThan(instance.getMax(),
-                        () -> randomLongBetween(instance.getMin(), Long.MAX_VALUE)));
+                    ? randomSpecificRange()
+                    : ShardLongFieldRange.of(
+                        instance.getMin(),
+                        randomValueOtherThan(instance.getMax(), () -> randomLongBetween(instance.getMin(), Long.MAX_VALUE))
+                    );
             default:
                 throw new AssertionError("impossible");
         }

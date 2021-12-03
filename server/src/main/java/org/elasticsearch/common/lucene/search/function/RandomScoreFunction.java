@@ -12,8 +12,8 @@ import com.carrotsearch.hppc.BitMixer;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 import java.io.IOException;
@@ -66,15 +66,16 @@ public class RandomScoreFunction extends ScoreFunction {
                     // field has no value
                     hash = saltedSeed;
                 }
-                return (hash & 0x00FFFFFF) / (float)(1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
+                return (hash & 0x00FFFFFF) / (float) (1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
             }
 
             @Override
             public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
                 String field = fieldData == null ? null : fieldData.getFieldName();
                 return Explanation.match(
-                        (float) score(docId, subQueryScore.getValue().floatValue()),
-                        "random score function (seed: " + originalSeed + ", field: " + field + ")");
+                    (float) score(docId, subQueryScore.getValue().floatValue()),
+                    "random score function (seed: " + originalSeed + ", field: " + field + ")"
+                );
             }
         };
     }
@@ -87,8 +88,7 @@ public class RandomScoreFunction extends ScoreFunction {
     @Override
     protected boolean doEquals(ScoreFunction other) {
         RandomScoreFunction randomScoreFunction = (RandomScoreFunction) other;
-        return this.originalSeed == randomScoreFunction.originalSeed
-                && this.saltedSeed == randomScoreFunction.saltedSeed;
+        return this.originalSeed == randomScoreFunction.originalSeed && this.saltedSeed == randomScoreFunction.saltedSeed;
     }
 
     @Override

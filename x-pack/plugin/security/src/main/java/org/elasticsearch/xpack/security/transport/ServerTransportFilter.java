@@ -16,7 +16,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
@@ -47,18 +46,21 @@ final class ServerTransportFilter {
     private final boolean extractClientCert;
     private final DestructiveOperations destructiveOperations;
     private final SecurityContext securityContext;
-    private final XPackLicenseState licenseState;
 
-    ServerTransportFilter(AuthenticationService authcService, AuthorizationService authzService,
-                ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations,
-                SecurityContext securityContext, XPackLicenseState licenseState) {
+    ServerTransportFilter(
+        AuthenticationService authcService,
+        AuthorizationService authzService,
+        ThreadContext threadContext,
+        boolean extractClientCert,
+        DestructiveOperations destructiveOperations,
+        SecurityContext securityContext
+    ) {
         this.authcService = authcService;
         this.authzService = authzService;
         this.threadContext = threadContext;
         this.extractClientCert = extractClientCert;
         this.destructiveOperations = destructiveOperations;
         this.securityContext = securityContext;
-        this.licenseState = licenseState;
     }
 
     /**
@@ -66,12 +68,12 @@ final class ServerTransportFilter {
      * thrown by this method will stop the request from being handled and the error will
      * be sent back to the sender.
      */
-    void inbound(String action, TransportRequest request, TransportChannel transportChannel,ActionListener<Void> listener) {
+    void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener) {
         if (CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action) || DeleteIndexAction.NAME.equals(action)) {
             IndicesRequest indicesRequest = (IndicesRequest) request;
             try {
                 destructiveOperations.failDestructive(indicesRequest.indices());
-            } catch(IllegalArgumentException e) {
+            } catch (IllegalArgumentException e) {
                 listener.onFailure(e);
                 return;
             }
@@ -102,8 +104,7 @@ final class ServerTransportFilter {
         final Version version = transportChannel.getVersion();
         authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
             if (authentication != null) {
-                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
-                    SystemUser.is(authentication.getUser()) == false) {
+                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) && SystemUser.is(authentication.getUser()) == false) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
                         final Authentication replaced = securityContext.getAuthentication();
                         authzService.authorize(replaced, securityAction, request, listener);
@@ -111,8 +112,6 @@ final class ServerTransportFilter {
                 } else {
                     authzService.authorize(authentication, securityAction, request, listener);
                 }
-            } else if (licenseState.isSecurityEnabled() == false) {
-                listener.onResponse(null);
             } else {
                 listener.onFailure(new IllegalStateException("no authentication present but auth is allowed"));
             }

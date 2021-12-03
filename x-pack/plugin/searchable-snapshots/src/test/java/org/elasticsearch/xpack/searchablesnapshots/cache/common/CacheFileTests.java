@@ -7,46 +7,53 @@
 package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.cluster.coordination.DeterministicTaskQueue;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.common.filesystem.FileSystemNatives;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile.EvictionListener;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.FSyncTrackingFileSystemProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile.EvictionListener;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.FSyncTrackingFileSystemProvider;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
-import static org.elasticsearch.common.settings.Settings.builder;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
+@LuceneTestCase.SuppressFileSystems("DisableFsyncFS") // required by {@link testCacheFileCreatedAsSparseFile()}
 public class CacheFileTests extends ESTestCase {
 
     private static final CacheFile.ModificationListener NOOP = new CacheFile.ModificationListener() {
@@ -59,7 +66,8 @@ public class CacheFileTests extends ESTestCase {
 
     private static final CacheKey CACHE_KEY = new CacheKey("_snap_uuid", "_snap_index", new ShardId("_name", "_uuid", 0), "_filename");
 
-    public void testGetCacheKey() throws Exception {
+    public void testGetCacheKey() {
+        final Path file = createTempDir().resolve("file.new");
         final CacheKey cacheKey = new CacheKey(
             UUIDs.randomBase64UUID(random()),
             randomAlphaOfLength(5).toLowerCase(Locale.ROOT),
@@ -67,7 +75,7 @@ public class CacheFileTests extends ESTestCase {
             randomAlphaOfLength(105).toLowerCase(Locale.ROOT)
         );
 
-        final CacheFile cacheFile = new CacheFile(cacheKey, randomLongBetween(1, 100), createTempFile(), NOOP);
+        final CacheFile cacheFile = new CacheFile(cacheKey, randomLongBetween(1, 100), file, NOOP);
         assertThat(cacheFile.getCacheKey(), sameInstance(cacheKey));
     }
 
@@ -184,10 +192,7 @@ public class CacheFileTests extends ESTestCase {
         final TestEvictionListener evictionListener = new TestEvictionListener();
         cacheFile.acquire(evictionListener);
         final long length = cacheFile.getLength();
-        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
-            builder().put(NODE_NAME_SETTING.getKey(), getTestName()).build(),
-            random()
-        );
+        final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         final ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
         final Future<Integer> populateAndReadFuture;
         final Future<Integer> readIfAvailableFuture;
@@ -384,6 +389,54 @@ public class CacheFileTests extends ESTestCase {
         }
     }
 
+    public void testCacheFileCreatedAsSparseFile() throws Exception {
+        assumeTrue("This test uses a native method implemented only for Windows", Constants.WINDOWS);
+        final long oneMb = 1 << 20;
+
+        final Path file = createTempDir().resolve(UUIDs.randomBase64UUID(random()));
+        final CacheFile cacheFile = new CacheFile(
+            new CacheKey("_snap_uuid", "_snap_name", new ShardId("_name", "_uid", 0), "_filename"),
+            oneMb,
+            file,
+            NOOP
+        );
+        assertFalse(Files.exists(file));
+
+        final TestEvictionListener listener = new TestEvictionListener();
+        cacheFile.acquire(listener);
+        try {
+            final FileChannel fileChannel = cacheFile.getChannel();
+            assertTrue(Files.exists(file));
+
+            OptionalLong sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
+            assertTrue(sizeOnDisk.isPresent());
+            assertThat(sizeOnDisk.getAsLong(), equalTo(0L));
+
+            // write 1 byte at the last position in the cache file.
+            // For non sparse files, Windows would allocate the full file on disk in order to write a single byte at the end,
+            // making the next assertion fails.
+            fill(fileChannel, Math.toIntExact(cacheFile.getLength() - 1L), Math.toIntExact(cacheFile.getLength()));
+            fileChannel.force(false);
+
+            sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
+            assertTrue(sizeOnDisk.isPresent());
+            assertThat("Cache file should be sparse and not fully allocated on disk", sizeOnDisk.getAsLong(), lessThan(oneMb));
+
+            fill(fileChannel, 0, Math.toIntExact(cacheFile.getLength()));
+            fileChannel.force(false);
+
+            sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
+            assertTrue(sizeOnDisk.isPresent());
+            assertThat(
+                "Cache file should be fully allocated on disk (maybe more given cluster/block size)",
+                sizeOnDisk.getAsLong(),
+                greaterThanOrEqualTo(oneMb)
+            );
+        } finally {
+            cacheFile.release(listener);
+        }
+    }
+
     static class TestEvictionListener implements EvictionListener {
 
         private final SetOnce<CacheFile> evicted = new SetOnce<>();
@@ -443,5 +496,25 @@ public class CacheFileTests extends ESTestCase {
         final FSyncTrackingFileSystemProvider provider = new FSyncTrackingFileSystemProvider(defaultFileSystem, createTempDir());
         PathUtilsForTesting.installMock(provider.getFileSystem(null));
         return provider;
+    }
+
+    private static void fill(FileChannel fileChannel, int from, int to) {
+        final byte[] buffer = new byte[Math.min(Math.max(0, to - from), 1024)];
+        Arrays.fill(buffer, (byte) 0xff);
+        assert fileChannel.isOpen();
+
+        try {
+            int written = 0;
+            int remaining = to - from;
+            while (remaining > 0) {
+                final int len = Math.min(remaining, buffer.length);
+                fileChannel.write(ByteBuffer.wrap(buffer, 0, len), from + written);
+                remaining -= len;
+                written += len;
+            }
+            assert written == to - from;
+        } catch (IOException e) {
+            throw new AssertionError(e);
+        }
     }
 }

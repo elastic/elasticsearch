@@ -11,7 +11,7 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 
 public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<SimulatePipelineRequest, SimulatePipelineResponse> {
 
@@ -25,8 +25,12 @@ public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<Simulat
     /**
      * Create a new builder for {@link SimulatePipelineRequest}s
      */
-    public SimulatePipelineRequestBuilder(ElasticsearchClient client, SimulatePipelineAction action, BytesReference source,
-                                          XContentType xContentType) {
+    public SimulatePipelineRequestBuilder(
+        ElasticsearchClient client,
+        SimulatePipelineAction action,
+        BytesReference source,
+        XContentType xContentType
+    ) {
         super(client, action, new SimulatePipelineRequest(source, xContentType));
     }
 

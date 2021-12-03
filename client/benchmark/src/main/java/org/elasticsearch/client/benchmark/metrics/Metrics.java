@@ -25,10 +25,24 @@ public final class Metrics {
     public final double latencyP999;
     public final double latencyP9999;
 
-    public Metrics(String operation, long successCount, long errorCount, double throughput,
-                   double serviceTimeP50, double serviceTimeP90, double serviceTimeP95, double serviceTimeP99,
-                   double serviceTimeP999, double serviceTimeP9999, double latencyP50, double latencyP90,
-                   double latencyP95, double latencyP99, double latencyP999, double latencyP9999) {
+    public Metrics(
+        String operation,
+        long successCount,
+        long errorCount,
+        double throughput,
+        double serviceTimeP50,
+        double serviceTimeP90,
+        double serviceTimeP95,
+        double serviceTimeP99,
+        double serviceTimeP999,
+        double serviceTimeP9999,
+        double latencyP50,
+        double latencyP90,
+        double latencyP95,
+        double latencyP99,
+        double latencyP999,
+        double latencyP9999
+    ) {
         this.operation = operation;
         this.successCount = successCount;
         this.errorCount = errorCount;

@@ -27,10 +27,10 @@ import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MaxScoreCollector;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -40,11 +40,16 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.SubSearchContext;
+import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 class TopHitsAggregator extends MetricsAggregator {
 
@@ -62,12 +67,19 @@ class TopHitsAggregator extends MetricsAggregator {
 
     private final SubSearchContext subSearchContext;
     private final LongObjectPagedHashMap<Collectors> topDocsCollectors;
+    private final List<ProfileResult> fetchProfiles;
 
-    TopHitsAggregator(SubSearchContext subSearchContext, String name, AggregationContext context,
-            Aggregator parent, Map<String, Object> metadata) throws IOException {
+    TopHitsAggregator(
+        SubSearchContext subSearchContext,
+        String name,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
         topDocsCollectors = new LongObjectPagedHashMap<>(1, context.bigArrays());
         this.subSearchContext = subSearchContext;
+        fetchProfiles = context.profiling() ? new ArrayList<>() : null;
     }
 
     @Override
@@ -121,8 +133,9 @@ class TopHitsAggregator extends MetricsAggregator {
                         // TODO: can we pass trackTotalHits=subSearchContext.trackTotalHits(){
                         // Note that this would require to catch CollectionTerminatedException
                         collectors = new Collectors(
-                                TopFieldCollector.create(sort.sort, topN, Integer.MAX_VALUE),
-                                subSearchContext.trackScores() ? new MaxScoreCollector() : null);
+                            TopFieldCollector.create(sort.sort, topN, Integer.MAX_VALUE),
+                            subSearchContext.trackScores() ? new MaxScoreCollector() : null
+                        );
                     }
                     topDocsCollectors.put(bucket, collectors);
                 }
@@ -168,8 +181,8 @@ class TopHitsAggregator extends MetricsAggregator {
             maxScore = collectors.maxScoreCollector.getMaxScore();
         }
         final TopDocsAndMaxScore topDocsAndMaxScore = new TopDocsAndMaxScore(topDocs, maxScore);
-        subSearchContext.queryResult().topDocs(topDocsAndMaxScore,
-                subSearchContext.sort() == null ? null : subSearchContext.sort().formats);
+        subSearchContext.queryResult()
+            .topDocs(topDocsAndMaxScore, subSearchContext.sort() == null ? null : subSearchContext.sort().formats);
         int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
         for (int i = 0; i < topDocs.scoreDocs.length; i++) {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
@@ -177,6 +190,9 @@ class TopHitsAggregator extends MetricsAggregator {
         subSearchContext.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
         subSearchContext.fetchPhase().execute(subSearchContext);
         FetchSearchResult fetchResult = subSearchContext.fetchResult();
+        if (fetchProfiles != null) {
+            fetchProfiles.add(fetchResult.profileResult());
+        }
         SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
         for (int i = 0; i < internalHits.length; i++) {
             ScoreDoc scoreDoc = topDocs.scoreDocs[i];
@@ -188,21 +204,49 @@ class TopHitsAggregator extends MetricsAggregator {
                 searchHitFields.sortValues(fieldDoc.fields, subSearchContext.sort().formats);
             }
         }
-        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocsAndMaxScore, fetchResult.hits(),
-                metadata());
+        return new InternalTopHits(
+            name,
+            subSearchContext.from(),
+            subSearchContext.size(),
+            topDocsAndMaxScore,
+            fetchResult.hits(),
+            metadata()
+        );
     }
 
     @Override
     public InternalTopHits buildEmptyAggregation() {
         TopDocs topDocs;
         if (subSearchContext.sort() != null) {
-            topDocs = new TopFieldDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new FieldDoc[0],
-                    subSearchContext.sort().sort.getSort());
+            topDocs = new TopFieldDocs(
+                new TotalHits(0, TotalHits.Relation.EQUAL_TO),
+                new FieldDoc[0],
+                subSearchContext.sort().sort.getSort()
+            );
         } else {
             topDocs = Lucene.EMPTY_TOP_DOCS;
         }
-        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), new TopDocsAndMaxScore(topDocs, Float.NaN),
-                SearchHits.empty(), metadata());
+        return new InternalTopHits(
+            name,
+            subSearchContext.from(),
+            subSearchContext.size(),
+            new TopDocsAndMaxScore(topDocs, Float.NaN),
+            SearchHits.empty(),
+            metadata()
+        );
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        List<Map<String, Object>> debug = new ArrayList<>();
+        for (ProfileResult result : fetchProfiles) {
+            Map<String, Object> resultDebug = new HashMap<>();
+            resultDebug.put("time", result.getTime());
+            resultDebug.put("breakdown", result.getTimeBreakdown());
+            debug.add(resultDebug);
+        }
+        add.accept("fetch_profile", debug);
     }
 
     @Override

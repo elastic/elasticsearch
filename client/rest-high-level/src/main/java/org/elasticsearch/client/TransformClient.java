@@ -28,6 +28,13 @@ import org.elasticsearch.client.transform.UpdateTransformResponse;
 import java.io.IOException;
 import java.util.Collections;
 
+/**
+ * @deprecated The High Level Rest Client is deprecated in favor of the
+ * <a href="https://www.elastic.co/guide/en/elasticsearch/client/java-api-client/current/introduction.html">
+ * Elasticsearch Java API Client</a>
+ */
+@Deprecated(since = "7.16.0", forRemoval = true)
+@SuppressWarnings("removal")
 public final class TransformClient {
 
     private final RestHighLevelClient restHighLevelClient;
@@ -50,11 +57,13 @@ public final class TransformClient {
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
     public AcknowledgedResponse putTransform(PutTransformRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
-                TransformRequestConverters::putTransform,
-                options,
-                AcknowledgedResponse::fromXContent,
-                Collections.emptySet());
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            TransformRequestConverters::putTransform,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -69,14 +78,19 @@ public final class TransformClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable putTransformAsync(PutTransformRequest request, RequestOptions options,
-                                         ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
-                TransformRequestConverters::putTransform,
-                options,
-                AcknowledgedResponse::fromXContent,
-                listener,
-                Collections.emptySet());
+    public Cancellable putTransformAsync(
+        PutTransformRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            TransformRequestConverters::putTransform,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -92,13 +106,14 @@ public final class TransformClient {
      * @return An UpdateTransformResponse object containing the updated configuration
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public UpdateTransformResponse updateTransform(UpdateTransformRequest request,
-                                                   RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
+    public UpdateTransformResponse updateTransform(UpdateTransformRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
             TransformRequestConverters::updateTransform,
             options,
             UpdateTransformResponse::fromXContent,
-            Collections.emptySet());
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -113,15 +128,19 @@ public final class TransformClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable updateTransformAsync(UpdateTransformRequest request,
-                                            RequestOptions options,
-                                            ActionListener<UpdateTransformResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+    public Cancellable updateTransformAsync(
+        UpdateTransformRequest request,
+        RequestOptions options,
+        ActionListener<UpdateTransformResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
             TransformRequestConverters::updateTransform,
             options,
             UpdateTransformResponse::fromXContent,
             listener,
-            Collections.emptySet());
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -136,13 +155,14 @@ public final class TransformClient {
      * @return The transform stats
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public GetTransformStatsResponse getTransformStats(GetTransformStatsRequest request, RequestOptions options)
-            throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
-                TransformRequestConverters::getTransformStats,
-                options,
-                GetTransformStatsResponse::fromXContent,
-                Collections.emptySet());
+    public GetTransformStatsResponse getTransformStats(GetTransformStatsRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            TransformRequestConverters::getTransformStats,
+            options,
+            GetTransformStatsResponse::fromXContent,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -156,14 +176,19 @@ public final class TransformClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getTransformStatsAsync(GetTransformStatsRequest request, RequestOptions options,
-                                              ActionListener<GetTransformStatsResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
-                TransformRequestConverters::getTransformStats,
-                options,
-                GetTransformStatsResponse::fromXContent,
-                listener,
-                Collections.emptySet());
+    public Cancellable getTransformStatsAsync(
+        GetTransformStatsRequest request,
+        RequestOptions options,
+        ActionListener<GetTransformStatsResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            TransformRequestConverters::getTransformStats,
+            options,
+            GetTransformStatsResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -178,13 +203,14 @@ public final class TransformClient {
      * @return An AcknowledgedResponse object indicating request success
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public AcknowledgedResponse deleteTransform(DeleteTransformRequest request, RequestOptions options)
-            throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
-                TransformRequestConverters::deleteTransform,
-                options,
-                AcknowledgedResponse::fromXContent,
-                Collections.emptySet());
+    public AcknowledgedResponse deleteTransform(DeleteTransformRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            TransformRequestConverters::deleteTransform,
+            options,
+            AcknowledgedResponse::fromXContent,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -198,14 +224,19 @@ public final class TransformClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deleteTransformAsync(DeleteTransformRequest request, RequestOptions options,
-                                            ActionListener<AcknowledgedResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
-                TransformRequestConverters::deleteTransform,
-                options,
-                AcknowledgedResponse::fromXContent,
-                listener,
-                Collections.emptySet());
+    public Cancellable deleteTransformAsync(
+        DeleteTransformRequest request,
+        RequestOptions options,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            TransformRequestConverters::deleteTransform,
+            options,
+            AcknowledgedResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -220,13 +251,14 @@ public final class TransformClient {
      * @return A response containing the results of the applied transform
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public PreviewTransformResponse previewTransform(PreviewTransformRequest request, RequestOptions options)
-            throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
-                TransformRequestConverters::previewTransform,
-                options,
-                PreviewTransformResponse::fromXContent,
-                Collections.emptySet());
+    public PreviewTransformResponse previewTransform(PreviewTransformRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            TransformRequestConverters::previewTransform,
+            options,
+            PreviewTransformResponse::fromXContent,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -239,14 +271,19 @@ public final class TransformClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable previewTransformAsync(PreviewTransformRequest request, RequestOptions options,
-                                             ActionListener<PreviewTransformResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
-                TransformRequestConverters::previewTransform,
-                options,
-                PreviewTransformResponse::fromXContent,
-                listener,
-                Collections.emptySet());
+    public Cancellable previewTransformAsync(
+        PreviewTransformRequest request,
+        RequestOptions options,
+        ActionListener<PreviewTransformResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            TransformRequestConverters::previewTransform,
+            options,
+            PreviewTransformResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -261,13 +298,14 @@ public final class TransformClient {
      * @return A response object indicating request success
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public StartTransformResponse startTransform(StartTransformRequest request, RequestOptions options)
-            throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
-                TransformRequestConverters::startTransform,
-                options,
-                StartTransformResponse::fromXContent,
-                Collections.emptySet());
+    public StartTransformResponse startTransform(StartTransformRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            TransformRequestConverters::startTransform,
+            options,
+            StartTransformResponse::fromXContent,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -281,14 +319,19 @@ public final class TransformClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable startTransformAsync(StartTransformRequest request, RequestOptions options,
-                                           ActionListener<StartTransformResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
-                TransformRequestConverters::startTransform,
-                options,
-                StartTransformResponse::fromXContent,
-                listener,
-                Collections.emptySet());
+    public Cancellable startTransformAsync(
+        StartTransformRequest request,
+        RequestOptions options,
+        ActionListener<StartTransformResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            TransformRequestConverters::startTransform,
+            options,
+            StartTransformResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -303,13 +346,14 @@ public final class TransformClient {
      * @return A response object indicating request success
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public StopTransformResponse stopTransform(StopTransformRequest request, RequestOptions options)
-            throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
-                TransformRequestConverters::stopTransform,
-                options,
-                StopTransformResponse::fromXContent,
-                Collections.emptySet());
+    public StopTransformResponse stopTransform(StopTransformRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            TransformRequestConverters::stopTransform,
+            options,
+            StopTransformResponse::fromXContent,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -323,14 +367,19 @@ public final class TransformClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable stopTransformAsync(StopTransformRequest request, RequestOptions options,
-                                          ActionListener<StopTransformResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
-                TransformRequestConverters::stopTransform,
-                options,
-                StopTransformResponse::fromXContent,
-                listener,
-                Collections.emptySet());
+    public Cancellable stopTransformAsync(
+        StopTransformRequest request,
+        RequestOptions options,
+        ActionListener<StopTransformResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            TransformRequestConverters::stopTransform,
+            options,
+            StopTransformResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -345,13 +394,14 @@ public final class TransformClient {
      * @return An GetTransformResponse containing the requested transforms
      * @throws IOException when there is a serialization issue sending the request or receiving the response
      */
-    public GetTransformResponse getTransform(GetTransformRequest request, RequestOptions options)
-            throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
-                TransformRequestConverters::getTransform,
-                options,
-                GetTransformResponse::fromXContent,
-                Collections.emptySet());
+    public GetTransformResponse getTransform(GetTransformRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            request,
+            TransformRequestConverters::getTransform,
+            options,
+            GetTransformResponse::fromXContent,
+            Collections.emptySet()
+        );
     }
 
     /**
@@ -365,13 +415,18 @@ public final class TransformClient {
      * @param listener Listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getTransformAsync(GetTransformRequest request, RequestOptions options,
-                                         ActionListener<GetTransformResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
-                TransformRequestConverters::getTransform,
-                options,
-                GetTransformResponse::fromXContent,
-                listener,
-                Collections.emptySet());
+    public Cancellable getTransformAsync(
+        GetTransformRequest request,
+        RequestOptions options,
+        ActionListener<GetTransformResponse> listener
+    ) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            request,
+            TransformRequestConverters::getTransform,
+            options,
+            GetTransformResponse::fromXContent,
+            listener,
+            Collections.emptySet()
+        );
     }
 }

@@ -10,8 +10,8 @@ package org.elasticsearch.client.transform.transforms.hlrc;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.client.transform.transforms.SettingsConfig;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -23,6 +23,7 @@ public class SettingsConfigTests extends AbstractResponseTestCase<
         return new org.elasticsearch.xpack.core.transform.transforms.SettingsConfig(
             randomBoolean() ? null : randomIntBetween(10, 10_000),
             randomBoolean() ? null : randomFloat(),
+            randomBoolean() ? null : randomIntBetween(0, 1),
             randomBoolean() ? null : randomIntBetween(0, 1)
         );
     }
@@ -34,6 +35,7 @@ public class SettingsConfigTests extends AbstractResponseTestCase<
         assertEquals(serverTestInstance.getMaxPageSearchSize(), clientInstance.getMaxPageSearchSize());
         assertEquals(serverTestInstance.getDocsPerSecond(), clientInstance.getDocsPerSecond());
         assertEquals(serverTestInstance.getDatesAsEpochMillis(), clientInstance.getDatesAsEpochMillis());
+        assertEquals(serverTestInstance.getAlignCheckpoints(), clientInstance.getAlignCheckpoints());
     }
 
     @Override

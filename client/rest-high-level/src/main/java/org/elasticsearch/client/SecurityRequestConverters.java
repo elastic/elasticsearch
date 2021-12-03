@@ -17,12 +17,15 @@ import org.elasticsearch.client.security.ClearApiKeyCacheRequest;
 import org.elasticsearch.client.security.ClearPrivilegesCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheRequest;
+import org.elasticsearch.client.security.ClearServiceAccountTokenCacheRequest;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
+import org.elasticsearch.client.security.CreateServiceAccountTokenRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DeletePrivilegesRequest;
 import org.elasticsearch.client.security.DeleteRoleMappingRequest;
 import org.elasticsearch.client.security.DeleteRoleRequest;
+import org.elasticsearch.client.security.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.client.security.DeleteUserRequest;
 import org.elasticsearch.client.security.DisableUserRequest;
 import org.elasticsearch.client.security.EnableUserRequest;
@@ -30,6 +33,8 @@ import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetPrivilegesRequest;
 import org.elasticsearch.client.security.GetRoleMappingsRequest;
 import org.elasticsearch.client.security.GetRolesRequest;
+import org.elasticsearch.client.security.GetServiceAccountCredentialsRequest;
+import org.elasticsearch.client.security.GetServiceAccountsRequest;
 import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.GrantApiKeyRequest;
 import org.elasticsearch.client.security.HasPrivilegesRequest;
@@ -39,6 +44,7 @@ import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
 import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutUserRequest;
+import org.elasticsearch.client.security.QueryApiKeyRequest;
 import org.elasticsearch.client.security.SetUserEnabledRequest;
 import org.elasticsearch.common.Strings;
 
@@ -52,8 +58,7 @@ final class SecurityRequestConverters {
     private SecurityRequestConverters() {}
 
     static Request changePassword(ChangePasswordRequest changePasswordRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_security/user")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/user")
             .addPathPart(changePasswordRequest.getUsername())
             .addPathPartAsIs("_password")
             .build();
@@ -66,8 +71,7 @@ final class SecurityRequestConverters {
     }
 
     static Request getUsers(GetUsersRequest getUsersRequest) {
-        RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_security/user");
+        RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/user");
         if (getUsersRequest.getUsernames().size() > 0) {
             builder.addPathPart(Strings.collectionToCommaDelimitedString(getUsersRequest.getUsernames()));
         }
@@ -75,8 +79,7 @@ final class SecurityRequestConverters {
     }
 
     static Request putUser(PutUserRequest putUserRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_security/user")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/user")
             .addPathPart(putUserRequest.getUser().getUsername())
             .build();
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -88,8 +91,7 @@ final class SecurityRequestConverters {
     }
 
     static Request deleteUser(DeleteUserRequest deleteUserRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_security", "user")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security", "user")
             .addPathPart(deleteUserRequest.getName())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
@@ -100,8 +102,7 @@ final class SecurityRequestConverters {
     }
 
     static Request putRoleMapping(final PutRoleMappingRequest putRoleMappingRequest) throws IOException {
-        final String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_security/role_mapping")
+        final String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/role_mapping")
             .addPathPart(putRoleMappingRequest.getName())
             .build();
         final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -130,8 +131,7 @@ final class SecurityRequestConverters {
     }
 
     private static Request setUserEnabled(SetUserEnabledRequest setUserEnabledRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_security/user")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/user")
             .addPathPart(setUserEnabledRequest.getUsername())
             .addPathPart(setUserEnabledRequest.isEnabled() ? "_enable" : "_disable")
             .build();
@@ -149,8 +149,7 @@ final class SecurityRequestConverters {
     }
 
     static Request clearRealmCache(ClearRealmCacheRequest clearRealmCacheRequest) {
-        RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_security/realm");
+        RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/realm");
         if (clearRealmCacheRequest.getRealms().isEmpty() == false) {
             builder.addCommaSeparatedPathParts(clearRealmCacheRequest.getRealms().toArray(Strings.EMPTY_ARRAY));
         } else {
@@ -167,8 +166,7 @@ final class SecurityRequestConverters {
     }
 
     static Request clearRolesCache(ClearRolesCacheRequest disableCacheRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_security/role")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/role")
             .addCommaSeparatedPathParts(disableCacheRequest.names())
             .addPathPart("_clear_cache")
             .build();
@@ -176,8 +174,7 @@ final class SecurityRequestConverters {
     }
 
     static Request clearPrivilegesCache(ClearPrivilegesCacheRequest clearPrivilegesCacheRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_security/privilege")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/privilege")
             .addCommaSeparatedPathParts(clearPrivilegesCacheRequest.applications())
             .addPathPart("_clear_cache")
             .build();
@@ -185,17 +182,25 @@ final class SecurityRequestConverters {
     }
 
     static Request clearApiKeyCache(ClearApiKeyCacheRequest clearApiKeyCacheRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_security/api_key")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/api_key")
             .addCommaSeparatedPathParts(clearApiKeyCacheRequest.ids())
             .addPathPart("_clear_cache")
             .build();
         return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 
+    static Request clearServiceAccountTokenCache(ClearServiceAccountTokenCacheRequest clearServiceAccountTokenCacheRequest) {
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/service")
+            .addPathPart(clearServiceAccountTokenCacheRequest.getNamespace(), clearServiceAccountTokenCacheRequest.getServiceName())
+            .addPathPartAsIs("credential/token")
+            .addCommaSeparatedPathParts(clearServiceAccountTokenCacheRequest.getTokenNames())
+            .addPathPart("_clear_cache")
+            .build();
+        return new Request(HttpPost.METHOD_NAME, endpoint);
+    }
+
     static Request deleteRoleMapping(DeleteRoleMappingRequest deleteRoleMappingRequest) {
-        final String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_security/role_mapping")
+        final String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/role_mapping")
             .addPathPart(deleteRoleMappingRequest.getName())
             .build();
         final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
@@ -206,8 +211,7 @@ final class SecurityRequestConverters {
     }
 
     static Request deleteRole(DeleteRoleRequest deleteRoleRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_security/role")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/role")
             .addPathPart(deleteRoleRequest.getName())
             .build();
         Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
@@ -245,8 +249,7 @@ final class SecurityRequestConverters {
     }
 
     static Request getPrivileges(GetPrivilegesRequest getPrivilegesRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_security/privilege")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/privilege")
             .addPathPart(getPrivilegesRequest.getApplicationName())
             .addCommaSeparatedPathParts(getPrivilegesRequest.getPrivilegeNames())
             .build();
@@ -263,8 +266,7 @@ final class SecurityRequestConverters {
     }
 
     static Request deletePrivileges(DeletePrivilegesRequest deletePrivilegeRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_security/privilege")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/privilege")
             .addPathPart(deletePrivilegeRequest.getApplication())
             .addCommaSeparatedPathParts(deletePrivilegeRequest.getPrivileges())
             .build();
@@ -276,8 +278,7 @@ final class SecurityRequestConverters {
     }
 
     static Request putRole(final PutRoleRequest putRoleRequest) throws IOException {
-        final String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_security/role")
+        final String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_security/role")
             .addPathPart(putRoleRequest.getRole().getName())
             .build();
         final Request request = new Request(HttpPut.METHOD_NAME, endpoint);
@@ -328,5 +329,69 @@ final class SecurityRequestConverters {
         final Request request = new Request(HttpDelete.METHOD_NAME, "/_security/api_key");
         request.setEntity(createEntity(invalidateApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
+    }
+
+    static Request queryApiKey(final QueryApiKeyRequest queryApiKeyRequest) throws IOException {
+        final Request request = new Request(HttpGet.METHOD_NAME, "/_security/_query/api_key");
+        request.setEntity(createEntity(queryApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request getServiceAccounts(final GetServiceAccountsRequest getServiceAccountsRequest) {
+        final RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder().addPathPartAsIs(
+            "_security/service"
+        );
+        if (getServiceAccountsRequest.getNamespace() != null) {
+            endpointBuilder.addPathPart(getServiceAccountsRequest.getNamespace());
+            if (getServiceAccountsRequest.getServiceName() != null) {
+                endpointBuilder.addPathPart(getServiceAccountsRequest.getServiceName());
+            }
+        }
+        return new Request(HttpGet.METHOD_NAME, endpointBuilder.build());
+    }
+
+    static Request createServiceAccountToken(final CreateServiceAccountTokenRequest createServiceAccountTokenRequest) throws IOException {
+        final RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder().addPathPartAsIs(
+            "_security/service"
+        )
+            .addPathPart(createServiceAccountTokenRequest.getNamespace(), createServiceAccountTokenRequest.getServiceName())
+            .addPathPartAsIs("credential/token");
+        if (createServiceAccountTokenRequest.getTokenName() != null) {
+            endpointBuilder.addPathPart(createServiceAccountTokenRequest.getTokenName());
+        }
+        final Request request = new Request(HttpPost.METHOD_NAME, endpointBuilder.build());
+        final RequestConverters.Params params = new RequestConverters.Params();
+        if (createServiceAccountTokenRequest.getRefreshPolicy() != null) {
+            params.withRefreshPolicy(createServiceAccountTokenRequest.getRefreshPolicy());
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request deleteServiceAccountToken(final DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest) {
+        final RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder().addPathPartAsIs(
+            "_security/service"
+        )
+            .addPathPart(deleteServiceAccountTokenRequest.getNamespace(), deleteServiceAccountTokenRequest.getServiceName())
+            .addPathPartAsIs("credential/token")
+            .addPathPart(deleteServiceAccountTokenRequest.getTokenName());
+
+        final Request request = new Request(HttpDelete.METHOD_NAME, endpointBuilder.build());
+        final RequestConverters.Params params = new RequestConverters.Params();
+        if (deleteServiceAccountTokenRequest.getRefreshPolicy() != null) {
+            params.withRefreshPolicy(deleteServiceAccountTokenRequest.getRefreshPolicy());
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request getServiceAccountCredentials(final GetServiceAccountCredentialsRequest getServiceAccountCredentialsRequest) {
+        final RequestConverters.EndpointBuilder endpointBuilder = new RequestConverters.EndpointBuilder().addPathPartAsIs(
+            "_security/service"
+        )
+            .addPathPart(getServiceAccountCredentialsRequest.getNamespace(), getServiceAccountCredentialsRequest.getServiceName())
+            .addPathPartAsIs("credential");
+
+        return new Request(HttpGet.METHOD_NAME, endpointBuilder.build());
     }
 }

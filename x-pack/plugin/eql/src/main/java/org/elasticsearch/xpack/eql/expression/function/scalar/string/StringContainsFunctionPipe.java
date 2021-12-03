@@ -54,8 +54,8 @@ public class StringContainsFunctionPipe extends Pipe {
         return string.resolved() && substring.resolved();
     }
 
-    protected StringContainsFunctionPipe replaceChildren(Pipe string, Pipe substring) {
-        return new StringContainsFunctionPipe(source(), expression(), string, substring, caseInsensitive);
+    protected StringContainsFunctionPipe replaceChildren(Pipe pipeString, Pipe pipeSubstring) {
+        return new StringContainsFunctionPipe(source(), expression(), pipeString, pipeSubstring, caseInsensitive);
     }
 
     @Override
@@ -102,7 +102,6 @@ public class StringContainsFunctionPipe extends Pipe {
         }
 
         StringContainsFunctionPipe other = (StringContainsFunctionPipe) obj;
-        return Objects.equals(string(), other.string())
-                && Objects.equals(substring(), other.substring());
+        return Objects.equals(string(), other.string()) && Objects.equals(substring(), other.substring());
     }
 }

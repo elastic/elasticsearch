@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.client.ml.datafeed;
 
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -51,4 +51,3 @@ public class DelayedDataCheckConfigTests extends AbstractXContentTestCase<Delaye
         return new DelayedDataCheckConfig(enabled, timeWindow);
     }
 }
-

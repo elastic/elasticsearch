@@ -732,7 +732,7 @@ aren't available.
 [discrete]
 ===== Field aliases
 
-Percolator queries that contain <<alias, field aliases>> may not always behave as expected. In particular, if a
+Percolator queries that contain <<field-alias, field aliases>> may not always behave as expected. In particular, if a
 percolator query is registered that contains a field alias, and then that alias is updated in the mappings to refer
 to a different field, the stored query will still refer to the original target field. To pick up the change to
 the field alias, the percolator query must be explicitly reindexed.

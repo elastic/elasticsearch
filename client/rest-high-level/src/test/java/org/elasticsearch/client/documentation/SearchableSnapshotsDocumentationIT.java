@@ -23,20 +23,25 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.client.indices.CreateIndexResponse;
+import org.elasticsearch.client.searchable_snapshots.CachesStatsRequest;
+import org.elasticsearch.client.searchable_snapshots.CachesStatsResponse;
+import org.elasticsearch.client.searchable_snapshots.CachesStatsResponse.NodeCachesStats;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.is;
 
+@SuppressWarnings("removal")
 public class SearchableSnapshotsDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testMountSnapshot() throws IOException, InterruptedException {
@@ -48,8 +53,7 @@ public class SearchableSnapshotsDocumentationIT extends ESRestHighLevelClientTes
         }
 
         {
-            final IndexRequest request = new IndexRequest("index")
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            final IndexRequest request = new IndexRequest("index").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .source("{}", XContentType.JSON);
             final IndexResponse response = client.index(request, RequestOptions.DEFAULT);
             assertThat(response.status(), is(RestStatus.CREATED));
@@ -64,8 +68,7 @@ public class SearchableSnapshotsDocumentationIT extends ESRestHighLevelClientTes
         }
 
         {
-            final CreateSnapshotRequest request =
-                new CreateSnapshotRequest("repository", "snapshot").waitForCompletion(true);
+            final CreateSnapshotRequest request = new CreateSnapshotRequest("repository", "snapshot").waitForCompletion(true);
             final CreateSnapshotResponse response = client.snapshot().create(request, RequestOptions.DEFAULT);
             assertThat(response.getSnapshotInfo().status(), is(RestStatus.OK));
         }
@@ -126,6 +129,58 @@ public class SearchableSnapshotsDocumentationIT extends ESRestHighLevelClientTes
             listener // <1>
         );
         // end::searchable-snapshots-mount-snapshot-execute-async
+
+        assertTrue(latch.await(30L, TimeUnit.SECONDS));
+    }
+
+    public void testCachesStatsSnapshot() throws Exception {
+        final RestHighLevelClient client = highLevelClient();
+
+        // tag::searchable-snapshots-caches-stats-request
+        CachesStatsRequest request = new CachesStatsRequest(); // <1>
+        request = new CachesStatsRequest(  // <2>
+            "eerrtBMtQEisohZzxBLUSw",
+            "klksqQSSzASDqDMLQ"
+        );
+        // end::searchable-snapshots-caches-stats-request
+
+        // tag::searchable-snapshots-caches-stats-execute
+        final CachesStatsResponse response = client
+            .searchableSnapshots()
+            .cacheStats(request, RequestOptions.DEFAULT);
+        // end::searchable-snapshots-caches-stats-execute
+
+        // tag::searchable-snapshots-caches-stats-response
+        final List<NodeCachesStats> nodeCachesStats =
+            response.getNodeCachesStats(); // <1>
+        // end::searchable-snapshots-caches-stats-response
+
+        // tag::searchable-snapshots-caches-stats-execute-listener
+        ActionListener<CachesStatsResponse> listener =
+            new ActionListener<CachesStatsResponse>() {
+
+                @Override
+                public void onResponse(final CachesStatsResponse response) {
+                    // <1>
+                }
+
+                @Override
+                public void onFailure(final Exception e) {
+                    // <2>
+                }
+            };
+        // end::searchable-snapshots-caches-stats-execute-listener
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        listener = new LatchedActionListener<>(listener, latch);
+
+        // tag::searchable-snapshots-caches-stats-execute-async
+        client.searchableSnapshots().cacheStatsAsync(
+            request,
+            RequestOptions.DEFAULT,
+            listener // <1>
+        );
+        // end::searchable-snapshots-caches-stats-execute-async
 
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }

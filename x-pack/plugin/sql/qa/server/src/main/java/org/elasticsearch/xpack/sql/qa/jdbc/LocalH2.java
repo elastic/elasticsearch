@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.core.CheckedConsumer;
 import org.junit.rules.ExternalResource;
 
 import java.sql.Connection;

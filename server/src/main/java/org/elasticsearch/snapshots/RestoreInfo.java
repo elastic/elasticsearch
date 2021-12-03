@@ -7,15 +7,15 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -86,7 +86,7 @@ public class RestoreInfo implements ToXContentObject, Writeable {
      * @return number of failed shards
      */
     public int failedShards() {
-        return totalShards -  successfulShards;
+        return totalShards - successfulShards;
     }
 
     /**
@@ -125,8 +125,7 @@ public class RestoreInfo implements ToXContentObject, Writeable {
         return builder;
     }
 
-    private static final ObjectParser<RestoreInfo, Void> PARSER = new ObjectParser<>(RestoreInfo.class.getName(),
-        true, RestoreInfo::new);
+    private static final ObjectParser<RestoreInfo, Void> PARSER = new ObjectParser<>(RestoreInfo.class.getName(), true, RestoreInfo::new);
 
     static {
         ObjectParser<RestoreInfo, Void> shardsParser = new ObjectParser<>("shards", true, null);
@@ -166,10 +165,10 @@ public class RestoreInfo implements ToXContentObject, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RestoreInfo that = (RestoreInfo) o;
-        return totalShards == that.totalShards &&
-            successfulShards == that.successfulShards &&
-            Objects.equals(name, that.name) &&
-            Objects.equals(indices, that.indices);
+        return totalShards == that.totalShards
+            && successfulShards == that.successfulShards
+            && Objects.equals(name, that.name)
+            && Objects.equals(indices, that.indices);
     }
 
     @Override

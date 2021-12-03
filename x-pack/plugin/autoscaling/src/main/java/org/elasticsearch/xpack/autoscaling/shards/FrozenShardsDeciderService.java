@@ -15,13 +15,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
+import org.elasticsearch.xpack.autoscaling.util.FrozenUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -60,20 +59,9 @@ public class FrozenShardsDeciderService implements AutoscalingDeciderService {
 
     static int countFrozenShards(Metadata metadata) {
         return StreamSupport.stream(metadata.spliterator(), false)
-            .filter(imd -> isFrozenIndex(imd.getSettings()))
+            .filter(imd -> FrozenUtils.isFrozenIndex(imd.getSettings()))
             .mapToInt(IndexMetadata::getTotalNumberOfShards)
             .sum();
-    }
-
-    static boolean isFrozenIndex(Settings indexSettings) {
-        String tierPreference = DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(indexSettings);
-        String[] preferredTiers = DataTierAllocationDecider.parseTierList(tierPreference);
-        if (preferredTiers.length >= 1 && preferredTiers[0].equals(DataTier.DATA_FROZEN)) {
-            assert preferredTiers.length == 1 : "frozen tier preference must be frozen only";
-            return true;
-        } else {
-            return false;
-        }
     }
 
     @Override

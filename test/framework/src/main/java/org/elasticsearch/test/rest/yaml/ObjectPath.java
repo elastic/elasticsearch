@@ -11,12 +11,12 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Holds an object and allows to extract specific values from it given their path
+ * Holds an object and allows extraction of specific values from it, given their path
  */
 public class ObjectPath {
 
@@ -38,8 +38,13 @@ public class ObjectPath {
     }
 
     public static ObjectPath createFromXContent(XContent xContent, BytesReference input) throws IOException {
-        try (XContentParser parser = xContent
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input.streamInput())) {
+        try (
+            XContentParser parser = xContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                input.streamInput()
+            )
+        ) {
             if (parser.nextToken() == XContentParser.Token.START_ARRAY) {
                 return new ObjectPath(parser.listOrderedMap());
             }
@@ -51,7 +56,6 @@ public class ObjectPath {
         this.object = object;
     }
 
-
     /**
      * A utility method that creates an {@link ObjectPath} via {@link #ObjectPath(Object)} returns
      * the result of calling {@link #evaluate(String)} on it.
@@ -59,7 +63,6 @@ public class ObjectPath {
     public static <T> T evaluate(Object object, String path) throws IOException {
         return new ObjectPath(object).evaluate(path, Stash.EMPTY);
     }
-
 
     /**
      * Returns the object corresponding to the provided path if present, null otherwise
@@ -74,24 +77,24 @@ public class ObjectPath {
     @SuppressWarnings("unchecked")
     public <T> T evaluate(String path, Stash stash) throws IOException {
         String[] parts = parsePath(path);
-        Object object = this.object;
+        Object result = this.object;
         for (String part : parts) {
-            object = evaluate(part, object, stash);
-            if (object == null) {
+            result = evaluate(part, result, stash);
+            if (result == null) {
                 return null;
             }
         }
-        return (T)object;
+        return (T) result;
     }
 
     @SuppressWarnings("unchecked")
-    private Object evaluate(String key, Object object, Stash stash) throws IOException {
+    private Object evaluate(String key, Object objectToEvaluate, Stash stash) throws IOException {
         if (stash.containsStashedValue(key)) {
             key = stash.getValue(key).toString();
         }
 
-        if (object instanceof Map) {
-            final Map<String, Object> objectAsMap = (Map<String, Object>) object;
+        if (objectToEvaluate instanceof Map) {
+            final Map<String, Object> objectAsMap = (Map<String, Object>) objectToEvaluate;
             if ("_arbitrary_key_".equals(key)) {
                 if (objectAsMap.isEmpty()) {
                     throw new IllegalArgumentException("requested [" + key + "] but the map was empty");
@@ -103,19 +106,23 @@ public class ObjectPath {
             }
             return objectAsMap.get(key);
         }
-        if (object instanceof List) {
-            List<Object> list = (List<Object>) object;
+        if (objectToEvaluate instanceof List) {
+            List<Object> list = (List<Object>) objectToEvaluate;
             try {
-                return list.get(Integer.valueOf(key));
+                return list.get(Integer.parseInt(key));
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("element was a list, but [" + key + "] was not numeric", e);
             } catch (IndexOutOfBoundsException e) {
-                throw new IllegalArgumentException("element was a list with " + list.size() +
-                        " elements, but [" + key + "] was out of bounds", e);
+                throw new IllegalArgumentException(
+                    "element was a list with " + list.size() + " elements, but [" + key + "] was out of bounds",
+                    e
+                );
             }
         }
 
-        throw new IllegalArgumentException("no object found for [" + key + "] within object of class [" + object.getClass() + "]");
+        throw new IllegalArgumentException(
+            "no object found for [" + key + "] within object of class [" + objectToEvaluate.getClass() + "]"
+        );
     }
 
     private String[] parsePath(String path) {

@@ -37,8 +37,8 @@ simple:
 ---
 profile:
   - skip:
-      version: " - 7.99.99"
-      reason:  fixed in 8.0.0 (to be backported to 7.13.0)
+      version: " - 7.12.99"
+      reason: fix introduced in 7.13.0
 
   - do:
       search:

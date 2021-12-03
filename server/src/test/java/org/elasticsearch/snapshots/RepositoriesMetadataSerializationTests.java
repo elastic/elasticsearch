@@ -16,8 +16,8 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -33,13 +33,16 @@ public class RepositoriesMetadataSerializationTests extends AbstractDiffableSeri
         for (int i = 0; i < numberOfRepositories; i++) {
             // divide by 2 to not overflow when adding to this number for the pending generation below
             final long generation = randomNonNegativeLong() / 2L;
-            entries.add(new RepositoryMetadata(
+            entries.add(
+                new RepositoryMetadata(
                     randomAlphaOfLength(10),
                     randomAlphaOfLength(10),
                     randomAlphaOfLength(10),
                     randomSettings(),
                     generation,
-                    generation + randomLongBetween(0, generation)));
+                    generation + randomLongBetween(0, generation)
+                )
+            );
         }
         entries.sort(Comparator.comparing(RepositoryMetadata::name));
         return new RepositoriesMetadata(entries);

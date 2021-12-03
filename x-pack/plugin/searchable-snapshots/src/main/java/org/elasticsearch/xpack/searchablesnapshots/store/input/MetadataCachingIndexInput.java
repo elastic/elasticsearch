@@ -14,19 +14,19 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
-import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -170,8 +170,11 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
             final int bytesRead = populateCacheFuture.get();
             assert bytesRead == length : bytesRead + " vs " + length;
         } else {
-            logger.trace("reading [{}] bytes of file [{}] at position [{}] using cache index", length, fileInfo.physicalName(), position);
             final int sliceOffset = toIntBytes(position - cachedBlob.from());
+            assert sliceOffset + length <= cachedBlob.to()
+                : "reading " + length + " bytes from " + sliceOffset + " exceed cached blob max position " + cachedBlob.to();
+
+            logger.trace("reading [{}] bytes of file [{}] at position [{}] using cache index", length, fileInfo.physicalName(), position);
             final BytesRefIterator cachedBytesIterator = cachedBlob.bytes().slice(sliceOffset, length).iterator();
             BytesRef bytesRef;
             int copiedBytes = 0;
@@ -287,7 +290,7 @@ public abstract class MetadataCachingIndexInput extends BaseSearchableSnapshotIn
             // NB use Channels.readFromFileChannelWithEofException not readCacheFile() to avoid counting this in the stats
             byteBuffer.flip();
             final BytesReference content = BytesReference.fromByteBuffer(byteBuffer);
-            directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss.start(), content, new ActionListener<Void>() {
+            directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss, content, new ActionListener<>() {
                 @Override
                 public void onResponse(Void response) {
                     onCacheFillComplete.close();

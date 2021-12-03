@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
 
@@ -156,9 +156,9 @@ public final class GrokPatternCreator {
         this.mappings = mappings;
         this.fieldStats = fieldStats;
         if (customGrokPatternDefinitions.isEmpty()) {
-            grokPatternDefinitions = Grok.BUILTIN_PATTERNS;
+            grokPatternDefinitions = Grok.getBuiltinPatterns(false);
         } else {
-            grokPatternDefinitions = new HashMap<>(Grok.BUILTIN_PATTERNS);
+            grokPatternDefinitions = new HashMap<>(Grok.getBuiltinPatterns(false));
             grokPatternDefinitions.putAll(customGrokPatternDefinitions);
         }
         this.timeoutChecker = Objects.requireNonNull(timeoutChecker);
@@ -509,7 +509,7 @@ public final class GrokPatternCreator {
                 fieldName,
                 "\\b",
                 "\\b",
-                Grok.BUILTIN_PATTERNS
+                Grok.getBuiltinPatterns(false)
             );
         }
 
@@ -549,7 +549,7 @@ public final class GrokPatternCreator {
                 fieldName,
                 preBreak,
                 postBreak,
-                Grok.BUILTIN_PATTERNS
+                Grok.getBuiltinPatterns(false)
             );
         }
 
@@ -699,7 +699,7 @@ public final class GrokPatternCreator {
                 throw new IllegalStateException("Cannot process KV matches until a field name has been determined");
             }
             Grok grok = new Grok(
-                Grok.BUILTIN_PATTERNS,
+                Grok.getBuiltinPatterns(false),
                 "(?m)%{DATA:" + PREFACE + "}\\b" + fieldName + "=%{USER:" + VALUE + "}%{GREEDYDATA:" + EPILOGUE + "}",
                 TimeoutChecker.watchdog,
                 logger::warn
@@ -768,7 +768,7 @@ public final class GrokPatternCreator {
         private final Grok grok;
 
         static FullMatchGrokPatternCandidate fromGrokPatternName(String grokPatternName, String timeField) {
-            return new FullMatchGrokPatternCandidate("%{" + grokPatternName + "}", timeField, Grok.BUILTIN_PATTERNS);
+            return new FullMatchGrokPatternCandidate("%{" + grokPatternName + "}", timeField, Grok.getBuiltinPatterns(false));
         }
 
         static FullMatchGrokPatternCandidate fromGrokPatternName(
@@ -780,7 +780,7 @@ public final class GrokPatternCreator {
         }
 
         static FullMatchGrokPatternCandidate fromGrokPattern(String grokPattern, String timeField) {
-            return new FullMatchGrokPatternCandidate(grokPattern, timeField, Grok.BUILTIN_PATTERNS);
+            return new FullMatchGrokPatternCandidate(grokPattern, timeField, Grok.getBuiltinPatterns(false));
         }
 
         static FullMatchGrokPatternCandidate fromGrokPattern(

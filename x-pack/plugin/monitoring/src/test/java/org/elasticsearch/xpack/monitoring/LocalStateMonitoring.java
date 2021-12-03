@@ -44,11 +44,17 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
 
     public static class MonitoringTransportXPackUsageAction extends TransportXPackUsageAction {
         @Inject
-        public MonitoringTransportXPackUsageAction(ThreadPool threadPool, TransportService transportService,
-                                         ClusterService clusterService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, NodeClient client) {
+        public MonitoringTransportXPackUsageAction(
+            ThreadPool threadPool,
+            TransportService transportService,
+            ClusterService clusterService,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            NodeClient client
+        ) {
             super(threadPool, transportService, clusterService, actionFilters, indexNameExpressionResolver, client);
         }
+
         @Override
         protected List<XPackUsageFeatureAction> usageActions() {
             return Collections.singletonList(XPackUsageFeatureAction.MONITORING);
@@ -121,16 +127,25 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
 
         @Override
         protected void doExecute(Task task, CcrStatsAction.Request request, ActionListener<CcrStatsAction.Response> listener) {
-            AutoFollowStats autoFollowStats =
-                new AutoFollowStats(0, 0, 0, Collections.emptyNavigableMap(), Collections.emptyNavigableMap());
-            FollowStatsAction.StatsResponses statsResponses =
-                new FollowStatsAction.StatsResponses(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+            AutoFollowStats autoFollowStats = new AutoFollowStats(
+                0,
+                0,
+                0,
+                Collections.emptyNavigableMap(),
+                Collections.emptyNavigableMap()
+            );
+            FollowStatsAction.StatsResponses statsResponses = new FollowStatsAction.StatsResponses(
+                Collections.emptyList(),
+                Collections.emptyList(),
+                Collections.emptyList()
+            );
             listener.onResponse(new CcrStatsAction.Response(autoFollowStats, statsResponses));
         }
     }
 
-    public static class TransportEnrichStatsStubAction
-        extends HandledTransportAction<EnrichStatsAction.Request, EnrichStatsAction.Response> {
+    public static class TransportEnrichStatsStubAction extends HandledTransportAction<
+        EnrichStatsAction.Request,
+        EnrichStatsAction.Response> {
 
         @Inject
         public TransportEnrichStatsStubAction(TransportService transportService, ActionFilters actionFilters) {
@@ -139,7 +154,7 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
 
         @Override
         protected void doExecute(Task task, EnrichStatsAction.Request request, ActionListener<EnrichStatsAction.Response> listener) {
-            listener.onResponse(new EnrichStatsAction.Response(Collections.emptyList(), Collections.emptyList()));
+            listener.onResponse(new EnrichStatsAction.Response(Collections.emptyList(), Collections.emptyList(), Collections.emptyList()));
         }
     }
 

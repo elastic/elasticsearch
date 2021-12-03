@@ -54,4 +54,9 @@ class UserAndPassword {
         result = 31 * result + passwordHash().hashCode();
         return result;
     }
+
+    @Override
+    public String toString() {
+        return "{" + user + " with password hashed with :" + (passwordHash == null ? "<null>" : hasher.name()) + "}";
+    }
 }

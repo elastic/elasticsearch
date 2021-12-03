@@ -12,13 +12,14 @@ import org.elasticsearch.nio.Page;
 import org.elasticsearch.nio.utils.ByteBufferUtils;
 import org.elasticsearch.nio.utils.ExceptionsHelper;
 
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.function.IntFunction;
+
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLEngineResult;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLSession;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.function.IntFunction;
 
 /**
  * SSLDriver is a class that wraps the {@link SSLEngine} and attempts to simplify the API. The basic usage is
@@ -50,7 +51,7 @@ import java.util.function.IntFunction;
  */
 public class SSLDriver implements AutoCloseable {
 
-    private static final ByteBuffer[] EMPTY_BUFFERS = {ByteBuffer.allocate(0)};
+    private static final ByteBuffer[] EMPTY_BUFFERS = { ByteBuffer.allocate(0) };
     private static final FlushOperation EMPTY_FLUSH_OPERATION = new FlushOperation(EMPTY_BUFFERS, (r, t) -> {});
 
     private final SSLEngine engine;

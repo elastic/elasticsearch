@@ -7,16 +7,17 @@
  */
 package org.elasticsearch.repositories.s3;
 
+import fixture.s3.S3HttpHandler;
+
 import com.amazonaws.http.AmazonHttpClient;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import fixture.s3.S3HttpHandler;
+
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -26,10 +27,9 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -37,10 +37,13 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.snapshots.mockstore.BlobStoreWrapper;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -120,13 +123,14 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         final Settings.Builder builder = Settings.builder()
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that verify an exact wait time
             .put(S3ClientSettings.ENDPOINT_SETTING.getConcreteSettingForNamespace("test").getKey(), httpServerUrl())
-            // Disable chunked encoding as it simplifies a lot the request parsing on the httpServer side
-            .put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), true)
             // Disable request throttling because some random values in tests might generate too many failures for the S3 client
             .put(S3ClientSettings.USE_THROTTLE_RETRIES_SETTING.getConcreteSettingForNamespace("test").getKey(), false)
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .setSecureSettings(secureSettings);
 
+        if (randomBoolean()) {
+            builder.put(S3ClientSettings.DISABLE_CHUNKED_ENCODING.getConcreteSettingForNamespace("test").getKey(), randomBoolean());
+        }
         if (signerOverride != null) {
             builder.put(S3ClientSettings.SIGNER_OVERRIDE.getConcreteSettingForNamespace("test").getKey(), signerOverride);
         }
@@ -138,21 +142,51 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
     public void testEnforcedCooldownPeriod() throws IOException {
         final String repoName = randomRepositoryName();
-        createRepository(repoName, Settings.builder().put(repositorySettings(repoName))
-                .put(S3Repository.COOLDOWN_PERIOD.getKey(), TEST_COOLDOWN_PERIOD).build(), true);
+        createRepository(
+            repoName,
+            Settings.builder().put(repositorySettings(repoName)).put(S3Repository.COOLDOWN_PERIOD.getKey(), TEST_COOLDOWN_PERIOD).build(),
+            true
+        );
 
-        final SnapshotId fakeOldSnapshot = client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-old")
-            .setWaitForCompletion(true).setIndices().get().getSnapshotInfo().snapshotId();
+        final SnapshotId fakeOldSnapshot = client().admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, "snapshot-old")
+            .setWaitForCompletion(true)
+            .setIndices()
+            .get()
+            .getSnapshotInfo()
+            .snapshotId();
         final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
         final RepositoryData repositoryData = getRepositoryData(repository);
-        final RepositoryData modifiedRepositoryData = repositoryData.withVersions(Collections.singletonMap(fakeOldSnapshot,
-            SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion())).withoutUUIDs();
-        final BytesReference serialized = BytesReference.bytes(modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(),
-            SnapshotsService.OLD_SNAPSHOT_FORMAT));
-        PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.run(f, () ->
-                repository.blobStore().blobContainer(repository.basePath()).writeBlobAtomic(
-                        BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(), serialized, true))));
+        final RepositoryData modifiedRepositoryData = repositoryData.withoutUUIDs()
+            .withExtraDetails(
+                Collections.singletonMap(
+                    fakeOldSnapshot,
+                    new RepositoryData.SnapshotDetails(
+                        SnapshotState.SUCCESS,
+                        SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion(),
+                        0L, // -1 would refresh RepositoryData and find the real version
+                        0L, // -1 would refresh RepositoryData and find the real version,
+                        "" // null would refresh RepositoryData and find the real version
+                    )
+                )
+            );
+        final BytesReference serialized = BytesReference.bytes(
+            modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), SnapshotsService.OLD_SNAPSHOT_FORMAT)
+        );
+        PlainActionFuture.get(
+            f -> repository.threadPool()
+                .generic()
+                .execute(
+                    ActionRunnable.run(
+                        f,
+                        () -> repository.blobStore()
+                            .blobContainer(repository.basePath())
+                            .writeBlobAtomic(BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(), serialized, true)
+                    )
+                )
+        );
 
         final String newSnapshotName = "snapshot-new";
         final long beforeThrottledSnapshot = repository.threadPool().relativeTimeInNanos();
@@ -185,8 +219,13 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
 
         @Override
-        protected S3Repository createRepository(RepositoryMetadata metadata, NamedXContentRegistry registry,
-                                                ClusterService clusterService, BigArrays bigArrays, RecoverySettings recoverySettings) {
+        protected S3Repository createRepository(
+            RepositoryMetadata metadata,
+            NamedXContentRegistry registry,
+            ClusterService clusterService,
+            BigArrays bigArrays,
+            RecoverySettings recoverySettings
+        ) {
             return new S3Repository(metadata, registry, service, clusterService, bigArrays, recoverySettings) {
 
                 @Override
@@ -201,8 +240,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                                 }
 
                                 @Override
-                                void ensureMultiPartUploadSize(long blobSize) {
-                                }
+                                void ensureMultiPartUploadSize(long blobSize) {}
                             };
                         }
                     };
@@ -283,10 +321,9 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         }
 
         private boolean isMultiPartUpload(String request) {
-            return Regex.simpleMatch("POST /*/*?uploads", request) ||
-                Regex.simpleMatch("POST /*/*?*uploadId=*", request) ||
-                Regex.simpleMatch("PUT /*/*?*uploadId=*", request);
+            return Regex.simpleMatch("POST /*/*?uploads", request)
+                || Regex.simpleMatch("POST /*/*?*uploadId=*", request)
+                || Regex.simpleMatch("PUT /*/*?*uploadId=*", request);
         }
     }
 }
-

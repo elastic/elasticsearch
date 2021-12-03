@@ -1,11 +1,6 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
- */
-/*
+ * @notice
+ *
  * Copyright 2013 The Netty Project
  *
  * The Netty Project licenses this file to you under the Apache License, version
@@ -19,8 +14,16 @@
  * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
  * License for the specific language governing permissions and limitations under
  * the License.
+ *
+ * =============================================================================
+ * Modifications copyright Elasticsearch B.V.
+ *
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
-
 package org.elasticsearch.http;
 
 import org.elasticsearch.common.Strings;
@@ -200,9 +203,9 @@ public class CorsHandler {
 
     private static boolean isPreflightRequest(final HttpRequest request) {
         final Map<String, List<String>> headers = request.getHeaders();
-        return request.method().equals(RestRequest.Method.OPTIONS) &&
-            headers.containsKey(ORIGIN) &&
-            headers.containsKey(ACCESS_CONTROL_REQUEST_METHOD);
+        return request.method().equals(RestRequest.Method.OPTIONS)
+            && headers.containsKey(ORIGIN)
+            && headers.containsKey(ACCESS_CONTROL_REQUEST_METHOD);
     }
 
     private static void setVaryHeader(final HttpResponse response) {
@@ -296,16 +299,24 @@ public class CorsHandler {
 
         @Override
         public String toString() {
-            return "Config{" +
-                "enabled=" + enabled +
-                ", origins=" + origins +
-                ", pattern=" + pattern +
-                ", anyOrigin=" + anyOrigin +
-                ", credentialsAllowed=" + credentialsAllowed +
-                ", allowedRequestMethods=" + allowedRequestMethods +
-                ", allowedRequestHeaders=" + allowedRequestHeaders +
-                ", maxAge=" + maxAge +
-                '}';
+            return "Config{"
+                + "enabled="
+                + enabled
+                + ", origins="
+                + origins
+                + ", pattern="
+                + pattern
+                + ", anyOrigin="
+                + anyOrigin
+                + ", credentialsAllowed="
+                + credentialsAllowed
+                + ", allowedRequestMethods="
+                + allowedRequestMethods
+                + ", allowedRequestHeaders="
+                + allowedRequestHeaders
+                + ", maxAge="
+                + maxAge
+                + '}';
         }
 
         private static class Builder {
@@ -353,7 +364,6 @@ public class CorsHandler {
                 this.allowCredentials = true;
                 return this;
             }
-
 
             public Builder allowedRequestMethods(RestRequest.Method[] methods) {
                 requestMethods.addAll(Arrays.asList(methods));

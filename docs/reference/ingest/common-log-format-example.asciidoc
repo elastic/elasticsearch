@@ -23,11 +23,11 @@ These logs contain a timestamp, IP address, and user agent. You want to give
 these three items their own field in {es} for faster searches and
 visualizations. You also want to know where the request is coming from.
 
-. In {kib}, open the main menu and click **Stack Management** > **Ingest Node
+. In {kib}, open the main menu and click **Stack Management** > **Ingest
 Pipelines**.
 +
 [role="screenshot"]
-image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Node Pipelines list view,align="center"]
+image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Pipelines list view,align="center"]
 
 . Click **Create pipeline**.
 . Provide a name and description for the pipeline.
@@ -39,7 +39,7 @@ image::images/ingest/ingest-pipeline-list.png[Kibana's Ingest Node Pipelines lis
 +
 [source,grok]
 ----
-%{IPORHOST:source.ip} %{USER:user.id} %{USER:user.name} \[%{HTTPDATE:@timestamp}\] "%{WORD:http.request.method} %{DATA:url.original} HTTP/%{NUMBER:http.version}" %{NUMBER:http.response.status_code:int} (?:-|%{NUMBER:http.response.body.bytes:int}) %{QS:http.request.referrer} %{QS:user_agent}
+%{IPORHOST:source.ip} %{USER:user.id} %{USER:user.name} \\[%{HTTPDATE:@timestamp}\\] \"%{WORD:http.request.method} %{DATA:url.original} HTTP/%{NUMBER:http.version}\" %{NUMBER:http.response.status_code:int} (?:-|%{NUMBER:http.response.body.bytes:int}) %{QS:http.request.referrer} %{QS:user_agent}
 ----
 // NOTCONSOLE
 +
@@ -74,7 +74,7 @@ the processors as follows:
 Your form should look similar to this:
 
 [role="screenshot"]
-image::images/ingest/ingest-pipeline-processor.png[Processors for Ingest Node Pipelines,align="center"]
+image::images/ingest/ingest-pipeline-processor.png[Processors for Ingest Pipelines,align="center"]
 
 The four processors will run sequentially: +
 Grok > Date > GeoIP > User agent +
@@ -175,7 +175,7 @@ PUT _index_template/my-data-stream-template
 ----
 POST my-data-stream/_doc?pipeline=my-pipeline
 {
-  "message": "212.87.37.154 - - [05/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\" 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\""
+  "message": "89.160.20.128 - - [05/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\" 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\""
 }
 ----
 // TEST[s/my-pipeline/my-pipeline&refresh=wait_for/]
@@ -216,21 +216,21 @@ The API returns:
             "version": "1.1"
           },
           "source": {
-            "ip": "212.87.37.154",
+            "ip": "89.160.20.128",
             "geo": {
-              "continent_name": "Europe",
-              "region_iso_code": "DE-BE",
-              "city_name": "Berlin",
-              "country_iso_code": "DE",
-              "country_name": "Germany",
-              "region_name": "Land Berlin",
-              "location": {
-                "lon": 13.4978,
-                "lat": 52.411
+              "continent_name" : "Europe",
+              "country_name" : "Sweden",
+              "country_iso_code" : "SE",
+              "city_name" : "Linköping",
+              "region_iso_code" : "SE-E",
+              "region_name" : "Östergötland County",
+              "location" : {
+                "lon" : 15.6167,
+                "lat" : 58.4167
               }
             }
           },
-          "message": "212.87.37.154 - - [05/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\" 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\"",
+          "message": "89.160.20.128 - - [05/May/2099:16:21:15 +0000] \"GET /favicon.ico HTTP/1.1\" 200 3638 \"-\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/52.0.2743.116 Safari/537.36\"",
           "url": {
             "original": "/favicon.ico"
           },

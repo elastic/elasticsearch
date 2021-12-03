@@ -29,13 +29,13 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.mockito.ArgumentCaptor;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
@@ -43,9 +43,9 @@ import org.mockito.stubbing.Answer;
 import java.util.List;
 import java.util.Map;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -109,8 +109,7 @@ public class MockClientBuilder {
         return this;
     }
 
-    public MockClientBuilder prepareSearch(String index, int from, int size, SearchResponse response,
-            ArgumentCaptor<QueryBuilder> filter) {
+    public MockClientBuilder prepareSearch(String index, int from, int size, SearchResponse response, ArgumentCaptor<QueryBuilder> filter) {
         SearchRequestBuilder builder = mock(SearchRequestBuilder.class);
         when(builder.addSort(any(SortBuilder.class))).thenReturn(builder);
         when(builder.setQuery(filter.capture())).thenReturn(builder);
@@ -149,8 +148,8 @@ public class MockClientBuilder {
 
         when(client.prepareSearch(eq(indexName))).thenReturn(builder);
 
-        SearchHit hits [] = new SearchHit[docs.size()];
-        for (int i=0; i<docs.size(); i++) {
+        SearchHit hits[] = new SearchHit[docs.size()];
+        for (int i = 0; i < docs.size(); i++) {
             SearchHit hit = new SearchHit(10);
             hit.sourceRef(docs.get(i));
             hits[i] = hit;
@@ -188,8 +187,8 @@ public class MockClientBuilder {
 
         when(client.prepareSearch(eq(indexName))).thenReturn(builder);
 
-        SearchHit hits [] = new SearchHit[fields.size()];
-        for (int i=0; i<hits.length; i++) {
+        SearchHit hits[] = new SearchHit[fields.size()];
+        for (int i = 0; i < hits.length; i++) {
             SearchHit hit = new SearchHit(10, null, null, fields.get(i));
             hits[i] = hit;
         }

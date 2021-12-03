@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
 
@@ -43,29 +44,35 @@ public class UpdateRollupIndexPolicyStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetadata indexMetadata, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
+    public void performAction(
+        IndexMetadata indexMetadata,
+        ClusterState currentState,
+        ClusterStateObserver observer,
+        ActionListener<Void> listener
+    ) {
         final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         final String indexName = indexMetadata.getIndex().getName();
         final LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
         final String rollupIndexName = lifecycleState.getRollupIndexName();
         if (Strings.hasText(rollupIndexName) == false) {
-            listener.onFailure(new IllegalStateException("rollup index name was not generated for policy [" + policyName +
-                "] and index [" + indexName + "]"));
+            listener.onFailure(
+                new IllegalStateException(
+                    "rollup index name was not generated for policy [" + policyName + "] and index [" + indexName + "]"
+                )
+            );
             return;
         }
         Settings settings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, rollupPolicy).build();
-        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(rollupIndexName)
-            .masterNodeTimeout(getMasterTimeout(currentState))
+        UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(rollupIndexName).masterNodeTimeout(TimeValue.MAX_VALUE)
             .settings(settings);
         getClient().admin().indices().updateSettings(updateSettingsRequest, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
-                listener.onResponse(true);
+                listener.onResponse(null);
             } else {
                 listener.onFailure(new ElasticsearchException("settings update not acknowledged in step [" + getKey().toString() + "]"));
             }
         }, listener::onFailure));
     }
-
 
     @Override
     public int hashCode() {
@@ -81,7 +88,6 @@ public class UpdateRollupIndexPolicyStep extends AsyncActionStep {
             return false;
         }
         UpdateRollupIndexPolicyStep other = (UpdateRollupIndexPolicyStep) obj;
-        return super.equals(obj) &&
-                Objects.equals(rollupPolicy, other.rollupPolicy);
+        return super.equals(obj) && Objects.equals(rollupPolicy, other.rollupPolicy);
     }
 }

@@ -9,14 +9,18 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
+import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -33,7 +37,7 @@ import static org.junit.Assert.assertThat;
 public class MatchAssertion extends Assertion {
     public static MatchAssertion parse(XContentParser parser) throws IOException {
         XContentLocation location = parser.getTokenLocation();
-        Tuple<String,Object> stringObjectTuple = ParserUtils.parseTuple(parser);
+        Tuple<String, Object> stringObjectTuple = ParserUtils.parseTuple(parser);
         return new MatchAssertion(location, stringObjectTuple.v1(), stringObjectTuple.v2());
     }
 
@@ -45,17 +49,23 @@ public class MatchAssertion extends Assertion {
 
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
-        //if the value is wrapped into / it is a regexp (e.g. /s+d+/)
+        // if the value is wrapped into / it is a regexp (e.g. /s+d+/)
         if (expectedValue instanceof String) {
             String expValue = ((String) expectedValue).trim();
             if (expValue.length() > 2 && expValue.startsWith("/") && expValue.endsWith("/")) {
-                assertThat("field [" + getField() + "] was expected to be of type String but is an instanceof [" +
-                        safeClass(actualValue) + "]", actualValue, instanceOf(String.class));
+                assertThat(
+                    "field [" + getField() + "] was expected to be of type String but is an instanceof [" + safeClass(actualValue) + "]",
+                    actualValue,
+                    instanceOf(String.class)
+                );
                 String stringValue = (String) actualValue;
                 String regex = expValue.substring(1, expValue.length() - 1);
                 logger.trace("assert that [{}] matches [{}]", stringValue, regex);
-                assertThat("field [" + getField() + "] was expected to match the provided regex but didn't",
-                        stringValue, matches(regex, Pattern.COMMENTS));
+                assertThat(
+                    "field [" + getField() + "] was expected to match the provided regex but didn't",
+                    stringValue,
+                    matches(regex, Pattern.COMMENTS)
+                );
                 return;
             }
         }
@@ -69,17 +79,23 @@ public class MatchAssertion extends Assertion {
 
         if (actualValue.getClass().equals(safeClass(expectedValue)) == false) {
             if (actualValue instanceof Number && expectedValue instanceof Number) {
-                //Double 1.0 is equal to Integer 1
-                assertThat("field [" + getField() + "] doesn't match the expected value",
-                        ((Number) actualValue).doubleValue(), equalTo(((Number) expectedValue).doubleValue()));
+                // Double 1.0 is equal to Integer 1
+                assertThat(
+                    "field [" + getField() + "] doesn't match the expected value",
+                    ((Number) actualValue).doubleValue(),
+                    equalTo(((Number) expectedValue).doubleValue())
+                );
                 return;
             }
         }
 
-        if (expectedValue.equals(actualValue) == false) {
-            NotEqualMessageBuilder message = new NotEqualMessageBuilder();
-            message.compare(getField(), true, actualValue, expectedValue);
-            throw new AssertionError(getField() + " didn't match expected value:\n" + message);
+        if (expectedValue instanceof Map) {
+            assertThat(actualValue, instanceOf(Map.class));
+            assertMap((Map<?, ?>) actualValue, matchesMap((Map<?, ?>) expectedValue));
+        } else if (expectedValue instanceof List) {
+            assertThat(actualValue, instanceOf(List.class));
+            assertMap((List<?>) actualValue, matchesList((List<?>) expectedValue));
         }
+        assertThat(actualValue, equalTo(expectedValue));
     }
 }

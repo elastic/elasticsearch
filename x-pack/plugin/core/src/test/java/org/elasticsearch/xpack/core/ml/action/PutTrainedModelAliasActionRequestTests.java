@@ -27,11 +27,7 @@ public class PutTrainedModelAliasActionRequestTests extends AbstractWireSerializ
 
     @Override
     protected Request createTestInstance() {
-        return new Request(
-            modelAlias,
-            randomAlphaOfLength(10),
-            randomBoolean()
-        );
+        return new Request(modelAlias, randomAlphaOfLength(10), randomBoolean());
     }
 
     @Override
@@ -46,7 +42,7 @@ public class PutTrainedModelAliasActionRequestTests extends AbstractWireSerializ
 
     public void testValidate() {
 
-        { // model_alias equal to  model Id
+        { // model_alias equal to model Id
             ActionRequestValidationException ex = new Request("foo", "foo", randomBoolean()).validate();
             assertThat(ex, not(nullValue()));
             assertThat(ex.getMessage(), containsString("model_alias [foo] cannot equal model_id [foo]"));

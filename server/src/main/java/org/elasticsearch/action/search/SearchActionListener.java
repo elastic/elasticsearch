@@ -20,8 +20,7 @@ abstract class SearchActionListener<T extends SearchPhaseResult> implements Acti
     final int requestIndex;
     private final SearchShardTarget searchShardTarget;
 
-    protected SearchActionListener(SearchShardTarget searchShardTarget,
-                                   int shardIndex) {
+    protected SearchActionListener(SearchShardTarget searchShardTarget, int shardIndex) {
         assert shardIndex >= 0 : "shard index must be positive";
         this.searchShardTarget = searchShardTarget;
         this.requestIndex = shardIndex;

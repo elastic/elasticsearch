@@ -20,12 +20,10 @@ import java.io.IOException;
 abstract class CellValues extends AbstractSortingNumericDocValues {
     private MultiGeoPointValues geoValues;
     protected int precision;
-    protected CellIdSource.GeoPointLongEncoder encoder;
 
-    protected CellValues(MultiGeoPointValues geoValues, int precision, CellIdSource.GeoPointLongEncoder encoder) {
+    protected CellValues(MultiGeoPointValues geoValues, int precision) {
         this.geoValues = geoValues;
         this.precision = precision;
-        this.encoder = encoder;
     }
 
     @Override

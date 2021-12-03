@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Optional;
@@ -24,9 +24,13 @@ public class StartDataFrameAnalyticsRequestTests extends ESTestCase {
     }
 
     public void testValidate_Failure() {
-        assertThat(new StartDataFrameAnalyticsRequest(null).validate().get().getMessage(),
-            containsString("data frame analytics id must not be null"));
-        assertThat(new StartDataFrameAnalyticsRequest(null).setTimeout(TimeValue.ZERO).validate().get().getMessage(),
-            containsString("data frame analytics id must not be null"));
+        assertThat(
+            new StartDataFrameAnalyticsRequest(null).validate().get().getMessage(),
+            containsString("data frame analytics id must not be null")
+        );
+        assertThat(
+            new StartDataFrameAnalyticsRequest(null).setTimeout(TimeValue.ZERO).validate().get().getMessage(),
+            containsString("data frame analytics id must not be null")
+        );
     }
 }

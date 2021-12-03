@@ -8,10 +8,9 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.CheckedConsumer;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -77,8 +76,9 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
      * @return the combined listener
      */
     public <OtherResponse, OuterResponse> StepListener<OuterResponse> thenCombine(
-            StepListener<OtherResponse> other,
-            BiFunction<Response, OtherResponse, OuterResponse> fn) {
+        StepListener<OtherResponse> other,
+        BiFunction<Response, OtherResponse, OuterResponse> fn
+    ) {
         final StepListener<OuterResponse> combined = new StepListener<>();
         whenComplete(r1 -> other.whenComplete(r2 -> combined.onResponse(fn.apply(r1, r2)), combined::onFailure), combined::onFailure);
         return combined;
@@ -105,7 +105,7 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
      * Registers the given listener to be notified with the result of this step.
      */
     public void addListener(ActionListener<Response> listener) {
-        delegate.addListener(listener, EsExecutors.newDirectExecutorService());
+        delegate.addListener(listener);
     }
 
 }

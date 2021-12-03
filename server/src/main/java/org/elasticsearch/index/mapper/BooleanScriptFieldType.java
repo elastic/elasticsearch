@@ -11,15 +11,16 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.field.BooleanDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.BooleanScriptFieldExistsQuery;
@@ -27,56 +28,53 @@ import org.elasticsearch.search.runtime.BooleanScriptFieldTermQuery;
 
 import java.time.ZoneId;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
 
-    private static final BooleanFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (BooleanFieldScript.LeafFactory) ctx -> new BooleanFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
-        @Override
-        public void execute() {
-            for (Object v : extractFromSource(field)) {
-                if (v instanceof Boolean) {
-                    emit((Boolean) v);
-                } else if (v instanceof String) {
-                    try {
-                        emit(Booleans.parseBoolean((String) v));
-                    } catch (IllegalArgumentException e) {
-                        // ignore
-                    }
-                }
-            }
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(Builder::new);
+
+    private static class Builder extends AbstractScriptFieldType.Builder<BooleanFieldScript.Factory> {
+        Builder(String name) {
+            super(name, BooleanFieldScript.CONTEXT);
         }
-    };
 
-    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, BooleanFieldScript.CONTEXT, PARSE_FROM_SOURCE) {
-            @Override
-            RuntimeField newRuntimeField(BooleanFieldScript.Factory scriptFactory) {
-                return new BooleanScriptFieldType(name, scriptFactory, getScript(), meta(), this);
-            }
-        });
+        @Override
+        AbstractScriptFieldType<?> createFieldType(
+            String name,
+            BooleanFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta
+        ) {
+            return new BooleanScriptFieldType(name, factory, script, meta);
+        }
 
-    public BooleanScriptFieldType(String name) {
-        this(name, PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
+        @Override
+        BooleanFieldScript.Factory getParseFromSourceFactory() {
+            return BooleanFieldScript.PARSE_FROM_SOURCE;
+        }
+
+        @Override
+        BooleanFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+            return BooleanFieldScript.leafAdapter(parentScriptFactory);
+        }
+
     }
 
-    BooleanScriptFieldType(
-        String name,
-        BooleanFieldScript.Factory scriptFactory,
-        Script script,
-        Map<String, String> meta,
-        ToXContent toXContent
-    ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta, toXContent);
+    public static RuntimeField sourceOnly(String name) {
+        return new Builder(name).createRuntimeField(BooleanFieldScript.PARSE_FROM_SOURCE);
+    }
+
+    BooleanScriptFieldType(String name, BooleanFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+        super(
+            name,
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            script,
+            scriptFactory.isResultDeterministic(),
+            meta
+        );
     }
 
     @Override
@@ -101,23 +99,19 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
 
     @Override
     public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
-        if (format != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
-        }
-        if (timeZone != null) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom time zones");
-        }
+        checkNoFormat(format);
+        checkNoTimeZone(timeZone);
         return DocValueFormat.BOOLEAN;
     }
 
     @Override
     public BooleanScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new BooleanScriptFieldData.Builder(name(), leafFactory(searchLookup.get()));
+        return new BooleanScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), BooleanDocValuesField::new);
     }
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new BooleanScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
@@ -188,13 +182,13 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
 
     @Override
     public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new BooleanScriptFieldTermQuery(script, leafFactory(context.lookup()), name(), toBoolean(value, true));
     }
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), toBoolean(value, false));
     }
 
@@ -221,11 +215,11 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
                 // Either true or false
                 return existsQuery(context);
             }
-            checkAllowExpensiveQueries(context);
+            applyScriptContext(context);
             return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), true);
         }
         if (falseAllowed) {
-            checkAllowExpensiveQueries(context);
+            applyScriptContext(context);
             return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), false);
         }
         return new MatchNoDocsQuery("neither true nor false allowed");

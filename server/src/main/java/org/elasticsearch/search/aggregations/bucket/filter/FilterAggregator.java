@@ -32,20 +32,21 @@ public class FilterAggregator extends BucketsAggregator implements SingleBucketA
 
     private final Supplier<Weight> filter;
 
-    public FilterAggregator(String name,
-                            Supplier<Weight> filter,
-                            AggregatorFactories factories,
-                            AggregationContext context,
-                            Aggregator parent,
-                            CardinalityUpperBound cardinality,
-                            Map<String, Object> metadata) throws IOException {
+    public FilterAggregator(
+        String name,
+        Supplier<Weight> filter,
+        AggregatorFactories factories,
+        AggregationContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, cardinality, metadata);
         this.filter = filter;
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         // no need to provide deleted docs to the filter
         final Bits bits = Lucene.asSequentialAccessBits(ctx.reader().maxDoc(), filter.get().scorerSupplier(ctx));
         return new LeafBucketCollectorBase(sub, null) {
@@ -60,8 +61,15 @@ public class FilterAggregator extends BucketsAggregator implements SingleBucketA
 
     @Override
     public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        return buildAggregationsForSingleBucket(owningBucketOrds, (owningBucketOrd, subAggregationResults) ->
-            new InternalFilter(name, bucketDocCount(owningBucketOrd), subAggregationResults, metadata()));
+        return buildAggregationsForSingleBucket(
+            owningBucketOrds,
+            (owningBucketOrd, subAggregationResults) -> new InternalFilter(
+                name,
+                bucketDocCount(owningBucketOrd),
+                subAggregationResults,
+                metadata()
+            )
+        );
     }
 
     @Override
@@ -69,5 +77,3 @@ public class FilterAggregator extends BucketsAggregator implements SingleBucketA
         return new InternalFilter(name, 0, buildEmptySubAggregations(), metadata());
     }
 }
-
-

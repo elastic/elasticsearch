@@ -8,18 +8,17 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -60,8 +59,12 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         this(Strings.EMPTY_ARRAY, Collections.emptyMap(), indexResponses, failures);
     }
 
-    private FieldCapabilitiesResponse(String[] indices, Map<String, Map<String, FieldCapabilities>> responseMap,
-                                      List<FieldCapabilitiesIndexResponse> indexResponses, List<FieldCapabilitiesFailure> failures) {
+    private FieldCapabilitiesResponse(
+        String[] indices,
+        Map<String, Map<String, FieldCapabilities>> responseMap,
+        List<FieldCapabilitiesIndexResponse> indexResponses,
+        List<FieldCapabilitiesFailure> failures
+    ) {
         this.responseMap = Objects.requireNonNull(responseMap);
         this.indexResponses = Objects.requireNonNull(indexResponses);
         this.indices = indices;
@@ -70,18 +73,10 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
 
     public FieldCapabilitiesResponse(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            indices = in.readStringArray();
-        } else {
-            indices = Strings.EMPTY_ARRAY;
-        }
+        indices = in.readStringArray();
         this.responseMap = in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
         indexResponses = in.readList(FieldCapabilitiesIndexResponse::new);
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
-            this.failures = in.readList(FieldCapabilitiesFailure::new);
-        } else {
-            this.failures = Collections.emptyList();
-        }
+        this.failures = in.readList(FieldCapabilitiesFailure::new);
     }
 
     /**
@@ -144,14 +139,10 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeStringArray(indices);
-        }
+        out.writeStringArray(indices);
         out.writeMap(responseMap, StreamOutput::writeString, FieldCapabilitiesResponse::writeField);
         out.writeList(indexResponses);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
-            out.writeList(failures);
-        }
+        out.writeList(failures);
     }
 
     private static void writeField(StreamOutput out, Map<String, FieldCapabilities> map) throws IOException {
@@ -164,11 +155,11 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
             throw new IllegalStateException("cannot serialize non-merged response");
         }
         builder.startObject();
-        builder.field(INDICES_FIELD.getPreferredName(), indices);
+        builder.array(INDICES_FIELD.getPreferredName(), indices);
         builder.field(FIELDS_FIELD.getPreferredName(), responseMap);
         if (this.failures.size() > 0) {
             builder.field(FAILED_INDICES_FIELD.getPreferredName(), getFailedIndices().length);
-            builder.field(FAILURES_FIELD.getPreferredName(), failures);
+            builder.xContentList(FAILURES_FIELD.getPreferredName(), failures);
         }
         builder.endObject();
         return builder;
@@ -179,16 +170,17 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<FieldCapabilitiesResponse, Void> PARSER =
-        new ConstructingObjectParser<>("field_capabilities_response", true, a -> {
+    private static final ConstructingObjectParser<FieldCapabilitiesResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "field_capabilities_response",
+        true,
+        a -> {
             Map<String, Map<String, FieldCapabilities>> responseMap = ((List<Tuple<String, Map<String, FieldCapabilities>>>) a[0]).stream()
                 .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
             List<String> indices = a[1] == null ? Collections.emptyList() : (List<String>) a[1];
-            List<FieldCapabilitiesFailure> failures = a[2] == null
-                ? Collections.emptyList()
-                : (List<FieldCapabilitiesFailure>) a[2];
+            List<FieldCapabilitiesFailure> failures = a[2] == null ? Collections.emptyList() : (List<FieldCapabilitiesFailure>) a[2];
             return new FieldCapabilitiesResponse(indices.stream().toArray(String[]::new), responseMap, failures);
-        });
+        }
+    );
 
     static {
         PARSER.declareNamedObjects(ConstructingObjectParser.constructorArg(), (p, c, n) -> {
@@ -222,10 +214,10 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesResponse that = (FieldCapabilitiesResponse) o;
-        return Arrays.equals(indices, that.indices) &&
-            Objects.equals(responseMap, that.responseMap) &&
-            Objects.equals(indexResponses, that.indexResponses) &&
-            Objects.equals(failures, that.failures);
+        return Arrays.equals(indices, that.indices)
+            && Objects.equals(responseMap, that.responseMap)
+            && Objects.equals(indexResponses, that.indexResponses)
+            && Objects.equals(failures, that.failures);
     }
 
     @Override

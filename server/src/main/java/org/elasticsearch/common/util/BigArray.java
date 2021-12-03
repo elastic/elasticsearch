@@ -9,7 +9,7 @@
 package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 
 /** Base abstraction of an array. */
 public interface BigArray extends Releasable, Accountable {

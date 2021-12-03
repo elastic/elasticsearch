@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[get-dfanalytics]]
 = Get {dfanalytics-jobs} API
 [subs="attributes"]
@@ -25,12 +24,8 @@ Retrieves configuration information for {dfanalytics-jobs}.
 [[ml-get-dfanalytics-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-privileges:
-
-* cluster: `monitor_ml`
-
-For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
 
 [[ml-get-dfanalytics-desc]]
@@ -59,7 +54,7 @@ You can get information for all {dfanalytics-jobs} by using _all, by specifying
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-dfa-jobs]
 
 `from`::
 (Optional, integer)

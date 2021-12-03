@@ -34,17 +34,18 @@ import org.junit.Before;
 
 import java.util.List;
 
+import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class TransportGrantApiKeyActionTests extends ESTestCase {
 
@@ -63,8 +64,14 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         tokenServiceMock = SecurityMocks.tokenService(true, threadPool);
         final ThreadContext threadContext = threadPool.getThreadContext();
 
-        action = new TransportGrantApiKeyAction(mock(TransportService.class), mock(ActionFilters.class), threadContext,
-            apiKeyGenerator, authenticationService, tokenServiceMock.tokenService);
+        action = new TransportGrantApiKeyAction(
+            mock(TransportService.class),
+            mock(ActionFilters.class),
+            threadContext,
+            apiKeyGenerator,
+            authenticationService,
+            tokenServiceMock.tokenService
+        );
     }
 
     @After
@@ -95,12 +102,13 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             assertThat(token.principal(), equalTo(username));
             assertThat(token.credentials(), equalTo(password));
 
+            @SuppressWarnings("unchecked")
             ActionListener<Authentication> listener = (ActionListener<Authentication>) args[args.length - 1];
             listener.onResponse(authentication);
 
             return null;
         }).when(authenticationService)
-            .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(UsernamePasswordToken.class), any(ActionListener.class));
+            .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(UsernamePasswordToken.class), anyActionListener());
 
         setupApiKeyGenerator(authentication, request, response);
 
@@ -133,12 +141,13 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             assertThat(token.principal(), equalTo(username));
             assertThat(token.credentials(), equalTo(password));
 
+            @SuppressWarnings("unchecked")
             ActionListener<Authentication> listener = (ActionListener<Authentication>) args[args.length - 1];
             listener.onFailure(new ElasticsearchSecurityException("authentication failed for testing"));
 
             return null;
         }).when(authenticationService)
-            .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(UsernamePasswordToken.class), any(ActionListener.class));
+            .authenticate(eq(GrantApiKeyAction.NAME), same(request), any(UsernamePasswordToken.class), anyActionListener());
 
         setupApiKeyGenerator(authentication, request, response);
 
@@ -148,7 +157,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         final ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, future::actionGet);
         assertThat(exception, throwableWithMessage("authentication failed for testing"));
 
-        verifyZeroInteractions(apiKeyGenerator);
+        verifyNoMoreInteractions(apiKeyGenerator);
     }
 
     public void testGrantApiKeyWithAccessToken() throws Exception {
@@ -169,7 +178,7 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         action.doExecute(null, request, future);
 
         assertThat(future.actionGet(), sameInstance(response));
-        verifyZeroInteractions(authenticationService);
+        verifyNoMoreInteractions(authenticationService);
     }
 
     public void testGrantApiKeyWithInvalidatedAccessToken() throws Exception {
@@ -192,18 +201,21 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
         final ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, future::actionGet);
         assertThat(exception, throwableWithMessage("token expired"));
 
-        verifyZeroInteractions(authenticationService);
-        verifyZeroInteractions(apiKeyGenerator);
+        verifyNoMoreInteractions(authenticationService);
+        verifyNoMoreInteractions(apiKeyGenerator);
     }
 
     private Authentication buildAuthentication(String username) {
-        return new Authentication(new User(username),
-            new Authentication.RealmRef("realm_name", "realm_type", "node_name"), null);
+        return new Authentication(new User(username), new Authentication.RealmRef("realm_name", "realm_type", "node_name"), null);
     }
 
     private CreateApiKeyResponse mockResponse(GrantApiKeyRequest request) {
-        return new CreateApiKeyResponse(request.getApiKeyRequest().getName(),
-            randomAlphaOfLength(12), new SecureString(randomAlphaOfLength(18).toCharArray()), null);
+        return new CreateApiKeyResponse(
+            request.getApiKeyRequest().getName(),
+            randomAlphaOfLength(12),
+            new SecureString(randomAlphaOfLength(18).toCharArray()),
+            null
+        );
     }
 
     private GrantApiKeyRequest mockRequest() {
@@ -221,11 +233,12 @@ public class TransportGrantApiKeyActionTests extends ESTestCase {
             assertThat(args[0], equalTo(authentication));
             assertThat(args[1], sameInstance(request.getApiKeyRequest()));
 
+            @SuppressWarnings("unchecked")
             ActionListener<CreateApiKeyResponse> listener = (ActionListener<CreateApiKeyResponse>) args[args.length - 1];
             listener.onResponse(response);
 
             return null;
-        }).when(apiKeyGenerator).generateApiKey(any(Authentication.class), any(CreateApiKeyRequest.class), any(ActionListener.class));
+        }).when(apiKeyGenerator).generateApiKey(any(Authentication.class), any(CreateApiKeyRequest.class), anyActionListener());
     }
 
 }

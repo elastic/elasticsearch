@@ -14,10 +14,10 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 
@@ -35,14 +35,16 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put(XPackSettings.DLS_FLS_ENABLED.getKey(), randomBoolean())
-                .build();
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(XPackSettings.DLS_FLS_ENABLED.getKey(), randomBoolean())
+            .build();
     }
 
     public void testThatBulkUpdateDoesNotLoseFields() {
-        assertEquals(DocWriteResponse.Result.CREATED,
-                client().prepareIndex("index1").setSource("{\"test\": \"test\"}", XContentType.JSON).setId("1").get().getResult());
+        assertEquals(
+            DocWriteResponse.Result.CREATED,
+            client().prepareIndex("index1").setSource("{\"test\": \"test\"}", XContentType.JSON).setId("1").get().getResult()
+        );
         GetResponse getResponse = client().prepareGet("index1", "1").get();
         assertEquals("test", getResponse.getSource().get("test"));
 
@@ -51,8 +53,10 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         }
 
         // update with a new field
-        assertEquals(DocWriteResponse.Result.UPDATED, client().prepareUpdate("index1", "1")
-                .setDoc("{\"not test\": \"not test\"}", XContentType.JSON).get().getResult());
+        assertEquals(
+            DocWriteResponse.Result.UPDATED,
+            client().prepareUpdate("index1", "1").setDoc("{\"not test\": \"not test\"}", XContentType.JSON).get().getResult()
+        );
         getResponse = client().prepareGet("index1", "1").get();
         assertEquals("test", getResponse.getSource().get("test"));
         assertEquals("not test", getResponse.getSource().get("not test"));
@@ -62,8 +66,9 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         flushAndRefresh();
 
         // do it in a bulk
-        BulkResponse response = client().prepareBulk().add(client().prepareUpdate("index1", "1")
-                .setDoc("{\"bulk updated\": \"bulk updated\"}", XContentType.JSON)).get();
+        BulkResponse response = client().prepareBulk()
+            .add(client().prepareUpdate("index1", "1").setDoc("{\"bulk updated\": \"bulk updated\"}", XContentType.JSON))
+            .get();
         assertEquals(DocWriteResponse.Result.UPDATED, response.getItems()[0].getResponse().getResult());
         getResponse = client().prepareGet("index1", "1").get();
         assertEquals("test", getResponse.getSource().get("test"));
@@ -74,8 +79,13 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
     public void testThatBulkUpdateDoesNotLoseFieldsHttp() throws IOException {
         final String path = "/index1/_doc/1";
         final RequestOptions.Builder optionsBuilder = RequestOptions.DEFAULT.toBuilder();
-        optionsBuilder.addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        optionsBuilder.addHeader(
+            "Authorization",
+            UsernamePasswordToken.basicAuthHeaderValue(
+                SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
+            )
+        );
         final RequestOptions options = optionsBuilder.build();
 
         Request createRequest = new Request("PUT", path);
@@ -91,7 +101,7 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
             flushAndRefresh();
         }
 
-        //update with new field
+        // update with new field
         Request updateRequest = new Request("POST", "/index1/_update/1");
         updateRequest.setOptions(options);
         updateRequest.setJsonEntity("{\"doc\": {\"not test\": \"not test\"}}");
@@ -108,8 +118,8 @@ public class BulkUpdateTests extends SecurityIntegTestCase {
         Request bulkRequest = new Request("POST", "/_bulk");
         bulkRequest.setOptions(options);
         bulkRequest.setJsonEntity(
-                "{\"update\": {\"_index\": \"index1\", \"_id\": \"1\"}}\n" +
-                "{\"doc\": {\"bulk updated\":\"bulk updated\"}}\n");
+            "{\"update\": {\"_index\": \"index1\", \"_id\": \"1\"}}\n" + "{\"doc\": {\"bulk updated\":\"bulk updated\"}}\n"
+        );
         getRestClient().performRequest(bulkRequest);
 
         String afterBulk = EntityUtils.toString(getRestClient().performRequest(getRequest).getEntity());

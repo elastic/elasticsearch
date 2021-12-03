@@ -65,6 +65,12 @@ public class TransformUpdateIT extends TransformRestTestCase {
 
     @Before
     public void createIndexes() throws IOException {
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        setupDataAccessRole(DATA_ACCESS_ROLE_2, REVIEWS_INDEX_NAME);
+
+        setupUser(TEST_USER_NAME, Arrays.asList("transform_user", DATA_ACCESS_ROLE));
+        setupUser(TEST_ADMIN_USER_NAME_1, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
+        setupUser(TEST_ADMIN_USER_NAME_2, Arrays.asList("transform_admin", DATA_ACCESS_ROLE_2));
 
         // it's not possible to run it as @BeforeClass as clients aren't initialized then, so we need this little hack
         if (indicesCreated) {
@@ -73,13 +79,6 @@ public class TransformUpdateIT extends TransformRestTestCase {
 
         createReviewsIndex();
         indicesCreated = true;
-
-        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
-        setupDataAccessRole(DATA_ACCESS_ROLE_2, REVIEWS_INDEX_NAME);
-
-        setupUser(TEST_USER_NAME, Arrays.asList("transform_user", DATA_ACCESS_ROLE));
-        setupUser(TEST_ADMIN_USER_NAME_1, Arrays.asList("transform_admin", DATA_ACCESS_ROLE));
-        setupUser(TEST_ADMIN_USER_NAME_2, Arrays.asList("transform_admin", DATA_ACCESS_ROLE_2));
     }
 
     @SuppressWarnings("unchecked")

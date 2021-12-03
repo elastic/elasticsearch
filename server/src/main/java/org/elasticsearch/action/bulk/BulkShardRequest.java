@@ -18,13 +18,14 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.transport.RawIndexingDataTransportRequest;
 
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Stream;
 
-public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> implements Accountable {
+public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> implements Accountable, RawIndexingDataTransportRequest {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
@@ -99,20 +100,20 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
         StringBuilder b = new StringBuilder("BulkShardRequest [");
         b.append(shardId).append("] containing [");
         if (items.length > 1) {
-          b.append(items.length).append("] requests");
+            b.append(items.length).append("] requests");
         } else {
             b.append(items[0].request()).append("]");
         }
 
         switch (getRefreshPolicy()) {
-        case IMMEDIATE:
-            b.append(" and a refresh");
-            break;
-        case WAIT_UNTIL:
-            b.append(" blocking until refresh");
-            break;
-        case NONE:
-            break;
+            case IMMEDIATE:
+                b.append(" and a refresh");
+                break;
+            case WAIT_UNTIL:
+                b.append(" blocking until refresh");
+                break;
+            case NONE:
+                break;
         }
         return b.toString();
     }

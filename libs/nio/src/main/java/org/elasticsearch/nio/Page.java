@@ -8,9 +8,9 @@
 
 package org.elasticsearch.nio;
 
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.nio.ByteBuffer;
 
@@ -28,7 +28,7 @@ public class Page implements Releasable {
     }
 
     private Page(ByteBuffer byteBuffer, RefCountedCloseable refCountedCloseable) {
-        assert refCountedCloseable.refCount() > 0;
+        assert refCountedCloseable.hasReferences();
         this.byteBuffer = byteBuffer;
         this.refCountedCloseable = refCountedCloseable;
     }
@@ -51,7 +51,7 @@ public class Page implements Releasable {
      * @return the byte buffer
      */
     public ByteBuffer byteBuffer() {
-        assert refCountedCloseable.refCount() > 0;
+        assert refCountedCloseable.hasReferences();
         return byteBuffer;
     }
 
@@ -65,7 +65,6 @@ public class Page implements Releasable {
         private final Releasable closeable;
 
         private RefCountedCloseable(Releasable closeable) {
-            super("byte array page");
             this.closeable = closeable;
         }
 

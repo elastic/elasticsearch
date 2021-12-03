@@ -10,12 +10,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.eql.AbstractBWCSerializationTestCase;
 import org.junit.Before;
 
@@ -31,17 +31,13 @@ import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlSearchRequest> {
 
     // TODO: possibly add mutations
-    static String defaultTestFilter = "{\n" +
-        "   \"match\" : {\n" +
-        "       \"foo\": \"bar\"\n" +
-        "   }" +
-        "}";
+    static String defaultTestFilter = "{\n" + "   \"match\" : {\n" + "       \"foo\": \"bar\"\n" + "   }" + "}";
 
     static String defaultTestIndex = "endgame-*";
+    boolean ccsMinimizeRoundtrips;
 
     @Before
-    public void setup() {
-    }
+    public void setup() {}
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
@@ -67,14 +63,15 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 randomFetchFields = null;
             }
             QueryBuilder filter = parseFilter(defaultTestFilter);
-            return new EqlSearchRequest()
-                .indices(defaultTestIndex)
+            ccsMinimizeRoundtrips = randomBoolean();
+            return new EqlSearchRequest().indices(defaultTestIndex)
                 .filter(filter)
                 .timestampField(randomAlphaOfLength(10))
                 .eventCategoryField(randomAlphaOfLength(10))
                 .fetchSize(randomIntBetween(1, 50))
                 .size(randomInt(50))
                 .query(randomAlphaOfLength(10))
+                .ccsMinimizeRoundtrips(ccsMinimizeRoundtrips)
                 .fetchFields(randomFetchFields)
                 .runtimeMappings(randomRuntimeMappings());
         } catch (IOException ex) {
@@ -101,7 +98,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
 
     @Override
     protected EqlSearchRequest doParseInstance(XContentParser parser) {
-        return EqlSearchRequest.fromXContent(parser).indices(defaultTestIndex);
+        return EqlSearchRequest.fromXContent(parser).indices(defaultTestIndex).ccsMinimizeRoundtrips(ccsMinimizeRoundtrips);
     }
 
     @Override
@@ -116,6 +113,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.size(instance.size());
         mutatedInstance.fetchSize(instance.fetchSize());
         mutatedInstance.query(instance.query());
+        mutatedInstance.ccsMinimizeRoundtrips(version.onOrAfter(Version.V_7_15_0) == false || instance.ccsMinimizeRoundtrips());
         mutatedInstance.waitForCompletionTimeout(instance.waitForCompletionTimeout());
         mutatedInstance.keepAlive(instance.keepAlive());
         mutatedInstance.keepOnCompletion(instance.keepOnCompletion());

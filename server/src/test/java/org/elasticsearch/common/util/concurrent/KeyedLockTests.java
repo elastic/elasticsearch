@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -126,7 +126,6 @@ public class KeyedLockTests extends ESTestCase {
         assertFalse(lock.hasLockedKeys());
     }
 
-
     public static class AcquireAndReleaseThread extends Thread {
         private CountDownLatch startLatch;
         KeyedLock<String> connectionLock;
@@ -135,8 +134,13 @@ public class KeyedLockTests extends ESTestCase {
         ConcurrentHashMap<String, AtomicInteger> safeCounter;
         final int numRuns = scaledRandomIntBetween(5000, 50000);
 
-        public AcquireAndReleaseThread(CountDownLatch startLatch, KeyedLock<String> connectionLock, String[] names,
-                ConcurrentHashMap<String, Integer> counter, ConcurrentHashMap<String, AtomicInteger> safeCounter) {
+        public AcquireAndReleaseThread(
+            CountDownLatch startLatch,
+            KeyedLock<String> connectionLock,
+            String[] names,
+            ConcurrentHashMap<String, Integer> counter,
+            ConcurrentHashMap<String, AtomicInteger> safeCounter
+        ) {
             this.startLatch = startLatch;
             this.connectionLock = connectionLock;
             this.names = names;

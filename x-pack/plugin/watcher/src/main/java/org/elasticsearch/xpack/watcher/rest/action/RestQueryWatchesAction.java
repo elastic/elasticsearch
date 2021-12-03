@@ -22,10 +22,7 @@ public class RestQueryWatchesAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_watcher/_query/watches"),
-            new Route(POST, "/_watcher/_query/watches")
-        );
+        return List.of(new Route(GET, "/_watcher/_query/watches"), new Route(POST, "/_watcher/_query/watches"));
     }
 
     @Override

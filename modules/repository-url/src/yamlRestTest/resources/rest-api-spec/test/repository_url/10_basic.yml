@@ -112,9 +112,6 @@ teardown:
 
 ---
 "Restore with repository-url using http://":
-  - skip:
-      version: " - 7.99.99"
-      reason: "8.0 changes get snapshots response format"
 
   # Ensure that the URL repository is registered
   - do:
@@ -129,9 +126,9 @@ teardown:
         repository: repository-url
         snapshot: snapshot-one,snapshot-two
 
-  - is_true: responses.0.snapshots
-  - match: { responses.0.snapshots.0.state : SUCCESS }
-  - match: { responses.0.snapshots.1.state : SUCCESS }
+  - is_true: snapshots
+  - match: { snapshots.0.state : SUCCESS }
+  - match: { snapshots.1.state : SUCCESS }
 
   # Delete the index
   - do:
@@ -177,9 +174,6 @@ teardown:
 
 ---
 "Restore with repository-url using file://":
-  - skip:
-      version: " - 7.99.99"
-      reason: "8.0 changes get snapshots response format"
 
   # Ensure that the URL repository is registered
   - do:
@@ -194,9 +188,9 @@ teardown:
         repository: repository-file
         snapshot: snapshot-one,snapshot-two
 
-  - is_true: responses.0.snapshots
-  - match: { responses.0.snapshots.0.state : SUCCESS }
-  - match: { responses.0.snapshots.1.state : SUCCESS }
+  - is_true: snapshots
+  - match: { snapshots.0.state : SUCCESS }
+  - match: { snapshots.1.state : SUCCESS }
 
   # Delete the index
   - do:
@@ -242,17 +236,12 @@ teardown:
 
 ---
 "Get a non existing snapshot":
-  - skip:
-      version: " - 7.99.99"
-      reason: "8.0 changes get snapshots response format"
 
   - do:
+      catch: /snapshot_missing_exception/
       snapshot.get:
         repository: repository-url
         snapshot: missing
-
-  - is_true: responses.0.error
-  - match: { responses.0.error.type: snapshot_missing_exception }
 
 ---
 "Delete a non existing snapshot":

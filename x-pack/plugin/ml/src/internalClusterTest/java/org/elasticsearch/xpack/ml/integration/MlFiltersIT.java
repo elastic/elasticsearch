@@ -26,7 +26,8 @@ public class MlFiltersIT extends MlSingleNodeTestCase {
         int filtersCount = randomIntBetween(11, 100);
         for (int i = 0; i < filtersCount; i++) {
             PutFilterAction.Request putFilterRequest = new PutFilterAction.Request(
-                MlFilter.builder("filter-" + i).setItems("item-" + i).build());
+                MlFilter.builder("filter-" + i).setItems("item-" + i).build()
+            );
             client().execute(PutFilterAction.INSTANCE, putFilterRequest).actionGet();
         }
 

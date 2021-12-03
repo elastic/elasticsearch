@@ -47,26 +47,9 @@ public class StringFieldScriptTests extends FieldScriptTestCase<StringFieldScrip
         return DUMMY;
     }
 
-    public void testAsDocValues() {
-        StringFieldScript script = new StringFieldScript(
-                "test",
-                Map.of(),
-                new SearchLookup(field -> null, (ft, lookup) -> null),
-                null
-        ) {
-            @Override
-            public void execute() {
-                emit("test");
-                emit("baz was not here");
-                emit("Data");
-                emit("-10");
-                emit("20");
-                emit("9");
-            }
-        };
-        script.execute();
-
-        assertArrayEquals(new String[] {"-10", "20", "9", "Data", "baz was not here", "test"}, script.asDocValues());
+    @Override
+    protected StringFieldScript.Factory fromSource() {
+        return StringFieldScript.PARSE_FROM_SOURCE;
     }
 
     public void testTooManyValues() throws IOException {

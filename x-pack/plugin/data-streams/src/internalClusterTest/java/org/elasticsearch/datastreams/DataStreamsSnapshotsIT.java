@@ -10,19 +10,30 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -50,7 +61,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -62,13 +75,15 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
-    private static final String DS_BACKING_INDEX_NAME = DataStream.getDefaultBackingIndexName("ds", 1);
-    private static final String DS2_BACKING_INDEX_NAME = DataStream.getDefaultBackingIndexName("ds2", 1);
     private static final Map<String, Integer> DOCUMENT_SOURCE = Collections.singletonMap("@timestamp", 123);
     public static final String REPO = "repo";
     public static final String SNAPSHOT = "snap";
     private Client client;
 
+    private String dsBackingIndexName;
+    private String otherDsBackingIndexName;
+    private String ds2BackingIndexName;
+    private String otherDs2BackingIndexName;
     private String id;
 
     @Override
@@ -92,9 +107,31 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         response = client.execute(CreateDataStreamAction.INSTANCE, request).get();
         assertTrue(response.isAcknowledged());
 
+        // Resolve backing index names after data streams have been created:
+        // (these names have a date component, and running around midnight could lead to test failures otherwise)
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "*" });
+        GetDataStreamAction.Response getDataStreamResponse = client.execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
+        dsBackingIndexName = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().get(0).getName();
+        otherDsBackingIndexName = getDataStreamResponse.getDataStreams().get(1).getDataStream().getIndices().get(0).getName();
+        // Will be used in some tests, to test renaming while restoring a snapshot:
+        ds2BackingIndexName = dsBackingIndexName.replace("-ds-", "-ds2-");
+        otherDs2BackingIndexName = otherDsBackingIndexName.replace("-other-ds-", "-other-ds2-");
+
         IndexResponse indexResponse = client.prepareIndex("ds").setOpType(DocWriteRequest.OpType.CREATE).setSource(DOCUMENT_SOURCE).get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
         id = indexResponse.getId();
+
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();
+        aliasesRequest.addAliasAction(
+            new AliasActions(AliasActions.Type.ADD).alias("my-alias").index("ds").filter(QueryBuilders.matchAllQuery())
+        );
+        aliasesRequest.addAliasAction(
+            new AliasActions(AliasActions.Type.ADD).alias("my-alias")
+                .index("other-ds")
+                .filter(QueryBuilders.matchAllQuery())
+                .writeIndex(true)
+        );
+        assertAcked(client.admin().indices().aliases(aliasesRequest).actionGet());
     }
 
     @After
@@ -118,7 +155,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
 
-        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), getSnapshot(REPO, SNAPSHOT).indices());
+        assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
 
         assertTrue(
             client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" }))
@@ -135,7 +172,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(dsBackingIndexName, id).get().getSourceAsMap());
         SearchHit[] hits = client.prepareSearch("ds").get().getHits().getHits();
         assertEquals(1, hits.length);
         assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
@@ -146,7 +183,24 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
-        assertEquals(DS_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+        assertEquals(dsBackingIndexName, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+
+        GetAliasesResponse getAliasesResponse = client.admin().indices().getAliases(new GetAliasesRequest("my-alias")).actionGet();
+        assertThat(getAliasesResponse.getDataStreamAliases().keySet(), containsInAnyOrder("ds", "other-ds"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").size(), equalTo(1));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getName(), equalTo("my-alias"));
+        assertThat(
+            getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(),
+            equalTo("{\"match_all\":{\"boost\":1.0}}")
+        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getWriteDataStream(), equalTo("other-ds"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getName(), equalTo("my-alias"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getWriteDataStream(), equalTo("other-ds"));
+        assertThat(
+            getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(),
+            equalTo("{\"match_all\":{\"boost\":1.0}}")
+        );
     }
 
     public void testSnapshotAndRestoreAllDataStreamsInPlace() throws Exception {
@@ -161,7 +215,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
 
-        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), getSnapshot(REPO, SNAPSHOT).indices());
+        assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
 
         // Close all indices:
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest("*");
@@ -176,7 +230,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(dsBackingIndexName, id).get().getSourceAsMap());
         SearchHit[] hits = client.prepareSearch("ds").get().getHits().getHits();
         assertEquals(1, hits.length);
         assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
@@ -188,13 +242,12 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             contains(equalTo("ds"), equalTo("other-ds"))
         );
         List<Index> backingIndices = ds.getDataStreams().get(0).getDataStream().getIndices();
-        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(DS_BACKING_INDEX_NAME));
+        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(dsBackingIndexName));
         backingIndices = ds.getDataStreams().get(1).getDataStream().getIndices();
-        String expectedBackingIndexName = DataStream.getDefaultBackingIndexName("other-ds", 1);
-        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(expectedBackingIndexName));
+        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(otherDsBackingIndexName));
     }
 
-    public void testSnapshotAndRestoreInPlace() throws Exception {
+    public void testSnapshotAndRestoreInPlace() {
         CreateSnapshotResponse createSnapshotResponse = client.admin()
             .cluster()
             .prepareCreateSnapshot(REPO, SNAPSHOT)
@@ -206,7 +259,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
 
-        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), getSnapshot(REPO, SNAPSHOT).indices());
+        assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
 
         // A rollover after taking snapshot. The new backing index should be a standalone index after restoring
         // and not part of the data stream:
@@ -228,7 +281,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(dsBackingIndexName, id).get().getSourceAsMap());
         SearchHit[] hits = client.prepareSearch("ds").get().getHits().getHits();
         assertEquals(1, hits.length);
         assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
@@ -241,7 +294,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
         List<Index> backingIndices = ds.getDataStreams().get(0).getDataStream().getIndices();
         assertThat(ds.getDataStreams().get(0).getDataStream().getIndices(), hasSize(1));
-        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(equalTo(DS_BACKING_INDEX_NAME)));
+        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(equalTo(dsBackingIndexName)));
 
         // The backing index created as part of rollover should still exist (but just not part of the data stream)
         assertThat(indexExists(DataStream.getDefaultBackingIndexName("ds", 2)), is(true));
@@ -252,45 +305,244 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("ds", 3)));
     }
 
-    public void testSnapshotAndRestoreAll() throws Exception {
-        CreateSnapshotResponse createSnapshotResponse = client.admin()
-            .cluster()
-            .prepareCreateSnapshot(REPO, SNAPSHOT)
-            .setWaitForCompletion(true)
-            .setIndices("ds")
-            .setIncludeGlobalState(false)
+    public void testSnapshotAndRestoreAllIncludeSpecificDataStream() throws Exception {
+        IndexResponse indexResponse = client.prepareIndex("other-ds")
+            .setOpType(DocWriteRequest.OpType.CREATE)
+            .setSource(DOCUMENT_SOURCE)
             .get();
+        assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
+        String id2 = indexResponse.getId();
+
+        String idToGet;
+        String dataStreamToSnapshot;
+        String backingIndexName;
+        if (randomBoolean()) {
+            dataStreamToSnapshot = "ds";
+            idToGet = this.id;
+            backingIndexName = this.dsBackingIndexName;
+        } else {
+            dataStreamToSnapshot = "other-ds";
+            idToGet = id2;
+            backingIndexName = this.otherDsBackingIndexName;
+        }
+        boolean filterDuringSnapshotting = randomBoolean();
+
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(REPO, SNAPSHOT);
+        createSnapshotRequest.waitForCompletion(true);
+        if (filterDuringSnapshotting) {
+            createSnapshotRequest.indices(dataStreamToSnapshot);
+        }
+        createSnapshotRequest.includeGlobalState(false);
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().createSnapshot(createSnapshotRequest).actionGet();
 
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
 
-        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), getSnapshot(REPO, SNAPSHOT).indices());
+        if (filterDuringSnapshotting) {
+            assertThat(getSnapshot(REPO, SNAPSHOT).indices(), containsInAnyOrder(backingIndexName));
+        } else {
+            assertThat(getSnapshot(REPO, SNAPSHOT).indices(), containsInAnyOrder(dsBackingIndexName, otherDsBackingIndexName));
+        }
 
         assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "*" })).get());
         assertAcked(client.admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN));
 
-        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
-            .cluster()
-            .prepareRestoreSnapshot(REPO, SNAPSHOT)
-            .setWaitForCompletion(true)
-            .setRestoreGlobalState(true)
-            .get();
+        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(REPO, SNAPSHOT);
+        restoreSnapshotRequest.waitForCompletion(true);
+        restoreSnapshotRequest.includeGlobalState(true);
+        if (filterDuringSnapshotting == false) {
+            restoreSnapshotRequest.indices(dataStreamToSnapshot);
+        }
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().restoreSnapshot(restoreSnapshotRequest).actionGet();
 
         assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(backingIndexName, idToGet).get().getSourceAsMap());
+        SearchHit[] hits = client.prepareSearch(backingIndexName).get().getHits().getHits();
+        assertEquals(1, hits.length);
+        assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
+
+        GetDataStreamAction.Response ds = client.execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(new String[] { dataStreamToSnapshot })
+        ).get();
+        assertEquals(1, ds.getDataStreams().size());
+        assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
+        assertEquals(backingIndexName, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+
+        GetAliasesResponse getAliasesResponse = client.admin().indices().getAliases(new GetAliasesRequest("my-alias")).actionGet();
+        assertThat(getAliasesResponse.getDataStreamAliases().keySet(), contains(dataStreamToSnapshot));
+        assertThat(
+            getAliasesResponse.getDataStreamAliases().get(dataStreamToSnapshot),
+            equalTo(
+                List.of(
+                    new DataStreamAlias(
+                        "my-alias",
+                        List.of(dataStreamToSnapshot),
+                        "other-ds".equals(dataStreamToSnapshot) ? "other-ds" : null,
+                        Map.of("match_all", Map.of("boost", 1f))
+                    )
+                )
+            )
+        );
+
+        DeleteDataStreamAction.Request r = new DeleteDataStreamAction.Request(new String[] { dataStreamToSnapshot });
+        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, r).get());
+    }
+
+    public void testSnapshotAndRestoreReplaceAll() throws Exception {
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(REPO, SNAPSHOT);
+        createSnapshotRequest.waitForCompletion(true);
+        createSnapshotRequest.includeGlobalState(false);
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().createSnapshot(createSnapshotRequest).actionGet();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        assertEquals(RestStatus.OK, status);
+        assertThat(getSnapshot(REPO, SNAPSHOT).indices(), containsInAnyOrder(dsBackingIndexName, otherDsBackingIndexName));
+
+        assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "*" })).get());
+        assertAcked(client.admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN));
+
+        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(REPO, SNAPSHOT);
+        restoreSnapshotRequest.waitForCompletion(true);
+        restoreSnapshotRequest.includeGlobalState(true);
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().restoreSnapshot(restoreSnapshotRequest).actionGet();
+
+        assertEquals(2, restoreSnapshotResponse.getRestoreInfo().successfulShards());
+
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(dsBackingIndexName, id).get().getSourceAsMap());
         SearchHit[] hits = client.prepareSearch("ds").get().getHits().getHits();
         assertEquals(1, hits.length);
         assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
 
         GetDataStreamAction.Response ds = client.execute(
             GetDataStreamAction.INSTANCE,
-            new GetDataStreamAction.Request(new String[] { "ds" })
+            new GetDataStreamAction.Request(new String[] { "*" })
         ).get();
-        assertEquals(1, ds.getDataStreams().size());
-        assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
-        assertEquals(DS_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+        assertEquals(2, ds.getDataStreams().size());
+        assertThat(
+            ds.getDataStreams().stream().map(i -> i.getDataStream().getName()).collect(Collectors.toList()),
+            containsInAnyOrder("ds", "other-ds")
+        );
 
+        GetAliasesResponse getAliasesResponse = client.admin().indices().getAliases(new GetAliasesRequest("my-alias")).actionGet();
+        assertThat(getAliasesResponse.getDataStreamAliases().keySet(), containsInAnyOrder("ds", "other-ds"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").size(), equalTo(1));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getName(), equalTo("my-alias"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getDataStreams(), containsInAnyOrder("ds", "other-ds"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getWriteDataStream(), equalTo("other-ds"));
+        assertThat(
+            getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(),
+            equalTo("{\"match_all\":{\"boost\":1.0}}")
+        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getName(), equalTo("my-alias"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getDataStreams(), containsInAnyOrder("ds", "other-ds"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getWriteDataStream(), equalTo("other-ds"));
+        assertThat(
+            getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(),
+            equalTo("{\"match_all\":{\"boost\":1.0}}")
+        );
+
+        DeleteDataStreamAction.Request r = new DeleteDataStreamAction.Request(new String[] { "*" });
+        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, r).get());
+    }
+
+    public void testSnapshotAndRestoreAll() throws Exception {
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(REPO, SNAPSHOT);
+        createSnapshotRequest.waitForCompletion(true);
+        createSnapshotRequest.includeGlobalState(false);
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().createSnapshot(createSnapshotRequest).actionGet();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        assertEquals(RestStatus.OK, status);
+        assertThat(getSnapshot(REPO, SNAPSHOT).indices(), containsInAnyOrder(dsBackingIndexName, otherDsBackingIndexName));
+
+        assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "*" })).get());
+        assertAcked(client.admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN));
+
+        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(REPO, SNAPSHOT);
+        restoreSnapshotRequest.waitForCompletion(true);
+        restoreSnapshotRequest.includeGlobalState(true);
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().restoreSnapshot(restoreSnapshotRequest).actionGet();
+        assertEquals(2, restoreSnapshotResponse.getRestoreInfo().successfulShards());
+
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(dsBackingIndexName, id).get().getSourceAsMap());
+        SearchHit[] hits = client.prepareSearch("ds").get().getHits().getHits();
+        assertEquals(1, hits.length);
+        assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
+
+        GetDataStreamAction.Response ds = client.execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(new String[] { "*" })
+        ).get();
+        assertEquals(2, ds.getDataStreams().size());
+        assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
+        assertEquals(dsBackingIndexName, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+        assertEquals(1, ds.getDataStreams().get(1).getDataStream().getIndices().size());
+        assertEquals(otherDsBackingIndexName, ds.getDataStreams().get(1).getDataStream().getIndices().get(0).getName());
+
+        GetAliasesResponse getAliasesResponse = client.admin().indices().getAliases(new GetAliasesRequest("my-alias")).actionGet();
+        assertThat(getAliasesResponse.getDataStreamAliases().keySet(), containsInAnyOrder("ds", "other-ds"));
+
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").size(), equalTo(1));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getName(), equalTo("my-alias"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getWriteDataStream(), equalTo("other-ds"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getDataStreams(), containsInAnyOrder("ds", "other-ds"));
+        assertThat(
+            getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(),
+            equalTo("{\"match_all\":{\"boost\":1.0}}")
+        );
+
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getName(), equalTo("my-alias"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getWriteDataStream(), equalTo("other-ds"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getDataStreams(), containsInAnyOrder("ds", "other-ds"));
+        assertThat(
+            getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(),
+            equalTo("{\"match_all\":{\"boost\":1.0}}")
+        );
+
+        assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" })).get());
+    }
+
+    public void testSnapshotAndRestoreIncludeAliasesFalse() throws Exception {
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(REPO, SNAPSHOT);
+        createSnapshotRequest.waitForCompletion(true);
+        createSnapshotRequest.includeGlobalState(false);
+        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().createSnapshot(createSnapshotRequest).actionGet();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        assertEquals(RestStatus.OK, status);
+        assertThat(getSnapshot(REPO, SNAPSHOT).indices(), containsInAnyOrder(dsBackingIndexName, otherDsBackingIndexName));
+
+        assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "*" })).get());
+        assertAcked(client.admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN));
+
+        RestoreSnapshotRequest restoreSnapshotRequest = new RestoreSnapshotRequest(REPO, SNAPSHOT);
+        restoreSnapshotRequest.waitForCompletion(true);
+        restoreSnapshotRequest.includeGlobalState(true);
+        restoreSnapshotRequest.includeAliases(false);
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().restoreSnapshot(restoreSnapshotRequest).actionGet();
+        assertEquals(2, restoreSnapshotResponse.getRestoreInfo().successfulShards());
+
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(dsBackingIndexName, id).get().getSourceAsMap());
+        SearchHit[] hits = client.prepareSearch("ds").get().getHits().getHits();
+        assertEquals(1, hits.length);
+        assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
+
+        GetDataStreamAction.Response ds = client.execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(new String[] { "*" })
+        ).get();
+        assertEquals(2, ds.getDataStreams().size());
+        assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
+        assertEquals(dsBackingIndexName, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+        assertEquals(1, ds.getDataStreams().get(1).getDataStream().getIndices().size());
+        assertEquals(otherDsBackingIndexName, ds.getDataStreams().get(1).getDataStream().getIndices().get(0).getName());
+
+        GetAliasesResponse getAliasesResponse = client.admin().indices().getAliases(new GetAliasesRequest("*")).actionGet();
+        assertThat(getAliasesResponse.getDataStreamAliases(), anEmptyMap());
         assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" })).get());
     }
 
@@ -326,9 +578,86 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
-        assertEquals(DS2_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+        assertEquals(ds2BackingIndexName, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
         assertEquals(DOCUMENT_SOURCE, client.prepareSearch("ds2").get().getHits().getHits()[0].getSourceAsMap());
-        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS2_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(ds2BackingIndexName, id).get().getSourceAsMap());
+
+        GetAliasesResponse getAliasesResponse = client.admin().indices().getAliases(new GetAliasesRequest("my-alias")).actionGet();
+        assertThat(getAliasesResponse.getDataStreamAliases().keySet(), containsInAnyOrder("ds", "ds2", "other-ds"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds2").size(), equalTo(1));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds2").get(0).getName(), equalTo("my-alias"));
+        assertThat(
+            getAliasesResponse.getDataStreamAliases().get("ds2").get(0).getFilter().string(),
+            equalTo("{\"match_all\":{\"boost\":1.0}}")
+        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").size(), equalTo(1));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getName(), equalTo("my-alias"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getWriteDataStream(), equalTo("other-ds"));
+        assertThat(
+            getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(),
+            equalTo("{\"match_all\":{\"boost\":1.0}}")
+        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getName(), equalTo("my-alias"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getWriteDataStream(), equalTo("other-ds"));
+        assertThat(
+            getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(),
+            equalTo("{\"match_all\":{\"boost\":1.0}}")
+        );
+    }
+
+    public void testRenameWriteDataStream() throws Exception {
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("other-ds")
+            .setIncludeGlobalState(false)
+            .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        assertEquals(RestStatus.OK, status);
+
+        client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("other-ds")
+            .setRenamePattern("other-ds")
+            .setRenameReplacement("other-ds2")
+            .get();
+
+        GetDataStreamAction.Response ds = client.execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(new String[] { "other-ds2" })
+        ).get();
+        assertEquals(1, ds.getDataStreams().size());
+        assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
+        assertEquals(otherDs2BackingIndexName, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+
+        GetAliasesResponse getAliasesResponse = client.admin().indices().getAliases(new GetAliasesRequest("my-alias")).actionGet();
+        assertThat(getAliasesResponse.getDataStreamAliases().keySet(), containsInAnyOrder("ds", "other-ds", "other-ds2"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds2").size(), equalTo(1));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds2").get(0).getName(), equalTo("my-alias"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds2").get(0).getWriteDataStream(), equalTo("other-ds2"));
+        assertThat(
+            getAliasesResponse.getDataStreamAliases().get("other-ds2").get(0).getFilter().string(),
+            equalTo("{\"match_all\":{\"boost\":1.0}}")
+        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").size(), equalTo(1));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getName(), equalTo("my-alias"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getWriteDataStream(), equalTo("other-ds2"));
+        assertThat(
+            getAliasesResponse.getDataStreamAliases().get("ds").get(0).getFilter().string(),
+            equalTo("{\"match_all\":{\"boost\":1.0}}")
+        );
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getName(), equalTo("my-alias"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getWriteDataStream(), equalTo("other-ds2"));
+        assertThat(
+            getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getFilter().string(),
+            equalTo("{\"match_all\":{\"boost\":1.0}}")
+        );
     }
 
     public void testBackingIndexIsNotRenamedWhenRestoringDataStream() {
@@ -357,7 +686,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .prepareRestoreSnapshot(REPO, SNAPSHOT)
             .setWaitForCompletion(true)
             .setIndices("ds")
-            .setRenamePattern(DS_BACKING_INDEX_NAME)
+            .setRenamePattern(dsBackingIndexName)
             .setRenameReplacement("new_index_name")
             .get();
 
@@ -365,7 +694,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         GetDataStreamAction.Request getDSRequest = new GetDataStreamAction.Request(new String[] { "ds" });
         GetDataStreamAction.Response response = client.execute(GetDataStreamAction.INSTANCE, getDSRequest).actionGet();
-        assertThat(response.getDataStreams().get(0).getDataStream().getIndices().get(0).getName(), is(DS_BACKING_INDEX_NAME));
+        assertThat(response.getDataStreams().get(0).getDataStream().getIndices().get(0).getName(), is(dsBackingIndexName));
     }
 
     public void testDataStreamAndBackingIndicesAreRenamedUsingRegex() {
@@ -408,7 +737,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         // data stream "ds" should still exist in the system
         GetDataStreamAction.Request getDSRequest = new GetDataStreamAction.Request(new String[] { "ds" });
         response = client.execute(GetDataStreamAction.INSTANCE, getDSRequest).actionGet();
-        assertThat(response.getDataStreams().get(0).getDataStream().getIndices().get(0).getName(), is(DS_BACKING_INDEX_NAME));
+        assertThat(response.getDataStreams().get(0).getDataStream().getIndices().get(0).getName(), is(dsBackingIndexName));
     }
 
     public void testWildcards() throws Exception {
@@ -440,7 +769,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
-        assertEquals(DS2_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+        assertEquals(ds2BackingIndexName, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
         assertThat(
             "we renamed the restored data stream to one that doesn't match any existing composable template",
             ds.getDataStreams().get(0).getIndexTemplate(),
@@ -453,7 +782,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .cluster()
             .prepareCreateSnapshot(REPO, "snap2")
             .setWaitForCompletion(true)
-            .setIndices(DS_BACKING_INDEX_NAME)
+            .setIndices(dsBackingIndexName)
             .setIncludeGlobalState(false)
             .get();
 
@@ -519,7 +848,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testDeleteDataStreamDuringSnapshot() throws Exception {
-        Client client = client();
+        Client client1 = client();
 
         // this test uses a MockRepository
         assertAcked(client().admin().cluster().prepareDeleteRepository(REPO));
@@ -540,7 +869,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> indexing some data");
         for (int i = 0; i < 100; i++) {
-            client.prepareIndex(dataStream)
+            client1.prepareIndex(dataStream)
                 .setOpType(DocWriteRequest.OpType.CREATE)
                 .setId(Integer.toString(i))
                 .setSource(Collections.singletonMap("@timestamp", "2020-12-12"))
@@ -551,7 +880,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertDocCount(dataStream, 100L);
 
         logger.info("--> snapshot");
-        ActionFuture<CreateSnapshotResponse> future = client.admin()
+        ActionFuture<CreateSnapshotResponse> future = client1.admin()
             .cluster()
             .prepareCreateSnapshot(repositoryName, SNAPSHOT)
             .setIndices(dataStream)
@@ -564,7 +893,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         // non-partial snapshots do not allow delete operations on data streams where snapshot has not been completed
         try {
             logger.info("--> delete index while non-partial snapshot is running");
-            client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { dataStream })).actionGet();
+            client1.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { dataStream })).actionGet();
             fail("Expected deleting index to fail during snapshot");
         } catch (SnapshotInProgressException e) {
             assertThat(e.getMessage(), containsString("Cannot delete data streams that are being snapshotted: [" + dataStream));
@@ -709,5 +1038,80 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         assertEquals(restoreSnapshotResponse.successfulShards(), restoreSnapshotResponse.totalShards());
         assertEquals(restoreSnapshotResponse.failedShards(), 0);
+    }
+
+    public void testExcludeDSFromSnapshotWhenExcludingItsIndices() {
+        final String snapshot = "test-snapshot";
+        final String indexWithoutDataStream = "test-idx-no-ds";
+        createIndexWithContent(indexWithoutDataStream);
+        final SnapshotInfo snapshotInfo = createSnapshot(REPO, snapshot, List.of("*", "-.*"));
+        assertThat(snapshotInfo.dataStreams(), empty());
+        assertAcked(client.admin().indices().prepareDelete(indexWithoutDataStream));
+        RestoreInfo restoreInfo = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, snapshot)
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(randomBoolean())
+            .get()
+            .getRestoreInfo();
+        assertThat(restoreInfo.failedShards(), is(0));
+        assertThat(restoreInfo.successfulShards(), is(1));
+    }
+
+    public void testRestoreSnapshotFully() throws Exception {
+        final String snapshotName = "test-snapshot";
+        final String indexName = "test-idx";
+        createIndexWithContent(indexName);
+        createFullSnapshot(REPO, snapshotName);
+
+        assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "*" })).get());
+        assertAcked(client.admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.lenientExpandOpenHidden()).get());
+
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, snapshotName)
+            .setWaitForCompletion(true)
+            .get();
+        assertEquals(RestStatus.OK, restoreSnapshotResponse.status());
+
+        GetDataStreamAction.Request getRequest = new GetDataStreamAction.Request(new String[] { "*" });
+        assertThat(client.execute(GetDataStreamAction.INSTANCE, getRequest).get().getDataStreams(), hasSize(2));
+        assertNotNull(client.admin().indices().prepareGetIndex().setIndices(indexName).get());
+    }
+
+    public void testRestoreDataStreamAliasWithConflictingDataStream() throws Exception {
+        var snapshotName = "test-snapshot";
+        createFullSnapshot(REPO, snapshotName);
+        client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet();
+        DataStreamIT.putComposableIndexTemplate("my-template", List.of("my-*"));
+        try {
+            var request = new CreateDataStreamAction.Request("my-alias");
+            assertAcked(client.execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+            var e = expectThrows(
+                IllegalStateException.class,
+                () -> client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true).get()
+            );
+            assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
+        } finally {
+            // Need to remove data streams in order to remove template
+            client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet();
+            // Need to remove template, because base class doesn't remove composable index templates after each test (only legacy templates)
+            client.execute(DeleteComposableIndexTemplateAction.INSTANCE, new DeleteComposableIndexTemplateAction.Request("my-template"))
+                .actionGet();
+        }
+    }
+
+    public void testRestoreDataStreamAliasWithConflictingIndicesAlias() throws Exception {
+        var snapshotName = "test-snapshot";
+        createFullSnapshot(REPO, snapshotName);
+        client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet();
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index").alias(new Alias("my-alias"));
+        assertAcked(client.admin().indices().create(createIndexRequest).actionGet());
+
+        var e = expectThrows(
+            IllegalStateException.class,
+            () -> client.admin().cluster().prepareRestoreSnapshot(REPO, snapshotName).setWaitForCompletion(true).get()
+        );
+        assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (my-alias)"));
     }
 }

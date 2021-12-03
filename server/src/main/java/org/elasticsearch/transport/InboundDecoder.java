@@ -8,13 +8,14 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -25,13 +26,14 @@ public class InboundDecoder implements Releasable {
     static final Object END_CONTENT = new Object();
 
     private final Version version;
-    private final PageCacheRecycler recycler;
+    private final Recycler<BytesRef> recycler;
     private TransportDecompressor decompressor;
     private int totalNetworkSize = -1;
     private int bytesConsumed = 0;
+    private boolean isCompressed = false;
     private boolean isClosed = false;
 
-    public InboundDecoder(Version version, PageCacheRecycler recycler) {
+    public InboundDecoder(Version version, Recycler<BytesRef> recycler) {
         this.version = version;
         this.recycler = recycler;
     }
@@ -64,7 +66,7 @@ public class InboundDecoder implements Releasable {
                     Header header = readHeader(version, messageLength, reference);
                     bytesConsumed += headerBytesToRead;
                     if (header.isCompressed()) {
-                        decompressor = new TransportDecompressor(recycler);
+                        isCompressed = true;
                     }
                     fragmentConsumer.accept(header);
 
@@ -75,32 +77,43 @@ public class InboundDecoder implements Releasable {
                 }
             }
         } else {
-            // There are a minimum number of bytes required to start decompression
-            if (decompressor != null && decompressor.canDecompress(reference.length()) == false) {
-                return 0;
+            if (isCompressed && decompressor == null) {
+                // Attempt to initialize decompressor
+                TransportDecompressor decompressor = TransportDecompressor.getDecompressor(recycler, reference);
+                if (decompressor == null) {
+                    return 0;
+                } else {
+                    this.decompressor = decompressor;
+                    fragmentConsumer.accept(this.decompressor.getScheme());
+                }
             }
-            int bytesToConsume = Math.min(reference.length(), totalNetworkSize - bytesConsumed);
-            bytesConsumed += bytesToConsume;
+            int remainingToConsume = totalNetworkSize - bytesConsumed;
+            int maxBytesToConsume = Math.min(reference.length(), remainingToConsume);
             ReleasableBytesReference retainedContent;
-            if (isDone()) {
-                retainedContent = reference.retainedSlice(0, bytesToConsume);
+            if (maxBytesToConsume == remainingToConsume) {
+                retainedContent = reference.retainedSlice(0, maxBytesToConsume);
             } else {
                 retainedContent = reference.retain();
             }
+
+            int bytesConsumedThisDecode = 0;
             if (decompressor != null) {
-                decompress(retainedContent);
+                bytesConsumedThisDecode += decompress(retainedContent);
+                bytesConsumed += bytesConsumedThisDecode;
                 ReleasableBytesReference decompressed;
-                while ((decompressed = decompressor.pollDecompressedPage()) != null) {
+                while ((decompressed = decompressor.pollDecompressedPage(isDone())) != null) {
                     fragmentConsumer.accept(decompressed);
                 }
             } else {
+                bytesConsumedThisDecode += maxBytesToConsume;
+                bytesConsumed += maxBytesToConsume;
                 fragmentConsumer.accept(retainedContent);
             }
             if (isDone()) {
                 finishMessage(fragmentConsumer);
             }
 
-            return bytesToConsume;
+            return bytesConsumedThisDecode;
         }
     }
 
@@ -119,16 +132,16 @@ public class InboundDecoder implements Releasable {
         try {
             Releasables.closeExpectNoException(decompressor);
         } finally {
+            isCompressed = false;
             decompressor = null;
             totalNetworkSize = -1;
             bytesConsumed = 0;
         }
     }
 
-    private void decompress(ReleasableBytesReference content) throws IOException {
+    private int decompress(ReleasableBytesReference content) throws IOException {
         try (content) {
-            int consumed = decompressor.decompress(content);
-            assert consumed == content.length();
+            return decompressor.decompress(content);
         }
     }
 

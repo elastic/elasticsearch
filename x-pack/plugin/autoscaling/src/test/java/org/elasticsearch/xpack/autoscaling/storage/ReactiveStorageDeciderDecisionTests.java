@@ -22,9 +22,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -47,8 +49,6 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderTests;
-import org.elasticsearch.xpack.core.DataTier;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -96,10 +96,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
     );
 
-    private static final DataTierAllocationDecider DATA_TIER_ALLOCATION_DECIDER = new DataTierAllocationDecider(
-        Settings.EMPTY,
-        new ClusterSettings(Settings.EMPTY, DataTierAllocationDeciderTests.ALL_SETTINGS)
-    );
+    private static final DataTierAllocationDecider DATA_TIER_ALLOCATION_DECIDER = new DataTierAllocationDecider();
 
     private ClusterState state;
     private final int hotNodes = randomIntBetween(1, 8);
@@ -131,13 +128,13 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     @Before
     public void setup() {
-        ClusterState state = ClusterState.builder(new ClusterName("test")).build();
-        state = addRandomIndices(hotNodes, hotNodes, state);
-        state = addDataNodes(DATA_HOT_NODE_ROLE, "hot", state, hotNodes);
-        state = addDataNodes(DATA_WARM_NODE_ROLE, "warm", state, warmNodes);
-        this.state = state;
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
+        clusterState = addRandomIndices(hotNodes, hotNodes, clusterState);
+        clusterState = addDataNodes(DATA_HOT_NODE_ROLE, "hot", clusterState, hotNodes);
+        clusterState = addDataNodes(DATA_WARM_NODE_ROLE, "warm", clusterState, warmNodes);
+        this.state = clusterState;
 
-        Set<ShardId> shardIds = shardIds(state.getRoutingNodes().unassigned());
+        Set<ShardId> shardIds = shardIds(clusterState.getRoutingNodes().unassigned());
         this.subjectShards = new HashSet<>(randomSubsetOf(randomIntBetween(1, shardIds.size()), shardIds));
     }
 
@@ -193,8 +190,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         // start (to be) warm shards. Only use primary shards for simplicity.
         withRoutingAllocation(
-            allocation -> allocation.routingNodes()
-                .shardsWithState(ShardRoutingState.INITIALIZING)
+            allocation -> RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING)
                 .stream()
                 .filter(ShardRouting::primary)
                 .filter(s -> warmShards.contains(s.shardId()))
@@ -210,8 +206,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         // relocate warm shards to warm nodes and start them
         withRoutingAllocation(
-            allocation -> allocation.routingNodes()
-                .shardsWithState(ShardRoutingState.STARTED)
+            allocation -> RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.STARTED)
                 .stream()
                 .filter(ShardRouting::primary)
                 .filter(s -> warmShards.contains(s.shardId()))
@@ -257,8 +252,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         // start shards.
         withRoutingAllocation(
-            allocation -> allocation.routingNodes()
-                .shardsWithState(ShardRoutingState.INITIALIZING)
+            allocation -> RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.INITIALIZING)
                 .stream()
                 .filter(ShardRouting::primary)
                 .forEach(shard -> allocation.routingNodes().startShard(logger, shard, allocation.changes()))
@@ -278,9 +272,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private Set<IndexMetadata> allIndices() {
-        return StreamSupport.stream(state.metadata().getIndices().values().spliterator(), false)
-            .map(cursor -> cursor.value)
-            .collect(Collectors.toSet());
+        return new HashSet<>(state.metadata().getIndices().values());
     }
 
     private ClusterState moveToCold(Set<IndexMetadata> candidates) {
@@ -293,12 +285,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     private IndexMetadata moveToCold(IndexMetadata imd) {
         Settings.Builder builder = Settings.builder().put(imd.getSettings());
-        overrideSetting(imd, builder, DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING, DataTier.DATA_COLD);
-        overrideSetting(imd, builder, DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING, DataTier.DATA_COLD);
         overrideSetting(
             imd,
             builder,
-            DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING,
+            DataTier.TIER_PREFERENCE_SETTING,
             randomFrom(DataTier.DATA_COLD, DataTier.DATA_COLD + "," + DataTier.DATA_HOT)
         );
         return IndexMetadata.builder(imd).settings(builder).build();
@@ -319,8 +309,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
         // the remain check only assumes the smallest shard need to move off. More detailed testing of AllocationState.unmovableSize in
         // {@link ReactiveStorageDeciderServiceTests#testUnmovableSize}
-        long nodes = state.routingTable()
-            .shardsWithState(ShardRoutingState.STARTED)
+        long nodes = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)
             .stream()
             .filter(s -> subjectShards.contains(s.shardId()))
             .map(ShardRouting::currentNodeId)
@@ -364,8 +353,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private void verify(VerificationSubject subject, long expected, DiscoveryNodeRole role, AllocationDecider... allocationDeciders) {
-        ClusterState state = this.state;
-        verify(state, subject, expected, role, allocationDeciders);
+        verify(this.state, subject, expected, role, allocationDeciders);
     }
 
     private static void verify(
@@ -391,7 +379,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     private static void verifyScale(ClusterState state, long expectedDifference, String reason, AllocationDecider... allocationDeciders) {
         ReactiveStorageDeciderService decider = new ReactiveStorageDeciderService(
             Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, DataTierAllocationDeciderTests.ALL_SETTINGS),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             createAllocationDeciders(allocationDeciders)
         );
         TestAutoscalingDeciderContext context = createContext(state, Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
@@ -421,8 +409,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private boolean hasStartedSubjectShard() {
-        return state.getRoutingNodes()
-            .shardsWithState(ShardRoutingState.STARTED)
+        return RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)
             .stream()
             .filter(ShardRouting::primary)
             .map(ShardRouting::shardId)
@@ -430,16 +417,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static AllocationDeciders createAllocationDeciders(AllocationDecider... extraDeciders) {
-        Set<Setting<?>> allSettings = Stream.concat(
-            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
-            Stream.of(
-                DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING,
-                DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING,
-                DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING
-            )
-        ).collect(Collectors.toSet());
-
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, allSettings);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         Collection<AllocationDecider> systemAllocationDeciders = ClusterModule.createAllocationDeciders(
             Settings.builder()
                 .put(
@@ -451,11 +429,9 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             Collections.emptyList()
         );
         return new AllocationDeciders(
-            Stream.of(
-                Stream.of(extraDeciders),
-                Stream.of(new DataTierAllocationDecider(Settings.EMPTY, clusterSettings)),
-                systemAllocationDeciders.stream()
-            ).flatMap(s -> s).collect(Collectors.toList())
+            Stream.of(Stream.of(extraDeciders), Stream.of(new DataTierAllocationDecider()), systemAllocationDeciders.stream())
+                .flatMap(s -> s)
+                .collect(Collectors.toList())
         );
     }
 
@@ -476,7 +452,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
     private void startRandomShards() {
         withRoutingAllocation(allocation -> {
-            List<ShardRouting> initializingShards = allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING);
+            List<ShardRouting> initializingShards = RoutingNodesHelper.shardsWithState(
+                allocation.routingNodes(),
+                ShardRoutingState.INITIALIZING
+            );
             initializingShards.sort(Comparator.comparing(ShardRouting::shardId).thenComparing(ShardRouting::primary, Boolean::compare));
             List<ShardRouting> shards = randomSubsetOf(Math.min(randomIntBetween(1, 100), initializingShards.size()), initializingShards);
 
@@ -491,7 +470,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
 
             // ensure progress by only relocating a shard if we started more than one shard.
             if (shards.size() > 1 && randomBoolean()) {
-                List<ShardRouting> started = allocation.routingNodes().shardsWithState(ShardRoutingState.STARTED);
+                List<ShardRouting> started = RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.STARTED);
                 if (started.isEmpty() == false) {
                     ShardRouting toMove = randomFrom(started);
                     Set<RoutingNode> candidates = StreamSupport.stream(allocation.routingNodes().spliterator(), false)
@@ -610,10 +589,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static ClusterState addRandomIndices(int minShards, int maxShardCopies, ClusterState state) {
-        String[] tierSettingNames = new String[] {
-            DataTierAllocationDecider.INDEX_ROUTING_REQUIRE,
-            DataTierAllocationDecider.INDEX_ROUTING_INCLUDE,
-            DataTierAllocationDecider.INDEX_ROUTING_PREFER };
+        String[] tierSettingNames = new String[] { DataTier.TIER_PREFERENCE };
         int shards = randomIntBetween(minShards, 20);
         Metadata.Builder builder = Metadata.builder();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();

@@ -14,12 +14,12 @@ import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappingParser;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping.Type;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -84,7 +84,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
      * Adds a context-enabled field for all the defined mappings to <code>document</code>
      * see {@link org.elasticsearch.search.suggest.completion.context.ContextMappings.TypedContextField}
      */
-    public void addField(ParseContext.Document document, String name, String input, int weight, Map<String, Set<String>> contexts) {
+    public void addField(LuceneDocument document, String name, String input, int weight, Map<String, Set<String>> contexts) {
         document.add(new TypedContextField(name, input, weight, contexts, document));
     }
 
@@ -112,10 +112,9 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
      */
     private class TypedContextField extends ContextSuggestField {
         private final Map<String, Set<String>> contexts;
-        private final ParseContext.Document document;
+        private final LuceneDocument document;
 
-        TypedContextField(String name, String value, int weight, Map<String, Set<String>> contexts,
-                          ParseContext.Document document) {
+        TypedContextField(String name, String value, int weight, Map<String, Set<String>> contexts, LuceneDocument document) {
             super(name, value, weight);
             this.contexts = contexts;
             this.document = document;
@@ -212,6 +211,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
      *  [{"name": .., "type": .., ..}, {..}]
      *
      */
+    @SuppressWarnings("unchecked")
     public static ContextMappings load(Object configuration) throws ElasticsearchParseException {
         final List<ContextMapping<?>> contextMappings;
         if (configuration instanceof List) {

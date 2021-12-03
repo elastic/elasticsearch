@@ -187,7 +187,8 @@ setup:
           }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: utopia
 
 ---
 "Test outlier_detection auc_roc":

@@ -12,6 +12,7 @@ You can use the following APIs to perform {ml} {dfanalytics} activities.
 * <<get-dfanalytics-stats,Get {dfanalytics-jobs} statistics>>
 * <<start-dfanalytics,Start {dfanalytics-jobs}>>
 * <<stop-dfanalytics,Stop {dfanalytics-jobs}>>
+<<<<<<< HEAD
 * <<evaluate-dfanalytics,Evaluate {dfanalytics}>>
 * <<explain-dfanalytics,Explain {dfanalytics}>>
 
@@ -33,3 +34,6 @@ an aggregation. Refer to the following documentation to learn more.
 
 
 See also <<ml-apis>>.
+=======
+* <<update-dfanalytics,Update {dfanalytics-jobs}>>
+>>>>>>> 429bdd9afc0 ([DOCS] Move trained model APIs out of dataframe analytics (#81315))

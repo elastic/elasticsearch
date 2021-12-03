@@ -810,7 +810,7 @@ system indices or system data streams.
 {ref}/snapshot-restore.html#feature-state[Feature states] are now the only way
 to back up and restore system indices or system data streams from a snapshot.
 
-You can no longer use the `indices` parameter of the
+You can no longer use the `indices` parameter for the
 {ref}/slm-api-put-policy.html[create {slm-init} policy API] or the
 {ref}/create-snapshot-api.html[create snapshot API] to include a system index in
 a snapshot. To back up a system index, use the `include_global_state` and

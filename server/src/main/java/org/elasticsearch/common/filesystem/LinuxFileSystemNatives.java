@@ -9,7 +9,6 @@
 package org.elasticsearch.common.filesystem;
 
 import com.sun.jna.LastErrorException;
-import com.sun.jna.Library;
 import com.sun.jna.Native;
 import com.sun.jna.Platform;
 import com.sun.jna.Structure;
@@ -39,13 +38,11 @@ final class LinuxFileSystemNatives implements FileSystemNatives.Provider {
     /** Version of the `struct stat' data structure. **/
     private static final int STAT_VER_KERNEL = 0;
 
-    private final XStatLibrary library;
-
     private LinuxFileSystemNatives() {
         assert Constants.LINUX : Constants.OS_NAME;
         assert Constants.JRE_IS_64BIT : Constants.OS_ARCH;
         try {
-            library = Native.load(Platform.C_LIBRARY_NAME, XStatLibrary.class);
+            Native.register(XStatLibrary.class, Platform.C_LIBRARY_NAME);
             logger.debug("C library loaded");
         } catch (LinkageError e) {
             logger.warn("unable to link C library. native methods and handlers will be disabled.", e);
@@ -57,8 +54,8 @@ final class LinuxFileSystemNatives implements FileSystemNatives.Provider {
         return INSTANCE;
     }
 
-    interface XStatLibrary extends Library {
-        int __xstat(int version, String path, Stat stats) throws LastErrorException;
+    public static class XStatLibrary {
+        public static native int __xstat(int version, String path, Stat stats) throws LastErrorException;
     }
 
     /**
@@ -72,7 +69,7 @@ final class LinuxFileSystemNatives implements FileSystemNatives.Provider {
         assert Files.isRegularFile(path) : path;
         try {
             final Stat stats = new Stat();
-            final int rc = library.__xstat(STAT_VER_KERNEL, path.toString(), stats);
+            final int rc = XStatLibrary.__xstat(STAT_VER_KERNEL, path.toString(), stats);
             if (logger.isTraceEnabled()) {
                 logger.trace("executing native method __xstat() returned {} with error code [{}] for file [{}]", rc, stats, path);
             }

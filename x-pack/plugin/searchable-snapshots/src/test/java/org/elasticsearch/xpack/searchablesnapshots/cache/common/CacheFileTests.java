@@ -456,10 +456,7 @@ public class CacheFileTests extends ESTestCase {
             );
 
             if (Constants.LINUX) {
-                long nbBlocks = (cacheFile.getLength() / blockSize);
-                if (cacheFile.getLength() % blockSize > 0L) {
-                    nbBlocks += 1L;
-                }
+                final long nbBlocks = (cacheFile.getLength() + blockSize - 1) / blockSize; // ceil(cacheFile.getLength() / blockSize)
                 assertThat(
                     "Cache file size mismatches (block size: " + blockSize + ", number of blocks: " + nbBlocks + ')',
                     sizeOnDisk.getAsLong(),

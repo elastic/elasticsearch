@@ -47,6 +47,7 @@ import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicReference;
@@ -459,9 +460,16 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             migrationInfo.getNextIndexName()
         );
 
+        Settings.Builder settingsBuilder = Settings.builder();
+        if (Objects.nonNull(migrationInfo.getSettings())) {
+            settingsBuilder.put(migrationInfo.getSettings());
+            settingsBuilder.remove("index.blocks.write");
+            settingsBuilder.remove("index.blocks.read");
+            settingsBuilder.remove("index.blocks.metadata");
+        }
         createRequest.waitForActiveShards(ActiveShardCount.ALL)
             .mappings(Collections.singletonMap("_doc", migrationInfo.getMappings()))
-            .settings(migrationInfo.getSettings() == null ? Settings.EMPTY : migrationInfo.getSettings());
+            .settings(migrationInfo.getSettings() == null ? Settings.EMPTY : settingsBuilder.build());
         metadataCreateIndexService.createIndex(createRequest, listener);
     }
 

@@ -125,8 +125,8 @@ public class Join extends LogicalPlan {
         return direction;
     }
 
-    public Join with(List<KeyedFilter> queries, KeyedFilter until, OrderDirection direction) {
-        return new Join(source(), queries, until, timestamp, tiebreaker, direction);
+    public Join with(List<KeyedFilter> keyedFilterQueries, KeyedFilter untilFilter, OrderDirection orderDirection) {
+        return new Join(source(), keyedFilterQueries, untilFilter, timestamp, tiebreaker, orderDirection);
     }
 
     @Override

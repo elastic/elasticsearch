@@ -394,17 +394,19 @@ public class XPackLicenseState {
 
     /** Return the current license type. */
     public OperationMode getOperationMode() {
-        return executeAgainstStatus(status -> status.mode);
+        return executeAgainstStatus(statusToCheck -> statusToCheck.mode);
     }
 
     // Package private for tests
     /** Return true if the license is currently within its time boundaries, false otherwise. */
     public boolean isActive() {
-        return checkAgainstStatus(status -> status.active);
+        return checkAgainstStatus(statusToCheck -> statusToCheck.active);
     }
 
     public String statusDescription() {
-        return executeAgainstStatus(status -> (status.active ? "active" : "expired") + ' ' + status.mode.description() + " license");
+        return executeAgainstStatus(
+            statusToCheck -> (statusToCheck.active ? "active" : "expired") + ' ' + statusToCheck.mode.description() + " license"
+        );
     }
 
     void featureUsed(LicensedFeature feature) {
@@ -519,7 +521,14 @@ public class XPackLicenseState {
      */
     public XPackLicenseState copyCurrentLicenseState() {
         return executeAgainstStatus(
-            status -> new XPackLicenseState(listeners, isSecurityEnabled, isSecurityExplicitlyEnabled, status, usage, epochMillisProvider)
+            statusToCheck -> new XPackLicenseState(
+                listeners,
+                isSecurityEnabled,
+                isSecurityExplicitlyEnabled,
+                statusToCheck,
+                usage,
+                epochMillisProvider
+            )
         );
     }
 
@@ -533,11 +542,11 @@ public class XPackLicenseState {
      */
     @Deprecated
     public boolean isAllowedByLicense(OperationMode minimumMode, boolean needActive) {
-        return checkAgainstStatus(status -> {
-            if (needActive && false == status.active) {
+        return checkAgainstStatus(statusToCheck -> {
+            if (needActive && false == statusToCheck.active) {
                 return false;
             }
-            return isAllowedByOperationMode(status.mode, minimumMode);
+            return isAllowedByOperationMode(statusToCheck.mode, minimumMode);
         });
     }
 

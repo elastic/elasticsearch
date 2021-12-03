@@ -561,15 +561,10 @@ public class IndexDeprecationChecks {
             if (tierPreference.isEmpty()) {
                 String indexName = indexMetadata.getIndex().getName();
                 return new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
-                    "Index ["
-                        + indexName
-                        + "] does not have a ["
-                        + DataTier.TIER_PREFERENCE
-                        + "] setting, "
-                        + "in 8.0 this setting will be required for all indices and may not be empty or null.",
+                    DeprecationIssue.Level.WARNING,
+                    "No [" + DataTier.TIER_PREFERENCE + "] is set for index [" + indexName + "].",
                     "https://ela.st/es-deprecation-7-empty-tier-preference",
-                    "Update the settings for this index to specify an appropriate tier preference.",
+                    "Specify a data tier preference for this index.",
                     false,
                     null
                 );

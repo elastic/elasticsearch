@@ -113,8 +113,8 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             return indicesOptions;
         }
 
-        public IndicesRequest indicesOptions(IndicesOptions indicesOptions) {
-            this.indicesOptions = indicesOptions;
+        public IndicesRequest indicesOptions(IndicesOptions options) {
+            this.indicesOptions = options;
             return this;
         }
 

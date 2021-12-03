@@ -102,15 +102,15 @@ public class Precision implements EvaluationMetric {
         EvaluationParameters parameters,
         EvaluationFields fields
     ) {
-        String actualField = fields.getActualField();
+        String actualFieldName = fields.getActualField();
         String predictedField = fields.getPredictedField();
         // Store given {@code actualField} for the purpose of generating error message in {@code process}.
-        this.actualField.trySet(actualField);
+        this.actualField.trySet(actualFieldName);
         if (topActualClassNames.get() == null) {  // This is step 1
             return Tuple.tuple(
                 Arrays.asList(
                     AggregationBuilders.terms(ACTUAL_CLASSES_NAMES_AGG_NAME)
-                        .field(actualField)
+                        .field(actualFieldName)
                         .order(Arrays.asList(BucketOrder.count(false), BucketOrder.key(true)))
                         .size(MAX_CLASSES_CARDINALITY)
                 ),
@@ -122,7 +122,7 @@ public class Precision implements EvaluationMetric {
                 .stream()
                 .map(className -> new KeyedFilter(className, QueryBuilders.matchQuery(predictedField, className).lenient(true)))
                 .toArray(KeyedFilter[]::new);
-            Script script = PainlessScripts.buildIsEqualScript(actualField, predictedField);
+            Script script = PainlessScripts.buildIsEqualScript(actualFieldName, predictedField);
             return Tuple.tuple(
                 Arrays.asList(
                     AggregationBuilders.filters(BY_PREDICTED_CLASS_AGG_NAME, keyedFiltersPredicted)

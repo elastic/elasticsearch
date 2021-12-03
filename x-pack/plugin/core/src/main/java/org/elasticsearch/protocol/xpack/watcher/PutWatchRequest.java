@@ -95,6 +95,7 @@ public final class PutWatchRequest extends ActionRequest {
     /**
      * Set the source of the watch
      */
+    @SuppressWarnings("HiddenField")
     public void setSource(BytesReference source, XContentType xContentType) {
         this.source = source;
         this.xContentType = xContentType;

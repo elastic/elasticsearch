@@ -175,7 +175,7 @@ public abstract class FileRestoreContext {
 
     private void afterRestore(SnapshotFiles snapshotFiles, Store store, StoreFileMetadata restoredSegmentsFile) {
         try {
-            if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
+            if (isSearchableSnapshotStore(store.indexSettings().getSettings()) == false) {
                 Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
             }
         } catch (IOException e) {

@@ -54,7 +54,7 @@ public class TransformMetadata implements XPackPlugin.XPackMetadataCustom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumIndexCompatibilityVersion();
+        return Version.V_7_13_0;
     }
 
     @Override
@@ -115,6 +115,11 @@ public class TransformMetadata implements XPackPlugin.XPackMetadataCustom {
         }
 
         @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_13_0;
+        }
+
+        @Override
         public String getWriteableName() {
             return TYPE;
         }
@@ -154,8 +159,8 @@ public class TransformMetadata implements XPackPlugin.XPackMetadataCustom {
             }
         }
 
-        public TransformMetadata.Builder isResetMode(boolean resetMode) {
-            this.resetMode = resetMode;
+        public TransformMetadata.Builder isResetMode(boolean isResetMode) {
+            this.resetMode = isResetMode;
             return this;
         }
 

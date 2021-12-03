@@ -119,8 +119,8 @@ public class StartDatafeedAction extends ActionType<NodeAcknowledgedResponse> {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            this.params.toXContent(builder, params);
+        public XContentBuilder toXContent(XContentBuilder builder, Params xContentParams) throws IOException {
+            this.params.toXContent(builder, xContentParams);
             return builder;
         }
 

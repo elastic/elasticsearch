@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
@@ -711,5 +712,529 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         ClusterState okState = ClusterState.builder(new ClusterName("test")).metadata(metadataWithoutTransientSettings).build();
         issue = ClusterDeprecationChecks.checkTransientSettingsExistence(okState);
         assertNull(issue);
+    }
+
+    public void testTemplateWithChainedMultiField() throws IOException {
+        String chainedMultiFieldTemplate = randomAlphaOfLength(5);
+        String goodTemplateName = randomAlphaOfLength(7);
+
+        // A template with chained multi-fields
+        XContentBuilder badMappingBuilder = jsonBuilder();
+        badMappingBuilder.startObject();
+        {
+            badMappingBuilder.startObject("_doc");
+            {
+                badMappingBuilder.startObject("properties");
+                {
+                    badMappingBuilder.startObject("data");
+                    {
+                        badMappingBuilder.field("type", "text");
+                        badMappingBuilder.startObject("fields");
+                        {
+                            badMappingBuilder.startObject("raw");
+                            {
+                                badMappingBuilder.field("type", "keyword");
+                                badMappingBuilder.startObject("fields");
+                                {
+                                    badMappingBuilder.startObject("invalid");
+                                    {
+                                        badMappingBuilder.field("type", "text");
+                                    }
+                                    badMappingBuilder.endObject();
+                                }
+                                badMappingBuilder.endObject();
+                            }
+                            badMappingBuilder.endObject();
+                        }
+                        badMappingBuilder.endObject();
+                    }
+                    badMappingBuilder.endObject();
+                }
+                badMappingBuilder.endObject();
+            }
+            badMappingBuilder.endObject();
+        }
+        badMappingBuilder.endObject();
+
+        // A template with an OK number of fields
+        XContentBuilder goodMappingBuilder = jsonBuilder();
+        goodMappingBuilder.startObject();
+        {
+            goodMappingBuilder.startObject("_doc");
+            {
+                goodMappingBuilder.startObject("properties");
+                {
+                    goodMappingBuilder.startObject("data");
+                    {
+                        goodMappingBuilder.field("type", "text");
+                        goodMappingBuilder.startObject("fields");
+                        {
+                            goodMappingBuilder.startObject("raw");
+                            {
+                                goodMappingBuilder.field("type", "keyword");
+                            }
+                            goodMappingBuilder.endObject();
+                        }
+                        goodMappingBuilder.endObject();
+                    }
+                    goodMappingBuilder.endObject();
+                }
+                goodMappingBuilder.endObject();
+            }
+            goodMappingBuilder.endObject();
+        }
+        goodMappingBuilder.endObject();
+
+        final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
+            .metadata(
+                Metadata.builder()
+                    .put(
+                        IndexTemplateMetadata.builder(chainedMultiFieldTemplate)
+                            .patterns(Collections.singletonList(randomAlphaOfLength(5)))
+                            .putMapping("_doc", Strings.toString(badMappingBuilder))
+                            .build()
+                    )
+                    .put(
+                        IndexTemplateMetadata.builder(goodTemplateName)
+                            .patterns(Collections.singletonList(randomAlphaOfLength(5)))
+                            .putMapping("_doc", Strings.toString(goodMappingBuilder))
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state));
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Defining multi-fields within multi-fields on index template mappings is deprecated",
+            "https://ela.st/es-deprecation-7-chained-multi-fields",
+            "Remove chained multi-fields from the \""
+                + chainedMultiFieldTemplate
+                + "\" template. Multi-fields within multi-fields are not supported in 8.0.",
+            false,
+            null
+        );
+        assertEquals(singletonList(expected), issues);
+    }
+
+    public void testTemplateWithChainedMultiFieldDynamicTemplate() throws IOException {
+        String chainedMultiFieldTemplate = randomAlphaOfLength(5);
+        String dynamicTemplateName = randomAlphaOfLength(6);
+        String goodTemplateName = randomAlphaOfLength(7);
+
+        // A template with chained multi-fields
+        XContentBuilder badMappingBuilder = jsonBuilder();
+        badMappingBuilder.startObject();
+        {
+            badMappingBuilder.startObject("_doc");
+            {
+                badMappingBuilder.startObject("properties");
+                {
+                    badMappingBuilder.startObject("data");
+                    {
+                        badMappingBuilder.field("type", "text");
+                    }
+                    badMappingBuilder.endObject();
+                }
+                badMappingBuilder.endObject();
+                badMappingBuilder.startArray("dynamic_templates");
+                {
+                    badMappingBuilder.startObject();
+                    {
+                        badMappingBuilder.startObject(dynamicTemplateName);
+                        {
+                            badMappingBuilder.field("match_mapping_type", "long");
+                            badMappingBuilder.startObject("mapping");
+                            {
+                                badMappingBuilder.field("type", "long");
+                                badMappingBuilder.startObject("fields");
+                                {
+                                    badMappingBuilder.startObject("stringified");
+                                    {
+                                        badMappingBuilder.field("type", "keyword");
+                                        badMappingBuilder.startObject("fields");
+                                        {
+                                            badMappingBuilder.startObject("invalid");
+                                            {
+                                                badMappingBuilder.field("type", "text");
+                                            }
+                                            badMappingBuilder.endObject();
+                                        }
+                                        badMappingBuilder.endObject();
+                                    }
+                                    badMappingBuilder.endObject();
+                                }
+                                badMappingBuilder.endObject();
+                            }
+                            badMappingBuilder.endObject();
+                        }
+                        badMappingBuilder.endObject();
+                    }
+                    badMappingBuilder.endObject();
+                }
+                badMappingBuilder.endArray();
+            }
+            badMappingBuilder.endObject();
+        }
+        badMappingBuilder.endObject();
+
+        // A template with an OK number of fields
+        XContentBuilder goodMappingBuilder = jsonBuilder();
+        goodMappingBuilder.startObject();
+        {
+            goodMappingBuilder.startObject("_doc");
+            {
+                goodMappingBuilder.startObject("properties");
+                {
+                    goodMappingBuilder.startObject("data");
+                    {
+                        goodMappingBuilder.field("type", "text");
+                    }
+                    goodMappingBuilder.endObject();
+                }
+                goodMappingBuilder.endObject();
+                goodMappingBuilder.startArray("dynamic_templates");
+                {
+                    goodMappingBuilder.startObject();
+                    {
+                        goodMappingBuilder.startObject(dynamicTemplateName);
+                        {
+                            goodMappingBuilder.field("match_mapping_type", "long");
+                            goodMappingBuilder.startObject("mapping");
+                            {
+                                goodMappingBuilder.field("type", "long");
+                                goodMappingBuilder.startObject("fields");
+                                {
+                                    goodMappingBuilder.startObject("stringified");
+                                    {
+                                        goodMappingBuilder.field("type", "keyword");
+                                    }
+                                    goodMappingBuilder.endObject();
+                                }
+                                goodMappingBuilder.endObject();
+                            }
+                            goodMappingBuilder.endObject();
+                        }
+                        goodMappingBuilder.endObject();
+                    }
+                    goodMappingBuilder.endObject();
+                }
+                goodMappingBuilder.endArray();
+            }
+            goodMappingBuilder.endObject();
+        }
+        goodMappingBuilder.endObject();
+
+        final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
+            .metadata(
+                Metadata.builder()
+                    .put(
+                        IndexTemplateMetadata.builder(chainedMultiFieldTemplate)
+                            .patterns(Collections.singletonList(randomAlphaOfLength(5)))
+                            .putMapping("_doc", Strings.toString(badMappingBuilder))
+                            .build()
+                    )
+                    .put(
+                        IndexTemplateMetadata.builder(goodTemplateName)
+                            .patterns(Collections.singletonList(randomAlphaOfLength(5)))
+                            .putMapping("_doc", Strings.toString(goodMappingBuilder))
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state));
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Defining multi-fields within multi-fields on index template dynamic_templates is deprecated",
+            "https://ela.st/es-deprecation-7-chained-multi-fields",
+            "Remove chained multi-fields from the \""
+                + chainedMultiFieldTemplate
+                + "\" template. Multi-fields within multi-fields are not supported in 8.0.",
+            false,
+            null
+        );
+        assertEquals(singletonList(expected), issues);
+    }
+
+    public void testComponentTemplateWithChainedMultiField() throws IOException {
+        String chainedMultiFieldTemplate = randomAlphaOfLength(5);
+        String goodTemplateName = randomAlphaOfLength(7);
+
+        // A template with chained multi-fields
+        XContentBuilder badMappingBuilder = jsonBuilder();
+        badMappingBuilder.startObject();
+        {
+            badMappingBuilder.startObject("_doc");
+            {
+                badMappingBuilder.startObject("properties");
+                {
+                    badMappingBuilder.startObject("data");
+                    {
+                        badMappingBuilder.field("type", "text");
+                        badMappingBuilder.startObject("fields");
+                        {
+                            badMappingBuilder.startObject("raw");
+                            {
+                                badMappingBuilder.field("type", "keyword");
+                                badMappingBuilder.startObject("fields");
+                                {
+                                    badMappingBuilder.startObject("invalid");
+                                    {
+                                        badMappingBuilder.field("type", "text");
+                                    }
+                                    badMappingBuilder.endObject();
+                                }
+                                badMappingBuilder.endObject();
+                            }
+                            badMappingBuilder.endObject();
+                        }
+                        badMappingBuilder.endObject();
+                    }
+                    badMappingBuilder.endObject();
+                }
+                badMappingBuilder.endObject();
+            }
+            badMappingBuilder.endObject();
+        }
+        badMappingBuilder.endObject();
+
+        // A template with an OK number of fields
+        XContentBuilder goodMappingBuilder = jsonBuilder();
+        goodMappingBuilder.startObject();
+        {
+            goodMappingBuilder.startObject("_doc");
+            {
+                goodMappingBuilder.startObject("properties");
+                {
+                    goodMappingBuilder.startObject("data");
+                    {
+                        goodMappingBuilder.field("type", "text");
+                        goodMappingBuilder.startObject("fields");
+                        {
+                            goodMappingBuilder.startObject("raw");
+                            {
+                                goodMappingBuilder.field("type", "keyword");
+                            }
+                            goodMappingBuilder.endObject();
+                        }
+                        goodMappingBuilder.endObject();
+                    }
+                    goodMappingBuilder.endObject();
+                }
+                goodMappingBuilder.endObject();
+            }
+            goodMappingBuilder.endObject();
+        }
+        goodMappingBuilder.endObject();
+
+        badMappingBuilder.flush();
+        goodMappingBuilder.flush();
+
+        final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
+            .metadata(
+                Metadata.builder()
+                    .put(
+                        chainedMultiFieldTemplate,
+                        new ComponentTemplate(
+                            new Template(
+                                null,
+                                new CompressedXContent(((ByteArrayOutputStream) badMappingBuilder.getOutputStream()).toByteArray()),
+                                null
+                            ),
+                            null,
+                            null
+                        )
+                    )
+                    .put(
+                        goodTemplateName,
+                        new ComponentTemplate(
+                            new Template(
+                                null,
+                                new CompressedXContent(((ByteArrayOutputStream) goodMappingBuilder.getOutputStream()).toByteArray()),
+                                null
+                            ),
+                            null,
+                            null
+                        )
+                    )
+                    .build()
+            )
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state));
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Defining multi-fields within multi-fields on component templates is deprecated",
+            "https://ela.st/es-deprecation-7-chained-multi-fields",
+            "Remove chained multi-fields from the \""
+                + chainedMultiFieldTemplate
+                + "\" component template. Multi-fields within multi-fields are not supported in 8.0.",
+            false,
+            null
+        );
+        assertEquals(singletonList(expected), issues);
+    }
+
+    public void testComponentTemplateWithChainedMultiFieldDynamicTemplate() throws IOException {
+        String chainedMultiFieldTemplate = randomAlphaOfLength(5);
+        String dynamicTemplateName = randomAlphaOfLength(6);
+        String goodTemplateName = randomAlphaOfLength(7);
+
+        // A template with chained multi-fields
+        XContentBuilder badMappingBuilder = jsonBuilder();
+        badMappingBuilder.startObject();
+        {
+            badMappingBuilder.startObject("_doc");
+            {
+                badMappingBuilder.startObject("properties");
+                {
+                    badMappingBuilder.startObject("data");
+                    {
+                        badMappingBuilder.field("type", "text");
+                    }
+                    badMappingBuilder.endObject();
+                }
+                badMappingBuilder.endObject();
+                badMappingBuilder.startArray("dynamic_templates");
+                {
+                    badMappingBuilder.startObject();
+                    {
+                        badMappingBuilder.startObject(dynamicTemplateName);
+                        {
+                            badMappingBuilder.field("match_mapping_type", "long");
+                            badMappingBuilder.startObject("mapping");
+                            {
+                                badMappingBuilder.field("type", "long");
+                                badMappingBuilder.startObject("fields");
+                                {
+                                    badMappingBuilder.startObject("stringified");
+                                    {
+                                        badMappingBuilder.field("type", "keyword");
+                                        badMappingBuilder.startObject("fields");
+                                        {
+                                            badMappingBuilder.startObject("invalid");
+                                            {
+                                                badMappingBuilder.field("type", "text");
+                                            }
+                                            badMappingBuilder.endObject();
+                                        }
+                                        badMappingBuilder.endObject();
+                                    }
+                                    badMappingBuilder.endObject();
+                                }
+                                badMappingBuilder.endObject();
+                            }
+                            badMappingBuilder.endObject();
+                        }
+                        badMappingBuilder.endObject();
+                    }
+                    badMappingBuilder.endObject();
+                }
+                badMappingBuilder.endArray();
+            }
+            badMappingBuilder.endObject();
+        }
+        badMappingBuilder.endObject();
+
+        // A template with an OK number of fields
+        XContentBuilder goodMappingBuilder = jsonBuilder();
+        goodMappingBuilder.startObject();
+        {
+            goodMappingBuilder.startObject("_doc");
+            {
+                goodMappingBuilder.startObject("properties");
+                {
+                    goodMappingBuilder.startObject("data");
+                    {
+                        goodMappingBuilder.field("type", "text");
+                    }
+                    goodMappingBuilder.endObject();
+                }
+                goodMappingBuilder.endObject();
+                goodMappingBuilder.startArray("dynamic_templates");
+                {
+                    goodMappingBuilder.startObject();
+                    {
+                        goodMappingBuilder.startObject(dynamicTemplateName);
+                        {
+                            goodMappingBuilder.field("match_mapping_type", "long");
+                            goodMappingBuilder.startObject("mapping");
+                            {
+                                goodMappingBuilder.field("type", "long");
+                                goodMappingBuilder.startObject("fields");
+                                {
+                                    goodMappingBuilder.startObject("stringified");
+                                    {
+                                        goodMappingBuilder.field("type", "keyword");
+                                    }
+                                    goodMappingBuilder.endObject();
+                                }
+                                goodMappingBuilder.endObject();
+                            }
+                            goodMappingBuilder.endObject();
+                        }
+                        goodMappingBuilder.endObject();
+                    }
+                    goodMappingBuilder.endObject();
+                }
+                goodMappingBuilder.endArray();
+            }
+            goodMappingBuilder.endObject();
+        }
+        goodMappingBuilder.endObject();
+
+        badMappingBuilder.flush();
+        goodMappingBuilder.flush();
+
+        final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
+            .metadata(
+                Metadata.builder()
+                    .put(
+                        chainedMultiFieldTemplate,
+                        new ComponentTemplate(
+                            new Template(
+                                null,
+                                new CompressedXContent(((ByteArrayOutputStream) badMappingBuilder.getOutputStream()).toByteArray()),
+                                null
+                            ),
+                            null,
+                            null
+                        )
+                    )
+                    .put(
+                        goodTemplateName,
+                        new ComponentTemplate(
+                            new Template(
+                                null,
+                                new CompressedXContent(((ByteArrayOutputStream) goodMappingBuilder.getOutputStream()).toByteArray()),
+                                null
+                            ),
+                            null,
+                            null
+                        )
+                    )
+                    .build()
+            )
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state));
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Defining multi-fields within multi-fields on component template dynamic_templates is deprecated",
+            "https://ela.st/es-deprecation-7-chained-multi-fields",
+            "Remove chained multi-fields from the \""
+                + chainedMultiFieldTemplate
+                + "\" component template. Multi-fields within multi-fields are not supported in 8.0.",
+            false,
+            null
+        );
+        assertEquals(singletonList(expected), issues);
     }
 }

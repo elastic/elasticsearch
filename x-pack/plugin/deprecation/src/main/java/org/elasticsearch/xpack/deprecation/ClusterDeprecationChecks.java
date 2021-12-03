@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -117,6 +118,199 @@ public class ClusterDeprecationChecks {
                     + "] set, "
                     + "which may cause queries which use automatic field expansion, such as query_string, simple_query_string, and "
                     + "multi_match to fail if fields are not explicitly specified in the query.",
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Check templates that use `fields` within `fields` blocks
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkTemplatesWithChainedMultiFields(ClusterState state) {
+        Map<String, List<String>> templatesContainingChainedMultiFields = new HashMap<>();
+        state.getMetadata().getTemplates().forEach((templateCursor) -> {
+            String templateName = templateCursor.key;
+            templateCursor.value.getMappings().forEach((mappingCursor) -> {
+                String type = mappingCursor.key;
+                // There should be the type name at this level, but there was a bug where mappings could be stored without a type (#45120)
+                // to make sure, we try to detect this like we try to do in MappingMetadata#sourceAsMap()
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappingCursor.value.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey(type)) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get(type);
+                }
+                List<String> mappingIssues = IndexDeprecationChecks.findInPropertiesRecursively(
+                    type,
+                    mapping,
+                    IndexDeprecationChecks::containsChainedMultiFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                );
+                if (mappingIssues.size() > 0) {
+                    templatesContainingChainedMultiFields.put(templateName, mappingIssues);
+                }
+            });
+        });
+        if (templatesContainingChainedMultiFields.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining multi-fields within multi-fields on index template mappings is deprecated",
+                "https://ela.st/es-deprecation-7-chained-multi-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove chained multi-fields from the \"%s\" template%s. Multi-fields within multi-fields "
+                        + "are not supported in 8.0.",
+                    String.join(",", templatesContainingChainedMultiFields.keySet()),
+                    templatesContainingChainedMultiFields.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Check templates that use `fields` within `fields` blocks of dynamic templates
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkTemplatesWithChainedMultiFieldsInDynamicTemplates(ClusterState state) {
+        Map<String, List<String>> templatesContainingChainedMultiFields = new HashMap<>();
+        state.getMetadata().getTemplates().forEach((templateCursor) -> {
+            String templateName = templateCursor.key;
+            templateCursor.value.getMappings().forEach((mappingCursor) -> {
+                String type = mappingCursor.key;
+                // There should be the type name at this level, but there was a bug where mappings could be stored without a type (#45120)
+                // to make sure, we try to detect this like we try to do in MappingMetadata#sourceAsMap()
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappingCursor.value.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey(type)) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get(type);
+                }
+                List<String> mappingIssues = IndexDeprecationChecks.findInDynamicTemplates(
+                    type,
+                    mapping,
+                    IndexDeprecationChecks::containsMappingWithChainedMultiFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                );
+                if (mappingIssues.size() > 0) {
+                    templatesContainingChainedMultiFields.put(templateName, mappingIssues);
+                }
+            });
+        });
+        if (templatesContainingChainedMultiFields.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining multi-fields within multi-fields on index template dynamic_templates is deprecated",
+                "https://ela.st/es-deprecation-7-chained-multi-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove chained multi-fields from the \"%s\" template%s. Multi-fields within multi-fields "
+                        + "are not supported in 8.0.",
+                    String.join(",", templatesContainingChainedMultiFields.keySet()),
+                    templatesContainingChainedMultiFields.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Check component templates that use `fields` within `fields` blocks
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkComponentTemplatesWithChainedMultiFields(ClusterState state) {
+        Map<String, List<String>> templatesContainingChainedMultiFields = new HashMap<>();
+        state.getMetadata().componentTemplates().forEach((templateName, componentTemplate) -> {
+            CompressedXContent mappings = componentTemplate.template().mappings();
+            if (mappings != null) {
+                // Component templates root their mapping data under the "_doc" mapping type. Unpack it if that is the case.
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappings.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey("_doc")) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get("_doc");
+                }
+                List<String> mappingIssues = IndexDeprecationChecks.findInPropertiesRecursively(
+                    "_doc",
+                    mapping,
+                    IndexDeprecationChecks::containsChainedMultiFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                );
+                if (mappingIssues.size() > 0) {
+                    templatesContainingChainedMultiFields.put(templateName, mappingIssues);
+                }
+            }
+        });
+        if (templatesContainingChainedMultiFields.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining multi-fields within multi-fields on component templates is deprecated",
+                "https://ela.st/es-deprecation-7-chained-multi-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove chained multi-fields from the \"%s\" component template%s. Multi-fields within multi-fields "
+                        + "are not supported in 8.0.",
+                    String.join(",", templatesContainingChainedMultiFields.keySet()),
+                    templatesContainingChainedMultiFields.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Check component templates that use `fields` within `fields` blocks of dynamic templates
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkComponentTemplatesWithChainedMultiFieldsInDynamicTemplates(ClusterState state) {
+        Map<String, List<String>> templatesContainingChainedMultiFields = new HashMap<>();
+        state.getMetadata().componentTemplates().forEach((templateName, componentTemplate) -> {
+            CompressedXContent mappings = componentTemplate.template().mappings();
+            if (mappings != null) {
+                // Component templates root their mapping data under the "_doc" mapping type. Unpack it if that is the case.
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappings.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey("_doc")) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get("_doc");
+                }
+                logger.info("Checking component template {}, contents: [{}]", templateName, mapping);
+                List<String> mappingIssues = IndexDeprecationChecks.findInDynamicTemplates(
+                    "_doc",
+                    mapping,
+                    IndexDeprecationChecks::containsMappingWithChainedMultiFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                );
+                if (mappingIssues.size() > 0) {
+                    templatesContainingChainedMultiFields.put(templateName, mappingIssues);
+                }
+            }
+        });
+        if (templatesContainingChainedMultiFields.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining multi-fields within multi-fields on component template dynamic_templates is deprecated",
+                "https://ela.st/es-deprecation-7-chained-multi-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove chained multi-fields from the \"%s\" component template%s. Multi-fields within multi-fields "
+                        + "are not supported in 8.0.",
+                    String.join(",", templatesContainingChainedMultiFields.keySet()),
+                    templatesContainingChainedMultiFields.size() > 1 ? "s" : ""
+                ),
                 false,
                 null
             );

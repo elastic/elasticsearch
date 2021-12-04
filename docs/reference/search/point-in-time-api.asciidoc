@@ -54,7 +54,7 @@ POST /_search <1>
     }
 }
 --------------------------------------------------
-// TEST[catch:missing]
+// TEST[catch:unavailable]
 
 <1> A search request with the `pit` parameter must not specify `index`, `routing`,
 and {ref}/search-request-body.html#request-body-search-preference[`preference`]

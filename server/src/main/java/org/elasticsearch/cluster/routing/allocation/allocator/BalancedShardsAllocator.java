@@ -219,14 +219,14 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      * </ul>
      * <code>weight(node, index) = weight<sub>index</sub>(node, index) + weight<sub>node</sub>(node, index)</code>
      */
-    private static class WeightFunction {
+    public static class WeightFunction {
 
         private final float indexBalance;
         private final float shardBalance;
         private final float theta0;
         private final float theta1;
 
-        WeightFunction(float indexBalance, float shardBalance) {
+        public WeightFunction(float indexBalance, float shardBalance) {
             float sum = indexBalance + shardBalance;
             if (sum <= 0.0f) {
                 throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
@@ -237,7 +237,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             this.shardBalance = shardBalance;
         }
 
-        float weight(Balancer balancer, ModelNode node, String index) {
+        public float weight(Balancer balancer, ModelNode node, String index) {
             final float weightShard = node.numShards() - balancer.avgShardsPerNode();
             final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
             return theta0 * weightShard + theta1 * weightIndex;
@@ -274,7 +274,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         /**
          * Returns an array view on the nodes in the balancer. Nodes should not be removed from this list.
          */
-        private ModelNode[] nodesArray() {
+        public ModelNode[] nodesArray() {
             return nodes.values().toArray(new ModelNode[nodes.size()]);
         }
 
@@ -1093,7 +1093,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     }
 
-    static class ModelNode implements Iterable<ModelIndex> {
+    public static class ModelNode implements Iterable<ModelIndex> {
         private final Map<String, ModelIndex> indices = new HashMap<>();
         private int numShards = 0;
         private final RoutingNode routingNode;

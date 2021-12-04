@@ -89,6 +89,6 @@ public class Netty4BadRequestIT extends ESRestTestCase {
         final ObjectPath objectPath = ObjectPath.createFromResponse(response);
         final Map<String, Object> map = objectPath.evaluate("error");
         assertThat(map.get("type"), equalTo("media_type_header_exception"));
-        assertThat(map.get("reason"), equalTo("Invalid media-type value on header [Content-Type]"));
+        assertThat(map.get("reason"), equalTo("Invalid media-type value on headers [Content-Type]"));
     }
 }

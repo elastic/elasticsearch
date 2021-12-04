@@ -311,10 +311,10 @@ public abstract class AbstractAsyncBulkByScrollAction<
     /**
      * Process a scroll response.
      * @param lastBatchStartTimeNS the time when the last batch started. Used to calculate the throttling delay.
-     * @param lastBatchSize the size of the last batch. Used to calculate the throttling delay.
+     * @param lastBatchSizeToUse the size of the last batch. Used to calculate the throttling delay.
      * @param asyncResponse the response to process from ScrollableHitSource
      */
-    void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSize, ScrollConsumableHitsResponse asyncResponse) {
+    void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, ScrollConsumableHitsResponse asyncResponse) {
         ScrollableHitSource.Response response = asyncResponse.response();
         logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), asyncResponse.remainingHits());
         if (task.isCancelled()) {
@@ -350,7 +350,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             }
         };
         prepareBulkRequestRunnable = (AbstractRunnable) threadPool.getThreadContext().preserveContext(prepareBulkRequestRunnable);
-        worker.delayPrepareBulkRequest(threadPool, lastBatchStartTimeNS, lastBatchSize, prepareBulkRequestRunnable);
+        worker.delayPrepareBulkRequest(threadPool, lastBatchStartTimeNS, lastBatchSizeToUse, prepareBulkRequestRunnable);
     }
 
     /**

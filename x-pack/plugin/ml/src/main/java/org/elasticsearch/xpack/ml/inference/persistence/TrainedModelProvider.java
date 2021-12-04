@@ -35,6 +35,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -1219,14 +1220,16 @@ public class TrainedModelProvider {
         return results;
     }
 
-    private static BytesReference getDefinitionFromDocs(List<TrainedModelDefinitionDoc> docs, String modelId)
-        throws ElasticsearchException {
+    static BytesReference getDefinitionFromDocs(List<TrainedModelDefinitionDoc> docs, String modelId) throws ElasticsearchException {
 
-        BytesReference[] bb = new BytesReference[docs.size()];
-        for (int i = 0; i < docs.size(); i++) {
-            bb[i] = docs.get(i).getBinaryData();
-        }
-        BytesReference bytes = CompositeBytesReference.of(bb);
+        // If the user requested the compressed data string, we need access to the underlying bytes.
+        // BytesArray gives us that access.
+        BytesReference bytes = docs.size() == 1
+            ? docs.get(0).getBinaryData()
+            : new BytesArray(
+                CompositeBytesReference.of(docs.stream().map(TrainedModelDefinitionDoc::getBinaryData).toArray(BytesReference[]::new))
+                    .toBytesRef()
+            );
 
         if (docs.get(0).getTotalDefinitionLength() != null) {
             if (bytes.length() != docs.get(0).getTotalDefinitionLength()) {
@@ -1264,7 +1267,6 @@ public class TrainedModelProvider {
                 // lang ident model were the only models supported. Models created after
                 // VERSION_3RD_PARTY_CONFIG_ADDED must have modelType set, if not set modelType
                 // is a tree ensemble
-                assert builder.getVersion().before(TrainedModelConfig.VERSION_3RD_PARTY_CONFIG_ADDED);
                 builder.setModelType(TrainedModelType.TREE_ENSEMBLE);
             }
             return builder;

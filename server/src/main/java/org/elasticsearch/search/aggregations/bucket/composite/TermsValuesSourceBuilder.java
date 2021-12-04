@@ -168,11 +168,10 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
                     if (valuesSourceConfig.hasOrdinals() && reader instanceof DirectoryReader) {
                         ValuesSource.Bytes.WithOrdinals vs = (ValuesSource.Bytes.WithOrdinals) compositeValuesSourceConfig.valuesSource();
-                        return new OrdinalValuesSource(
+                        return new GlobalOrdinalValuesSource(
                             bigArrays,
-                            addRequestCircuitBreakerBytes,
                             compositeValuesSourceConfig.fieldType(),
-                            vs::ordinalsValues,
+                            vs::globalOrdinalsValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
                             compositeValuesSourceConfig.missingOrder(),

@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -161,7 +160,7 @@ public final class TransformNodes {
     public static void warnIfNoTransformNodes(ClusterState clusterState) {
         if (TransformMetadata.getTransformMetadata(clusterState).isResetMode() == false) {
             if (hasAnyTransformNode(clusterState.getNodes()) == false) {
-                HeaderWarning.addWarning(DeprecationLogger.CRITICAL, TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
+                HeaderWarning.addWarning(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
             }
         }
     }

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[eql-syntax]]
 == EQL syntax reference
 ++++

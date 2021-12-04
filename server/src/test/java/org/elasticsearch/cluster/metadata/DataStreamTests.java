@@ -99,7 +99,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         DataStream original = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
         DataStream updated = original.removeBackingIndex(indices.get(indexToRemove - 1));
         assertThat(updated.getName(), equalTo(original.getName()));
-        assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
+        assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
         assertThat(updated.getTimeStampField(), equalTo(original.getTimeStampField()));
         assertThat(updated.getIndices().size(), equalTo(numBackingIndices - 1));
         for (int k = 0; k < (numBackingIndices - 1); k++) {
@@ -355,7 +355,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
         DataStream updated = original.replaceBackingIndex(indices.get(indexToReplace), newBackingIndex);
         assertThat(updated.getName(), equalTo(original.getName()));
-        assertThat(updated.getGeneration(), equalTo(original.getGeneration()));
+        assertThat(updated.getGeneration(), equalTo(original.getGeneration() + 1));
         assertThat(updated.getTimeStampField(), equalTo(original.getTimeStampField()));
         assertThat(updated.getIndices().size(), equalTo(numBackingIndices));
         assertThat(updated.getIndices().get(indexToReplace), equalTo(newBackingIndex));
@@ -391,10 +391,25 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         for (int i = 1; i <= numBackingIndices; i++) {
             indices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, i), UUIDs.randomBase64UUID(random())));
         }
-        DataStream original = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices);
+        int generation = randomBoolean() ? numBackingIndices : numBackingIndices + randomIntBetween(1, 5);
+        DataStream original = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation, null);
 
         Index newBackingIndex = new Index("replacement-index", UUIDs.randomBase64UUID(random()));
-        expectThrows(IllegalArgumentException.class, () -> original.replaceBackingIndex(indices.get(writeIndexPosition), newBackingIndex));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> original.replaceBackingIndex(indices.get(writeIndexPosition), newBackingIndex)
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                String.format(
+                    Locale.ROOT,
+                    "cannot replace backing index [%s] of data stream [%s] because it is the write index",
+                    indices.get(writeIndexPosition).getName(),
+                    dataStreamName
+                )
+            )
+        );
     }
 
     public void testSnapshot() {

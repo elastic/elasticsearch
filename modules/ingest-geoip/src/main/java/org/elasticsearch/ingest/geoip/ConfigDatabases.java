@@ -53,7 +53,7 @@ final class ConfigDatabases implements Closeable {
     }
 
     void initialize(ResourceWatcherService resourceWatcher) throws IOException {
-        configDatabases.putAll(initConfigDatabases(geoipConfigDir));
+        configDatabases.putAll(initConfigDatabases());
 
         FileWatcher watcher = new FileWatcher(geoipConfigDir);
         watcher.addListener(new GeoipDirectoryListener());
@@ -91,7 +91,7 @@ final class ConfigDatabases implements Closeable {
         }
     }
 
-    Map<String, DatabaseReaderLazyLoader> initConfigDatabases(Path geoipConfigDir) throws IOException {
+    Map<String, DatabaseReaderLazyLoader> initConfigDatabases() throws IOException {
         Map<String, DatabaseReaderLazyLoader> databases = new HashMap<>();
 
         if (geoipConfigDir != null && Files.exists(geoipConfigDir)) {

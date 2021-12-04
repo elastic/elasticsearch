@@ -29,7 +29,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> defaultMapper.parse(
                 new SourceToParse(
-                    "test",
                     "1",
                     new BytesArray(
                         " {\n"

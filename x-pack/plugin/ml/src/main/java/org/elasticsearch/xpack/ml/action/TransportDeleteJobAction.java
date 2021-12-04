@@ -361,7 +361,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                 CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
                 cancelTasksRequest.setReason("deleting job");
                 cancelTasksRequest.setActions(ResetJobAction.NAME);
-                cancelTasksRequest.setTaskId(job.getBlocked().getTaskId());
+                cancelTasksRequest.setTargetTaskId(job.getBlocked().getTaskId());
                 executeAsyncWithOrigin(
                     client,
                     ML_ORIGIN,

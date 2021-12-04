@@ -44,7 +44,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder().startObject().field("field", "value").startArray("nested").endArray().endObject()
@@ -67,7 +66,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -92,7 +90,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -153,7 +150,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -244,7 +240,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -336,7 +331,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -431,7 +425,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -525,7 +518,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -632,7 +624,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -716,7 +707,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -762,7 +752,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -857,7 +846,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             docBuilder.endArray();
         }
         docBuilder.endObject();
-        SourceToParse source1 = new SourceToParse("test1", "1", BytesReference.bytes(docBuilder), XContentType.JSON);
+        SourceToParse source1 = new SourceToParse("1", BytesReference.bytes(docBuilder), XContentType.JSON);
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source1));
         assertEquals(
             "The number of nested documents has exceeded the allowed limit of ["
@@ -888,7 +877,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             docBuilder.endArray();
         }
         docBuilder.endObject();
-        SourceToParse source1 = new SourceToParse("test1", "1", BytesReference.bytes(docBuilder), XContentType.JSON);
+        SourceToParse source1 = new SourceToParse("1", BytesReference.bytes(docBuilder), XContentType.JSON);
         ParsedDocument doc = docMapper.parse(source1);
         assertThat(doc.docs().size(), equalTo(3));
 
@@ -905,7 +894,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             docBuilder2.endArray();
         }
         docBuilder2.endObject();
-        SourceToParse source2 = new SourceToParse("test1", "2", BytesReference.bytes(docBuilder2), XContentType.JSON);
+        SourceToParse source2 = new SourceToParse("2", BytesReference.bytes(docBuilder2), XContentType.JSON);
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source2));
         assertEquals(
             "The number of nested documents has exceeded the allowed limit of ["
@@ -942,7 +931,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             docBuilder.endArray();
         }
         docBuilder.endObject();
-        SourceToParse source1 = new SourceToParse("test1", "1", BytesReference.bytes(docBuilder), XContentType.JSON);
+        SourceToParse source1 = new SourceToParse("1", BytesReference.bytes(docBuilder), XContentType.JSON);
         ParsedDocument doc = docMapper.parse(source1);
         assertThat(doc.docs().size(), equalTo(3));
 
@@ -964,7 +953,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         }
         docBuilder2.endObject();
-        SourceToParse source2 = new SourceToParse("test1", "2", BytesReference.bytes(docBuilder2), XContentType.JSON);
+        SourceToParse source2 = new SourceToParse("2", BytesReference.bytes(docBuilder2), XContentType.JSON);
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> docMapper.parse(source2));
         assertEquals(
             "The number of nested documents has exceeded the allowed limit of ["
@@ -991,7 +980,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(
                     XContentFactory.jsonBuilder()
@@ -1214,7 +1202,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             nested1.endObject();
         });
         b.endObject();
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(b), XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("1", BytesReference.bytes(b), XContentType.JSON));
 
         // Note doc values are disabled for field "integer2",
         // so the document only contains an IntPoint field whose stringValue method always returns null.
@@ -1292,7 +1280,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             nested1.endObject();
         });
         b.endObject();
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(b), XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("1", BytesReference.bytes(b), XContentType.JSON));
 
         // Note doc values are disabled for field "integer2",
         // so the document only contains an IntPoint field whose stringValue method always returns null.
@@ -1371,7 +1359,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             nested1.endObject();
         });
         b.endObject();
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(b), XContentType.JSON));
+        ParsedDocument doc = docMapper.parse(new SourceToParse("1", BytesReference.bytes(b), XContentType.JSON));
 
         // Note doc values are disabled for field "integer2",
         // so the document only contains an IntPoint field whose stringValue method always returns null.

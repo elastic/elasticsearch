@@ -18,9 +18,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.core.Types.forciblyCast;
@@ -60,7 +58,6 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
 
     private LongArray docCounts;
     private boolean afterKeyIsSet = false;
-    private int leafReaderOrd = -1; // current LeafReaderContext ordinal
 
     /**
      * Constructs a composite queue with the specified size and sources.
@@ -237,26 +234,14 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         throws IOException {
         int last = arrays.length - 1;
         LeafBucketCollector collector = in;
-        boolean requiresRehashingWhenSwitchingLeafReaders = false;
         while (last > 0) {
-            SingleDimensionValuesSource<?> valuesSource = arrays[last--];
-            requiresRehashingWhenSwitchingLeafReaders |= valuesSource.requiresRehashingWhenSwitchingLeafReaders();
-            collector = valuesSource.getLeafCollector(context, collector);
+            collector = arrays[last--].getLeafCollector(context, collector);
         }
-        SingleDimensionValuesSource<?> valuesSource = arrays[last];
-        requiresRehashingWhenSwitchingLeafReaders |= valuesSource.requiresRehashingWhenSwitchingLeafReaders();
         if (forceLeadSourceValue != null) {
-            collector = valuesSource.getLeafCollector(forciblyCast(forceLeadSourceValue), context, collector);
+            collector = arrays[last].getLeafCollector(forciblyCast(forceLeadSourceValue), context, collector);
         } else {
-            collector = valuesSource.getLeafCollector(context, collector);
+            collector = arrays[last].getLeafCollector(context, collector);
         }
-        boolean switchedLeafReaders = context.ord != leafReaderOrd;
-        if (map.isEmpty() == false && requiresRehashingWhenSwitchingLeafReaders && switchedLeafReaders) {
-            List<Map.Entry<Slot, Integer>> entries = new ArrayList<>(map.entrySet());
-            map.clear();
-            entries.forEach(e -> map.put(e.getKey(), e.getValue()));
-        }
-        leafReaderOrd = context.ord;
         return collector;
     }
 

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.indices.stats;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -68,6 +66,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
@@ -822,12 +821,12 @@ public class IndexStatsIT extends ESIntegTestCase {
         assertThat(stats.getTotal().getSegments().getCount(), equalTo((long) test1.totalNumShards));
         if (includeSegmentFileSizes) {
             assertThat(stats.getTotal().getSegments().getFiles().size(), greaterThan(0));
-            for (ObjectObjectCursor<String, SegmentsStats.FileStats> cursor : stats.getTotal().getSegments().getFiles()) {
-                assertThat(cursor.value.getExt(), notNullValue());
-                assertThat(cursor.value.getTotal(), greaterThan(0L));
-                assertThat(cursor.value.getCount(), greaterThan(0L));
-                assertThat(cursor.value.getMin(), greaterThan(0L));
-                assertThat(cursor.value.getMax(), greaterThan(0L));
+            for (Map.Entry<String, SegmentsStats.FileStats> cursor : stats.getTotal().getSegments().getFiles().entrySet()) {
+                assertThat(cursor.getValue().getExt(), notNullValue());
+                assertThat(cursor.getValue().getTotal(), greaterThan(0L));
+                assertThat(cursor.getValue().getCount(), greaterThan(0L));
+                assertThat(cursor.getValue().getMin(), greaterThan(0L));
+                assertThat(cursor.getValue().getMax(), greaterThan(0L));
             }
         }
     }

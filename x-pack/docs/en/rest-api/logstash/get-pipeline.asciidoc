@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[logstash-api-get-pipeline]]
 === Get pipeline API
 ++++

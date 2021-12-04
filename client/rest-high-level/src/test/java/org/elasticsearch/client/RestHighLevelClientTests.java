@@ -381,7 +381,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         {
             TrackingActionListener trackingActionListener = new TrackingActionListener();
             restHighLevelClient.performRequestAsync(request, null, RequestOptions.DEFAULT, null, trackingActionListener, null);
-            assertSame(validationException, trackingActionListener.exception.get());
+            assertSame(validationException, trackingActionListener.lastException.get());
         }
     }
 
@@ -707,8 +707,8 @@ public class RestHighLevelClientTests extends ESTestCase {
             RestStatus restStatus = randomFrom(RestStatus.values());
             HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
             responseListener.onSuccess(new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse));
-            assertNull(trackingActionListener.exception.get());
-            assertEquals(restStatus.getStatus(), trackingActionListener.statusCode.get());
+            assertNull(trackingActionListener.lastException.get());
+            assertEquals(restStatus.getStatus(), trackingActionListener.lastStatusCode.get());
         }
         {
             TrackingActionListener trackingActionListener = new TrackingActionListener();
@@ -720,8 +720,8 @@ public class RestHighLevelClientTests extends ESTestCase {
             RestStatus restStatus = randomFrom(RestStatus.values());
             HttpResponse httpResponse = new BasicHttpResponse(newStatusLine(restStatus));
             responseListener.onSuccess(new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse));
-            assertThat(trackingActionListener.exception.get(), instanceOf(IOException.class));
-            IOException ioe = (IOException) trackingActionListener.exception.get();
+            assertThat(trackingActionListener.lastException.get(), instanceOf(IOException.class));
+            IOException ioe = (IOException) trackingActionListener.lastException.get();
             assertEquals(
                 "Unable to parse response body for Response{requestLine=GET / http/1.1, host=http://localhost:9200, "
                     + "response=http/1.1 "
@@ -744,7 +744,7 @@ public class RestHighLevelClientTests extends ESTestCase {
         );
         IllegalStateException exception = new IllegalStateException();
         responseListener.onFailure(exception);
-        assertSame(exception, trackingActionListener.exception.get());
+        assertSame(exception, trackingActionListener.lastException.get());
     }
 
     public void testWrapResponseListenerOnResponseExceptionWithoutEntity() throws IOException {
@@ -759,8 +759,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(response);
         responseListener.onFailure(responseException);
-        assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
-        ElasticsearchException elasticsearchException = (ElasticsearchException) trackingActionListener.exception.get();
+        assertThat(trackingActionListener.lastException.get(), instanceOf(ElasticsearchException.class));
+        ElasticsearchException elasticsearchException = (ElasticsearchException) trackingActionListener.lastException.get();
         assertEquals(responseException.getMessage(), elasticsearchException.getMessage());
         assertEquals(restStatus, elasticsearchException.status());
         assertSame(responseException, elasticsearchException.getCause());
@@ -781,8 +781,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(response);
         responseListener.onFailure(responseException);
-        assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
-        ElasticsearchException elasticsearchException = (ElasticsearchException) trackingActionListener.exception.get();
+        assertThat(trackingActionListener.lastException.get(), instanceOf(ElasticsearchException.class));
+        ElasticsearchException elasticsearchException = (ElasticsearchException) trackingActionListener.lastException.get();
         assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
         assertEquals(restStatus, elasticsearchException.status());
         assertSame(responseException, elasticsearchException.getSuppressed()[0]);
@@ -802,8 +802,8 @@ public class RestHighLevelClientTests extends ESTestCase {
             Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             responseListener.onFailure(responseException);
-            assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
-            ElasticsearchException elasticsearchException = (ElasticsearchException) trackingActionListener.exception.get();
+            assertThat(trackingActionListener.lastException.get(), instanceOf(ElasticsearchException.class));
+            ElasticsearchException elasticsearchException = (ElasticsearchException) trackingActionListener.lastException.get();
             assertEquals("Unable to parse response body", elasticsearchException.getMessage());
             assertEquals(restStatus, elasticsearchException.status());
             assertSame(responseException, elasticsearchException.getCause());
@@ -822,8 +822,8 @@ public class RestHighLevelClientTests extends ESTestCase {
             Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
             ResponseException responseException = new ResponseException(response);
             responseListener.onFailure(responseException);
-            assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
-            ElasticsearchException elasticsearchException = (ElasticsearchException) trackingActionListener.exception.get();
+            assertThat(trackingActionListener.lastException.get(), instanceOf(ElasticsearchException.class));
+            ElasticsearchException elasticsearchException = (ElasticsearchException) trackingActionListener.lastException.get();
             assertEquals("Unable to parse response body", elasticsearchException.getMessage());
             assertEquals(restStatus, elasticsearchException.status());
             assertSame(responseException, elasticsearchException.getCause());
@@ -843,8 +843,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         ResponseException responseException = new ResponseException(response);
         responseListener.onFailure(responseException);
         // although we got an exception, we turn it into a successful response because the status code was provided among ignores
-        assertNull(trackingActionListener.exception.get());
-        assertEquals(404, trackingActionListener.statusCode.get());
+        assertNull(trackingActionListener.lastException.get());
+        assertEquals(404, trackingActionListener.lastStatusCode.get());
     }
 
     public void testWrapResponseListenerOnResponseExceptionWithIgnoresErrorNoBody() throws IOException {
@@ -860,8 +860,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(response);
         responseListener.onFailure(responseException);
-        assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
-        ElasticsearchException elasticsearchException = (ElasticsearchException) trackingActionListener.exception.get();
+        assertThat(trackingActionListener.lastException.get(), instanceOf(ElasticsearchException.class));
+        ElasticsearchException elasticsearchException = (ElasticsearchException) trackingActionListener.lastException.get();
         assertEquals(RestStatus.NOT_FOUND, elasticsearchException.status());
         assertSame(responseException, elasticsearchException.getCause());
         assertEquals(responseException.getMessage(), elasticsearchException.getMessage());
@@ -881,8 +881,8 @@ public class RestHighLevelClientTests extends ESTestCase {
         Response response = new Response(REQUEST_LINE, new HttpHost("localhost", 9200), httpResponse);
         ResponseException responseException = new ResponseException(response);
         responseListener.onFailure(responseException);
-        assertThat(trackingActionListener.exception.get(), instanceOf(ElasticsearchException.class));
-        ElasticsearchException elasticsearchException = (ElasticsearchException) trackingActionListener.exception.get();
+        assertThat(trackingActionListener.lastException.get(), instanceOf(ElasticsearchException.class));
+        ElasticsearchException elasticsearchException = (ElasticsearchException) trackingActionListener.lastException.get();
         assertEquals(RestStatus.NOT_FOUND, elasticsearchException.status());
         assertSame(responseException, elasticsearchException.getSuppressed()[0]);
         assertEquals("Elasticsearch exception [type=exception, reason=test error message]", elasticsearchException.getMessage());
@@ -1314,7 +1314,7 @@ public class RestHighLevelClientTests extends ESTestCase {
 
     public void testProductCompatibilityRequestFailure() throws Exception {
 
-        RestClient restClient = mock(RestClient.class);
+        RestClient client = mock(RestClient.class);
 
         // An endpoint different from "/" that returns a boolean
         GetSourceRequest apiRequest = new GetSourceRequest("foo", "bar");
@@ -1322,28 +1322,28 @@ public class RestHighLevelClientTests extends ESTestCase {
         when(apiStatus.getStatusCode()).thenReturn(200);
         Response apiResponse = mock(Response.class);
         when(apiResponse.getStatusLine()).thenReturn(apiStatus);
-        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")::matches))).thenReturn(apiResponse);
+        when(client.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")::matches))).thenReturn(apiResponse);
 
         // Have the verification request fail
-        when(restClient.performRequestAsync(argThat(new RequestMatcher("GET", "/")::matches), any())).thenAnswer(i -> {
+        when(client.performRequestAsync(argThat(new RequestMatcher("GET", "/")::matches), any())).thenAnswer(i -> {
             ((ResponseListener) i.getArguments()[1]).onFailure(new IOException("Something bad happened"));
             return Cancellable.NO_OP;
         });
 
-        RestHighLevelClient highLevelClient = new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+        RestHighLevelClient highLevelClient = new RestHighLevelClient(client, RestClient::close, Collections.emptyList());
 
         expectThrows(ElasticsearchException.class, () -> { highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT); });
 
         // Now have the validation request succeed
         Build build = new Build(Build.Flavor.DEFAULT, Build.Type.UNKNOWN, "hash", "date", false, "7.14.0");
-        mockGetRoot(restClient, build, true);
+        mockGetRoot(client, build, true);
 
         // API request should now succeed as validation has been retried
         assertTrue(highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT));
     }
 
     public void testProductCompatibilityWithForbiddenInfoEndpoint() throws Exception {
-        RestClient restClient = mock(RestClient.class);
+        RestClient client = mock(RestClient.class);
 
         // An endpoint different from "/" that returns a boolean
         GetSourceRequest apiRequest = new GetSourceRequest("foo", "bar");
@@ -1351,10 +1351,10 @@ public class RestHighLevelClientTests extends ESTestCase {
         when(apiStatus.getStatusCode()).thenReturn(200);
         Response apiResponse = mock(Response.class);
         when(apiResponse.getStatusLine()).thenReturn(apiStatus);
-        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")::matches))).thenReturn(apiResponse);
+        when(client.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")::matches))).thenReturn(apiResponse);
 
         // Have the info endpoint used for verification return a 403 (forbidden)
-        when(restClient.performRequestAsync(argThat(new RequestMatcher("GET", "/")::matches), any())).thenAnswer(i -> {
+        when(client.performRequestAsync(argThat(new RequestMatcher("GET", "/")::matches), any())).thenAnswer(i -> {
             StatusLine infoStatus = mock(StatusLine.class);
             when(apiStatus.getStatusCode()).thenReturn(HttpStatus.SC_FORBIDDEN);
             Response infoResponse = mock(Response.class);
@@ -1363,11 +1363,11 @@ public class RestHighLevelClientTests extends ESTestCase {
             return Cancellable.NO_OP;
         });
 
-        RestHighLevelClient highLevelClient = new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+        RestHighLevelClient highLevelClient = new RestHighLevelClient(client, RestClient::close, Collections.emptyList());
 
         // API request should succeed
         Build build = new Build(Build.Flavor.DEFAULT, Build.Type.UNKNOWN, "hash", "date", false, "7.14.0");
-        mockGetRoot(restClient, build, true);
+        mockGetRoot(client, build, true);
 
         assertTrue(highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT));
     }
@@ -1655,17 +1655,17 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     private static class TrackingActionListener implements ActionListener<Integer> {
-        private final AtomicInteger statusCode = new AtomicInteger(-1);
-        private final AtomicReference<Exception> exception = new AtomicReference<>();
+        private final AtomicInteger lastStatusCode = new AtomicInteger(-1);
+        private final AtomicReference<Exception> lastException = new AtomicReference<>();
 
         @Override
         public void onResponse(Integer statusCode) {
-            assertTrue(this.statusCode.compareAndSet(-1, statusCode));
+            assertTrue(this.lastStatusCode.compareAndSet(-1, statusCode));
         }
 
         @Override
         public void onFailure(Exception e) {
-            assertTrue(exception.compareAndSet(null, e));
+            assertTrue(lastException.compareAndSet(null, e));
         }
     }
 

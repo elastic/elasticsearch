@@ -24,7 +24,7 @@
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
             JAVA11_HOME=$HOME/.java/jdk11
-            JAVA15_HOME=$HOME/.java/jdk15
+            JAVA16_HOME=$HOME/.java/jdk16
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
           $WORKSPACE/.ci/scripts/run-gradle.sh -Dbwc.checkout.align=true check

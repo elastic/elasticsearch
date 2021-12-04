@@ -45,7 +45,9 @@ public class TrainedModelConfig implements ToXContentObject {
     public static final ParseField TAGS = new ParseField("tags");
     public static final ParseField METADATA = new ParseField("metadata");
     public static final ParseField INPUT = new ParseField("input");
+    @Deprecated
     public static final ParseField ESTIMATED_HEAP_MEMORY_USAGE_BYTES = new ParseField("estimated_heap_memory_usage_bytes");
+    public static final ParseField MODEL_SIZE_BYTES = new ParseField("model_size_bytes", "estimated_heap_memory_usage_bytes");
     public static final ParseField ESTIMATED_OPERATIONS = new ParseField("estimated_operations");
     public static final ParseField LICENSE_LEVEL = new ParseField("license_level");
     public static final ParseField DEFAULT_FIELD_MAP = new ParseField("default_field_map");
@@ -70,7 +72,7 @@ public class TrainedModelConfig implements ToXContentObject {
         PARSER.declareStringArray(TrainedModelConfig.Builder::setTags, TAGS);
         PARSER.declareObject(TrainedModelConfig.Builder::setMetadata, (p, c) -> p.map(), METADATA);
         PARSER.declareObject(TrainedModelConfig.Builder::setInput, (p, c) -> TrainedModelInput.fromXContent(p), INPUT);
-        PARSER.declareLong(TrainedModelConfig.Builder::setEstimatedHeapMemory, ESTIMATED_HEAP_MEMORY_USAGE_BYTES);
+        PARSER.declareLong(TrainedModelConfig.Builder::setModelSize, MODEL_SIZE_BYTES);
         PARSER.declareLong(TrainedModelConfig.Builder::setEstimatedOperations, ESTIMATED_OPERATIONS);
         PARSER.declareString(TrainedModelConfig.Builder::setLicenseLevel, LICENSE_LEVEL);
         PARSER.declareObject(TrainedModelConfig.Builder::setDefaultFieldMap, (p, c) -> p.mapStrings(), DEFAULT_FIELD_MAP);
@@ -101,7 +103,7 @@ public class TrainedModelConfig implements ToXContentObject {
     private final List<String> tags;
     private final Map<String, Object> metadata;
     private final TrainedModelInput input;
-    private final Long estimatedHeapMemory;
+    private final Long modelSize;
     private final Long estimatedOperations;
     private final String licenseLevel;
     private final Map<String, String> defaultFieldMap;
@@ -120,7 +122,7 @@ public class TrainedModelConfig implements ToXContentObject {
         List<String> tags,
         Map<String, Object> metadata,
         TrainedModelInput input,
-        Long estimatedHeapMemory,
+        Long modelSize,
         Long estimatedOperations,
         String licenseLevel,
         Map<String, String> defaultFieldMap,
@@ -138,7 +140,7 @@ public class TrainedModelConfig implements ToXContentObject {
         this.tags = tags == null ? null : Collections.unmodifiableList(tags);
         this.metadata = metadata == null ? null : Collections.unmodifiableMap(metadata);
         this.input = input;
-        this.estimatedHeapMemory = estimatedHeapMemory;
+        this.modelSize = modelSize;
         this.estimatedOperations = estimatedOperations;
         this.licenseLevel = licenseLevel;
         this.defaultFieldMap = defaultFieldMap == null ? null : Collections.unmodifiableMap(defaultFieldMap);
@@ -195,16 +197,36 @@ public class TrainedModelConfig implements ToXContentObject {
         return input;
     }
 
+    /**
+     * @deprecated use {@link TrainedModelConfig#getModelSize()} instead
+     * @return the {@link ByteSizeValue} of the model size if available.
+     */
+    @Deprecated
     public ByteSizeValue getEstimatedHeapMemory() {
-        return estimatedHeapMemory == null ? null : new ByteSizeValue(estimatedHeapMemory);
+        return modelSize == null ? null : new ByteSizeValue(modelSize);
     }
 
+    /**
+     * @deprecated use {@link TrainedModelConfig#getModelSizeBytes()} instead
+     * @return the model size in bytes if available.
+     */
+    @Deprecated
     public Long getEstimatedHeapMemoryBytes() {
-        return estimatedHeapMemory;
+        return modelSize;
     }
 
-    public Long getEstimatedOperations() {
-        return estimatedOperations;
+    /**
+     * @return the {@link ByteSizeValue} of the model size if available.
+     */
+    public ByteSizeValue getModelSize() {
+        return modelSize == null ? null : new ByteSizeValue(modelSize);
+    }
+
+    /**
+     * @return the model size in bytes if available.
+     */
+    public Long getModelSizeBytes() {
+        return modelSize;
     }
 
     public String getLicenseLevel() {
@@ -256,8 +278,8 @@ public class TrainedModelConfig implements ToXContentObject {
         if (input != null) {
             builder.field(INPUT.getPreferredName(), input);
         }
-        if (estimatedHeapMemory != null) {
-            builder.field(ESTIMATED_HEAP_MEMORY_USAGE_BYTES.getPreferredName(), estimatedHeapMemory);
+        if (modelSize != null) {
+            builder.field(MODEL_SIZE_BYTES.getPreferredName(), modelSize);
         }
         if (estimatedOperations != null) {
             builder.field(ESTIMATED_OPERATIONS.getPreferredName(), estimatedOperations);
@@ -301,7 +323,7 @@ public class TrainedModelConfig implements ToXContentObject {
             && Objects.equals(compressedDefinition, that.compressedDefinition)
             && Objects.equals(tags, that.tags)
             && Objects.equals(input, that.input)
-            && Objects.equals(estimatedHeapMemory, that.estimatedHeapMemory)
+            && Objects.equals(modelSize, that.modelSize)
             && Objects.equals(estimatedOperations, that.estimatedOperations)
             && Objects.equals(licenseLevel, that.licenseLevel)
             && Objects.equals(defaultFieldMap, that.defaultFieldMap)
@@ -322,7 +344,7 @@ public class TrainedModelConfig implements ToXContentObject {
             compressedDefinition,
             description,
             tags,
-            estimatedHeapMemory,
+            modelSize,
             estimatedOperations,
             metadata,
             licenseLevel,
@@ -346,7 +368,7 @@ public class TrainedModelConfig implements ToXContentObject {
         private TrainedModelDefinition definition;
         private String compressedDefinition;
         private TrainedModelInput input;
-        private Long estimatedHeapMemory;
+        private Long modelSize;
         private Long estimatedOperations;
         private String licenseLevel;
         private Map<String, String> defaultFieldMap;
@@ -431,8 +453,8 @@ public class TrainedModelConfig implements ToXContentObject {
             return this;
         }
 
-        private Builder setEstimatedHeapMemory(Long estimatedHeapMemory) {
-            this.estimatedHeapMemory = estimatedHeapMemory;
+        private Builder setModelSize(Long modelSize) {
+            this.modelSize = modelSize;
             return this;
         }
 
@@ -469,7 +491,7 @@ public class TrainedModelConfig implements ToXContentObject {
                 tags,
                 metadata,
                 input,
-                estimatedHeapMemory,
+                modelSize,
                 estimatedOperations,
                 licenseLevel,
                 defaultFieldMap,

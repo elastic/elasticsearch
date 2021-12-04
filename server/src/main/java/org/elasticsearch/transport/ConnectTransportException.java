@@ -8,6 +8,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,8 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 public class ConnectTransportException extends ActionTransportException {
-
-    private final DiscoveryNode node;
 
     public ConnectTransportException(DiscoveryNode node, String msg) {
         this(node, msg, null, null);
@@ -32,21 +31,20 @@ public class ConnectTransportException extends ActionTransportException {
 
     public ConnectTransportException(DiscoveryNode node, String msg, String action, Throwable cause) {
         super(node == null ? null : node.getName(), node == null ? null : node.getAddress(), action, msg, cause);
-        this.node = node;
     }
 
     public ConnectTransportException(StreamInput in) throws IOException {
         super(in);
-        node = in.readOptionalWriteable(DiscoveryNode::new);
+        if (in.getVersion().before(Version.V_8_1_0)) {
+            in.readOptionalWriteable(DiscoveryNode::new);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalWriteable(node);
-    }
-
-    public DiscoveryNode node() {
-        return node;
+        if (out.getVersion().before(Version.V_8_1_0)) {
+            out.writeMissingWriteable(DiscoveryNode.class);
+        }
     }
 }

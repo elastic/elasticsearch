@@ -48,7 +48,9 @@ final class GeoIpCache {
         AbstractResponse response = cache.get(cacheKey);
         if (response == null) {
             response = retrieveFunction.apply(ip);
-            cache.put(cacheKey, response);
+            if (response != null) {
+                cache.put(cacheKey, response);
+            }
         }
         return (T) response;
     }

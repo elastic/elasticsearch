@@ -56,12 +56,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         long seqNo = -1;
         for (int i = 0; i < 8; i++) {
             final String id = Long.toString(i);
-            SourceToParse sourceToParse = new SourceToParse(
-                indexShard.shardId().getIndexName(),
-                id,
-                new BytesArray("{}"),
-                XContentType.JSON
-            );
+            SourceToParse sourceToParse = new SourceToParse(id, new BytesArray("{}"), XContentType.JSON);
             indexShard.applyIndexOperationOnReplica(
                 ++seqNo,
                 indexShard.getOperationPrimaryTerm(),
@@ -73,7 +68,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
         }
         long seqNoBeforeGap = seqNo;
         seqNo += 8;
-        SourceToParse sourceToParse = new SourceToParse(indexShard.shardId().getIndexName(), "9", new BytesArray("{}"), XContentType.JSON);
+        SourceToParse sourceToParse = new SourceToParse("9", new BytesArray("{}"), XContentType.JSON);
         indexShard.applyIndexOperationOnReplica(
             seqNo,
             indexShard.getOperationPrimaryTerm(),

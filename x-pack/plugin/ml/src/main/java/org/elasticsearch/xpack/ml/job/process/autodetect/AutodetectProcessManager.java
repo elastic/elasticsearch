@@ -404,13 +404,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         // Step 3. Set scheduled events on message and write update process message
         ActionListener<QueryPage<ScheduledEvent>> eventsListener = ActionListener.wrap(events -> {
             updateProcessMessage.setScheduledEvents(events == null ? null : events.results());
-            communicator.writeUpdateProcessMessage(updateProcessMessage.build(), (aVoid, e) -> {
-                if (e == null) {
-                    handler.accept(null);
-                } else {
-                    handler.accept(e);
-                }
-            });
+            communicator.writeUpdateProcessMessage(updateProcessMessage.build(), (aVoid, e) -> handler.accept(e));
         }, handler);
 
         // Step 2. Set the filters on the message and get scheduled events
@@ -545,20 +539,18 @@ public class AutodetectProcessManager implements ClusterStateListener {
 
         // Start the process
         ActionListener<Boolean> stateAliasHandler = ActionListener.wrap(
-            r -> {
-                jobManager.getJob(
-                    jobId,
-                    ActionListener.wrap(job -> startProcess(jobTask, job, closeHandler), e -> closeHandler.accept(e, true))
-                );
-            },
+            r -> jobManager.getJob(
+                jobId,
+                ActionListener.wrap(job -> startProcess(jobTask, job, closeHandler), e -> closeHandler.accept(e, true))
+            ),
             e -> {
                 if (ExceptionsHelper.unwrapCause(e) instanceof InvalidAliasNameException) {
                     String msg = "Detected a problem with your setup of machine learning, the state index alias ["
                         + AnomalyDetectorsIndex.jobStateIndexWriteAlias()
                         + "] exists as index but must be an alias.";
                     logger.error(new ParameterizedMessage("[{}] {}", jobId, msg), e);
-                    auditor.error(jobId, msg);
-                    setJobState(jobTask, JobState.FAILED, msg, e2 -> closeHandler.accept(e, true));
+                    // The close handler is responsible for auditing this and setting the job state to failed
+                    closeHandler.accept(new IllegalStateException(msg, e), true);
                 } else {
                     closeHandler.accept(e, true);
                 }

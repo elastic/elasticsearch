@@ -163,7 +163,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             if (lastChunk > firstChunk) {
                 state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start));
                 updateTaskState();
-                stats = stats.successfulDownload(System.currentTimeMillis() - start).count(state.getDatabases().size());
+                stats = stats.successfulDownload(System.currentTimeMillis() - start).databasesCount(state.getDatabases().size());
                 logger.info("updated geoip database [" + name + "]");
                 deleteOldChunks(name, firstChunk);
             }

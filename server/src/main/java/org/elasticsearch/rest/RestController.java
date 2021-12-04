@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -125,6 +126,27 @@ public class RestController implements HttpServerTransport.Dispatcher {
         RestHandler handler,
         String deprecationMessage
     ) {
+        registerAsDeprecatedHandler(method, path, version, handler, deprecationMessage, null);
+    }
+
+    /**
+     * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request.
+     *
+     * @param method GET, POST, etc.
+     * @param path Path to handle (e.g. "/{index}/{type}/_bulk")
+     * @param version API version to handle (e.g. RestApiVersion.V_8)
+     * @param handler The handler to actually execute
+     * @param deprecationMessage The message to log and send as a header in the response
+     * @param deprecationLevel The deprecation log level to use for the deprecation warning, either WARN or CRITICAL
+     */
+    protected void registerAsDeprecatedHandler(
+        RestRequest.Method method,
+        String path,
+        RestApiVersion version,
+        RestHandler handler,
+        String deprecationMessage,
+        @Nullable Level deprecationLevel
+    ) {
         assert (handler instanceof DeprecationRestHandler) == false;
         if (version == RestApiVersion.current()) {
             // e.g. it was marked as deprecated in 8.x, and we're currently running 8.x
@@ -132,7 +154,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 method,
                 path,
                 version,
-                new DeprecationRestHandler(handler, method, path, deprecationMessage, deprecationLogger, false)
+                new DeprecationRestHandler(handler, method, path, deprecationLevel, deprecationMessage, deprecationLogger, false)
             );
         } else if (version == RestApiVersion.minimumSupported()) {
             // e.g. it was marked as deprecated in 7.x, and we're currently running 8.x
@@ -140,7 +162,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 method,
                 path,
                 version,
-                new DeprecationRestHandler(handler, method, path, deprecationMessage, deprecationLogger, true)
+                new DeprecationRestHandler(handler, method, path, deprecationLevel, deprecationMessage, deprecationLogger, true)
             );
         } else {
             // e.g. it was marked as deprecated in 7.x, and we're currently running *9.x*
@@ -255,7 +277,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 route.getPath(),
                 route.getRestApiVersion(),
                 handler,
-                route.getDeprecationMessage()
+                route.getDeprecationMessage(),
+                route.getDeprecationLevel()
             );
         } else {
             // it's just a normal route

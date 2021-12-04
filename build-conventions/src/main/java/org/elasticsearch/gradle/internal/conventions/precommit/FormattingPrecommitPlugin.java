@@ -14,8 +14,6 @@ import com.diffplug.gradle.spotless.SpotlessPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
-import java.util.List;
-
 /**
  * This plugin configures formatting for Java source using Spotless
  * for Gradle. Since the act of formatting existing source can interfere
@@ -43,12 +41,12 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        final boolean shouldFormatProject = PROJECT_PATHS_TO_EXCLUDE.contains(project.getPath()) == false
-            || project.getProviders().systemProperty("es.format.everything").forUseAtConfigurationTime().isPresent();
-
-        if (shouldFormatProject) {
+        project.getPluginManager().withPlugin("java-base", javaBasePlugin -> {
             project.getPlugins().apply(PrecommitTaskPlugin.class);
             project.getPlugins().apply(SpotlessPlugin.class);
+
+            // Spotless resolves required dependencies from project repositories, so we need maven central
+            project.getRepositories().mavenCentral();
 
             project.getExtensions().getByType(SpotlessExtension.class).java(java -> {
                 String importOrderPath = "build-conventions/elastic.importorder";
@@ -80,14 +78,6 @@ public class FormattingPrecommitPlugin implements Plugin<Project> {
             });
 
             project.getTasks().named("precommit").configure(precommitTask -> precommitTask.dependsOn("spotlessJavaCheck"));
-        }
+        });
     }
-
-    // Do not add new sub-projects here!
-    private static final List<String> PROJECT_PATHS_TO_EXCLUDE = List.of(
-        ":distribution:bwc:bugfix",
-        ":distribution:bwc:maintenance",
-        ":distribution:bwc:minor",
-        ":distribution:bwc:staged"
-    );
 }

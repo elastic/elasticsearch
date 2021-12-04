@@ -351,7 +351,7 @@ public class ModelLoadingService implements ClusterStateListener {
                 return;
             }
             auditNewReferencedModel(modelId);
-            trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getEstimatedHeapMemory(), modelId);
+            trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getModelSize(), modelId);
             provider.getTrainedModelForInference(modelId, consumer == Consumer.INTERNAL, ActionListener.wrap(inferenceDefinition -> {
                 try {
                     // Since we have used the previously stored estimate to help guard against OOM we need
@@ -366,7 +366,7 @@ public class ModelLoadingService implements ClusterStateListener {
                 handleLoadSuccess(modelId, consumer, trainedModelConfig, inferenceDefinition);
             }, failure -> {
                 // We failed to get the definition, remove the initial estimation.
-                trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
+                trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getModelSize());
                 logger.warn(new ParameterizedMessage("[{}] failed to load model definition", modelId), failure);
                 handleLoadFailure(modelId, failure);
             }));
@@ -403,7 +403,7 @@ public class ModelLoadingService implements ClusterStateListener {
                 return;
             }
             // Verify we can pull the model into memory without causing OOM
-            trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getEstimatedHeapMemory(), modelId);
+            trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(trainedModelConfig.getModelSize(), modelId);
             provider.getTrainedModelForInference(modelId, consumer == Consumer.INTERNAL, ActionListener.wrap(inferenceDefinition -> {
                 InferenceConfig inferenceConfig = trainedModelConfig.getInferenceConfig() == null
                     ? inferenceConfigFromTargetType(inferenceDefinition.getTargetType())
@@ -431,7 +431,7 @@ public class ModelLoadingService implements ClusterStateListener {
             },
                 // Failure getting the definition, remove the initial estimation value
                 e -> {
-                    trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
+                    trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getModelSize());
                     if (unwrapCause(e) instanceof ResourceNotFoundException) {
                         modelActionListener.onFailure(e);
                     } else {
@@ -454,14 +454,14 @@ public class ModelLoadingService implements ClusterStateListener {
         InferenceDefinition inferenceDefinition,
         TrainedModelConfig trainedModelConfig
     ) throws CircuitBreakingException {
-        long estimateDiff = inferenceDefinition.ramBytesUsed() - trainedModelConfig.getEstimatedHeapMemory();
+        long estimateDiff = inferenceDefinition.ramBytesUsed() - trainedModelConfig.getModelSize();
         if (estimateDiff < 0) {
             trainedModelCircuitBreaker.addWithoutBreaking(estimateDiff);
         } else if (estimateDiff > 0) { // rare case where estimate is now HIGHER
             try {
                 trainedModelCircuitBreaker.addEstimateBytesAndMaybeBreak(estimateDiff, modelId);
             } catch (CircuitBreakingException ex) { // if we failed here, we should remove the initial estimate as well
-                trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getEstimatedHeapMemory());
+                trainedModelCircuitBreaker.addWithoutBreaking(-trainedModelConfig.getModelSize());
                 throw ex;
             }
         }

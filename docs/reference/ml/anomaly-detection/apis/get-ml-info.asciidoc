@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[get-ml-info]]
 = Get machine learning info API
 

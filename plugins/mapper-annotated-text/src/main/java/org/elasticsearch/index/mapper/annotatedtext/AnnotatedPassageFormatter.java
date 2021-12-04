@@ -160,8 +160,8 @@ public class AnnotatedPassageFormatter extends PassageFormatter {
         int pos;
         int j = 0;
         for (Passage passage : passages) {
-            AnnotationToken[] annotations = getIntersectingAnnotations(passage.getStartOffset(), passage.getEndOffset());
-            MarkupPassage mergedMarkup = mergeAnnotations(annotations, passage);
+            AnnotationToken[] annotationTokens = getIntersectingAnnotations(passage.getStartOffset(), passage.getEndOffset());
+            MarkupPassage mergedMarkup = mergeAnnotations(annotationTokens, passage);
 
             StringBuilder sb = new StringBuilder();
             pos = passage.getStartOffset();

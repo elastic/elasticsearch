@@ -65,6 +65,7 @@ public class NativePyTorchProcess extends AbstractNativeProcess {
 
     public void writeInferenceRequest(BytesReference jsonRequest) throws IOException {
         processInStream().write(jsonRequest.array(), jsonRequest.arrayOffset(), jsonRequest.length());
+        processInStream().write('\n');
         processInStream().flush();
     }
 }

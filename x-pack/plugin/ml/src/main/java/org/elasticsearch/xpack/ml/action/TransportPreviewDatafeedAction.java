@@ -13,6 +13,8 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -53,6 +55,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
 
     private final ThreadPool threadPool;
     private final Client client;
+    private final ClusterService clusterService;
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final NamedXContentRegistry xContentRegistry;
@@ -65,6 +68,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
+        ClusterService clusterService,
         JobConfigProvider jobConfigProvider,
         DatafeedConfigProvider datafeedConfigProvider,
         NamedXContentRegistry xContentRegistry
@@ -72,6 +76,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         super(PreviewDatafeedAction.NAME, transportService, actionFilters, PreviewDatafeedAction.Request::new);
         this.threadPool = threadPool;
         this.client = client;
+        this.clusterService = clusterService;
         this.jobConfigProvider = jobConfigProvider;
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.xContentRegistry = xContentRegistry;
@@ -84,12 +89,12 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
     protected void doExecute(Task task, PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
         ActionListener<DatafeedConfig> datafeedConfigActionListener = ActionListener.wrap(datafeedConfig -> {
             if (request.getJobConfig() != null) {
-                previewDatafeed(datafeedConfig, request.getJobConfig().build(new Date()), listener);
+                previewDatafeed(task, datafeedConfig, request.getJobConfig().build(new Date()), listener);
                 return;
             }
             jobConfigProvider.getJob(
                 datafeedConfig.getJobId(),
-                ActionListener.wrap(jobBuilder -> previewDatafeed(datafeedConfig, jobBuilder.build(), listener), listener::onFailure)
+                ActionListener.wrap(jobBuilder -> previewDatafeed(task, datafeedConfig, jobBuilder.build(), listener), listener::onFailure)
             );
         }, listener::onFailure);
         if (request.getDatafeedConfig() != null) {
@@ -102,7 +107,12 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         }
     }
 
-    private void previewDatafeed(DatafeedConfig datafeedConfig, Job job, ActionListener<PreviewDatafeedAction.Response> listener) {
+    private void previewDatafeed(
+        Task task,
+        DatafeedConfig datafeedConfig,
+        Job job,
+        ActionListener<PreviewDatafeedAction.Response> listener
+    ) {
         DatafeedConfig.Builder previewDatafeedBuilder = buildPreviewDatafeed(datafeedConfig);
         useSecondaryAuthIfAvailable(securityContext, () -> {
             previewDatafeedBuilder.setHeaders(filterSecurityHeaders(threadPool.getThreadContext().getHeaders()));
@@ -111,7 +121,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             // requesting the preview doesn't have permission to search the relevant indices.
             DatafeedConfig previewDatafeedConfig = previewDatafeedBuilder.build();
             DataExtractorFactory.create(
-                client,
+                new ParentTaskAssigningClient(client, clusterService.localNode(), task),
                 previewDatafeedConfig,
                 job,
                 xContentRegistry,
@@ -119,7 +129,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy) -> {}),
                 listener.delegateFailure((l, dataExtractorFactory) -> {
                     isDateNanos(
-                        previewDatafeedConfig.getHeaders(),
+                        previewDatafeedConfig,
                         job.getDataDescription().getTimeField(),
                         listener.delegateFailure((l2, isDateNanos) -> {
                             DataExtractor dataExtractor = dataExtractorFactory.newExtractor(
@@ -151,13 +161,16 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         return previewDatafeed;
     }
 
-    private void isDateNanos(Map<String, String> headers, String timeField, ActionListener<Boolean> listener) {
+    private void isDateNanos(DatafeedConfig datafeed, String timeField, ActionListener<Boolean> listener) {
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
+        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
+        fieldCapabilitiesRequest.fields(timeField);
         executeWithHeadersAsync(
-            headers,
+            datafeed.getHeaders(),
             ML_ORIGIN,
             client,
             FieldCapabilitiesAction.INSTANCE,
-            new FieldCapabilitiesRequest().fields(timeField),
+            fieldCapabilitiesRequest,
             ActionListener.wrap(fieldCapsResponse -> {
                 Map<String, FieldCapabilities> timeFieldCaps = fieldCapsResponse.getField(timeField);
                 listener.onResponse(timeFieldCaps.keySet().contains(DateFieldMapper.DATE_NANOS_CONTENT_TYPE));

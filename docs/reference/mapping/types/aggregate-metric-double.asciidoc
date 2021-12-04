@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[aggregate-metric-double]]
 === Aggregate metric field type
 ++++

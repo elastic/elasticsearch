@@ -403,6 +403,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 onMalformed.accept(e);
             }
         }
+
+        @Override
+        public ShapeBuilder<?, ?, ?> normalizeFromSource(ShapeBuilder<?, ?, ?> geometry) {
+            return geometry;
+        }
     }
 
     public static final class GeoShapeFieldType extends AbstractShapeGeometryFieldType<ShapeBuilder<?, ?, ?>> implements GeoShapeQueryable {
@@ -446,11 +451,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         public Query geoShapeQuery(
             Geometry shape,
             String fieldName,
-            SpatialStrategy strategy,
+            SpatialStrategy spatialStrategy,
             ShapeRelation relation,
             SearchExecutionContext context
         ) {
-            return queryProcessor.geoShapeQuery(shape, fieldName, strategy, relation, context);
+            return queryProcessor.geoShapeQuery(shape, fieldName, spatialStrategy, relation, context);
         }
 
         @Override
@@ -517,8 +522,8 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             return this.defaultPrefixTreeStrategy;
         }
 
-        public PrefixTreeStrategy resolvePrefixTreeStrategy(SpatialStrategy strategy) {
-            return resolvePrefixTreeStrategy(strategy.getStrategyName());
+        public PrefixTreeStrategy resolvePrefixTreeStrategy(SpatialStrategy spatialStrategy) {
+            return resolvePrefixTreeStrategy(spatialStrategy.getStrategyName());
         }
 
         public PrefixTreeStrategy resolvePrefixTreeStrategy(String strategyName) {

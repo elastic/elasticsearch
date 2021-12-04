@@ -37,17 +37,17 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         final ClusterHealthRequest request = new ClusterHealthRequest();
         request.waitForNoInitializingShards(true);
         ClusterState clusterState = randomClusterStateWithInitializingShards("test", 0);
-        ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState, false);
+        ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(1));
 
         request.waitForNoInitializingShards(true);
         clusterState = randomClusterStateWithInitializingShards("test", between(1, 10));
-        response = new ClusterHealthResponse("", indices, clusterState, false);
+        response = new ClusterHealthResponse("", indices, clusterState);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
 
         request.waitForNoInitializingShards(false);
         clusterState = randomClusterStateWithInitializingShards("test", randomInt(20));
-        response = new ClusterHealthResponse("", indices, clusterState, false);
+        response = new ClusterHealthResponse("", indices, clusterState);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
     }
 
@@ -57,11 +57,11 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         request.waitForActiveShards(ActiveShardCount.ALL);
 
         ClusterState clusterState = randomClusterStateWithInitializingShards("test", 1);
-        ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState, false);
+        ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
 
         clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
-        response = new ClusterHealthResponse("", indices, clusterState, false);
+        response = new ClusterHealthResponse("", indices, clusterState);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(1));
     }
 

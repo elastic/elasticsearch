@@ -49,7 +49,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -63,7 +62,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     private final MetadataRolloverService rolloverService;
     private final ActiveShardsObserver activeShardsObserver;
     private final Client client;
-    private final ClusterStateTaskExecutor<RolloverTask> rolloverTaskExecutor;
+    private final RolloverExecutor rolloverTaskExecutor;
 
     @Inject
     public TransportRolloverAction(
@@ -90,33 +89,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         this.rolloverService = rolloverService;
         this.client = client;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
-        this.rolloverTaskExecutor = (currentState, tasks) -> {
-            ClusterStateTaskExecutor.ClusterTasksResult.Builder<RolloverTask> builder = ClusterStateTaskExecutor.ClusterTasksResult
-                .builder();
-            ClusterState state = currentState;
-            for (RolloverTask task : tasks) {
-                try {
-                    state = task.performRollover(state);
-                    builder.success(task);
-                } catch (Exception e) {
-                    builder.failure(task, e);
-                }
-            }
-
-            if (state != currentState) {
-                var reason = new StringBuilder();
-                Strings.collectionToDelimitedStringWithLimit(
-                    (Iterable<String>) () -> tasks.stream().map(t -> t.sourceIndex.get() + "->" + t.rolloverIndex.get()).iterator(),
-                    ",",
-                    "bulk rollover [",
-                    "]",
-                    1024,
-                    reason
-                );
-                state = allocationService.reroute(state, reason.toString());
-            }
-            return builder.build(state);
-        };
+        this.rolloverTaskExecutor = new RolloverExecutor(allocationService);
     }
 
     @Override
@@ -193,7 +166,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                     .filter(condition -> trialConditionResults.get(condition.toString()))
                     .collect(Collectors.toList());
 
-                final RolloverResponse trailRolloverResponse = new RolloverResponse(
+                final RolloverResponse trialRolloverResponse = new RolloverResponse(
                     trialSourceIndexName,
                     trialRolloverIndexName,
                     trialConditionResults,
@@ -206,11 +179,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 // Pre-check the conditions to see whether we should submit a new cluster state task
                 if (trialConditionResults.size() == 0 || trialMetConditions.size() > 0) {
                     String source = "rollover_index source [" + trialRolloverIndexName + "] to target [" + trialRolloverIndexName + "]";
-                    RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trailRolloverResponse, listener);
+                    RolloverTask rolloverTask = new RolloverTask(rolloverRequest, statsResponse, trialRolloverResponse, listener);
                     clusterService.submitStateUpdateTask(source, rolloverTask, ROLLOVER_TASK_CONFIG, rolloverTaskExecutor, rolloverTask);
                 } else {
                     // conditions not met
-                    listener.onResponse(trailRolloverResponse);
+                    listener.onResponse(trialRolloverResponse);
                 }
             }, listener::onFailure)
         );
@@ -264,7 +237,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         private final RolloverResponse trialRolloverResponse;
         private final ActionListener<RolloverResponse> listener;
 
-        private final AtomicBoolean conditionsMet = new AtomicBoolean(false);
+        private boolean clusterStateProcessed = false;
         // Holders for what our final source and rolled over index names are as well as the
         // conditions met to cause the rollover, these are needed so we wait on and report
         // the correct indices and conditions in the clusterStateProcessed method
@@ -309,7 +282,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             conditionResults.set(postConditionResults);
 
             if (postConditionResults.size() == 0 || metConditions.size() > 0) {
-                conditionsMet.set(true);
+                clusterStateProcessed = true;
                 // Perform the actual rollover
                 MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(
                     currentState,
@@ -349,7 +322,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
             // Now assuming we have a new state and the name of the rolled over index, we need to wait for the
             // configured number of active shards, as well as return the names of the indices that were rolled/created
-            if (conditionsMet.get()) {
+            if (clusterStateProcessed) {
                 assert sourceIndex.get() != null : "source index missing on successful rollover";
                 assert rolloverIndex.get() != null : "rollover index missing on successful rollover";
                 assert conditionResults.get() != null : "matching rollover conditions missing on successful rollover";
@@ -375,6 +348,44 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 // We did not roll over due to conditions not being met inside the cluster state update
                 listener.onResponse(trialRolloverResponse);
             }
+        }
+    }
+
+    static class RolloverExecutor implements ClusterStateTaskExecutor<RolloverTask> {
+
+        private final AllocationService allocationService;
+
+        RolloverExecutor(AllocationService allocationService) {
+            this.allocationService = allocationService;
+        }
+
+        @Override
+        public ClusterTasksResult<RolloverTask> execute(ClusterState currentState, List<RolloverTask> tasks) throws Exception {
+            ClusterStateTaskExecutor.ClusterTasksResult.Builder<RolloverTask> builder = ClusterStateTaskExecutor.ClusterTasksResult
+                .builder();
+            ClusterState state = currentState;
+            for (RolloverTask task : tasks) {
+                try {
+                    state = task.performRollover(state);
+                    builder.success(task);
+                } catch (Exception e) {
+                    builder.failure(task, e);
+                }
+            }
+
+            if (state != currentState) {
+                var reason = new StringBuilder();
+                Strings.collectionToDelimitedStringWithLimit(
+                    (Iterable<String>) () -> tasks.stream().map(t -> t.sourceIndex.get() + "->" + t.rolloverIndex.get()).iterator(),
+                    ",",
+                    "bulk rollover [",
+                    "]",
+                    1024,
+                    reason
+                );
+                state = allocationService.reroute(state, reason.toString());
+            }
+            return builder.build(state);
         }
     }
 }

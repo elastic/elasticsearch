@@ -19,9 +19,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.network.CloseableChannel;
+import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -38,17 +38,26 @@ final class OutboundHandler {
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
     private final Recycler<BytesRef> recycler;
+    private final HandlingTimeTracker handlingTimeTracker;
 
     private volatile long slowLogThresholdMs = Long.MAX_VALUE;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
-    OutboundHandler(String nodeName, Version version, StatsTracker statsTracker, ThreadPool threadPool, Recycler<BytesRef> recycler) {
+    OutboundHandler(
+        String nodeName,
+        Version version,
+        StatsTracker statsTracker,
+        ThreadPool threadPool,
+        Recycler<BytesRef> recycler,
+        HandlingTimeTracker handlingTimeTracker
+    ) {
         this.nodeName = nodeName;
         this.version = version;
         this.statsTracker = statsTracker;
         this.threadPool = threadPool;
         this.recycler = recycler;
+        this.handlingTimeTracker = handlingTimeTracker;
     }
 
     void setSlowLogThreshold(TimeValue slowLogThreshold) {
@@ -143,8 +152,7 @@ final class OutboundHandler {
         final Exception error
     ) throws IOException {
         Version version = Version.min(this.version, nodeVersion);
-        TransportAddress address = new TransportAddress(channel.getLocalAddress());
-        RemoteTransportException tx = new RemoteTransportException(nodeName, address, action, error);
+        RemoteTransportException tx = new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error);
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), tx, version, requestId, false, null);
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, error));
         sendMessage(channel, message, listener);
@@ -170,7 +178,7 @@ final class OutboundHandler {
         @Nullable OutboundMessage message,
         ActionListener<Void> listener
     ) {
-        final long startTime = threadPool.relativeTimeInMillis();
+        final long startTime = threadPool.rawRelativeTimeInMillis();
         channel.getChannelStats().markAccessed(startTime);
         final long messageSize = reference.length();
         TransportLogger.logOutboundMessage(channel, reference);
@@ -198,7 +206,8 @@ final class OutboundHandler {
                 private void maybeLogSlowMessage(boolean success) {
                     final long logThreshold = slowLogThresholdMs;
                     if (logThreshold > 0) {
-                        final long took = threadPool.relativeTimeInMillis() - startTime;
+                        final long took = threadPool.rawRelativeTimeInMillis() - startTime;
+                        handlingTimeTracker.addHandlingTime(took);
                         if (took > logThreshold) {
                             logger.warn(
                                 "sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn "

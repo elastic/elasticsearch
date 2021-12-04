@@ -195,7 +195,7 @@ public class Docker {
         do {
             try {
                 // Give the container a chance to exit out
-                Thread.sleep(1000);
+                Thread.sleep(2000);
 
                 if (sh.run("docker ps --quiet --no-trunc").stdout.contains(containerId) == false) {
                     isElasticsearchRunning = false;
@@ -204,7 +204,7 @@ public class Docker {
             } catch (Exception e) {
                 logger.warn("Caught exception while waiting for ES to exit", e);
             }
-        } while (attempt++ < 8);
+        } while (attempt++ < 60);
 
         if (isElasticsearchRunning) {
             final Shell.Result dockerLogs = getContainerLogs();
@@ -462,8 +462,6 @@ public class Docker {
     }
 
     private static void verifyCloudContainerInstallation(Installation es) {
-        assertThat(Path.of("/opt/plugins/plugin-wrapper.sh"), file("root", "root", p555));
-
         final String pluginArchive = "/opt/plugins/archive";
         final List<String> plugins = listContents(pluginArchive);
 
@@ -482,6 +480,15 @@ public class Docker {
         } else {
             assertThat("Cloud image should not have any plugins in " + pluginArchive, plugins, empty());
         }
+
+        // Cloud uses `wget` to install plugins / bundles.
+        Stream.of("wget")
+            .forEach(
+                cliBinary -> assertTrue(
+                    cliBinary + " ought to be available.",
+                    dockerShell.runIgnoreExitCode("bash -c  'hash " + cliBinary + "'").isSuccess()
+                )
+            );
     }
 
     public static void waitForElasticsearch(Installation installation) throws Exception {

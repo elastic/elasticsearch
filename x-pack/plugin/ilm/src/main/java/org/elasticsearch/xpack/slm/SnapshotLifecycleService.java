@@ -95,7 +95,10 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
                     cancelSnapshotJobs();
                 }
                 if (slmStopping(state)) {
-                    submitOperationModeUpdate(OperationMode.STOPPED);
+                    clusterService.submitStateUpdateTask(
+                        "slm_operation_mode_update[stopped]",
+                        OperationModeUpdateTask.slmMode(OperationMode.STOPPED)
+                    );
                 }
                 return;
             }
@@ -128,10 +131,6 @@ public class SnapshotLifecycleService implements Closeable, ClusterStateListener
             .map(SnapshotLifecycleMetadata::getOperationMode)
             .map(mode -> OperationMode.STOPPING == mode)
             .orElse(false);
-    }
-
-    public void submitOperationModeUpdate(OperationMode mode) {
-        clusterService.submitStateUpdateTask("slm_operation_mode_update", OperationModeUpdateTask.slmMode(mode));
     }
 
     /**

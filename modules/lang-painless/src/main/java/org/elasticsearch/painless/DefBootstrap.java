@@ -155,14 +155,14 @@ public final class DefBootstrap {
         /**
          * Does a slow lookup against the whitelist.
          */
-        private MethodHandle lookup(int flavor, String name, Class<?> receiver) throws Throwable {
-            switch (flavor) {
+        private MethodHandle lookup(int flavorValue, String nameValue, Class<?> receiver) throws Throwable {
+            switch (flavorValue) {
                 case METHOD_CALL:
-                    return Def.lookupMethod(painlessLookup, functions, constants, methodHandlesLookup, type(), receiver, name, args);
+                    return Def.lookupMethod(painlessLookup, functions, constants, methodHandlesLookup, type(), receiver, nameValue, args);
                 case LOAD:
-                    return Def.lookupGetter(painlessLookup, receiver, name);
+                    return Def.lookupGetter(painlessLookup, receiver, nameValue);
                 case STORE:
-                    return Def.lookupSetter(painlessLookup, receiver, name);
+                    return Def.lookupSetter(painlessLookup, receiver, nameValue);
                 case ARRAY_LOAD:
                     return Def.lookupArrayLoad(receiver);
                 case ARRAY_STORE:
@@ -170,7 +170,15 @@ public final class DefBootstrap {
                 case ITERATOR:
                     return Def.lookupIterator(receiver);
                 case REFERENCE:
-                    return Def.lookupReference(painlessLookup, functions, constants, methodHandlesLookup, (String) args[0], receiver, name);
+                    return Def.lookupReference(
+                        painlessLookup,
+                        functions,
+                        constants,
+                        methodHandlesLookup,
+                        (String) args[0],
+                        receiver,
+                        nameValue
+                    );
                 case INDEX_NORMALIZE:
                     return Def.lookupIndexNormalize(receiver);
                 default:

@@ -197,8 +197,8 @@
 ---
 "Fix IndexNotFoundException error when handling remove alias action":
   - skip:
-      version: " - 8.0.99"
-      reason: "backport pending"
+      version: " - 7.15.99"
+      reason: "Fix available from 7.16.0"
       features: allowed_warnings
 
   - do:

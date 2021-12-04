@@ -4,8 +4,8 @@
 <titleabbrev>Create snapshot</titleabbrev>
 ++++
 
-Takes a <<snapshot-restore,snapshot>> of a cluster or specified data streams and
-indices.
+<<snapshots-take-snapshot,Takes a snapshot>> of a cluster or specified data
+streams and indices.
 
 ////
 [source,console]
@@ -40,33 +40,6 @@ PUT /_snapshot/my_repository/my_snapshot
 * If the {es} {security-features} are enabled, you must have the
 `create_snapshot` or `manage` <<privileges-list-cluster,cluster privilege>> to
 use this API.
-
-[[create-snapshot-api-desc]]
-==== {api-description-title}
-
-You can use the create snapshot API to create a <<snapshot-restore,snapshot>>, which is a
-backup taken from a running {es} cluster.
-
-By default, a snapshot includes all data streams and open indices in the
-cluster, as well as the cluster state. You can change this behavior by
-specifying a list of data streams and indices to back up in the body of the
-snapshot request.
-
-NOTE: You must register a snapshot repository before performing snapshot and
-restore operations. Use the <<put-snapshot-repo-api,create or update snapshot
-repository API>> to register new repositories and update existing ones.
-
-The snapshot process is incremental. When creating a snapshot, {es} analyzes the list of files that are already stored in the repository and copies only files that were created or changed since the last snapshot. This process allows multiple snapshots to be preserved in the repository in a compact form.
-
-The snapshot process is executed in non-blocking fashion, so all indexing and searching operations can run concurrently against the data stream or index that {es} is snapshotting.
-
-A snapshot represents a point-in-time view of the moment when the snapshot was created. No records that were added to a data stream or index after the snapshot process started will be present in the snapshot.
-
-For primary shards that have not been started and are not currently relocating, the snapshot process starts immediately. If shards are in the process of starting or relocating, {es} waits for these processes to complete before taking a snapshot.
-
-IMPORTANT: While a snapshot of a particular shard is being created, this shard cannot be moved to another node. Relocating a shard during the snapshot process can interfere with rebalancing and allocation filtering. {es} can move a shard to another node (according to the current allocation filtering settings and rebalancing algorithm) only after the snapshot process completes.
-
-Besides creating a copy of each data stream and index, the snapshot process can also store global cluster metadata, including persistent cluster settings and templates. The transient settings and registered snapshot repositories are not stored as part of the snapshot.
 
 [[create-snapshot-api-path-params]]
 ==== {api-path-parms-title}
@@ -148,9 +121,9 @@ To exclude all data streams and indices, use `-*` or `none`.
 [id="{page-id}-feature-states"]
 `feature_states`::
 (Optional, array of strings)
-Feature states to include in the snapshot. To get a list of possible feature
-state values and their descriptions, use the <<get-features-api,get features
-API>>. Each feature state includes one or more system indices.
+<<feature-state,Feature states>> to include in the snapshot. To get a list of
+possible values and their descriptions, use the <<get-features-api,get features
+API>>.
 +
 If `include_global_state` is `true`, the snapshot includes all feature states by
 default. If `include_global_state` is `false`, the snapshot includes no feature

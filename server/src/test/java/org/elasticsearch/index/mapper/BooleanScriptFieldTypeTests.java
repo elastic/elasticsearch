@@ -326,7 +326,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             List<Boolean> values = randomList(0, 2, ESTestCase::randomBoolean);
             String source = "{\"foo\": " + values + "}";
             XContentParser parser = createParser(JsonXContent.jsonXContent, source);
-            SourceToParse sourceToParse = new SourceToParse("test", "test", new BytesArray(source), XContentType.JSON);
+            SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
             DocumentParserContext ctx = new TestDocumentParserContext(MappingLookup.EMPTY, null, null, null, sourceToParse) {
                 @Override
                 public XContentParser parser() {

@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -32,7 +31,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
-import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
@@ -69,6 +67,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -98,14 +97,12 @@ public class JobManager {
     private final JobConfigProvider jobConfigProvider;
     private final NamedXContentRegistry xContentRegistry;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-
-    private volatile ByteSizeValue maxModelMemoryLimit;
+    private final Supplier<ByteSizeValue> maxModelMemoryLimitSupplier;
 
     /**
      * Create a JobManager
      */
     public JobManager(
-        Settings settings,
         JobResultsProvider jobResultsProvider,
         JobResultsPersister jobResultsPersister,
         ClusterService clusterService,
@@ -114,7 +111,8 @@ public class JobManager {
         Client client,
         UpdateJobProcessNotifier updateJobProcessNotifier,
         NamedXContentRegistry xContentRegistry,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<ByteSizeValue> maxModelMemoryLimitSupplier
     ) {
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
         this.jobResultsPersister = Objects.requireNonNull(jobResultsPersister);
@@ -126,13 +124,7 @@ public class JobManager {
         this.jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         this.xContentRegistry = xContentRegistry;
         this.indexNameExpressionResolver = Objects.requireNonNull(indexNameExpressionResolver);
-        maxModelMemoryLimit = MachineLearningField.MAX_MODEL_MEMORY_LIMIT.get(settings);
-        clusterService.getClusterSettings()
-            .addSettingsUpdateConsumer(MachineLearningField.MAX_MODEL_MEMORY_LIMIT, this::setMaxModelMemoryLimit);
-    }
-
-    private void setMaxModelMemoryLimit(ByteSizeValue maxModelMemoryLimit) {
-        this.maxModelMemoryLimit = maxModelMemoryLimit;
+        this.maxModelMemoryLimitSupplier = Objects.requireNonNull(maxModelMemoryLimitSupplier);
     }
 
     public void jobExists(String jobId, ActionListener<Boolean> listener) {
@@ -240,7 +232,7 @@ public class JobManager {
         Version minNodeVersion = state.getNodes().getMinNodeVersion();
 
         Job.Builder jobBuilder = request.getJobBuilder();
-        jobBuilder.validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimit);
+        jobBuilder.validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimitSupplier.get());
         jobBuilder.validateModelSnapshotRetentionSettingsAndSetDefaults();
         validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, minNodeVersion);
 
@@ -337,7 +329,7 @@ public class JobManager {
         Runnable doUpdate = () -> jobConfigProvider.updateJobWithValidation(
             request.getJobId(),
             request.getJobUpdate(),
-            maxModelMemoryLimit,
+            maxModelMemoryLimitSupplier.get(),
             this::validate,
             ActionListener.wrap(updatedJob -> postJobUpdate(request, updatedJob, actionListener), actionListener::onFailure)
         );
@@ -679,7 +671,7 @@ public class JobManager {
         // -------
         JobUpdate update = new JobUpdate.Builder(request.getJobId()).setModelSnapshotId(modelSnapshot.getSnapshotId()).build();
 
-        jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimit, ActionListener.wrap(job -> {
+        jobConfigProvider.updateJob(request.getJobId(), update, maxModelMemoryLimitSupplier.get(), ActionListener.wrap(job -> {
             auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_REVERTED, modelSnapshot.getDescription()));
             updateHandler.accept(Boolean.TRUE);
         }, actionListener::onFailure));

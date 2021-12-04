@@ -390,6 +390,29 @@ public class DatafeedNodeSelectorTests extends ESTestCase {
             .checkDatafeedTaskCanBeCreated();
     }
 
+    public void testLocalIndexPatternWithoutMatchingIndicesAndRemoteIndexPattern() {
+        Job job = createScheduledJob("job_id").build(new Date());
+        DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Arrays.asList("missing-*", "remote:index-*"));
+
+        PersistentTasksCustomMetadata.Builder tasksBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(job.getId(), "node_id", JobState.OPENED, tasksBuilder);
+        tasks = tasksBuilder.build();
+
+        givenClusterState("foo", 1, 0);
+
+        PersistentTasksCustomMetadata.Assignment result = new DatafeedNodeSelector(
+            clusterState,
+            resolver,
+            df.getId(),
+            df.getJobId(),
+            df.getIndices(),
+            SearchRequest.DEFAULT_INDICES_OPTIONS
+        ).selectNode(makeCandidateNodes("node_id", "other_node_id"));
+        assertEquals("node_id", result.getExecutorNode());
+        new DatafeedNodeSelector(clusterState, resolver, df.getId(), df.getJobId(), df.getIndices(), SearchRequest.DEFAULT_INDICES_OPTIONS)
+            .checkDatafeedTaskCanBeCreated();
+    }
+
     public void testRemoteIndex() {
         Job job = createScheduledJob("job_id").build(new Date());
         DatafeedConfig df = createDatafeed("datafeed_id", job.getId(), Collections.singletonList("remote:foo"));

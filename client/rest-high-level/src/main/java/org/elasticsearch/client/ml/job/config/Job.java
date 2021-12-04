@@ -537,8 +537,8 @@ public class Job implements ToXContentObject {
             return this;
         }
 
-        public Builder setDataDescription(DataDescription.Builder description) {
-            dataDescription = Objects.requireNonNull(description, DATA_DESCRIPTION.getPreferredName()).build();
+        public Builder setDataDescription(DataDescription.Builder descriptionBuilder) {
+            dataDescription = Objects.requireNonNull(descriptionBuilder, DATA_DESCRIPTION.getPreferredName()).build();
             return this;
         }
 

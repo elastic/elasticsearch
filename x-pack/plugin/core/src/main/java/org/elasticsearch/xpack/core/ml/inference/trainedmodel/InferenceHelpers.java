@@ -188,11 +188,27 @@ public final class InferenceHelpers {
     }
 
     public static double[] sumDoubleArrays(double[] sumTo, double[] inc) {
+        return sumDoubleArrays(sumTo, inc, 1);
+    }
+
+    public static double[] sumDoubleArrays(double[] sumTo, double[] inc, int weight) {
         assert sumTo != null && inc != null && sumTo.length == inc.length;
         for (int i = 0; i < inc.length; i++) {
-            sumTo[i] += inc[i];
+            sumTo[i] += (inc[i] * weight);
         }
         return sumTo;
+    }
+
+    public static void divMut(double[] xs, int v) {
+        if (xs.length == 0) {
+            return;
+        }
+        if (v == 0) {
+            throw new IllegalArgumentException("unable to divide by [" + v + "] as it results in undefined behavior");
+        }
+        for (int i = 0; i < xs.length; i++) {
+            xs[i] /= v;
+        }
     }
 
     public static class TopClassificationValue {

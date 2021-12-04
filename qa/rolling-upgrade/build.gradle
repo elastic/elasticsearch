@@ -36,6 +36,9 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
     setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
     setting 'xpack.security.enabled', 'false'
+    if (BuildParams.isSnapshotBuild() == false && bwcVersion.toString() == project.version) {
+      systemProperty 'es.index_mode_feature_flag_registered', 'true'
+    }
   }
 
   String oldVersion = bwcVersion.toString()
@@ -57,6 +60,9 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
     dependsOn "${baseName}#oldClusterTest"
     useCluster baseCluster
     doFirst {
+      if (BuildParams.isSnapshotBuild() == false) {
+        baseCluster.get().nodes."${baseName}-0".systemProperty 'es.index_mode_feature_flag_registered', 'true'
+      }
       baseCluster.get().nextNodeToNextVersion()
     }
     systemProperty 'tests.rest.suite', 'mixed_cluster'
@@ -70,6 +76,9 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
     dependsOn "${baseName}#oneThirdUpgradedTest"
     useCluster baseCluster
     doFirst {
+      if (BuildParams.isSnapshotBuild() == false) {
+        baseCluster.get().nodes."${baseName}-1".systemProperty 'es.index_mode_feature_flag_registered', 'true'
+      }
       baseCluster.get().nextNodeToNextVersion()
     }
     systemProperty 'tests.rest.suite', 'mixed_cluster'
@@ -82,6 +91,9 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
   tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "${baseName}#twoThirdsUpgradedTest"
     doFirst {
+      if (BuildParams.isSnapshotBuild() == false) {
+        baseCluster.get().nodes."${baseName}-2".systemProperty 'es.index_mode_feature_flag_registered', 'true'
+      }
       baseCluster.get().nextNodeToNextVersion()
     }
     useCluster testClusters.named(baseName)
@@ -93,11 +105,5 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
 
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn tasks.named("${baseName}#upgradedClusterTest")
-  }
-}
-
-testClusters.configureEach {
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
 }

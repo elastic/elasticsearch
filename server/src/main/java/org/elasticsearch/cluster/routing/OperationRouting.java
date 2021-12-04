@@ -185,21 +185,24 @@ public class OperationRouting {
                     preference = preference.substring(index + 1);
                 }
             }
-            preferenceType = Preference.parse(preference);
-            switch (preferenceType) {
-                case PREFER_NODES:
-                    final Set<String> nodesIds = Arrays.stream(preference.substring(Preference.PREFER_NODES.type().length() + 1).split(","))
-                        .collect(Collectors.toSet());
-                    return indexShard.preferNodeActiveInitializingShardsIt(nodesIds);
-                case LOCAL:
-                    return indexShard.preferNodeActiveInitializingShardsIt(Collections.singleton(localNodeId));
-                case ONLY_LOCAL:
-                    return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
-                case ONLY_NODES:
-                    String nodeAttributes = preference.substring(Preference.ONLY_NODES.type().length() + 1);
-                    return indexShard.onlyNodeSelectorActiveInitializingShardsIt(nodeAttributes.split(","), nodes);
-                default:
-                    throw new IllegalArgumentException("unknown preference [" + preferenceType + "]");
+            if (preference.charAt(0) == '_') {
+                preferenceType = Preference.parse(preference);
+                switch (preferenceType) {
+                    case PREFER_NODES:
+                        final Set<String> nodesIds = Arrays.stream(
+                            preference.substring(Preference.PREFER_NODES.type().length() + 1).split(",")
+                        ).collect(Collectors.toSet());
+                        return indexShard.preferNodeActiveInitializingShardsIt(nodesIds);
+                    case LOCAL:
+                        return indexShard.preferNodeActiveInitializingShardsIt(Collections.singleton(localNodeId));
+                    case ONLY_LOCAL:
+                        return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
+                    case ONLY_NODES:
+                        String nodeAttributes = preference.substring(Preference.ONLY_NODES.type().length() + 1);
+                        return indexShard.onlyNodeSelectorActiveInitializingShardsIt(nodeAttributes.split(","), nodes);
+                    default:
+                        throw new IllegalArgumentException("unknown preference [" + preferenceType + "]");
+                }
             }
         }
         // if not, then use it as the index

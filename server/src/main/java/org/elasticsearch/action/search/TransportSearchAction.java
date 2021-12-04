@@ -45,8 +45,10 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -1420,14 +1422,20 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             final SearchContextIdForNode perNode = entry.getValue();
             if (Strings.isEmpty(perNode.getClusterAlias())) {
                 final ShardId shardId = entry.getKey();
-                final ShardIterator shards = OperationRouting.getShards(clusterState, shardId);
-                final List<String> targetNodes = new ArrayList<>(shards.size());
+                final List<String> targetNodes = new ArrayList<>(2);
+                // Prefer executing shard requests on nodes that are part of PIT first.
                 targetNodes.add(perNode.getNode());
                 if (perNode.getSearchContextId().getSearcherId() != null) {
-                    for (ShardRouting shard : shards) {
-                        if (shard.currentNodeId().equals(perNode.getNode()) == false) {
-                            targetNodes.add(shard.currentNodeId());
+                    try {
+                        final ShardIterator shards = OperationRouting.getShards(clusterState, shardId);
+                        for (ShardRouting shard : shards) {
+                            if (shard.currentNodeId().equals(perNode.getNode()) == false) {
+                                targetNodes.add(shard.currentNodeId());
+                            }
                         }
+                    } catch (IndexNotFoundException | ShardNotFoundException ignored) {
+                        // We can hit these exceptions if the index was deleted after creating PIT or the cluster state on
+                        // this coordinating node is outdated. It's fine to ignore these extra "retry-able" target shards.
                     }
                 }
                 OriginalIndices finalIndices = new OriginalIndices(

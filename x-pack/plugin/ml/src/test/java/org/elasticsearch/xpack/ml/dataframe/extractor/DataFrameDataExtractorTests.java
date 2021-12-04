@@ -232,36 +232,24 @@ public class DataFrameDataExtractorTests extends ESTestCase {
         String searchRequest = dataExtractor.capturedSearchRequests.get(0).request().toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"query\":{\"bool\":{"));
         assertThat(searchRequest, containsString("{\"match_all\":{\"boost\":1.0}"));
-        assertThat(
-            searchRequest,
-            containsString("{\"range\":{\"ml__incremental_id\":{\"gte\":0,\"lt\":1000")
-        );
+        assertThat(searchRequest, containsString("{\"range\":{\"ml__incremental_id\":{\"gte\":0,\"lt\":1000"));
 
         // Assert the second search continued from the latest successfully processed doc
         searchRequest = dataExtractor.capturedSearchRequests.get(1).request().toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"query\":{\"bool\":{"));
         assertThat(searchRequest, containsString("{\"match_all\":{\"boost\":1.0}"));
-        assertThat(
-            searchRequest,
-            containsString("{\"range\":{\"ml__incremental_id\":{\"gte\":2,\"lt\":1002")
-        );
+        assertThat(searchRequest, containsString("{\"range\":{\"ml__incremental_id\":{\"gte\":2,\"lt\":1002"));
 
         // Assert the third search continued from the latest successfully processed doc
         searchRequest = dataExtractor.capturedSearchRequests.get(2).request().toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"query\":{\"bool\":{"));
         assertThat(searchRequest, containsString("{\"match_all\":{\"boost\":1.0}"));
-        assertThat(
-            searchRequest,
-            containsString("{\"range\":{\"ml__incremental_id\":{\"gte\":2,\"lt\":1002")
-        );
+        assertThat(searchRequest, containsString("{\"range\":{\"ml__incremental_id\":{\"gte\":2,\"lt\":1002"));
 
         searchRequest = dataExtractor.capturedSearchRequests.get(3).request().toString().replaceAll("\\s", "");
         assertThat(searchRequest, containsString("\"query\":{\"bool\":{"));
         assertThat(searchRequest, containsString("{\"match_all\":{\"boost\":1.0}"));
-        assertThat(
-            searchRequest,
-            containsString("{\"range\":{\"ml__incremental_id\":{\"gte\":3,\"lt\":1003")
-        );
+        assertThat(searchRequest, containsString("{\"range\":{\"ml__incremental_id\":{\"gte\":3,\"lt\":1003"));
     }
 
     public void testIncludeSourceIsFalseAndNoSourceFields() throws IOException {

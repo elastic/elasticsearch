@@ -776,55 +776,71 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     static class IndexPressureStats implements ToXContentFragment {
 
-        private IndexingPressureStats indexingPressureStats = new IndexingPressureStats(
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0
-        );
+        private final IndexingPressureStats indexingPressureStats;
 
         IndexPressureStats(final List<NodeStats> nodeStats) {
+            long totalCombinedCoordinatingAndPrimaryBytes = 0;
+            long totalCoordinatingBytes = 0;
+            long totalPrimaryBytes = 0;
+            long totalReplicaBytes = 0;
+
+            long currentCombinedCoordinatingAndPrimaryBytes = 0;
+            long currentCoordinatingBytes = 0;
+            long currentPrimaryBytes = 0;
+            long currentReplicaBytes = 0;
+            long coordinatingRejections = 0;
+            long primaryRejections = 0;
+            long replicaRejections = 0;
+            long memoryLimit = 0;
+
+            long totalCoordinatingOps = 0;
+            long totalPrimaryOps = 0;
+            long totalReplicaOps = 0;
+            long currentCoordinatingOps = 0;
+            long currentPrimaryOps = 0;
+            long currentReplicaOps = 0;
             for (NodeStats nodeStat : nodeStats) {
                 IndexingPressureStats nodeStatIndexingPressureStats = nodeStat.getIndexingPressureStats();
                 if (nodeStatIndexingPressureStats != null) {
-                    indexingPressureStats = new IndexingPressureStats(
-                        indexingPressureStats.getTotalCombinedCoordinatingAndPrimaryBytes() + nodeStatIndexingPressureStats
-                            .getTotalCombinedCoordinatingAndPrimaryBytes(),
-                        indexingPressureStats.getTotalCoordinatingBytes() + nodeStatIndexingPressureStats.getTotalCoordinatingBytes(),
-                        indexingPressureStats.getTotalPrimaryBytes() + nodeStatIndexingPressureStats.getTotalPrimaryBytes(),
-                        indexingPressureStats.getTotalReplicaBytes() + nodeStatIndexingPressureStats.getTotalReplicaBytes(),
-                        indexingPressureStats.getCurrentCombinedCoordinatingAndPrimaryBytes() + nodeStatIndexingPressureStats
-                            .getCurrentCombinedCoordinatingAndPrimaryBytes(),
-                        indexingPressureStats.getCurrentCoordinatingBytes() + nodeStatIndexingPressureStats.getCurrentCoordinatingBytes(),
-                        indexingPressureStats.getCurrentPrimaryBytes() + nodeStatIndexingPressureStats.getCurrentPrimaryBytes(),
-                        indexingPressureStats.getCurrentReplicaBytes() + nodeStatIndexingPressureStats.getCurrentReplicaBytes(),
-                        indexingPressureStats.getCoordinatingRejections() + nodeStatIndexingPressureStats.getCoordinatingRejections(),
-                        indexingPressureStats.getPrimaryRejections() + nodeStatIndexingPressureStats.getPrimaryRejections(),
-                        indexingPressureStats.getReplicaRejections() + nodeStatIndexingPressureStats.getReplicaRejections(),
-                        indexingPressureStats.getMemoryLimit() + nodeStatIndexingPressureStats.getMemoryLimit(),
-                        indexingPressureStats.getTotalCoordinatingOps() + nodeStatIndexingPressureStats.getTotalCoordinatingOps(),
-                        indexingPressureStats.getTotalPrimaryOps() + nodeStatIndexingPressureStats.getTotalPrimaryOps(),
-                        indexingPressureStats.getTotalReplicaOps() + nodeStatIndexingPressureStats.getTotalReplicaOps(),
-                        indexingPressureStats.getCurrentCoordinatingOps() + nodeStatIndexingPressureStats.getCurrentCoordinatingOps(),
-                        indexingPressureStats.getCurrentPrimaryOps() + nodeStatIndexingPressureStats.getCurrentPrimaryOps(),
-                        indexingPressureStats.getCurrentReplicaOps() + nodeStatIndexingPressureStats.getCurrentReplicaOps()
-                    );
+                    totalCombinedCoordinatingAndPrimaryBytes += nodeStatIndexingPressureStats.getTotalCombinedCoordinatingAndPrimaryBytes();
+                    totalCoordinatingBytes += nodeStatIndexingPressureStats.getTotalCoordinatingBytes();
+                    totalPrimaryBytes +=  nodeStatIndexingPressureStats.getTotalPrimaryBytes();
+                    totalReplicaBytes += nodeStatIndexingPressureStats.getTotalReplicaBytes();
+                    currentCombinedCoordinatingAndPrimaryBytes += nodeStatIndexingPressureStats.getCurrentCombinedCoordinatingAndPrimaryBytes();
+                    currentCoordinatingBytes += nodeStatIndexingPressureStats.getCurrentCoordinatingBytes();
+                    currentPrimaryBytes += nodeStatIndexingPressureStats.getCurrentPrimaryBytes();
+                    currentReplicaBytes += nodeStatIndexingPressureStats.getCurrentReplicaBytes();
+                    coordinatingRejections += nodeStatIndexingPressureStats.getCoordinatingRejections();
+                    primaryRejections += nodeStatIndexingPressureStats.getPrimaryRejections();
+                    replicaRejections += nodeStatIndexingPressureStats.getReplicaRejections();
+                    memoryLimit += nodeStatIndexingPressureStats.getMemoryLimit();
+                    totalCoordinatingOps += nodeStatIndexingPressureStats.getTotalCoordinatingOps();
+                    totalReplicaOps += nodeStatIndexingPressureStats.getTotalReplicaOps();
+                    currentCoordinatingOps += nodeStatIndexingPressureStats.getCurrentCoordinatingOps();
+                    currentPrimaryOps += nodeStatIndexingPressureStats.getCurrentPrimaryOps();
+                    currentReplicaOps += nodeStatIndexingPressureStats.getCurrentReplicaOps();
                 }
             }
+            indexingPressureStats = new IndexingPressureStats(
+                totalCombinedCoordinatingAndPrimaryBytes,
+                totalCoordinatingBytes,
+                totalPrimaryBytes,
+                totalReplicaBytes,
+                currentCombinedCoordinatingAndPrimaryBytes,
+                currentCoordinatingBytes,
+                currentPrimaryBytes,
+                currentReplicaBytes,
+                coordinatingRejections,
+                primaryRejections,
+                replicaRejections,
+                memoryLimit,
+                totalCoordinatingOps,
+                totalPrimaryOps,
+                totalReplicaOps,
+                currentCoordinatingOps,
+                currentPrimaryOps,
+                currentReplicaOps
+            );
         }
 
         @Override

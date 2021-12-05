@@ -511,7 +511,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, metadata)) {
                     continue;
                 }
-                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices, metadata)) {
+                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices)) {
                     continue;
                 }
                 Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
@@ -591,7 +591,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     public void onFailure(Exception e) {
                         // create failures for all relevant requests
                         for (BulkItemRequest request : requests) {
-                            final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
+                            final String indexName = request.index();
                             DocWriteRequest<?> docWriteRequest = request.request();
                             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
                             responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
@@ -678,29 +678,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return false;
         }
 
-        private boolean addFailureIfIndexIsUnavailable(
-            DocWriteRequest<?> request,
-            int idx,
-            final ConcreteIndices concreteIndices,
-            final Metadata metadata
-        ) {
+        private boolean addFailureIfIndexIsUnavailable(DocWriteRequest<?> request, int idx, final ConcreteIndices concreteIndices) {
             IndexNotFoundException cannotCreate = indicesThatCannotBeCreated.get(request.index());
             if (cannotCreate != null) {
                 addFailure(request, idx, cannotCreate);
                 return true;
             }
-            Index concreteIndex = concreteIndices.getConcreteIndex(request.index());
-            if (concreteIndex == null) {
-                try {
-                    concreteIndex = concreteIndices.resolveIfAbsent(request);
-                } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
-                    addFailure(request, idx, ex);
-                    return true;
-                }
-            }
-            IndexMetadata indexMetadata = metadata.getIndexSafe(concreteIndex);
-            if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
-                addFailure(request, idx, new IndexClosedException(concreteIndex));
+            try {
+                assert request.indicesOptions().forbidClosedIndices() : "only open indices can be resolved";
+                Index concreteIndex = concreteIndices.resolveIfAbsent(request);
+                assert concreteIndex != null;
+            } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
+                addFailure(request, idx, ex);
                 return true;
             }
             return false;
@@ -736,10 +725,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ConcreteIndices(ClusterState state, IndexNameExpressionResolver indexNameExpressionResolver) {
             this.state = state;
             this.indexNameExpressionResolver = indexNameExpressionResolver;
-        }
-
-        Index getConcreteIndex(String indexOrAlias) {
-            return indices.get(indexOrAlias);
         }
 
         Index resolveIfAbsent(DocWriteRequest<?> request) {

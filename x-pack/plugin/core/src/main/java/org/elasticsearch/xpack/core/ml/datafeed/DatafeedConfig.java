@@ -957,11 +957,11 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             return this;
         }
 
-        private Builder setAggregationsSafe(AggProvider aggProvider) {
+        private Builder setAggregationsSafe(AggProvider provider) {
             if (this.aggProvider != null) {
                 throw ExceptionsHelper.badRequestException("Found two aggregation definitions: [aggs] and [aggregations]");
             }
-            this.aggProvider = aggProvider;
+            this.aggProvider = provider;
             return this;
         }
 

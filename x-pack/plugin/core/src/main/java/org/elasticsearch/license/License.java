@@ -575,11 +575,11 @@ public class License implements ToXContentObject {
                 builder.humanReadable(true);
             }
         }
-        final int version;
+        final int licenseVersion;
         if (params.param(LICENSE_VERSION_MODE) != null && restViewMode) {
-            version = Integer.parseInt(params.param(LICENSE_VERSION_MODE));
+            licenseVersion = Integer.parseInt(params.param(LICENSE_VERSION_MODE));
         } else {
-            version = this.version;
+            licenseVersion = this.version;
         }
         if (restViewMode) {
             builder.field(Fields.STATUS, status().label());
@@ -587,11 +587,11 @@ public class License implements ToXContentObject {
         builder.field(Fields.UID, uid);
         final String bwcType = hideEnterprise && LicenseType.isEnterprise(type) ? LicenseType.PLATINUM.getTypeName() : type;
         builder.field(Fields.TYPE, bwcType);
-        if (version == VERSION_START) {
+        if (licenseVersion == VERSION_START) {
             builder.field(Fields.SUBSCRIPTION_TYPE, subscriptionType);
         }
         builder.timeField(Fields.ISSUE_DATE_IN_MILLIS, Fields.ISSUE_DATE, issueDate);
-        if (version == VERSION_START) {
+        if (licenseVersion == VERSION_START) {
             builder.field(Fields.FEATURE, feature);
         }
 
@@ -599,7 +599,7 @@ public class License implements ToXContentObject {
             builder.timeField(Fields.EXPIRY_DATE_IN_MILLIS, Fields.EXPIRY_DATE, expiryDate);
         }
 
-        if (version >= VERSION_ENTERPRISE) {
+        if (licenseVersion >= VERSION_ENTERPRISE) {
             builder.field(Fields.MAX_NODES, maxNodes == -1 ? null : maxNodes);
             builder.field(Fields.MAX_RESOURCE_UNITS, maxResourceUnits == -1 ? null : maxResourceUnits);
         } else if (hideEnterprise && maxNodes == -1) {
@@ -616,7 +616,7 @@ public class License implements ToXContentObject {
         if (restViewMode) {
             builder.humanReadable(previouslyHumanReadable);
         }
-        if (version >= VERSION_START_DATE) {
+        if (licenseVersion >= VERSION_START_DATE) {
             builder.timeField(Fields.START_DATE_IN_MILLIS, Fields.START_DATE, startDate);
         }
         return builder;
@@ -939,7 +939,7 @@ public class License implements ToXContentObject {
             return this;
         }
 
-        public Builder fromLicenseSpec(License license, String signature) {
+        public Builder fromLicenseSpec(License license, String licenseSignature) {
             return uid(license.uid()).version(license.version())
                 .issuedTo(license.issuedTo())
                 .issueDate(license.issueDate())
@@ -951,7 +951,7 @@ public class License implements ToXContentObject {
                 .maxResourceUnits(license.maxResourceUnits())
                 .expiryDate(license.expiryDate())
                 .issuer(license.issuer())
-                .signature(signature);
+                .signature(licenseSignature);
         }
 
         /**

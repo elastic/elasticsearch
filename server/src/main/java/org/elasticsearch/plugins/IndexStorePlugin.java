@@ -130,6 +130,7 @@ public interface IndexStorePlugin {
      * @return a collection of snapshot commit suppliers, keyed by the value of
      *         {@link org.elasticsearch.index.IndexModule#INDEX_STORE_TYPE_SETTING}.
      */
+    // TODO: remove unused API extension point
     default Map<String, SnapshotCommitSupplier> getSnapshotCommitSuppliers() {
         return Collections.emptyMap();
     }

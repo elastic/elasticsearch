@@ -242,6 +242,30 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         );
     }
 
+    public void testMigrateIndexWithWriteBlock() throws Exception {
+        createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
+
+        String indexName = Optional.ofNullable(INTERNAL_UNMANAGED.getPrimaryIndex())
+            .orElse(INTERNAL_UNMANAGED.getIndexPattern().replace("*", "old"));
+        client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put("index.blocks.write", true)).get();
+
+        TestPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
+        TestPlugin.postMigrationHook.set((state, metadata) -> {});
+
+        ensureGreen();
+
+        client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest()).get();
+
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(
+                GetFeatureUpgradeStatusAction.INSTANCE,
+                new GetFeatureUpgradeStatusRequest()
+            ).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
+        });
+    }
+
     public void assertIndexHasCorrectProperties(
         Metadata metadata,
         String indexName,

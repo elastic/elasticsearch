@@ -7,7 +7,7 @@ services:
     command: >
       bash -c '
         if [[ ! -f /certs/bundle.zip ]]; then
-          bin/elasticsearch-certutil cert --silent --pem --in config/certificates/instances.yml -out /certs/bundle.zip;
+          bin/elasticsearch-certutil cert --silent --self-signed --pem --in config/certificates/instances.yml -out /certs/bundle.zip;
           unzip /certs/bundle.zip -d /certs; 
         fi;
         chown -R 1000:0 /certs

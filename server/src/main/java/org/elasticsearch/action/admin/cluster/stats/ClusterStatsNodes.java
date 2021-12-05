@@ -804,7 +804,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 if (nodeStatIndexingPressureStats != null) {
                     totalCombinedCoordinatingAndPrimaryBytes += nodeStatIndexingPressureStats.getTotalCombinedCoordinatingAndPrimaryBytes();
                     totalCoordinatingBytes += nodeStatIndexingPressureStats.getTotalCoordinatingBytes();
-                    totalPrimaryBytes +=  nodeStatIndexingPressureStats.getTotalPrimaryBytes();
+                    totalPrimaryBytes += nodeStatIndexingPressureStats.getTotalPrimaryBytes();
                     totalReplicaBytes += nodeStatIndexingPressureStats.getTotalReplicaBytes();
                     currentCombinedCoordinatingAndPrimaryBytes += nodeStatIndexingPressureStats
                         .getCurrentCombinedCoordinatingAndPrimaryBytes();

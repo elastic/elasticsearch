@@ -332,6 +332,11 @@ public final class IndexGraveyard implements Metadata.Custom {
         public String getWriteableName() {
             return TYPE;
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
+        }
     }
 
     /**

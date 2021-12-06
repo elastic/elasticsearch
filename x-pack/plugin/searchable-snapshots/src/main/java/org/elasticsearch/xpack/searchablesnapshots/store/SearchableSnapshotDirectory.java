@@ -239,16 +239,16 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     @Nullable
     public BlobContainer blobContainer() {
-        final BlobContainer container = this.blobContainer;
-        assert container != null;
-        return container;
+        final BlobContainer blobContainer = this.blobContainer;
+        assert blobContainer != null;
+        return blobContainer;
     }
 
     @Nullable
     public BlobStoreIndexShardSnapshot snapshot() {
-        final BlobStoreIndexShardSnapshot shardSnapshot = this.snapshot;
-        assert shardSnapshot != null;
-        return shardSnapshot;
+        final BlobStoreIndexShardSnapshot snapshot = this.snapshot;
+        assert snapshot != null;
+        return snapshot;
     }
 
     private List<BlobStoreIndexShardSnapshot.FileInfo> files() {
@@ -455,9 +455,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public boolean isRecoveryFinalized() {
-        SearchableSnapshotRecoveryState snapshotRecoveryState = this.recoveryState;
-        if (snapshotRecoveryState == null) return false;
-        RecoveryState.Stage stage = snapshotRecoveryState.getStage();
+        SearchableSnapshotRecoveryState recoveryState = this.recoveryState;
+        if (recoveryState == null) return false;
+        RecoveryState.Stage stage = recoveryState.getStage();
         return stage == RecoveryState.Stage.DONE || stage == RecoveryState.Stage.FINALIZE;
     }
 

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.support;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -19,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
 
@@ -160,8 +159,8 @@ public final class ActiveShardCount implements Writeable {
             if (waitForActiveShards == ActiveShardCount.DEFAULT) {
                 waitForActiveShards = SETTING_WAIT_FOR_ACTIVE_SHARDS.get(indexMetadata.getSettings());
             }
-            for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards()) {
-                if (waitForActiveShards.enoughShardsActive(shardRouting.value) == false) {
+            for (final Map.Entry<Integer, IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards().entrySet()) {
+                if (waitForActiveShards.enoughShardsActive(shardRouting.getValue()) == false) {
                     // not enough active shard copies yet
                     return false;
                 }

@@ -7,11 +7,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntSet;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -712,8 +707,8 @@ public class RestoreService implements ClusterStateApplier {
         RestoreInProgress.Builder builder = new RestoreInProgress.Builder();
         for (RestoreInProgress.Entry entry : oldRestore) {
             ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = null;
-            for (ObjectObjectCursor<ShardId, ShardRestoreStatus> cursor : entry.shards()) {
-                ShardId shardId = cursor.key;
+            for (Map.Entry<ShardId, ShardRestoreStatus> cursor : entry.shards().entrySet()) {
+                ShardId shardId = cursor.getKey();
                 if (deletedIndices.contains(shardId.getIndex())) {
                     changesMade = true;
                     if (shardsBuilder == null) {
@@ -1027,10 +1022,10 @@ public class RestoreService implements ClusterStateApplier {
     public static Set<Index> restoringIndices(final ClusterState currentState, final Set<Index> indicesToCheck) {
         final Set<Index> indices = new HashSet<>();
         for (RestoreInProgress.Entry entry : currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
-            for (ObjectObjectCursor<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards()) {
-                Index index = shard.key.getIndex();
+            for (Map.Entry<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards().entrySet()) {
+                Index index = shard.getKey().getIndex();
                 if (indicesToCheck.contains(index)
-                    && shard.value.state().completed() == false
+                    && shard.getValue().state().completed() == false
                     && currentState.getMetadata().index(index) != null) {
                     indices.add(index);
                 }
@@ -1308,7 +1303,7 @@ public class RestoreService implements ClusterStateApplier {
                     index
                 );
                 final boolean partial = checkPartial(index.getName());
-                final IntSet ignoreShards = new IntHashSet();
+                final Set<Integer> ignoreShards = new HashSet<>();
                 final IndexMetadata updatedIndexMetadata;
 
                 // different paths depending on whether we are restoring to create a new index or restoring over an existing closed index
@@ -1486,23 +1481,22 @@ public class RestoreService implements ClusterStateApplier {
                 }
             }
             if (metadata.customs() != null) {
-                for (ObjectObjectCursor<String, Metadata.Custom> cursor : metadata.customs()) {
-                    if (RepositoriesMetadata.TYPE.equals(cursor.key) == false
-                        && DataStreamMetadata.TYPE.equals(cursor.key) == false
-                        && cursor.value instanceof Metadata.NonRestorableCustom == false) {
+                for (Map.Entry<String, Metadata.Custom> cursor : metadata.customs().entrySet()) {
+                    if (RepositoriesMetadata.TYPE.equals(cursor.getKey()) == false
+                        && DataStreamMetadata.TYPE.equals(cursor.getKey()) == false
+                        && cursor.getValue() instanceof Metadata.NonRestorableCustom == false) {
                         // TODO: Check request.skipOperatorOnly for Autoscaling policies (NonRestorableCustom)
                         // Don't restore repositories while we are working with them
                         // TODO: Should we restore them at the end?
                         // Also, don't restore data streams here, we already added them to the metadata builder above
-                        mdBuilder.putCustom(cursor.key, cursor.value);
+                        mdBuilder.putCustom(cursor.getKey(), cursor.getValue());
                     }
                 }
             }
         }
 
         private void ensureNoAliasNameConflicts(IndexMetadata snapshotIndexMetadata) {
-            for (ObjectCursor<String> alias : snapshotIndexMetadata.getAliases().keys()) {
-                final String aliasName = alias.value;
+            for (String aliasName : snapshotIndexMetadata.getAliases().keySet()) {
                 final IndexId indexId = indicesToRestore.get(aliasName);
                 if (indexId != null) {
                     throw new SnapshotRestoreException(
@@ -1517,7 +1511,7 @@ public class RestoreService implements ClusterStateApplier {
             }
         }
 
-        private void populateIgnoredShards(String index, IntSet ignoreShards) {
+        private void populateIgnoredShards(String index, Set<Integer> ignoreShards) {
             for (SnapshotShardFailure failure : snapshotInfo.shardFailures()) {
                 if (index.equals(failure.index())) {
                     ignoreShards.add(failure.shardId());

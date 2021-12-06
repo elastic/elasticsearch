@@ -18,7 +18,6 @@ import static org.apache.lucene.geo.GeoUtils.orient;
  * from intersection consideration for consistent tiling definition of shapes on the boundaries of tiles
  *
  */
-@SuppressWarnings("HiddenField")
 class Tile2DVisitor implements TriangleTreeReader.Visitor {
 
     private GeoRelation relation;
@@ -63,9 +62,9 @@ class Tile2DVisitor implements TriangleTreeReader.Visitor {
         boolean ab = (metadata & 1 << 4) == 1 << 4;
         boolean bc = (metadata & 1 << 5) == 1 << 5;
         boolean ca = (metadata & 1 << 6) == 1 << 6;
-        GeoRelation relation = relateTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca);
-        if (relation != GeoRelation.QUERY_DISJOINT) {
-            this.relation = relation;
+        GeoRelation geoRelation = relateTriangle(aX, aY, ab, bX, bY, bc, cX, cY, ca);
+        if (geoRelation != GeoRelation.QUERY_DISJOINT) {
+            this.relation = geoRelation;
         }
     }
 
@@ -90,6 +89,7 @@ class Tile2DVisitor implements TriangleTreeReader.Visitor {
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     public boolean push(int minX, int minY, int maxX, int maxY) {
         // exclude north and east boundary intersections with tiles from intersection consideration
         // for consistent tiling definition of shapes on the boundaries of tiles

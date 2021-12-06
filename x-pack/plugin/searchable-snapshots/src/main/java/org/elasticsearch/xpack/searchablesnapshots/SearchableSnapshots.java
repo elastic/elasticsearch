@@ -543,8 +543,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         );
     }
 
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
-        return List.of(executorBuilders(settingsToUse));
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        return List.of(executorBuilders(settings));
     }
 
     public static final String SNAPSHOT_RECOVERY_STATE_FACTORY_KEY = "snapshot_prewarm";

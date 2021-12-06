@@ -217,8 +217,8 @@ public class NodeLoad {
             return this;
         }
 
-        public Builder incAssignedJobMemory(long memory) {
-            this.assignedJobMemory += memory;
+        public Builder incAssignedJobMemory(long assignedJobMemory) {
+            this.assignedJobMemory += assignedJobMemory;
             return this;
         }
 

@@ -41,7 +41,7 @@ class RandomBlobContentBytesReference extends AbstractBytesReference {
     }
 
     @Override
-    public BytesReference slice(int _from, int _length) {
+    public BytesReference slice(int from, int length) {
         assert false : "must not slice a RandomBlobContentBytesReference";
         throw new UnsupportedOperationException("RandomBlobContentBytesReference#slice(int, int) is unsupported");
     }

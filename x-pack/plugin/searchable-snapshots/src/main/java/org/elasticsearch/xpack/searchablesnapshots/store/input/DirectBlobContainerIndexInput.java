@@ -350,8 +350,8 @@ public class DirectBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
             this.maxPos = pos + streamLength;
         }
 
-        boolean canContinueSequentialRead(int partValue, long posValue) {
-            return this.part == partValue && this.pos == posValue;
+        boolean canContinueSequentialRead(int part, long pos) {
+            return this.part == part && this.pos == pos;
         }
 
         int read(ByteBuffer b, int length) throws IOException {

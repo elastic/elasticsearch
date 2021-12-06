@@ -58,8 +58,8 @@ public class CalendarQueryBuilder {
         return this;
     }
 
-    public CalendarQueryBuilder calendarIdTokens(String[] calendarIdTokens) {
-        this.idTokens = calendarIdTokens;
+    public CalendarQueryBuilder calendarIdTokens(String[] idTokens) {
+        this.idTokens = idTokens;
         return this;
     }
 

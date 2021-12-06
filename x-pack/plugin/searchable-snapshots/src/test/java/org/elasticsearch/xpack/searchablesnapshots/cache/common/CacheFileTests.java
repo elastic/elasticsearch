@@ -393,8 +393,9 @@ public class CacheFileTests extends ESTestCase {
 
     private static void assumeLinux64bitsOrWindows() {
         assumeTrue(
-            "This test uses native methods implemented only for Windows & Linux 64bits",
-            Constants.WINDOWS || Constants.LINUX && Constants.JRE_IS_64BIT
+            "This test uses native methods implemented only for Windows & Linux 64bits non-aarch64",
+            Constants.WINDOWS
+                || Constants.LINUX && Constants.JRE_IS_64BIT && "aarch64".equals(Constants.OS_ARCH.toLowerCase(Locale.ROOT)) == false
         );
     }
 

@@ -34,12 +34,19 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
             randomBoolean() ? null : randomIntBetween(10, 10_000),
             randomBoolean() ? null : randomFloat(),
             randomBoolean() ? null : randomIntBetween(0, 1),
+            randomBoolean() ? null : randomIntBetween(0, 1),
             randomBoolean() ? null : randomIntBetween(0, 1)
         );
     }
 
     public static SettingsConfig randomNonEmptySettingsConfig() {
-        return new SettingsConfig(randomIntBetween(10, 10_000), randomFloat(), randomIntBetween(0, 1), randomIntBetween(0, 1));
+        return new SettingsConfig(
+            randomIntBetween(10, 10_000),
+            randomFloat(),
+            randomIntBetween(0, 1),
+            randomIntBetween(0, 1),
+            randomIntBetween(0, 1)
+        );
     }
 
     @Before

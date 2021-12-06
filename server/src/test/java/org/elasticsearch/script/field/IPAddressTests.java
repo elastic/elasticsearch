@@ -10,7 +10,7 @@ package org.elasticsearch.script.field;
 
 import org.elasticsearch.test.ESTestCase;
 
-public class IPAddressTest extends ESTestCase {
+public class IPAddressTests extends ESTestCase {
 
     public void testToString() {
         String v4 = "192.168.7.255";

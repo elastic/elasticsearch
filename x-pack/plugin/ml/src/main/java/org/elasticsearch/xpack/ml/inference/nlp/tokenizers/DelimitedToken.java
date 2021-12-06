@@ -10,14 +10,26 @@ package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 import java.util.Objects;
 
 public class DelimitedToken {
-    public int startPos;
-    public int endPos;
-    public String token;
+    private final int startPos;
+    private final int endPos;
+    private final String token;
 
     DelimitedToken(int startPos, int endPos, String token) {
         this.startPos = startPos;
         this.endPos = endPos;
         this.token = token;
+    }
+
+    public int getStartPos() {
+        return startPos;
+    }
+
+    public int getEndPos() {
+        return endPos;
+    }
+
+    public String getToken() {
+        return token;
     }
 
     @Override

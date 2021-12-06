@@ -47,7 +47,7 @@ public class BertTokenizerTests extends ESTestCase {
     );
 
     private List<String> tokenStrings(List<DelimitedToken> tokens) {
-        return tokens.stream().map(t -> t.token).collect(Collectors.toList());
+        return tokens.stream().map(DelimitedToken::getToken).collect(Collectors.toList());
     }
 
     public void testTokenize() {

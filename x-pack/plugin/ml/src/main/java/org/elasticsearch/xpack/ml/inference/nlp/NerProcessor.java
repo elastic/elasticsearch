@@ -296,8 +296,8 @@ public class NerProcessor implements NlpTask.Processor {
                     endTokenIndex++;
                 }
 
-                int startPos = token.token.startPos;
-                int endPos = tokens.get(endTokenIndex - 1).token.endPos;
+                int startPos = token.token.getStartPos();
+                int endPos = tokens.get(endTokenIndex - 1).token.getEndPos();
                 String entity = inputSeq.substring(startPos, endPos);
                 entities.add(
                     new NerResults.EntityGroup(

@@ -45,7 +45,7 @@ public class WordPieceTokenizer {
      */
     public List<Integer> tokenize(DelimitedToken token) {
 
-        if (token.token.length() > maxInputCharsPerWord) {
+        if (token.getToken().length() > maxInputCharsPerWord) {
             assert vocab.containsKey(unknownToken);
             return Collections.singletonList(vocab.get(unknownToken));
         }
@@ -53,7 +53,7 @@ public class WordPieceTokenizer {
         List<Integer> output = new ArrayList<>();
         boolean isBad = false;
         int start = 0;
-        int length = token.token.length();
+        int length = token.getToken().length();
         while (start < length) {
             int end = length;
 
@@ -62,9 +62,9 @@ public class WordPieceTokenizer {
             while (start < end) {
                 String subStr;
                 if (start > 0) {
-                    subStr = CONTINUATION + token.token.substring(start, end);
+                    subStr = CONTINUATION + token.getToken().substring(start, end);
                 } else {
-                    subStr = token.token.substring(start, end);
+                    subStr = token.getToken().substring(start, end);
                 }
 
                 if (vocab.containsKey(subStr)) {

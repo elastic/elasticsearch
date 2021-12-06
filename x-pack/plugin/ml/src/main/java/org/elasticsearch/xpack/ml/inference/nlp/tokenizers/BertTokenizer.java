@@ -265,7 +265,7 @@ public class BertTokenizer implements NlpTokenizer {
         List<Integer> tokenPositionMap = new ArrayList<>();
 
         for (int sourceIndex = 0; sourceIndex < tokenSequences.size(); sourceIndex++) {
-            String token = tokenSequences.get(sourceIndex).token;
+            String token = tokenSequences.get(sourceIndex).getToken();
             if (neverSplit.contains(token)) {
                 wordPieceTokens.add(vocab.getOrDefault(token, vocab.get(UNKNOWN_TOKEN)));
                 tokenPositionMap.add(sourceIndex);

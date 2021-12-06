@@ -35,6 +35,10 @@ public class Task {
      */
     public static final String TRACE_PARENT = "traceparent";
 
+    /**
+     * A request header that indicates the origin of the request from Elastic stack. The value will stored in ThreadContext
+     * and emitted to ES logs
+     */
     public static final String PRODUCT_ORIGIN = "x-elastic-product-origin";
 
     public static final Set<String> HEADERS_TO_COPY = Set.of(X_OPAQUE_ID, TRACE_PARENT, PRODUCT_ORIGIN);

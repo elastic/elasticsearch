@@ -26,6 +26,7 @@ import java.nio.charset.StandardCharsets;
  */
 @Plugin(name = "ECSJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
 public class ECSJsonLayout {
+    public static final String ELASTIC_ORIGIN_FIELD_NAME = "elasticsearch.elastic_product_origin";
 
     @PluginBuilderFactory
     public static ECSJsonLayout.Builder newBuilder() {

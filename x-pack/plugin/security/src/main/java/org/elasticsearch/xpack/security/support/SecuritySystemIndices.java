@@ -28,6 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_PROFILE_ALIAS;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
 
@@ -38,25 +39,30 @@ public class SecuritySystemIndices {
 
     public static final int INTERNAL_MAIN_INDEX_FORMAT = 6;
     private static final int INTERNAL_TOKENS_INDEX_FORMAT = 7;
+    private static final int INTERNAL_PROFILE_INDEX_FORMAT = 8;
 
     private final Logger logger = LogManager.getLogger();
 
     private final SystemIndexDescriptor mainDescriptor;
     private final SystemIndexDescriptor tokenDescriptor;
+    private final SystemIndexDescriptor profileDescriptor;
     private final AtomicBoolean initialized;
     private SecurityIndexManager mainIndexManager;
     private SecurityIndexManager tokenIndexManager;
+    private SecurityIndexManager profileIndexManager;
 
     public SecuritySystemIndices() {
         this.mainDescriptor = getSecurityMainIndexDescriptor();
         this.tokenDescriptor = getSecurityTokenIndexDescriptor();
+        this.profileDescriptor = getSecurityProfileIndexDescriptor();
         this.initialized = new AtomicBoolean(false);
         this.mainIndexManager = null;
         this.tokenIndexManager = null;
+        this.profileIndexManager = null;
     }
 
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return List.of(mainDescriptor, tokenDescriptor);
+        return List.of(mainDescriptor, tokenDescriptor, profileDescriptor);
     }
 
     public void init(Client client, ClusterService clusterService) {
@@ -65,6 +71,7 @@ public class SecuritySystemIndices {
         }
         this.mainIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, mainDescriptor);
         this.tokenIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, tokenDescriptor);
+        this.profileIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, profileDescriptor);
     }
 
     public SecurityIndexManager getMainIndexManager() {
@@ -75,6 +82,10 @@ public class SecuritySystemIndices {
     public SecurityIndexManager getTokenIndexManager() {
         checkInitialized();
         return this.tokenIndexManager;
+    }
+
+    public SecurityIndexManager getProfileIndexManager() {
+        return profileIndexManager;
     }
 
     private void checkInitialized() {
@@ -683,4 +694,139 @@ public class SecuritySystemIndices {
         }
     }
 
+    private SystemIndexDescriptor getSecurityProfileIndexDescriptor() {
+        return SystemIndexDescriptor.builder()
+            .setIndexPattern(".security-profile-[0-9]+*")
+            .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_PROFILE_INDEX_8)
+            .setDescription("Contains user profile documents")
+            .setMappings(getProfileIndexMappings())
+            .setSettings(getProfileIndexSettings())
+            .setAliasName(SECURITY_PROFILE_ALIAS)
+            .setIndexFormat(INTERNAL_PROFILE_INDEX_FORMAT)
+            .setVersionMetaKey(SECURITY_VERSION_STRING)
+            .setOrigin(SECURITY_ORIGIN)
+            .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
+            .build();
+    }
+
+    private Settings getProfileIndexSettings() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+            .put(IndexMetadata.SETTING_PRIORITY, 1000)
+            .put("index.refresh_interval", "1s")
+            .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_PROFILE_INDEX_FORMAT)
+            .build();
+    }
+
+    private XContentBuilder getProfileIndexMappings() {
+        try {
+            final XContentBuilder builder = jsonBuilder();
+            builder.startObject();
+            {
+                builder.startObject("_meta");
+                builder.field(SECURITY_VERSION_STRING, Version.CURRENT.toString());
+                builder.endObject();
+
+                builder.field("dynamic", "strict");
+                builder.startObject("properties");
+                {
+                    builder.startObject("uid");
+                    builder.field("type", "keyword");
+                    builder.endObject();
+
+                    builder.startObject("redirect_uid");
+                    builder.field("type", "keyword");
+                    builder.endObject();
+
+                    builder.startObject("enabled");
+                    builder.field("type", "boolean");
+                    builder.endObject();
+
+                    builder.startObject("user");
+                    {
+                        builder.field("type", "object");
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("username");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            builder.startObject("realm");
+                            {
+                                builder.field("type", "object");
+                                builder.startObject("properties");
+                                {
+                                    builder.startObject("name");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+
+                                    builder.startObject("type");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+
+                                    builder.startObject("domain");
+                                    builder.field("type", "keyword");
+                                    builder.endObject();
+                                }
+                                builder.endObject();
+                            }
+                            builder.endObject();
+
+                            builder.startObject("email");
+                            builder.field("type", "text");
+                            builder.endObject();
+
+                            builder.startObject("full_name");
+                            builder.field("type", "text");
+                            builder.endObject();
+
+                            builder.startObject("display_name");
+                            builder.field("type", "text");
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
+                    builder.startObject("last_synchronized");
+                    builder.field("type", "date");
+                    builder.field("format", "epoch_millis");
+                    builder.endObject();
+
+                    builder.startObject("access");
+                    {
+                        builder.field("type", "object");
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("roles");
+                            builder.field("type", "keyword");
+                            builder.endObject();
+
+                            // Application specific access data, e.g. kibana spaces
+                            builder.startObject("applications");
+                            builder.field("type", "flattened");
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+
+                    builder.startObject("application_data");
+                    {
+                        builder.field("type", "object");
+                        builder.field("enabled", false);
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+            return builder;
+        } catch (IOException e) {
+            logger.fatal("Failed to build profile index mappings", e);
+            throw new UncheckedIOException("Failed to build profile index mappings", e);
+        }
+    }
 }

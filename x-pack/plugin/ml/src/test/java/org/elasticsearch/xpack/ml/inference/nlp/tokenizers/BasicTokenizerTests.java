@@ -72,6 +72,11 @@ public class BasicTokenizerTests extends ESTestCase {
 
         tokens = tokenizer.tokenize("Hello [UNK]!!");
         assertThat(tokens, contains("Hello", "[UNK]", "!", "!"));
+
+        tokens = tokenizer.tokenize("Hello-[UNK]");
+        assertThat(tokens, contains("Hello", "-", "[UNK]"));
+        tokens = tokenizer.tokenize("Hello-[UNK][UNK]");
+        assertThat(tokens, contains("Hello", "-", "[UNK]", "[UNK]"));
     }
 
     public void testSplitOnPunctuation() {

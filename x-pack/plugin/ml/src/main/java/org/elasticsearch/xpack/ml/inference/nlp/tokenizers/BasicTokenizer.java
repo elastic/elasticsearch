@@ -124,6 +124,7 @@ public class BasicTokenizer {
             } else if (childNode.isLeaf()) {
                 matchingTokens.add(token);
                 mergedTokens.add(String.join("", matchingTokens));
+                matchingTokens = new ArrayList<>();
                 current = neverSplitTokenTrieRoot;
             } else {
                 matchingTokens.add(token);

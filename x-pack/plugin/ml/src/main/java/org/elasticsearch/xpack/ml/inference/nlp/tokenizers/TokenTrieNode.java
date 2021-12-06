@@ -32,11 +32,7 @@ class TokenTrieNode {
 
     @Nullable
     TokenTrieNode getChild(String token) {
-        TokenTrieNode child = children.get(token);
-        if (child == null) {
-            return null;
-        }
-        return child;
+        return children.get(token);
     }
 
     private void insert(List<String> tokens) {

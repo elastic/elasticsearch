@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.test.ESTestCase;
 
 public class SingleNodeShutdownMetadataTests extends ESTestCase {
-
     public void testStatusComination() {
         SingleNodeShutdownMetadata.Status status;
 

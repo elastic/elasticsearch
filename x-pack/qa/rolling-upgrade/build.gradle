@@ -40,6 +40,7 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
     testDistribution = "DEFAULT"
     versions = [oldVersion, project.version]
     numberOfNodes = 3
+
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
     setting 'path.repo', "['${buildDir}/cluster/shared/repo/${baseName}', '${searchableSnapshotRepository}']"
     setting 'xpack.license.self_generated.type', 'trial'

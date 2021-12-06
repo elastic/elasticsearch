@@ -35,6 +35,16 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
+/**
+ * The action that allows users to put parts of the model definition.
+ *
+ * The action is a {@link HandledTransportAction} as opposed to a {@link org.elasticsearch.action.support.master.TransportMasterNodeAction}.
+ * This comes with pros and cons. The benefit is that when a model is imported it may spread over hundreds of documents with
+ * each one being of considerable size. Thus, making this a {@link HandledTransportAction} avoids putting that load on the master node.
+ * On the downsides, it is care is needed when it comes to adding new fields on those trained model definition docs. The action
+ * could execute on a node that is on a newer version than the master node. This may mean the native model index does not have
+ * the mappings required for newly added fields on later versions.
+ */
 public class TransportPutTrainedModelDefinitionPartAction extends HandledTransportAction<Request, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutTrainedModelDefinitionPartAction.class);

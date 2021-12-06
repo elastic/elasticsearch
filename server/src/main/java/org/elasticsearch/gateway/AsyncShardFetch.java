@@ -54,7 +54,6 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      */
     public interface Lister<NodesResponse extends BaseNodesResponse<NodeResponse>, NodeResponse extends BaseNodeResponse> {
         void list(ShardId shardId, @Nullable String customDataPath, DiscoveryNode[] nodes, ActionListener<NodesResponse> listener);
-        void flush();
     }
 
     protected final Logger logger;
@@ -107,7 +106,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * The ignoreNodes are nodes that are supposed to be ignored for this round, since fetching is async, we need
      * to keep them around and make sure we add them back when all the responses are fetched and returned.
      */
-    public synchronized FetchResult<T> fetchData(DiscoveryNodes nodes, Set<String> ignoreNodes, boolean flushAsyncShardFetching) {
+    public synchronized FetchResult<T> fetchData(DiscoveryNodes nodes, Set<String> ignoreNodes) {
         if (closed) {
             throw new IllegalStateException(shardId + ": can't fetch data on closed async fetch");
         }
@@ -125,7 +124,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                 .map(NodeEntry::getNodeId)
                 .map(nodes::get)
                 .toArray(DiscoveryNode[]::new);
-            asyncFetch(discoNodesToFetch, fetchingRound, flushAsyncShardFetching);
+            asyncFetch(discoNodesToFetch, fetchingRound);
         }
 
         // if we are still fetching, return null to indicate it
@@ -316,7 +315,7 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      * Async fetches data for the provided shard with the set of nodes that need to be fetched from.
      */
     // visible for testing
-    void asyncFetch(final DiscoveryNode[] nodes, long fetchingRound, boolean flushAsyncShardFetching) {
+    void asyncFetch(final DiscoveryNode[] nodes, long fetchingRound) {
         logger.trace("{} fetching [{}] from {}", shardId, type, nodes);
         action.list(shardId, customDataPath, nodes, new ActionListener<BaseNodesResponse<T>>() {
             @Override
@@ -345,10 +344,6 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
                 return true;
             }
         });
-
-        if (flushAsyncShardFetching) {
-            action.flush();
-        }
     }
 
     /**

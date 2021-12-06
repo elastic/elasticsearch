@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -71,6 +72,11 @@ public class AllocationService {
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
     private SnapshotsInfoService snapshotsInfoService;
+    private boolean batchFetchShardEnable;
+
+    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING =
+        Setting.boolSetting("cluster.routing.allocation.batch_fetch_shard.enable", false,
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(
@@ -80,7 +86,7 @@ public class AllocationService {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
+        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, null);
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
@@ -88,12 +94,18 @@ public class AllocationService {
         AllocationDeciders allocationDeciders,
         ShardsAllocator shardsAllocator,
         ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService
+        SnapshotsInfoService snapshotsInfoService,
+        ClusterService clusterService
     ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
+        if (clusterService != null) {
+            this.batchFetchShardEnable = CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING.get(clusterService.getSettings());
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(
+                CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING, this::setBatchFetchShardEnable);
+        }
     }
 
     /**
@@ -531,19 +543,20 @@ public class AllocationService {
             existingShardsAllocator.beforeAllocation(allocation);
         }
 
-        int n = 0;
-        int size = allocation.routingNodes().size();
+        GatewayAllocator gatewayAllocator = null;
+        if (logger.isDebugEnabled()) {
+            logger.debug("set batch fetch mode [{}] for routing allocation.", batchFetchShardEnable);
+        }
+        allocation.setBatchShardFetchMode(batchFetchShardEnable);
+
         final RoutingNodes.UnassignedShards.UnassignedIterator primaryIterator = allocation.routingNodes().unassigned().iterator();
         while (primaryIterator.hasNext()) {
             final ShardRouting shardRouting = primaryIterator.next();
             if (shardRouting.primary()) {
-                n++;
-                if (n == size) {
-                    // the last shard, we flush the pending fetching, or we could send them in batch mode like 1000 shard requests per node
-                    getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, primaryIterator, true);
-                } else {
-                    // queue shard async fetch request
-                    getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, primaryIterator, false);
+                ExistingShardsAllocator allocator = getAllocatorForShard(shardRouting, allocation);
+                allocator.allocateUnassigned(shardRouting, allocation, primaryIterator);
+                if (gatewayAllocator == null && allocator instanceof GatewayAllocator) {
+                    gatewayAllocator = (GatewayAllocator) allocator;
                 }
             }
         }
@@ -556,8 +569,16 @@ public class AllocationService {
         while (replicaIterator.hasNext()) {
             final ShardRouting shardRouting = replicaIterator.next();
             if (shardRouting.primary() == false) {
-                getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, replicaIterator, true);
+                ExistingShardsAllocator allocator = getAllocatorForShard(shardRouting, allocation);
+                allocator.allocateUnassigned(shardRouting, allocation, replicaIterator);
+                if (gatewayAllocator == null && allocator instanceof GatewayAllocator) {
+                    gatewayAllocator = (GatewayAllocator) allocator;
+                }
             }
+        }
+
+        if (gatewayAllocator != null) {
+            gatewayAllocator.flushPendingShardFetchRequests();
         }
     }
 
@@ -624,6 +645,10 @@ public class AllocationService {
      */
     private RoutingNodes getMutableRoutingNodes(ClusterState clusterState) {
         return new RoutingNodes(clusterState, false);
+    }
+
+    public void setBatchFetchShardEnable(boolean batchFetchShardEnable) {
+        this.batchFetchShardEnable = batchFetchShardEnable;
     }
 
     /** override this to control time based decisions during allocation */

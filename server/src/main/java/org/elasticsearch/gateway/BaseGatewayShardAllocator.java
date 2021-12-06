@@ -36,7 +36,7 @@ public abstract class BaseGatewayShardAllocator {
 
     /**
      * Allocate an unassigned shard to nodes (if any) where valid copies of the shard already exist.
-     * It is up to the individual implementations of {@link #makeAllocationDecision(ShardRouting, RoutingAllocation, boolean, Logger)}
+     * It is up to the individual implementations of {@link #makeAllocationDecision(ShardRouting, RoutingAllocation, Logger)}
      * to make decisions on assigning shards to nodes.
      * @param shardRouting the shard to allocate
      * @param allocation the allocation state container object
@@ -45,11 +45,9 @@ public abstract class BaseGatewayShardAllocator {
     public void allocateUnassigned(
         ShardRouting shardRouting,
         RoutingAllocation allocation,
-        ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler,
-        boolean flushAsyncShardFetching
+        ExistingShardsAllocator.UnassignedAllocationHandler unassignedAllocationHandler
     ) {
-        final AllocateUnassignedDecision allocateUnassignedDecision = makeAllocationDecision(shardRouting, allocation,
-            flushAsyncShardFetching, logger);
+        final AllocateUnassignedDecision allocateUnassignedDecision = makeAllocationDecision(shardRouting, allocation, logger);
 
         if (allocateUnassignedDecision.isDecisionTaken() == false) {
             // no decision was taken by this allocator
@@ -93,7 +91,6 @@ public abstract class BaseGatewayShardAllocator {
     public abstract AllocateUnassignedDecision makeAllocationDecision(
         ShardRouting unassignedShard,
         RoutingAllocation allocation,
-        boolean flushAsyncShardFetching,
         Logger logger
     );
 
@@ -108,5 +105,9 @@ public abstract class BaseGatewayShardAllocator {
             results.add(new NodeAllocationResult(node.node(), null, decision));
         }
         return results;
+    }
+
+    protected void flushPendingFetchShardRequests() {
+        // default no-op
     }
 }

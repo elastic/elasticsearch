@@ -168,7 +168,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                     if (nodes.getLocalNode().getVersion().onOrAfter(V_7_16_0)) {
                         this.expectedOps = new CountDown(shards.size() *  fetch.getTargetFetchNodes(nodes).size());
                     }
-                    fetch.fetchData(nodes, Collections.<String>emptySet(), true);
+                    fetch.fetchData(nodes, Collections.<String>emptySet());
                 }
             }
         }

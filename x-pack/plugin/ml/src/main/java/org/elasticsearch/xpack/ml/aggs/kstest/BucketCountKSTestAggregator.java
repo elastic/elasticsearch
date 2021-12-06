@@ -12,6 +12,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
@@ -230,7 +231,7 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
     }
 
     @Override
-    public InternalAggregation doReduce(Aggregations aggregations, InternalAggregation.ReduceContext context) {
+    public InternalAggregation doReduce(Aggregations aggregations, AggregationReduceContext context) {
         Optional<MlAggsHelper.DoubleBucketValues> maybeBucketsValue = extractDoubleBucketedValues(bucketsPaths()[0], aggregations).map(
             bucketValue -> {
                 double[] values = new double[bucketValue.getValues().length + 1];

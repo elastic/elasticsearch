@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -683,11 +684,7 @@ public class SearchActionTests extends ESTestCase {
         MultiSearchResponse.Item item = new MultiSearchResponse.Item(response, null);
         MultiSearchResponse msearchResponse = new MultiSearchResponse(new MultiSearchResponse.Item[] { item }, 1);
 
-        SearchResponse r = TransportRollupSearchAction.processResponses(
-            result,
-            msearchResponse,
-            mock(InternalAggregation.ReduceContext.class)
-        );
+        SearchResponse r = TransportRollupSearchAction.processResponses(result, msearchResponse, mock(AggregationReduceContext.class));
         assertThat(r, equalTo(response));
     }
 
@@ -745,11 +742,7 @@ public class SearchActionTests extends ESTestCase {
         MultiSearchResponse.Item item = new MultiSearchResponse.Item(response, null);
         MultiSearchResponse msearchResponse = new MultiSearchResponse(new MultiSearchResponse.Item[] { item }, 1);
 
-        SearchResponse r = TransportRollupSearchAction.processResponses(
-            result,
-            msearchResponse,
-            mock(InternalAggregation.ReduceContext.class)
-        );
+        SearchResponse r = TransportRollupSearchAction.processResponses(result, msearchResponse, mock(AggregationReduceContext.class));
 
         assertNotNull(r);
         Aggregations responseAggs = r.getAggregations();
@@ -800,7 +793,7 @@ public class SearchActionTests extends ESTestCase {
 
         RuntimeException e = expectThrows(
             RuntimeException.class,
-            () -> TransportRollupSearchAction.processResponses(result, msearchResponse, mock(InternalAggregation.ReduceContext.class))
+            () -> TransportRollupSearchAction.processResponses(result, msearchResponse, mock(AggregationReduceContext.class))
         );
         assertThat(e.getMessage(), equalTo("MSearch response was empty, cannot unroll RollupSearch results"));
     }
@@ -884,7 +877,7 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse response = TransportRollupSearchAction.processResponses(
             separateIndices,
             msearchResponse,
-            mock(InternalAggregation.ReduceContext.class)
+            mock(AggregationReduceContext.class)
         );
 
         assertNotNull(response);

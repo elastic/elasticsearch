@@ -10,6 +10,8 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -45,6 +47,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
         final int numDocs = 200;
         switch (CLUSTER_TYPE) {
             case OLD:
+                disableRebalancing();
                 Settings.Builder settings = Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
@@ -87,6 +90,7 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                     // That is an issue only for the first mixed round.
                     // In that case we exclude the upgraded node from the shard allocation and cancel the shard to force moving
                     // the primary to a node in the old version, this allows adding replicas in the first mixed round.
+                    logger.info("--> Primary node in first mixed round {} / {}", primaryNodeId, primaryNodeVersion);
                     if (primaryNodeVersion.after(UPGRADE_FROM_VERSION)) {
                         cancelShard(indexName, 0, primaryNodeId);
 
@@ -107,6 +111,24 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
                 break;
             default:
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
+        }
+    }
+
+    private void disableRebalancing() throws IOException {
+        try (XContentBuilder builder = jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.startObject("persistent");
+                builder.field("cluster.routing.rebalance.enable", "none");
+                builder.endObject();
+            }
+            builder.endObject();
+
+            Request request = new Request(HttpPut.METHOD_NAME, "_cluster/settings");
+            request.setJsonEntity(Strings.toString(builder));
+
+            Response response = client().performRequest(request);
+            assertOK(response);
         }
     }
 
@@ -178,9 +200,10 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
             }
             builder.endObject();
 
-            Request request = new Request(HttpPost.METHOD_NAME, "/_cluster/reroute");
+            Request request = new Request(HttpPost.METHOD_NAME, "/_cluster/reroute?pretty");
             request.setJsonEntity(Strings.toString(builder));
             Response response = client().performRequest(request);
+            logger.info("--> Relocated primary to an older version {}", EntityUtils.toString(response.getEntity()));
             assertOK(response);
         }
     }

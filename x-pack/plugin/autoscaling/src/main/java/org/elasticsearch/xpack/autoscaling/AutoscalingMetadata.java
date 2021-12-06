@@ -32,7 +32,7 @@ import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
+public class AutoscalingMetadata implements Metadata.Custom {
 
     public static final String NAME = "autoscaling";
 
@@ -93,6 +93,11 @@ public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
     @Override
     public EnumSet<Metadata.XContentContext> context() {
         return Metadata.ALL_CONTEXTS;
+    }
+
+    @Override
+    public boolean isRestorable() {
+        return false;
     }
 
     @Override
@@ -164,7 +169,5 @@ public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
         static Diff<AutoscalingPolicyMetadata> readFrom(final StreamInput in) throws IOException {
             return AbstractDiffable.readDiffFrom(AutoscalingPolicyMetadata::new, in);
         }
-
     }
-
 }

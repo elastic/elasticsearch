@@ -94,6 +94,11 @@ public final class IndexGraveyard implements Metadata.Custom {
     }
 
     @Override
+    public boolean isRestorable() {
+        return false;
+    }
+
+    @Override
     public boolean equals(Object obj) {
         return (obj instanceof IndexGraveyard) && Objects.equals(tombstones, ((IndexGraveyard) obj).tombstones);
     }

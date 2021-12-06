@@ -69,6 +69,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -129,9 +130,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     public interface Custom extends NamedDiffable<Custom>, ToXContentFragment {
 
         EnumSet<XContentContext> context();
-    }
 
-    public interface NonRestorableCustom extends Custom {}
+        /**
+         * @return true if this custom could be restored from snapshot
+         */
+        default boolean isRestorable() {
+            return true;
+        }
+    }
 
     public static final Setting<Boolean> SETTING_READ_ONLY_SETTING = Setting.boolSetting(
         "cluster.blocks.read_only",
@@ -1429,6 +1435,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         public Builder removeCustom(String type) {
             customs.remove(type);
+            return this;
+        }
+
+        public Builder removeCustomIf(BiPredicate<String, Custom> p) {
+            customs.removeAll(p::test);
             return this;
         }
 

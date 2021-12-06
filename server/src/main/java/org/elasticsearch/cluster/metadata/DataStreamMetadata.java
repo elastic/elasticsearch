@@ -98,6 +98,11 @@ public class DataStreamMetadata implements Metadata.Custom {
     }
 
     @Override
+    public boolean isRestorable() {
+        return false;
+    }
+
+    @Override
     public String getWriteableName() {
         return TYPE;
     }

@@ -449,7 +449,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             )
             .setRefreshPolicy(IMMEDIATE)
             .get();
-        FunctionScoreQueryBuilder baseQuery = functionScoreQuery(
+        FunctionScoreQueryBuilder baseQueryBuilder = functionScoreQuery(
             constantScoreQuery(termQuery("test", "value")),
             ScoreFunctionBuilders.weightFactorFunction(randomIntBetween(1, 10))
         );
@@ -458,7 +458,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
                 .source(
                     searchSource().query(
-                        functionScoreQuery(baseQuery, gaussDecayFunction("loc", point, "1000km")).boostMode(CombineFunction.REPLACE)
+                        functionScoreQuery(baseQueryBuilder, gaussDecayFunction("loc", point, "1000km")).boostMode(CombineFunction.REPLACE)
                     )
                 )
         );
@@ -473,7 +473,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
                 .source(
                     searchSource().query(
-                        functionScoreQuery(baseQuery, gaussDecayFunction("loc", coords, "1000km")).boostMode(CombineFunction.REPLACE)
+                        functionScoreQuery(baseQueryBuilder, gaussDecayFunction("loc", coords, "1000km")).boostMode(CombineFunction.REPLACE)
                     )
                 )
         );
@@ -510,7 +510,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             .setRefreshPolicy(IMMEDIATE)
             .setSource(jsonBuilder().startObject().field("test", "value value").field("num", 1.0).endObject())
             .get();
-        FunctionScoreQueryBuilder baseQuery = functionScoreQuery(
+        FunctionScoreQueryBuilder baseQueryBuilder = functionScoreQuery(
             constantScoreQuery(termQuery("test", "value")),
             ScoreFunctionBuilders.weightFactorFunction(2)
         );
@@ -519,7 +519,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
                 .source(
                     searchSource().query(
-                        functionScoreQuery(baseQuery, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(CombineFunction.MULTIPLY)
+                        functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(
+                            CombineFunction.MULTIPLY
+                        )
                     )
                 )
         );
@@ -533,7 +535,9 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
                 .source(
                     searchSource().query(
-                        functionScoreQuery(baseQuery, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(CombineFunction.REPLACE)
+                        functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(
+                            CombineFunction.REPLACE
+                        )
                     )
                 )
         );
@@ -547,7 +551,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
                 .source(
                     searchSource().query(
-                        functionScoreQuery(baseQuery, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(CombineFunction.SUM)
+                        functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(CombineFunction.SUM)
                     )
                 )
         );
@@ -562,7 +566,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
                 .source(
                     searchSource().query(
-                        functionScoreQuery(baseQuery, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(CombineFunction.AVG)
+                        functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(CombineFunction.AVG)
                     )
                 )
         );
@@ -576,7 +580,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
                 .source(
                     searchSource().query(
-                        functionScoreQuery(baseQuery, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(CombineFunction.MIN)
+                        functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(CombineFunction.MIN)
                     )
                 )
         );
@@ -590,7 +594,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
             searchRequest().searchType(SearchType.QUERY_THEN_FETCH)
                 .source(
                     searchSource().query(
-                        functionScoreQuery(baseQuery, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(CombineFunction.MAX)
+                        functionScoreQuery(baseQueryBuilder, gaussDecayFunction("num", 0.0, 1.0, null, 0.5)).boostMode(CombineFunction.MAX)
                     )
                 )
         );

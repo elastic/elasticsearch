@@ -222,8 +222,8 @@ public class VerifierMetricsTests extends ESTestCase {
             }
         }
 
-        void set(Set<FeatureMetric> metrics) {
-            for (FeatureMetric metric : metrics) {
+        void set(Set<FeatureMetric> metricSet) {
+            for (FeatureMetric metric : metricSet) {
                 set(metric);
             }
         }

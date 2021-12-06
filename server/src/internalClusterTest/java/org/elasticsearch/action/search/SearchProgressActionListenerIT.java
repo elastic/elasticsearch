@@ -107,12 +107,12 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
         SearchProgressActionListener listener = new SearchProgressActionListener() {
             @Override
             public void onListShards(
-                List<SearchShard> shards,
+                List<SearchShard> searchShards,
                 List<SearchShard> skippedShards,
                 SearchResponse.Clusters clusters,
                 boolean fetchPhase
             ) {
-                shardsListener.set(shards);
+                shardsListener.set(searchShards);
                 assertEquals(fetchPhase, hasFetchPhase);
             }
 
@@ -141,12 +141,12 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
             }
 
             @Override
-            public void onPartialReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+            public void onPartialReduce(List<SearchShard> searchShards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
                 numReduces.incrementAndGet();
             }
 
             @Override
-            public void onFinalReduce(List<SearchShard> shards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
+            public void onFinalReduce(List<SearchShard> searchShards, TotalHits totalHits, InternalAggregations aggs, int reducePhase) {
                 numReduces.incrementAndGet();
             }
 

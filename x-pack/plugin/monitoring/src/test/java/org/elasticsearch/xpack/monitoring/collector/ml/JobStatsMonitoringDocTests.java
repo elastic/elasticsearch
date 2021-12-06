@@ -43,13 +43,13 @@ import static org.mockito.Mockito.mock;
  */
 public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobStatsMonitoringDoc> {
 
-    private JobStats jobStats;
+    private JobStats mockJobStats;
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        jobStats = mock(JobStats.class);
+        mockJobStats = mock(JobStats.class);
     }
 
     @Override
@@ -62,7 +62,7 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
         final String type,
         final String id
     ) {
-        return new JobStatsMonitoringDoc(cluster, timestamp, interval, node, jobStats);
+        return new JobStatsMonitoringDoc(cluster, timestamp, interval, node, mockJobStats);
     }
 
     @Override
@@ -71,7 +71,7 @@ public class JobStatsMonitoringDocTests extends BaseMonitoringDocTestCase<JobSta
         assertThat(document.getType(), is(JobStatsMonitoringDoc.TYPE));
         assertThat(document.getId(), nullValue());
 
-        assertThat(document.getJobStats(), is(jobStats));
+        assertThat(document.getJobStats(), is(mockJobStats));
     }
 
     public void testConstructorJobStatsMustNotBeNull() {

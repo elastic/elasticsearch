@@ -72,7 +72,7 @@ public abstract class AbstractWireSerializingTransformTestCase<T extends Writeab
 
     protected <X extends Writeable, Y extends Writeable> Y writeAndReadBWCObject(
         X original,
-        NamedWriteableRegistry namedWriteableRegistry,
+        NamedWriteableRegistry registry,
         Writeable.Writer<X> writer,
         Writeable.Reader<Y> reader,
         Version version

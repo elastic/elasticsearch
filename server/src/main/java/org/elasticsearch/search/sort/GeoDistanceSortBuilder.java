@@ -606,6 +606,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
                 return new LatLonPointIndexFieldData(
                     fieldName,
                     CoreValuesSourceType.GEOPOINT,
+                    // we do not support scripting for unmapped sorts
                     (dv, n) -> { throw new UnsupportedOperationException(); }
                 );
             } else {

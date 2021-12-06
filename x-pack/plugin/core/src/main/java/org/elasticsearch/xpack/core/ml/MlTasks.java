@@ -15,6 +15,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
@@ -29,7 +30,7 @@ import java.util.stream.Collectors;
 public final class MlTasks {
 
     public static final String TRAINED_MODEL_ALLOCATION_TASK_TYPE = "trained_model_allocation";
-    public static final String TRAINED_MODEL_ALLOCATION_TASK_NAME_PREFIX = "xpack/ml/allocation-";
+    public static final String TRAINED_MODEL_ALLOCATION_TASK_ACTION = "xpack/ml/trained_model_allocation[n]";
 
     public static final String JOB_TASK_NAME = "xpack/ml/job";
     public static final String DATAFEED_TASK_NAME = "xpack/ml/datafeed";
@@ -40,7 +41,6 @@ public final class MlTasks {
     public static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
     public static final String DATA_FRAME_ANALYTICS_TASK_ID_PREFIX = "data_frame_analytics-";
     public static final String JOB_SNAPSHOT_UPGRADE_TASK_ID_PREFIX = "job-snapshot-upgrade-";
-    public static final String TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX = "trained_model_deployment-";
 
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE = new PersistentTasksCustomMetadata.Assignment(
         null,
@@ -99,12 +99,8 @@ public final class MlTasks {
         return taskId.substring(DATA_FRAME_ANALYTICS_TASK_ID_PREFIX.length());
     }
 
-    public static String trainedModelDeploymentTaskId(String deploymentId) {
-        return TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX + deploymentId;
-    }
-
-    public static String trainedModelDeploymentId(String taskId) {
-        return taskId.substring(TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX.length());
+    public static String trainedModelAllocationTaskDescription(String modelId) {
+        return TrainedModelConfig.MODEL_ID.getPreferredName() + "[" + modelId + "]";
     }
 
     @Nullable
@@ -183,6 +179,27 @@ public final class MlTasks {
             }
         }
         return jobState;
+    }
+
+    public static SnapshotUpgradeState getSnapshotUpgradeState(
+        String jobId,
+        String snapshotId,
+        @Nullable PersistentTasksCustomMetadata tasks
+    ) {
+        return getSnapshotUpgradeState(getSnapshotUpgraderTask(jobId, snapshotId, tasks));
+    }
+
+    public static SnapshotUpgradeState getSnapshotUpgradeState(@Nullable PersistentTasksCustomMetadata.PersistentTask<?> task) {
+        if (task == null) {
+            return SnapshotUpgradeState.STOPPED;
+        }
+        SnapshotUpgradeTaskState taskState = (SnapshotUpgradeTaskState) task.getState();
+        if (taskState == null) {
+            // If we haven't set a state yet then the task has never been assigned, so
+            // report that it's doing the first thing it does
+            return SnapshotUpgradeState.LOADING_OLD_STATE;
+        }
+        return taskState.getState();
     }
 
     public static DatafeedState getDatafeedState(String datafeedId, @Nullable PersistentTasksCustomMetadata tasks) {
@@ -418,8 +435,7 @@ public final class MlTasks {
             case JOB_TASK_NAME:
                 return getJobStateModifiedForReassignments(task);
             case JOB_SNAPSHOT_UPGRADE_TASK_NAME:
-                SnapshotUpgradeTaskState taskState = (SnapshotUpgradeTaskState) task.getState();
-                return taskState == null ? SnapshotUpgradeState.LOADING_OLD_STATE : taskState.getState();
+                return getSnapshotUpgradeState(task);
             case DATA_FRAME_ANALYTICS_TASK_NAME:
                 return getDataFrameAnalyticsState(task);
             default:

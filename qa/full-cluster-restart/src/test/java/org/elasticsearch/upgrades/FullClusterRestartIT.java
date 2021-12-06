@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
@@ -307,6 +308,8 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             mappingsAndSettings.field("number_of_replicas", replicas);
             mappingsAndSettings.field("mode", "time_series");
             mappingsAndSettings.field("routing_path", "dim");
+            mappingsAndSettings.field("time_series.start_time", 1L);
+            mappingsAndSettings.field("time_series.end_time", DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
             mappingsAndSettings.endObject();
         }
         {

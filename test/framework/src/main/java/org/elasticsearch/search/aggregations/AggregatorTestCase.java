@@ -184,7 +184,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     );
 
     @Before
-    public final void initPlugns() {
+    public final void initPlugins() {
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
         plugins.add(new AggCardinalityUpperBoundPlugin());
         SearchModule searchModule = new SearchModule(Settings.EMPTY, plugins);

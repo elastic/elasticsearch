@@ -137,7 +137,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
     protected List<Plugin> plugins = new ArrayList<>();
 
     public LocalStateCompositeXPackPlugin(final Settings settings, final Path configPath) {
-        super(settings, configPath);
+        super(settings);
     }
 
     // Get around all the setOnce nonsense in the plugin

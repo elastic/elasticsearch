@@ -47,18 +47,18 @@ public class PluginsAndModules implements ReportingService.Info {
      * Returns an ordered list based on plugins name
      */
     public List<PluginInfo> getPluginInfos() {
-        List<PluginInfo> pluginInfos = new ArrayList<>(this.plugins);
-        Collections.sort(pluginInfos, Comparator.comparing(PluginInfo::getName));
-        return pluginInfos;
+        List<PluginInfo> plugins = new ArrayList<>(this.plugins);
+        Collections.sort(plugins, Comparator.comparing(PluginInfo::getName));
+        return plugins;
     }
 
     /**
      * Returns an ordered list based on modules name
      */
     public List<PluginInfo> getModuleInfos() {
-        List<PluginInfo> moduleInfos = new ArrayList<>(this.modules);
-        Collections.sort(moduleInfos, Comparator.comparing(PluginInfo::getName));
-        return moduleInfos;
+        List<PluginInfo> modules = new ArrayList<>(this.modules);
+        Collections.sort(modules, Comparator.comparing(PluginInfo::getName));
+        return modules;
     }
 
     public void addPlugin(PluginInfo info) {

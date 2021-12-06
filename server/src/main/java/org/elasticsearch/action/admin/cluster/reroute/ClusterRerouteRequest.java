@@ -41,8 +41,8 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
      * Adds allocation commands to be applied to the cluster. Note, can be empty, in which case
      * will simply run a simple "reroute".
      */
-    public ClusterRerouteRequest add(AllocationCommand... allocationCommands) {
-        this.commands.add(allocationCommands);
+    public ClusterRerouteRequest add(AllocationCommand... commands) {
+        this.commands.add(commands);
         return this;
     }
 

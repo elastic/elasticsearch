@@ -111,8 +111,8 @@ public interface ActionListener<Response> {
         }
 
         @Override
-        public <T> ActionListener<T> map(CheckedFunction<T, Response, Exception> mapFn) {
-            return new MappedActionListener<>(t -> this.fn.apply(mapFn.apply(t)), this.delegate);
+        public <T> ActionListener<T> map(CheckedFunction<T, Response, Exception> fn) {
+            return new MappedActionListener<>(t -> this.fn.apply(fn.apply(t)), this.delegate);
         }
     }
 

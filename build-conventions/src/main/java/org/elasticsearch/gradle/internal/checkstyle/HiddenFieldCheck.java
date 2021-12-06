@@ -465,7 +465,6 @@ public class HiddenFieldCheck extends AbstractCheck {
                 result = methodName.matches(ignoreMethodNames) || getMethodsNumberOfLine(method) <= this.minLineCount;
             }
         }
-
         return result;
     }
 
@@ -474,13 +473,10 @@ public class HiddenFieldCheck extends AbstractCheck {
 
         if (ignoreConstructorBody && ast.getType() == TokenTypes.VARIABLE_DEF) {
             DetailAST method = ast.getParent();
-            while (method != null && method.getType() != TokenTypes.LITERAL_NEW) {
+            while (method != null && method.getType() != TokenTypes.CTOR_DEF) {
                 method = method.getParent();
             }
-            if (method != null) {
-                final String ctorName = method.findFirstToken(TokenTypes.IDENT).getText();
-                result = ctorName.matches(this.ignoreConstructorMethods);
-            }
+            result = method != null && method.getType() == TokenTypes.CTOR_DEF;
         }
 
         return result;

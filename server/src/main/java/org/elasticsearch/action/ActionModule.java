@@ -664,9 +664,9 @@ public class ActionModule extends AbstractModule {
         return unmodifiableMap(actions.getRegistry());
     }
 
-    private ActionFilters setupActionFilters(List<ActionPlugin> pluginList) {
+    private ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {
         return new ActionFilters(
-            Collections.unmodifiableSet(pluginList.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toSet()))
+            Collections.unmodifiableSet(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toSet()))
         );
     }
 

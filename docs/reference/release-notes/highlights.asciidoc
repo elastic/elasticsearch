@@ -30,61 +30,64 @@ Other versions:
 
 // tag::notable-highlights[]
 [discrete]
-
 === SQL: Support for {ccs}
 
 {es} SQL now supports {ccs} ({ccs-init}) using the `<remote_cluster>:<target>`
 syntax, where `<remote_cluster>` maps to a SQL catalog (cluster) and `<target>`
 to a table (index or data stream).
 
+[discrete]
 === Search: Improved can-match phase for scalability
 
-If a search would hit a large number of shards, the search process includes a
-pre-filter phase, also called the can-match phase. During this phase, {es}
-checks if an impacted shard actually contains data that could potentially match
-the search query. If not, {es} doesn't run the query on the shard. For example,
-if a query includes a `@timestamp` date range filter, {es} will use the
-can-match phase to exclude shards that have no data within the date range.
+If a search hits a large number of shards, the search operation includes a
+pre-filter phase called the can-match phase. During this phase, {es}
+checks if an impacted shard contains data that could potentially match
+the search query. If not, {es} doesn't run the query on the shard.
 
 Previously, the search's coordinating node sent an individual request to each
 shard checked during the can-match phase. However, if the search needed to check
 thousands of shards, the coordinating node would need to handle thousands of
-requests and responses, resulting in high overhead.
+requests, resulting in high overhead.
 
 With 7.16, the coordinating node instead sends a single request to each data
-node during the can-match phase. This request covers checks for all impacted
-shards on the node. This significantly reduces the number of requests and lowers
+node during the can-match phase. This request covers can-match checks for all
+impacted shards on the node, significantly reducing the number of requests and
 related overhead.
 
+[discrete]
 === Field capabilities: Results gathered by node for scalability
 
 Previously, field caps were gathered by sending a request per index to the
-appropriate nodes in the cluster resulting in high overhead when many indices
+appropriate nodes in the cluster. This resulted in high overhead when many indices
 were targeted. Now requests that target indices on a single node are grouped
-together resulting in no more than a single request per node.
+together, resulting in no more than a single request per node.
 
+[discrete]
 === Frozen tier: Cached requests and queries
 
 Requests and queries against indices in the frozen tier are now cached,
 which improves performance for subsequent requests and queries.
 
+[discrete]
 === Enrich processor: New `range` enrich policy type
 
 With 7.16, we added the `range` enrich policy type for the enrich processor.
 You can use a `range` policy to enrich incoming documents based on a number,
 date, or IP address that matches a range in the enrich index.
 
-For example, if an incoming documents contains an IP address, you can use a
+For example, if incoming documents contain an IP address, you can use a
 `range` policy to enrich the documents based on its IP range. For an in-depth
 example, see {ref}/range-enrich-policy-type.html[Example: Enrich your data by
 matching a value to a range].
 
+[discrete]
 === Data streams: Segment sorting for faster searches
 
 For data streams, {es} now sorts a backing index's segments by maximum
 `@timestamp` value in descending order. This speeds up searches sorted by
 `@timestamp`, which are common for data streams.
 
+[discrete]
 === EQL: `with runs` statements for repeated events
 
 In 7.16, we added the `with runs` statement syntax to EQL sequence queries.
@@ -93,5 +96,4 @@ succession. Rather than type the same event criteria multiple times, you can use
 a `with runs` statement to declare the criteria once and run it successively.
 For more details, check out the
 {ref}/eql-syntax.html#eql-with-runs-statement[EQL syntax documentation].
-
 // end::notable-highlights[]

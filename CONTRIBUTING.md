@@ -203,7 +203,7 @@ automatically formatted in
 
 ### Importing the project into Eclipse
 
-Elasticsearch builds using Gradle and Java 16. When importing into Eclipse you
+Elasticsearch builds using Gradle and Java 17. When importing into Eclipse you
 will either need to use an appropriate JDK to run Eclipse itself (e.g. by
 specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
 defining the JDK Gradle uses by setting **Preferences** > **Gradle** >

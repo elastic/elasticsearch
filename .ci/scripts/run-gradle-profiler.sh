@@ -1,8 +1,8 @@
 #!/bin/bash
 # drop page cache and kernel slab objects on linux
 [[ -x /usr/local/sbin/drop-caches ]] && sudo /usr/local/sbin/drop-caches
-rm -Rfv ~/.gradle/init.d
-mkdir -p ~/.gradle/init.d && cp -v $WORKSPACE/.ci/init.gradle ~/.gradle/init.d
+rm -Rfv $WORKSPACE/gradle-user-home
+mkdir -p $WORKSPACE/gradle-user-home/init.d && cp -v $WORKSPACE/.ci/init.gradle $WORKSPACE/gradle-user-home
 if [ "$(uname -m)" = "arm64" ] || [ "$(uname -m)" = "aarch64" ]; then
    MAX_WORKERS=16
 elif [ -f /proc/cpuinfo ]; then

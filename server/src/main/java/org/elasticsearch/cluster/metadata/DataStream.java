@@ -29,10 +29,13 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.TemporalAmount;
@@ -45,13 +48,20 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
+    public static final XContentParserConfiguration TS_EXTRACT_CONFIG = XContentParserConfiguration.EMPTY.withFiltering(
+        Set.of("@timestamp"),
+        null
+    );
     // Timeseries indices' leaf readers should be sorted by desc order of their timestamp field, as it allows search time optimizations
     public static Comparator<LeafReader> TIMESERIES_LEAF_READERS_SORTER = Comparator.comparingLong((LeafReader r) -> {
         try {
@@ -210,9 +220,21 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
             return getWriteIndex();
         }
 
-        // TODO: this really needs be parsed in a streaming manner:
-        String timestampAsString = (String) ((IndexRequest) request).sourceAsMap().get("@timestamp");
-        long timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(timestampAsString);
+        IndexRequest indexRequest = (IndexRequest) request;
+        XContent xContent = indexRequest.getContentType().xContent();
+
+        long timestamp;
+        String timestampAsString;
+        try (XContentParser parser = xContent.createParser(TS_EXTRACT_CONFIG, indexRequest.source().streamInput())) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+            ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
+            timestampAsString = parser.text();
+            // TODO: deal with nanos too here. I think we need to have access to mapping metadata for this.
+            timestamp = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(timestampAsString);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
 
         for (int i = indices.size() - 1; i >= 0; i--) {
             Index index = indices.get(i);

@@ -198,6 +198,7 @@ All settings under the `discovery.zen` namespace are no longer supported. They e
 - `discovery.zen.master_election.wait_for_joins_timeout`
 - `discovery.zen.master_election.ignore_non_master_pings`
 - `discovery.zen.publish.max_pending_cluster_states`
+- `discovery.zen.bwc_ping_timeout`
 
 *Impact* +
 Remove the `discovery.zen` settings from `elasticsearch.yml`. Specifying these settings will result in an error on startup.
@@ -854,6 +855,22 @@ was explicitly configured. Starting in 8.0,
 *Impact* +
 This configuration means that transport compression will produce somewhat lower
 compression ratios in exchange for lower CPU load.
+====
+
+.The `repositories.fs.compress` node-level setting has been removed.
+[%collapsible]
+====
+*Details* +
+For shared file system repositories (`"type": "fs"`), the node level setting `repositories.fs.compress` could
+previously be used to enable compression for all shared file system repositories where `compress` was not specified.
+The `repositories.fs.compress` setting has been removed.
+
+*Impact* +
+Use the repository specific `compress` setting to enable compression. See
+{ref}/snapshots-register-repository.html[Register a snapshot repository] for
+information on the `compress` setting.
+
+Discontinue use of the `repositories.fs.compress` node-level setting.
 ====
 //end::notable-breaking-changes[]
 

@@ -110,7 +110,7 @@ public class RestShardsAction extends AbstractCatAction {
 
         table.addCell("sync_id", "alias:sync_id;default:false;desc:sync id");
 
-        table.addCell("unassigned.reason", "alias:ur;default:false;desc:reason shard is unassigned");
+        table.addCell("unassigned.reason", "alias:ur;default:false;desc:reason shard became unassigned");
         table.addCell("unassigned.at", "alias:ua;default:false;desc:time shard became unassigned (UTC)");
         table.addCell("unassigned.for", "alias:uf;default:false;text-align:right;desc:time has been unassigned");
         table.addCell("unassigned.details", "alias:ud;default:false;desc:additional details as to why the shard became unassigned");

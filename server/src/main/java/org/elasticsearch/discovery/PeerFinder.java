@@ -68,7 +68,7 @@ public abstract class PeerFinder {
     // the master before we start to emit more verbose logs.
     public static final Setting<TimeValue> VERBOSITY_INCREASE_TIMEOUT_SETTING = Setting.timeSetting(
         "discovery.find_peers_warning_timeout",
-        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueMinutes(3),
         TimeValue.timeValueMillis(1),
         Setting.Property.NodeScope
     );

@@ -249,11 +249,11 @@ public class SettingsConfig implements Writeable, ToXContentObject {
          * This setting throttles transform by issuing queries less often, however processing still happens in
          * batches. A value of 0 disables throttling (default).
          *
-         * @param docsPerSecond Integer value
+         * @param documentsPerSecond Integer value
          * @return the {@link Builder} with requestsPerSecond set.
          */
-        public Builder setRequestsPerSecond(Float docsPerSecond) {
-            this.docsPerSecond = docsPerSecond == null ? DEFAULT_DOCS_PER_SECOND : docsPerSecond;
+        public Builder setRequestsPerSecond(Float documentsPerSecond) {
+            this.docsPerSecond = documentsPerSecond == null ? DEFAULT_DOCS_PER_SECOND : documentsPerSecond;
             return this;
         }
 

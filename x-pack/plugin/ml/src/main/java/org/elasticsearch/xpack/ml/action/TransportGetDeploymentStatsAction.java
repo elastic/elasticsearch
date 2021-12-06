@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.ml.action;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -55,8 +53,6 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
     GetDeploymentStatsAction.Request,
     GetDeploymentStatsAction.Response,
     AllocationStats> {
-
-    private static final Logger logger = LogManager.getLogger(TransportGetDeploymentStatsAction.class);
 
     @Inject
     public TransportGetDeploymentStatsAction(
@@ -274,8 +270,6 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
 
                 nodeStats.sort(Comparator.comparing(n -> n.getNode().getId()));
 
-                // debug logging added for https://github.com/elastic/elasticsearch/issues/80819
-                logger.debug("[{}] deployment stats for non-started deployment", modelId);
                 updatedAllocationStats.add(new AllocationStats(modelId, null, null, null, null, allocation.getStartTime(), nodeStats));
             }
         }

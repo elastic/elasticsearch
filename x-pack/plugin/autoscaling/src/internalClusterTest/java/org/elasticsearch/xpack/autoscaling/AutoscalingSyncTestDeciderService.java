@@ -22,7 +22,10 @@ import java.util.stream.Collectors;
 
 public class AutoscalingSyncTestDeciderService implements AutoscalingDeciderService {
 
-    private static final Setting<Boolean> CHECK_FOR_CANCEL = Setting.boolSetting("check_for_cancel", false);
+    // ! ensures this decider is always first in tests.
+    public static final String NAME = "!sync";
+
+    public static final Setting<Boolean> CHECK_FOR_CANCEL = Setting.boolSetting("check_for_cancel", false);
 
     private final CyclicBarrier syncBarrier = new CyclicBarrier(2);
 
@@ -30,8 +33,7 @@ public class AutoscalingSyncTestDeciderService implements AutoscalingDeciderServ
 
     @Override
     public String name() {
-        // ! ensures this decider is always first in tests.
-        return "!sync";
+        return NAME;
     }
 
     @Override
@@ -49,7 +51,7 @@ public class AutoscalingSyncTestDeciderService implements AutoscalingDeciderServ
         try {
             syncBarrier.await();
         } catch (InterruptedException | BrokenBarrierException e) {
-            assert false;
+            assert false : e;
         }
     }
 

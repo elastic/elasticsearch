@@ -23,7 +23,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.autoscaling.AutoscalingCountTestDeciderService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
+import org.elasticsearch.xpack.autoscaling.AutoscalingSyncTestDeciderService;
 import org.elasticsearch.xpack.autoscaling.LocalStateAutoscaling;
 
 import java.io.IOException;
@@ -66,7 +68,14 @@ public class GetAutoscalingCapacityRestCancellationIT extends AutoscalingIntegTe
     public void testCapacityRestCancellationAndResponse() throws Exception {
         internalCluster().startMasterOnlyNode();
 
-        putAutoscalingPolicy(Map.of("count", Settings.EMPTY, "!sync", Settings.builder().put("check_for_cancel", randomBoolean()).build()));
+        putAutoscalingPolicy(
+            Map.of(
+                AutoscalingCountTestDeciderService.NAME,
+                Settings.EMPTY,
+                AutoscalingSyncTestDeciderService.NAME,
+                Settings.builder().put(AutoscalingSyncTestDeciderService.CHECK_FOR_CANCEL.getKey(), randomBoolean()).build()
+            )
+        );
         try (RestClient restClient = createRestClient()) {
 
             PlainActionFuture<Response> cancelledFuture = new PlainActionFuture<>();
@@ -79,7 +88,7 @@ public class GetAutoscalingCapacityRestCancellationIT extends AutoscalingIntegTe
                 .get(0)
                 .testPlugin();
             plugin.syncWithDeciderService(() -> {
-                putAutoscalingPolicy(Map.of("count", Settings.EMPTY));
+                putAutoscalingPolicy(Map.of(AutoscalingCountTestDeciderService.NAME, Settings.EMPTY));
                 assertThat(
                     internalCluster().getMasterNodeInstance(TransportGetAutoscalingCapacityAction.class).responseCacheQueueSize(),
                     equalTo(1)
@@ -100,6 +109,9 @@ public class GetAutoscalingCapacityRestCancellationIT extends AutoscalingIntegTe
                 );
                 cancellable.cancel();
                 waitForCancelledCapacityTask();
+
+                assertFalse(successFuture1.isDone());
+                assertFalse(successFuture2.isDone());
             });
 
             expectThrows(CancellationException.class, cancelledFuture::actionGet);

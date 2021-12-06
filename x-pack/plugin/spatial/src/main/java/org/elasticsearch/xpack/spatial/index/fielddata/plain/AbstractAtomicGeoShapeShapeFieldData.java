@@ -104,12 +104,12 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
         }
 
         @Override
-        public GeoPoint getCentroid() {
+        public GeoPoint getInternalCentroid() {
             return centroid;
         }
 
         @Override
-        public GeoBoundingBox getBoundingBox() {
+        public GeoBoundingBox getInternalBoundingBox() {
             return boundingBox;
         }
     }
@@ -130,7 +130,7 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
 
         @Override
         public GeoPoint getCentroid() {
-            return gsSupplier.getInternal() == null ? null : gsSupplier.getCentroid();
+            return gsSupplier.getInternal() == null ? null : gsSupplier.getInternalCentroid();
         }
 
         @Override
@@ -145,7 +145,7 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
 
         @Override
         public GeoBoundingBox getBoundingBox() {
-            return gsSupplier.getInternal() == null ? null : gsSupplier.getBoundingBox();
+            return gsSupplier.getInternal() == null ? null : gsSupplier.getInternalBoundingBox();
         }
 
         @Override

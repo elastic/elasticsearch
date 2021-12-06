@@ -287,9 +287,9 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
     public interface GeometrySupplier<T> extends Supplier<T> {
 
-        GeoPoint getCentroid();
+        GeoPoint getInternalCentroid();
 
-        GeoBoundingBox getBoundingBox();
+        GeoBoundingBox getInternalBoundingBox();
     }
 
     public static class GeoPointsSupplier implements GeometrySupplier<GeoPoint> {
@@ -369,12 +369,12 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         }
 
         @Override
-        public GeoPoint getCentroid() {
+        public GeoPoint getInternalCentroid() {
             return centroid;
         }
 
         @Override
-        public GeoBoundingBox getBoundingBox() {
+        public GeoBoundingBox getInternalBoundingBox() {
             return boundingBox;
         }
 
@@ -481,7 +481,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoPoint getCentroid() {
-            return size() == 0 ? null : geometrySupplier.getCentroid();
+            return size() == 0 ? null : geometrySupplier.getInternalCentroid();
         }
 
         @Override
@@ -496,7 +496,7 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
 
         @Override
         public GeoBoundingBox getBoundingBox() {
-            return size() == 0 ? null : geometrySupplier.getBoundingBox();
+            return size() == 0 ? null : geometrySupplier.getInternalBoundingBox();
         }
     }
 

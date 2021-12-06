@@ -46,8 +46,8 @@ than one request per node is sent.
 
 === Frozen tier: Cached requests and queries
 
-Requests and queries against indices in the frozen tier are now cached
-which improves performance for subsequent queries.
+Requests and queries against indices in the frozen tier are now cached,
+which improves performance for subsequent requests and queries.
 
 === Enrich processor: Allow range types for enrich matching
 

@@ -1671,7 +1671,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
             for (var cursor : aliasedIndices) {
                 List<IndexMetadata> aliasIndices = cursor.value.stream()
-                    .map(idx -> indices.get(idx.getName()))
+                    .map(idx -> indicesMap.get(idx.getName()))
                     .collect(Collectors.toList());
                 validateAlias(cursor.key, aliasIndices);
             }
@@ -1740,8 +1740,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         + "]"
                 );
             }
-            ImmutableOpenMap<String, IndexMetadata> indices = this.indices.build();
-            assert assertDataStreams(indices, dataStreamMetadata);
+            assert assertDataStreams(indicesMap, dataStreamMetadata);
 
             SortedMap<String, IndexAbstraction> indicesLookup = null;
             if (previousIndicesLookup != null) {

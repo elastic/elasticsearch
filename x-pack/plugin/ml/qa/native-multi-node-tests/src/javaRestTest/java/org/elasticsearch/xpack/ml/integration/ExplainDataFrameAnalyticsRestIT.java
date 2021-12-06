@@ -82,18 +82,11 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
 
         // Create index with source = enabled, doc_values = enabled, stored = false + multi-field
         Request createAirlineDataRequest = new Request("PUT", "/airline-data");
+        // space in 'time stamp' is intentional
         createAirlineDataRequest.setJsonEntity(
-            "{"
-                + "  \"mappings\": {"
-                + "    \"properties\": {"
-                + "      \"time stamp\": { \"type\":\"date\"}," // space in 'time stamp' is intentional
-                + "      \"airline\": {"
-                + "        \"type\":\"keyword\""
-                + "       },"
-                + "      \"responsetime\": { \"type\":\"float\"}"
-                + "    }"
-                + "  }"
-                + "}"
+            """
+             {"mappings":{"properties":{"time stamp":{"type":"date"},"airline":{"type":"keyword"},"responsetime":{"type":"float"}}}}
+             """
         );
         client().performRequest(createAirlineDataRequest);
 
@@ -106,16 +99,17 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
     }
 
     public void testExplain_GivenSecondaryHeadersAndConfig() throws IOException {
-        String config = "{\n"
-            + "  \"source\": {\n"
-            + "    \"index\": \"airline-data\"\n"
-            + "  },\n"
-            + "  \"analysis\": {\n"
-            + "    \"regression\": {\n"
-            + "      \"dependent_variable\": \"responsetime\"\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String config = """
+            {
+              "source": {
+                "index": "airline-data"
+              },
+              "analysis": {
+                "regression": {
+                  "dependent_variable": "responsetime"
+                }
+              }
+            }""";
 
         { // Request with secondary headers without perms
             Request explain = explainRequestViaConfig(config);
@@ -138,20 +132,21 @@ public class ExplainDataFrameAnalyticsRestIT extends ESRestTestCase {
     }
 
     public void testExplain_GivenSecondaryHeadersAndPreviouslyStoredConfig() throws IOException {
-        String config = "{\n"
-            + "  \"source\": {\n"
-            + "    \"index\": \"airline-data\"\n"
-            + "  },\n"
-            + "  \"dest\": {\n"
-            + "    \"index\": \"response_prediction\"\n"
-            + "  },\n"
-            + "  \"analysis\":\n"
-            + "    {\n"
-            + "      \"regression\": {\n"
-            + "        \"dependent_variable\": \"responsetime\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "}";
+        String config = """
+            {
+              "source": {
+                "index": "airline-data"
+              },
+              "dest": {
+                "index": "response_prediction"
+              },
+              "analysis":
+                {
+                  "regression": {
+                    "dependent_variable": "responsetime"
+                  }
+                }
+            }""";
 
         String configId = "explain_test";
 

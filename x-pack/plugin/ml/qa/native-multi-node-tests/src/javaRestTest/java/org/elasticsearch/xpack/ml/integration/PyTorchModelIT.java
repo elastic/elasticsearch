@@ -118,14 +118,12 @@ public class PyTorchModelIT extends ESRestTestCase {
     public void setLogging() throws IOException {
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity(
-            ""
-                + "{"
-                + "\"persistent\" : {\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\" : \"TRACE\",\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : \"TRACE\",\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : \"TRACE\"\n"
-                + "    }"
-                + "}"
+            """
+                {"persistent" : {
+                        "logger.org.elasticsearch.xpack.ml.inference.allocation" : "TRACE",
+                        "logger.org.elasticsearch.xpack.ml.inference.deployment" : "TRACE",
+                        "logger.org.elasticsearch.xpack.ml.process.logging" : "TRACE"
+                    }}"""
         );
         client().performRequest(loggingSettings);
     }
@@ -136,14 +134,12 @@ public class PyTorchModelIT extends ESRestTestCase {
 
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity(
-            ""
-                + "{"
-                + "\"persistent\" : {\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.allocation\": null,\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.inference.deployment\" : null,\n"
-                + "        \"logger.org.elasticsearch.xpack.ml.process.logging\" : null\n"
-                + "    }"
-                + "}"
+            """
+                {"persistent" : {
+                        "logger.org.elasticsearch.xpack.ml.inference.allocation": null,
+                        "logger.org.elasticsearch.xpack.ml.inference.deployment" : null,
+                        "logger.org.elasticsearch.xpack.ml.process.logging" : null
+                    }}"""
         );
         client().performRequest(loggingSettings);
 
@@ -443,24 +439,25 @@ public class PyTorchModelIT extends ESRestTestCase {
         putVocabulary(List.of("once", "twice"), model);
         putModelDefinition(model);
 
-        String source = "{\n"
-            + "  \"pipeline\": {\n"
-            + "    \"processors\": [\n"
-            + "      {\n"
-            + "        \"inference\": {\n"
-            + "          \"model_id\": \"not-deployed\"\n"
-            + "        }\n"
-            + "      }\n"
-            + "    ]\n"
-            + "  },\n"
-            + "  \"docs\": [\n"
-            + "    {\n"
-            + "      \"_source\": {\n"
-            + "        \"input\": \"my words\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "  ]\n"
-            + "}";
+        String source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "not-deployed"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {
+                  "_source": {
+                    "input": "my words"
+                  }
+                }
+              ]
+            }""";
 
         String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
         assertThat(
@@ -497,21 +494,15 @@ public class PyTorchModelIT extends ESRestTestCase {
 
         Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
         request.setJsonEntity(
-            "{  "
-                + "    \"description\": \"simple model for testing\",\n"
-                + "    \"model_type\": \"pytorch\",\n"
-                + "    \"inference_config\": {\n"
-                + "        \"pass_through\": {\n"
-                + "            \"tokenization\": {"
-                + "              \"bert\": {"
-                + "                \"with_special_tokens\": false,"
-                + "                \"truncate\": \"none\","
-                + "                \"max_sequence_length\": 2"
-                + "              }\n"
-                + "            }\n"
-                + "        }\n"
-                + "    }\n"
-                + "}"
+            """
+                {      "description": "simple model for testing",
+                    "model_type": "pytorch",
+                    "inference_config": {
+                        "pass_through": {
+                            "tokenization": {"bert": {"with_special_tokens": false, "truncate": "none", "max_sequence_length": 2}}
+                        }
+                    }
+                }"""
         );
         client().performRequest(request);
 
@@ -638,17 +629,15 @@ public class PyTorchModelIT extends ESRestTestCase {
     private void createTrainedModel(String modelId) throws IOException {
         Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
         request.setJsonEntity(
-            "{  "
-                + "    \"description\": \"simple model for testing\",\n"
-                + "    \"model_type\": \"pytorch\",\n"
-                + "    \"inference_config\": {\n"
-                + "        \"pass_through\": {\n"
-                + "            \"tokenization\": {"
-                + "              \"bert\": {\"with_special_tokens\": false}\n"
-                + "            }\n"
-                + "        }\n"
-                + "    }\n"
-                + "}"
+            """
+                {      "description": "simple model for testing",
+                    "model_type": "pytorch",
+                    "inference_config": {
+                        "pass_through": {
+                            "tokenization": { "bert": {"with_special_tokens": false} }
+                        }
+                    }
+                }"""
         );
         client().performRequest(request);
     }

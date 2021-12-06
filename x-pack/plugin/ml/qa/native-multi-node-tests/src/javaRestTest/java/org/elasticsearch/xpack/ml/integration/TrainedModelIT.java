@@ -342,14 +342,14 @@ public class TrainedModelIT extends ESRestTestCase {
     private void putPyTorchModel(String modelId) throws IOException {
         Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
         request.setJsonEntity(
-            "{  "
-                + "    \"description\": \"simple model for testing\",\n"
-                + "    \"model_type\": \"pytorch\",\n"
-                + "    \"inference_config\": {\n"
-                + "        \"pass_through\": {\n"
-                + "        }\n"
-                + "    }\n"
-                + "}"
+            """
+                {      "description": "simple model for testing",
+                    "model_type": "pytorch",
+                    "inference_config": {
+                        "pass_through": {
+                        }
+                    }
+                }"""
         );
         client().performRequest(request);
     }

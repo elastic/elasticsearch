@@ -53,8 +53,6 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-import static org.elasticsearch.Version.V_7_16_0;
-
 /**
  * Transport action that reads the cluster state for shards with the requested criteria (see {@link ClusterHealthStatus}) of specific
  * indices and fetches store information from all the nodes using {@link TransportNodesListGatewayStartedShards}
@@ -152,9 +150,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
             this.shards = shards;
             this.listener = listener;
             this.fetchResponses = new ConcurrentLinkedQueue<>();
-            if (nodes.getLocalNode().getVersion().before(V_7_16_0)) {
-                this.expectedOps = new CountDown(shards.size());
-            }
+            this.expectedOps = new CountDown(shards.size());
         }
 
         void start() {
@@ -165,9 +161,6 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                 Lister<BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> lister = this::listStartedShards;
                 for (Tuple<ShardId, String> shard : shards) {
                     InternalAsyncFetch fetch = new InternalAsyncFetch(logger, "shard_stores", shard.v1(), shard.v2(), lister);
-                    if (nodes.getLocalNode().getVersion().onOrAfter(V_7_16_0)) {
-                        this.expectedOps = new CountDown(shards.size() *  fetch.getTargetFetchNodes(nodes).size());
-                    }
                     fetch.fetchData(nodes, Collections.<String>emptySet());
                 }
             }
@@ -215,7 +208,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                 ImmutableOpenMap.Builder<
                     String,
                     ImmutableOpenIntMap<java.util.List<IndicesShardStoresResponse.StoreStatus>>> indicesStoreStatusesBuilder =
-                        ImmutableOpenMap.builder();
+                    ImmutableOpenMap.builder();
 
                 java.util.List<IndicesShardStoresResponse.Failure> failureBuilder = new ArrayList<>();
                 for (Response fetchResponse : fetchResponses) {

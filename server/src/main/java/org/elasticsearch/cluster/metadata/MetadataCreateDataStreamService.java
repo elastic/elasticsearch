@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -207,7 +208,9 @@ public class MetadataCreateDataStreamService {
                 firstBackingIndexName
             ).dataStreamName(dataStreamName).systemDataStreamDescriptor(systemDataStreamDescriptor);
 
-            if (template.getDataStreamTemplate().getType() == DataStream.Type.TIME_SERIES) {
+            // Get the index mode from template and based on that set tsdb start and end time settings correctly:
+            IndexMode indexMode = IndexSettings.MODE.get(template.template().settings());
+            if (indexMode == IndexMode.TIME_SERIES) {
                 Instant start = Instant.ofEpochMilli(0);
                 Instant end = Instant.ofEpochMilli(request.startTime).plus(DataStream.DEFAULT_LOOK_AHEAD_TIME);
 

@@ -196,7 +196,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.startObject();
                     builder.field(Index.INDEX_NAME_KEY, im.getIndex().getName());
                     builder.field(Index.INDEX_UUID_KEY, im.getIndex().getUUID());
-                    if (dataStream.getType() == DataStream.Type.TIME_SERIES) {
+                    if (dataStream.isTimeSeries(im)) {
                         builder.field(
                             IndexSettings.TIME_SERIES_START_TIME.getKey(),
                             im.getSettings().get(IndexSettings.TIME_SERIES_START_TIME.getKey())

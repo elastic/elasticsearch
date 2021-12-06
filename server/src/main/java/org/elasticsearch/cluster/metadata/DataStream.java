@@ -24,6 +24,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -49,6 +50,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -212,7 +214,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     }
 
     public Index getWriteIndex(DocWriteRequest<?> request, Metadata metadata) {
-        if (type != Type.TIME_SERIES) {
+        if (isTimeSeries(metadata::index) == false) {
             return getWriteIndex();
         }
 
@@ -252,6 +254,15 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         }
 
         throw new IllegalArgumentException("no index available for a document with an @timestamp of [" + timestampAsString + "]");
+    }
+
+    public boolean isTimeSeries(Function<Index, IndexMetadata> indices) {
+        return isTimeSeries(indices.apply(getWriteIndex()));
+    }
+
+    public boolean isTimeSeries(IndexMetadata indexMetadata) {
+        IndexMode indexMode = IndexSettings.MODE.get(indexMetadata.getSettings());
+        return indexMode == IndexMode.TIME_SERIES;
     }
 
     @Nullable

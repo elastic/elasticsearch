@@ -301,7 +301,7 @@ public class MetadataRolloverService {
             systemDataStreamDescriptor
         );
 
-        if (dataStream.getDataStream().getType() == DataStream.Type.TIME_SERIES) {
+        if (dataStream.getDataStream().isTimeSeries(index -> currentState.metadata().index(index))) {
             DateFormatter dateFormatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
             Metadata metadata = currentState.metadata();
             IndexMetadata previousHeadIndex = metadata.indices().get(originalWriteIndex.getName());

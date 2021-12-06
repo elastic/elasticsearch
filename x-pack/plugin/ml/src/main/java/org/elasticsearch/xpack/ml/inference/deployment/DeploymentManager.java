@@ -388,9 +388,7 @@ public class DeploymentManager {
                 return;
             }
 
-            logger.debug(
-                () -> new ParameterizedMessage("[{}] retrieved result for request [{}]", context.task.getModelId(), requestId)
-            );
+            logger.debug(() -> new ParameterizedMessage("[{}] retrieved result for request [{}]", context.task.getModelId(), requestId));
             if (notified.get()) {
                 // The request has timed out. No need to spend cycles processing the result.
                 logger.debug(
@@ -403,9 +401,7 @@ public class DeploymentManager {
                 return;
             }
             InferenceResults results = inferenceResultsProcessor.processResult(tokenization, pyTorchResult);
-            logger.debug(
-                () -> new ParameterizedMessage("[{}] processed result for request [{}]", context.task.getModelId(), requestId)
-            );
+            logger.debug(() -> new ParameterizedMessage("[{}] processed result for request [{}]", context.task.getModelId(), requestId));
             resultsListener.onResponse(results);
         }
     }

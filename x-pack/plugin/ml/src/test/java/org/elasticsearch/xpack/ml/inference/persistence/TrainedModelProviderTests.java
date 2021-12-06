@@ -198,7 +198,7 @@ public class TrainedModelProviderTests extends ESTestCase {
                         new BytesArray(randomByteArrayOfLength(10)),
                         modelId,
                         0,
-                        randomLongBetween(10, 100),
+                        randomLongBetween(11, 100),
                         10,
                         1,
                         randomBoolean()

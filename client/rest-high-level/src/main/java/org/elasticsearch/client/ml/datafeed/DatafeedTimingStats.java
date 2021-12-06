@@ -34,6 +34,7 @@ public class DatafeedTimingStats implements ToXContentObject {
 
     public static final ConstructingObjectParser<DatafeedTimingStats, Void> PARSER = createParser();
 
+    @SuppressWarnings("HiddenField")
     private static ConstructingObjectParser<DatafeedTimingStats, Void> createParser() {
         ConstructingObjectParser<DatafeedTimingStats, Void> parser = new ConstructingObjectParser<>("datafeed_timing_stats", true, args -> {
             String jobId = (String) args[0];

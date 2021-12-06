@@ -94,7 +94,7 @@ include::settings/security-settings.asciidoc[]
 
 include::modules/indices/request_cache.asciidoc[]
 
-include::settings/slm-settings.asciidoc[]
+include::settings/snapshot-settings.asciidoc[]
 
 include::settings/transform-settings.asciidoc[]
 

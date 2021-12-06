@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -62,7 +63,7 @@ public class MapperTestUtils {
             similarityService,
             mapperRegistry,
             () -> null,
-            () -> false,
+            IdFieldMapper.NO_FIELD_DATA,
             ScriptCompiler.NONE
         );
     }

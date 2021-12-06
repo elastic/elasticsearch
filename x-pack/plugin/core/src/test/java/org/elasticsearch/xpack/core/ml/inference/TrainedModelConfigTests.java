@@ -89,7 +89,7 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
             .setModelType(randomFrom(TrainedModelType.values()))
             .setCreatedBy(randomAlphaOfLength(10))
             .setDescription(randomBoolean() ? null : randomAlphaOfLength(10))
-            .setEstimatedHeapMemory(randomNonNegativeLong())
+            .setModelSize(randomNonNegativeLong())
             .setEstimatedOperations(randomNonNegativeLong())
             .setLicenseLevel(randomFrom(License.OperationMode.PLATINUM.description(), License.OperationMode.BASIC.description()))
             .setInferenceConfig(randomFrom(inferenceConfigs))

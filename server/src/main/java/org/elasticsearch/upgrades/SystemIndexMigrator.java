@@ -459,9 +459,16 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             migrationInfo.getNextIndexName()
         );
 
+        Settings.Builder settingsBuilder = Settings.builder();
+        if (Objects.nonNull(migrationInfo.getSettings())) {
+            settingsBuilder.put(migrationInfo.getSettings());
+            settingsBuilder.remove("index.blocks.write");
+            settingsBuilder.remove("index.blocks.read");
+            settingsBuilder.remove("index.blocks.metadata");
+        }
         createRequest.waitForActiveShards(ActiveShardCount.ALL)
             .mappings(migrationInfo.getMappings())
-            .settings(Objects.requireNonNullElse(migrationInfo.getSettings(), Settings.EMPTY));
+            .settings(Objects.requireNonNullElse(settingsBuilder.build(), Settings.EMPTY));
         metadataCreateIndexService.createIndex(createRequest, listener);
     }
 

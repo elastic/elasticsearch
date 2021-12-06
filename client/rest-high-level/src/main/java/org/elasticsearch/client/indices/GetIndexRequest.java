@@ -77,11 +77,11 @@ public class GetIndexRequest extends TimedRequest {
         return this;
     }
 
-    public GetIndexRequest addFeatures(Feature... features) {
+    public GetIndexRequest addFeatures(Feature... featuresToAdd) {
         if (this.features == DEFAULT_FEATURES) {
-            return features(features);
+            return features(featuresToAdd);
         } else {
-            return features(ArrayUtils.concat(features(), features, Feature.class));
+            return features(ArrayUtils.concat(features(), featuresToAdd, Feature.class));
         }
     }
 

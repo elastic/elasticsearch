@@ -10,6 +10,7 @@ package org.elasticsearch.gateway;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
@@ -18,6 +19,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -63,6 +65,7 @@ import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.apache.lucene.index.IndexWriter.WRITE_LOCK_NAME;
+import static org.elasticsearch.gateway.PersistedClusterStateService.METADATA_DIRECTORY_NAME;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -595,7 +598,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             }
 
             final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
-            try (Directory directory = newFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))) {
+            try (Directory directory = newFSDirectory(brokenPath.resolve(METADATA_DIRECTORY_NAME))) {
                 final IndexWriterConfig indexWriterConfig = new IndexWriterConfig();
                 indexWriterConfig.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
                 try (IndexWriter indexWriter = new IndexWriter(directory, indexWriterConfig)) {
@@ -633,8 +636,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
             final Path dupPath = randomValueOtherThan(brokenPath, () -> randomFrom(nodeEnvironment.nodeDataPaths()));
             try (
-                Directory directory = newFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
-                Directory dupDirectory = newFSDirectory(dupPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))
+                Directory directory = newFSDirectory(brokenPath.resolve(METADATA_DIRECTORY_NAME));
+                Directory dupDirectory = newFSDirectory(dupPath.resolve(METADATA_DIRECTORY_NAME))
             ) {
                 try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                     indexWriter.addIndexes(dupDirectory);
@@ -693,8 +696,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             final Path brokenPath = randomFrom(nodeEnvironment.nodeDataPaths());
             final Path dupPath = randomValueOtherThan(brokenPath, () -> randomFrom(nodeEnvironment.nodeDataPaths()));
             try (
-                Directory directory = newFSDirectory(brokenPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
-                Directory dupDirectory = newFSDirectory(dupPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME))
+                Directory directory = newFSDirectory(brokenPath.resolve(METADATA_DIRECTORY_NAME));
+                Directory dupDirectory = newFSDirectory(dupPath.resolve(METADATA_DIRECTORY_NAME))
             ) {
                 try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig())) {
                     indexWriter.deleteDocuments(new Term("type", "global")); // do not duplicate global metadata
@@ -1214,11 +1217,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     writer.writeIncrementalStateAndCommit(1, previousClusterState, clusterState);
 
                     for (Path dataPath : nodeEnvironment.nodeDataPaths()) {
-                        try (
-                            DirectoryStream<Path> files = Files.newDirectoryStream(
-                                dataPath.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME)
-                            )
-                        ) {
+                        try (DirectoryStream<Path> files = Files.newDirectoryStream(dataPath.resolve(METADATA_DIRECTORY_NAME))) {
 
                             int fileCount = 0;
                             final List<String> fileNames = new ArrayList<>();
@@ -1249,6 +1248,88 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testOverrideLuceneVersion() throws IOException {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+            final String clusterUUID = UUIDs.randomBase64UUID(random());
+            final long version = randomLongBetween(1L, Long.MAX_VALUE);
+
+            ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                writer.writeFullStateAndCommit(
+                    0L,
+                    ClusterState.builder(clusterState)
+                        .metadata(
+                            Metadata.builder(clusterState.metadata()).clusterUUID(clusterUUID).clusterUUIDCommitted(true).version(version)
+                        )
+                        .incrementVersion()
+                        .build()
+                );
+                clusterState = loadPersistedClusterState(persistedClusterStateService);
+                assertThat(clusterState.metadata().clusterUUID(), equalTo(clusterUUID));
+                assertTrue(clusterState.metadata().clusterUUIDCommitted());
+                assertThat(clusterState.metadata().version(), equalTo(version));
+
+            }
+            NodeMetadata prevMetadata = PersistedClusterStateService.nodeMetadata(persistedClusterStateService.getDataPaths());
+            assertEquals(Version.CURRENT, prevMetadata.nodeVersion());
+            PersistedClusterStateService.overrideVersion(Version.V_8_0_0, persistedClusterStateService.getDataPaths());
+            NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(persistedClusterStateService.getDataPaths());
+            assertEquals(Version.V_8_0_0, metadata.nodeVersion());
+            for (Path p : persistedClusterStateService.getDataPaths()) {
+                NodeMetadata individualMetadata = PersistedClusterStateService.nodeMetadata(p);
+                assertEquals(Version.V_8_0_0, individualMetadata.nodeVersion());
+            }
+        }
+    }
+
+    public void testDeleteAllPaths() throws IOException {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+            final String clusterUUID = UUIDs.randomBase64UUID(random());
+            final long version = randomLongBetween(1L, Long.MAX_VALUE);
+
+            ClusterState clusterState = loadPersistedClusterState(persistedClusterStateService);
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                writer.writeFullStateAndCommit(
+                    0L,
+                    ClusterState.builder(clusterState)
+                        .metadata(
+                            Metadata.builder(clusterState.metadata()).clusterUUID(clusterUUID).clusterUUIDCommitted(true).version(version)
+                        )
+                        .incrementVersion()
+                        .build()
+                );
+                clusterState = loadPersistedClusterState(persistedClusterStateService);
+                assertThat(clusterState.metadata().clusterUUID(), equalTo(clusterUUID));
+                assertTrue(clusterState.metadata().clusterUUIDCommitted());
+                assertThat(clusterState.metadata().version(), equalTo(version));
+            }
+
+            for (Path dataPath : persistedClusterStateService.getDataPaths()) {
+                assertTrue(findSegmentInDirectory(dataPath));
+            }
+
+            PersistedClusterStateService.deleteAll(persistedClusterStateService.getDataPaths());
+
+            for (Path dataPath : persistedClusterStateService.getDataPaths()) {
+                assertFalse(findSegmentInDirectory(dataPath));
+            }
+        }
+    }
+
+    private boolean findSegmentInDirectory(Path dataPath) throws IOException {
+        Directory d = new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME));
+
+        for (final String file : d.listAll()) {
+            if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void assertExpectedLogs(

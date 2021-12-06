@@ -143,6 +143,10 @@ public class MappingMetadata extends AbstractDiffable<MappingMetadata> {
         return this.routingRequired;
     }
 
+    public String getSha256() {
+        return source.getSha256();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(type());

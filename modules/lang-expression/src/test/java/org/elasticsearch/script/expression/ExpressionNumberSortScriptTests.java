@@ -50,7 +50,7 @@ public class ExpressionNumberSortScriptTests extends ESTestCase {
         when(fieldData.load(any())).thenReturn(atomicFieldData);
 
         service = new ExpressionScriptEngine();
-        lookup = new SearchLookup(field -> field.equals("field") ? fieldType : null, (ignored, lookup) -> fieldData);
+        lookup = new SearchLookup(field -> field.equals("field") ? fieldType : null, (ignored, _lookup) -> fieldData);
     }
 
     private NumberSortScript.LeafFactory compile(String expression) {

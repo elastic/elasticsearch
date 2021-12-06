@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import com.carrotsearch.hppc.IntHashSet;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -1206,7 +1204,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .addAsNewRestore(
                 metadata.index("test"),
                 new RecoverySource.SnapshotRecoverySource("_restore_uuid", snapshot, Version.CURRENT, indexId),
-                new IntHashSet()
+                new HashSet<>()
             )
             .build();
 

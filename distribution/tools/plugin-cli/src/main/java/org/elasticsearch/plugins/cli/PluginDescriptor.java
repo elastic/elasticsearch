@@ -10,25 +10,29 @@ package org.elasticsearch.plugins.cli;
 
 import java.util.Objects;
 
+/**
+ * Models a single plugin that can be installed.
+ */
 public class PluginDescriptor {
     private String id;
-    private String url;
-    private String proxy;
+    private String location;
 
     public PluginDescriptor() {}
 
-    public PluginDescriptor(String id, String url, String proxy) {
-        this.id = id;
-        this.url = url;
-        this.proxy = proxy;
-    }
-
-    public PluginDescriptor(String id, String url) {
-        this(id, url, null);
+    /**
+     * Creates a new descriptor instance.
+     *
+     * @param id the name of the plugin. Cannot be null.
+     * @param location the location from which to fetch the plugin, e.g. a URL or Maven
+     *                 coordinates. Can be null for official plugins.
+     */
+    public PluginDescriptor(String id, String location) {
+        this.id = Objects.requireNonNull(id, "id cannot be null");
+        this.location = location;
     }
 
     public PluginDescriptor(String id) {
-        this(id, null, null);
+        this(id, null);
     }
 
     public String getId() {
@@ -39,20 +43,12 @@ public class PluginDescriptor {
         this.id = id;
     }
 
-    public String getUrl() {
-        return url;
+    public String getLocation() {
+        return location;
     }
 
-    public void setUrl(String url) {
-        this.url = url;
-    }
-
-    public String getProxy() {
-        return proxy;
-    }
-
-    public void setProxy(String proxy) {
-        this.proxy = proxy;
+    public void setLocation(String location) {
+        this.location = location;
     }
 
     @Override
@@ -60,11 +56,16 @@ public class PluginDescriptor {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PluginDescriptor that = (PluginDescriptor) o;
-        return id.equals(that.id) && Objects.equals(url, that.url) && Objects.equals(proxy, that.proxy);
+        return id.equals(that.id) && Objects.equals(location, that.location);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, url, proxy);
+        return Objects.hash(id, location);
+    }
+
+    @Override
+    public String toString() {
+        return "PluginDescriptor{id='" + id + "', location='" + location + "'}";
     }
 }

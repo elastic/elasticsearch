@@ -190,7 +190,7 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         ensureGreen(indexName);
 
         final int numDocs = scaledRandomIntBetween(1_000, 5_000);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), numDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, client(), numDocs)) {
             waitForDocs(numDocs, indexer);
             indexer.stopAndAwaitStopped();
         }

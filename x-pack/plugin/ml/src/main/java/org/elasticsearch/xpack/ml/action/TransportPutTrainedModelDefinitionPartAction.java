@@ -95,6 +95,7 @@ public class TransportPutTrainedModelDefinitionPartAction extends TransportMaste
                 new TrainedModelDefinitionDoc.Builder().setModelId(request.getModelId())
                     .setDocNum(request.getPart())
                     .setEos(isEos)
+                    // XContentParser::binaryValue pulls out the raw, base64 decoded bytes automatically. So, we only need the length here
                     .setDefinitionLength(request.getDefinition().length())
                     .setTotalDefinitionLength(request.getTotalDefinitionLength())
                     .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)

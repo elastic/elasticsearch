@@ -52,6 +52,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.InternalEngineTests;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
@@ -194,7 +195,7 @@ public class IndexModuleTests extends ESTestCase {
             mapperRegistry,
             new IndicesFieldDataCache(settings, listener),
             writableRegistry(),
-            () -> false,
+            IdFieldMapper.NO_FIELD_DATA,
             null,
             indexDeletionListener,
             emptyMap()

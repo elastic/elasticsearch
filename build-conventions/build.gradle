@@ -66,7 +66,7 @@ dependencies {
     api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
     api 'org.apache.rat:apache-rat:0.11'
     compileOnly "com.puppycrawl.tools:checkstyle:8.42"
-    api('com.diffplug.spotless:spotless-plugin-gradle:5.16.0') {
+    api('com.diffplug.spotless:spotless-plugin-gradle:6.0.0') {
       exclude module: "groovy-xml"
     }
 }

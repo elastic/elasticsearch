@@ -71,7 +71,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         Processor processor1 = new DotExpanderProcessor("_tag", null, null, "foo.bar");
         // foo already exists and if a leaf field and therefor can't be replaced by a map field:
         Exception e = expectThrows(IllegalArgumentException.class, () -> processor1.execute(document1));
-        assertThat(e.getMessage(), equalTo("cannot expend [foo.bar], because [foo] is not an object field, but a value field"));
+        assertThat(e.getMessage(), equalTo("cannot expand [foo.bar], because [foo] is not an object field, but a value field"));
 
         // so because foo is no branch field but a value field the `foo.bar` field can't be expanded
         // into [foo].[bar], so foo should be renamed first into `[foo].[bar]:
@@ -114,7 +114,7 @@ public class DotExpanderProcessorTests extends ESTestCase {
         IngestDocument document2 = new IngestDocument(source, Collections.emptyMap());
         Processor processor2 = new DotExpanderProcessor("_tag", null, null, "foo.bar.baz");
         e = expectThrows(IllegalArgumentException.class, () -> processor2.execute(document2));
-        assertThat(e.getMessage(), equalTo("cannot expend [foo.bar.baz], because [foo.bar] is not an object field, but a value field"));
+        assertThat(e.getMessage(), equalTo("cannot expand [foo.bar.baz], because [foo.bar] is not an object field, but a value field"));
     }
 
     public void testEscapeFields_path() throws Exception {

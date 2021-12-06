@@ -44,7 +44,7 @@ public class RestRethrottleAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
         RethrottleRequest internalRequest = new RethrottleRequest();
-        internalRequest.setTaskId(new TaskId(request.param("taskId")));
+        internalRequest.setTargetTaskId(new TaskId(request.param("taskId")));
         Float requestsPerSecond = AbstractBaseReindexRestHandler.parseRequestsPerSecond(request);
         if (requestsPerSecond == null) {
             throw new IllegalArgumentException("requests_per_second is a required parameter");

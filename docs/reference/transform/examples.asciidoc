@@ -204,7 +204,7 @@ for any of the featured destination or origin airports.
 == Finding suspicious client IPs
 
 This example uses the web log sample data set to identify suspicious client IPs. 
-It transform the data such that the new index contains the sum of bytes and the 
+It transforms the data such that the new index contains the sum of bytes and the 
 number of distinct URLs, agents, incoming requests by location, and geographic 
 destinations for each client IP. It also uses filter aggregations to count the 
 specific types of HTTP responses that each client IP receives. Ultimately, the 

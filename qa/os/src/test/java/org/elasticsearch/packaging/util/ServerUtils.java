@@ -426,4 +426,23 @@ public class ServerUtils {
         Files.write(yml, lines, TRUNCATE_EXISTING);
     }
 
+    public static void addSettingToExistingConfiguration(Path customConf, String setting, String value) throws IOException {
+        Path yml = customConf.resolve("elasticsearch.yml");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith(setting) == false).collect(Collectors.toList());
+        }
+        lines.add(setting + ": " + value);
+        Files.write(yml, lines, TRUNCATE_EXISTING);
+    }
+
+    public static void removeSettingFromExistingConfiguration(Path customConf, String setting) throws IOException {
+        Path yml = customConf.resolve("elasticsearch.yml");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith(setting) == false).collect(Collectors.toList());
+        }
+        Files.write(yml, lines, TRUNCATE_EXISTING);
+    }
+
 }

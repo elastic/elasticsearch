@@ -63,7 +63,7 @@ public class ScoreScriptUtils {
 
         void setNextVector() {
             try {
-                docValues.setNextDocId(scoreScript._getDocId());
+                docValues.getSupplier().setNextDocId(scoreScript._getDocId());
             } catch (IOException e) {
                 throw ExceptionsHelper.convertToElastic(e);
             }

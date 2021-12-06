@@ -29,8 +29,8 @@ public class TasksRequestBuilder<
      * Set the task to lookup.
      */
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setTaskId(TaskId taskId) {
-        request.setTaskId(taskId);
+    public final RequestBuilder setTargetTaskId(TaskId taskId) {
+        request.setTargetTaskId(taskId);
         return (RequestBuilder) this;
     }
 
@@ -56,8 +56,8 @@ public class TasksRequestBuilder<
      * Match all children of the provided task.
      */
     @SuppressWarnings("unchecked")
-    public final RequestBuilder setParentTaskId(TaskId taskId) {
-        request.setParentTaskId(taskId);
+    public final RequestBuilder setTargetParentTaskId(TaskId taskId) {
+        request.setTargetParentTaskId(taskId);
         return (RequestBuilder) this;
     }
 }

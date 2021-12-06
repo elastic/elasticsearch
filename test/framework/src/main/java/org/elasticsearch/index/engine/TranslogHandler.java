@@ -16,6 +16,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -57,7 +58,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             similarityService,
             mapperRegistry,
             () -> null,
-            () -> false,
+            IdFieldMapper.NO_FIELD_DATA,
             null
         );
     }
@@ -100,14 +101,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 final String indexName = mapperService.index().getName();
                 final Engine.Index engineIndex = IndexShard.prepareIndex(
                     mapperService,
-                    new SourceToParse(
-                        indexName,
-                        index.id(),
-                        index.source(),
-                        XContentHelper.xContentType(index.source()),
-                        index.routing(),
-                        Map.of()
-                    ),
+                    new SourceToParse(index.id(), index.source(), XContentHelper.xContentType(index.source()), index.routing(), Map.of()),
                     index.seqNo(),
                     index.primaryTerm(),
                     index.version(),

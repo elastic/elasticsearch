@@ -171,6 +171,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     public Collection<Object> createComponents(
         final Client client,
         final ClusterService clusterService,
@@ -211,6 +212,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     public List<PersistentTasksExecutor<?>> getPersistentTasksExecutor(
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -271,7 +273,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     }
 
     public List<RestHandler> getRestHandlers(
-        Settings settings,
+        Settings unused,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -367,6 +369,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
         }
     }
 
+    @SuppressWarnings("HiddenField")
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         if (enabled == false) {
             return Collections.emptyList();
@@ -417,7 +420,7 @@ public class Ccr extends Plugin implements ActionPlugin, PersistentTaskPlugin, E
     }
 
     @Override
-    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+    public Collection<AllocationDecider> createAllocationDeciders(Settings unused, ClusterSettings clusterSettings) {
         return List.of(new CcrPrimaryFollowerAllocationDecider());
     }
 }

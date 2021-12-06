@@ -38,7 +38,21 @@ public class RestStopTrainedModelDeploymentAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String modelId = restRequest.param(TrainedModelConfig.MODEL_ID.getPreferredName());
-        StopTrainedModelDeploymentAction.Request request = new StopTrainedModelDeploymentAction.Request(modelId);
+        StopTrainedModelDeploymentAction.Request request;
+        if (restRequest.hasContentOrSourceParam()) {
+            request = StopTrainedModelDeploymentAction.Request.parseRequest(modelId, restRequest.contentOrSourceParamParser());
+        } else {
+            request = new StopTrainedModelDeploymentAction.Request(modelId);
+            request.setAllowNoMatch(
+                restRequest.paramAsBoolean(
+                    StopTrainedModelDeploymentAction.Request.ALLOW_NO_MATCH.getPreferredName(),
+                    request.isAllowNoMatch()
+                )
+            );
+            request.setForce(
+                restRequest.paramAsBoolean(StopTrainedModelDeploymentAction.Request.FORCE.getPreferredName(), request.isForce())
+            );
+        }
         return channel -> client.execute(StopTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

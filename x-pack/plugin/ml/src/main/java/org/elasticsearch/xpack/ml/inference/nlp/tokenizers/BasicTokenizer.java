@@ -101,36 +101,23 @@ public class BasicTokenizer {
             // At this point text has been tokenized by whitespace
             // but one of the special never split tokens could be adjacent
             // to one or more punctuation characters.
-            if (isCommonPunctuation(token.codePointAt(token.length() - 1))) {
-                int lastNonPunctuationIndex = findLastNonPunctuationIndex(token);
-                if (lastNonPunctuationIndex >= 0 && neverSplit.contains(token.substring(0, lastNonPunctuationIndex + 1))) {
-                    processedTokens.add(token.substring(0, lastNonPunctuationIndex + 1));
-                    processedTokens.addAll(splitOnPunctuation(token.substring(lastNonPunctuationIndex + 1)));
-                    continue;
+            List<String> splitOnCommonTokens = splitOnPredicate(token, BasicTokenizer::isCommonPunctuation);
+            for (String splitOnCommon : splitOnCommonTokens) {
+                if (neverSplit.contains(splitOnCommon)) {
+                    processedTokens.add(splitOnCommon);
+                } else {
+                    if (isLowerCase) {
+                        splitOnCommon = splitOnCommon.toLowerCase(Locale.ROOT);
+                    }
+                    if (isStripAccents) {
+                        splitOnCommon = stripAccents(splitOnCommon);
+                    }
+                    processedTokens.addAll(splitOnPunctuation(splitOnCommon));
                 }
             }
-
-            if (isLowerCase) {
-                token = token.toLowerCase(Locale.ROOT);
-            }
-            if (isStripAccents) {
-                token = stripAccents(token);
-            }
-            processedTokens.addAll(splitOnPunctuation(token));
         }
 
         return processedTokens;
-    }
-
-    private int findLastNonPunctuationIndex(String token) {
-        int i = token.length() - 1;
-        while (i >= 0) {
-            if (isCommonPunctuation(token.codePointAt(i)) == false) {
-                break;
-            }
-            i--;
-        }
-        return i;
     }
 
     public boolean isLowerCase() {
@@ -313,10 +300,6 @@ public class BasicTokenizer {
      * @return true if codepoint is punctuation
      */
     static boolean isCommonPunctuation(int codePoint) {
-        if ((codePoint >= 33 && codePoint <= 47) || (codePoint >= 58 && codePoint <= 64)) {
-            return true;
-        }
-
-        return false;
+        return (codePoint >= 33 && codePoint <= 47) || (codePoint >= 58 && codePoint <= 64);
     }
 }

@@ -21,7 +21,7 @@ import java.util.Locale;
 public class DeprecatedMessage {
     public static final String KEY_FIELD_NAME = "event.code";
     public static final String X_OPAQUE_ID_FIELD_NAME = "elasticsearch.http.request.x_opaque_id";
-    public static final String ECS_VERSION = "1.7";
+    public static final String ECS_VERSION = "1.2.0";
 
     @SuppressLoggerChecks(reason = "safely delegates to logger")
     public static ESLogMessage of(DeprecationCategory category, String key, String xOpaqueId, String messagePattern, Object... args) {
@@ -44,7 +44,6 @@ public class DeprecatedMessage {
         ESLogMessage esLogMessage = new ESLogMessage(messagePattern, args).field("data_stream.dataset", "deprecation.elasticsearch")
             .field("data_stream.type", "logs")
             .field("data_stream.namespace", "default")
-            .field("ecs.version", ECS_VERSION)
             .field(KEY_FIELD_NAME, key)
             .field("elasticsearch.event.category", category.name().toLowerCase(Locale.ROOT));
 

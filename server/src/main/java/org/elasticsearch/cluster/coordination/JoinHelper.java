@@ -74,6 +74,7 @@ public class JoinHelper {
     private final TransportService transportService;
     private volatile JoinTaskExecutor joinTaskExecutor;
     private final NodeHealthService nodeHealthService;
+    private final JoinReasonService joinReasonService;
 
     private final Set<Tuple<DiscoveryNode, JoinRequest>> pendingOutgoingJoins = Collections.synchronizedSet(new HashSet<>());
     private final AtomicReference<FailedJoinAttempt> lastFailedJoinAttempt = new AtomicReference<>();
@@ -92,11 +93,13 @@ public class JoinHelper {
         Function<StartJoinRequest, Join> joinLeaderInTerm,
         Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators,
         RerouteService rerouteService,
-        NodeHealthService nodeHealthService
+        NodeHealthService nodeHealthService,
+        JoinReasonService joinReasonService
     ) {
         this.masterService = masterService;
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
+        this.joinReasonService = joinReasonService;
         this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(allocationService, logger, rerouteService) {
 
             private final long term = currentTermSupplier.getAsLong();
@@ -393,7 +396,7 @@ public class JoinHelper {
     class LeaderJoinAccumulator implements JoinAccumulator {
         @Override
         public void handleJoinRequest(DiscoveryNode sender, ActionListener<Void> joinListener) {
-            final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(sender, "join existing leader");
+            final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(sender, joinReasonService.getJoinReason(sender, Mode.LEADER));
             assert joinTaskExecutor != null;
             masterService.submitStateUpdateTask(
                 "node-join",
@@ -455,9 +458,12 @@ public class JoinHelper {
             closed = true;
             if (newMode == Mode.LEADER) {
                 final Map<JoinTaskExecutor.Task, ClusterStateTaskListener> pendingAsTasks = new LinkedHashMap<>();
-                joinRequestAccumulator.forEach((key, value) -> {
-                    final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(key, "elect leader");
-                    pendingAsTasks.put(task, new JoinTaskListener(task, value));
+                joinRequestAccumulator.forEach((node, listener) -> {
+                    final JoinTaskExecutor.Task task = new JoinTaskExecutor.Task(
+                        node,
+                        joinReasonService.getJoinReason(node, Mode.CANDIDATE)
+                    );
+                    pendingAsTasks.put(task, new JoinTaskListener(task, listener));
                 });
 
                 final String stateUpdateSource = "elected-as-master ([" + pendingAsTasks.size() + "] nodes joined)";

@@ -244,8 +244,8 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
     private static String[] concreteAliases(AliasActions action, Metadata metadata, String concreteIndex) {
         if (action.expandAliasesWildcards()) {
             // for DELETE we expand the aliases
-            String[] indexAsArray = { concreteIndex };
-            ImmutableOpenMap<String, List<AliasMetadata>> aliasMetadata = metadata.findAliases(action, indexAsArray);
+            String[] concreteIndices = { concreteIndex };
+            ImmutableOpenMap<String, List<AliasMetadata>> aliasMetadata = metadata.findAliases(action.aliases(), concreteIndices);
             List<String> finalAliases = new ArrayList<>();
             for (List<AliasMetadata> aliases : aliasMetadata.values()) {
                 for (AliasMetadata aliasMeta : aliases) {

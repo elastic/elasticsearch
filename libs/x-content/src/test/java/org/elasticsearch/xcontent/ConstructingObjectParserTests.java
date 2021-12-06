@@ -380,7 +380,7 @@ public class ConstructingObjectParserTests extends ESTestCase {
         private static ConstructingObjectParser<HasCtorArguments, Void> buildParser(boolean animalRequired, boolean vegetableRequired) {
             ConstructingObjectParser<HasCtorArguments, Void> parser = new ConstructingObjectParser<>(
                 "has_required_arguments",
-                a -> new HasCtorArguments((String) a[0], (Integer) a[1])
+                args -> new HasCtorArguments((String) args[0], (Integer) args[1])
             );
             parser.declareString(animalRequired ? constructorArg() : optionalConstructorArg(), new ParseField("animal"));
             parser.declareInt(vegetableRequired ? constructorArg() : optionalConstructorArg(), new ParseField("vegetable"));

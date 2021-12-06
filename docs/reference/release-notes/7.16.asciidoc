@@ -213,7 +213,7 @@ Machine Learning::
 * Speed up training of regression and classification models {ml-pull}2024[#2024]
 * Improve concurrency for training regression and classification models {ml-pull}2031[#2031]
 * Improve aspects of implementation of `skip_model_update` rule {ml-pull}2053[#2053]
-* Make sure instrumentation captures the best hyperparameters found for training classification and regression models{ml-pull}2057{#2057}
+* Make sure instrumentation captures the best hyperparameters found for training classification and regression models {ml-pull}2057{#2057}
 
 Mapping::
 * Better error message for long keys in flattened fields {es-pull}80433[#80433] (issue: {es-issue}78248[#78248])

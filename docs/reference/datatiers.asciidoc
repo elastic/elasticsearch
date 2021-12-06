@@ -118,7 +118,6 @@ settings in the create index request or index template that matches the new inde
 
 You can also explicitly set `index.routing.allocation.include._tier_preference`
 to opt out of the default tier-based allocation.
-If you set the tier preference to `null`, {es} ignores the data tier roles during allocation.
 
 [discrete]
 [[data-tier-migration]]

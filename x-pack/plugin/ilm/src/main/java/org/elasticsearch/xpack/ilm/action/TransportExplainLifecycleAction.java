@@ -169,7 +169,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
                 indexResponse = null;
             }
         } else if (onlyManaged == false && onlyErrors == false) {
-            indexResponse = IndexLifecycleExplainResponse.newUnmanagedIndexResponse(indexName, indexCreationDate);
+            indexResponse = IndexLifecycleExplainResponse.newUnmanagedIndexResponse(indexName);
         } else {
             indexResponse = null;
         }

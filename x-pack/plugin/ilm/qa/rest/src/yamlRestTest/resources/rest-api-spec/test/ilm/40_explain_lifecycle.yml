@@ -102,16 +102,14 @@ teardown:
 
 ---
 "Test Unmanaged Index Lifecycle Explain":
-  - skip:
-      version: " - 7.99.99"
-      reason: "Exposing the index age was added to 8.0.0"
+
   - do:
       ilm.explain_lifecycle:
         index: "unmanaged_index"
 
   - match: { indices.unmanaged_index.index: "unmanaged_index" }
-  - is_true: indices.unmanaged_index.index_creation_date_millis
-  - is_true: indices.unmanaged_index.index_age
+  - is_false: indices.unmanaged_index.index_creation_date_millis
+  - is_false: indices.unmanaged_index.index_age
   - is_false: indices.unmanaged_index.managed
   - is_false: indices.unmanaged_index.policy
   - is_false: indices.unmanaged_index.phase

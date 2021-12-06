@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -107,7 +108,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), REPOSITORY_NAME);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), SNAPSHOT_NAME);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), SHRINK_INDEX_NAME);
-        PARSER.declareLong(ConstructingObjectParser.constructorArg(), INDEX_CREATION_DATE_MILLIS_FIELD);
+        PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), INDEX_CREATION_DATE_MILLIS_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_AGE_FIELD);
     }
 
@@ -174,10 +175,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         );
     }
 
-    public static IndexLifecycleExplainResponse newUnmanagedIndexResponse(String index, Long indexCreationDate) {
+    public static IndexLifecycleExplainResponse newUnmanagedIndexResponse(String index) {
         return new IndexLifecycleExplainResponse(
             index,
-            indexCreationDate,
+            null,
             false,
             null,
             null,
@@ -244,6 +245,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             }
         } else {
             if (policyName != null
+                || indexCreationDate != null
                 || lifecycleDate != null
                 || phase != null
                 || action != null
@@ -255,15 +257,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                 || stepInfo != null
                 || phaseExecutionInfo != null) {
                 throw new IllegalArgumentException(
-                    "Unmanaged index response must only contain fields: ["
-                        + MANAGED_BY_ILM_FIELD
-                        + ", "
-                        + INDEX_FIELD
-                        + ", "
-                        + INDEX_CREATION_DATE_FIELD
-                        + ", "
-                        + INDEX_AGE_FIELD
-                        + "]"
+                    "Unmanaged index response must only contain fields: [" + MANAGED_BY_ILM_FIELD + ", " + INDEX_FIELD + "]"
                 );
             }
         }
@@ -308,6 +302,11 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             repositoryName = in.readOptionalString();
             snapshotName = in.readOptionalString();
             shrinkIndexName = in.readOptionalString();
+            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+                indexCreationDate = in.readOptionalLong();
+            } else {
+                indexCreationDate = null;
+            }
         } else {
             policyName = null;
             lifecycleDate = null;
@@ -325,8 +324,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             repositoryName = null;
             snapshotName = null;
             shrinkIndexName = null;
+            indexCreationDate = null;
         }
-        indexCreationDate = in.readLong();
     }
 
     @Override
@@ -350,8 +349,8 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             out.writeOptionalString(repositoryName);
             out.writeOptionalString(snapshotName);
             out.writeOptionalString(shrinkIndexName);
+            out.writeOptionalLong(indexCreationDate);
         }
-        out.writeLong(indexCreationDate);
     }
 
     public String getIndex() {
@@ -363,7 +362,11 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     }
 
     public TimeValue getIndexAge() {
-        return TimeValue.timeValueMillis(System.currentTimeMillis() - indexCreationDate);
+        if (indexCreationDate == null) {
+            return TimeValue.MINUS_ONE;
+        } else {
+            return TimeValue.timeValueMillis(System.currentTimeMillis() - indexCreationDate);
+        }
     }
 
     public boolean managedByILM() {
@@ -446,15 +449,17 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(INDEX_FIELD.getPreferredName(), index);
-        builder.timeField(
-            INDEX_CREATION_DATE_MILLIS_FIELD.getPreferredName(),
-            INDEX_CREATION_DATE_FIELD.getPreferredName(),
-            indexCreationDate
-        );
-        builder.field(INDEX_AGE_FIELD.getPreferredName(), getIndexAge().toHumanReadableString(2));
         builder.field(MANAGED_BY_ILM_FIELD.getPreferredName(), managedByILM);
         if (managedByILM) {
             builder.field(POLICY_NAME_FIELD.getPreferredName(), policyName);
+            if (indexCreationDate != null) {
+                builder.timeField(
+                    INDEX_CREATION_DATE_MILLIS_FIELD.getPreferredName(),
+                    INDEX_CREATION_DATE_FIELD.getPreferredName(),
+                    indexCreationDate
+                );
+                builder.field(INDEX_AGE_FIELD.getPreferredName(), getIndexAge().toHumanReadableString(2));
+            }
             if (lifecycleDate != null) {
                 builder.timeField(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
                 builder.field(AGE_FIELD.getPreferredName(), getAge().toHumanReadableString(2));

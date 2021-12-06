@@ -40,10 +40,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
     }
 
     private static IndexLifecycleExplainResponse randomUnmanagedIndexExplainResponse() {
-        return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(
-            randomAlphaOfLength(10),
-            randomLongBetween(0, System.currentTimeMillis())
-        );
+        return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(randomAlphaOfLength(10));
     }
 
     private static IndexLifecycleExplainResponse randomManagedIndexExplainResponse() {
@@ -193,7 +190,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
                     );
                     break;
                 case 10:
-                    return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index, indexCreationDate);
+                    return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index);
                 case 11:
                     isAutoRetryableError = true;
                     failedStepRetryCount = randomValueOtherThan(failedStepRetryCount, () -> randomInt(10));
@@ -233,10 +230,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
         } else {
             switch (between(0, 1)) {
                 case 0:
-                    return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(
-                        index + randomAlphaOfLengthBetween(1, 5),
-                        randomLongBetween(0, System.currentTimeMillis())
-                    );
+                    return IndexLifecycleExplainResponse.newUnmanagedIndexResponse(index + randomAlphaOfLengthBetween(1, 5));
                 case 1:
                     return randomManagedIndexExplainResponse();
                 default:

@@ -164,10 +164,10 @@ public class BertTokenizerTests extends ESTestCase {
         TokenizationResult.Tokenization tokenization = tokenizer.tokenize("This is [MASK]-tastic!");
         assertThat(tokenization.getTokens(), arrayContaining("[CLS]", "This", "is", "[MASK]", "-", "ta", "##stic", "!", "[SEP]"));
 
-        tokenization = tokenizer.tokenize("This is sub~[MASK]!", Tokenization.Truncate.NONE);
+        tokenization = tokenizer.tokenize("This is sub~[MASK]!");
         assertThat(tokenization.getTokens(), arrayContaining("[CLS]", "This", "is", "sub", "~", "[MASK]", "!", "[SEP]"));
 
-        tokenization = tokenizer.tokenize("This is sub,[MASK].tastic!", Tokenization.Truncate.NONE);
+        tokenization = tokenizer.tokenize("This is sub,[MASK].tastic!");
         assertThat(
             tokenization.getTokens(),
             arrayContaining("[CLS]", "This", "is", "sub", ",", "[MASK]", ".", "ta", "##stic", "!", "[SEP]")

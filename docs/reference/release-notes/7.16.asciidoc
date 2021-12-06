@@ -386,7 +386,7 @@ Machine Learning::
 * Need to tolerate .ml-config being an alias {es-pull}80025[#80025]
 * Parent datafeed actions to the datafeed's persistent task {es-pull}81143[#81143]
 * Wait for .ml-state-write alias to be readable {es-pull}79731[#79731] (issue: {es-issue}79636[#79636])
-* Correct ANOVA for Gaussian Process that is fit to the loss surface, which affects early stopping. Also, improve the estimates of hyperparameter importance {ml-pull}2073[#2073]
+* Improve the estimates of hyperparameter importance in data frame analytics and avoid incorrectly stopping the hyperparameter search prematurely {ml-pull}2073[#2073]
 * Fix numerical instability in hyperparameter optimization for training regression and classification models {ml-pull}2078[#2078]
 * Fix numerical stability issues in time series modeling {ml-pull}2083[#[2083]]
 

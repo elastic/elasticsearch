@@ -69,7 +69,7 @@ public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetData
             org.elasticsearch.client.indices.DataStream client = clientIt.next();
             DataStream server = serverIt.next().getDataStream();
             assertEquals(server.getName(), client.getName());
-            assertEquals(server.getType().name(), client.getType());
+            assertEquals(server.getType().string(), client.getType());
             assertEquals(server.getIndices().stream().map(Index::getName).collect(Collectors.toList()), client.getIndices());
             assertEquals(server.getTimeStampField().getName(), client.getTimeStampField());
             assertEquals(server.getGeneration(), client.getGeneration());

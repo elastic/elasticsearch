@@ -46,13 +46,13 @@ public class MoveToStepRequestTests extends AbstractSerializingTestCase<Request>
 
     @Override
     protected Request mutateInstance(Request request) {
-        String index = request.getIndex();
+        String indexName = request.getIndex();
         StepKey currentStepKey = request.getCurrentStepKey();
         Request.PartialStepKey nextStepKey = request.getNextStepKey();
 
         switch (between(0, 2)) {
             case 0:
-                index += randomAlphaOfLength(5);
+                indexName += randomAlphaOfLength(5);
                 break;
             case 1:
                 currentStepKey = stepKeyTests.mutateInstance(currentStepKey);
@@ -64,7 +64,7 @@ public class MoveToStepRequestTests extends AbstractSerializingTestCase<Request>
                 throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new Request(index, currentStepKey, nextStepKey);
+        return new Request(indexName, currentStepKey, nextStepKey);
     }
 
     private static Request.PartialStepKey randomStepSpecification() {

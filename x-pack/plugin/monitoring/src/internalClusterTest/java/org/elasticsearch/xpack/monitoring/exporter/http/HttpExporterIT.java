@@ -95,6 +95,7 @@ import static org.hamcrest.Matchers.notNullValue;
     transportClientRatio = 0.0,
     supportsDedicatedMasters = false
 )
+@SuppressWarnings("HiddenField")
 public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private final List<String> clusterAlertBlacklist = rarely()

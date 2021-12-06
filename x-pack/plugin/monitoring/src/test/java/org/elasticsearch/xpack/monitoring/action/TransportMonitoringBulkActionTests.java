@@ -214,7 +214,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         }
 
         doAnswer((i) -> {
-            final Collection<MonitoringDoc> exportedDocs = (Collection) i.getArguments()[0];
+            final Collection<MonitoringDoc> exportedDocs = (Collection<MonitoringDoc>) i.getArguments()[0];
             assertEquals(nbDocs, exportedDocs.size());
             exportedDocs.forEach(exportedDoc -> {
                 assertThat(exportedDoc, instanceOf(BytesReferenceMonitoringDoc.class));
@@ -227,8 +227,8 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
                 assertThat(exportedDoc.getCluster(), equalTo(clusterUUID));
             });
 
-            final ActionListener<?> listener = (ActionListener) i.getArguments()[1];
-            listener.onResponse(null);
+            final ActionListener<?> actionListener = (ActionListener<?>) i.getArguments()[1];
+            actionListener.onResponse(null);
             return Void.TYPE;
         }).when(exporters).export(any(Collection.class), any(ActionListener.class));
 
@@ -399,11 +399,11 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         }
 
         doAnswer((i) -> {
-            final Collection<MonitoringDoc> exportedDocs = (Collection) i.getArguments()[0];
+            final Collection<MonitoringDoc> exportedDocs = (Collection<MonitoringDoc>) i.getArguments()[0];
             assertThat(exportedDocs, is(docs));
 
-            final ActionListener<?> listener = (ActionListener) i.getArguments()[1];
-            listener.onResponse(null);
+            final ActionListener<?> actionListener = (ActionListener<?>) i.getArguments()[1];
+            actionListener.onResponse(null);
             return Void.TYPE;
         }).when(exporters).export(any(Collection.class), any(ActionListener.class));
 

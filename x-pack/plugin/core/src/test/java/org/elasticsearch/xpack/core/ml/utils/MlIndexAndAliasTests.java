@@ -109,8 +109,9 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
         clusterAdminClient = mock(ClusterAdminClient.class);
         doAnswer(invocationOnMock -> {
-            ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) invocationOnMock.getArguments()[1];
-            listener.onResponse(new ClusterHealthResponse());
+            ActionListener<ClusterHealthResponse> actionListener = (ActionListener<ClusterHealthResponse>) invocationOnMock
+                .getArguments()[1];
+            actionListener.onResponse(new ClusterHealthResponse());
             return null;
         }).when(clusterAdminClient).health(any(ClusterHealthRequest.class), any(ActionListener.class));
 
@@ -122,8 +123,8 @@ public class MlIndexAndAliasTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         when(client.admin()).thenReturn(adminClient);
         doAnswer(invocationOnMock -> {
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
-            listener.onResponse(AcknowledgedResponse.TRUE);
+            ActionListener<AcknowledgedResponse> actionListener = (ActionListener<AcknowledgedResponse>) invocationOnMock.getArguments()[2];
+            actionListener.onResponse(AcknowledgedResponse.TRUE);
             return null;
         }).when(client)
             .execute(

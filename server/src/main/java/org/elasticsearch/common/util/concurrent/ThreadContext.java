@@ -130,7 +130,7 @@ public final class ThreadContext implements Writeable {
         Map<String, String> map = new HashMap<>(headersToCopy.size(), 1);
         for (String header : headersToCopy) {
             if (context.requestHeaders.containsKey(header)) {
-                map.put(Task.X_OPAQUE_ID, context.requestHeaders.get(header));
+                map.put(header, context.requestHeaders.get(header));
             }
         }
         return map;

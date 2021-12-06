@@ -12,7 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.field.DocValuesField;
-import org.elasticsearch.script.field.IpDocValuesField;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -20,23 +20,27 @@ public class IpScriptFieldData extends BinaryScriptFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final IpFieldScript.LeafFactory leafFactory;
+        private final ToScriptField<SortedBinaryDocValues> toScriptField;
 
-        public Builder(String name, IpFieldScript.LeafFactory leafFactory) {
+        public Builder(String name, IpFieldScript.LeafFactory leafFactory, ToScriptField<SortedBinaryDocValues> toScriptField) {
             this.name = name;
             this.leafFactory = leafFactory;
+            this.toScriptField = toScriptField;
         }
 
         @Override
         public IpScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new IpScriptFieldData(name, leafFactory);
+            return new IpScriptFieldData(name, leafFactory, toScriptField);
         }
     }
 
     private final IpFieldScript.LeafFactory leafFactory;
+    private final ToScriptField<SortedBinaryDocValues> toScriptField;
 
-    private IpScriptFieldData(String fieldName, IpFieldScript.LeafFactory leafFactory) {
+    private IpScriptFieldData(String fieldName, IpFieldScript.LeafFactory leafFactory, ToScriptField<SortedBinaryDocValues> toScriptField) {
         super(fieldName);
         this.leafFactory = leafFactory;
+        this.toScriptField = toScriptField;
     }
 
     @Override
@@ -45,7 +49,7 @@ public class IpScriptFieldData extends BinaryScriptFieldData {
         return new BinaryScriptLeafFieldData() {
             @Override
             public DocValuesField<?> getScriptField(String name) {
-                return new IpDocValuesField(getBytesValues(), name);
+                return toScriptField.getScriptField(getBytesValues(), name);
             }
 
             @Override

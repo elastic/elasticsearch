@@ -20,7 +20,7 @@
         }
     }
 
-    props["catalog"] = attr[connectionHelper.attributeDatabase]
+    props["catalog"] = attr[connectionHelper.attributeDatabase];
 
     return props;
 })

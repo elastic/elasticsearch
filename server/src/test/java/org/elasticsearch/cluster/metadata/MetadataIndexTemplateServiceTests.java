@@ -2144,7 +2144,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             new AliasValidator(),
             null,
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
-            xContentRegistry
+            xContentRegistry,
+            EmptySystemIndices.INSTANCE
         );
 
         final List<Throwable> throwables = new ArrayList<>();
@@ -2206,7 +2207,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             new AliasValidator(),
             indicesService,
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
-            xContentRegistry()
+            xContentRegistry(),
+            EmptySystemIndices.INSTANCE
         );
     }
 

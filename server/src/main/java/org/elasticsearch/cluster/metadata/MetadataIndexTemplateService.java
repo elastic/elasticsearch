@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -104,6 +105,7 @@ public class MetadataIndexTemplateService {
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
     private final NamedXContentRegistry xContentRegistry;
+    private final SystemIndices systemIndices;
 
     @Inject
     public MetadataIndexTemplateService(
@@ -112,7 +114,8 @@ public class MetadataIndexTemplateService {
         AliasValidator aliasValidator,
         IndicesService indicesService,
         IndexScopedSettings indexScopedSettings,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        SystemIndices systemIndices
     ) {
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
@@ -120,6 +123,7 @@ public class MetadataIndexTemplateService {
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
         this.xContentRegistry = xContentRegistry;
+        this.systemIndices = systemIndices;
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
@@ -286,7 +290,8 @@ public class MetadataIndexTemplateService {
                         composableTemplateName,
                         composableTemplate,
                         indicesService,
-                        xContentRegistry
+                        xContentRegistry,
+                        systemIndices
                     );
                 } catch (Exception e) {
                     if (validationFailure == null) {
@@ -605,7 +610,7 @@ public class MetadataIndexTemplateService {
         // Finally, right before adding the template, we need to ensure that the composite settings,
         // mappings, and aliases are valid after it's been composed with the component templates
         try {
-            validateCompositeTemplate(currentState, name, finalIndexTemplate, indicesService, xContentRegistry);
+            validateCompositeTemplate(currentState, name, finalIndexTemplate, indicesService, xContentRegistry, systemIndices);
         } catch (Exception e) {
             throw new IllegalArgumentException(
                 "composable template ["
@@ -1322,7 +1327,8 @@ public class MetadataIndexTemplateService {
         final String templateName,
         final ComposableIndexTemplate template,
         final IndicesService indicesService,
-        final NamedXContentRegistry xContentRegistry
+        final NamedXContentRegistry xContentRegistry,
+        final SystemIndices systemIndices
     ) throws Exception {
         final ClusterState stateWithTemplate = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata()).put(templateName, template))
@@ -1369,7 +1375,8 @@ public class MetadataIndexTemplateService {
                 // shard id and the current timestamp
                 xContentRegistry,
                 tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                tempIndexService.dateMathExpressionResolverAt(System.currentTimeMillis())
+                tempIndexService.dateMathExpressionResolverAt(System.currentTimeMillis()),
+                systemIndices::isSystemName
             );
 
             // triggers inclusion of _timestamp field and its validation:

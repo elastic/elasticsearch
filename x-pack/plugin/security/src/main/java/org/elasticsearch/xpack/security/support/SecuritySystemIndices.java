@@ -28,7 +28,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_PROFILE_ALIAS;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
 
@@ -40,6 +39,9 @@ public class SecuritySystemIndices {
     public static final int INTERNAL_MAIN_INDEX_FORMAT = 6;
     private static final int INTERNAL_TOKENS_INDEX_FORMAT = 7;
     private static final int INTERNAL_PROFILE_INDEX_FORMAT = 8;
+
+    public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
+    public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
 
     private final Logger logger = LogManager.getLogger();
 
@@ -697,7 +699,7 @@ public class SecuritySystemIndices {
     private SystemIndexDescriptor getSecurityProfileIndexDescriptor() {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(".security-profile-[0-9]+*")
-            .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_PROFILE_INDEX_8)
+            .setPrimaryIndex(INTERNAL_SECURITY_PROFILE_INDEX_8)
             .setDescription("Contains user profile documents")
             .setMappings(getProfileIndexMappings())
             .setSettings(getProfileIndexSettings())

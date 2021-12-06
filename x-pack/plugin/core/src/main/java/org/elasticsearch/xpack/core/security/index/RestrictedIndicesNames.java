@@ -20,9 +20,6 @@ public final class RestrictedIndicesNames {
     public static final String INTERNAL_SECURITY_TOKENS_INDEX_7 = ".security-tokens-7";
     public static final String SECURITY_TOKENS_ALIAS = ".security-tokens";
 
-    public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
-    public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
-
     // public for tests
     public static final Set<String> RESTRICTED_NAMES = Collections.unmodifiableSet(
         Sets.newHashSet(
@@ -30,9 +27,7 @@ public final class RestrictedIndicesNames {
             INTERNAL_SECURITY_MAIN_INDEX_6,
             INTERNAL_SECURITY_MAIN_INDEX_7,
             INTERNAL_SECURITY_TOKENS_INDEX_7,
-            SECURITY_TOKENS_ALIAS,
-            INTERNAL_SECURITY_PROFILE_INDEX_8,
-            SECURITY_PROFILE_ALIAS
+            SECURITY_TOKENS_ALIAS
         )
     );
 

@@ -11,7 +11,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
 import java.util.Map;
 import java.util.Set;
@@ -43,29 +43,29 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
 
     public void testProfileIndexAutoCreation() {
         var indexResponse = client().prepareIndex(
-            randomFrom(RestrictedIndicesNames.INTERNAL_SECURITY_PROFILE_INDEX_8, RestrictedIndicesNames.SECURITY_PROFILE_ALIAS)
+            randomFrom(SecuritySystemIndices.INTERNAL_SECURITY_PROFILE_INDEX_8, SecuritySystemIndices.SECURITY_PROFILE_ALIAS)
         ).setSource(Map.of("uid", randomAlphaOfLength(22))).get();
 
         assertThat(indexResponse.status().getStatus(), equalTo(201));
 
         var getIndexRequest = new GetIndexRequest();
-        getIndexRequest.indices(RestrictedIndicesNames.INTERNAL_SECURITY_PROFILE_INDEX_8);
+        getIndexRequest.indices(SecuritySystemIndices.INTERNAL_SECURITY_PROFILE_INDEX_8);
 
         var getIndexResponse = client().execute(GetIndexAction.INSTANCE, getIndexRequest).actionGet();
 
-        assertThat(getIndexResponse.getIndices(), arrayContaining(RestrictedIndicesNames.INTERNAL_SECURITY_PROFILE_INDEX_8));
+        assertThat(getIndexResponse.getIndices(), arrayContaining(SecuritySystemIndices.INTERNAL_SECURITY_PROFILE_INDEX_8));
 
-        var aliases = getIndexResponse.getAliases().get(RestrictedIndicesNames.INTERNAL_SECURITY_PROFILE_INDEX_8);
+        var aliases = getIndexResponse.getAliases().get(SecuritySystemIndices.INTERNAL_SECURITY_PROFILE_INDEX_8);
         assertThat(aliases, hasSize(1));
-        assertThat(aliases.get(0).alias(), equalTo(RestrictedIndicesNames.SECURITY_PROFILE_ALIAS));
+        assertThat(aliases.get(0).alias(), equalTo(SecuritySystemIndices.SECURITY_PROFILE_ALIAS));
 
-        final Settings settings = getIndexResponse.getSettings().get(RestrictedIndicesNames.INTERNAL_SECURITY_PROFILE_INDEX_8);
+        final Settings settings = getIndexResponse.getSettings().get(SecuritySystemIndices.INTERNAL_SECURITY_PROFILE_INDEX_8);
         assertThat(settings.get("index.number_of_shards"), equalTo("1"));
         assertThat(settings.get("index.auto_expand_replicas"), equalTo("0-1"));
         assertThat(settings.get("index.routing.allocation.include._tier_preference"), equalTo("data_content"));
 
         final Map<String, Object> mappings = getIndexResponse.getMappings()
-            .get(RestrictedIndicesNames.INTERNAL_SECURITY_PROFILE_INDEX_8)
+            .get(SecuritySystemIndices.INTERNAL_SECURITY_PROFILE_INDEX_8)
             .getSourceAsMap();
 
         @SuppressWarnings("unchecked")

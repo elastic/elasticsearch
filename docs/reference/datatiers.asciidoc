@@ -122,6 +122,6 @@ to opt out of the default tier-based allocation.
 {ilm-init} automatically transitions managed
 indices through the available data tiers using the <<ilm-migrate, migrate>> action.
 By default, this action is automatically injected in every phase.
-You can explicitly specify the migrate action to disable automatic migration,
+You can explicitly specify the migrate action with `"enabled": false` to disable automatic migration,
 for example, if you're using the <<ilm-allocate, allocate action>> to manually
 specify allocation rules.

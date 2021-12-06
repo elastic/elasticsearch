@@ -22,6 +22,8 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
+import org.elasticsearch.plugins.analysis.AnalysisIteratorFactory;
+import org.elasticsearch.plugins.analysis.SimpleAnalyzeIterator;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -61,6 +63,7 @@ public final class AnalysisRegistry implements Closeable {
     private final Map<String, AnalysisProvider<TokenizerFactory>> tokenizers;
     private final Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzers;
     private final Map<String, AnalysisProvider<AnalyzerProvider<?>>> normalizers;
+    private final Map<String, AnalysisProvider<AnalysisIteratorFactory>> analysisIterators;
 
     public AnalysisRegistry(
         Environment environment,
@@ -69,6 +72,7 @@ public final class AnalysisRegistry implements Closeable {
         Map<String, AnalysisProvider<TokenizerFactory>> tokenizers,
         Map<String, AnalysisProvider<AnalyzerProvider<?>>> analyzers,
         Map<String, AnalysisProvider<AnalyzerProvider<?>>> normalizers,
+        Map<String, AnalysisProvider<AnalysisIteratorFactory>> analysisIterators,
         Map<String, PreConfiguredCharFilter> preConfiguredCharFilters,
         Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters,
         Map<String, PreConfiguredTokenizer> preConfiguredTokenizers,
@@ -80,6 +84,7 @@ public final class AnalysisRegistry implements Closeable {
         this.tokenizers = unmodifiableMap(tokenizers);
         this.analyzers = unmodifiableMap(analyzers);
         this.normalizers = unmodifiableMap(normalizers);
+        this.analysisIterators = unmodifiableMap(analysisIterators);
         prebuiltAnalysis = new PrebuiltAnalysis(
             preConfiguredCharFilters,
             preConfiguredTokenFilters,
@@ -297,6 +302,19 @@ public final class AnalysisRegistry implements Closeable {
             }
         }, null, null, null);
 
+    }
+
+    public AnalysisIteratorFactory getSimpleAnalyzeIterator(List<NameOrDefinition> filters)
+        throws IOException{
+        if (filters == null || filters.isEmpty()) {
+            return null;
+        }
+
+        AnalysisProvider<AnalysisIteratorFactory> factoryProvider = analysisIterators.get(filters.get(0).name);
+        if (factoryProvider != null) {
+            return factoryProvider.get(environment, filters.get(0).name);
+        }
+        return null;
     }
 
     public Map<String, TokenFilterFactory> buildTokenFilterFactories(IndexSettings indexSettings) throws IOException {

@@ -42,6 +42,9 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.analysis.AnalysisIteratorFactory;
+import org.elasticsearch.plugins.analysis.AnalyzeToken;
+import org.elasticsearch.plugins.analysis.SimpleAnalyzeIterator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -133,6 +136,35 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
     ) throws IOException {
 
         IndexSettings settings = indexService == null ? null : indexService.getIndexSettings();
+
+        AnalysisIteratorFactory iteratorFactory = analysisRegistry.getSimpleAnalyzeIterator(request.tokenFilters());
+
+        if (iteratorFactory != null) {
+            TokenCounter tc = new TokenCounter(maxTokenCount);
+            List<AnalyzeAction.AnalyzeToken> tokens = new ArrayList<>();
+
+            for (String text : request.text()) {
+                try (SimpleAnalyzeIterator iterator = iteratorFactory.newInstance(text)) {
+                    AnalyzeToken token;
+                    iterator.start();
+                    while ((token = iterator.next()) != null) {
+                        tokens.add(new AnalyzeAction.AnalyzeToken(
+                            token.getTerm(),
+                            token.getPosition(),
+                            token.getStartOffset(),
+                            token.getEndOffset(),
+                            token.getPositionLength(),
+                            token.getType(),
+                            null
+                        ));
+
+                        tc.increment();
+                    }
+                }
+            }
+
+            return new AnalyzeAction.Response(tokens, null);
+        }
 
         // First, we check to see if the request requires a custom analyzer. If so, then we
         // need to build it and then close it after use.

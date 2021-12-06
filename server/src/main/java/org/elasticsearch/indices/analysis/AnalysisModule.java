@@ -39,6 +39,7 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.analysis.WhitespaceAnalyzerProvider;
 import org.elasticsearch.plugins.AnalysisPlugin;
+import org.elasticsearch.plugins.analysis.AnalysisIteratorFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -76,6 +77,7 @@ public final class AnalysisModule {
         NamedRegistry<AnalysisProvider<TokenizerFactory>> tokenizers = setupTokenizers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> analyzers = setupAnalyzers(plugins);
         NamedRegistry<AnalysisProvider<AnalyzerProvider<?>>> normalizers = setupNormalizers(plugins);
+        NamedRegistry<AnalysisProvider<AnalysisIteratorFactory>> iterators = setupAnalysisIterators(plugins);
 
         Map<String, PreConfiguredCharFilter> preConfiguredCharFilters = setupPreConfiguredCharFilters(plugins);
         Map<String, PreConfiguredTokenFilter> preConfiguredTokenFilters = setupPreConfiguredTokenFilters(plugins);
@@ -89,6 +91,7 @@ public final class AnalysisModule {
             tokenizers.getRegistry(),
             analyzers.getRegistry(),
             normalizers.getRegistry(),
+            iterators.getRegistry(),
             preConfiguredCharFilters,
             preConfiguredTokenFilters,
             preConfiguredTokenizers,
@@ -269,6 +272,12 @@ public final class AnalysisModule {
         normalizers.register("lowercase", LowercaseNormalizerProvider::new);
         // TODO: pluggability?
         return normalizers;
+    }
+
+    private NamedRegistry<AnalysisProvider<AnalysisIteratorFactory>> setupAnalysisIterators(List<AnalysisPlugin> plugins) {
+        NamedRegistry<AnalysisProvider<AnalysisIteratorFactory>> iterators = new NamedRegistry<>("analysisIterators");
+        iterators.extractAndRegister(plugins, AnalysisPlugin::getIterators);
+        return iterators;
     }
 
     /**

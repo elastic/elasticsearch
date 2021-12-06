@@ -1761,6 +1761,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         emptyMap(),
                         emptyMap(),
                         emptyMap(),
+                        emptyMap(),
                         emptyMap()
                     ),
                     indexNameExpressionResolver,

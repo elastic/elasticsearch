@@ -24,6 +24,7 @@ import org.elasticsearch.index.analysis.PreConfiguredTokenizer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
+import org.elasticsearch.plugins.analysis.AnalysisIteratorFactory;
 
 import java.io.IOException;
 import java.util.List;
@@ -63,6 +64,14 @@ public interface AnalysisPlugin {
      * how to on get the configuration from the index.
      */
     default Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
+        return emptyMap();
+    }
+
+    /**
+     * Override to add additional {@link TokenFilter}s. See {@link #requiresAnalysisSettings(AnalysisProvider)}
+     * how to on get the configuration from the index.
+     */
+    default Map<String, AnalysisProvider<AnalysisIteratorFactory>> getIterators() {
         return emptyMap();
     }
 

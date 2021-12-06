@@ -68,6 +68,7 @@ public class AnalysisRegistryTests extends ESTestCase {
             emptyMap(),
             emptyMap(),
             emptyMap(),
+            emptyMap(),
             emptyMap()
         );
     }
@@ -325,6 +326,7 @@ public class AnalysisRegistryTests extends ESTestCase {
         PreBuiltAnalyzerProviderFactory mock = mock(PreBuiltAnalyzerProviderFactory.class);
         AnalysisRegistry registry = new AnalysisRegistry(
             TestEnvironment.newEnvironment(settings),
+            emptyMap(),
             emptyMap(),
             emptyMap(),
             emptyMap(),

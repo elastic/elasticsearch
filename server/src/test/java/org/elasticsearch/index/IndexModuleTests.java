@@ -159,6 +159,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyMap(),
             emptyMap(),
             emptyMap(),
+            emptyMap(),
             emptyMap()
         );
         threadPool = new TestThreadPool("test");
@@ -516,6 +517,7 @@ public class IndexModuleTests extends ESTestCase {
             emptyMap(),
             emptyMap(),
             singletonMap("test", analysisProvider),
+            emptyMap(),
             emptyMap(),
             emptyMap(),
             emptyMap(),

@@ -18,6 +18,7 @@ import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
@@ -90,7 +91,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 )
             );
         }, 30, TimeUnit.SECONDS);
-
     }
 
+    @Override
+    protected void deleteAllNodeShutdownMetadata() throws IOException {
+        // do not delete node shutdown
+    }
 }

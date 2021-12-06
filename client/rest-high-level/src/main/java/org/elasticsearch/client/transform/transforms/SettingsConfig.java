@@ -121,7 +121,7 @@ public class SettingsConfig implements ToXContentObject {
             }
         }
         if (usePit != null) {
-            if (alignCheckpoints.equals(DEFAULT_USE_PIT)) {
+            if (usePit.equals(DEFAULT_USE_PIT)) {
                 builder.field(USE_PIT.getPreferredName(), (Boolean) null);
             } else {
                 builder.field(USE_PIT.getPreferredName(), usePit > 0 ? true : false);

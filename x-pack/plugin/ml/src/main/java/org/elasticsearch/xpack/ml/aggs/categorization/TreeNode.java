@@ -46,8 +46,8 @@ abstract class TreeNode implements Accountable {
 
     abstract boolean isLeaf();
 
-    final void incCount(long countToAdd) {
-        this.count += countToAdd;
+    final void incCount(long count) {
+        this.count += count;
     }
 
     final long getCount() {

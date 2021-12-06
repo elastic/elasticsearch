@@ -79,9 +79,9 @@ public final class BucketsQueryBuilder {
         return includeInterim;
     }
 
-    public BucketsQueryBuilder anomalyScoreThreshold(Double anomalyScoreThreshold) {
-        if (anomalyScoreThreshold != null) {
-            this.anomalyScoreFilter = anomalyScoreThreshold;
+    public BucketsQueryBuilder anomalyScoreThreshold(Double anomalyScoreFilter) {
+        if (anomalyScoreFilter != null) {
+            this.anomalyScoreFilter = anomalyScoreFilter;
         }
         return this;
     }

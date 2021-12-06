@@ -146,11 +146,11 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        index = _indexMetadata.getIndex();
+        index = indexMetadata.getIndex();
         Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
-            .put(IndexMetadata.builder(_indexMetadata))
+            .put(IndexMetadata.builder(indexMetadata))
             .build();
         String nodeId = randomAlphaOfLength(10);
         DiscoveryNode masterNode = DiscoveryNode.createLocal(

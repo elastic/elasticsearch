@@ -335,7 +335,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     @Override
-    protected Bucket reduceBucket(List<Bucket> bucketList, ReduceContext context) {
+    protected Bucket reduceBucket(List<Bucket> buckets, ReduceContext context) {
         throw new IllegalArgumentException("For optimization purposes, typical bucket path is not supported");
     }
 

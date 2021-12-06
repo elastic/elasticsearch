@@ -239,9 +239,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     @Nullable
     public BlobContainer blobContainer() {
-        final BlobContainer container = this.blobContainer;
-        assert container != null;
-        return container;
+        final BlobContainer blobContainer = this.blobContainer;
+        assert blobContainer != null;
+        return blobContainer;
     }
 
     @Nullable

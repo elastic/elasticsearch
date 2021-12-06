@@ -399,10 +399,10 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docCount);
     }
 
-    private void rollup(String sourceIndex, String rollupIndexName, RollupActionConfig config) {
+    private void rollup(String sourceIndex, String rollupIndex, RollupActionConfig config) {
         AcknowledgedResponse rollupResponse = client().execute(
             RollupAction.INSTANCE,
-            new RollupAction.Request(sourceIndex, rollupIndexName, config)
+            new RollupAction.Request(sourceIndex, rollupIndex, config)
         ).actionGet();
         assertTrue(rollupResponse.isAcknowledged());
     }

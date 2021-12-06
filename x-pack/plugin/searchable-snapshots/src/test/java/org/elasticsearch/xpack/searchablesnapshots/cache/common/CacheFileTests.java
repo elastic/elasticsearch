@@ -42,8 +42,10 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import static org.elasticsearch.xpack.searchablesnapshots.cache.common.TestUtils.randomPopulateAndReads;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -389,14 +391,22 @@ public class CacheFileTests extends ESTestCase {
         }
     }
 
+    private static void assumeLinux64bitsOrWindows() {
+        assumeTrue(
+            "This test uses native methods implemented only for Windows & Linux 64bits",
+            Constants.WINDOWS || Constants.LINUX && Constants.JRE_IS_64BIT
+        );
+    }
+
     public void testCacheFileCreatedAsSparseFile() throws Exception {
-        assumeTrue("This test uses a native method implemented only for Windows", Constants.WINDOWS);
+        assumeLinux64bitsOrWindows();
+        final long fourKb = 4096L;
         final long oneMb = 1 << 20;
 
         final Path file = createTempDir().resolve(UUIDs.randomBase64UUID(random()));
         final CacheFile cacheFile = new CacheFile(
             new CacheKey("_snap_uuid", "_snap_name", new ShardId("_name", "_uid", 0), "_filename"),
-            oneMb,
+            randomLongBetween(fourKb, oneMb),
             file,
             NOOP
         );
@@ -420,7 +430,19 @@ public class CacheFileTests extends ESTestCase {
 
             sizeOnDisk = FileSystemNatives.allocatedSizeInBytes(file);
             assertTrue(sizeOnDisk.isPresent());
-            assertThat("Cache file should be sparse and not fully allocated on disk", sizeOnDisk.getAsLong(), lessThan(oneMb));
+            assertThat(
+                "Cache file should be sparse and not fully allocated on disk",
+                sizeOnDisk.getAsLong(),
+                allOf(greaterThan(0L), lessThan(oneMb))
+            );
+
+            final long blockSize;
+            if (Constants.LINUX) {
+                // on Linux we can infer the filesystem's block size if only 1 byte was written
+                blockSize = sizeOnDisk.getAsLong();
+            } else {
+                blockSize = 0L;
+            }
 
             fill(fileChannel, 0, Math.toIntExact(cacheFile.getLength()));
             fileChannel.force(false);
@@ -430,8 +452,17 @@ public class CacheFileTests extends ESTestCase {
             assertThat(
                 "Cache file should be fully allocated on disk (maybe more given cluster/block size)",
                 sizeOnDisk.getAsLong(),
-                greaterThanOrEqualTo(oneMb)
+                greaterThanOrEqualTo(cacheFile.getLength())
             );
+
+            if (Constants.LINUX) {
+                final long nbBlocks = (cacheFile.getLength() + blockSize - 1) / blockSize; // ceil(cacheFile.getLength() / blockSize)
+                assertThat(
+                    "Cache file size mismatches (block size: " + blockSize + ", number of blocks: " + nbBlocks + ')',
+                    sizeOnDisk.getAsLong(),
+                    equalTo(nbBlocks * blockSize)
+                );
+            }
         } finally {
             cacheFile.release(listener);
         }

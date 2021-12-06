@@ -101,8 +101,8 @@ public class QueryContainer {
         return new QueryContainer(q, fields, attributes, sort, trackHits, includeFrozen, limit);
     }
 
-    public QueryContainer with(Limit limitValue) {
-        return new QueryContainer(query, fields, attributes, sort, trackHits, includeFrozen, limitValue);
+    public QueryContainer with(Limit limit) {
+        return new QueryContainer(query, fields, attributes, sort, trackHits, includeFrozen, limit);
     }
 
     public QueryContainer addColumn(Attribute attr) {

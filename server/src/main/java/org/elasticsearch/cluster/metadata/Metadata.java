@@ -358,6 +358,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return indicesLookup;
     }
 
+    public boolean sameIndicesLookup(Metadata other) {
+        return this.indicesLookup == other.indicesLookup;
+    }
+
     /**
      * Finds the specific index aliases that point to the requested concrete indices directly
      * or that match with the indices via wildcards.
@@ -769,7 +773,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      * @return whether an alias exists with provided alias name
      */
     public boolean hasAlias(String aliasName) {
-        return aliasedIndices.containsKey(aliasName);
+        return aliasedIndices.containsKey(aliasName) || dataStreamAliases().containsKey(aliasName);
     }
 
     /**
@@ -1138,7 +1142,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             this.aliasedIndices = ImmutableOpenMap.builder(metadata.aliasedIndices);
             this.templates = ImmutableOpenMap.builder(metadata.templates);
             this.customs = ImmutableOpenMap.builder(metadata.customs);
-            previousIndicesLookup = metadata.getIndicesLookup();
+            this.previousIndicesLookup = metadata.indicesLookup;
             this.mappingsByHash = new HashMap<>(metadata.mappingsByHash);
         }
 

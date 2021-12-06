@@ -37,9 +37,12 @@ Cross-cluster search (CCS) is now supported in SQL using the CCS-specific
 `cluster:index` notation where `cluster` maps to a SQL catalog and
 `index` to a table.
 
-=== Search: Node-level can-match action
+=== Search: Can-match action performed per-node rather than per-shard
 
-
+Previously, the can-match phase issued individual requests for each shard
+in a search request resulting in high overhead when many shards were
+targeted. Now these requests are grouped by node so that no more
+than one request per node is sent.
 
 === Frozen tier: Cached requests and queries
 
@@ -51,13 +54,13 @@ which improves performance for subsequent queries.
 The enrich processor has supported only the keyword data type for the match
 field on the enrich index. The enrich processor will now use a range type in
 the enrich index if the data type in all the source indices is a range type.
-This enables enrichment on range types such as ip_range.
+This enables enrichment on range types such as `ip_range`.
 
 === Data streams: Segment sorter
 
-Sorts segments in data stream backing indices by desc order of their max
+Sorts segments in data stream backing indices by descending order of their max
 timestamp field so that the most recent segments will be first. This
-speeds up queries sort on the @timestamp field which are the most common
+speeds up queries sorted on the @timestamp field which are the most common
 type of queries for data streams.
 
 === EQL: `with runs` statements for repeated events
@@ -74,8 +77,7 @@ For more details, check out the
 
 Previously, field caps were gathered by sending a request per index to the
 appropriate nodes in the cluster resulting in high overhead when many indices
-are targeted. Now requests that target indices on a single node are grouped
+were targeted. Now requests that target indices on a single node are grouped
 together resulting in no more than a single request per node.
 
 // end::notable-highlights[]
-

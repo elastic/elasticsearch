@@ -84,17 +84,17 @@ public class VectorTileRestIT extends ESRestTestCase {
         response = client().performRequest(mappingRequest);
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
         final Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
-        double x = (r.getMaxX() + r.getMinX()) / 2;
-        double y = (r.getMaxY() + r.getMinY()) / 2;
+        double x2 = (r.getMaxX() + r.getMinX()) / 2;
+        double y2 = (r.getMaxY() + r.getMinY()) / 2;
         for (int i = 0; i < 30; i += 10) {
             for (int j = 0; j <= i; j++) {
                 final Request putRequest = new Request(HttpPost.METHOD_NAME, INDEX_POINTS + "/_doc/");
                 putRequest.setJsonEntity(
                     "{\n"
                         + "  \"location\": \"POINT("
-                        + x
+                        + x2
                         + " "
-                        + y
+                        + y2
                         + ")\", \"name\": \"point"
                         + i
                         + "\""
@@ -192,8 +192,8 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
 
         final Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
-        double x = (r.getMaxX() + r.getMinX()) / 2;
-        double y = (r.getMaxY() + r.getMinY()) / 2;
+        double x2 = (r.getMaxX() + r.getMinX()) / 2;
+        double y2 = (r.getMaxY() + r.getMinY()) / 2;
         final Request putRequest = new Request(HttpPost.METHOD_NAME, INDEX_COLLECTION + "/_doc");
         String collection = "GEOMETRYCOLLECTION (BBOX ("
             + r.getMinLon()
@@ -204,9 +204,9 @@ public class VectorTileRestIT extends ESRestTestCase {
             + ","
             + r.getMinLat()
             + "), POINT("
-            + x
+            + x2
             + " "
-            + y
+            + y2
             + "))";
         putRequest.setJsonEntity(
             "{\n"

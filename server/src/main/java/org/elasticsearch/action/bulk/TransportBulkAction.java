@@ -420,12 +420,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return request.getIndices().stream().allMatch(indexName -> isSystemIndex(indicesLookup, systemIndices, indexName));
     }
 
-    private boolean isSystemIndex(SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndices, String indexName) {
+    private boolean isSystemIndex(SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndicesToCheck, String indexName) {
         final IndexAbstraction abstraction = indicesLookup.get(indexName);
         if (abstraction != null) {
             return abstraction.isSystem();
         } else {
-            return systemIndices.isSystemIndex(indexName);
+            return systemIndicesToCheck.isSystemIndex(indexName);
         }
     }
 

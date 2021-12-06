@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
@@ -135,10 +134,5 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
             // account for delayed shards
             .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
             .build();
-    }
-
-    @Override
-    protected void deleteAllNodeShutdownMetadata() throws IOException {
-        // do not delete node shutdown
     }
 }

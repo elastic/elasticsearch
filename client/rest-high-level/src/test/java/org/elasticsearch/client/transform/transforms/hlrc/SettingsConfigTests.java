@@ -24,6 +24,7 @@ public class SettingsConfigTests extends AbstractResponseTestCase<
             randomBoolean() ? null : randomIntBetween(10, 10_000),
             randomBoolean() ? null : randomFloat(),
             randomBoolean() ? null : randomIntBetween(0, 1),
+            randomBoolean() ? null : randomIntBetween(0, 1),
             randomBoolean() ? null : randomIntBetween(0, 1)
         );
     }

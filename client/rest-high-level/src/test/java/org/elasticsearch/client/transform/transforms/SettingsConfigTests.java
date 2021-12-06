@@ -31,6 +31,7 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
             randomBoolean() ? null : randomIntBetween(10, 10_000),
             randomBoolean() ? null : randomFloat(),
             randomBoolean() ? null : randomIntBetween(-1, 1),
+            randomBoolean() ? null : randomIntBetween(-1, 1),
             randomBoolean() ? null : randomIntBetween(-1, 1)
         );
     }

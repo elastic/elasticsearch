@@ -112,10 +112,6 @@ by default {es} sets
 <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>>
 to `data_hot` to automatically allocate the index shards to the hot tier.
 
-You can override the automatic tier-based allocation by specifying
-<<shard-allocation-filtering, shard allocation filtering>>
-settings in the create index request or index template that matches the new index.
-
 You can also explicitly set `index.routing.allocation.include._tier_preference`
 to opt out of the default tier-based allocation.
 

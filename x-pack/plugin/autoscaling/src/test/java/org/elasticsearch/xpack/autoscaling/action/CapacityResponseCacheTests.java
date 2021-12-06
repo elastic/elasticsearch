@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.autoscaling.action;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -23,6 +24,7 @@ import java.util.Queue;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
@@ -101,10 +103,16 @@ public class CapacityResponseCacheTests extends AutoscalingTestCase {
 
         int count = between(1, 10);
         List<PlainActionFuture<Integer>> supersededFutures = new ArrayList<>(count + 1);
+        List<Future<?>> getFutures = new ArrayList<>();
         for (int i = 0; i < count; ++i) {
             PlainActionFuture<Integer> supersededFuture = new PlainActionFuture<>();
             supersededFutures.add(supersededFuture);
-            cache.get(() -> false, supersededFuture);
+            Runnable getter = () -> cache.get(() -> false, supersededFuture);
+            if (randomBoolean()) {
+                getFutures.add(threadPool.generic().submit(getter));
+            } else {
+                getter.run();
+            }
         }
 
         int response = randomInt();
@@ -118,6 +126,7 @@ public class CapacityResponseCacheTests extends AutoscalingTestCase {
         }
         assertThat(responseFuture.isDone(), is(false));
 
+        getFutures.forEach(FutureUtils::get);
         // release the initial blocked request.
         await(barrier);
 

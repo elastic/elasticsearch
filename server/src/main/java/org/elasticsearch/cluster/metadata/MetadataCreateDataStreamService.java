@@ -171,9 +171,8 @@ public class MetadataCreateDataStreamService {
         SystemDataStreamDescriptor systemDataStreamDescriptor = request.getSystemDataStreamDescriptor();
         boolean isSystemDataStreamName = metadataCreateIndexService.getSystemIndices().isSystemDataStream(request.name);
         assert (isSystemDataStreamName && systemDataStreamDescriptor != null)
-            || (isSystemDataStreamName == false && systemDataStreamDescriptor == null) : "dataStream ["
-                + request.name
-                + "] is system but no system descriptor was provided!";
+            || (isSystemDataStreamName == false && systemDataStreamDescriptor == null)
+            : "dataStream [" + request.name + "] is system but no system descriptor was provided!";
 
         Objects.requireNonNull(metadataCreateIndexService);
         Objects.requireNonNull(currentState);

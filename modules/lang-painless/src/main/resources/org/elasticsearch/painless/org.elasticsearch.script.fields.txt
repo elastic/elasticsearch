@@ -35,3 +35,50 @@ class org.elasticsearch.script.field.BooleanDocValuesField @dynamic_type {
   boolean get(boolean)
   boolean get(int, boolean)
 }
+
+class org.elasticsearch.script.field.IntegerDocValuesField @dynamic_type {
+  int get(int)
+  int get(int, int)
+}
+
+class org.elasticsearch.script.field.LongDocValuesField @dynamic_type {
+  long get(long)
+  long get(int, long)
+}
+
+class org.elasticsearch.script.field.DoubleDocValuesField @dynamic_type {
+  double get(double)
+  double get(int, double)
+}
+
+class org.elasticsearch.script.field.FloatDocValuesField @dynamic_type {
+  float get(float)
+  float get(int, float)
+}
+
+# defaults are cast to byte, taking an int facilitates resolution with constants without casting
+class org.elasticsearch.script.field.ByteDocValuesField @dynamic_type {
+  byte get(int)
+  byte get(int, int)
+}
+
+# defaults are cast to short, taking an int facilitates resolution with constants without casting
+class org.elasticsearch.script.field.ShortDocValuesField @dynamic_type {
+  short get(int)
+  short get(int, int)
+}
+
+class org.elasticsearch.script.field.DateMillisDocValuesField @dynamic_type {
+  ZonedDateTime get(ZonedDateTime)
+  ZonedDateTime get(int, ZonedDateTime)
+}
+
+class org.elasticsearch.script.field.DateNanosDocValuesField @dynamic_type {
+  ZonedDateTime get(ZonedDateTime)
+  ZonedDateTime get(int, ZonedDateTime)
+}
+
+class org.elasticsearch.script.field.KeywordDocValuesField @dynamic_type {
+  String get(String)
+  String get(int, String)
+}

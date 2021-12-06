@@ -8,6 +8,8 @@
 
 package org.elasticsearch.packaging.test;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileUtils;
@@ -258,7 +260,9 @@ public class ArchiveTests extends PackagingTestCase {
         Shell.Result result = runElasticsearchStartCommand("some-wrong-password-here", false, false);
         assertElasticsearchFailure(result, "Provided keystore password was incorrect", null);
         verifySecurityNotAutoConfigured(installation);
-
+        if (RandomizedTest.randomBoolean()) {
+            ServerUtils.addSettingToExistingConfiguration(installation, "node.name", "my-custom-random-node-name-here");
+        }
         awaitElasticsearchStartup(runElasticsearchStartCommand(password, true, true));
         verifySecurityAutoConfigured(installation);
 
@@ -278,7 +282,9 @@ public class ArchiveTests extends PackagingTestCase {
         );
         sh.chown(installation.config, installation.getOwner());
         FileUtils.assertPathsDoNotExist(installation.data);
-
+        if (RandomizedTest.randomBoolean()) {
+            ServerUtils.addSettingToExistingConfiguration(installation, "node.name", "my-custom-random-node-name-here");
+        }
         startElasticsearch();
         verifySecurityAutoConfigured(installation);
         stopElasticsearch();
@@ -534,7 +540,8 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test80RelativePathConf() throws Exception {
         withCustomConfig(tempConf -> {
-            append(tempConf.resolve("elasticsearch.yml"), "node.name: relative");
+            ServerUtils.removeSettingFromExistingConfiguration(tempConf, "node.name");
+            ServerUtils.addSettingToExistingConfiguration(tempConf, "node.name", "relative");
             startElasticsearch();
 
             final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
@@ -588,7 +595,6 @@ public class ArchiveTests extends PackagingTestCase {
     public void test93ElasticsearchNodeCustomDataPathAndNotEsHomeWorkDir() throws Exception {
         Path relativeDataPath = installation.data.relativize(installation.home);
         append(installation.config("elasticsearch.yml"), "path.data: " + relativeDataPath);
-
         sh.setWorkingDirectory(getRootTempDir());
 
         startElasticsearch();

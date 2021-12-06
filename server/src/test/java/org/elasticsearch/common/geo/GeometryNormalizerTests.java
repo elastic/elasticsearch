@@ -13,9 +13,12 @@ import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Line;
+import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -31,18 +34,23 @@ public class GeometryNormalizerTests extends ESTestCase {
         Circle circle = new Circle(2, 1, 1000);
         Geometry indexed = circle;
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, circle));
+        assertEquals(false, GeometryNormalizer.needsNormalize(Orientation.CCW, circle));
 
         circle = new Circle(2, 1, 3, 1000);
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, circle));
+        assertEquals(false, GeometryNormalizer.needsNormalize(Orientation.CCW, circle));
 
         circle = new Circle(362, 1, 1000);
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, circle));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, circle));
 
         circle = new Circle(-178, 179, 1000);
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, circle));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, circle));
 
         circle = new Circle(180, 180, 1000);
         assertEquals(new Circle(0, 0, 1000), GeometryNormalizer.apply(Orientation.CCW, circle));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, circle));
     }
 
     public void testCollection() {
@@ -52,6 +60,7 @@ public class GeometryNormalizerTests extends ESTestCase {
 
         Geometry indexed = new Point(2, 1);
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, collection));
+        assertEquals(false, GeometryNormalizer.needsNormalize(Orientation.CCW, collection));
 
         collection = new GeometryCollection<>(
             Arrays.asList(new Point(2, 1), new Point(4, 3), new Line(new double[] { 160, 200 }, new double[] { 10, 20 }))
@@ -70,6 +79,7 @@ public class GeometryNormalizerTests extends ESTestCase {
             )
         );
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, collection));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, collection));
 
     }
 
@@ -77,6 +87,7 @@ public class GeometryNormalizerTests extends ESTestCase {
         Line line = new Line(new double[] { 3, 4 }, new double[] { 1, 2 });
         Geometry indexed = line;
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, line));
+        assertEquals(false, GeometryNormalizer.needsNormalize(Orientation.CCW, line));
 
         line = new Line(new double[] { 160, 200 }, new double[] { 10, 20 });
         indexed = new MultiLine(
@@ -87,6 +98,7 @@ public class GeometryNormalizerTests extends ESTestCase {
         );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, line));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, line));
 
         line = new Line(new double[] { 200, 160 }, new double[] { 10, 20 });
         indexed = new MultiLine(
@@ -97,6 +109,7 @@ public class GeometryNormalizerTests extends ESTestCase {
         );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, line));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, line));
 
         line = new Line(new double[] { 160, 200, 160 }, new double[] { 0, 10, 20 });
         indexed = new MultiLine(
@@ -108,6 +121,7 @@ public class GeometryNormalizerTests extends ESTestCase {
         );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, line));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, line));
 
         line = new Line(new double[] { 0, 720 }, new double[] { 0, 20 });
         indexed = new MultiLine(
@@ -119,6 +133,7 @@ public class GeometryNormalizerTests extends ESTestCase {
         );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, line));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, line));
 
         line = new Line(new double[] { 160, 180, 180, 200, 160, 140 }, new double[] { 0, 10, 20, 30, 30, 40 });
         indexed = new MultiLine(
@@ -130,6 +145,7 @@ public class GeometryNormalizerTests extends ESTestCase {
         );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, line));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, line));
 
         line = new Line(new double[] { -70, 180, 900 }, new double[] { 0, 0, 4 });
 
@@ -142,6 +158,7 @@ public class GeometryNormalizerTests extends ESTestCase {
         );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, line));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, line));
 
         line = new Line(new double[] { 160, 200, 160, 200, 160, 200 }, new double[] { 0, 10, 20, 30, 40, 50 });
 
@@ -157,6 +174,7 @@ public class GeometryNormalizerTests extends ESTestCase {
         );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, line));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, line));
     }
 
     /**
@@ -280,43 +298,132 @@ public class GeometryNormalizerTests extends ESTestCase {
         );
 
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, multiLine));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, multiLine));
     }
 
     public void testPoint() {
         Point point = new Point(2, 1);
         Geometry indexed = point;
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, point));
+        assertEquals(false, GeometryNormalizer.needsNormalize(Orientation.CCW, point));
 
         point = new Point(2, 1, 3);
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, point));
+        assertEquals(false, GeometryNormalizer.needsNormalize(Orientation.CCW, point));
 
         point = new Point(362, 1);
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, point));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, point));
 
         point = new Point(-178, 179);
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, point));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, point));
 
         point = new Point(180, 180);
         assertEquals(new Point(0, 0), GeometryNormalizer.apply(Orientation.CCW, point));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, point));
 
         point = new Point(-180, -180);
         assertEquals(new Point(0, 0), GeometryNormalizer.apply(Orientation.CCW, point));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, point));
     }
 
     public void testMultiPoint() {
         MultiPoint multiPoint = MultiPoint.EMPTY;
         Geometry indexed = multiPoint;
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, multiPoint));
+        assertEquals(false, GeometryNormalizer.needsNormalize(Orientation.CCW, multiPoint));
 
         multiPoint = new MultiPoint(Collections.singletonList(new Point(2, 1)));
         indexed = new Point(2, 1);
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, multiPoint));
+        assertEquals(false, GeometryNormalizer.needsNormalize(Orientation.CCW, multiPoint));
 
         multiPoint = new MultiPoint(Arrays.asList(new Point(2, 1), new Point(4, 3)));
         indexed = multiPoint;
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, multiPoint));
+        assertEquals(false, GeometryNormalizer.needsNormalize(Orientation.CCW, multiPoint));
 
         multiPoint = new MultiPoint(Arrays.asList(new Point(2, 1, 10), new Point(4, 3, 10)));
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, multiPoint));
+        assertEquals(false, GeometryNormalizer.needsNormalize(Orientation.CCW, multiPoint));
+    }
+
+    public void testPolygon() {
+        Polygon polygon = Polygon.EMPTY;
+        Geometry indexed = polygon;
+        assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, polygon));
+        assertEquals(false, GeometryNormalizer.needsNormalize(Orientation.CCW, polygon));
+
+        polygon = new Polygon(new LinearRing(new double[] { 1, 0, 0, 1, 1 }, new double[] { 1, 1, 0, 0, 1 }));
+        // for some reason, the normalizer always changes the order of the points
+        indexed = new Polygon(new LinearRing(new double[] { 0, 0, 1, 1, 0 }, new double[] { 1, 0, 0, 1, 1 }));
+        ;
+        assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, polygon));
+        assertEquals(false, GeometryNormalizer.needsNormalize(Orientation.CCW, polygon));
+
+        polygon = new Polygon(new LinearRing(new double[] { 170, -170, -170, 170, 170 }, new double[] { -10, -10, 10, 10, -10 }));
+        indexed = new MultiPolygon(
+            List.of(
+                new Polygon(new LinearRing(new double[] { 180, 180, 170, 170, 180 }, new double[] { -10, 10, 10, -10, -10 })),
+                new Polygon(new LinearRing(new double[] { -180, -180, -170, -170, -180 }, new double[] { 10, -10, -10, 10, 10 }))
+            )
+        );
+        assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, polygon));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, polygon));
+
+        polygon = new Polygon(new LinearRing(new double[] { 170, 190, 190, 170, 170 }, new double[] { -10, -10, 10, 10, -10 }));
+        assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, polygon));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, polygon));
+    }
+
+    public void testMultiPolygon() {
+        MultiPolygon multiPolygon = MultiPolygon.EMPTY;
+        Geometry indexed = multiPolygon;
+        assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, multiPolygon));
+        assertEquals(false, GeometryNormalizer.needsNormalize(Orientation.CCW, multiPolygon));
+
+        multiPolygon = new MultiPolygon(
+            List.of(
+                new Polygon(new LinearRing(new double[] { 1, 0, 0, 1, 1 }, new double[] { 1, 1, 0, 0, 1 })),
+                new Polygon(new LinearRing(new double[] { 1, 0, 0, 1, 1 }, new double[] { 1, 1, 0, 0, 1 }))
+            )
+        );
+        // for some reason, the normalizer always changes the order of the points
+        indexed = new MultiPolygon(
+            List.of(
+                new Polygon(new LinearRing(new double[] { 0, 0, 1, 1, 0 }, new double[] { 1, 0, 0, 1, 1 })),
+                new Polygon(new LinearRing(new double[] { 0, 0, 1, 1, 0 }, new double[] { 1, 0, 0, 1, 1 }))
+            )
+        );
+
+        assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, multiPolygon));
+        assertEquals(false, GeometryNormalizer.needsNormalize(Orientation.CCW, multiPolygon));
+
+        multiPolygon = new MultiPolygon(
+            List.of(
+                new Polygon(new LinearRing(new double[] { 1, 0, 0, 1, 1 }, new double[] { 1, 1, 0, 0, 1 })),
+                new Polygon(new LinearRing(new double[] { 170, -170, -170, 170, 170 }, new double[] { -10, -10, 10, 10, -10 }))
+            )
+        );
+
+        indexed = new MultiPolygon(
+            List.of(
+                new Polygon(new LinearRing(new double[] { 0, 0, 1, 1, 0 }, new double[] { 1, 0, 0, 1, 1 })),
+                new Polygon(new LinearRing(new double[] { 180, 180, 170, 170, 180 }, new double[] { -10, 10, 10, -10, -10 })),
+                new Polygon(new LinearRing(new double[] { -180, -180, -170, -170, -180 }, new double[] { 10, -10, -10, 10, 10 }))
+            )
+        );
+        assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, multiPolygon));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, multiPolygon));
+
+        multiPolygon = new MultiPolygon(
+            List.of(
+                new Polygon(new LinearRing(new double[] { 1, 0, 0, 1, 1 }, new double[] { 1, 1, 0, 0, 1 })),
+                new Polygon(new LinearRing(new double[] { 170, 190, 190, 170, 170 }, new double[] { -10, -10, 10, 10, -10 }))
+            )
+        );
+        assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, multiPolygon));
+        assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, multiPolygon));
     }
 }

@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
       features: allowed_warnings
 
   - do:
@@ -19,6 +19,9 @@ setup:
                 number_of_shards: 2
                 mode: time_series
                 routing_path: [metricset, time_series_dimension]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
             mappings:
               properties:
                 "@timestamp":

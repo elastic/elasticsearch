@@ -18,7 +18,11 @@ import org.elasticsearch.ExceptionsHelper;
 import java.util.List;
 
 @ChannelHandler.Sharable
-class Netty4HttpRequestCreator extends MessageToMessageDecoder<FullHttpRequest> {
+final class Netty4HttpRequestCreator extends MessageToMessageDecoder<FullHttpRequest> {
+
+    static final Netty4HttpRequestCreator INSTANCE = new Netty4HttpRequestCreator();
+
+    private Netty4HttpRequestCreator() {}
 
     @Override
     protected void decode(ChannelHandlerContext ctx, FullHttpRequest msg, List<Object> out) {

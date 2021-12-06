@@ -106,3 +106,25 @@
     - match: { hits.hits.2.fields.field1.0: -1 }
     - match: { hits.hits.2.fields.field2.0: -1 }
     - match: { hits.hits.2.fields.field3.0: 0 }
+
+    - do:
+        search:
+          body:
+            script_fields:
+              field1:
+                script:
+                  source: "ByteBuffer bb = $('binary', null); if (bb == null) {return -1;} return bb.get(0)"
+    - match: { hits.hits.0.fields.field1.0: 83 }
+    - match: { hits.hits.1.fields.field1.0: 49 }
+    - match: { hits.hits.2.fields.field1.0: -1 }
+
+    - do:
+        search:
+          body:
+            script_fields:
+              field1:
+                script:
+                  source: "ByteBuffer bb = $('binary', null); if (bb == null) {return -1;} return bb.limit()"
+    - match: { hits.hits.0.fields.field1.0: 16 }
+    - match: { hits.hits.1.fields.field1.0: 4 }
+    - match: { hits.hits.2.fields.field1.0: -1 }

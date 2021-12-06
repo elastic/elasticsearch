@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
 public class HttpResourceTests extends ESTestCase {
 
     private final String owner = getTestName();
-    private final RestClient client = mock(RestClient.class);
+    private final RestClient mockClient = mock(RestClient.class);
 
     public void testConstructorRequiresOwner() {
         expectThrows(NullPointerException.class, () -> new HttpResource(null) {
@@ -77,7 +77,7 @@ public class HttpResourceTests extends ESTestCase {
         assertTrue(resource.isDirty());
 
         // if this fails, then the mocked resource needs to be fixed
-        resource.checkAndPublish(client, listener);
+        resource.checkAndPublish(mockClient, listener);
 
         verify(listener).onResponse(ResourcePublishResult.ready());
         assertFalse(resource.isDirty());
@@ -96,7 +96,7 @@ public class HttpResourceTests extends ESTestCase {
             }
         };
 
-        resource.checkAndPublish(client, listener);
+        resource.checkAndPublish(mockClient, listener);
 
         verify(listener).onResponse(expected);
     }
@@ -116,10 +116,10 @@ public class HttpResourceTests extends ESTestCase {
         };
 
         assertTrue(resource.isDirty());
-        resource.checkAndPublish(client, listener1);
+        resource.checkAndPublish(mockClient, listener1);
         verify(listener1).onResponse(ResourcePublishResult.ready());
         assertFalse(resource.isDirty());
-        resource.checkAndPublish(client, listener2);
+        resource.checkAndPublish(mockClient, listener2);
         verify(listener2).onResponse(ResourcePublishResult.notReady("test unready"));
 
         verify(supplier, times(2)).get();
@@ -161,8 +161,8 @@ public class HttpResourceTests extends ESTestCase {
             }
         };
 
-        resource.checkAndPublishIfDirty(client, wrapMockListener(listener));
-        resource.checkAndPublishIfDirty(client, checkingListener);
+        resource.checkAndPublishIfDirty(mockClient, wrapMockListener(listener));
+        resource.checkAndPublishIfDirty(mockClient, checkingListener);
 
         assertTrue(firstCheck.await(15, TimeUnit.SECONDS));
 
@@ -185,10 +185,10 @@ public class HttpResourceTests extends ESTestCase {
         };
 
         assertTrue(resource.isDirty());
-        resource.checkAndPublishIfDirty(client, wrapMockListener(listener1));
+        resource.checkAndPublishIfDirty(mockClient, wrapMockListener(listener1));
         verify(listener1).onResponse(true);
         assertFalse(resource.isDirty());
-        resource.checkAndPublishIfDirty(client, wrapMockListener(listener2));
+        resource.checkAndPublishIfDirty(mockClient, wrapMockListener(listener2));
         verify(listener2).onResponse(true);
 
         // once is the default!

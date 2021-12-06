@@ -20,5 +20,5 @@ if pwd | grep -v -q ^/dev/shm ; then
    MAX_WORKERS=$(($MAX_WORKERS*2/3))
 fi
 set -e
-GRADLE_PROFILER = $WORKSPACE/gradle-profiler/bin/gradle-profiler
-$GRADLE_PROFILER -Dorg.gradle.workers.max=$MAX_WORKERS $@
+GRADLE_PROFILER="$WORKSPACE/gradle-profiler/bin/gradle-profiler"
+$GRADLE_PROFILER "-Dorg.gradle.workers.max=$MAX_WORKERS" $@

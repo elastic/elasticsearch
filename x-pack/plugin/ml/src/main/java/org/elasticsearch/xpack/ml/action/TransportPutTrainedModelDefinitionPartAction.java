@@ -50,12 +50,7 @@ public class TransportPutTrainedModelDefinitionPartAction extends HandledTranspo
         Client client,
         TrainedModelProvider trainedModelProvider
     ) {
-        super(
-            PutTrainedModelDefinitionPartAction.NAME,
-            transportService,
-            actionFilters,
-            Request::new
-        );
+        super(PutTrainedModelDefinitionPartAction.NAME, transportService, actionFilters, Request::new);
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
         this.client = new OriginSettingClient(client, ML_ORIGIN);

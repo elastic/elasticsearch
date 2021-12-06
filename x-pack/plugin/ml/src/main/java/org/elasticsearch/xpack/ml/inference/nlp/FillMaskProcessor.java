@@ -38,9 +38,9 @@ public class FillMaskProcessor implements NlpTask.Processor {
             throw new IllegalArgumentException("input request is empty");
         }
 
-        String mask = tokenizer.getMaskToken();
+        final String mask = tokenizer.getMaskToken();
         for (String input : inputs) {
-            int maskIndex = input.indexOf(tokenizer.getMaskToken());
+            int maskIndex = input.indexOf(mask);
             if (maskIndex < 0) {
                 throw new IllegalArgumentException("no " + mask + " token could be found");
             }

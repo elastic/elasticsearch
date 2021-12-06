@@ -178,16 +178,19 @@ public class BertTokenizerTests extends ESTestCase {
         ).setWithSpecialTokens(true).setNeverSplit(Set.of("[MASK]")).build();
 
         TokenizationResult.Tokenization tokenization = tokenizer.tokenize("This is [MASK]-tastic!", Tokenization.Truncate.NONE);
-        assertThat(tokenStrings(tokenization.getTokens()), contains("[CLS]", "This", "is", "[MASK]", "-", "ta", "##stic", "!", "[SEP]"));
+        assertThat(tokenStrings(tokenization.getTokens()), contains("This", "is", "[MASK]", "-", "tastic", "!"));
+        assertArrayEquals(new int[] { 0, 1, 2, 3, 4, 6, 7, 8, 9 }, tokenization.getTokenIds());
+        assertArrayEquals(new int[] { -1, 0, 1, 2, 3, 4, 4, 5, -1 }, tokenization.getTokenMap());
 
         tokenization = tokenizer.tokenize("This is sub~[MASK]!", Tokenization.Truncate.NONE);
-        assertThat(tokenStrings(tokenization.getTokens()), contains("[CLS]", "This", "is", "sub", "~", "[MASK]", "!", "[SEP]"));
+        assertThat(tokenStrings(tokenization.getTokens()), contains("This", "is", "sub", "~", "[MASK]", "!"));
+        assertArrayEquals(new int[] { 0, 1, 2, 10, 5, 3, 8, 9 }, tokenization.getTokenIds());
+        assertArrayEquals(new int[] { -1, 0, 1, 2, 3, 4, 5, -1 }, tokenization.getTokenMap());
 
         tokenization = tokenizer.tokenize("This is sub,[MASK].tastic!", Tokenization.Truncate.NONE);
-        assertThat(
-            tokenStrings(tokenization.getTokens()),
-            contains("[CLS]", "This", "is", "sub", ",", "[MASK]", ".", "ta", "##stic", "!", "[SEP]")
-        );
+        assertThat(tokenStrings(tokenization.getTokens()), contains("This", "is", "sub", ",", "[MASK]", ".", "tastic", "!"));
+        assertArrayEquals(new int[] { 0, 1, 2, 10, 11, 3, 12, 6, 7, 8, 9 }, tokenization.getTokenIds());
+        assertArrayEquals(new int[] { -1, 0, 1, 2, 3, 4, 5, 6, 6, 7, -1 }, tokenization.getTokenMap());
     }
 
     public void testBatchInput() {

@@ -7,9 +7,29 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class DelimitedToken {
+
+    /**
+     * Merges the list of tokens.
+     *
+     * Assumes that the tokens are in order.
+     *
+     * @param tokens
+     * @return The merged token
+     */
+    public static DelimitedToken mergeTokens(List<DelimitedToken> tokens) {
+        if (tokens.size() == 1) {
+            return tokens.get(0);
+        }
+
+        String merged = tokens.stream().map(DelimitedToken::getToken).collect(Collectors.joining());
+        return new DelimitedToken(tokens.get(0).getStartPos(), tokens.get(tokens.size() - 1).getEndPos(), merged);
+    }
+
     private final int startPos;
     private final int endPos;
     private final String token;

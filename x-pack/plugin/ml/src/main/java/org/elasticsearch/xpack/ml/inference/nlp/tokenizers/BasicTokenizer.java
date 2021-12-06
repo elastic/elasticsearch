@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /**
  * Basic tokenization of text by whitespace with optional extras:
@@ -45,7 +46,7 @@ public class BasicTokenizer {
         this.isLowerCase = isLowerCase;
         this.isTokenizeCjkChars = isTokenizeCjkChars;
         this.isStripAccents = isStripAccents;
-        this.neverSplitTokenTrieRoot = TokenTrieNode.build(neverSplit, this::doTokenize);
+        this.neverSplitTokenTrieRoot = TokenTrieNode.build(neverSplit, this::doTokenizeString);
     }
 
     public BasicTokenizer(boolean isLowerCase, boolean isTokenizeCjkChars, boolean isStripAccents) {
@@ -75,6 +76,14 @@ public class BasicTokenizer {
      * @return List of tokens
      */
     public List<DelimitedToken> tokenize(String text) {
+        return mergeNeverSplitTokens(doTokenize(text));
+    }
+
+    private List<String> doTokenizeString(String text) {
+        return doTokenize(text).stream().map(DelimitedToken::getToken).collect(Collectors.toList());
+    }
+
+    private List<DelimitedToken> doTokenize(String text) {
         text = cleanText(text);
         if (isTokenizeCjkChars) {
             text = tokenizeCjkChars(text);
@@ -91,26 +100,26 @@ public class BasicTokenizer {
             }
 
             if (isLowerCase) {
-                token = token.toLowerCase(Locale.ROOT);
+                tokenStr = tokenStr.toLowerCase(Locale.ROOT);
             }
             if (isStripAccents) {
-                token = stripAccents(token);
+                tokenStr = stripAccents(tokenStr);
             }
-            processedTokens.addAll(splitOnPunctuation(token));
+            processedTokens.addAll(splitOnPunctuation(new DelimitedToken(tokenRecord.getStartPos(), tokenRecord.getEndPos(), tokenStr)));
         }
 
         return processedTokens;
     }
 
-    private List<String> mergeNeverSplitTokens(List<String> tokens) {
+    private List<DelimitedToken> mergeNeverSplitTokens(List<DelimitedToken> tokens) {
         if (neverSplitTokenTrieRoot.isLeaf()) {
             return tokens;
         }
-        List<String> mergedTokens = new ArrayList<>(tokens.size());
-        List<String> matchingTokens = new ArrayList<>();
+        List<DelimitedToken> mergedTokens = new ArrayList<>(tokens.size());
+        List<DelimitedToken> matchingTokens = new ArrayList<>();
         TokenTrieNode current = neverSplitTokenTrieRoot;
-        for (String token : tokens) {
-            TokenTrieNode childNode = current.getChild(token);
+        for (DelimitedToken token : tokens) {
+            TokenTrieNode childNode = current.getChild(token.getToken());
             if (childNode == null) {
                 if (current != neverSplitTokenTrieRoot) {
                     mergedTokens.addAll(matchingTokens);
@@ -120,7 +129,7 @@ public class BasicTokenizer {
                 mergedTokens.add(token);
             } else if (childNode.isLeaf()) {
                 matchingTokens.add(token);
-                mergedTokens.add(String.join("", matchingTokens));
+                mergedTokens.add(DelimitedToken.mergeTokens(matchingTokens));
                 matchingTokens = new ArrayList<>();
                 current = neverSplitTokenTrieRoot;
             } else {
@@ -213,10 +222,9 @@ public class BasicTokenizer {
         return new String(codePoints, 0, codePoints.length);
     }
 
-
     static List<DelimitedToken> splitOnPunctuation(DelimitedToken word) {
         List<DelimitedToken> splits = new ArrayList<>();
-        int[] codePoints = token.getToken().codePoints().toArray();
+        int[] codePoints = word.getToken().codePoints().toArray();
 
         int lastSplit = 0;
         for (int i = 0; i < codePoints.length; i++) {
@@ -226,13 +234,13 @@ public class BasicTokenizer {
                     // add a new string for what has gone before
                     splits.add(
                         new DelimitedToken(
-                            token.getStartPos() + lastSplit,
-                            token.getStartPos() + i,
+                            word.getStartPos() + lastSplit,
+                            word.getStartPos() + i,
                             new String(codePoints, lastSplit, i - lastSplit)
                         )
                     );
                 }
-                splits.add(new DelimitedToken(token.getStartPos() + i, token.getStartPos() + i + 1, new String(codePoints, i, 1)));
+                splits.add(new DelimitedToken(word.getStartPos() + i, word.getStartPos() + i + 1, new String(codePoints, i, 1)));
                 lastSplit = i + 1;
             }
         }
@@ -240,8 +248,8 @@ public class BasicTokenizer {
         if (lastSplit < codePoints.length) {
             splits.add(
                 new DelimitedToken(
-                    token.getStartPos() + lastSplit,
-                    token.getStartPos() + codePoints.length,
+                    word.getStartPos() + lastSplit,
+                    word.getStartPos() + codePoints.length,
                     new String(codePoints, lastSplit, codePoints.length - lastSplit)
                 )
             );

@@ -74,11 +74,6 @@ public class BasicTokenizer {
      * @param text The input text to tokenize
      * @return List of tokens
      */
-<<<<<<< HEAD
-    public List<String> tokenize(String text) {
-        return mergeNeverSplitTokens(doTokenize(text));
-    }
-
     public List<DelimitedToken> tokenize(String text) {
         text = cleanText(text);
         if (isTokenizeCjkChars) {
@@ -90,7 +85,7 @@ public class BasicTokenizer {
         List<DelimitedToken> processedTokens = new ArrayList<>(tokens.size());
         for (DelimitedToken tokenRecord : tokens) {
 
-            String tokenStr = tokenRecord.token;
+            String tokenStr = tokenRecord.getToken();
             if (Strings.EMPTY.equals(tokenStr)) {
                 continue;
             }
@@ -149,29 +144,41 @@ public class BasicTokenizer {
     }
 
     /**
-     * Should be called after {@link #cleanText(String)}
-     * @param text
-     * @return
+     * Split the input text by whitespace.
+     * For the returned objects {@link DelimitedToken#getStartPos()} is the
+     * start character index inclusive and {@link DelimitedToken#getEndPos()}
+     * the index exclusive. The number of whitespace characters between 2 consecutive
+     * {@link DelimitedToken}s is the difference between the first's {@code endPos}
+     * and the second's {@code startPos}.
+     *
+     * The input should be normalized via a call to {@link #cleanText(String)}
+     * before it is passed to this function.
+     *
+     * @param text to tokenize
+     * @return White space separated strings
      */
     static List<DelimitedToken> whiteSpaceTokenize(String text) {
-        text = text.trim();
-
         var tokens = new ArrayList<DelimitedToken>();
 
-        int tokenStart = 0;
-        // int tokenEnd = 1;
-        int index = 0;
         // whitespace at beginning
+        int index = 0;
+        while (index < text.length() && text.charAt(index) == ' ') {
+            index++;
+        }
+
+        int tokenStart = index;
+
         while (index < text.length()) {
             if (text.charAt(index) == ' ') {
                 int tokenEnd = index;
                 index++;
-                while (text.charAt(index) == ' ') {
+                // consume trail whitespace before the next word
+                // or end of text
+                while (index < text.length() && text.charAt(index) == ' ') {
                     index++;
                 }
 
-                tokens.add(new DelimitedToken(tokenStart, index, text.substring(tokenStart, tokenEnd)));
-
+                tokens.add(new DelimitedToken(tokenStart, tokenEnd, text.substring(tokenStart, tokenEnd)));
                 tokenStart = index;
             }
             index++;
@@ -179,7 +186,7 @@ public class BasicTokenizer {
 
         // trailing whitespace
         if (tokenStart != text.length()) {
-            tokens.add(new DelimitedToken(tokenStart, text.length(), text.substring(tokenStart, text.length())));
+            tokens.add(new DelimitedToken(tokenStart, text.length(), text.substring(tokenStart)));
         }
 
         return tokens;
@@ -209,7 +216,7 @@ public class BasicTokenizer {
 
     static List<DelimitedToken> splitOnPunctuation(DelimitedToken word) {
         List<DelimitedToken> splits = new ArrayList<>();
-        int[] codePoints = token.token.codePoints().toArray();
+        int[] codePoints = token.getToken().codePoints().toArray();
 
         int lastSplit = 0;
         for (int i = 0; i < codePoints.length; i++) {
@@ -218,10 +225,14 @@ public class BasicTokenizer {
                 if (charCount > 0) {
                     // add a new string for what has gone before
                     splits.add(
-                        new DelimitedToken(token.startPos + lastSplit, token.startPos + i, new String(codePoints, lastSplit, i - lastSplit))
+                        new DelimitedToken(
+                            token.getStartPos() + lastSplit,
+                            token.getStartPos() + i,
+                            new String(codePoints, lastSplit, i - lastSplit)
+                        )
                     );
                 }
-                splits.add(new DelimitedToken(token.startPos + i, token.startPos + i + 1, new String(codePoints, i, 1)));
+                splits.add(new DelimitedToken(token.getStartPos() + i, token.getStartPos() + i + 1, new String(codePoints, i, 1)));
                 lastSplit = i + 1;
             }
         }
@@ -229,8 +240,8 @@ public class BasicTokenizer {
         if (lastSplit < codePoints.length) {
             splits.add(
                 new DelimitedToken(
-                    token.startPos + lastSplit,
-                    token.startPos + codePoints.length,
+                    token.getStartPos() + lastSplit,
+                    token.getStartPos() + codePoints.length,
                     new String(codePoints, lastSplit, codePoints.length - lastSplit)
                 )
             );

@@ -198,18 +198,37 @@ public class BasicTokenizerTests extends ESTestCase {
     }
 
     public void testWhitespaceTokenize() {
-        List<DelimitedToken> delimitedTokens = BasicTokenizer.whiteSpaceTokenize("hello! how are you?");
-        assertThat(delimitedTokens, hasSize(4));
-        assertThat(tokenStrings(delimitedTokens), contains("hello!", "how", "are", "you?"));
+        {
+            List<DelimitedToken> delimitedTokens = BasicTokenizer.whiteSpaceTokenize("hello! how are you?");
+            assertThat(delimitedTokens, hasSize(4));
+            assertThat(tokenStrings(delimitedTokens), contains("hello!", "how", "are", "you?"));
 
-        assertThat(delimitedTokens.get(0), equalTo(new DelimitedToken(0, 7, "hello!")));
-        assertThat(delimitedTokens.get(1), equalTo(new DelimitedToken(7, 11, "how")));
-        assertThat(delimitedTokens.get(2), equalTo(new DelimitedToken(11, 15, "are")));
-        assertThat(delimitedTokens.get(3), equalTo(new DelimitedToken(15, 19, "you?")));
+            assertThat(delimitedTokens.get(0), equalTo(new DelimitedToken(0, 6, "hello!")));
+            assertThat(delimitedTokens.get(1), equalTo(new DelimitedToken(7, 10, "how")));
+            assertThat(delimitedTokens.get(2), equalTo(new DelimitedToken(11, 14, "are")));
+            assertThat(delimitedTokens.get(3), equalTo(new DelimitedToken(15, 19, "you?")));
+        }
+        {
+            List<DelimitedToken> delimitedTokens = BasicTokenizer.whiteSpaceTokenize("   leading whitespace");
+            assertThat(delimitedTokens, hasSize(2));
+            assertThat(tokenStrings(delimitedTokens), contains("leading", "whitespace"));
+
+            assertThat(delimitedTokens.get(0), equalTo(new DelimitedToken(3, 10, "leading")));
+            assertThat(delimitedTokens.get(1), equalTo(new DelimitedToken(11, 21, "whitespace")));
+        }
+        {
+            List<DelimitedToken> delimitedTokens = BasicTokenizer.whiteSpaceTokenize("double  spaced  text ");
+            assertThat(delimitedTokens, hasSize(3));
+            assertThat(tokenStrings(delimitedTokens), contains("double", "spaced", "text"));
+
+            assertThat(delimitedTokens.get(0), equalTo(new DelimitedToken(0, 6, "double")));
+            assertThat(delimitedTokens.get(1), equalTo(new DelimitedToken(8, 14, "spaced")));
+            assertThat(delimitedTokens.get(2), equalTo(new DelimitedToken(16, 20, "text")));
+        }
     }
 
     private List<String> tokenStrings(List<DelimitedToken> tokens) {
-        return tokens.stream().map(t -> t.token).collect(Collectors.toList());
+        return tokens.stream().map(DelimitedToken::getToken).collect(Collectors.toList());
     }
 
     private DelimitedToken makeToken(String str) {

@@ -175,7 +175,8 @@ public class Subject {
 
     // This following fixed role descriptor is for fleet-server BWC on and before 7.14.
     // It is fixed and must NOT be updated when the fleet-server service account updates.
-    private static final BytesArray FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14 = new BytesArray(
+    // Package private for testing
+    static final BytesArray FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14 = new BytesArray(
         "{\"elastic/fleet-server\":{\"cluster\":[\"monitor\",\"manage_own_api_key\"],"
             + "\"indices\":[{\"names\":[\"logs-*\",\"metrics-*\",\"traces-*\",\"synthetics-*\","
             + "\".logs-endpoint.diagnostic.collection-*\"],"

@@ -328,8 +328,7 @@ public class AllocationServiceTests extends ESTestCase {
         public void allocateUnassigned(
             ShardRouting shardRouting,
             RoutingAllocation allocation,
-            UnassignedAllocationHandler unassignedAllocationHandler,
-            boolean flushAsyncShardFetching
+            UnassignedAllocationHandler unassignedAllocationHandler
         ) {
             final AllocateUnassignedDecision allocateUnassignedDecision = explainUnassignedShardAllocation(shardRouting, allocation);
             if (allocateUnassignedDecision.getAllocationDecision() == AllocationDecision.YES) {

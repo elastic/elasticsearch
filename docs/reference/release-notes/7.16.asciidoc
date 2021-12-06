@@ -12,6 +12,12 @@ coming::[7.16.0]
 Allocation::
 * Improve single-node watermark deprecation checks {es-pull}80824[#80824] (issue: {es-issue}80817[#80817])
 
+Authentication::
+* Adding a deprecation info API check for SAML `nameid_format` setting {es-pull}77276[#77276] (issues: {es-issue}42404[#42404], {es-issue}44090[#44090])
+
+Cluster Coordination::
+* Adding a deprecation info check for `cluster.join.timeout` {es-pull}76944[#76944] (issue: {es-issue}42404[#42404])
+
 Geo::
 * Adding deprecation checks for `geo_shape` parameters {es-pull}76627[#76627] (issues: {es-issue}42404[#42404], {es-issue}70850[#70850])
 
@@ -44,11 +50,6 @@ Monitoring::
 * Deprecate monitoring settings {es-pull}79499[#79499]
 * Deprecate `create_legacy_templates` setting on HTTP exporters {es-pull}78564[#78564]
 * Deprecate the monitoring ingest settings {es-pull}77659[#77659] (issue: {es-issue}77459[#77459])
-
-Other::
-* Adding a deprecation info API check for SAML `nameid_format` setting {es-pull}77276[#77276] (issues: {es-issue}42404[#42404], {es-issue}44090[#44090])
-* Adding a deprecation info check for `cluster.join.timeout` {es-pull}76944[#76944] (issue: {es-issue}42404[#42404])
-
 
 [[feature-7.16.0]]
 [float]
@@ -130,7 +131,6 @@ Distributed::
 
 EQL::
 * Sequences will now support nano-timestamps {es-pull}76953[#76953] (issue: {es-issue}68812[#68812])
-* Sequences will now support nano-timestamps (backport of #76953) {es-pull}77147[#77147]
 
 Engine::
 * Apply the reader wrapper on `can_match` source {es-pull}78988[#78988]
@@ -149,6 +149,7 @@ ILM+SLM::
 * Allow for setting the total shards per node in the Allocate ILM action {es-pull}76134[#76134]
 
 Indices APIs::
+* Fleet: Add `action_response` into `.fleet-actions-results` mapping {es-pull}79584[#79584]
 * Store template's mappings as bytes for disk serialization {es-pull}78746[#78746]
 * Allow indices lookup to be built lazily {es-pull}78745[#78745] (issue: {es-issue}77466[#77466])
 
@@ -177,6 +178,7 @@ Infra/Scripting::
 
 Infra/Settings::
 * Add `show` command to the keystore CLI {es-pull}76693[#76693] (issue: {es-issue}57261[#57261])
+* Filtering setting deprecation info API messages based on a setting {es-pull}78725[#78725]
 
 Ingest::
 * Add enrich node cache {es-pull}76800[#76800] (issue: {es-issue}48988[#48988])
@@ -216,10 +218,6 @@ Mapping::
 
 Monitoring::
 * Remove license check for monitoring data retention {es-pull}79010[#79010]
-
-Other::
-* Fleet: Add `action_response` into `.fleet-actions-results` mapping {es-pull}79584[#79584]
-* Filtering setting deprecation info API messages based on a setting {es-pull}78725[#78725]
 
 Packaging::
 * Switch to Ubuntu docker base image {es-pull}80640[#80640]
@@ -274,8 +272,6 @@ Transform::
 * Add transform upgrade endpoint {es-pull}77566[#77566]
 * Reduce indexes to query based on checkpoints {es-pull}75839[#75839]
 * Implement the ability to preview the existing transform {es-pull}76697[#76697] (issue: {es-issue}76427[#76427])
-
-
 
 [[bug-7.16.0]]
 [float]
@@ -421,8 +417,6 @@ Transform::
 Watcher::
 * Fix watcher check that determines when to serialize indices options {es-pull}78070[#78070] (issue: {es-issue}78035[#78035])
 * Fix index action simulation when indexing several documents {es-pull}76820[#76820] (issues: {es-issue}66735[#66735], {es-issue}74148[#74148])
-
-
 
 [[upgrade-7.16.0]]
 [float]

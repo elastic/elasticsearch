@@ -131,7 +131,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 coerce.get().value(),
                 ignoreZValue.get().value()
             );
-            GeoShapeParser parser = new GeoShapeParser(geometryParser);
+            GeoShapeParser parser = new GeoShapeParser(geometryParser, orientation.get().value());
             GeoShapeWithDocValuesFieldType ft = new GeoShapeWithDocValuesFieldType(
                 context.buildFullName(name),
                 indexed.get(),

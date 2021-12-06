@@ -249,14 +249,16 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         return Objects.hash(realmName, userName, ids, name, ownedByAuthenticatedUser);
     }
 
-    private void validateIds(@Nullable String[] ids) {
-        if (ids != null) {
-            if (ids.length == 0) {
+    private void validateIds(@Nullable String[] idsToValidate) {
+        if (idsToValidate != null) {
+            if (idsToValidate.length == 0) {
                 final ActionRequestValidationException validationException = new ActionRequestValidationException();
                 validationException.addValidationError("Field [ids] cannot be an empty array");
                 throw validationException;
             } else {
-                final int[] idxOfBlankIds = IntStream.range(0, ids.length).filter(i -> Strings.hasText(ids[i]) == false).toArray();
+                final int[] idxOfBlankIds = IntStream.range(0, idsToValidate.length)
+                    .filter(i -> Strings.hasText(idsToValidate[i]) == false)
+                    .toArray();
                 if (idxOfBlankIds.length > 0) {
                     final ActionRequestValidationException validationException = new ActionRequestValidationException();
                     validationException.addValidationError(

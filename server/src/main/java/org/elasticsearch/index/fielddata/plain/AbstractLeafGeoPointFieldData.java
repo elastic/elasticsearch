@@ -12,6 +12,7 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.ScriptDocValues.GeoPointsSupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
@@ -28,7 +29,7 @@ public abstract class AbstractLeafGeoPointFieldData implements LeafGeoPointField
 
     @Override
     public final DocValuesField<?> getScriptField(String name) {
-        return new DelegateDocValuesField(new ScriptDocValues.GeoPoints(getGeoPointValues()), name);
+        return new DelegateDocValuesField(new ScriptDocValues.GeoPoints(new GeoPointsSupplier(getGeoPointValues())), name);
     }
 
     public static LeafGeoPointFieldData empty(final int maxDoc) {

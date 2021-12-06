@@ -14,10 +14,12 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
@@ -58,6 +60,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
@@ -1531,6 +1534,174 @@ public class DataStreamIT extends ESIntegTestCase {
         assertTrue(timestamp2 > timestamp3);
     }
 
+    public void testCreateDataStreamWithSameNameAsIndexAlias() throws Exception {
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index").alias(new Alias("my-alias"));
+        assertAcked(client().admin().indices().create(createIndexRequest).actionGet());
+
+        // Important detail: create template with data stream template after the index has been created
+        DataStreamIT.putComposableIndexTemplate("my-template", List.of("my-*"));
+
+        var request = new CreateDataStreamAction.Request("my-alias");
+        var e = expectThrows(IllegalStateException.class, () -> client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+        assertThat(e.getMessage(), containsString("[my-alias (alias of ["));
+        assertThat(e.getMessage(), containsString("]) conflicts with data stream"));
+    }
+
+    public void testCreateDataStreamWithSameNameAsIndex() throws Exception {
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index").alias(new Alias("my-alias"));
+        assertAcked(client().admin().indices().create(createIndexRequest).actionGet());
+
+        // Important detail: create template with data stream template after the index has been created
+        DataStreamIT.putComposableIndexTemplate("my-template", List.of("my-*"));
+
+        var request = new CreateDataStreamAction.Request("my-index");
+        var e = expectThrows(IllegalStateException.class, () -> client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+        assertThat(e.getMessage(), containsString("data stream [my-index] conflicts with index"));
+    }
+
+    public void testCreateDataStreamWithSameNameAsDataStreamAlias() throws Exception {
+        {
+            DataStreamIT.putComposableIndexTemplate("my-template", List.of("my-*"));
+            var request = new CreateDataStreamAction.Request("my-ds");
+            assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+            var aliasesAddRequest = new IndicesAliasesRequest();
+            aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("my-ds").aliases("my-alias"));
+            assertAcked(client().admin().indices().aliases(aliasesAddRequest).actionGet());
+
+            var request2 = new CreateDataStreamAction.Request("my-alias");
+            var e = expectThrows(
+                IllegalStateException.class,
+                () -> client().execute(CreateDataStreamAction.INSTANCE, request2).actionGet()
+            );
+            assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
+        }
+        {
+            assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet());
+            DataStreamIT.putComposableIndexTemplate(
+                "my-template",
+                null,
+                List.of("my-*"),
+                null,
+                null,
+                Map.of("my-alias", AliasMetadata.builder("my-alias").build())
+            );
+            var request = new CreateDataStreamAction.Request("my-ds");
+            assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+
+            var request2 = new CreateDataStreamAction.Request("my-alias");
+            var e = expectThrows(
+                IllegalStateException.class,
+                () -> client().execute(CreateDataStreamAction.INSTANCE, request2).actionGet()
+            );
+            assertThat(e.getMessage(), containsString("data stream alias and data stream have the same name (my-alias)"));
+        }
+    }
+
+    public void testCreateDataStreamAliasWithSameNameAsIndexAlias() throws Exception {
+        {
+            DataStreamIT.putComposableIndexTemplate("my-template", List.of("logs-*"));
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("es-logs").alias(new Alias("logs"));
+            assertAcked(client().admin().indices().create(createIndexRequest).actionGet());
+
+            var request = new CreateDataStreamAction.Request("logs-es");
+            assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("logs-es").aliases("logs"));
+            var e = expectThrows(IllegalStateException.class, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
+            assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (logs)"));
+        }
+        {
+            assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet());
+            DataStreamIT.putComposableIndexTemplate(
+                "my-template",
+                null,
+                List.of("logs-*"),
+                null,
+                null,
+                Map.of("logs", AliasMetadata.builder("logs").build())
+            );
+
+            var request = new CreateDataStreamAction.Request("logs-es");
+            var e = expectThrows(IllegalStateException.class, () -> client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+            assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (logs)"));
+        }
+    }
+
+    public void testCreateDataStreamAliasWithSameNameAsIndex() throws Exception {
+        DataStreamIT.putComposableIndexTemplate("my-template", List.of("logs-*"));
+
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("logs");
+        assertAcked(client().admin().indices().create(createIndexRequest).actionGet());
+
+        {
+            var request = new CreateDataStreamAction.Request("logs-es");
+            assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("logs-es").aliases("logs"));
+            var e = expectThrows(InvalidAliasNameException.class, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
+            assertThat(
+                e.getMessage(),
+                equalTo("Invalid alias name [logs]: an index or data stream exists with the same name as the alias")
+            );
+        }
+        {
+            assertAcked(client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("*")).actionGet());
+            var e = expectThrows(
+                IllegalArgumentException.class,
+                () -> DataStreamIT.putComposableIndexTemplate(
+                    "my-template",
+                    null,
+                    List.of("logs-*"),
+                    null,
+                    null,
+                    Map.of("logs", AliasMetadata.builder("logs").build())
+                )
+            );
+            assertThat(
+                e.getCause().getMessage(),
+                equalTo("Invalid alias name [logs]: an index or data stream exists with the same name as the alias")
+            );
+        }
+    }
+
+    public void testCreateIndexWithSameNameAsDataStreamAlias() throws Exception {
+        DataStreamIT.putComposableIndexTemplate("my-template", List.of("logs-*"));
+
+        var request = new CreateDataStreamAction.Request("logs-es");
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+        IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+        aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("logs-es").aliases("logs"));
+        assertAcked(client().admin().indices().aliases(aliasesAddRequest).actionGet());
+
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest("logs");
+        var e = expectThrows(InvalidIndexNameException.class, () -> client().admin().indices().create(createIndexRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("Invalid index name [logs], already exists as alias"));
+    }
+
+    public void testCreateIndexAliasWithSameNameAsDataStreamAlias() throws Exception {
+        DataStreamIT.putComposableIndexTemplate("my-template", List.of("logs-*"));
+
+        var request = new CreateDataStreamAction.Request("logs-es");
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, request).actionGet());
+        IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+        aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("logs-es").aliases("logs"));
+        assertAcked(client().admin().indices().aliases(aliasesAddRequest).actionGet());
+
+        {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index").alias(new Alias("logs"));
+            var e = expectThrows(IllegalStateException.class, () -> client().admin().indices().create(createIndexRequest).actionGet());
+            assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (logs)"));
+        }
+        {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest("my-index");
+            assertAcked(client().admin().indices().create(createIndexRequest).actionGet());
+            IndicesAliasesRequest addAliasRequest = new IndicesAliasesRequest();
+            addAliasRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("my-index").aliases("logs"));
+            var e = expectThrows(IllegalStateException.class, () -> client().admin().indices().aliases(addAliasRequest).actionGet());
+            assertThat(e.getMessage(), containsString("data stream alias and indices alias have the same name (logs)"));
+        }
+    }
+
     private static void verifyResolvability(String dataStream, ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {
         verifyResolvability(dataStream, requestBuilder, fail, 0);
     }
@@ -1724,11 +1895,22 @@ public class DataStreamIT extends ESIntegTestCase {
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata
     ) throws IOException {
+        putComposableIndexTemplate(id, mappings, patterns, settings, metadata, null);
+    }
+
+    static void putComposableIndexTemplate(
+        String id,
+        @Nullable String mappings,
+        List<String> patterns,
+        @Nullable Settings settings,
+        @Nullable Map<String, Object> metadata,
+        @Nullable Map<String, AliasMetadata> aliases
+    ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             new ComposableIndexTemplate(
                 patterns,
-                new Template(settings, mappings == null ? null : new CompressedXContent(mappings), null),
+                new Template(settings, mappings == null ? null : new CompressedXContent(mappings), aliases),
                 null,
                 null,
                 null,

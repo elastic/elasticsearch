@@ -1725,7 +1725,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     repositoriesService,
                     transportService,
                     actionFilters,
-                    Collections.emptyMap()
+                    EmptySystemIndices.INSTANCE
                 );
                 nodeEnv = new NodeEnvironment(settings, environment);
                 final NamedXContentRegistry namedXContentRegistry = new NamedXContentRegistry(Collections.emptyList());

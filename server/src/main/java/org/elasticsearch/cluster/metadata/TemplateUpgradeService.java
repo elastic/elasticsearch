@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -219,8 +217,8 @@ public class TemplateUpgradeService implements ClusterStateListener {
     ) {
         // collect current templates
         Map<String, IndexTemplateMetadata> existingMap = new HashMap<>();
-        for (ObjectObjectCursor<String, IndexTemplateMetadata> customCursor : templates) {
-            existingMap.put(customCursor.key, customCursor.value);
+        for (Map.Entry<String, IndexTemplateMetadata> customCursor : templates.entrySet()) {
+            existingMap.put(customCursor.getKey(), customCursor.getValue());
         }
         // upgrade global custom meta data
         Map<String, IndexTemplateMetadata> upgradedMap = indexTemplateMetadataUpgraders.apply(existingMap);

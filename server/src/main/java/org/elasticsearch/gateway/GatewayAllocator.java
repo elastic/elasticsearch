@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -215,8 +213,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     }
 
     private boolean hasNewNodes(DiscoveryNodes nodes) {
-        for (ObjectObjectCursor<String, DiscoveryNode> node : nodes.getDataNodes()) {
-            if (lastSeenEphemeralIds.contains(node.value.getEphemeralId()) == false) {
+        for (Map.Entry<String, DiscoveryNode> node : nodes.getDataNodes().entrySet()) {
+            if (lastSeenEphemeralIds.contains(node.getValue().getEphemeralId()) == false) {
                 return true;
             }
         }

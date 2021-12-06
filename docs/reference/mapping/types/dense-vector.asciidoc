@@ -10,8 +10,8 @@ vector fields can be used in the following ways:
 
 * In <<query-dsl-script-score-query,`script_score`>> queries, to score
 documents matching a filter
-* In the <<knn-search, kNN search API>>, to find the _k_ most similar vectors
-to a query vector
+* In the <<knn-search-api, kNN search API>>, to find the _k_ most similar
+vectors to a query vector
 
 The `dense_vector` type does not support aggregations or sorting.
 
@@ -56,8 +56,7 @@ It is not possible to store multiple values in one `dense_vector` field.
 
 experimental::[]
 
-A _k-nearest neighbor_ (kNN) search finds the _k_ nearest
-vectors to a query vector, as measured by a similarity metric.
+include::{es-repo-dir}/search/search-your-data/knn-search.asciidoc[tag=knn-def]
 
 Dense vector fields can be used to rank documents in
 <<query-dsl-script-score-query,`script_score` queries>>. This lets you perform
@@ -67,8 +66,8 @@ similarity.
 In many cases, a brute-force kNN search is not efficient enough. For this
 reason, the `dense_vector` type supports indexing vectors into a specialized
 data structure to support fast kNN retrieval through the
-<<knn-search, kNN search API>>. You can enable indexing by setting the `index`
-parameter:
+<<knn-search-api, kNN search API>>. You can enable indexing by setting the
+`index` parameter:
 
 [source,console]
 --------------------------------------------------
@@ -92,11 +91,13 @@ PUT my-index-2
 efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
 that sacrifices result accuracy for improved speed.
 
-NOTE: Indexing vectors for approximate kNN search is an expensive process. It can take
-substantial time to ingest documents that contain vector fields with `index`
-enabled.
+//tag::dense-vector-indexing-speed[]
+NOTE: Indexing vectors for approximate kNN search is an expensive process. It
+can take substantial time to ingest documents that contain vector fields with
+`index` enabled.
+//end::dense-vector-indexing-speed[]
 
-NOTE: Dense vector fields cannot be indexed if they are within
+Dense vector fields cannot be indexed if they are within
 <<nested, `nested`>> mappings.
 
 [role="child_attributes"]
@@ -111,8 +112,8 @@ Number of vector dimensions. Can't exceed `2048`.
 
 `index`::
 (Optional, Boolean)
-If `true`, you can search this field using the <<knn-search, kNN search API>>.
-Defaults to `false`.
+If `true`, you can search this field using the <<knn-search-api, kNN search
+API>>. Defaults to `false`.
 
 [[dense-vector-similarity]]
 `similarity`::

@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.CloseableChannel;
+import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -97,6 +98,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     // this limit is per-address
     private static final int LIMIT_LOCAL_PORTS_COUNT = 6;
 
+    // Deliberately unregistered, only used in unit tests. Copied to AbstractSimpleTransportTestCase#IGNORE_DESERIALIZATION_ERRORS_SETTING
+    // so that tests in other packages can see it too.
+    static final Setting<Boolean> IGNORE_DESERIALIZATION_ERRORS_SETTING = Setting.boolSetting(
+        "transport.ignore_deserialization_errors",
+        false,
+        Setting.Property.NodeScope
+    );
+
     protected final Settings settings;
     protected final ThreadPool threadPool;
     protected final Recycler<BytesRef> recycler;
@@ -116,6 +125,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
+    private final HandlingTimeTracker outboundHandlingTimeTracker = new HandlingTimeTracker();
     private final OutboundHandler outboundHandler;
     private final InboundHandler inboundHandler;
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
@@ -141,7 +151,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
 
         this.recycler = createRecycler(settings, pageCacheRecycler);
-        this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, recycler);
+        this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, recycler, outboundHandlingTimeTracker);
+
+        final boolean ignoreDeserializationErrors = IGNORE_DESERIALIZATION_ERRORS_SETTING.get(settings);
+
         this.handshaker = new TransportHandshaker(
             version,
             threadPool,
@@ -155,7 +168,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 v,
                 null,
                 true
-            )
+            ),
+            ignoreDeserializationErrors
         );
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
         this.inboundHandler = new InboundHandler(
@@ -165,7 +179,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             handshaker,
             keepAlive,
             requestHandlers,
-            responseHandlers
+            responseHandlers,
+            networkService.getHandlingTimeTracker(),
+            ignoreDeserializationErrors
         );
     }
 
@@ -336,8 +352,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
         for (int i = 0; i < numConnections; ++i) {
             try {
-                TcpChannel channel = initiateChannel(node);
-                logger.trace(() -> new ParameterizedMessage("Tcp transport channel opened: {}", channel));
+                final TcpChannel channel = initiateChannel(node);
+                if (logger.isTraceEnabled()) {
+                    channel.addConnectListener(new ChannelOpenTraceLogger(channel));
+                }
                 channels.add(channel);
             } catch (ConnectTransportException e) {
                 CloseableChannel.closeChannels(channels, false);
@@ -918,7 +936,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             messagesReceived,
             bytesRead,
             messagesSent,
-            bytesWritten
+            bytesWritten,
+            networkService.getHandlingTimeTracker().getHistogram(),
+            outboundHandlingTimeTracker.getHistogram()
         );
     }
 
@@ -1091,6 +1111,27 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         @Override
         public void onFailure(Exception e) {
             assert false : e; // never called
+        }
+    }
+
+    private static final class ChannelOpenTraceLogger implements ActionListener<Void> {
+        private final TcpChannel channel;
+
+        ChannelOpenTraceLogger(TcpChannel channel) {
+            this.channel = channel;
+        }
+
+        @Override
+        public void onResponse(Void unused) {
+            logger.trace("Tcp transport channel opened: {}", channel);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            // Connection failures are generally logged elsewhere, but go via the ChannelsConnectedListener which only captures the first
+            // exception for each bundle of channels. If the ChannelOpenTraceLogger is installed then trace-logging is enabled so we can log
+            // every failure.
+            logger.trace(new ParameterizedMessage("failed to open transport channel: {}", channel), e);
         }
     }
 

@@ -108,7 +108,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
 
         @Override
         public boolean match(Task task) {
-            return expandedJobsIds.stream().anyMatch(jobId -> OpenJobAction.JobTaskMatcher.match(task, jobId));
+            return expandedJobsIds.stream().anyMatch(id -> OpenJobAction.JobTaskMatcher.match(task, id));
         }
 
         @Override

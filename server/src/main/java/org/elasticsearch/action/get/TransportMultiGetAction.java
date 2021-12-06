@@ -34,9 +34,13 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
     private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
-    public TransportMultiGetAction(TransportService transportService, ClusterService clusterService,
-                                   NodeClient client, ActionFilters actionFilters,
-                                   IndexNameExpressionResolver resolver) {
+    public TransportMultiGetAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        NodeClient client,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver resolver
+    ) {
         super(MultiGetAction.NAME, transportService, actionFilters, MultiGetRequest::new);
         this.clusterService = clusterService;
         this.client = client;
@@ -54,24 +58,20 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         for (int i = 0; i < request.items.size(); i++) {
             MultiGetRequest.Item item = request.items.get(i);
 
-            String concreteSingleIndex;
+            ShardId shardId;
             try {
-                concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item).getName();
-
+                String concreteSingleIndex = indexNameExpressionResolver.concreteSingleIndex(clusterState, item).getName();
                 item.routing(clusterState.metadata().resolveIndexRouting(item.routing(), item.index()));
-                if ((item.routing() == null) && (clusterState.getMetadata().routingRequired(concreteSingleIndex))) {
-                    responses.set(i, newItemFailure(concreteSingleIndex, item.id(),
-                        new RoutingMissingException(concreteSingleIndex, item.id())));
-                    continue;
-                }
+                shardId = clusterService.operationRouting()
+                    .getShards(clusterState, concreteSingleIndex, item.id(), item.routing(), null)
+                    .shardId();
+            } catch (RoutingMissingException e) {
+                responses.set(i, newItemFailure(e.getIndex().getName(), e.getId(), e));
+                continue;
             } catch (Exception e) {
                 responses.set(i, newItemFailure(item.index(), item.id(), e));
                 continue;
             }
-
-            ShardId shardId = clusterService.operationRouting()
-                    .getShards(clusterState, concreteSingleIndex, item.id(), item.routing(), null)
-                    .shardId();
 
             MultiGetShardRequest shardRequest = shardRequests.get(shardId);
             if (shardRequest == null) {
@@ -89,9 +89,11 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
         executeShardAction(listener, responses, shardRequests);
     }
 
-    protected void executeShardAction(ActionListener<MultiGetResponse> listener,
-                                      AtomicArray<MultiGetItemResponse> responses,
-                                      Map<ShardId, MultiGetShardRequest> shardRequests) {
+    protected void executeShardAction(
+        ActionListener<MultiGetResponse> listener,
+        AtomicArray<MultiGetItemResponse> responses,
+        Map<ShardId, MultiGetShardRequest> shardRequests
+    ) {
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
 
         for (final MultiGetShardRequest shardRequest : shardRequests.values()) {

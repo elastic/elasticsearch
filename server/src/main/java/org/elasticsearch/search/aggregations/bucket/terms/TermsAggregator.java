@@ -6,15 +6,12 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -25,6 +22,8 @@ import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -67,8 +66,12 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         }
 
         public BucketCountThresholds(BucketCountThresholds bucketCountThresholds) {
-            this(bucketCountThresholds.minDocCount, bucketCountThresholds.shardMinDocCount, bucketCountThresholds.requiredSize,
-                    bucketCountThresholds.shardSize);
+            this(
+                bucketCountThresholds.minDocCount,
+                bucketCountThresholds.shardMinDocCount,
+                bucketCountThresholds.requiredSize,
+                bucketCountThresholds.shardSize
+            );
         }
 
         public void ensureValidity() {
@@ -163,9 +166,9 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
             }
             BucketCountThresholds other = (BucketCountThresholds) obj;
             return Objects.equals(requiredSize, other.requiredSize)
-                    && Objects.equals(shardSize, other.shardSize)
-                    && Objects.equals(minDocCount, other.minDocCount)
-                    && Objects.equals(shardMinDocCount, other.shardMinDocCount);
+                && Objects.equals(shardSize, other.shardSize)
+                && Objects.equals(minDocCount, other.minDocCount)
+                && Objects.equals(shardMinDocCount, other.shardMinDocCount);
         }
     }
 
@@ -176,9 +179,17 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
     protected final Set<Aggregator> aggsUsedForSorting;
     protected final SubAggCollectionMode collectMode;
 
-    public TermsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
-            BucketCountThresholds bucketCountThresholds, BucketOrder order, DocValueFormat format, SubAggCollectionMode collectMode,
-            Map<String, Object> metadata) throws IOException {
+    public TermsAggregator(
+        String name,
+        AggregatorFactories factories,
+        AggregationContext context,
+        Aggregator parent,
+        BucketCountThresholds bucketCountThresholds,
+        BucketOrder order,
+        DocValueFormat format,
+        SubAggCollectionMode collectMode,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, metadata);
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = order;
@@ -239,7 +250,6 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
 
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
-        return collectMode == SubAggCollectionMode.BREADTH_FIRST
-                && aggsUsedForSorting.contains(aggregator) == false;
+        return collectMode == SubAggCollectionMode.BREADTH_FIRST && aggsUsedForSorting.contains(aggregator) == false;
     }
 }

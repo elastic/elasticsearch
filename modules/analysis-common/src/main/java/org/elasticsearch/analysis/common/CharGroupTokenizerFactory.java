@@ -19,7 +19,7 @@ import org.elasticsearch.index.analysis.AbstractTokenizerFactory;
 import java.util.HashSet;
 import java.util.Set;
 
-public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
+public class CharGroupTokenizerFactory extends AbstractTokenizerFactory {
 
     static final String MAX_TOKEN_LENGTH = "max_token_length";
 
@@ -43,8 +43,7 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
 
             if (c.length() == 1) {
                 tokenizeOnChars.add((int) c.charAt(0));
-            }
-            else if (c.charAt(0) == '\\') {
+            } else if (c.charAt(0) == '\\') {
                 tokenizeOnChars.add((int) parseEscapedChar(c));
             } else {
                 switch (c) {
@@ -74,8 +73,7 @@ public class CharGroupTokenizerFactory extends AbstractTokenizerFactory{
         int len = s.length();
         char c = s.charAt(0);
         if (c == '\\') {
-            if (1 >= len)
-                throw new RuntimeException("Invalid escaped char in [" + s + "]");
+            if (1 >= len) throw new RuntimeException("Invalid escaped char in [" + s + "]");
             c = s.charAt(1);
             switch (c) {
                 case '\\':

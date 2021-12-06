@@ -10,5 +10,4 @@ package org.elasticsearch.client.ml.inference.trainedmodel;
 
 import org.elasticsearch.client.ml.inference.NamedXContentObject;
 
-public interface TrainedModelLocation extends NamedXContentObject {
-}
+public interface TrainedModelLocation extends NamedXContentObject {}

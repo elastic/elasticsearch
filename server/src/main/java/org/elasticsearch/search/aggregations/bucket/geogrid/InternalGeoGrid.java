@@ -11,10 +11,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,8 +30,9 @@ import static java.util.Collections.unmodifiableList;
  * All geo-grid hash-encoding in a grid are of the same precision and held internally as a single long
  * for efficiency's sake.
  */
-public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
-        extends InternalMultiBucketAggregation<InternalGeoGrid<B>, InternalGeoGridBucket> implements GeoGrid {
+public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends InternalMultiBucketAggregation<
+    InternalGeoGrid<B>,
+    InternalGeoGridBucket> implements GeoGrid {
 
     protected final int requiredSize;
     protected final List<InternalGeoGridBucket> buckets;
@@ -144,8 +145,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket>
         if (super.equals(obj) == false) return false;
 
         InternalGeoGrid<?> other = (InternalGeoGrid<?>) obj;
-        return Objects.equals(requiredSize, other.requiredSize)
-            && Objects.equals(buckets, other.buckets);
+        return Objects.equals(requiredSize, other.requiredSize) && Objects.equals(buckets, other.buckets);
     }
 
 }

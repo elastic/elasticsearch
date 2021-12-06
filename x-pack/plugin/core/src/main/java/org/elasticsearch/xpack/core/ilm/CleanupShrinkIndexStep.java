@@ -37,7 +37,7 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Boolean> listener) {
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Void> listener) {
         final String shrunkenIndexSource = IndexMetadata.INDEX_RESIZE_SOURCE_NAME.get(indexMetadata.getSettings());
         if (Strings.isNullOrEmpty(shrunkenIndexSource) == false) {
             // the current managed index is a shrunk index
@@ -45,9 +45,15 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
                 // if the source index does not exist, we'll skip deleting the
                 // (managed) shrunk index as that will cause data loss
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
-                logger.warn("managed index [{}] as part of policy [{}] is a shrunk index and the source index [{}] does not exist " +
-                    "anymore. will skip the [{}] step", indexMetadata.getIndex().getName(), policyName, shrunkenIndexSource, NAME);
-                listener.onResponse(true);
+                logger.warn(
+                    "managed index [{}] as part of policy [{}] is a shrunk index and the source index [{}] does not exist "
+                        + "anymore. will skip the [{}] step",
+                    indexMetadata.getIndex().getName(),
+                    policyName,
+                    shrunkenIndexSource,
+                    NAME
+                );
+                listener.onResponse(null);
                 return;
             }
         }
@@ -56,29 +62,32 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
         final String shrinkIndexName = lifecycleState.getShrinkIndexName();
         // if the shrink index was not generated there is nothing to delete so we move on
         if (Strings.hasText(shrinkIndexName) == false) {
-            listener.onResponse(true);
+            listener.onResponse(null);
             return;
         }
-        getClient().admin().indices()
-            .delete(new DeleteIndexRequest(shrinkIndexName).masterNodeTimeout(TimeValue.MAX_VALUE),
+        getClient().admin()
+            .indices()
+            .delete(
+                new DeleteIndexRequest(shrinkIndexName).masterNodeTimeout(TimeValue.MAX_VALUE),
                 new ActionListener<AcknowledgedResponse>() {
                     @Override
                     public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                         // even if not all nodes acked the delete request yet we can consider this operation as successful as
                         // we'll generate a new index name and attempt to shrink into the newly generated name
-                        listener.onResponse(true);
+                        listener.onResponse(null);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
                         if (e instanceof IndexNotFoundException) {
                             // we can move on if the index was deleted in the meantime
-                            listener.onResponse(true);
+                            listener.onResponse(null);
                         } else {
                             listener.onFailure(e);
                         }
                     }
-                });
+                }
+            );
     }
 
 }

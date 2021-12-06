@@ -38,26 +38,33 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
     private final Logger logger = LogManager.getLogger(ClusterRebalanceRoutingTests.class);
 
     public void testAlways() {
-        AllocationService strategy = createAllocationService(Settings.builder()
-            .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
-                ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
+                .put(
+                    ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+                    ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
+                )
+                .build()
+        );
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .build();
+            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metadata.index("test1"))
-                .addAsNew(metadata.index("test2"))
-                .build();
+            .addAsNew(metadata.index("test1"))
+            .addAsNew(metadata.index("test2"))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("start two nodes");
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         for (int i = 0; i < clusterState.routingTable().index("test1").shards().size(); i++) {
@@ -77,7 +84,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
         for (int i = 0; i < clusterState.routingTable().index("test1").shards().size(); i++) {
             assertThat(clusterState.routingTable().index("test1").shard(i).shards().size(), equalTo(2));
-//            assertThat(clusterState.routingTable().index("test1").shard(i).primaryShard().state(), equalTo(STARTED));
+            // assertThat(clusterState.routingTable().index("test1").shard(i).primaryShard().state(), equalTo(STARTED));
             assertThat(clusterState.routingTable().index("test1").shard(i).replicaShards().get(0).state(), equalTo(INITIALIZING));
         }
 
@@ -103,9 +110,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         }
 
         logger.info("now, start 1 more node, check that rebalancing will happen (for test1) because we set it to always");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                .add(newNode("node3")))
-                .build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
@@ -113,28 +118,34 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").iterator().next().shardId().getIndex().getName(), equalTo("test1"));
     }
 
-
     public void testClusterPrimariesActive1() {
-        AllocationService strategy = createAllocationService(Settings.builder().put(ClusterRebalanceAllocationDecider
-                .CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
-                ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()).build());
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
+                .put(
+                    ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+                    ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()
+                )
+                .build()
+        );
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .build();
+            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metadata.index("test1"))
-                .addAsNew(metadata.index("test2"))
-                .build();
+            .addAsNew(metadata.index("test1"))
+            .addAsNew(metadata.index("test2"))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("start two nodes");
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
         clusterState = strategy.reroute(clusterState, "reroute");
         for (int i = 0; i < clusterState.routingTable().index("test1").shards().size(); i++) {
             assertThat(clusterState.routingTable().index("test1").shard(i).size(), equalTo(2));
@@ -194,9 +205,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         }
 
         logger.info("now, start 1 more node, check that rebalancing happen (for test1) because we set it to primaries_active");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                .add(newNode("node3")))
-                .build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
@@ -205,26 +214,33 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
     }
 
     public void testClusterPrimariesActive2() {
-        AllocationService strategy = createAllocationService(Settings.builder().put(ClusterRebalanceAllocationDecider
-                .CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
-                ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()).build());
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
+                .put(
+                    ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+                    ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()
+                )
+                .build()
+        );
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .build();
+            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metadata.index("test1"))
-                .addAsNew(metadata.index("test2"))
-                .build();
+            .addAsNew(metadata.index("test1"))
+            .addAsNew(metadata.index("test2"))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("start two nodes");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-            .add(newNode("node1")).add(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         for (int i = 0; i < clusterState.routingTable().index("test1").shards().size(); i++) {
@@ -270,35 +286,40 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         }
 
         logger.info("now, start 1 more node, check that rebalancing will not happen (for test1) because we set it to primaries_active");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                .add(newNode("node3")))
-                .build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
         assertThat(routingNodes.node("node3").isEmpty(), equalTo(true));
     }
 
     public void testClusterAllActive1() {
-        AllocationService strategy = createAllocationService(Settings.builder()
-            .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
-                ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
+                .put(
+                    ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+                    ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()
+                )
+                .build()
+        );
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .build();
+            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metadata.index("test1"))
-                .addAsNew(metadata.index("test2"))
-                .build();
+            .addAsNew(metadata.index("test1"))
+            .addAsNew(metadata.index("test2"))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("start two nodes");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
-            .add(newNode("node1")).add(newNode("node2"))).build();
+        clusterState = ClusterState.builder(clusterState)
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         for (int i = 0; i < clusterState.routingTable().index("test1").shards().size(); i++) {
@@ -374,38 +395,42 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         }
 
         logger.info("now, start 1 more node, check that rebalancing happen (for test1) because we set it to all_active");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                .add(newNode("node3")))
-                .build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").size(), equalTo(1));
-        assertThat(routingNodes.node("node3").iterator().next().shardId().getIndex().getName(), anyOf(equalTo("test1"),
-            equalTo("test2")));
+        assertThat(routingNodes.node("node3").iterator().next().shardId().getIndex().getName(), anyOf(equalTo("test1"), equalTo("test2")));
     }
 
     public void testClusterAllActive2() {
-        AllocationService strategy = createAllocationService(Settings.builder()
-            .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
-                ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
+                .put(
+                    ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+                    ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()
+                )
+                .build()
+        );
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .build();
+            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metadata.index("test1"))
-                .addAsNew(metadata.index("test2"))
-                .build();
+            .addAsNew(metadata.index("test1"))
+            .addAsNew(metadata.index("test2"))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("start two nodes");
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         for (int i = 0; i < clusterState.routingTable().index("test1").shards().size(); i++) {
@@ -451,9 +476,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         }
 
         logger.info("now, start 1 more node, check that rebalancing will not happen (for test1) because we set it to all_active");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                .add(newNode("node3")))
-                .build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
@@ -461,26 +484,33 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
     }
 
     public void testClusterAllActive3() {
-        AllocationService strategy = createAllocationService(Settings.builder().put(ClusterRebalanceAllocationDecider
-                .CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
-                ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
+                .put(
+                    ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+                    ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()
+                )
+                .build()
+        );
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .build();
+            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metadata.index("test1"))
-                .addAsNew(metadata.index("test2"))
-                .build();
+            .addAsNew(metadata.index("test1"))
+            .addAsNew(metadata.index("test2"))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("start two nodes");
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2"))).build();
+            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
+            .build();
         clusterState = strategy.reroute(clusterState, "reroute");
 
         for (int i = 0; i < clusterState.routingTable().index("test1").shards().size(); i++) {
@@ -541,9 +571,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         }
 
         logger.info("now, start 1 more node, check that rebalancing will not happen (for test1) because we set it to all_active");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                .add(newNode("node3")))
-                .build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
         clusterState = strategy.reroute(clusterState, "reroute");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
@@ -555,8 +583,11 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
         AllocationService strategy = createAllocationService(Settings.EMPTY, new TestGatewayAllocator() {
             @Override
-            public void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
-                                           UnassignedAllocationHandler unassignedAllocationHandler) {
+            public void allocateUnassigned(
+                ShardRouting shardRouting,
+                RoutingAllocation allocation,
+                UnassignedAllocationHandler unassignedAllocationHandler
+            ) {
                 if (allocateTest1.get() == false && "test1".equals(shardRouting.index().getName())) {
                     unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.NO_ATTEMPT, allocation.changes());
                 } else {
@@ -566,17 +597,18 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         });
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
-                .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
-                .build();
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
+            .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
+            .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metadata.index("test"))
-                .addAsNew(metadata.index("test1"))
-                .build();
+            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.index("test1"))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("start two nodes");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
@@ -595,9 +627,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         }
 
         logger.debug("now, start 1 more node, check that rebalancing will not happen since we unassigned shards");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                .add(newNode("node2")))
-                .build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
         logger.debug("reroute and check that nothing has changed");
         ClusterState resultingState = strategy.reroute(clusterState, "reroute");
         assertThat(resultingState, equalTo(clusterState));
@@ -620,8 +650,9 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             assertThat(clusterState.routingTable().index("test1").shard(i).primaryShard().state(), equalTo(INITIALIZING));
         }
 
-        logger.debug("now start initializing shards and expect exactly one rebalance" +
-            " from node1 to node 2 since index [test] is all on node1");
+        logger.debug(
+            "now start initializing shards and expect exactly one rebalance" + " from node1 to node 2 since index [test] is all on node1"
+        );
 
         clusterState = startInitializingShardsAndReroute(strategy, clusterState, "test1");
 
@@ -646,33 +677,45 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
 
     public void testRebalanceWhileShardFetching() {
         final AtomicBoolean hasFetches = new AtomicBoolean(true);
-        AllocationService strategy = createAllocationService(Settings.builder()
-            .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
-                ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build(), new TestGatewayAllocator() {
-            @Override
-            public void beforeAllocation(RoutingAllocation allocation) {
-                if (hasFetches.get()) {
-                    allocation.setHasPendingAsyncFetch();
+        AllocationService strategy = createAllocationService(
+            Settings.builder()
+                .put(
+                    ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
+                    ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
+                )
+                .build(),
+            new TestGatewayAllocator() {
+                @Override
+                public void beforeAllocation(RoutingAllocation allocation) {
+                    if (hasFetches.get()) {
+                        allocation.setHasPendingAsyncFetch();
+                    }
                 }
             }
-        });
+        );
 
         Metadata metadata = Metadata.builder()
-                .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
-                .put(IndexMetadata.builder("test1").settings(settings(Version.CURRENT)
-                    .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_id", "node1,node2"))
-                    .numberOfShards(2).numberOfReplicas(0))
-                .build();
+            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
+            .put(
+                IndexMetadata.builder("test1")
+                    .settings(
+                        settings(Version.CURRENT).put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_id", "node1,node2")
+                    )
+                    .numberOfShards(2)
+                    .numberOfReplicas(0)
+            )
+            .build();
 
         // we use a second index here (test1) that never gets assigned otherwise allocateUnassigned
         // is never called if we don't have unassigned shards.
         RoutingTable initialRoutingTable = RoutingTable.builder()
-                .addAsNew(metadata.index("test"))
-                .addAsNew(metadata.index("test1"))
-                .build();
+            .addAsNew(metadata.index("test"))
+            .addAsNew(metadata.index("test1"))
+            .build();
 
-        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING
-            .getDefault(Settings.EMPTY)).metadata(metadata).routingTable(initialRoutingTable).build();
+        ClusterState clusterState = ClusterState.builder(
+            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
+        ).metadata(metadata).routingTable(initialRoutingTable).build();
 
         logger.info("start two nodes");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
@@ -691,9 +734,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         }
 
         logger.debug("now, start 1 more node, check that rebalancing will not happen since we have shard sync going on");
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
-                .add(newNode("node2")))
-                .build();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node2"))).build();
         logger.debug("reroute and check that nothing has changed");
         ClusterState resultState = strategy.reroute(clusterState, "reroute");
         assertThat(resultState, equalTo(clusterState));

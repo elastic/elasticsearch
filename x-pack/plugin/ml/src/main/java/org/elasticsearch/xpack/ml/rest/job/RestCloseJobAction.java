@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -20,14 +20,19 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.DEPRECATED_ALLOW_NO_JOBS_PARAM;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
+import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
+import static org.elasticsearch.xpack.ml.rest.RestCompatibilityChecker.checkAndSetDeprecatedParam;
 
 public class RestCloseJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_close")
+            Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_close")
+                .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_close", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -44,20 +49,21 @@ public class RestCloseJobAction extends BaseRestHandler {
         } else {
             request = new Request(restRequest.param(Job.ID.getPreferredName()));
             if (restRequest.hasParam(Request.TIMEOUT.getPreferredName())) {
-                request.setCloseTimeout(TimeValue.parseTimeValue(
-                    restRequest.param(Request.TIMEOUT.getPreferredName()), Request.TIMEOUT.getPreferredName()));
+                request.setCloseTimeout(
+                    TimeValue.parseTimeValue(restRequest.param(Request.TIMEOUT.getPreferredName()), Request.TIMEOUT.getPreferredName())
+                );
             }
             if (restRequest.hasParam(Request.FORCE.getPreferredName())) {
                 request.setForce(restRequest.paramAsBoolean(Request.FORCE.getPreferredName(), request.isForce()));
             }
-            if (restRequest.hasParam(Request.ALLOW_NO_JOBS)) {
-                LoggingDeprecationHandler.INSTANCE.logRenamedField(
-                    null, () -> null, Request.ALLOW_NO_JOBS, Request.ALLOW_NO_MATCH.getPreferredName());
-            }
-            request.setAllowNoMatch(
-                restRequest.paramAsBoolean(
-                    Request.ALLOW_NO_MATCH.getPreferredName(),
-                    restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS, request.allowNoMatch())));
+            checkAndSetDeprecatedParam(
+                DEPRECATED_ALLOW_NO_JOBS_PARAM,
+                Request.ALLOW_NO_MATCH.getPreferredName(),
+                RestApiVersion.V_7,
+                restRequest,
+                (r, s) -> r.paramAsBoolean(s, request.allowNoMatch()),
+                request::setAllowNoMatch
+            );
         }
         return channel -> client.execute(CloseJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

@@ -24,9 +24,7 @@ public class RestStartDataFrameAnalyticsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}/_start")
-        );
+        return List.of(new Route(POST, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}/_start"));
     }
 
     @Override
@@ -43,8 +41,10 @@ public class RestStartDataFrameAnalyticsAction extends BaseRestHandler {
         } else {
             request = new StartDataFrameAnalyticsAction.Request(id);
             if (restRequest.hasParam(StartDataFrameAnalyticsAction.Request.TIMEOUT.getPreferredName())) {
-                TimeValue timeout = restRequest.paramAsTime(StartDataFrameAnalyticsAction.Request.TIMEOUT.getPreferredName(),
-                    request.getTimeout());
+                TimeValue timeout = restRequest.paramAsTime(
+                    StartDataFrameAnalyticsAction.Request.TIMEOUT.getPreferredName(),
+                    request.getTimeout()
+                );
                 request.setTimeout(timeout);
             }
         }

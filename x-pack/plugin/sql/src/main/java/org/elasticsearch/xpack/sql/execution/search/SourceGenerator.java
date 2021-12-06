@@ -56,7 +56,7 @@ public abstract class SourceGenerator {
         // need to be retrieved from the result documents
 
         // NB: the sortBuilder takes care of eliminating duplicates
-        container.fields().forEach(f -> f.v1().collectFields(sortBuilder));
+        container.fields().forEach(f -> f.extraction().collectFields(sortBuilder));
         sortBuilder.build(source);
 
         // add the aggs (if present)
@@ -115,14 +115,12 @@ public abstract class SourceGenerator {
                 if (attr instanceof FieldAttribute) {
                     FieldAttribute fa = ((FieldAttribute) attr).exactAttribute();
 
-                    sortBuilder = fieldSort(fa.name())
-                            .missing(as.missing().position())
-                            .unmappedType(fa.dataType().esType());
+                    sortBuilder = fieldSort(fa.name()).missing(as.missing().searchOrder(as.direction()))
+                        .unmappedType(fa.dataType().esType());
 
                     if (fa.isNested()) {
-                        FieldSortBuilder fieldSort = fieldSort(fa.name())
-                                .missing(as.missing().position())
-                                .unmappedType(fa.dataType().esType());
+                        FieldSortBuilder fieldSort = fieldSort(fa.name()).missing(as.missing().searchOrder(as.direction()))
+                            .unmappedType(fa.dataType().esType());
 
                         NestedSortBuilder newSort = new NestedSortBuilder(fa.nestedParent().name());
                         NestedSortBuilder nestedSort = fieldSort.getNestedSort();
@@ -146,8 +144,10 @@ public abstract class SourceGenerator {
                 }
             } else if (sortable instanceof ScriptSort) {
                 ScriptSort ss = (ScriptSort) sortable;
-                sortBuilder = scriptSort(ss.script().toPainless(),
-                        ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING);
+                sortBuilder = scriptSort(
+                    ss.script().toPainless(),
+                    ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING
+                );
             } else if (sortable instanceof ScoreSort) {
                 sortBuilder = scoreSort();
             }

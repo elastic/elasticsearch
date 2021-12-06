@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -53,7 +52,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
 
     private static final Logger logger = LogManager.getLogger(TransportPutTransformAction.class);
 
-    private final XPackLicenseState licenseState;
+    private final Settings settings;
     private final Client client;
     private final TransformConfigManager transformConfigManager;
     private final SecurityContext securityContext;
@@ -67,41 +66,12 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         ClusterService clusterService,
-        XPackLicenseState licenseState,
-        TransformServices transformServices,
-        Client client,
-        IngestService ingestService
-    ) {
-        this(
-            PutTransformAction.NAME,
-            settings,
-            transportService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver,
-            clusterService,
-            licenseState,
-            transformServices,
-            client,
-            ingestService
-        );
-    }
-
-    protected TransportPutTransformAction(
-        String name,
-        Settings settings,
-        TransportService transportService,
-        ThreadPool threadPool,
-        ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterService clusterService,
-        XPackLicenseState licenseState,
         TransformServices transformServices,
         Client client,
         IngestService ingestService
     ) {
         super(
-            name,
+            PutTransformAction.NAME,
             transportService,
             clusterService,
             threadPool,
@@ -110,7 +80,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             indexNameExpressionResolver,
             ThreadPool.Names.SAME
         );
-        this.licenseState = licenseState;
+        this.settings = settings;
         this.client = client;
         this.transformConfigManager = transformServices.getConfigManager();
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
@@ -139,28 +109,31 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
 
         // <3> Create the transform
         ActionListener<ValidateTransformAction.Response> validateTransformListener = ActionListener.wrap(
-            validationResponse -> {
-                putTransform(request, listener);
-            },
+            validationResponse -> { putTransform(request, listener); },
             listener::onFailure
         );
 
         // <2> Validate source and destination indices
-        ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(
-            aVoid -> {
-                client.execute(
-                    ValidateTransformAction.INSTANCE,
-                    new ValidateTransformAction.Request(config, request.isDeferValidation()),
-                    validateTransformListener
-                );
-            },
-            listener::onFailure
-        );
+        ActionListener<Void> checkPrivilegesListener = ActionListener.wrap(aVoid -> {
+            client.execute(
+                ValidateTransformAction.INSTANCE,
+                new ValidateTransformAction.Request(config, request.isDeferValidation(), request.timeout()),
+                validateTransformListener
+            );
+        }, listener::onFailure);
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
-        if (licenseState.isSecurityEnabled() && request.isDeferValidation() == false) {
+        if (XPackSettings.SECURITY_ENABLED.get(settings) && request.isDeferValidation() == false) {
             TransformPrivilegeChecker.checkPrivileges(
-                "create", securityContext, indexNameExpressionResolver, clusterState, client, config, true, checkPrivilegesListener);
+                "create",
+                securityContext,
+                indexNameExpressionResolver,
+                clusterState,
+                client,
+                config,
+                true,
+                checkPrivilegesListener
+            );
         } else { // No security enabled, just move on
             checkPrivilegesListener.onResponse(null);
         }

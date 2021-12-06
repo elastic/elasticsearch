@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.test.rest.yaml.restspec;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -32,8 +32,8 @@ public class ClientYamlSuiteRestApiParser {
 
     public ClientYamlSuiteRestApi parse(String location, XContentParser parser) throws IOException {
 
-        while ( parser.nextToken() != XContentParser.Token.FIELD_NAME ) {
-            //move to first field name
+        while (parser.nextToken() != XContentParser.Token.FIELD_NAME) {
+            // move to first field name
         }
 
         String apiName = parser.currentName();
@@ -56,21 +56,22 @@ public class ClientYamlSuiteRestApiParser {
                 } else if ("headers".equals(parser.currentName())) {
                     assert parser.nextToken() == XContentParser.Token.START_OBJECT;
                     String headerName = null;
-                    while(parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
                             headerName = parser.currentName();
                         }
                         if (headerName.equals("accept")) {
                             if (parser.nextToken() != XContentParser.Token.START_ARRAY) {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                    apiName + " API: [headers.accept] must be an array");
+                                throw new ParsingException(parser.getTokenLocation(), apiName + " API: [headers.accept] must be an array");
                             }
                             List<String> acceptMimeTypes = getStringsFromArray(parser, "accept");
                             restApi.setResponseMimeTypes(acceptMimeTypes);
                         } else if (headerName.equals("content_type")) {
                             if (parser.nextToken() != XContentParser.Token.START_ARRAY) {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                    apiName + " API: [headers.content_type] must be an array");
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    apiName + " API: [headers.content_type] must be an array"
+                                );
                             }
                             List<String> requestMimeTypes = getStringsFromArray(parser, "content_type");
                             restApi.setRequestMimeTypes(requestMimeTypes);
@@ -89,7 +90,7 @@ public class ClientYamlSuiteRestApiParser {
                     String currentFieldName = null;
                     assert parser.nextToken() == XContentParser.Token.START_OBJECT;
 
-                    while(parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                         if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                         }
@@ -107,63 +108,88 @@ public class ClientYamlSuiteRestApiParser {
                                         path = parser.text();
                                     } else if ("methods".equals(parser.currentName())) {
                                         if (parser.nextToken() != XContentParser.Token.START_ARRAY) {
-                                            throw new ParsingException(parser.getTokenLocation(),
-                                                apiName + " API: expected [methods] field in rest api definition to hold an array");
+                                            throw new ParsingException(
+                                                parser.getTokenLocation(),
+                                                apiName + " API: expected [methods] field in rest api definition to hold an array"
+                                            );
                                         }
                                         while (parser.nextToken() == XContentParser.Token.VALUE_STRING) {
                                             String method = parser.text();
                                             if (methods.add(method) == false) {
-                                                throw new ParsingException(parser.getTokenLocation(),
-                                                    apiName + " API: found duplicate method [" + method + "]");
+                                                throw new ParsingException(
+                                                    parser.getTokenLocation(),
+                                                    apiName + " API: found duplicate method [" + method + "]"
+                                                );
                                             }
                                         }
                                     } else if ("parts".equals(parser.currentName())) {
                                         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                                            throw new ParsingException(parser.getTokenLocation(),
-                                                apiName + " API: expected [parts] field in rest api definition to hold an object");
+                                            throw new ParsingException(
+                                                parser.getTokenLocation(),
+                                                apiName + " API: expected [parts] field in rest api definition to hold an object"
+                                            );
                                         }
                                         while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                                             String part = parser.currentName();
                                             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                                                throw new ParsingException(parser.getTokenLocation(),
-                                                    apiName + " API: expected [parts] field in rest api definition to contain an object");
+                                                throw new ParsingException(
+                                                    parser.getTokenLocation(),
+                                                    apiName + " API: expected [parts] field in rest api definition to contain an object"
+                                                );
                                             }
                                             parser.skipChildren();
                                             if (pathParts.add(part) == false) {
-                                                throw new ParsingException(parser.getTokenLocation(),
-                                                    apiName + " API: duplicated path part [" + part + "]");
+                                                throw new ParsingException(
+                                                    parser.getTokenLocation(),
+                                                    apiName + " API: duplicated path part [" + part + "]"
+                                                );
                                             }
                                         }
                                     } else if ("deprecated".equals(parser.currentName())) {
                                         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                                            throw new ParsingException(parser.getTokenLocation(),
-                                                apiName + " API: expected [deprecated] field in rest api definition to hold an object");
+                                            throw new ParsingException(
+                                                parser.getTokenLocation(),
+                                                apiName + " API: expected [deprecated] field in rest api definition to hold an object"
+                                            );
                                         }
                                         parser.skipChildren();
                                     } else {
-                                        throw new ParsingException(parser.getTokenLocation(), apiName + " API: unexpected field [" +
-                                            parser.currentName() + "] of type [" + parser.currentToken() + "]");
+                                        throw new ParsingException(
+                                            parser.getTokenLocation(),
+                                            apiName
+                                                + " API: unexpected field ["
+                                                + parser.currentName()
+                                                + "] of type ["
+                                                + parser.currentToken()
+                                                + "]"
+                                        );
                                     }
                                 }
                                 restApi.addPath(path, methods.toArray(new String[0]), pathParts);
                             }
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), apiName +  " API: unsupported field ["
-                                + parser.currentName() + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                apiName + " API: unsupported field [" + parser.currentName() + "]"
+                            );
                         }
                     }
                 } else if ("params".equals(parser.currentName())) {
                     if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-                        throw new ParsingException(parser.getTokenLocation(),
-                            apiName + " API: expected [params] field in rest api definition to contain an object");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            apiName + " API: expected [params] field in rest api definition to contain an object"
+                        );
 
                     }
                     while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
                         String param = parser.currentName();
                         parser.nextToken();
                         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                apiName + " API: expected [params] field in rest api definition to contain an object");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                apiName + " API: expected [params] field in rest api definition to contain an object"
+                            );
                         }
                         restApi.addParam(param, PARAMETER_PARSER.parse(parser, null).isRequired());
                     }
@@ -171,7 +197,7 @@ public class ClientYamlSuiteRestApiParser {
                     parser.nextToken();
                     if (parser.currentToken() != XContentParser.Token.VALUE_NULL) {
                         boolean requiredFound = false;
-                        while(parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                             if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
                                 if ("required".equals(parser.currentName())) {
                                     requiredFound = true;
@@ -189,8 +215,10 @@ public class ClientYamlSuiteRestApiParser {
                         }
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(),
-                        apiName + " API: unsupported field [" + parser.currentName() + "]");
+                    throw new ParsingException(
+                        parser.getTokenLocation(),
+                        apiName + " API: unsupported field [" + parser.currentName() + "]"
+                    );
                 }
             }
 
@@ -203,7 +231,7 @@ public class ClientYamlSuiteRestApiParser {
         }
 
         parser.nextToken();
-        assert parser.currentToken() == XContentParser.Token.END_OBJECT : "Expected [END_OBJECT] but was ["  + parser.currentToken() +"]";
+        assert parser.currentToken() == XContentParser.Token.END_OBJECT : "Expected [END_OBJECT] but was [" + parser.currentToken() + "]";
         parser.nextToken();
 
         if (restApi.getPaths().isEmpty()) {
@@ -217,35 +245,37 @@ public class ClientYamlSuiteRestApiParser {
         }
         if (restApi.getVisibility() == ClientYamlSuiteRestApi.Visibility.FEATURE_FLAG
             && (restApi.getFeatureFlag() == null || restApi.getFeatureFlag().isEmpty())) {
-            throw new IllegalArgumentException(apiName
-                + " API has visibility `feature_flag` but does not document its feature flag in [" + location + "]");
+            throw new IllegalArgumentException(
+                apiName + " API has visibility `feature_flag` but does not document its feature flag in [" + location + "]"
+            );
         }
         if (restApi.getFeatureFlag() != null && restApi.getVisibility() != ClientYamlSuiteRestApi.Visibility.FEATURE_FLAG) {
-            throw new IllegalArgumentException(apiName
-                + " API does not have visibility `feature_flag` but documents a feature flag [" + location + "]");
+            throw new IllegalArgumentException(
+                apiName + " API does not have visibility `feature_flag` but documents a feature flag [" + location + "]"
+            );
         }
         return restApi;
     }
 
     private List<String> getStringsFromArray(XContentParser parser, String key) throws IOException {
-        return parser
-            .list().stream()
-            .filter(Objects::nonNull)
-            .map(o -> {
-                if (o instanceof String) {
-                    return (String) o;
-                } else {
-                    throw new XContentParseException(
-                        key + " array may only contain strings but found [" + o.getClass().getName() + "] [" + o + "]");
-                }
-            }).collect(Collectors.toList());
+        return parser.list().stream().filter(Objects::nonNull).map(o -> {
+            if (o instanceof String) {
+                return (String) o;
+            } else {
+                throw new XContentParseException(
+                    key + " array may only contain strings but found [" + o.getClass().getName() + "] [" + o + "]"
+                );
+            }
+        }).collect(Collectors.toList());
     }
 
     private static class Parameter {
         private boolean required;
+
         public boolean isRequired() {
             return required;
         }
+
         public void setRequired(boolean required) {
             this.required = required;
         }

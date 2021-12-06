@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[ilm-migrate-to-data-tiers]]
 === Migrate to data tiers routing API
 ++++

@@ -48,8 +48,8 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     @Override
-    protected void doAssertLuceneQuery(GeoPolygonQueryBuilder queryBuilder, Query query,
-                                       SearchExecutionContext context) throws IOException {
+    protected void doAssertLuceneQuery(GeoPolygonQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
+        throws IOException {
         MappedFieldType fieldType = context.getFieldType(queryBuilder.fieldName());
         if (fieldType == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
@@ -113,8 +113,10 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testEmptyPolygon() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, Collections.emptyList()));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, Collections.emptyList())
+        );
         assertEquals("polygon must not be null or empty", e.getMessage());
 
         e = expectThrows(IllegalArgumentException.class, () -> new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, null));
@@ -126,8 +128,10 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         points.add(new GeoPoint(0, 90));
         points.add(new GeoPoint(90, 90));
         points.add(new GeoPoint(0, 90));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, points));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, points)
+        );
         assertEquals("too few points defined for geo_polygon query", e.getMessage());
     }
 
@@ -135,19 +139,20 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         List<GeoPoint> points = new ArrayList<>();
         points.add(new GeoPoint(0, 90));
         points.add(new GeoPoint(90, 90));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, points));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, points)
+        );
         assertEquals("too few points defined for geo_polygon query", e.getMessage());
     }
 
     public void testParsingAndToQueryParsingExceptions() throws IOException {
-        String[] brokenFiles = new String[]{
+        String[] brokenFiles = new String[] {
             "/org/elasticsearch/index/query/geo_polygon_exception_1.json",
             "/org/elasticsearch/index/query/geo_polygon_exception_2.json",
             "/org/elasticsearch/index/query/geo_polygon_exception_3.json",
             "/org/elasticsearch/index/query/geo_polygon_exception_4.json",
-            "/org/elasticsearch/index/query/geo_polygon_exception_5.json"
-        };
+            "/org/elasticsearch/index/query/geo_polygon_exception_5.json" };
         for (String brokenFile : brokenFiles) {
             String query = copyToStringFromClasspath(brokenFile);
             expectThrows(ParsingException.class, () -> parseQuery(query));
@@ -156,74 +161,82 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testParsingAndToQuery1() throws IOException {
-        String query = "{\n" +
-            "    \"geo_polygon\":{\n" +
-            "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
-            "            \"points\":[\n" +
-            "                [-70, 40],\n" +
-            "                [-80, 30],\n" +
-            "                [-90, 20]\n" +
-            "            ]\n" +
-            "        }\n" +
-            "    }\n" +
-            "}\n";
+        String query = "{\n"
+            + "    \"geo_polygon\":{\n"
+            + "        \""
+            + GEO_POINT_FIELD_NAME
+            + "\":{\n"
+            + "            \"points\":[\n"
+            + "                [-70, 40],\n"
+            + "                [-80, 30],\n"
+            + "                [-90, 20]\n"
+            + "            ]\n"
+            + "        }\n"
+            + "    }\n"
+            + "}\n";
         assertGeoPolygonQuery(query);
         assertDeprecationWarning();
     }
 
     public void testParsingAndToQuery2() throws IOException {
-        String query = "{\n" +
-            "    \"geo_polygon\":{\n" +
-            "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
-            "            \"points\":[\n" +
-            "                {\n" +
-            "                    \"lat\":40,\n" +
-            "                    \"lon\":-70\n" +
-            "                },\n" +
-            "                {\n" +
-            "                    \"lat\":30,\n" +
-            "                    \"lon\":-80\n" +
-            "                },\n" +
-            "                {\n" +
-            "                    \"lat\":20,\n" +
-            "                    \"lon\":-90\n" +
-            "                }\n" +
-            "            ]\n" +
-            "        }\n" +
-            "    }\n" +
-            "}\n";
+        String query = "{\n"
+            + "    \"geo_polygon\":{\n"
+            + "        \""
+            + GEO_POINT_FIELD_NAME
+            + "\":{\n"
+            + "            \"points\":[\n"
+            + "                {\n"
+            + "                    \"lat\":40,\n"
+            + "                    \"lon\":-70\n"
+            + "                },\n"
+            + "                {\n"
+            + "                    \"lat\":30,\n"
+            + "                    \"lon\":-80\n"
+            + "                },\n"
+            + "                {\n"
+            + "                    \"lat\":20,\n"
+            + "                    \"lon\":-90\n"
+            + "                }\n"
+            + "            ]\n"
+            + "        }\n"
+            + "    }\n"
+            + "}\n";
         assertGeoPolygonQuery(query);
         assertDeprecationWarning();
     }
 
     public void testParsingAndToQuery3() throws IOException {
-        String query = "{\n" +
-            "    \"geo_polygon\":{\n" +
-            "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
-            "            \"points\":[\n" +
-            "                \"40, -70\",\n" +
-            "                \"30, -80\",\n" +
-            "                \"20, -90\"\n" +
-            "            ]\n" +
-            "        }\n" +
-            "    }\n" +
-            "}\n";
+        String query = "{\n"
+            + "    \"geo_polygon\":{\n"
+            + "        \""
+            + GEO_POINT_FIELD_NAME
+            + "\":{\n"
+            + "            \"points\":[\n"
+            + "                \"40, -70\",\n"
+            + "                \"30, -80\",\n"
+            + "                \"20, -90\"\n"
+            + "            ]\n"
+            + "        }\n"
+            + "    }\n"
+            + "}\n";
         assertGeoPolygonQuery(query);
         assertDeprecationWarning();
     }
 
     public void testParsingAndToQuery4() throws IOException {
-        String query = "{\n" +
-            "    \"geo_polygon\":{\n" +
-            "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
-            "            \"points\":[\n" +
-            "                \"drn5x1g8cu2y\",\n" +
-            "                \"30, -80\",\n" +
-            "                \"20, -90\"\n" +
-            "            ]\n" +
-            "        }\n" +
-            "    }\n" +
-            "}\n";
+        String query = "{\n"
+            + "    \"geo_polygon\":{\n"
+            + "        \""
+            + GEO_POINT_FIELD_NAME
+            + "\":{\n"
+            + "            \"points\":[\n"
+            + "                \"drn5x1g8cu2y\",\n"
+            + "                \"30, -80\",\n"
+            + "                \"20, -90\"\n"
+            + "            ]\n"
+            + "        }\n"
+            + "    }\n"
+            + "}\n";
         assertGeoPolygonQuery(query);
         assertDeprecationWarning();
     }
@@ -235,17 +248,16 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     public void testFromJson() throws IOException {
-        String json =
-            "{\n" +
-                "  \"geo_polygon\" : {\n" +
-                "    \"person.location\" : {\n" +
-                "      \"points\" : [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ]\n" +
-                "    },\n" +
-                "    \"validation_method\" : \"STRICT\",\n" +
-                "    \"ignore_unmapped\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"geo_polygon\" : {\n"
+            + "    \"person.location\" : {\n"
+            + "      \"points\" : [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ]\n"
+            + "    },\n"
+            + "    \"validation_method\" : \"STRICT\",\n"
+            + "    \"ignore_unmapped\" : false,\n"
+            + "    \"boost\" : 1.0\n"
+            + "  }\n"
+            + "}";
         GeoPolygonQueryBuilder parsed = (GeoPolygonQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 4, parsed.points().size());
@@ -268,32 +280,36 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
 
     public void testPointValidation() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();
-        String queryInvalidLat = "{\n" +
-            "    \"geo_polygon\":{\n" +
-            "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
-            "            \"points\":[\n" +
-            "                [-70, 140],\n" +
-            "                [-80, 30],\n" +
-            "                [-90, 20]\n" +
-            "            ]\n" +
-            "        }\n" +
-            "    }\n" +
-            "}\n";
+        String queryInvalidLat = "{\n"
+            + "    \"geo_polygon\":{\n"
+            + "        \""
+            + GEO_POINT_FIELD_NAME
+            + "\":{\n"
+            + "            \"points\":[\n"
+            + "                [-70, 140],\n"
+            + "                [-80, 30],\n"
+            + "                [-90, 20]\n"
+            + "            ]\n"
+            + "        }\n"
+            + "    }\n"
+            + "}\n";
 
         QueryShardException e1 = expectThrows(QueryShardException.class, () -> parseQuery(queryInvalidLat).toQuery(context));
         assertThat(e1.getMessage(), containsString("illegal latitude value [140.0] for [geo_polygon]"));
 
-        String queryInvalidLon = "{\n" +
-            "    \"geo_polygon\":{\n" +
-            "        \"" + GEO_POINT_FIELD_NAME + "\":{\n" +
-            "            \"points\":[\n" +
-            "                [-70, 40],\n" +
-            "                [-80, 30],\n" +
-            "                [-190, 20]\n" +
-            "            ]\n" +
-            "        }\n" +
-            "    }\n" +
-            "}\n";
+        String queryInvalidLon = "{\n"
+            + "    \"geo_polygon\":{\n"
+            + "        \""
+            + GEO_POINT_FIELD_NAME
+            + "\":{\n"
+            + "            \"points\":[\n"
+            + "                [-70, 40],\n"
+            + "                [-80, 30],\n"
+            + "                [-190, 20]\n"
+            + "            ]\n"
+            + "        }\n"
+            + "    }\n"
+            + "}\n";
 
         QueryShardException e2 = expectThrows(QueryShardException.class, () -> parseQuery(queryInvalidLon).toQuery(context));
         assertThat(e2.getMessage(), containsString("illegal longitude value [-190.0] for [geo_polygon]"));

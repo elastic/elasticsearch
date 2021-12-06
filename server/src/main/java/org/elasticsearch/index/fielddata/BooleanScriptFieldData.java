@@ -14,6 +14,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.fielddata.plain.LeafLongFieldData;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.BooleanFieldScript;
+import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -22,24 +24,32 @@ public final class BooleanScriptFieldData extends IndexNumericFieldData {
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final BooleanFieldScript.LeafFactory leafFactory;
+        protected final ToScriptField<SortedNumericDocValues> toScriptField;
 
-        public Builder(String name, BooleanFieldScript.LeafFactory leafFactory) {
+        public Builder(String name, BooleanFieldScript.LeafFactory leafFactory, ToScriptField<SortedNumericDocValues> toScriptField) {
             this.name = name;
             this.leafFactory = leafFactory;
+            this.toScriptField = toScriptField;
         }
 
         @Override
         public BooleanScriptFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new BooleanScriptFieldData(name, leafFactory);
+            return new BooleanScriptFieldData(name, leafFactory, toScriptField);
         }
     }
 
     private final String fieldName;
     private final BooleanFieldScript.LeafFactory leafFactory;
+    protected final ToScriptField<SortedNumericDocValues> toScriptField;
 
-    private BooleanScriptFieldData(String fieldName, BooleanFieldScript.LeafFactory leafFactory) {
+    private BooleanScriptFieldData(
+        String fieldName,
+        BooleanFieldScript.LeafFactory leafFactory,
+        ToScriptField<SortedNumericDocValues> toScriptField
+    ) {
         this.fieldName = fieldName;
         this.leafFactory = leafFactory;
+        this.toScriptField = toScriptField;
     }
 
     @Override
@@ -63,7 +73,7 @@ public final class BooleanScriptFieldData extends IndexNumericFieldData {
 
     @Override
     public BooleanScriptLeafFieldData loadDirect(LeafReaderContext context) {
-        return new BooleanScriptLeafFieldData(new BooleanScriptDocValues(leafFactory.newInstance(context)));
+        return new BooleanScriptLeafFieldData(new BooleanScriptDocValues(leafFactory.newInstance(context)), toScriptField);
     }
 
     @Override
@@ -78,10 +88,12 @@ public final class BooleanScriptFieldData extends IndexNumericFieldData {
 
     public static class BooleanScriptLeafFieldData extends LeafLongFieldData {
         private final BooleanScriptDocValues booleanScriptDocValues;
+        protected final ToScriptField<SortedNumericDocValues> toScriptField;
 
-        BooleanScriptLeafFieldData(BooleanScriptDocValues booleanScriptDocValues) {
-            super(0, NumericType.BOOLEAN);
+        BooleanScriptLeafFieldData(BooleanScriptDocValues booleanScriptDocValues, ToScriptField<SortedNumericDocValues> toScriptField) {
+            super(0);
             this.booleanScriptDocValues = booleanScriptDocValues;
+            this.toScriptField = toScriptField;
         }
 
         @Override
@@ -91,5 +103,10 @@ public final class BooleanScriptFieldData extends IndexNumericFieldData {
 
         @Override
         public void close() {}
+
+        @Override
+        public DocValuesField<?> getScriptField(String name) {
+            return toScriptField.getScriptField(getLongValues(), name);
+        }
     }
 }

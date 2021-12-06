@@ -85,8 +85,7 @@ public class In extends ScalarFunction {
 
     @Override
     public boolean foldable() {
-        return Expressions.foldable(children()) ||
-                (Expressions.foldable(list) && list().stream().allMatch(Expressions::isNull));
+        return Expressions.foldable(children()) || (Expressions.foldable(list) && list().stream().allMatch(Expressions::isNull));
     }
 
     @Override
@@ -114,12 +113,10 @@ public class In extends ScalarFunction {
         List<Object> values = new ArrayList<>(new LinkedHashSet<>(foldAndConvertListOfValues(list, value.dataType())));
 
         return new ScriptTemplate(
-            formatTemplate(format("{ql}.","in({}, {})", leftScript.template())),
-            paramsBuilder()
-                .script(leftScript.params())
-                .variable(values)
-                .build(),
-            dataType());
+            formatTemplate(format("{ql}.", "in({}, {})", leftScript.template())),
+            paramsBuilder().script(leftScript.params()).variable(values).build(),
+            dataType()
+        );
     }
 
     protected List<Object> foldAndConvertListOfValues(List<Expression> list, DataType dataType) {
@@ -148,9 +145,14 @@ public class In extends ScalarFunction {
 
         for (Expression ex : list) {
             if (ex.foldable() == false) {
-                return new TypeResolution(format(null, "Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
-                    Expressions.name(ex),
-                    sourceText()));
+                return new TypeResolution(
+                    format(
+                        null,
+                        "Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
+                        Expressions.name(ex),
+                        sourceText()
+                    )
+                );
             }
         }
 
@@ -158,12 +160,17 @@ public class In extends ScalarFunction {
         for (int i = 0; i < list.size(); i++) {
             Expression listValue = list.get(i);
             if (areCompatible(dt, listValue.dataType()) == false) {
-                return new TypeResolution(format(null, "{} argument of [{}] must be [{}], found value [{}] type [{}]",
-                    ordinal(i + 1),
-                    sourceText(),
-                    dt.typeName(),
-                    Expressions.name(listValue),
-                    listValue.dataType().typeName()));
+                return new TypeResolution(
+                    format(
+                        null,
+                        "{} argument of [{}] must be [{}], found value [{}] type [{}]",
+                        ordinal(i + 1),
+                        sourceText(),
+                        dt.typeName(),
+                        Expressions.name(listValue),
+                        listValue.dataType().typeName()
+                    )
+                );
             }
         }
 
@@ -185,7 +192,6 @@ public class In extends ScalarFunction {
         }
 
         In other = (In) obj;
-        return Objects.equals(value, other.value)
-            && Objects.equals(list, other.list);
+        return Objects.equals(value, other.value) && Objects.equals(list, other.list);
     }
 }

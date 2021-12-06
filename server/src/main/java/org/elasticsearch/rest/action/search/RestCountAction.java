@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -24,6 +23,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,6 +36,7 @@ import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_
 public class RestCountAction extends BaseRestHandler {
     private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCountAction.class);
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in count requests is deprecated.";
+
     @Override
     public List<Route> routes() {
         return List.of(
@@ -43,12 +44,9 @@ public class RestCountAction extends BaseRestHandler {
             new Route(POST, "/_count"),
             new Route(GET, "/{index}/_count"),
             new Route(POST, "/{index}/_count"),
-            Route.builder(GET, "/{index}/{type}/_count")
-                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, "/{index}/{type}/_count")
-                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build());
+            Route.builder(GET, "/{index}/{type}/_count").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/{type}/_count").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -59,7 +57,7 @@ public class RestCountAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            deprecationLogger.compatibleApiWarning("count_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.compatibleCritical("count_with_types", TYPES_DEPRECATION_MESSAGE);
             request.param("type");
         }
         SearchRequest countRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")));
@@ -94,8 +92,15 @@ public class RestCountAction extends BaseRestHandler {
                     builder.field("terminated_early", response.isTerminatedEarly());
                 }
                 builder.field("count", response.getHits().getTotalHits().value);
-                buildBroadcastShardsHeader(builder, request, response.getTotalShards(), response.getSuccessfulShards(),
-                    0, response.getFailedShards(), response.getShardFailures());
+                buildBroadcastShardsHeader(
+                    builder,
+                    request,
+                    response.getTotalShards(),
+                    response.getSuccessfulShards(),
+                    0,
+                    response.getFailedShards(),
+                    response.getShardFailures()
+                );
 
                 builder.endObject();
                 return new BytesRestResponse(response.status(), builder);

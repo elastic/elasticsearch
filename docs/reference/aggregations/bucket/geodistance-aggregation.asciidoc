@@ -88,7 +88,7 @@ The specified field must be of type `geo_point` (which can only be set explicitl
 
 * Object format: `{ "lat" : 52.3760, "lon" : 4.894 }` - this is the safest format as it is the most explicit about the `lat` & `lon` values
 * String format: `"52.3760, 4.894"` - where the first number is the `lat` and the second is the `lon`
-* Array format: `[4.894, 52.3760]` - which is based on the `GeoJson` standard and where the first number is the `lon` and the second one is the `lat`
+* Array format: `[4.894, 52.3760]` - which is based on the GeoJSON standard where the first number is the `lon` and the second one is the `lat`
 
 By default, the distance unit is `m` (meters) but it can also accept: `mi` (miles), `in` (inches), `yd` (yards), `km` (kilometers), `cm` (centimeters), `mm` (millimeters).
 

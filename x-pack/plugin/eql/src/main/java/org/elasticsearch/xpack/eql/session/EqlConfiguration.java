@@ -39,10 +39,22 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     @Nullable
     private Map<String, Object> runtimeMappings;
 
-    public EqlConfiguration(String[] indices, ZoneId zi, String username, String clusterName, QueryBuilder filter,
-                            Map<String, Object> runtimeMappings, List<FieldAndFormat> fetchFields, TimeValue requestTimeout,
-                            IndicesOptions indicesOptions, int fetchSize, String clientId, TaskId taskId, EqlSearchTask task,
-                            Function<String, Collection<String>> versionIncompatibleClusters) {
+    public EqlConfiguration(
+        String[] indices,
+        ZoneId zi,
+        String username,
+        String clusterName,
+        QueryBuilder filter,
+        Map<String, Object> runtimeMappings,
+        List<FieldAndFormat> fetchFields,
+        TimeValue requestTimeout,
+        IndicesOptions indicesOptions,
+        int fetchSize,
+        String clientId,
+        TaskId taskId,
+        EqlSearchTask task,
+        Function<String, Collection<String>> versionIncompatibleClusters
+    ) {
         super(zi, username, clusterName, versionIncompatibleClusters);
 
         this.indices = indices;

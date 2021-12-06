@@ -7,10 +7,10 @@
 package org.elasticsearch.example.realm;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.example.SpiExtensionPlugin;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -36,8 +36,12 @@ public class CustomRealm extends Realm {
 
     // Because simple string settings in realms are common, this is a shorthand method, but it does the same thing as the ROLES_SETTING
     // that is declared below (with the minor difference that "username" is a single string, and "roles" is a list)
-    public static final Setting.AffixSetting<String> USERNAME_SETTING = RealmSettings.simpleString(TYPE, "username",
-        Setting.Property.NodeScope, Setting.Property.Filtered);
+    public static final Setting.AffixSetting<String> USERNAME_SETTING = RealmSettings.simpleString(
+        TYPE,
+        "username",
+        Setting.Property.NodeScope,
+        Setting.Property.Filtered
+    );
 
     public static final Setting.AffixSetting<SecureString> PASSWORD_SETTING = RealmSettings.secureString(TYPE, "password");
 
@@ -50,7 +54,9 @@ public class CustomRealm extends Realm {
      */
     public static final Setting.AffixSetting<List<String>> ROLES_SETTING = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
-        "roles", key -> Setting.listSetting(key, DEFAULT_ROLES, Function.identity(), Setting.Property.NodeScope));
+        "roles",
+        key -> Setting.listSetting(key, DEFAULT_ROLES, Function.identity(), Setting.Property.NodeScope)
+    );
 
     private final String username;
     private final SecureString password;
@@ -81,8 +87,8 @@ public class CustomRealm extends Realm {
     }
 
     @Override
-    public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult> listener) {
-        UsernamePasswordToken token = (UsernamePasswordToken)authToken;
+    public void authenticate(AuthenticationToken authToken, ActionListener<AuthenticationResult<User>> listener) {
+        UsernamePasswordToken token = (UsernamePasswordToken) authToken;
         final String actualUser = token.principal();
         if (username.equals(actualUser)) {
             if (CharArrays.constantTimeEquals(token.credentials().getChars(), password.getChars())) {

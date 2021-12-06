@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.security.rest;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.rest.RestRequestFilter;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -27,14 +27,14 @@ public class RestRequestFilterTests extends ESTestCase {
     public void testFilteringItemsInSubLevels() throws IOException {
         BytesReference content = new BytesArray("{\"root\": {\"second\": {\"third\": \"password\", \"foo\": \"bar\"}}}");
         RestRequestFilter filter = () -> Collections.singleton("root.second.third");
-        FakeRestRequest restRequest =
-                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON).build();
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON)
+            .build();
         RestRequest filtered = filter.getFilteredRequest(restRequest);
         assertNotEquals(content, filtered.content());
 
         Map<String, Object> map = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput()).map();
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput())
+            .map();
         @SuppressWarnings("unchecked")
         Map<String, Object> root = (Map<String, Object>) map.get("root");
         assertNotNull(root);
@@ -48,14 +48,14 @@ public class RestRequestFilterTests extends ESTestCase {
     public void testFilteringItemsInSubLevelsWithWildCard() throws IOException {
         BytesReference content = new BytesArray("{\"root\": {\"second\": {\"third\": \"password\", \"foo\": \"bar\"}}}");
         RestRequestFilter filter = () -> Collections.singleton("root.*.third");
-        FakeRestRequest restRequest =
-                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON).build();
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON)
+            .build();
         RestRequest filtered = filter.getFilteredRequest(restRequest);
         assertNotEquals(content, filtered.content());
 
         Map<String, Object> map = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput()).map();
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput())
+            .map();
         @SuppressWarnings("unchecked")
         Map<String, Object> root = (Map<String, Object>) map.get("root");
         assertNotNull(root);
@@ -69,14 +69,14 @@ public class RestRequestFilterTests extends ESTestCase {
     public void testFilteringItemsInSubLevelsWithLeadingWildCard() throws IOException {
         BytesReference content = new BytesArray("{\"root\": {\"second\": {\"third\": \"password\", \"foo\": \"bar\"}}}");
         RestRequestFilter filter = () -> Collections.singleton("*.third");
-        FakeRestRequest restRequest =
-                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON).build();
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON)
+            .build();
         RestRequest filtered = filter.getFilteredRequest(restRequest);
         assertNotEquals(content, filtered.content());
 
         Map<String, Object> map = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY,
-                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput()).map();
+            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput())
+            .map();
         @SuppressWarnings("unchecked")
         Map<String, Object> root = (Map<String, Object>) map.get("root");
         assertNotNull(root);
@@ -91,9 +91,9 @@ public class RestRequestFilterTests extends ESTestCase {
         BytesReference content = new BytesArray("{\"root\": {\"second\": {\"third\": \"password\", \"foo\": \"bar\"}}}");
         RestRequestFilter filter = () -> Collections.singleton("*.third");
         InetSocketAddress address = new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 32768);
-        FakeRestRequest restRequest =
-                new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON)
-                        .withRemoteAddress(address).build();
+        FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON)
+            .withRemoteAddress(address)
+            .build();
         RestRequest filtered = filter.getFilteredRequest(restRequest);
         assertEquals(address, filtered.getHttpChannel().getRemoteAddress());
     }

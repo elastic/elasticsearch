@@ -32,8 +32,14 @@ import static org.hamcrest.Matchers.notNullValue;
 public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhraseQueryBuilder> {
     @Override
     protected MatchPhraseQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
-                DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
+        String fieldName = randomFrom(
+            TEXT_FIELD_NAME,
+            TEXT_ALIAS_FIELD_NAME,
+            BOOLEAN_FIELD_NAME,
+            INT_FIELD_NAME,
+            DOUBLE_FIELD_NAME,
+            DATE_FIELD_NAME
+        );
         Object value;
         if (isTextField(fieldName)) {
             int terms = randomIntBetween(0, 3);
@@ -66,20 +72,26 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
     @Override
     protected Map<String, MatchPhraseQueryBuilder> getAlternateVersions() {
         Map<String, MatchPhraseQueryBuilder> alternateVersions = new HashMap<>();
-        MatchPhraseQueryBuilder matchPhraseQuery = new MatchPhraseQueryBuilder(randomAlphaOfLengthBetween(1, 10),
-                randomAlphaOfLengthBetween(1, 10));
-        String contentString = "{\n" +
-                "    \"match_phrase\" : {\n" +
-                "        \"" + matchPhraseQuery.fieldName() + "\" : \"" + matchPhraseQuery.value() + "\"\n" +
-                "    }\n" +
-                "}";
+        MatchPhraseQueryBuilder matchPhraseQuery = new MatchPhraseQueryBuilder(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
+        String contentString = "{\n"
+            + "    \"match_phrase\" : {\n"
+            + "        \""
+            + matchPhraseQuery.fieldName()
+            + "\" : \""
+            + matchPhraseQuery.value()
+            + "\"\n"
+            + "    }\n"
+            + "}";
         alternateVersions.put(contentString, matchPhraseQuery);
         return alternateVersions;
     }
 
     @Override
-    protected void doAssertLuceneQuery(MatchPhraseQueryBuilder queryBuilder, Query query,
-                                       SearchExecutionContext context) throws IOException {
+    protected void doAssertLuceneQuery(MatchPhraseQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
+        throws IOException {
         assertThat(query, notNullValue());
 
         if (query instanceof MatchAllDocsQuery) {
@@ -87,9 +99,14 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
             return;
         }
 
-        assertThat(query, either(instanceOf(BooleanQuery.class)).or(instanceOf(PhraseQuery.class))
-                .or(instanceOf(TermQuery.class)).or(instanceOf(PointRangeQuery.class))
-                .or(instanceOf(IndexOrDocValuesQuery.class)).or(instanceOf(MatchNoDocsQuery.class)));
+        assertThat(
+            query,
+            either(instanceOf(BooleanQuery.class)).or(instanceOf(PhraseQuery.class))
+                .or(instanceOf(TermQuery.class))
+                .or(instanceOf(PointRangeQuery.class))
+                .or(instanceOf(IndexOrDocValuesQuery.class))
+                .or(instanceOf(MatchNoDocsQuery.class))
+        );
     }
 
     public void testIllegalValues() {
@@ -108,37 +125,33 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
     }
 
     public void testFromSimpleJson() throws IOException {
-        String json1 = "{\n" +
-                "    \"match_phrase\" : {\n" +
-                "        \"message\" : \"this is a test\"\n" +
-                "    }\n" +
-                "}";
+        String json1 = "{\n" + "    \"match_phrase\" : {\n" + "        \"message\" : \"this is a test\"\n" + "    }\n" + "}";
 
-        String expected = "{\n" +
-                "  \"match_phrase\" : {\n" +
-                "    \"message\" : {\n" +
-                "      \"query\" : \"this is a test\",\n" +
-                "      \"slop\" : 0,\n" +
-                "      \"zero_terms_query\" : \"NONE\",\n" +
-                "      \"boost\" : 1.0\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+        String expected = "{\n"
+            + "  \"match_phrase\" : {\n"
+            + "    \"message\" : {\n"
+            + "      \"query\" : \"this is a test\",\n"
+            + "      \"slop\" : 0,\n"
+            + "      \"zero_terms_query\" : \"NONE\",\n"
+            + "      \"boost\" : 1.0\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
         MatchPhraseQueryBuilder qb = (MatchPhraseQueryBuilder) parseQuery(json1);
         checkGeneratedJson(expected, qb);
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n" +
-                "  \"match_phrase\" : {\n" +
-                "    \"message\" : {\n" +
-                "      \"query\" : \"this is a test\",\n" +
-                "      \"slop\" : 2,\n" +
-                "      \"zero_terms_query\" : \"ALL\",\n" +
-                "      \"boost\" : 1.0\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"match_phrase\" : {\n"
+            + "    \"message\" : {\n"
+            + "      \"query\" : \"this is a test\",\n"
+            + "      \"slop\" : 2,\n"
+            + "      \"zero_terms_query\" : \"ALL\",\n"
+            + "      \"boost\" : 1.0\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
 
         MatchPhraseQueryBuilder parsed = (MatchPhraseQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
@@ -149,25 +162,25 @@ public class MatchPhraseQueryBuilderTests extends AbstractQueryTestCase<MatchPhr
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json = "{\n" +
-                "  \"match_phrase\" : {\n" +
-                "    \"message1\" : {\n" +
-                "      \"query\" : \"this is a test\"\n" +
-                "    },\n" +
-                "    \"message2\" : {\n" +
-                "      \"query\" : \"this is a test\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"match_phrase\" : {\n"
+            + "    \"message1\" : {\n"
+            + "      \"query\" : \"this is a test\"\n"
+            + "    },\n"
+            + "    \"message2\" : {\n"
+            + "      \"query\" : \"this is a test\"\n"
+            + "    }\n"
+            + "  }\n"
+            + "}";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[match_phrase] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
 
-        String shortJson = "{\n" +
-                "  \"match_phrase\" : {\n" +
-                "    \"message1\" : \"this is a test\",\n" +
-                "    \"message2\" : \"this is a test\"\n" +
-                "  }\n" +
-                "}";
+        String shortJson = "{\n"
+            + "  \"match_phrase\" : {\n"
+            + "    \"message1\" : \"this is a test\",\n"
+            + "    \"message2\" : \"this is a test\"\n"
+            + "  }\n"
+            + "}";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[match_phrase] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }

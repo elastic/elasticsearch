@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -16,6 +15,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
@@ -29,9 +29,7 @@ public class RestResetJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_reset")
-        );
+        return List.of(new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_reset"));
     }
 
     @Override

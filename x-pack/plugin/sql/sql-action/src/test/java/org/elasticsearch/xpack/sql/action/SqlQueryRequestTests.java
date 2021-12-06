@@ -11,13 +11,13 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
@@ -36,6 +36,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilter;
 import static org.elasticsearch.xpack.sql.action.SqlTestUtils.randomFilterOrNull;
 import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.CATALOG_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
@@ -65,8 +66,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
 
     @Before
     public void setup() {
-        requestInfo = new RequestInfo(randomFrom(Mode.values()),
-                randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20)));
+        requestInfo = new RequestInfo(randomFrom(Mode.values()), randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20)));
     }
 
     @Override
@@ -83,10 +83,24 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
 
     @Override
     protected SqlQueryRequest createTestInstance() {
-        return new SqlQueryRequest(randomAlphaOfLength(10), randomParameters(), SqlTestUtils.randomFilterOrNull(random()),
-                randomRuntimeMappings(), randomZone(), between(1, Integer.MAX_VALUE), randomTV(),
-                randomTV(), randomBoolean(), randomAlphaOfLength(10), requestInfo,
-                randomBoolean(), randomBoolean(), randomTV(), randomBoolean(), randomTVGreaterThan(MIN_KEEP_ALIVE)
+        return new SqlQueryRequest(
+            randomAlphaOfLength(10),
+            randomParameters(),
+            SqlTestUtils.randomFilterOrNull(random()),
+            randomRuntimeMappings(),
+            randomZone(),
+            randomAlphaOfLength(10),
+            between(1, Integer.MAX_VALUE),
+            randomTV(),
+            randomTV(),
+            randomBoolean(),
+            randomAlphaOfLength(10),
+            requestInfo,
+            randomBoolean(),
+            randomBoolean(),
+            randomTV(),
+            randomBoolean(),
+            randomTVGreaterThan(MIN_KEEP_ALIVE)
         );
     }
 
@@ -99,24 +113,44 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
     protected SqlQueryRequest mutateInstance(SqlQueryRequest instance) {
         @SuppressWarnings("unchecked")
         Consumer<SqlQueryRequest> mutator = randomFrom(
-                request -> mutateRequestInfo(instance, request),
-                request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
-                request -> request.params(randomValueOtherThan(request.params(), this::randomParameters)),
-                request -> request.zoneId(randomValueOtherThan(request.zoneId(), ESTestCase::randomZone)),
-                request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
-                request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
-                request -> request.filter(randomValueOtherThan(request.filter(),
-                        () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random()))),
-                request -> request.columnar(randomValueOtherThan(request.columnar(), ESTestCase::randomBoolean)),
-                request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor)),
-                request -> request.waitForCompletionTimeout(randomValueOtherThan(request.waitForCompletionTimeout(), this::randomTV)),
-                request -> request.keepOnCompletion(randomValueOtherThan(request.keepOnCompletion(), ESTestCase::randomBoolean)),
-                request -> request.keepAlive(randomValueOtherThan(request.keepAlive(), () -> randomTVGreaterThan(MIN_KEEP_ALIVE)))
+            request -> mutateRequestInfo(instance, request),
+            request -> request.query(randomValueOtherThan(request.query(), () -> randomAlphaOfLength(5))),
+            request -> request.params(randomValueOtherThan(request.params(), this::randomParameters)),
+            request -> request.zoneId(randomValueOtherThan(request.zoneId(), ESTestCase::randomZone)),
+            request -> request.catalog(randomValueOtherThan(request.catalog(), () -> randomAlphaOfLength(10))),
+            request -> request.fetchSize(randomValueOtherThan(request.fetchSize(), () -> between(1, Integer.MAX_VALUE))),
+            request -> request.requestTimeout(randomValueOtherThan(request.requestTimeout(), this::randomTV)),
+            request -> request.filter(
+                randomValueOtherThan(
+                    request.filter(),
+                    () -> request.filter() == null ? randomFilter(random()) : randomFilterOrNull(random())
+                )
+            ),
+            request -> request.columnar(randomValueOtherThan(request.columnar(), ESTestCase::randomBoolean)),
+            request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor)),
+            request -> request.waitForCompletionTimeout(randomValueOtherThan(request.waitForCompletionTimeout(), this::randomTV)),
+            request -> request.keepOnCompletion(randomValueOtherThan(request.keepOnCompletion(), ESTestCase::randomBoolean)),
+            request -> request.keepAlive(randomValueOtherThan(request.keepAlive(), () -> randomTVGreaterThan(MIN_KEEP_ALIVE)))
         );
-        SqlQueryRequest newRequest = new SqlQueryRequest(instance.query(), instance.params(), instance.filter(), instance.runtimeMappings(),
-                instance.zoneId(), instance.fetchSize(), instance.requestTimeout(), instance.pageTimeout(), instance.columnar(),
-                instance.cursor(), instance.requestInfo(), instance.fieldMultiValueLeniency(), instance.indexIncludeFrozen(),
-                instance.waitForCompletionTimeout(), instance.keepOnCompletion(), instance.keepAlive());
+        SqlQueryRequest newRequest = new SqlQueryRequest(
+            instance.query(),
+            instance.params(),
+            instance.filter(),
+            instance.runtimeMappings(),
+            instance.zoneId(),
+            instance.catalog(),
+            instance.fetchSize(),
+            instance.requestTimeout(),
+            instance.pageTimeout(),
+            instance.columnar(),
+            instance.cursor(),
+            instance.requestInfo(),
+            instance.fieldMultiValueLeniency(),
+            instance.indexIncludeFrozen(),
+            instance.waitForCompletionTimeout(),
+            instance.keepOnCompletion(),
+            instance.keepAlive()
+        );
         mutator.accept(newRequest);
         return newRequest;
     }
@@ -125,12 +159,12 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         RequestInfo requestInfo = randomValueOtherThan(newRequest.requestInfo(), this::randomRequestInfo);
         newRequest.requestInfo(requestInfo);
         if (Mode.isDriver(oldRequest.requestInfo().mode()) && Mode.isDriver(requestInfo.mode()) == false) {
-            for(SqlTypedParamValue param : oldRequest.params()) {
+            for (SqlTypedParamValue param : oldRequest.params()) {
                 param.hasExplicitType(false);
             }
         }
         if (Mode.isDriver(oldRequest.requestInfo().mode()) == false && Mode.isDriver(requestInfo.mode())) {
-            for(SqlTypedParamValue param : oldRequest.params()) {
+            for (SqlTypedParamValue param : oldRequest.params()) {
                 param.hasExplicitType(true);
             }
         }
@@ -179,12 +213,13 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
             List<SqlTypedParamValue> arr = new ArrayList<>(len);
             boolean hasExplicitType = Mode.isDriver(this.requestInfo.mode());
             for (int i = 0; i < len; i++) {
-                @SuppressWarnings("unchecked") Supplier<SqlTypedParamValue> supplier = randomFrom(
-                        () -> new SqlTypedParamValue("boolean", randomBoolean(), hasExplicitType),
-                        () -> new SqlTypedParamValue("long", randomLong(), hasExplicitType),
-                        () -> new SqlTypedParamValue("double", randomDouble(), hasExplicitType),
-                        () -> new SqlTypedParamValue("null", null, hasExplicitType),
-                        () -> new SqlTypedParamValue("keyword", randomAlphaOfLength(10), hasExplicitType)
+                @SuppressWarnings("unchecked")
+                Supplier<SqlTypedParamValue> supplier = randomFrom(
+                    () -> new SqlTypedParamValue("boolean", randomBoolean(), hasExplicitType),
+                    () -> new SqlTypedParamValue("long", randomLong(), hasExplicitType),
+                    () -> new SqlTypedParamValue("double", randomDouble(), hasExplicitType),
+                    () -> new SqlTypedParamValue("null", null, hasExplicitType),
+                    () -> new SqlTypedParamValue("keyword", randomAlphaOfLength(10), hasExplicitType)
                 );
                 arr.add(supplier.get());
             }
@@ -197,7 +232,7 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
     }
 
     /**
-     * This is needed because {@link SqlQueryRequest#toXContent(XContentBuilder, org.elasticsearch.common.xcontent.ToXContent.Params)}
+     * This is needed because {@link SqlQueryRequest#toXContent(XContentBuilder, ToXContent.Params)}
      * is not serializing {@link SqlTypedParamValue} according to the request's {@link Mode} and it shouldn't, in fact.
      * For testing purposes, different serializing methods for {@link SqlTypedParamValue} are necessary so that
      * {@link SqlQueryRequest#fromXContent(XContentParser)} populates {@link SqlTypedParamValue#hasExplicitType()}
@@ -231,6 +266,9 @@ public class SqlQueryRequestTests extends AbstractWireSerializingTestCase<SqlQue
         }
         if (request.zoneId() != null) {
             builder.field(TIME_ZONE_NAME, request.zoneId().getId());
+        }
+        if (request.catalog() != null) {
+            builder.field(CATALOG_NAME, request.catalog());
         }
         if (request.fetchSize() != Protocol.FETCH_SIZE) {
             builder.field(FETCH_SIZE_NAME, request.fetchSize());

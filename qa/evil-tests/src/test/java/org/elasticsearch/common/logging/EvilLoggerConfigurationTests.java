@@ -50,9 +50,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
         final Level level = LogManager.getLogger("test").getLevel();
         try {
             final Path configDir = getDataPath("config");
-            final Settings settings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
+            final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
             final Environment environment = new Environment(settings, configDir);
             LogConfigurator.configure(environment);
 
@@ -117,9 +115,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
 
     public void testHierarchy() throws Exception {
         final Path configDir = getDataPath("hierarchy");
-        final Settings settings = Settings.builder()
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .build();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         final Environment environment = new Environment(settings, configDir);
         LogConfigurator.configure(environment);
 
@@ -135,9 +131,7 @@ public class EvilLoggerConfigurationTests extends ESTestCase {
 
     public void testMissingConfigFile() {
         final Path configDir = getDataPath("does_not_exist");
-        final Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
+        final Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         final Environment environment = new Environment(settings, configDir);
         UserException e = expectThrows(UserException.class, () -> LogConfigurator.configure(environment));
         assertThat(e, hasToString(containsString("no log4j2.properties found; tried")));

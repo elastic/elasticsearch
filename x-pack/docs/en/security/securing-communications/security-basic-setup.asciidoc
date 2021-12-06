@@ -72,7 +72,8 @@ For the transport layer, we recommend using a separate, dedicated CA instead
 of an existing, possibly shared CA so that node membership is tightly controlled. Use the `elasticsearch-certutil` tool to
 generate a CA for your cluster.
 
-. Use the `elasticsearch-certutil` tool to generate a CA for your cluster.
+. On any single node, use the `elasticsearch-certutil` tool to generate a CA for
+your cluster.
 +
 [source,shell]
 ----
@@ -84,8 +85,9 @@ generate a CA for your cluster.
    b. Enter a password for your CA. You can choose to leave the password blank
    if you're not deploying to a production environment.
 
-. Generate a certificate and private key for your node. You include the
-   `elastic-stack-ca.p12` output file that you generated in the previous step.
+. On any single node, generate a certificate and private key for the nodes in
+your cluster. You include the `elastic-stack-ca.p12` output file that you
+generated in the previous step.
 +
 [source,shell]
 ----
@@ -103,8 +105,8 @@ generate a CA for your cluster.
 The output file is a keystore named `elastic-certificates.p12`. This file
 contains a node certificate, node key, and CA certificate.
 
-. Copy the `elastic-certificates.p12` file to the `ES_PATH_CONF`
-   directory on every node in your cluster.
+. On *every* node in your cluster, copy the `elastic-certificates.p12` file to
+the `$ES_PATH_CONF` directory.
 
 [[encrypt-internode-communication]]
 ==== Encrypt internode communications with TLS
@@ -126,7 +128,7 @@ changes at a frequency determined by the global {es}
 Complete the following steps *for each node in your cluster*. To join the
 same cluster, all nodes must share the same `cluster.name` value.
 
-. Open the `ES_PATH_CONF/elasticsearch.yml` file and make the following
+. Open the `$ES_PATH_CONF/elasticsearch.yml` file and make the following
 changes:
 
    a. Add the <<cluster-name,`cluster-name`>> setting and enter a name for your cluster:
@@ -179,7 +181,9 @@ matches the DNS or IP address. See the
 
 . Complete the previous steps for each node in your cluster.
 
-. Restart {es}. The method for <<starting-elasticsearch,starting>> and <<starting-elasticsearch,stopping>> {es} varies depending on how you installed it.
+. On *every* node in your cluster, restart {es}. The method for
+<<starting-elasticsearch,starting>> and <<starting-elasticsearch,stopping>> {es}
+varies depending on how you installed it.
 +
 For example, if you installed {es} with an archive distribution
 (`tar.gz` or `.zip`), you can enter `Ctrl+C` on the command line to stop

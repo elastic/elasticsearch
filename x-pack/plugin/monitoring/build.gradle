@@ -12,17 +12,17 @@ archivesBaseName = 'x-pack-monitoring'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  testImplementation(testArtifact(project(xpackModule('core'))))
 
   // monitoring deps
   api project(':client:rest')
   api project(':client:sniffer')
 
   // baz - this goes away after we separate out the actions #27759
+  testImplementation project(":modules:analysis-common")
   testImplementation project(xpackModule('watcher'))
-
   testImplementation project(xpackModule('ilm'))
   testImplementation project(xpackModule('data-streams'))
+  testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 tasks.named("dependencyLicenses").configure {

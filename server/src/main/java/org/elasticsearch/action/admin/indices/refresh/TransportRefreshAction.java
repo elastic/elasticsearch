@@ -26,14 +26,30 @@ import java.util.List;
 /**
  * Refresh action.
  */
-public class TransportRefreshAction
-    extends TransportBroadcastReplicationAction<RefreshRequest, RefreshResponse, BasicReplicationRequest, ReplicationResponse> {
+public class TransportRefreshAction extends TransportBroadcastReplicationAction<
+    RefreshRequest,
+    RefreshResponse,
+    BasicReplicationRequest,
+    ReplicationResponse> {
 
     @Inject
-    public TransportRefreshAction(ClusterService clusterService, TransportService transportService, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver, NodeClient client) {
-        super(RefreshAction.NAME, RefreshRequest::new, clusterService, transportService, client, actionFilters,
-            indexNameExpressionResolver, TransportShardRefreshAction.TYPE);
+    public TransportRefreshAction(
+        ClusterService clusterService,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        NodeClient client
+    ) {
+        super(
+            RefreshAction.NAME,
+            RefreshRequest::new,
+            clusterService,
+            transportService,
+            client,
+            actionFilters,
+            indexNameExpressionResolver,
+            TransportShardRefreshAction.TYPE
+        );
     }
 
     @Override
@@ -49,8 +65,12 @@ public class TransportRefreshAction
     }
 
     @Override
-    protected RefreshResponse newResponse(int successfulShards, int failedShards, int totalNumCopies,
-                                          List<DefaultShardOperationFailedException> shardFailures) {
+    protected RefreshResponse newResponse(
+        int successfulShards,
+        int failedShards,
+        int totalNumCopies,
+        List<DefaultShardOperationFailedException> shardFailures
+    ) {
         return new RefreshResponse(totalNumCopies, successfulShards, failedShards, shardFailures);
     }
 }

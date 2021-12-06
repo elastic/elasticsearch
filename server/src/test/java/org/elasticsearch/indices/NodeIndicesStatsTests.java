@@ -8,8 +8,8 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Collections;
 
@@ -25,7 +25,8 @@ public class NodeIndicesStatsTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> stats.toXContent(null, params));
         assertThat(
             e,
-            hasToString(containsString("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]")));
+            hasToString(containsString("level parameter must be one of [indices] or [node] or [shards] but was [" + level + "]"))
+        );
     }
 
 }

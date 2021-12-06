@@ -9,8 +9,7 @@ package org.elasticsearch.xpack.core.security.action.user;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 
-public class AuthenticateRequestBuilder
-        extends ActionRequestBuilder<AuthenticateRequest, AuthenticateResponse> {
+public class AuthenticateRequestBuilder extends ActionRequestBuilder<AuthenticateRequest, AuthenticateResponse> {
 
     public AuthenticateRequestBuilder(ElasticsearchClient client) {
         this(client, AuthenticateAction.INSTANCE);

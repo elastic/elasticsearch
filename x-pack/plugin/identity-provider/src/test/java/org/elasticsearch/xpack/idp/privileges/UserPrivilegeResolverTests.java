@@ -11,10 +11,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
@@ -36,9 +36,9 @@ import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
@@ -70,8 +70,12 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         setupUser(username);
         setupHasPrivileges(username, app);
         final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
-        final Function<String, Set<String>> roleMapping =
-            Map.of("role:cluster:view", Set.of("viewer"), "role:cluster:admin", Set.of("admin"))::get;
+        final Function<String, Set<String>> roleMapping = Map.of(
+            "role:cluster:view",
+            Set.of("viewer"),
+            "role:cluster:admin",
+            Set.of("admin")
+        )::get;
         resolver.resolve(service(app, "cluster:" + randomLong(), roleMapping), future);
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
         assertThat(privileges.principal, equalTo(username));
@@ -127,7 +131,9 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         final String monitorAction = "role:cluster:monitor";
 
         setupUser(username);
-        setupHasPrivileges(username, app,
+        setupHasPrivileges(
+            username,
+            app,
             access(resource, viewerAction, false),
             access(resource, adminAction, false),
             access(resource, operatorAction, true),
@@ -161,8 +167,11 @@ public class UserPrivilegeResolverTests extends ESTestCase {
 
     @SafeVarargs
     @SuppressWarnings("unchecked")
-    private HasPrivilegesResponse setupHasPrivileges(String username, String appName,
-                                                     Tuple<String, Tuple<String, Boolean>>... resourceActionAccess) {
+    private HasPrivilegesResponse setupHasPrivileges(
+        String username,
+        String appName,
+        Tuple<String, Tuple<String, Boolean>>... resourceActionAccess
+    ) {
         final boolean isCompleteMatch = randomBoolean();
         final Map<String, Map<String, Boolean>> resourcePrivilegeMap = new HashMap<>(resourceActionAccess.length);
         for (Tuple<String, Tuple<String, Boolean>> t : resourceActionAccess) {
@@ -171,7 +180,8 @@ public class UserPrivilegeResolverTests extends ESTestCase {
             final Boolean access = t.v2().v2();
             resourcePrivilegeMap.computeIfAbsent(resource, ignore -> new HashMap<>()).put(action, access);
         }
-        final Collection<ResourcePrivileges> privileges = resourcePrivilegeMap.entrySet().stream()
+        final Collection<ResourcePrivileges> privileges = resourcePrivilegeMap.entrySet()
+            .stream()
             .map(e -> ResourcePrivileges.builder(e.getKey()).addPrivileges(e.getValue()).build())
             .collect(Collectors.toList());
         final Map<String, Collection<ResourcePrivileges>> appPrivs = Map.of(appName, privileges);

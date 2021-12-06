@@ -53,9 +53,8 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
     }
 
     public void testCondition() throws Exception {
-        DetectionRule rule = new DetectionRule.Builder(Arrays.asList(
-                new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.LT, 100.0)
-        )).build();
+        DetectionRule rule = new DetectionRule.Builder(Arrays.asList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.LT, 100.0)))
+            .build();
 
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setByFieldName("by_field");
@@ -102,9 +101,9 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
 
         {
             // Update rules so that the anomalies suppression is inverted
-            DetectionRule newRule = new DetectionRule.Builder(Arrays.asList(
-                    new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 700.0)
-            )).build();
+            DetectionRule newRule = new DetectionRule.Builder(
+                Arrays.asList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.GT, 700.0))
+            ).build();
             JobUpdate.Builder update = new JobUpdate.Builder(job.getId());
             update.setDetectorUpdates(Arrays.asList(new JobUpdate.DetectorUpdate(0, null, Arrays.asList(newRule))));
             updateJob(job.getId(), update.build());
@@ -118,7 +117,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         GetRecordsAction.Request recordsAfterFirstHalf = new GetRecordsAction.Request(job.getId());
         recordsAfterFirstHalf.setStart(String.valueOf(firstRecordTimestamp + 1));
         records = getRecords(recordsAfterFirstHalf);
-        assertThat("records were " + records, (int)(records.stream().filter(r -> r.getProbability() < 0.01).count()), equalTo(1));
+        assertThat("records were " + records, (int) (records.stream().filter(r -> r.getProbability() < 0.01).count()), equalTo(1));
         assertThat(records.get(0).getByFieldValue(), equalTo("low"));
     }
 
@@ -187,14 +186,15 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
 
         // Wait until the notification that the filter was updated is indexed
         assertBusy(() -> {
-            SearchResponse searchResponse =
-                client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
-                    .setSize(1)
-                    .addSort("timestamp", SortOrder.DESC)
-                    .setQuery(QueryBuilders.boolQuery()
-                                    .filter(QueryBuilders.termQuery("job_id", job.getId()))
-                            .filter(QueryBuilders.termQuery("level", "info"))
-                    ).get();
+            SearchResponse searchResponse = client().prepareSearch(NotificationsIndex.NOTIFICATIONS_INDEX)
+                .setSize(1)
+                .addSort("timestamp", SortOrder.DESC)
+                .setQuery(
+                    QueryBuilders.boolQuery()
+                        .filter(QueryBuilders.termQuery("job_id", job.getId()))
+                        .filter(QueryBuilders.termQuery("level", "info"))
+                )
+                .get();
             SearchHit[] hits = searchResponse.getHits().getHits();
             assertThat(hits.length, equalTo(1));
             assertThat((String) hits[0].getSourceAsMap().get("message"), containsString("Filter [safe_ips] has been modified"));
@@ -238,9 +238,9 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         assertThat(putMlFilter(safeIps).getFilter(), equalTo(safeIps));
 
         // Ignore if ip in safe list AND actual < 10.
-        DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().include("ip", "safe_ips"))
-                .setConditions(Arrays.asList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.LT, 10.0)))
-                .build();
+        DetectionRule rule = new DetectionRule.Builder(RuleScope.builder().include("ip", "safe_ips")).setConditions(
+            Arrays.asList(new RuleCondition(RuleCondition.AppliesTo.ACTUAL, Operator.LT, 10.0))
+        ).build();
 
         Detector.Builder detector = new Detector.Builder("count", null);
         detector.setRules(Arrays.asList(rule));

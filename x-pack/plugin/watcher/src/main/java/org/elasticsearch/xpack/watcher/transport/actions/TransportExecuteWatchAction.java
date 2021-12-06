@@ -17,13 +17,13 @@ import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
@@ -67,10 +67,17 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     private final Client client;
 
     @Inject
-    public TransportExecuteWatchAction(TransportService transportService, ThreadPool threadPool,
-                                       ActionFilters actionFilters, ExecutionService executionService, ClockHolder clockHolder,
-                                       XPackLicenseState licenseState, WatchParser watchParser, Client client,
-                                       TriggerService triggerService) {
+    public TransportExecuteWatchAction(
+        TransportService transportService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        ExecutionService executionService,
+        ClockHolder clockHolder,
+        XPackLicenseState licenseState,
+        WatchParser watchParser,
+        Client client,
+        TriggerService triggerService
+    ) {
         super(ExecuteWatchAction.NAME, transportService, actionFilters, licenseState, ExecuteWatchRequest::new);
         this.threadPool = threadPool;
         this.executionService = executionService;
@@ -83,25 +90,41 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     @Override
     protected void doExecute(ExecuteWatchRequest request, ActionListener<ExecuteWatchResponse> listener) {
         if (request.getId() != null) {
-            GetRequest getRequest = new GetRequest(Watch.INDEX, request.getId())
-                    .preference(Preference.LOCAL.type()).realtime(true);
+            GetRequest getRequest = new GetRequest(Watch.INDEX, request.getId()).preference(Preference.LOCAL.type()).realtime(true);
 
-            executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, getRequest,
-                    ActionListener.<GetResponse>wrap(response -> {
-                        if (response.isExists()) {
-                            Watch watch = watchParser.parse(request.getId(), true, response.getSourceAsBytesRef(),
-                                request.getXContentType(), response.getSeqNo(), response.getPrimaryTerm());
-                            watch.status().version(response.getVersion());
-                            executeWatch(request, listener, watch, true);
-                        } else {
-                            listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist", request.getId()));
-                        }
-                    }, listener::onFailure), client::get);
+            executeAsyncWithOrigin(
+                client.threadPool().getThreadContext(),
+                WATCHER_ORIGIN,
+                getRequest,
+                ActionListener.<GetResponse>wrap(response -> {
+                    if (response.isExists()) {
+                        Watch watch = watchParser.parse(
+                            request.getId(),
+                            true,
+                            response.getSourceAsBytesRef(),
+                            request.getXContentType(),
+                            response.getSeqNo(),
+                            response.getPrimaryTerm()
+                        );
+                        watch.status().version(response.getVersion());
+                        executeWatch(request, listener, watch, true);
+                    } else {
+                        listener.onFailure(new ResourceNotFoundException("Watch with id [{}] does not exist", request.getId()));
+                    }
+                }, listener::onFailure),
+                client::get
+            );
         } else if (request.getWatchSource() != null) {
             try {
                 assert request.isRecordExecution() == false;
-                Watch watch = watchParser.parse(ExecuteWatchRequest.INLINE_WATCH_ID, true, request.getWatchSource(),
-                    request.getXContentType(), SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
+                Watch watch = watchParser.parse(
+                    ExecuteWatchRequest.INLINE_WATCH_ID,
+                    true,
+                    request.getWatchSource(),
+                    request.getXContentType(),
+                    SequenceNumbers.UNASSIGNED_SEQ_NO,
+                    SequenceNumbers.UNASSIGNED_PRIMARY_TERM
+                );
                 executeWatch(request, listener, watch, false);
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("failed to parse [{}]", request.getId()), e);
@@ -113,10 +136,11 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
     }
 
     private void executeWatch(
-            final ExecuteWatchRequest request,
-            final ActionListener<ExecuteWatchResponse> listener,
-            final Watch watch,
-            final boolean knownWatch) {
+        final ExecuteWatchRequest request,
+        final ActionListener<ExecuteWatchResponse> listener,
+        final Watch watch,
+        final boolean knownWatch
+    ) {
         try {
             /*
              * Ensure that the headers from the incoming request are used instead those of the stored watch otherwise the watch would run
@@ -128,9 +152,11 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
             final TriggerEvent triggerEvent = triggerService.simulateEvent(triggerType, watch.id(), request.getTriggerData());
 
             final ManualExecutionContext.Builder ctxBuilder = ManualExecutionContext.builder(
-                    watch,
-                    knownWatch,
-                    new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent), executionService.defaultThrottlePeriod());
+                watch,
+                knownWatch,
+                new ManualTriggerEvent(triggerEvent.jobName(), triggerEvent),
+                executionService.defaultThrottlePeriod()
+            );
 
             final ZonedDateTime executionTime = clock.instant().atZone(ZoneOffset.UTC);
             ctxBuilder.executionTime(executionTime);
@@ -167,7 +193,6 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
         } catch (final Exception e) {
             listener.onFailure(e);
         }
-
 
     }
 }

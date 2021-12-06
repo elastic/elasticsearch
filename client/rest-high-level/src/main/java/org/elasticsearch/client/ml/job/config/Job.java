@@ -8,13 +8,13 @@
 package org.elasticsearch.client.ml.job.config;
 
 import org.elasticsearch.client.common.TimeUtil;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -52,10 +52,8 @@ public class Job implements ToXContentObject {
     public static final ParseField RENORMALIZATION_WINDOW_DAYS = new ParseField("renormalization_window_days");
     public static final ParseField BACKGROUND_PERSIST_INTERVAL = new ParseField("background_persist_interval");
     public static final ParseField MODEL_SNAPSHOT_RETENTION_DAYS = new ParseField("model_snapshot_retention_days");
-    public static final ParseField DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS =
-        new ParseField("daily_model_snapshot_retention_after_days");
+    public static final ParseField DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS = new ParseField("daily_model_snapshot_retention_after_days");
     public static final ParseField RESULTS_RETENTION_DAYS = new ParseField("results_retention_days");
-    public static final ParseField SYSTEM_ANNOTATIONS_RETENTION_DAYS = new ParseField("system_annotations_retention_days");
     public static final ParseField MODEL_SNAPSHOT_ID = new ParseField("model_snapshot_id");
     public static final ParseField RESULTS_INDEX_NAME = new ParseField("results_index_name");
     public static final ParseField DELETING = new ParseField("deleting");
@@ -68,23 +66,30 @@ public class Job implements ToXContentObject {
         PARSER.declareString(Builder::setJobType, JOB_TYPE);
         PARSER.declareStringArray(Builder::setGroups, GROUPS);
         PARSER.declareStringOrNull(Builder::setDescription, DESCRIPTION);
-        PARSER.declareField(Builder::setCreateTime,
+        PARSER.declareField(
+            Builder::setCreateTime,
             (p) -> TimeUtil.parseTimeField(p, CREATE_TIME.getPreferredName()),
             CREATE_TIME,
-            ValueType.VALUE);
-        PARSER.declareField(Builder::setFinishedTime,
+            ValueType.VALUE
+        );
+        PARSER.declareField(
+            Builder::setFinishedTime,
             (p) -> TimeUtil.parseTimeField(p, FINISHED_TIME.getPreferredName()),
             FINISHED_TIME,
-            ValueType.VALUE);
+            ValueType.VALUE
+        );
         PARSER.declareObject(Builder::setAnalysisConfig, AnalysisConfig.PARSER, ANALYSIS_CONFIG);
         PARSER.declareObject(Builder::setAnalysisLimits, AnalysisLimits.PARSER, ANALYSIS_LIMITS);
         PARSER.declareObject(Builder::setDataDescription, DataDescription.PARSER, DATA_DESCRIPTION);
         PARSER.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.PARSER, MODEL_PLOT_CONFIG);
         PARSER.declareLong(Builder::setRenormalizationWindowDays, RENORMALIZATION_WINDOW_DAYS);
-        PARSER.declareString((builder, val) -> builder.setBackgroundPersistInterval(
-            TimeValue.parseTimeValue(val, BACKGROUND_PERSIST_INTERVAL.getPreferredName())), BACKGROUND_PERSIST_INTERVAL);
+        PARSER.declareString(
+            (builder, val) -> builder.setBackgroundPersistInterval(
+                TimeValue.parseTimeValue(val, BACKGROUND_PERSIST_INTERVAL.getPreferredName())
+            ),
+            BACKGROUND_PERSIST_INTERVAL
+        );
         PARSER.declareLong(Builder::setResultsRetentionDays, RESULTS_RETENTION_DAYS);
-        PARSER.declareLong(Builder::setSystemAnnotationsRetentionDays, SYSTEM_ANNOTATIONS_RETENTION_DAYS);
         PARSER.declareLong(Builder::setModelSnapshotRetentionDays, MODEL_SNAPSHOT_RETENTION_DAYS);
         PARSER.declareLong(Builder::setDailyModelSnapshotRetentionAfterDays, DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
         PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.mapOrdered(), CUSTOM_SETTINGS, ValueType.OBJECT);
@@ -110,20 +115,34 @@ public class Job implements ToXContentObject {
     private final Long modelSnapshotRetentionDays;
     private final Long dailyModelSnapshotRetentionAfterDays;
     private final Long resultsRetentionDays;
-    private final Long systemAnnotationsRetentionDays;
     private final Map<String, Object> customSettings;
     private final String modelSnapshotId;
     private final String resultsIndexName;
     private final Boolean deleting;
     private final Boolean allowLazyOpen;
 
-    private Job(String jobId, String jobType, List<String> groups, String description,
-                Date createTime, Date finishedTime,
-                AnalysisConfig analysisConfig, AnalysisLimits analysisLimits, DataDescription dataDescription,
-                ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
-                Long modelSnapshotRetentionDays, Long dailyModelSnapshotRetentionAfterDays, Long resultsRetentionDays,
-                Long systemAnnotationsRetentionDays, Map<String, Object> customSettings, String modelSnapshotId, String resultsIndexName,
-                Boolean deleting, Boolean allowLazyOpen) {
+    private Job(
+        String jobId,
+        String jobType,
+        List<String> groups,
+        String description,
+        Date createTime,
+        Date finishedTime,
+        AnalysisConfig analysisConfig,
+        AnalysisLimits analysisLimits,
+        DataDescription dataDescription,
+        ModelPlotConfig modelPlotConfig,
+        Long renormalizationWindowDays,
+        TimeValue backgroundPersistInterval,
+        Long modelSnapshotRetentionDays,
+        Long dailyModelSnapshotRetentionAfterDays,
+        Long resultsRetentionDays,
+        Map<String, Object> customSettings,
+        String modelSnapshotId,
+        String resultsIndexName,
+        Boolean deleting,
+        Boolean allowLazyOpen
+    ) {
 
         this.jobId = jobId;
         this.jobType = jobType;
@@ -140,7 +159,6 @@ public class Job implements ToXContentObject {
         this.modelSnapshotRetentionDays = modelSnapshotRetentionDays;
         this.dailyModelSnapshotRetentionAfterDays = dailyModelSnapshotRetentionAfterDays;
         this.resultsRetentionDays = resultsRetentionDays;
-        this.systemAnnotationsRetentionDays = systemAnnotationsRetentionDays;
         this.customSettings = customSettings == null ? null : Collections.unmodifiableMap(customSettings);
         this.modelSnapshotId = modelSnapshotId;
         this.resultsIndexName = resultsIndexName;
@@ -266,10 +284,6 @@ public class Job implements ToXContentObject {
         return resultsRetentionDays;
     }
 
-    public Long getSystemAnnotationsRetentionDays() {
-        return systemAnnotationsRetentionDays;
-    }
-
     public Map<String, Object> getCustomSettings() {
         return customSettings;
     }
@@ -304,8 +318,11 @@ public class Job implements ToXContentObject {
             builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + humanReadableSuffix, createTime.getTime());
         }
         if (finishedTime != null) {
-            builder.timeField(FINISHED_TIME.getPreferredName(), FINISHED_TIME.getPreferredName() + humanReadableSuffix,
-                finishedTime.getTime());
+            builder.timeField(
+                FINISHED_TIME.getPreferredName(),
+                FINISHED_TIME.getPreferredName() + humanReadableSuffix,
+                finishedTime.getTime()
+            );
         }
         builder.field(ANALYSIS_CONFIG.getPreferredName(), analysisConfig, params);
         if (analysisLimits != null) {
@@ -331,9 +348,6 @@ public class Job implements ToXContentObject {
         }
         if (resultsRetentionDays != null) {
             builder.field(RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
-        }
-        if (systemAnnotationsRetentionDays != null) {
-            builder.field(SYSTEM_ANNOTATIONS_RETENTION_DAYS.getPreferredName(), systemAnnotationsRetentionDays);
         }
         if (customSettings != null) {
             builder.field(CUSTOM_SETTINGS.getPreferredName(), customSettings);
@@ -383,17 +397,34 @@ public class Job implements ToXContentObject {
             && Objects.equals(this.customSettings, that.customSettings)
             && Objects.equals(this.modelSnapshotId, that.modelSnapshotId)
             && Objects.equals(this.resultsIndexName, that.resultsIndexName)
-            && Objects.equals(this.systemAnnotationsRetentionDays, that.systemAnnotationsRetentionDays)
             && Objects.equals(this.deleting, that.deleting)
             && Objects.equals(this.allowLazyOpen, that.allowLazyOpen);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, jobType, groups, description, createTime, finishedTime,
-            analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
-            backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-            systemAnnotationsRetentionDays, customSettings, modelSnapshotId, resultsIndexName, deleting, allowLazyOpen);
+        return Objects.hash(
+            jobId,
+            jobType,
+            groups,
+            description,
+            createTime,
+            finishedTime,
+            analysisConfig,
+            analysisLimits,
+            dataDescription,
+            modelPlotConfig,
+            renormalizationWindowDays,
+            backgroundPersistInterval,
+            modelSnapshotRetentionDays,
+            dailyModelSnapshotRetentionAfterDays,
+            resultsRetentionDays,
+            customSettings,
+            modelSnapshotId,
+            resultsIndexName,
+            deleting,
+            allowLazyOpen
+        );
     }
 
     @Override
@@ -422,15 +453,13 @@ public class Job implements ToXContentObject {
         private Long modelSnapshotRetentionDays;
         private Long dailyModelSnapshotRetentionAfterDays;
         private Long resultsRetentionDays;
-        private Long systemAnnotationsRetentionDays;
         private Map<String, Object> customSettings;
         private String modelSnapshotId;
         private String resultsIndexName;
         private Boolean deleting;
         private Boolean allowLazyOpen;
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder(String id) {
             this.id = id;
@@ -452,7 +481,6 @@ public class Job implements ToXContentObject {
             this.modelSnapshotRetentionDays = job.getModelSnapshotRetentionDays();
             this.dailyModelSnapshotRetentionAfterDays = job.getDailyModelSnapshotRetentionAfterDays();
             this.resultsRetentionDays = job.getResultsRetentionDays();
-            this.systemAnnotationsRetentionDays = job.getSystemAnnotationsRetentionDays();
             this.customSettings = job.getCustomSettings() == null ? null : new LinkedHashMap<>(job.getCustomSettings());
             this.modelSnapshotId = job.getModelSnapshotId();
             this.resultsIndexName = job.getResultsIndexNameNoPrefix();
@@ -509,8 +537,8 @@ public class Job implements ToXContentObject {
             return this;
         }
 
-        public Builder setDataDescription(DataDescription.Builder description) {
-            dataDescription = Objects.requireNonNull(description, DATA_DESCRIPTION.getPreferredName()).build();
+        public Builder setDataDescription(DataDescription.Builder descriptionBuilder) {
+            dataDescription = Objects.requireNonNull(descriptionBuilder, DATA_DESCRIPTION.getPreferredName()).build();
             return this;
         }
 
@@ -544,11 +572,6 @@ public class Job implements ToXContentObject {
             return this;
         }
 
-        public Builder setSystemAnnotationsRetentionDays(Long systemAnnotationsRetentionDays) {
-            this.systemAnnotationsRetentionDays = systemAnnotationsRetentionDays;
-            return this;
-        }
-
         public Builder setModelSnapshotId(String modelSnapshotId) {
             this.modelSnapshotId = modelSnapshotId;
             return this;
@@ -575,13 +598,30 @@ public class Job implements ToXContentObject {
          * @return The job
          */
         public Job build() {
-            Objects.requireNonNull(id,  "[" + ID.getPreferredName() + "] must not be null");
-            Objects.requireNonNull(jobType,  "[" + JOB_TYPE.getPreferredName() + "] must not be null");
+            Objects.requireNonNull(id, "[" + ID.getPreferredName() + "] must not be null");
+            Objects.requireNonNull(jobType, "[" + JOB_TYPE.getPreferredName() + "] must not be null");
             return new Job(
-                id, jobType, groups, description, createTime, finishedTime,
-                analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
-                backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-                systemAnnotationsRetentionDays, customSettings, modelSnapshotId, resultsIndexName, deleting, allowLazyOpen);
+                id,
+                jobType,
+                groups,
+                description,
+                createTime,
+                finishedTime,
+                analysisConfig,
+                analysisLimits,
+                dataDescription,
+                modelPlotConfig,
+                renormalizationWindowDays,
+                backgroundPersistInterval,
+                modelSnapshotRetentionDays,
+                dailyModelSnapshotRetentionAfterDays,
+                resultsRetentionDays,
+                customSettings,
+                modelSnapshotId,
+                resultsIndexName,
+                deleting,
+                allowLazyOpen
+            );
         }
     }
 }

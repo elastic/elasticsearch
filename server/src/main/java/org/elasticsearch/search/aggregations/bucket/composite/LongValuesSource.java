@@ -48,20 +48,36 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     private long currentValue;
     private boolean missingCurrentValue;
 
-    LongValuesSource(BigArrays bigArrays,
-                     MappedFieldType fieldType, CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
-                     LongUnaryOperator rounding, DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
-        super(bigArrays, format, fieldType, missingBucket, size, reverseMul);
+    LongValuesSource(
+        BigArrays bigArrays,
+        MappedFieldType fieldType,
+        CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
+        LongUnaryOperator rounding,
+        DocValueFormat format,
+        boolean missingBucket,
+        MissingOrder missingOrder,
+        int size,
+        int reverseMul
+    ) {
+        super(bigArrays, format, fieldType, missingBucket, missingOrder, size, reverseMul);
         this.bigArrays = bigArrays;
         this.docValuesFunc = docValuesFunc;
         this.rounding = rounding;
         this.bits = missingBucket ? new BitArray(Math.min(size, 100), bigArrays) : null;
-        this.values = bigArrays.newLongArray(Math.min(size, 100), false);
+        boolean success = false;
+        try {
+            this.values = bigArrays.newLongArray(Math.min(size, 100), false);
+            success = true;
+        } finally {
+            if (success == false) {
+                close();
+            }
+        }
     }
 
     @Override
     void copyCurrent(int slot) {
-        values = bigArrays.grow(values, slot+1);
+        values = bigArrays.grow(values, slot + 1);
         if (missingBucket && missingCurrentValue) {
             bits.clear(slot);
         } else {
@@ -77,9 +93,9 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     int compare(int from, int to) {
         if (missingBucket) {
             if (bits.get(from) == false) {
-                return bits.get(to) ? -1 * reverseMul : 0;
+                return bits.get(to) ? -1 * missingOrder.compareAnyValueToMissing(reverseMul) : 0;
             } else if (bits.get(to) == false) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(values.get(from), values.get(to));
@@ -89,9 +105,9 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     int compareCurrent(int slot) {
         if (missingBucket) {
             if (missingCurrentValue) {
-                return bits.get(slot) ? -1 * reverseMul : 0;
+                return bits.get(slot) ? -1 * missingOrder.compareAnyValueToMissing(reverseMul) : 0;
             } else if (bits.get(slot) == false) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(currentValue, values.get(slot));
@@ -101,9 +117,9 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     int compareCurrentWithAfter() {
         if (missingBucket) {
             if (missingCurrentValue) {
-                return afterValue != null ? -1 * reverseMul : 0;
+                return afterValue != null ? -1 * missingOrder.compareAnyValueToMissing(reverseMul) : 0;
             } else if (afterValue == null) {
-                return reverseMul;
+                return missingOrder.compareAnyValueToMissing(reverseMul);
             }
         }
         return compareValues(currentValue, afterValue);
@@ -137,9 +153,11 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             afterValue = null;
         } else {
             // parse the value from a string in case it is a date or a formatted unsigned long.
-            afterValue = format.parseLong(value.toString(), false, () -> {
-                throw new IllegalArgumentException("now() is not supported in [after] key");
-            });
+            afterValue = format.parseLong(
+                value.toString(),
+                false,
+                () -> { throw new IllegalArgumentException("now() is not supported in [after] key"); }
+            );
         }
     }
 
@@ -191,7 +209,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
             return extractQuery(((BoostQuery) query).getQuery());
         } else if (query instanceof IndexOrDocValuesQuery) {
             return extractQuery(((IndexOrDocValuesQuery) query).getIndexQuery());
-        } else if (query instanceof ConstantScoreQuery){
+        } else if (query instanceof ConstantScoreQuery) {
             return extractQuery(((ConstantScoreQuery) query).getQuery());
         } else {
             return query;
@@ -220,8 +238,7 @@ class LongValuesSource extends SingleDimensionValuesSource<Long> {
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
         query = extractQuery(query);
-        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false ||
-                checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
+        if (checkIfSortedDocsIsApplicable(reader, fieldType) == false || checkMatchAllOrRangeQuery(query, fieldType.name()) == false) {
             return null;
         }
         final byte[] lowerPoint;

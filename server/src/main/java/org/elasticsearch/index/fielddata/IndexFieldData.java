@@ -71,8 +71,16 @@ public interface IndexFieldData<FD extends LeafFieldData> {
     /**
      * Build a sort implementation specialized for aggregations.
      */
-    BucketedSort newBucketedSort(BigArrays bigArrays, @Nullable Object missingValue, MultiValueMode sortMode,
-            Nested nested, SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra);
+    BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    );
 
     // we need this extended source we we have custom comparators to reuse our field data
     // in this case, we need to reduce type that will be used when search results are reduced
@@ -122,7 +130,9 @@ public interface IndexFieldData<FD extends LeafFieldData> {
                 return innerQuery;
             }
 
-            public NestedSortBuilder getNestedSort() { return nestedSort; }
+            public NestedSortBuilder getNestedSort() {
+                return nestedSort;
+            }
 
             /**
              * Get a {@link BitDocIdSet} that matches the root documents.
@@ -156,57 +166,57 @@ public interface IndexFieldData<FD extends LeafFieldData> {
             if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
                 final boolean min = sortMissingFirst(missingValue) ^ reversed;
                 switch (reducedType()) {
-                case INT:
-                    return min ? Integer.MIN_VALUE : Integer.MAX_VALUE;
-                case LONG:
-                    return min ? Long.MIN_VALUE : Long.MAX_VALUE;
-                case FLOAT:
-                    return min ? Float.NEGATIVE_INFINITY : Float.POSITIVE_INFINITY;
-                case DOUBLE:
-                    return min ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
-                case STRING:
-                case STRING_VAL:
-                    return null;
-                default:
-                    throw new UnsupportedOperationException("Unsupported reduced type: " + reducedType());
+                    case INT:
+                        return min ? Integer.MIN_VALUE : Integer.MAX_VALUE;
+                    case LONG:
+                        return min ? Long.MIN_VALUE : Long.MAX_VALUE;
+                    case FLOAT:
+                        return min ? Float.NEGATIVE_INFINITY : Float.POSITIVE_INFINITY;
+                    case DOUBLE:
+                        return min ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
+                    case STRING:
+                    case STRING_VAL:
+                        return null;
+                    default:
+                        throw new UnsupportedOperationException("Unsupported reduced type: " + reducedType());
                 }
             } else {
                 switch (reducedType()) {
-                case INT:
-                    if (missingValue instanceof Number) {
-                        return ((Number) missingValue).intValue();
-                    } else {
-                        return Integer.parseInt(missingValue.toString());
-                    }
-                case LONG:
-                    if (missingValue instanceof Number) {
-                        return ((Number) missingValue).longValue();
-                    } else {
-                        return Long.parseLong(missingValue.toString());
-                    }
-                case FLOAT:
-                    if (missingValue instanceof Number) {
-                        return ((Number) missingValue).floatValue();
-                    } else {
-                        return Float.parseFloat(missingValue.toString());
-                    }
-                case DOUBLE:
-                    if (missingValue instanceof Number) {
-                        return ((Number) missingValue).doubleValue();
-                    } else {
-                        return Double.parseDouble(missingValue.toString());
-                    }
-                case STRING:
-                case STRING_VAL:
-                    if (missingValue instanceof BytesRef) {
-                        return missingValue;
-                    } else if (missingValue instanceof byte[]) {
-                        return new BytesRef((byte[]) missingValue);
-                    } else {
-                        return new BytesRef(missingValue.toString());
-                    }
-                default:
-                    throw new UnsupportedOperationException("Unsupported reduced type: " + reducedType());
+                    case INT:
+                        if (missingValue instanceof Number) {
+                            return ((Number) missingValue).intValue();
+                        } else {
+                            return Integer.parseInt(missingValue.toString());
+                        }
+                    case LONG:
+                        if (missingValue instanceof Number) {
+                            return ((Number) missingValue).longValue();
+                        } else {
+                            return Long.parseLong(missingValue.toString());
+                        }
+                    case FLOAT:
+                        if (missingValue instanceof Number) {
+                            return ((Number) missingValue).floatValue();
+                        } else {
+                            return Float.parseFloat(missingValue.toString());
+                        }
+                    case DOUBLE:
+                        if (missingValue instanceof Number) {
+                            return ((Number) missingValue).doubleValue();
+                        } else {
+                            return Double.parseDouble(missingValue.toString());
+                        }
+                    case STRING:
+                    case STRING_VAL:
+                        if (missingValue instanceof BytesRef) {
+                            return missingValue;
+                        } else if (missingValue instanceof byte[]) {
+                            return new BytesRef((byte[]) missingValue);
+                        } else {
+                            return new BytesRef(missingValue.toString());
+                        }
+                    default:
+                        throw new UnsupportedOperationException("Unsupported reduced type: " + reducedType());
                 }
             }
         }
@@ -228,8 +238,13 @@ public interface IndexFieldData<FD extends LeafFieldData> {
         /**
          * Create a {@linkplain BucketedSort} which is useful for sorting inside of aggregations.
          */
-        public abstract BucketedSort newBucketedSort(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format,
-                int bucketSize, BucketedSort.ExtraData extra);
+        public abstract BucketedSort newBucketedSort(
+            BigArrays bigArrays,
+            SortOrder sortOrder,
+            DocValueFormat format,
+            int bucketSize,
+            BucketedSort.ExtraData extra
+        );
     }
 
     interface Builder {

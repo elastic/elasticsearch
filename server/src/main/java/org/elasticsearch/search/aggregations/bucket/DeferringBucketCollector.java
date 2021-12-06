@@ -97,19 +97,22 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         @Override
         public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
             throw new IllegalStateException(
-                    "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
+                "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper."
+            );
         }
 
         @Override
         public void preCollection() throws IOException {
             throw new IllegalStateException(
-                    "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
+                "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper."
+            );
         }
 
         @Override
         public void postCollection() throws IOException {
             throw new IllegalStateException(
-                    "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
+                "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper."
+            );
         }
 
         @Override

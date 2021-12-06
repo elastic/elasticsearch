@@ -9,12 +9,16 @@
 package org.elasticsearch.gradle.internal;
 
 import groovy.lang.Closure;
+
+import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.precommit.TestingConventionsTasks;
 import org.elasticsearch.gradle.internal.test.RestTestBasePlugin;
-import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
+import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
+import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.tasks.bundling.Zip;
 
@@ -77,7 +81,29 @@ public class InternalPluginBuildPlugin implements InternalPlugin {
             if (isModule == false || isXPackModule) {
                 addNoticeGeneration(p, extension);
             }
+
+            @SuppressWarnings("unchecked")
+            NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
+                .getExtensions()
+                .getByName(TestClustersPlugin.EXTENSION_NAME);
+            p.getExtensions().getByType(PluginPropertiesExtension.class).getExtendedPlugins().forEach(pluginName -> {
+                // Auto add any dependent modules
+                findModulePath(project, pluginName).ifPresent(
+                    path -> testClusters.configureEach(elasticsearchCluster -> elasticsearchCluster.module(path))
+                );
+            });
         });
+    }
+
+    Optional<String> findModulePath(Project project, String pluginName) {
+        return project.getRootProject()
+            .getAllprojects()
+            .stream()
+            .filter(p -> GradleUtils.isModuleProject(p.getPath()))
+            .filter(p -> p.getPlugins().hasPlugin(PluginBuildPlugin.class))
+            .filter(p -> p.getExtensions().getByType(PluginPropertiesExtension.class).getName().equals(pluginName))
+            .findFirst()
+            .map(Project::getPath);
     }
 
     /**

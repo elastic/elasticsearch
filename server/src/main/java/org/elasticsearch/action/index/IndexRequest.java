@@ -14,14 +14,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -29,13 +26,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -55,8 +53,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * {@link #source(byte[], XContentType)} to be set.
  *
  * The source (content to index) can be set in its bytes form using ({@link #source(byte[], XContentType)}),
- * its string form ({@link #source(String, XContentType)}) or using a {@link org.elasticsearch.common.xcontent.XContentBuilder}
- * ({@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}).
+ * its string form ({@link #source(String, XContentType)}) or using a {@link org.elasticsearch.xcontent.XContentBuilder}
+ * ({@link #source(org.elasticsearch.xcontent.XContentBuilder)}).
  *
  * If the {@link #id(String)} is not set, it will be automatically generated.
  *
@@ -179,27 +177,33 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         final long resolvedVersion = resolveVersionDefaults();
         if (opType == OpType.CREATE) {
             if (versionType != VersionType.INTERNAL) {
-                validationException = addValidationError("create operations only support internal versioning. use index instead",
-                    validationException);
+                validationException = addValidationError(
+                    "create operations only support internal versioning. use index instead",
+                    validationException
+                );
                 return validationException;
             }
 
             if (resolvedVersion != Versions.MATCH_DELETED) {
-                validationException = addValidationError("create operations do not support explicit versions. use index instead",
-                    validationException);
+                validationException = addValidationError(
+                    "create operations do not support explicit versions. use index instead",
+                    validationException
+                );
                 return validationException;
             }
 
             if (ifSeqNo != UNASSIGNED_SEQ_NO || ifPrimaryTerm != UNASSIGNED_PRIMARY_TERM) {
-                validationException = addValidationError("create operations do not support compare and set. use index instead",
-                    validationException);
+                validationException = addValidationError(
+                    "create operations do not support compare and set. use index instead",
+                    validationException
+                );
                 return validationException;
             }
         }
 
         if (id == null) {
-            if (versionType != VersionType.INTERNAL ||
-                (resolvedVersion != Versions.MATCH_DELETED && resolvedVersion != Versions.MATCH_ANY)) {
+            if (versionType != VersionType.INTERNAL
+                || (resolvedVersion != Versions.MATCH_DELETED && resolvedVersion != Versions.MATCH_ANY)) {
                 validationException = addValidationError("an id must be provided if version type or value are set", validationException);
             }
         }
@@ -207,8 +211,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         validationException = DocWriteRequest.validateSeqNoBasedCASParams(this, validationException);
 
         if (id != null && id.getBytes(StandardCharsets.UTF_8).length > 512) {
-            validationException = addValidationError("id [" + id + "] is too long, must be no longer than 512 bytes but was: " +
-                            id.getBytes(StandardCharsets.UTF_8).length, validationException);
+            validationException = addValidationError(
+                "id [" + id + "] is too long, must be no longer than 512 bytes but was: " + id.getBytes(StandardCharsets.UTF_8).length,
+                validationException
+            );
         }
 
         if (pipeline != null && pipeline.isEmpty()) {
@@ -406,8 +412,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             throw new IllegalArgumentException("The number of object passed must be even but was [" + source.length + "]");
         }
         if (source.length == 2 && source[0] instanceof BytesReference && source[1] instanceof Boolean) {
-            throw new IllegalArgumentException("you are using the removed method for source with bytes and unsafe flag, the unsafe flag"
-                + " was removed, please just use source(BytesReference)");
+            throw new IllegalArgumentException(
+                "you are using the removed method for source with bytes and unsafe flag, the unsafe flag"
+                    + " was removed, please just use source(BytesReference)"
+            );
         }
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
@@ -477,7 +485,6 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this;
     }
 
-
     /**
      * Set to {@code true} to force this index to use {@link OpType#CREATE}.
      */
@@ -535,7 +542,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public IndexRequest setIfSeqNo(long seqNo) {
         if (seqNo < 0 && seqNo != UNASSIGNED_SEQ_NO) {
-            throw new IllegalArgumentException("sequence numbers must be non negative. got [" +  seqNo + "].");
+            throw new IllegalArgumentException("sequence numbers must be non negative. got [" + seqNo + "].");
         }
         ifSeqNo = seqNo;
         return this;
@@ -580,15 +587,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return this.versionType;
     }
 
-
-    public void process(Version indexCreatedVersion, @Nullable MappingMetadata mappingMd, String concreteIndex) {
-        if (mappingMd != null) {
-            // might as well check for routing here
-            if (mappingMd.routingRequired() && routing == null) {
-                throw new RoutingMissingException(concreteIndex, id);
-            }
-        }
-
+    @Override
+    public void process() {
         if ("".equals(id)) {
             throw new IllegalArgumentException("if _id is specified it must not be empty");
         }
@@ -604,15 +604,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
     }
 
-    /* resolve the routing if needed */
-    public void resolveRouting(Metadata metadata) {
-        routing(metadata.resolveWriteIndexRouting(routing, index));
-    }
-
     public void checkAutoIdWithOpTypeCreateSupportedByVersion(Version version) {
         if (id == null && opType == OpType.CREATE && version.before(Version.V_7_5_0)) {
-            throw new IllegalArgumentException("optype create not supported for indexing requests without explicit id until all nodes " +
-                "are on version 7.5.0 or higher");
+            throw new IllegalArgumentException(
+                "optype create not supported for indexing requests without explicit id until all nodes " + "are on version 7.5.0 or higher"
+            );
         }
     }
 
@@ -674,8 +670,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         String sSource = "_na_";
         try {
             if (source.length() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
-                sSource = "n/a, actual length: [" + new ByteSizeValue(source.length()).toString() + "], max length: " +
-                    new ByteSizeValue(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
+                sSource = "n/a, actual length: ["
+                    + new ByteSizeValue(source.length()).toString()
+                    + "], max length: "
+                    + new ByteSizeValue(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
             } else {
                 sSource = XContentHelper.convertToJson(source, false);
             }
@@ -718,6 +716,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Override
     public boolean isRequireAlias() {
         return requireAlias;
+    }
+
+    @Override
+    public int route(IndexRouting indexRouting) {
+        assert id != null : "route must be called after process";
+        return indexRouting.indexShard(id, routing, contentType, source);
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {

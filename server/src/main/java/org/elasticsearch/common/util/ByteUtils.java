@@ -8,16 +8,18 @@
 
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.store.ByteArrayDataInput;
-import org.apache.lucene.store.ByteArrayDataOutput;
-
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+import java.nio.ByteOrder;
 
 /** Utility methods to do byte-level encoding. These methods are biased towards little-endian byte order because it is the most
  *  common byte order and reading several bytes at once may be optimizable in the future with the help of sun.mist.Unsafe. */
 public enum ByteUtils {
     ;
 
-    public static final int MAX_BYTES_VLONG = 9;
+    public static final VarHandle LITTLE_ENDIAN_INT = MethodHandles.byteArrayViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
+
+    public static final VarHandle LITTLE_ENDIAN_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
     /** Zig-zag decode. */
     public static long zigZagDecode(long n) {
@@ -31,38 +33,22 @@ public enum ByteUtils {
 
     /** Write a long in little-endian format. */
     public static void writeLongLE(long l, byte[] arr, int offset) {
-        for (int i = 0; i < 8; ++i) {
-            arr[offset++] = (byte) l;
-            l >>>= 8;
-        }
-        assert l == 0;
+        LITTLE_ENDIAN_LONG.set(arr, offset, l);
     }
 
     /** Write a long in little-endian format. */
     public static long readLongLE(byte[] arr, int offset) {
-        long l = arr[offset++] & 0xFFL;
-        for (int i = 1; i < 8; ++i) {
-            l |= (arr[offset++] & 0xFFL) << (8 * i);
-        }
-        return l;
+        return (long) LITTLE_ENDIAN_LONG.get(arr, offset);
     }
 
     /** Write an int in little-endian format. */
     public static void writeIntLE(int l, byte[] arr, int offset) {
-        for (int i = 0; i < 4; ++i) {
-            arr[offset++] = (byte) l;
-            l >>>= 8;
-        }
-        assert l == 0;
+        LITTLE_ENDIAN_INT.set(arr, offset, l);
     }
 
     /** Read an int in little-endian format. */
     public static int readIntLE(byte[] arr, int offset) {
-        int l = arr[offset++] & 0xFF;
-        for (int i = 1; i < 4; ++i) {
-            l |= (arr[offset++] & 0xFF) << (8 * i);
-        }
-        return l;
+        return (int) LITTLE_ENDIAN_INT.get(arr, offset);
     }
 
     /** Write a double in little-endian format. */
@@ -83,47 +69,6 @@ public enum ByteUtils {
     /** Read a float in little-endian format. */
     public static float readFloatLE(byte[] arr, int offset) {
         return Float.intBitsToFloat(readIntLE(arr, offset));
-    }
-
-    /** Same as DataOutput#writeVLong but accepts negative values (written on 9 bytes). */
-    public static void writeVLong(ByteArrayDataOutput out, long i) {
-        for (int k = 0; k < 8 && (i & ~0x7FL) != 0L; ++k) {
-            out.writeByte((byte)((i & 0x7FL) | 0x80L));
-            i >>>= 7;
-        }
-        out.writeByte((byte)i);
-    }
-
-    /** Same as DataOutput#readVLong but can read negative values (read on 9 bytes). */
-    public static long readVLong(ByteArrayDataInput in) {
-        // unwinded because of hotspot bugs, see Lucene's impl
-        byte b = in.readByte();
-        if (b >= 0) return b;
-        long i = b & 0x7FL;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 7;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 14;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 21;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 28;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 35;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 42;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0x7FL) << 49;
-        if (b >= 0) return i;
-        b = in.readByte();
-        i |= (b & 0xFFL) << 56;
-        return i;
     }
 
 }

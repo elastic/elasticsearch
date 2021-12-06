@@ -23,9 +23,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
@@ -34,6 +32,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkDoc;
@@ -62,9 +62,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -105,7 +105,7 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
 
         // execute in the same thread
         doAnswer(invocation -> {
-            ((Runnable)invocation.getArguments()[0]).run();
+            ((Runnable) invocation.getArguments()[0]).run();
             return null;
         }).when(executor).execute(any(Runnable.class));
     }
@@ -114,9 +114,14 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         final ClusterBlocks.Builder clusterBlock = ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ALL);
         when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.DEFAULT).blocks(clusterBlock).build());
 
-        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(threadPool, clusterService,
-                                                                                       transportService, filters, exporters,
-                                                                                       monitoringService);
+        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(
+            threadPool,
+            clusterService,
+            transportService,
+            filters,
+            exporters,
+            monitoringService
+        );
 
         final MonitoringBulkRequest request = randomRequest();
         final ClusterBlockException e = expectThrows(ClusterBlockException.class, () -> ActionTestUtils.executeBlocking(action, request));
@@ -128,9 +133,14 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.DEFAULT).build());
         when(monitoringService.isMonitoringActive()).thenReturn(false);
 
-        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(threadPool, clusterService,
-                                                                                       transportService, filters, exporters,
-                                                                                       monitoringService);
+        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(
+            threadPool,
+            clusterService,
+            transportService,
+            filters,
+            exporters,
+            monitoringService
+        );
 
         final MonitoringBulkDoc doc = mock(MonitoringBulkDoc.class);
         when(doc.getSource()).thenReturn(new BytesArray("test"));
@@ -150,13 +160,20 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         // it validates the request before it tries to execute it
         when(monitoringService.isMonitoringActive()).thenReturn(randomBoolean());
 
-        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(threadPool, clusterService,
-                                                                                       transportService, filters, exporters,
-                                                                                       monitoringService);
+        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(
+            threadPool,
+            clusterService,
+            transportService,
+            filters,
+            exporters,
+            monitoringService
+        );
 
         final MonitoringBulkRequest request = new MonitoringBulkRequest();
-        final ActionRequestValidationException e = expectThrows(ActionRequestValidationException.class,
-            () -> ActionTestUtils.executeBlocking(action, request));
+        final ActionRequestValidationException e = expectThrows(
+            ActionRequestValidationException.class,
+            () -> ActionTestUtils.executeBlocking(action, request)
+        );
 
         assertThat(e, hasToString(containsString("no monitoring documents added")));
     }
@@ -165,13 +182,13 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
     public void testExecuteRequest() {
         when(monitoringService.isMonitoringActive()).thenReturn(true);
 
-        final DiscoveryNode discoveryNode =  new DiscoveryNode("_id", new TransportAddress(TransportAddress.META_ADDRESS, 9300), CURRENT);
+        final DiscoveryNode discoveryNode = new DiscoveryNode("_id", new TransportAddress(TransportAddress.META_ADDRESS, 9300), CURRENT);
         when(clusterService.localNode()).thenReturn(discoveryNode);
 
         final String clusterUUID = UUIDs.randomBase64UUID();
-        when(clusterService.state()).thenReturn(ClusterState.builder(ClusterName.DEFAULT)
-                                                            .metadata(Metadata.builder().clusterUUID(clusterUUID).build())
-                                                            .build());
+        when(clusterService.state()).thenReturn(
+            ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().clusterUUID(clusterUUID).build()).build()
+        );
 
         final MonitoringBulkRequest request = new MonitoringBulkRequest();
 
@@ -215,9 +232,14 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(exporters).export(any(Collection.class), any(ActionListener.class));
 
-        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(threadPool, clusterService,
-                                                                                       transportService, filters, exporters,
-                                                                                       monitoringService);
+        final TransportMonitoringBulkAction action = new TransportMonitoringBulkAction(
+            threadPool,
+            clusterService,
+            transportService,
+            filters,
+            exporters,
+            monitoringService
+        );
         ActionTestUtils.executeBlocking(action, request);
 
         verify(threadPool).executor(ThreadPool.Names.GENERIC);
@@ -237,9 +259,15 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             }
         }
 
-        final Collection<MonitoringDoc> results =
-                new TransportMonitoringBulkAction.AsyncAction(threadPool, null, null, null, null, 0L, null)
-                        .createMonitoringDocs(bulkDocs);
+        final Collection<MonitoringDoc> results = new TransportMonitoringBulkAction.AsyncAction(
+            threadPool,
+            null,
+            null,
+            null,
+            null,
+            0L,
+            null
+        ).createMonitoringDocs(bulkDocs);
 
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo(0));
@@ -270,9 +298,15 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             when(mockBulkDoc.getXContentType()).thenReturn(xContentType);
         }
 
-        final Collection<MonitoringDoc> exportedDocs =
-                new TransportMonitoringBulkAction.AsyncAction(threadPool, null, null, null, "_cluster", 123L, node)
-                        .createMonitoringDocs(docs);
+        final Collection<MonitoringDoc> exportedDocs = new TransportMonitoringBulkAction.AsyncAction(
+            threadPool,
+            null,
+            null,
+            null,
+            "_cluster",
+            123L,
+            node
+        ).createMonitoringDocs(docs);
 
         assertThat(exportedDocs, notNullValue());
         assertThat(exportedDocs.size(), equalTo(nbDocs));
@@ -288,11 +322,17 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
     }
 
     public void testAsyncActionCreateMonitoringDocWithNoTimestamp() {
-        final MonitoringBulkDoc monitoringBulkDoc =
-            new MonitoringBulkDoc(MonitoredSystem.LOGSTASH, "_type", "_id", 0L, 0L, BytesArray.EMPTY, XContentType.JSON);
-        final MonitoringDoc monitoringDoc =
-            new TransportMonitoringBulkAction.AsyncAction(threadPool, null, null, null, "", 456L, null)
-                    .createMonitoringDoc(monitoringBulkDoc);
+        final MonitoringBulkDoc monitoringBulkDoc = new MonitoringBulkDoc(
+            MonitoredSystem.LOGSTASH,
+            "_type",
+            "_id",
+            0L,
+            0L,
+            BytesArray.EMPTY,
+            XContentType.JSON
+        );
+        final MonitoringDoc monitoringDoc = new TransportMonitoringBulkAction.AsyncAction(threadPool, null, null, null, "", 456L, null)
+            .createMonitoringDoc(monitoringBulkDoc);
 
         assertThat(monitoringDoc.getTimestamp(), equalTo(456L));
     }
@@ -301,40 +341,53 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
 
         final XContentType xContentType = randomFrom(XContentType.values());
-        final BytesReference source = BytesReference.bytes(XContentBuilder.builder(xContentType.xContent())
-                                                        .startObject()
-                                                            .startObject("_foo")
-                                                                .field("_bar", "_baz")
-                                                            .endObject()
-                                                        .endObject());
+        final BytesReference source = BytesReference.bytes(
+            XContentBuilder.builder(xContentType.xContent()).startObject().startObject("_foo").field("_bar", "_baz").endObject().endObject()
+        );
 
-        final MonitoringBulkDoc monitoringBulkDoc =
-                new MonitoringBulkDoc(MonitoredSystem.LOGSTASH, "_type", "_id", 1502107402133L, 15_000L, source, xContentType);
+        final MonitoringBulkDoc monitoringBulkDoc = new MonitoringBulkDoc(
+            MonitoredSystem.LOGSTASH,
+            "_type",
+            "_id",
+            1502107402133L,
+            15_000L,
+            source,
+            xContentType
+        );
 
-        final MonitoringDoc monitoringDoc =
-                new TransportMonitoringBulkAction.AsyncAction(threadPool, null, null, null, "_cluster_uuid", 3L, node)
-                        .createMonitoringDoc(monitoringBulkDoc);
+        final MonitoringDoc monitoringDoc = new TransportMonitoringBulkAction.AsyncAction(
+            threadPool,
+            null,
+            null,
+            null,
+            "_cluster_uuid",
+            3L,
+            node
+        ).createMonitoringDoc(monitoringBulkDoc);
 
         final BytesReference xContent = XContentHelper.toXContent(monitoringDoc, XContentType.JSON, randomBoolean());
-        assertEquals("{"
-                    + "\"cluster_uuid\":\"_cluster_uuid\","
-                    + "\"timestamp\":\"2017-08-07T12:03:22.133Z\","
-                    + "\"interval_ms\":15000,"
-                    + "\"type\":\"_type\","
-                    + "\"source_node\":{"
-                        + "\"uuid\":\"_uuid\","
-                        + "\"host\":\"_host\","
-                        + "\"transport_address\":\"_addr\","
-                        + "\"ip\":\"_ip\","
-                        + "\"name\":\"_name\","
-                        + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
-                    + "},"
-                    + "\"_type\":{"
-                        + "\"_foo\":{"
-                            + "\"_bar\":\"_baz\""
-                        + "}"
-                    + "}"
-                + "}" , xContent.utf8ToString());
+        assertEquals(
+            "{"
+                + "\"cluster_uuid\":\"_cluster_uuid\","
+                + "\"timestamp\":\"2017-08-07T12:03:22.133Z\","
+                + "\"interval_ms\":15000,"
+                + "\"type\":\"_type\","
+                + "\"source_node\":{"
+                + "\"uuid\":\"_uuid\","
+                + "\"host\":\"_host\","
+                + "\"transport_address\":\"_addr\","
+                + "\"ip\":\"_ip\","
+                + "\"name\":\"_name\","
+                + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
+                + "},"
+                + "\"_type\":{"
+                + "\"_foo\":{"
+                + "\"_bar\":\"_baz\""
+                + "}"
+                + "}"
+                + "}",
+            xContent.utf8ToString()
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -354,8 +407,15 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             return Void.TYPE;
         }).when(exporters).export(any(Collection.class), any(ActionListener.class));
 
-        final TransportMonitoringBulkAction.AsyncAction asyncAction =
-                new TransportMonitoringBulkAction.AsyncAction(threadPool, null, null, exporters, null, 0L, null);
+        final TransportMonitoringBulkAction.AsyncAction asyncAction = new TransportMonitoringBulkAction.AsyncAction(
+            threadPool,
+            null,
+            null,
+            exporters,
+            null,
+            0L,
+            null
+        );
 
         asyncAction.executeExport(docs, randomNonNegativeLong(), listener);
 
@@ -371,12 +431,17 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
             docs.add(mock(MonitoringDoc.class));
         }
 
-        doThrow(new IllegalStateException("something went wrong"))
-                .when(exporters)
-                    .export(any(Collection.class), any(ActionListener.class));
+        doThrow(new IllegalStateException("something went wrong")).when(exporters).export(any(Collection.class), any(ActionListener.class));
 
-        final TransportMonitoringBulkAction.AsyncAction asyncAction =
-                new TransportMonitoringBulkAction.AsyncAction(threadPool, null, null, exporters, null, 0L, null);
+        final TransportMonitoringBulkAction.AsyncAction asyncAction = new TransportMonitoringBulkAction.AsyncAction(
+            threadPool,
+            null,
+            null,
+            exporters,
+            null,
+            0L,
+            null
+        );
 
         asyncAction.executeExport(docs, randomNonNegativeLong(), listener);
 

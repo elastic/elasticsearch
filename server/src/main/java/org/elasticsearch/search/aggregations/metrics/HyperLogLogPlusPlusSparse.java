@@ -8,11 +8,11 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  * AbstractHyperLogLogPlusPlus instance that only supports linear counting. The maximum number of hashes supported
@@ -180,8 +180,7 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
         int size, value;
         private long pos;
 
-        LinearCountingIterator() {
-        }
+        LinearCountingIterator() {}
 
         void reset(IntArray values, int size) {
             this.values = values;

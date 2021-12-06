@@ -26,7 +26,7 @@ public class RareTermsIT extends ESRestTestCase {
 
     private static final String index = "idx";
 
-    private int indexDocs(int numDocs, int id) throws Exception  {
+    private int indexDocs(int numDocs, int id) throws Exception {
         final Request request = new Request("POST", "/_bulk");
         final StringBuilder builder = new StringBuilder();
         for (int i = 0; i < numDocs; ++i) {

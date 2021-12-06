@@ -9,15 +9,15 @@ package org.elasticsearch.client.rollup.job.config;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,8 +25,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This class holds the configuration details of a rollup job, such as the groupings, metrics, what
@@ -70,20 +70,26 @@ public class RollupJobConfig implements Validatable, ToXContentObject {
         PARSER.declareString(constructorArg(), new ParseField(ROLLUP_INDEX));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> GroupConfig.fromXContent(p), new ParseField(GroupConfig.NAME));
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> MetricConfig.fromXContent(p), new ParseField(MetricConfig.NAME));
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), TIMEOUT),
-            new ParseField(TIMEOUT), ObjectParser.ValueType.STRING_OR_NULL);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), TIMEOUT),
+            new ParseField(TIMEOUT),
+            ObjectParser.ValueType.STRING_OR_NULL
+        );
         PARSER.declareString(constructorArg(), new ParseField(CRON));
         PARSER.declareInt(constructorArg(), new ParseField(PAGE_SIZE));
     }
 
-    public RollupJobConfig(final String id,
-                           final String indexPattern,
-                           final String rollupIndex,
-                           final String cron,
-                           final int pageSize,
-                           final GroupConfig groupConfig,
-                           final List<MetricConfig> metricsConfig,
-                           final @Nullable TimeValue timeout) {
+    public RollupJobConfig(
+        final String id,
+        final String indexPattern,
+        final String rollupIndex,
+        final String cron,
+        final int pageSize,
+        final GroupConfig groupConfig,
+        final List<MetricConfig> metricsConfig,
+        final @Nullable TimeValue timeout
+    ) {
         this.id = id;
         this.indexPattern = indexPattern;
         this.rollupIndex = rollupIndex;

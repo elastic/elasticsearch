@@ -9,22 +9,21 @@ package org.elasticsearch.xpack.security.rest.action.enrollment;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentRequest;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentResponse;
-import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
 
-public final class RestNodeEnrollmentAction extends SecurityBaseRestHandler {
+public final class RestNodeEnrollmentAction extends EnrollmentBaseRestHandler {
 
     /**
      * @param settings the node's settings
@@ -34,25 +33,28 @@ public final class RestNodeEnrollmentAction extends SecurityBaseRestHandler {
         super(settings, licenseState);
     }
 
-    @Override public String getName() {
+    @Override
+    public String getName() {
         return "node_enroll_action";
     }
 
-    @Override public List<Route> routes() {
-        return List.of(
-            new Route(RestRequest.Method.GET, "_security/enroll/node")
-        );
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(RestRequest.Method.GET, "_security/enroll/node"));
     }
 
-    @Override protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        return restChannel -> client.execute(NodeEnrollmentAction.INSTANCE,
+    @Override
+    protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
+        return restChannel -> client.execute(
+            NodeEnrollmentAction.INSTANCE,
             new NodeEnrollmentRequest(),
             new RestBuilderListener<NodeEnrollmentResponse>(restChannel) {
-                @Override public RestResponse buildResponse(
-                    NodeEnrollmentResponse nodeEnrollmentResponse, XContentBuilder builder) throws Exception {
+                @Override
+                public RestResponse buildResponse(NodeEnrollmentResponse nodeEnrollmentResponse, XContentBuilder builder) throws Exception {
                     nodeEnrollmentResponse.toXContent(builder, channel.request());
                     return new BytesRestResponse(RestStatus.OK, builder);
                 }
-            });
+            }
+        );
     }
 }

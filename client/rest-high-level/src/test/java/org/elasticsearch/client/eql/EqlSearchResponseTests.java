@@ -11,16 +11,16 @@ package org.elasticsearch.client.eql;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.RandomObjects;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,7 +34,8 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elasticsearch.xpack.eql.action.EqlSearchResponse,
+public class EqlSearchResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.xpack.eql.action.EqlSearchResponse,
     EqlSearchResponse> {
 
     private static class RandomSource implements ToXContentObject {
@@ -97,8 +98,14 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
                 if (fetchFields.isEmpty() && randomBoolean()) {
                     fetchFields = null;
                 }
-                hits.add(new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event(String.valueOf(i), randomAlphaOfLength(10), bytes,
-                    fetchFields));
+                hits.add(
+                    new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Event(
+                        String.valueOf(i),
+                        randomAlphaOfLength(10),
+                        bytes,
+                        fetchFields
+                    )
+                );
             }
         }
         if (randomBoolean()) {
@@ -120,10 +127,18 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
                 DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
                 return Tuple.tuple(listField, listField);
             case 2:
-                List<Object> objectValues = randomList(1, 5, () ->
-                    Map.of(randomAlphaOfLength(5), randomInt(),
-                        randomAlphaOfLength(5), randomBoolean(),
-                        randomAlphaOfLength(5), randomAlphaOfLength(10)));
+                List<Object> objectValues = randomList(
+                    1,
+                    5,
+                    () -> Map.of(
+                        randomAlphaOfLength(5),
+                        randomInt(),
+                        randomAlphaOfLength(5),
+                        randomBoolean(),
+                        randomAlphaOfLength(5),
+                        randomAlphaOfLength(10)
+                    )
+                );
                 DocumentField objectField = new DocumentField(randomAlphaOfLength(5), objectValues);
                 return Tuple.tuple(objectField, objectField);
             default:
@@ -139,13 +154,21 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
         if (randomBoolean()) {
             return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
         } else {
-            return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(),
-                randomAlphaOfLength(10), randomBoolean(), randomBoolean());
+            return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(
+                hits,
+                randomIntBetween(0, 1001),
+                randomBoolean(),
+                randomAlphaOfLength(10),
+                randomBoolean(),
+                randomBoolean()
+            );
         }
     }
 
-    public static org.elasticsearch.xpack.eql.action.EqlSearchResponse createRandomSequencesResponse(TotalHits totalHits,
-                                                                                                     XContentType xType) {
+    public static org.elasticsearch.xpack.eql.action.EqlSearchResponse createRandomSequencesResponse(
+        TotalHits totalHits,
+        XContentType xType
+    ) {
         int size = randomIntBetween(1, 10);
         List<org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence> seq = null;
         if (randomBoolean()) {
@@ -166,17 +189,23 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
         if (randomBoolean()) {
             return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean());
         } else {
-            return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(hits, randomIntBetween(0, 1001), randomBoolean(),
-                randomAlphaOfLength(10), randomBoolean(), randomBoolean());
+            return new org.elasticsearch.xpack.eql.action.EqlSearchResponse(
+                hits,
+                randomIntBetween(0, 1001),
+                randomBoolean(),
+                randomAlphaOfLength(10),
+                randomBoolean(),
+                randomBoolean()
+            );
         }
     }
 
     private static List<Supplier<Object[]>> getKeysGenerators() {
         List<Supplier<Object[]>> randoms = new ArrayList<>();
         randoms.add(() -> generateRandomStringArray(6, 11, false));
-        randoms.add(() -> randomArray(0, 6, Integer[]::new, ()-> randomInt()));
-        randoms.add(() -> randomArray(0, 6, Long[]::new, ()-> randomLong()));
-        randoms.add(() -> randomArray(0, 6, Boolean[]::new, ()-> randomBoolean()));
+        randoms.add(() -> randomArray(0, 6, Integer[]::new, () -> randomInt()));
+        randoms.add(() -> randomArray(0, 6, Long[]::new, () -> randomLong()));
+        randoms.add(() -> randomArray(0, 6, Boolean[]::new, () -> randomBoolean()));
 
         return randoms;
     }
@@ -209,7 +238,9 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
 
     @Override
     protected void assertInstances(
-        org.elasticsearch.xpack.eql.action.EqlSearchResponse serverTestInstance, EqlSearchResponse clientInstance) {
+        org.elasticsearch.xpack.eql.action.EqlSearchResponse serverTestInstance,
+        EqlSearchResponse clientInstance
+    ) {
         assertThat(serverTestInstance.took(), is(clientInstance.took()));
         assertThat(serverTestInstance.isTimeout(), is(clientInstance.isTimeout()));
         assertThat(serverTestInstance.hits().totalHits(), is(clientInstance.hits().totalHits()));
@@ -223,8 +254,10 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
         } else {
             assertThat(serverTestInstance.hits().sequences().size(), equalTo(clientInstance.hits().sequences().size()));
             for (int i = 0; i < serverTestInstance.hits().sequences().size(); i++) {
-                assertThat(serverTestInstance.hits().sequences().get(i).joinKeys(),
-                    is(clientInstance.hits().sequences().get(i).joinKeys()));
+                assertThat(
+                    serverTestInstance.hits().sequences().get(i).joinKeys(),
+                    is(clientInstance.hits().sequences().get(i).joinKeys())
+                );
                 assertEvents(serverTestInstance.hits().sequences().get(i).events(), clientInstance.hits().sequences().get(i).events());
             }
         }
@@ -236,8 +269,7 @@ public class EqlSearchResponseTests extends AbstractResponseTestCase<org.elastic
     ) {
         assertThat(serverEvents.size(), equalTo(clientEvents.size()));
         for (int j = 0; j < serverEvents.size(); j++) {
-            assertThat(
-                SourceLookup.sourceAsMap(serverEvents.get(j).source()), is(clientEvents.get(j).sourceAsMap()));
+            assertThat(SourceLookup.sourceAsMap(serverEvents.get(j).source()), is(clientEvents.get(j).sourceAsMap()));
         }
     }
 }

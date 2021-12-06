@@ -39,10 +39,15 @@ public final class TrimProcessor extends AbstractStringProcessor<String> {
         }
 
         @Override
-        protected TrimProcessor newProcessor(String tag, String description, Map<String, Object> config, String field,
-                                             boolean ignoreMissing, String targetField) {
+        protected TrimProcessor newProcessor(
+            String tag,
+            String description,
+            Map<String, Object> config,
+            String field,
+            boolean ignoreMissing,
+            String targetField
+        ) {
             return new TrimProcessor(tag, description, field, ignoreMissing, targetField);
         }
     }
 }
-

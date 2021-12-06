@@ -32,8 +32,7 @@ public class CancellableThreadsTests extends ESTestCase {
         }
     }
 
-    static class ThrowOnCancelException extends RuntimeException {
-    }
+    static class ThrowOnCancelException extends RuntimeException {}
 
     private class TestPlan {
         public final int id;
@@ -157,15 +156,19 @@ public class CancellableThreadsTests extends ESTestCase {
             }
             assertThat(interrupted[plan.id], equalTo(plan.presetInterrupt));
         }
-        assertThat(invokeTimes.longValue(),
-            equalTo(Arrays.stream(plans).filter(p -> p.exceptBeforeCancel == false && p.exitBeforeCancel == false).count()));
+        assertThat(
+            invokeTimes.longValue(),
+            equalTo(Arrays.stream(plans).filter(p -> p.exceptBeforeCancel == false && p.exitBeforeCancel == false).count())
+        );
         if (throwInOnCancel) {
             expectThrows(ThrowOnCancelException.class, cancellableThreads::checkForCancel);
         } else {
             expectThrows(ExecutionCancelledException.class, cancellableThreads::checkForCancel);
         }
-        assertThat(invokeTimes.longValue(),
-            equalTo(Arrays.stream(plans).filter(p -> p.exceptBeforeCancel == false && p.exitBeforeCancel == false).count() + 1));
+        assertThat(
+            invokeTimes.longValue(),
+            equalTo(Arrays.stream(plans).filter(p -> p.exceptBeforeCancel == false && p.exitBeforeCancel == false).count() + 1)
+        );
     }
 
 }

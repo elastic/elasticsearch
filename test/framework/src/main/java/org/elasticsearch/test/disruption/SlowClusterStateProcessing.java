@@ -8,6 +8,7 @@
 package org.elasticsearch.test.disruption;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.core.TimeValue;
@@ -27,7 +28,6 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
     final long delayDurationMin;
     final long delayDurationMax;
 
-
     public SlowClusterStateProcessing(Random random) {
         this(null, random);
     }
@@ -36,22 +36,31 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
         this(disruptedNode, random, 100, 200, 300, 20000);
     }
 
-    public SlowClusterStateProcessing(String disruptedNode, Random random, long intervalBetweenDelaysMin,
-                                      long intervalBetweenDelaysMax, long delayDurationMin, long delayDurationMax) {
+    public SlowClusterStateProcessing(
+        String disruptedNode,
+        Random random,
+        long intervalBetweenDelaysMin,
+        long intervalBetweenDelaysMax,
+        long delayDurationMin,
+        long delayDurationMax
+    ) {
         this(random, intervalBetweenDelaysMin, intervalBetweenDelaysMax, delayDurationMin, delayDurationMax);
         this.disruptedNode = disruptedNode;
     }
 
-    public SlowClusterStateProcessing(Random random,
-                                      long intervalBetweenDelaysMin, long intervalBetweenDelaysMax, long delayDurationMin,
-                                      long delayDurationMax) {
+    public SlowClusterStateProcessing(
+        Random random,
+        long intervalBetweenDelaysMin,
+        long intervalBetweenDelaysMax,
+        long delayDurationMin,
+        long delayDurationMax
+    ) {
         super(random);
         this.intervalBetweenDelaysMin = intervalBetweenDelaysMin;
         this.intervalBetweenDelaysMax = intervalBetweenDelaysMax;
         this.delayDurationMin = delayDurationMin;
         this.delayDurationMax = delayDurationMax;
     }
-
 
     @Override
     public void startDisrupting() {
@@ -77,7 +86,6 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
         worker = null;
     }
 
-
     private boolean interruptClusterStateProcessing(final TimeValue duration) throws InterruptedException {
         final String disruptionNodeCopy = disruptedNode;
         if (disruptionNodeCopy == null) {
@@ -90,23 +98,29 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
             return false;
         }
         final AtomicBoolean stopped = new AtomicBoolean(false);
-        clusterService.getClusterApplierService().runOnApplierThread("service_disruption_delay",
-            currentState -> {
-                try {
-                    long count = duration.millis() / 200;
-                    // wait while checking for a stopped
-                    for (; count > 0 && stopped.get() == false; count--) {
-                        Thread.sleep(200);
-                    }
-                    if (stopped.get() == false) {
-                        Thread.sleep(duration.millis() % 200);
-                    }
-                    countDownLatch.countDown();
-                } catch (InterruptedException e) {
-                    ExceptionsHelper.reThrowIfNotNull(e);
+        clusterService.getClusterApplierService().runOnApplierThread("service_disruption_delay", Priority.IMMEDIATE, currentState -> {
+            try {
+                long count = duration.millis() / 200;
+                // wait while checking for a stopped
+                for (; count > 0 && stopped.get() == false; count--) {
+                    Thread.sleep(200);
                 }
-            }, (source, e) -> countDownLatch.countDown(),
-            Priority.IMMEDIATE);
+                if (stopped.get() == false) {
+                    Thread.sleep(duration.millis() % 200);
+                }
+                countDownLatch.countDown();
+            } catch (InterruptedException e) {
+                ExceptionsHelper.reThrowIfNotNull(e);
+            }
+        }, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {}
+
+            @Override
+            public void onFailure(Exception e) {
+                countDownLatch.countDown();
+            }
+        });
         try {
             countDownLatch.await();
         } catch (InterruptedException e) {
@@ -139,14 +153,14 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
                         continue;
                     }
                     if (intervalBetweenDelaysMax > 0) {
-                        duration = new TimeValue(intervalBetweenDelaysMin
-                                + random.nextInt((int) (intervalBetweenDelaysMax - intervalBetweenDelaysMin)));
+                        duration = new TimeValue(
+                            intervalBetweenDelaysMin + random.nextInt((int) (intervalBetweenDelaysMax - intervalBetweenDelaysMin))
+                        );
                         if (disrupting && disruptedNode != null) {
                             Thread.sleep(duration.millis());
                         }
                     }
-                } catch (InterruptedException e) {
-                } catch (Exception e) {
+                } catch (InterruptedException e) {} catch (Exception e) {
                     logger.error("error in background worker", e);
                 }
             }

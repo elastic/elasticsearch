@@ -16,7 +16,7 @@ public class FetchPhaseTests extends ESTestCase {
         int start = randomIntBetween(0, Short.MAX_VALUE);
         for (int i = 0; i < 10; i++) {
             docs[i] = new FetchPhase.DocIdToIndex(start, i);
-            ++ start;
+            ++start;
         }
         assertTrue(FetchPhase.hasSequentialDocs(docs));
 

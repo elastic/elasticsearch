@@ -10,12 +10,12 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.logging.JsonLogLine;
 import org.elasticsearch.common.logging.JsonLogsStream;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.hamcrest.FeatureMatcher;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.xcontent.ObjectPath.eval;
+import static org.elasticsearch.xcontent.ObjectPath.eval;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -72,8 +72,10 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             Map<?, ?> response = toMap(client().performRequest(statsRequest));
             assertThat(eval("auto_follow_stats.number_of_successful_follow_indices", response), equalTo(1));
             assertThat(eval("auto_follow_stats.number_of_failed_remote_cluster_state_requests", response), greaterThanOrEqualTo(1));
-            assertThat(eval("auto_follow_stats.recent_auto_follow_errors.0.auto_follow_exception.reason", response),
-                containsString("the license mode [BASIC] on cluster [leader_cluster] does not enable [ccr]"));
+            assertThat(
+                eval("auto_follow_stats.recent_auto_follow_errors.0.auto_follow_exception.reason", response),
+                containsString("the license mode [BASIC] on cluster [leader_cluster] does not enable [ccr]")
+            );
 
             // Follow indices actively following leader indices before the downgrade to basic license remain to follow
             // the leader index after the downgrade, so document with id 5 should be replicated to follower index:
@@ -105,14 +107,17 @@ public class FollowIndexIT extends ESCCRRestTestCase {
 
             @Override
             protected Boolean featureValueOf(JsonLogLine actual) {
-                return actual.getLevel().equals("WARN") &&
-                    actual.getComponent().contains("AutoFollowCoordinator") &&
-                    actual.getNodeName().startsWith("follow-cluster-0") &&
-                    actual.getMessage().contains("failure occurred while fetching cluster state for auto follow pattern [test_pattern]") &&
-                    actual.stacktrace().get(0)
-                          .contains("org.elasticsearch.ElasticsearchStatusException: can not fetch remote cluster state " +
-                        "as the remote cluster [leader_cluster] is not licensed for [ccr]; the license mode [BASIC]" +
-                        " on cluster [leader_cluster] does not enable [ccr]");
+                return actual.getLevel().equals("WARN")
+                    && actual.getComponent().contains("AutoFollowCoordinator")
+                    && actual.getNodeName().startsWith("follow-cluster-0")
+                    && actual.getMessage().contains("failure occurred while fetching cluster state for auto follow pattern [test_pattern]")
+                    && actual.stacktrace()
+                        .get(0)
+                        .contains(
+                            "org.elasticsearch.ElasticsearchStatusException: can not fetch remote cluster state "
+                                + "as the remote cluster [leader_cluster] is not licensed for [ccr]; the license mode [BASIC]"
+                                + " on cluster [leader_cluster] does not enable [ccr]"
+                        );
             }
         };
     }
@@ -131,9 +136,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
 }

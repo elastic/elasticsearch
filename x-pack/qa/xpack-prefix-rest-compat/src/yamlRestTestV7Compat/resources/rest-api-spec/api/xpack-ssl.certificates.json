@@ -1,0 +1,28 @@
+{
+  "xpack-ssl.certificates":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-ssl.html",
+      "description":"Retrieves information about the X.509 certificates used to encrypt communications in the cluster."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/ssl/certificates",
+          "methods":[
+            "GET"
+          ],
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}

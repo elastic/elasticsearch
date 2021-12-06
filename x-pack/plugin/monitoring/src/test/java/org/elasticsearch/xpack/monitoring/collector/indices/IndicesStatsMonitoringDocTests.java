@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
@@ -22,6 +21,7 @@ import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.exporter.BaseFilteredMonitoringDocTestCase;
@@ -47,18 +47,30 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        indicesStats = Collections.singletonList(new IndexStats("index-0", "dcvO5uZATE-EhIKc3tk9Bg", new ShardStats[] {
-                // Primaries
-                new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null, null),
-                new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null, null),
-                // Replica
-                new ShardStats(mockShardRouting(false), mockShardPath(), mockCommonStats(), null, null, null)
-        }));
+        indicesStats = Collections.singletonList(
+            new IndexStats(
+                "index-0",
+                "dcvO5uZATE-EhIKc3tk9Bg",
+                new ShardStats[] {
+                    // Primaries
+                    new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null, null),
+                    new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null, null),
+                    // Replica
+                    new ShardStats(mockShardRouting(false), mockShardPath(), mockCommonStats(), null, null, null) }
+            )
+        );
     }
 
     @Override
-    protected IndicesStatsMonitoringDoc createMonitoringDoc(String cluster, long timestamp, long interval, MonitoringDoc.Node node,
-                                                            MonitoredSystem system, String type, String id) {
+    protected IndicesStatsMonitoringDoc createMonitoringDoc(
+        String cluster,
+        long timestamp,
+        long interval,
+        MonitoringDoc.Node node,
+        MonitoredSystem system,
+        String type,
+        String id
+    ) {
         return new IndicesStatsMonitoringDoc(cluster, timestamp, interval, node, indicesStats);
     }
 
@@ -83,8 +95,13 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
     @Override
     public void testToXContent() throws IOException {
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
-        final IndicesStatsMonitoringDoc document =
-                new IndicesStatsMonitoringDoc("_cluster", 1502266739402L, 1506593717631L, node, indicesStats);
+        final IndicesStatsMonitoringDoc document = new IndicesStatsMonitoringDoc(
+            "_cluster",
+            1502266739402L,
+            1506593717631L,
+            node,
+            indicesStats
+        );
 
         final BytesReference xContent = XContentHelper.toXContent(document, XContentType.JSON, false);
         final String expected = XContentHelper.stripWhitespace(
@@ -183,7 +200,7 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
         final Path getFileNameShardId = mock(Path.class);
         when(getFileNameShardId.toString()).thenReturn(Integer.toString(shardId));
 
-        final String shardUuid =  randomAlphaOfLength(5);
+        final String shardUuid = randomAlphaOfLength(5);
         final Path getFileNameShardUuid = mock(Path.class);
         when(getFileNameShardUuid.toString()).thenReturn(shardUuid);
 

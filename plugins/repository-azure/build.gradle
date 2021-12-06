@@ -1,4 +1,5 @@
 import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.PropertyNormalization
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 
@@ -12,7 +13,7 @@ import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-test-artifact-base'
 
@@ -112,6 +113,13 @@ tasks.named("dependencyLicenses").configure {
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+
     // from reactory-netty metric collection
     'io.micrometer.core.instrument.Clock',
     'io.micrometer.core.instrument.Counter',
@@ -197,6 +205,8 @@ tasks.named("thirdPartyAudit").configure {
     'com.jcraft.jzlib.JZlib$WrapperType',
     'com.jcraft.jzlib.JZlib',
 
+    'com.github.luben.zstd.Zstd',
+
     // from io.netty.handler.codec.compression.LzfDecoder
     // from io.netty.handler.codec.compression.LzfEncoder (netty-codec)
     'com.ning.compress.BufferRecycler',
@@ -222,6 +232,8 @@ tasks.named("thirdPartyAudit").configure {
     'org.conscrypt.HandshakeListener',
 
     // from io.netty.handler.ssl.OpenSslEngine (netty)
+    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.AsyncTask',
     'io.netty.internal.tcnative.Buffer',
     'io.netty.internal.tcnative.Library',
     'io.netty.internal.tcnative.SSL',
@@ -229,6 +241,7 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.internal.tcnative.SSLPrivateKeyMethod',
     'io.netty.internal.tcnative.CertificateCallback',
     'io.netty.internal.tcnative.CertificateVerifier',
+    'io.netty.internal.tcnative.ResultCallback',
     'io.netty.internal.tcnative.SessionTicketKey',
     'io.netty.internal.tcnative.SniHostNameMatcher',
     'io.netty.internal.tcnative.SSLSession',
@@ -350,7 +363,9 @@ testClusters.matching { it.name == "yamlRestTest" }.configureEach {
     if (useFixture) {
       setting 'azure.client.integration_test.endpoint_suffix', azureAddress
       String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
-      setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), System.getProperty('ignore.tests.seed') == null ? DEFAULT : IGNORE_VALUE
+
+      def ignoreTestSeed = providers.systemProperty('ignore.tests.seed').forUseAtConfigurationTime().isPresent() ? PropertyNormalization.IGNORE_VALUE : PropertyNormalization.DEFAULT
+      setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), ignoreTestSeed
     }
 }
 

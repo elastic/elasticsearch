@@ -169,10 +169,10 @@ class InjectorBuilder {
      */
     public void loadEagerSingletons(InjectorImpl injector, Stage stage, Errors errors) {
         for (final Binding<?> binding : injector.state.getExplicitBindingsThisLevel().values()) {
-            loadEagerSingletons(injector, stage, errors, (BindingImpl<?>)binding);
+            loadEagerSingletons(injector, stage, errors, (BindingImpl<?>) binding);
         }
         for (final Binding<?> binding : injector.jitBindings.values()) {
-            loadEagerSingletons(injector, stage, errors, (BindingImpl<?>)binding);
+            loadEagerSingletons(injector, stage, errors, (BindingImpl<?>) binding);
         }
     }
 

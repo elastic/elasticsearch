@@ -39,7 +39,7 @@ public final class DocValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) throws IOException {
+    public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) throws IOException {
         if (false == formattedDocValues.advanceExact(lookup.docId())) {
             return emptyList();
         }

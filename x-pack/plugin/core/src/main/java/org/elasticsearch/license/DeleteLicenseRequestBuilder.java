@@ -11,8 +11,10 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 
-public class DeleteLicenseRequestBuilder extends AcknowledgedRequestBuilder<DeleteLicenseRequest, AcknowledgedResponse,
-        DeleteLicenseRequestBuilder> {
+public class DeleteLicenseRequestBuilder extends AcknowledgedRequestBuilder<
+    DeleteLicenseRequest,
+    AcknowledgedResponse,
+    DeleteLicenseRequestBuilder> {
 
     public DeleteLicenseRequestBuilder(ElasticsearchClient client) {
         this(client, DeleteLicenseAction.INSTANCE);

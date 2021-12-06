@@ -49,7 +49,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         createIndex(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
 
         final int nbDocs = randomIntBetween(1_000, 10_000);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), nbDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), nbDocs)) {
             waitForDocs(nbDocs, indexer);
         }
         refresh(index);
@@ -96,7 +96,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
             final long cacheSize = FrozenCacheService.calculateCacheSize(clusterService.getSettings(), totalFsSize);
             assertThat(nodeCachesStats.getSize(), equalTo(cacheSize));
 
-            final long regionSize = FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
+            final long regionSize = FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
             assertThat(nodeCachesStats.getRegionSize(), equalTo(regionSize));
 
             assertThat(nodeCachesStats.getNumRegions(), equalTo(Math.toIntExact(cacheSize / regionSize)));

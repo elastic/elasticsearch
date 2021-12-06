@@ -106,9 +106,11 @@ public class EsField {
             return false;
         }
         EsField field = (EsField) o;
-        return aggregatable == field.aggregatable && isAlias == field.isAlias && esDataType == field.esDataType
-                && Objects.equals(name, field.name)
-                && Objects.equals(properties, field.properties);
+        return aggregatable == field.aggregatable
+            && isAlias == field.isAlias
+            && esDataType == field.esDataType
+            && Objects.equals(name, field.name)
+            && Objects.equals(properties, field.properties);
     }
 
     @Override

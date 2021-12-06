@@ -30,8 +30,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -73,12 +73,23 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
         }
         int numCoordinatorStats = randomIntBetween(0, 8);
         List<CoordinatorStats> coordinatorStats = new ArrayList<>(numCoordinatorStats);
+        List<EnrichStatsAction.Response.CacheStats> cacheStats = new ArrayList<>(numCoordinatorStats);
         for (int i = 0; i < numCoordinatorStats; i++) {
+            String nodeId = randomAlphaOfLength(4);
             coordinatorStats.add(
                 new CoordinatorStats(
-                    randomAlphaOfLength(4),
+                    nodeId,
                     randomIntBetween(0, Integer.MAX_VALUE),
                     randomIntBetween(0, Integer.MAX_VALUE),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                )
+            );
+            cacheStats.add(
+                new EnrichStatsAction.Response.CacheStats(
+                    nodeId,
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong()
                 )
@@ -87,7 +98,7 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
 
         @SuppressWarnings("unchecked")
         final ActionFuture<EnrichStatsAction.Response> future = (ActionFuture<EnrichStatsAction.Response>) mock(ActionFuture.class);
-        final EnrichStatsAction.Response response = new EnrichStatsAction.Response(executingPolicies, coordinatorStats);
+        final EnrichStatsAction.Response response = new EnrichStatsAction.Response(executingPolicies, coordinatorStats, cacheStats);
 
         when(client.execute(eq(EnrichStatsAction.INSTANCE), any(EnrichStatsAction.Request.class))).thenReturn(future);
         when(future.actionGet(timeout)).thenReturn(response);
@@ -129,6 +140,11 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
             assertThat(actual.getId(), nullValue());
             assertThat(actual.getExecutingPolicy(), equalTo(expected));
         }
+
+        assertWarnings(
+            "[xpack.monitoring.collection.enrich.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private EnrichStatsCollector createCollector(ClusterService clusterService, XPackLicenseState licenseState, Client client) {

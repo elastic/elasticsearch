@@ -103,14 +103,6 @@
           "type": "string",
           "minLength": 1
         },
-        "versions": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^v?\\d+\\.\\d+\\.\\d+$",
-            "minItems": 1
-          }
-        },
         "highlight": {
           "$ref": "#/definitions/Highlight"
         },
@@ -123,8 +115,7 @@
       },
       "required": [
         "type",
-        "summary",
-        "versions"
+        "summary"
       ]
     },
     "Highlight": {
@@ -166,6 +157,9 @@
         },
         "notable": {
           "type": "boolean"
+        },
+        "ess_setting_change": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -188,6 +182,9 @@
         "body": {
           "type": "string",
           "minLength": 1
+        },
+        "ess_setting_change": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -200,33 +197,18 @@
     "breakingArea": {
       "type": "string",
       "enum": [
-        "API",
-        "Aggregation",
-        "Allocation",
-        "Authentication",
-        "CCR",
-        "Cluster",
-        "Discovery",
-        "Engine",
-        "HTTP",
-        "Highlighters",
-        "Indices",
-        "Java",
-        "License Information",
+        "Cluster and node setting",
+        "Command line tool",
+        "Index setting",
+        "JVM option",
+        "Java API",
         "Logging",
-        "Machine Learning",
-        "Mappings",
-        "Networking",
+        "Mapping",
         "Packaging",
-        "Plugins",
-        "Script Cache",
-        "Search Changes",
-        "Search",
-        "Security",
-        "Settings",
-        "Snapshot and Restore",
-        "Transform",
-        "Transport"
+        "Painless",
+        "REST API",
+        "System requirement",
+        "Transform"
       ]
     },
     "additionalProperties": false

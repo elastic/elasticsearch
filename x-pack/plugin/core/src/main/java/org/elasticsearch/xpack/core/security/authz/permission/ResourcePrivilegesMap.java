@@ -66,8 +66,8 @@ public final class ResourcePrivilegesMap {
         private Map<String, ResourcePrivileges.Builder> resourceToResourcePrivilegesBuilder = new LinkedHashMap<>();
 
         public Builder addResourcePrivilege(String resource, String privilege, Boolean allowed) {
-            assert resource != null && privilege != null
-                    && allowed != null : "resource, privilege and permission(allowed or denied) are required";
+            assert resource != null && privilege != null && allowed != null
+                : "resource, privilege and permission(allowed or denied) are required";
             ResourcePrivileges.Builder builder = resourceToResourcePrivilegesBuilder.computeIfAbsent(resource, ResourcePrivileges::builder);
             builder.addPrivilege(privilege, allowed);
             allowAll = allowAll && allowed;
@@ -83,14 +83,17 @@ public final class ResourcePrivilegesMap {
         }
 
         public Builder addResourcePrivilegesMap(ResourcePrivilegesMap resourcePrivilegesMap) {
-            resourcePrivilegesMap.getResourceToResourcePrivileges().entrySet().stream()
-                    .forEach(e -> this.addResourcePrivilege(e.getKey(), e.getValue().getPrivileges()));
+            resourcePrivilegesMap.getResourceToResourcePrivileges()
+                .entrySet()
+                .stream()
+                .forEach(e -> this.addResourcePrivilege(e.getKey(), e.getValue().getPrivileges()));
             return this;
         }
 
         public ResourcePrivilegesMap build() {
-            Map<String, ResourcePrivileges> result = resourceToResourcePrivilegesBuilder.entrySet().stream()
-                    .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().build()));
+            Map<String, ResourcePrivileges> result = resourceToResourcePrivilegesBuilder.entrySet()
+                .stream()
+                .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().build()));
             return new ResourcePrivilegesMap(allowAll, result);
         }
     }

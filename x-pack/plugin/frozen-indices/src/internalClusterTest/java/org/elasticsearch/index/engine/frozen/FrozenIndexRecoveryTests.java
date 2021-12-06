@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
@@ -48,10 +47,7 @@ public class FrozenIndexRecoveryTests extends ESIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         List<String> dataNodes = randomSubsetOf(
             2,
-            Sets.newHashSet(clusterService().state().nodes().getDataNodes().valuesIt())
-                .stream()
-                .map(DiscoveryNode::getName)
-                .collect(Collectors.toSet())
+            clusterService().state().nodes().getDataNodes().values().stream().map(DiscoveryNode::getName).collect(Collectors.toSet())
         );
         createIndex(
             indexName,

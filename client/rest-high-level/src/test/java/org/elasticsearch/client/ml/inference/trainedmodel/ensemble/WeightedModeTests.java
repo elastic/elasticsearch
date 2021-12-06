@@ -7,21 +7,21 @@
  */
 package org.elasticsearch.client.ml.inference.trainedmodel.ensemble;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 
 public class WeightedModeTests extends AbstractXContentTestCase<WeightedMode> {
 
     WeightedMode createTestInstance(int numberOfWeights) {
         return new WeightedMode(
             randomIntBetween(2, 10),
-            Stream.generate(ESTestCase::randomDouble).limit(numberOfWeights).collect(Collectors.toList()));
+            Stream.generate(ESTestCase::randomDouble).limit(numberOfWeights).collect(Collectors.toList())
+        );
     }
 
     @Override

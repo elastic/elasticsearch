@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.audit;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.security.audit.AuditLevel;
 
 import java.util.Collections;
 import java.util.EnumSet;

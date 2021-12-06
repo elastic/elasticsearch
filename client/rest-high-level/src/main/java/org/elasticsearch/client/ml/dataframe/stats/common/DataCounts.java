@@ -8,17 +8,17 @@
 
 package org.elasticsearch.client.ml.dataframe.stats.common;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.inject.internal.ToStringBuilder;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class DataCounts implements ToXContentObject {
 
@@ -28,17 +28,12 @@ public class DataCounts implements ToXContentObject {
     public static final ParseField TEST_DOCS_COUNT = new ParseField("test_docs_count");
     public static final ParseField SKIPPED_DOCS_COUNT = new ParseField("skipped_docs_count");
 
-    public static final ConstructingObjectParser<DataCounts, Void> PARSER = new ConstructingObjectParser<>(TYPE_VALUE, true,
-        a -> {
-            Long trainingDocsCount = (Long) a[0];
-            Long testDocsCount = (Long) a[1];
-            Long skippedDocsCount = (Long) a[2];
-            return new DataCounts(
-                getOrDefault(trainingDocsCount, 0L),
-                getOrDefault(testDocsCount, 0L),
-                getOrDefault(skippedDocsCount, 0L)
-            );
-        });
+    public static final ConstructingObjectParser<DataCounts, Void> PARSER = new ConstructingObjectParser<>(TYPE_VALUE, true, a -> {
+        Long trainingDocsCount = (Long) a[0];
+        Long testDocsCount = (Long) a[1];
+        Long skippedDocsCount = (Long) a[2];
+        return new DataCounts(getOrDefault(trainingDocsCount, 0L), getOrDefault(testDocsCount, 0L), getOrDefault(skippedDocsCount, 0L));
+    });
 
     static {
         PARSER.declareLong(optionalConstructorArg(), TRAINING_DOCS_COUNT);
@@ -83,8 +78,7 @@ public class DataCounts implements ToXContentObject {
 
     @Override
     public String toString() {
-        return new ToStringBuilder(getClass())
-            .add(TRAINING_DOCS_COUNT.getPreferredName(), trainingDocsCount)
+        return new ToStringBuilder(getClass()).add(TRAINING_DOCS_COUNT.getPreferredName(), trainingDocsCount)
             .add(TEST_DOCS_COUNT.getPreferredName(), testDocsCount)
             .add(SKIPPED_DOCS_COUNT.getPreferredName(), skippedDocsCount)
             .toString();

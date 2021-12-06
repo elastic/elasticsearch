@@ -30,8 +30,9 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.stream.Collectors;
 
-public class TransportPutSamlServiceProviderAction
-    extends HandledTransportAction<PutSamlServiceProviderRequest, PutSamlServiceProviderResponse> {
+public class TransportPutSamlServiceProviderAction extends HandledTransportAction<
+    PutSamlServiceProviderRequest,
+    PutSamlServiceProviderResponse> {
 
     private final Logger logger = LogManager.getLogger();
     private final SamlServiceProviderIndex index;
@@ -39,13 +40,22 @@ public class TransportPutSamlServiceProviderAction
     private final Clock clock;
 
     @Inject
-    public TransportPutSamlServiceProviderAction(TransportService transportService, ActionFilters actionFilters,
-                                                 SamlServiceProviderIndex index, SamlIdentityProvider identityProvider) {
+    public TransportPutSamlServiceProviderAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        SamlServiceProviderIndex index,
+        SamlIdentityProvider identityProvider
+    ) {
         this(transportService, actionFilters, index, identityProvider, Clock.systemUTC());
     }
 
-    TransportPutSamlServiceProviderAction(TransportService transportService, ActionFilters actionFilters,
-                                          SamlServiceProviderIndex index, SamlIdentityProvider identityProvider, Clock clock) {
+    TransportPutSamlServiceProviderAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        SamlServiceProviderIndex index,
+        SamlIdentityProvider identityProvider,
+        Clock clock
+    ) {
         super(PutSamlServiceProviderAction.NAME, transportService, actionFilters, PutSamlServiceProviderRequest::new);
         this.index = index;
         this.identityProvider = identityProvider;
@@ -53,8 +63,11 @@ public class TransportPutSamlServiceProviderAction
     }
 
     @Override
-    protected void doExecute(Task task, final PutSamlServiceProviderRequest request,
-                             final ActionListener<PutSamlServiceProviderResponse> listener) {
+    protected void doExecute(
+        Task task,
+        final PutSamlServiceProviderRequest request,
+        final ActionListener<PutSamlServiceProviderResponse> listener
+    ) {
         final SamlServiceProviderDocument document = request.getDocument();
         if (document.docId != null) {
             listener.onFailure(new IllegalArgumentException("request document must not have an id [" + document.docId + "]"));
@@ -82,16 +95,25 @@ public class TransportPutSamlServiceProviderAction
                 logger.trace("Found existing ServiceProvider for EntityID=[{}], writing to doc [{}]", document.entityId, document.docId);
                 writeDocument(document, DocWriteRequest.OpType.INDEX, request.getRefreshPolicy(), listener);
             } else {
-                logger.warn("Found multiple existing service providers in [{}] with entity id [{}] - [{}]",
-                    index, document.entityId, matchingDocuments.stream().map(d -> d.getDocument().docId).collect(Collectors.joining(",")));
-                listener.onFailure(new IllegalStateException(
-                    "Multiple service providers already exist with entity id [" + document.entityId + "]"));
+                logger.warn(
+                    "Found multiple existing service providers in [{}] with entity id [{}] - [{}]",
+                    index,
+                    document.entityId,
+                    matchingDocuments.stream().map(d -> d.getDocument().docId).collect(Collectors.joining(","))
+                );
+                listener.onFailure(
+                    new IllegalStateException("Multiple service providers already exist with entity id [" + document.entityId + "]")
+                );
             }
         }, listener::onFailure));
     }
 
-    private void writeDocument(SamlServiceProviderDocument document, DocWriteRequest.OpType opType,
-                               WriteRequest.RefreshPolicy refreshPolicy, ActionListener<PutSamlServiceProviderResponse> listener) {
+    private void writeDocument(
+        SamlServiceProviderDocument document,
+        DocWriteRequest.OpType opType,
+        WriteRequest.RefreshPolicy refreshPolicy,
+        ActionListener<PutSamlServiceProviderResponse> listener
+    ) {
 
         final Instant now = clock.instant();
         if (document.created == null || opType == DocWriteRequest.OpType.CREATE) {
@@ -104,16 +126,24 @@ public class TransportPutSamlServiceProviderAction
             return;
         }
         logger.debug("[{}] service provider [{}] in document [{}] of [{}]", opType, document.entityId, document.docId, index);
-        index.writeDocument(document, opType, refreshPolicy, ActionListener.wrap(
-            response -> listener.onResponse(new PutSamlServiceProviderResponse(
-                response.getId(),
-                response.getResult() == DocWriteResponse.Result.CREATED,
-                response.getSeqNo(),
-                response.getPrimaryTerm(),
-                document.entityId,
-                document.enabled)),
-            listener::onFailure
-        ));
+        index.writeDocument(
+            document,
+            opType,
+            refreshPolicy,
+            ActionListener.wrap(
+                response -> listener.onResponse(
+                    new PutSamlServiceProviderResponse(
+                        response.getId(),
+                        response.getResult() == DocWriteResponse.Result.CREATED,
+                        response.getSeqNo(),
+                        response.getPrimaryTerm(),
+                        document.entityId,
+                        document.enabled
+                    )
+                ),
+                listener::onFailure
+            )
+        );
     }
 
     private String deriveDocumentId(SamlServiceProviderDocument document) {

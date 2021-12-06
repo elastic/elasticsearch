@@ -12,10 +12,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
+
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Standard test case for testing wire serialization. If the class being tested
@@ -84,8 +85,8 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      */
     protected void assertEqualInstances(T expectedInstance, T newInstance) {
         assertNotSame(newInstance, expectedInstance);
-        assertThat(expectedInstance, Matchers.equalTo(newInstance));
-        assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
+        assertThat(newInstance, equalTo(expectedInstance));
+        assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
     }
 
     protected final T copyInstance(T instance) throws IOException {

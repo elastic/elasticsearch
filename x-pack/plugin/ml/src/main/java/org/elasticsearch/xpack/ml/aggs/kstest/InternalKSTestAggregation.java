@@ -7,9 +7,10 @@
 
 package org.elasticsearch.xpack.ml.aggs.kstest;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -26,6 +27,11 @@ public class InternalKSTestAggregation extends InternalAggregation {
         this.modeValues = modeValues;
     }
 
+    public InternalKSTestAggregation(StreamInput in) throws IOException {
+        super(in);
+        this.modeValues = in.readMap(StreamInput::readString, StreamInput::readDouble);
+    }
+
     @Override
     public String getWriteableName() {
         return BucketCountKSTestAggregationBuilder.NAME.getPreferredName();
@@ -34,6 +40,10 @@ public class InternalKSTestAggregation extends InternalAggregation {
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeMap(modeValues, StreamOutput::writeString, StreamOutput::writeDouble);
+    }
+
+    Map<String, Double> getModeValues() {
+        return modeValues;
     }
 
     @Override

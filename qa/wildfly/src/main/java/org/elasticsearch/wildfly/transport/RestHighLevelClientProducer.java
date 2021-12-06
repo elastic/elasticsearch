@@ -22,6 +22,7 @@ import javax.enterprise.inject.Produces;
 public final class RestHighLevelClientProducer {
 
     @Produces
+    @SuppressWarnings("removal")
     public RestHighLevelClient createRestHighLevelClient() {
         String httpUri = System.getProperty("elasticsearch.uri");
 

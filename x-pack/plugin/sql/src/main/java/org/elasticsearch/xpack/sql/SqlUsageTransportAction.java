@@ -36,18 +36,27 @@ public class SqlUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final Client client;
 
     @Inject
-    public SqlUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   XPackLicenseState licenseState, Client client) {
-        super(XPackUsageFeatureAction.SQL.name(), transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver);
+    public SqlUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        XPackLicenseState licenseState,
+        Client client
+    ) {
+        super(XPackUsageFeatureAction.SQL.name(), transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
         this.licenseState = licenseState;
         this.client = client;
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
         SqlStatsRequest sqlRequest = new SqlStatsRequest();
         sqlRequest.includeStats(true);
         sqlRequest.setParentTask(clusterService.localNode().getId(), task.getId());

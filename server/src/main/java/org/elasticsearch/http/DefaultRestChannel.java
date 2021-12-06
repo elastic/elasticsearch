@@ -9,16 +9,16 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -54,9 +54,16 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     @Nullable
     private final HttpTracer tracerLog;
 
-    DefaultRestChannel(HttpChannel httpChannel, HttpRequest httpRequest, RestRequest request, BigArrays bigArrays,
-                       HttpHandlingSettings settings, ThreadContext threadContext, CorsHandler corsHandler,
-                       @Nullable HttpTracer tracerLog) {
+    DefaultRestChannel(
+        HttpChannel httpChannel,
+        HttpRequest httpRequest,
+        RestRequest request,
+        BigArrays bigArrays,
+        HttpHandlingSettings settings,
+        ThreadContext threadContext,
+        CorsHandler corsHandler,
+        @Nullable HttpTracer tracerLog
+    ) {
         super(request, settings.getDetailedErrorsEnabled());
         this.httpChannel = httpChannel;
         this.httpRequest = httpRequest;
@@ -98,8 +105,8 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                     finalContent = BytesArray.EMPTY;
                 }
             } catch (IllegalArgumentException ignored) {
-                assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED :
-                    "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
+                assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED
+                    : "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
             }
 
             final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);

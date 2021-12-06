@@ -17,13 +17,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -37,6 +30,14 @@ import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggreg
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -52,7 +53,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
-import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -69,9 +69,13 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
      */
     protected abstract SignificanceHeuristic getHeuristic();
 
+    protected Version randomVersion() {
+        return VersionUtils.randomVersion(random());
+    }
+
     // test that stream output can actually be read - does not replace bwc test
     public void testStreamResponse() throws Exception {
-        Version version = randomVersion(random());
+        Version version = randomVersion();
         InternalMappedSignificantTerms<?, ?> sigTerms = getRandomSignificantTerms(getHeuristic());
 
         // write
@@ -100,12 +104,28 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
 
     InternalMappedSignificantTerms<?, ?> getRandomSignificantTerms(SignificanceHeuristic heuristic) {
         if (randomBoolean()) {
-            SignificantLongTerms.Bucket bucket = new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY,
-                    DocValueFormat.RAW, randomDoubleBetween(0, 100, true));
+            SignificantLongTerms.Bucket bucket = new SignificantLongTerms.Bucket(
+                1,
+                2,
+                3,
+                4,
+                123,
+                InternalAggregations.EMPTY,
+                DocValueFormat.RAW,
+                randomDoubleBetween(0, 100, true)
+            );
             return new SignificantLongTerms("some_name", 1, 1, null, DocValueFormat.RAW, 10, 20, heuristic, singletonList(bucket));
         } else {
-            SignificantStringTerms.Bucket bucket = new SignificantStringTerms.Bucket(new BytesRef("someterm"), 1, 2, 3, 4,
-                    InternalAggregations.EMPTY, DocValueFormat.RAW, randomDoubleBetween(0, 100, true));
+            SignificantStringTerms.Bucket bucket = new SignificantStringTerms.Bucket(
+                new BytesRef("someterm"),
+                1,
+                2,
+                3,
+                4,
+                InternalAggregations.EMPTY,
+                DocValueFormat.RAW,
+                randomDoubleBetween(0, 100, true)
+            );
             return new SignificantStringTerms("some_name", 1, 1, null, DocValueFormat.RAW, 10, 20, heuristic, singletonList(bucket));
         }
     }
@@ -144,8 +164,7 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
             long c = randomLong();
             long d = randomLong();
             score = heuristic.getScore(a, b, c, d);
-        } catch (IllegalArgumentException e) {
-        }
+        } catch (IllegalArgumentException e) {}
         assertThat(score, greaterThanOrEqualTo(0.0));
     }
 
@@ -160,10 +179,8 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
 
     public void testParseFromString() throws IOException {
         SignificanceHeuristic significanceHeuristic = getHeuristic();
-        try (XContentBuilder builder = JsonXContent.contentBuilder()){
-            builder.startObject()
-                .field("field", "text")
-                .field("min_doc_count", "200");
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject().field("field", "text").field("min_doc_count", "200");
             significanceHeuristic.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
             try (XContentParser stParser = createParser(builder)) {
@@ -186,7 +203,7 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
 
     public void testParseFailure() throws IOException {
         SignificanceHeuristic significanceHeuristic = getHeuristic();
-        try (XContentBuilder builder = JsonXContent.contentBuilder()){
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject()
                 .field("field", "text")
                 .startObject(significanceHeuristic.getWriteableName())
@@ -208,9 +225,9 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
     // Create aggregations as they might come from three different shards and return as list.
     private List<InternalAggregation> createInternalAggregations() {
         SignificanceHeuristic significanceHeuristic = getHeuristic();
-        AbstractSignificanceHeuristicTestCase.TestAggFactory<?, ?> factory = randomBoolean() ?
-            new AbstractSignificanceHeuristicTestCase.StringTestAggFactory() :
-            new AbstractSignificanceHeuristicTestCase.LongTestAggFactory();
+        AbstractSignificanceHeuristicTestCase.TestAggFactory<?, ?> factory = randomBoolean()
+            ? new AbstractSignificanceHeuristicTestCase.StringTestAggFactory()
+            : new AbstractSignificanceHeuristicTestCase.LongTestAggFactory();
 
         List<InternalAggregation> aggs = new ArrayList<>();
         aggs.add(factory.createAggregation(significanceHeuristic, 4, 10, 1, (f, i) -> f.createBucket(4, 4, 5, 10, 0)));
@@ -220,10 +237,14 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
     }
 
     private abstract class TestAggFactory<A extends InternalSignificantTerms<A, B>, B extends InternalSignificantTerms.Bucket<B>> {
-        final A createAggregation(SignificanceHeuristic significanceHeuristic, long subsetSize, long supersetSize, int bucketCount,
-                BiFunction<TestAggFactory<?, B>, Integer, B> bucketFactory) {
-            List<B> buckets = IntStream.range(0, bucketCount).mapToObj(i -> bucketFactory.apply(this, i))
-                    .collect(Collectors.toList());
+        final A createAggregation(
+            SignificanceHeuristic significanceHeuristic,
+            long subsetSize,
+            long supersetSize,
+            int bucketCount,
+            BiFunction<TestAggFactory<?, B>, Integer, B> bucketFactory
+        ) {
+            List<B> buckets = IntStream.range(0, bucketCount).mapToObj(i -> bucketFactory.apply(this, i)).collect(Collectors.toList());
             return createAggregation(significanceHeuristic, subsetSize, supersetSize, buckets);
         }
 
@@ -231,32 +252,76 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
 
         abstract B createBucket(long subsetDF, long subsetSize, long supersetDF, long supersetSize, long label);
     }
+
     private class StringTestAggFactory extends TestAggFactory<SignificantStringTerms, SignificantStringTerms.Bucket> {
         @Override
-        SignificantStringTerms createAggregation(SignificanceHeuristic significanceHeuristic, long subsetSize, long supersetSize,
-                List<SignificantStringTerms.Bucket> buckets) {
-            return new SignificantStringTerms("sig_terms", 2, -1,
-                    emptyMap(), DocValueFormat.RAW, subsetSize, supersetSize, significanceHeuristic, buckets);
+        SignificantStringTerms createAggregation(
+            SignificanceHeuristic significanceHeuristic,
+            long subsetSize,
+            long supersetSize,
+            List<SignificantStringTerms.Bucket> buckets
+        ) {
+            return new SignificantStringTerms(
+                "sig_terms",
+                2,
+                -1,
+                emptyMap(),
+                DocValueFormat.RAW,
+                subsetSize,
+                supersetSize,
+                significanceHeuristic,
+                buckets
+            );
         }
 
         @Override
         SignificantStringTerms.Bucket createBucket(long subsetDF, long subsetSize, long supersetDF, long supersetSize, long label) {
-            return new SignificantStringTerms.Bucket(new BytesRef(Long.toString(label).getBytes(StandardCharsets.UTF_8)), subsetDF,
-                    subsetSize, supersetDF, supersetSize, InternalAggregations.EMPTY, DocValueFormat.RAW, 0);
+            return new SignificantStringTerms.Bucket(
+                new BytesRef(Long.toString(label).getBytes(StandardCharsets.UTF_8)),
+                subsetDF,
+                subsetSize,
+                supersetDF,
+                supersetSize,
+                InternalAggregations.EMPTY,
+                DocValueFormat.RAW,
+                0
+            );
         }
     }
+
     private class LongTestAggFactory extends TestAggFactory<SignificantLongTerms, SignificantLongTerms.Bucket> {
         @Override
-        SignificantLongTerms createAggregation(SignificanceHeuristic significanceHeuristic, long subsetSize, long supersetSize,
-                List<SignificantLongTerms.Bucket> buckets) {
-            return new SignificantLongTerms("sig_terms", 2, -1, emptyMap(), DocValueFormat.RAW,
-                    subsetSize, supersetSize, significanceHeuristic, buckets);
+        SignificantLongTerms createAggregation(
+            SignificanceHeuristic significanceHeuristic,
+            long subsetSize,
+            long supersetSize,
+            List<SignificantLongTerms.Bucket> buckets
+        ) {
+            return new SignificantLongTerms(
+                "sig_terms",
+                2,
+                -1,
+                emptyMap(),
+                DocValueFormat.RAW,
+                subsetSize,
+                supersetSize,
+                significanceHeuristic,
+                buckets
+            );
         }
 
         @Override
         SignificantLongTerms.Bucket createBucket(long subsetDF, long subsetSize, long supersetDF, long supersetSize, long label) {
-            return new SignificantLongTerms.Bucket(subsetDF, subsetSize, supersetDF, supersetSize, label, InternalAggregations.EMPTY,
-                DocValueFormat.RAW, 0);
+            return new SignificantLongTerms.Bucket(
+                subsetDF,
+                subsetSize,
+                supersetDF,
+                supersetSize,
+                label,
+                InternalAggregations.EMPTY,
+                DocValueFormat.RAW,
+                0
+            );
         }
     }
 
@@ -318,7 +383,7 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
         }
         try {
             int idx = randomInt(3);
-            long[] values = {1, 2, 3, 4};
+            long[] values = { 1, 2, 3, 4 };
             values[idx] *= -1;
             heuristicIsSuperset.getScore(values[0], values[1], values[2], values[3]);
             fail();
@@ -342,7 +407,7 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
         }
         try {
             int idx = randomInt(3);
-            long[] values = {1, 2, 3, 4};
+            long[] values = { 1, 2, 3, 4 };
             values[idx] *= -1;
             heuristicNotSuperset.getScore(values[0], values[1], values[2], values[3]);
             fail();
@@ -355,7 +420,7 @@ public abstract class AbstractSignificanceHeuristicTestCase extends ESTestCase {
     protected void testAssertions(SignificanceHeuristic heuristic) {
         try {
             int idx = randomInt(3);
-            long[] values = {1, 2, 3, 4};
+            long[] values = { 1, 2, 3, 4 };
             values[idx] *= -1;
             heuristic.getScore(values[0], values[1], values[2], values[3]);
             fail();

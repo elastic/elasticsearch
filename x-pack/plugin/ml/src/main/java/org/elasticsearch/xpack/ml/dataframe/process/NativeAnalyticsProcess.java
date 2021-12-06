@@ -11,9 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.process.NativeController;
@@ -35,12 +35,27 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
 
     private final AnalyticsProcessConfig config;
 
-    protected NativeAnalyticsProcess(String jobId, NativeController nativeController, ProcessPipes processPipes,
-                                     int numberOfFields, List<Path> filesToDelete, Consumer<String> onProcessCrash,
-                                     AnalyticsProcessConfig config,
-                                     NamedXContentRegistry namedXContentRegistry) {
-        super(NAME, AnalyticsResult.PARSER, jobId, nativeController, processPipes, numberOfFields, filesToDelete, onProcessCrash,
-            namedXContentRegistry);
+    protected NativeAnalyticsProcess(
+        String jobId,
+        NativeController nativeController,
+        ProcessPipes processPipes,
+        int numberOfFields,
+        List<Path> filesToDelete,
+        Consumer<String> onProcessCrash,
+        AnalyticsProcessConfig config,
+        NamedXContentRegistry namedXContentRegistry
+    ) {
+        super(
+            NAME,
+            AnalyticsResult.PARSER,
+            jobId,
+            nativeController,
+            processPipes,
+            numberOfFields,
+            filesToDelete,
+            onProcessCrash,
+            namedXContentRegistry
+        );
         this.config = Objects.requireNonNull(config);
     }
 
@@ -55,8 +70,7 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
     }
 
     @Override
-    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
-    }
+    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {}
 
     @Override
     public void writeEndOfDataMessage() throws IOException {
@@ -81,7 +95,8 @@ public class NativeAnalyticsProcess extends AbstractNativeAnalyticsProcess<Analy
                 // We fetch the documents one at a time because all together they can amount to too much memory
                 SearchResponse stateResponse = client.prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
                     .setSize(1)
-                    .setQuery(QueryBuilders.idsQuery().addIds(stateDocIdPrefix + ++docNum)).get();
+                    .setQuery(QueryBuilders.idsQuery().addIds(stateDocIdPrefix + ++docNum))
+                    .get();
                 if (stateResponse.getHits().getHits().length == 0) {
                     break;
                 }

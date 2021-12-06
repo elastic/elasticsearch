@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -18,10 +19,11 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -32,9 +34,11 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
+import org.elasticsearch.xpack.core.monitoring.MonitoringDeprecatedSettings;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsAction;
@@ -69,13 +73,25 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin {
 
-    public static final Setting<Boolean> MIGRATION_DECOMMISSION_ALERTS = boolSetting("xpack.monitoring.migration.decommission_alerts",
-        false, Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Boolean> MIGRATION_DECOMMISSION_ALERTS = boolSetting(
+        "xpack.monitoring.migration.decommission_alerts",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope,
+        Setting.Property.DeprecatedWarning
+    );
+
+    public static final LicensedFeature.Momentary MONITORING_CLUSTER_ALERTS_FEATURE = LicensedFeature.momentary(
+        "monitoring",
+        "cluster-alerts",
+        License.OperationMode.STANDARD
+    );
 
     protected final Settings settings;
 
@@ -86,33 +102,57 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     }
 
     // overridable by tests
-    protected SSLService getSslService() { return XPackPlugin.getSharedSslService(); }
-    protected XPackLicenseState getLicenseState() { return XPackPlugin.getSharedLicenseState(); }
-    protected LicenseService getLicenseService() { return XPackPlugin.getSharedLicenseService(); }
+    protected SSLService getSslService() {
+        return XPackPlugin.getSharedSslService();
+    }
+
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
+    }
+
+    protected LicenseService getLicenseService() {
+        return XPackPlugin.getSharedLicenseService();
+    }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         final CleanerService cleanerService = new CleanerService(settings, clusterSettings, threadPool, getLicenseState());
         final SSLService dynamicSSLService = getSslService().createDynamicSSLService();
         final MonitoringMigrationCoordinator migrationCoordinator = new MonitoringMigrationCoordinator();
 
         Map<String, Exporter.Factory> exporterFactories = new HashMap<>();
-        exporterFactories.put(HttpExporter.TYPE, config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext(),
-            migrationCoordinator));
+        exporterFactories.put(
+            HttpExporter.TYPE,
+            config -> new HttpExporter(config, dynamicSSLService, threadPool.getThreadContext(), migrationCoordinator)
+        );
         exporterFactories.put(LocalExporter.TYPE, config -> new LocalExporter(config, client, migrationCoordinator, cleanerService));
-        exporters = new Exporters(settings, exporterFactories, clusterService, getLicenseState(), threadPool.getThreadContext(),
-            dynamicSSLService);
+        exporters = new Exporters(
+            settings,
+            exporterFactories,
+            clusterService,
+            getLicenseState(),
+            threadPool.getThreadContext(),
+            dynamicSSLService
+        );
 
         Set<Collector> collectors = new HashSet<>();
         collectors.add(new IndexStatsCollector(clusterService, getLicenseState(), client));
         collectors.add(
-            new ClusterStatsCollector(settings, clusterService, getLicenseState(), client, getLicenseService(), expressionResolver));
+            new ClusterStatsCollector(settings, clusterService, getLicenseState(), client, getLicenseService(), expressionResolver)
+        );
         collectors.add(new ShardsCollector(clusterService, getLicenseState()));
         collectors.add(new NodeStatsCollector(clusterService, getLicenseState(), client));
         collectors.add(new IndexRecoveryCollector(clusterService, getLicenseState(), client));
@@ -123,7 +163,17 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         final MonitoringService monitoringService = new MonitoringService(settings, clusterService, threadPool, collectors, exporters);
 
         var usageServices = new MonitoringUsageServices(monitoringService, exporters);
-        return Arrays.asList(monitoringService, exporters, migrationCoordinator, cleanerService, usageServices);
+
+        MonitoringTemplateRegistry templateRegistry = new MonitoringTemplateRegistry(
+            settings,
+            clusterService,
+            threadPool,
+            client,
+            xContentRegistry
+        );
+        templateRegistry.initialize();
+
+        return Arrays.asList(monitoringService, exporters, migrationCoordinator, cleanerService, usageServices, templateRegistry);
     }
 
     @Override
@@ -134,13 +184,20 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
             new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class),
             new ActionHandler<>(MonitoringMigrateAlertsAction.INSTANCE, TransportMonitoringMigrateAlertsAction.class),
             usageAction,
-            infoAction);
+            infoAction
+        );
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         return List.of(new RestMonitoringBulkAction(), new RestMonitoringMigrateAlertsAction());
     }
 
@@ -151,6 +208,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         settings.add(MonitoringService.ENABLED);
         settings.add(MonitoringService.ELASTICSEARCH_COLLECTION_ENABLED);
         settings.add(MonitoringService.INTERVAL);
+        settings.add(MonitoringTemplateRegistry.MONITORING_TEMPLATES_ENABLED);
         settings.add(Collector.INDICES);
         settings.add(ClusterStatsCollector.CLUSTER_STATS_TIMEOUT);
         settings.add(IndexRecoveryCollector.INDEX_RECOVERY_TIMEOUT);
@@ -162,6 +220,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
         settings.add(EnrichStatsCollector.STATS_TIMEOUT);
         settings.addAll(Exporters.getSettings());
         settings.add(Monitoring.MIGRATION_DECOMMISSION_ALERTS);
+        settings.addAll(MonitoringDeprecatedSettings.getSettings());
         return Collections.unmodifiableList(settings);
     }
 
@@ -178,5 +237,18 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
             final Settings settingsForChangedExporter = settings.filter(x -> x.startsWith("xpack.monitoring.exporters." + changedExporter));
             exporters.setExportersSetting(settingsForChangedExporter);
         }
+    }
+
+    @Override
+    public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
+        return map -> {
+            // this template was not migrated to typeless due to the possibility of the old /_monitoring/bulk API being used
+            // see {@link org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils#OLD_TEMPLATE_VERSION}
+            // however the bulk API is not typed (the type field is for the docs, a field inside the docs) so it's safe to remove this
+            // old template and rely on the updated, typeless, .monitoring-alerts-7 template
+            map.remove(".monitoring-alerts");
+            return map;
+        };
+
     }
 }

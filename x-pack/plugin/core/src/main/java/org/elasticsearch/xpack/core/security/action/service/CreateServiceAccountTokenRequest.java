@@ -63,13 +63,13 @@ public class CreateServiceAccountTokenRequest extends ActionRequest {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         CreateServiceAccountTokenRequest that = (CreateServiceAccountTokenRequest) o;
-        return Objects.equals(namespace, that.namespace) && Objects.equals(serviceName, that.serviceName)
-            && Objects.equals(tokenName, that.tokenName) && refreshPolicy == that.refreshPolicy;
+        return Objects.equals(namespace, that.namespace)
+            && Objects.equals(serviceName, that.serviceName)
+            && Objects.equals(tokenName, that.tokenName)
+            && refreshPolicy == that.refreshPolicy;
     }
 
     @Override

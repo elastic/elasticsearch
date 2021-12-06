@@ -37,9 +37,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -72,10 +72,7 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
 
     public void testRemove_GivenJobsWithoutRetentionPolicy() {
         givenDBQRequestsSucceed();
-        List<Job> jobs = Arrays.asList(
-                JobTests.buildJobBuilder("foo").build(),
-                JobTests.buildJobBuilder("bar").build()
-        );
+        List<Job> jobs = Arrays.asList(JobTests.buildJobBuilder("foo").build(), JobTests.buildJobBuilder("bar").build());
 
         createExpiredAnnotationsRemover(jobs.iterator()).remove(1.0f, listener, () -> false);
 
@@ -88,16 +85,17 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
 
         List<Job> jobs = Arrays.asList(
             JobTests.buildJobBuilder("none").build(),
-            JobTests.buildJobBuilder("annotations-1").setSystemAnnotationsRetentionDays(10L).build(),
-            JobTests.buildJobBuilder("annotations-2").setSystemAnnotationsRetentionDays(20L).build());
+            JobTests.buildJobBuilder("annotations-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("annotations-2").setResultsRetentionDays(20L).build()
+        );
 
         createExpiredAnnotationsRemover(jobs.iterator()).remove(1.0f, listener, () -> false);
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(2));
         DeleteByQueryRequest dbqRequest = capturedDeleteByQueryRequests.get(0);
-        assertThat(dbqRequest.indices(), equalTo(new String[] {AnnotationIndex.READ_ALIAS_NAME}));
+        assertThat(dbqRequest.indices(), equalTo(new String[] { AnnotationIndex.READ_ALIAS_NAME }));
         dbqRequest = capturedDeleteByQueryRequests.get(1);
-        assertThat(dbqRequest.indices(), equalTo(new String[] {AnnotationIndex.READ_ALIAS_NAME}));
+        assertThat(dbqRequest.indices(), equalTo(new String[] { AnnotationIndex.READ_ALIAS_NAME }));
         verify(listener).onResponse(true);
     }
 
@@ -106,8 +104,8 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
         givenBucket(new Bucket("id_not_important", new Date(), 60));
 
         List<Job> jobs = Arrays.asList(
-            JobTests.buildJobBuilder("annotations-1").setSystemAnnotationsRetentionDays(10L).build(),
-            JobTests.buildJobBuilder("annotations-2").setSystemAnnotationsRetentionDays(20L).build()
+            JobTests.buildJobBuilder("annotations-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("annotations-2").setResultsRetentionDays(20L).build()
         );
 
         final int timeoutAfter = randomIntBetween(0, 1);
@@ -125,13 +123,14 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
 
         List<Job> jobs = Arrays.asList(
             JobTests.buildJobBuilder("none").build(),
-            JobTests.buildJobBuilder("annotations-1").setSystemAnnotationsRetentionDays(10L).build(),
-            JobTests.buildJobBuilder("annotations-2").setSystemAnnotationsRetentionDays(20L).build());
+            JobTests.buildJobBuilder("annotations-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("annotations-2").setResultsRetentionDays(20L).build()
+        );
         createExpiredAnnotationsRemover(jobs.iterator()).remove(1.0f, listener, () -> false);
 
         assertThat(capturedDeleteByQueryRequests.size(), equalTo(1));
         DeleteByQueryRequest dbqRequest = capturedDeleteByQueryRequests.get(0);
-        assertThat(dbqRequest.indices(), equalTo(new String[] {AnnotationIndex.READ_ALIAS_NAME}));
+        assertThat(dbqRequest.indices(), equalTo(new String[] { AnnotationIndex.READ_ALIAS_NAME }));
         verify(listener).onFailure(any());
     }
 
@@ -141,7 +140,7 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
         Date latest = new Date();
 
         givenBucket(new Bucket(jobId, latest, 60));
-        List<Job> jobs = Collections.singletonList(JobTests.buildJobBuilder(jobId).setSystemAnnotationsRetentionDays(1L).build());
+        List<Job> jobs = Collections.singletonList(JobTests.buildJobBuilder(jobId).setResultsRetentionDays(1L).build());
 
         ActionListener<AbstractExpiredJobDataRemover.CutoffDetails> cutoffListener = mock(ActionListener.class);
         createExpiredAnnotationsRemover(jobs.iterator()).calcCutoffEpochMs(jobId, 1L, cutoffListener);
@@ -162,19 +161,17 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private void givenDBQRequest(boolean shouldSucceed) {
         doAnswer(invocationOnMock -> {
-                capturedDeleteByQueryRequests.add((DeleteByQueryRequest) invocationOnMock.getArguments()[1]);
-                ActionListener<BulkByScrollResponse> listener =
-                        (ActionListener<BulkByScrollResponse>) invocationOnMock.getArguments()[2];
-                if (shouldSucceed) {
-                    BulkByScrollResponse bulkByScrollResponse = mock(BulkByScrollResponse.class);
-                    when(bulkByScrollResponse.getDeleted()).thenReturn(42L);
-                    listener.onResponse(bulkByScrollResponse);
-                } else {
-                    listener.onFailure(new RuntimeException("failed"));
-                }
-                return null;
+            capturedDeleteByQueryRequests.add((DeleteByQueryRequest) invocationOnMock.getArguments()[1]);
+            ActionListener<BulkByScrollResponse> listener = (ActionListener<BulkByScrollResponse>) invocationOnMock.getArguments()[2];
+            if (shouldSucceed) {
+                BulkByScrollResponse bulkByScrollResponse = mock(BulkByScrollResponse.class);
+                when(bulkByScrollResponse.getDeleted()).thenReturn(42L);
+                listener.onResponse(bulkByScrollResponse);
+            } else {
+                listener.onFailure(new RuntimeException("failed"));
             }
-        ).when(client).execute(same(DeleteByQueryAction.INSTANCE), any(), any());
+            return null;
+        }).when(client).execute(same(DeleteByQueryAction.INSTANCE), any(), any());
     }
 
     @SuppressWarnings("unchecked")
@@ -193,13 +190,17 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
         when(threadPool.executor(eq(MachineLearning.UTILITY_THREAD_POOL_NAME))).thenReturn(executor);
 
         doAnswer(invocationOnMock -> {
-                Runnable run = (Runnable) invocationOnMock.getArguments()[0];
-                run.run();
-                return null;
-            }
-        ).when(executor).execute(any());
+            Runnable run = (Runnable) invocationOnMock.getArguments()[0];
+            run.run();
+            return null;
+        }).when(executor).execute(any());
 
         return new ExpiredAnnotationsRemover(
-            originSettingClient, jobIterator, new TaskId("test", 0L), mock(AnomalyDetectionAuditor.class), threadPool);
+            originSettingClient,
+            jobIterator,
+            new TaskId("test", 0L),
+            mock(AnomalyDetectionAuditor.class),
+            threadPool
+        );
     }
 }

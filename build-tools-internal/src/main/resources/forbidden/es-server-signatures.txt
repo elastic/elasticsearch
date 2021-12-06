@@ -64,15 +64,6 @@ java.util.concurrent.Future#cancel(boolean)
 org.elasticsearch.core.PathUtils#get(java.lang.String, java.lang.String[])
 org.elasticsearch.core.PathUtils#get(java.net.URI)
 
-@defaultMessage Constructing a DateTime without a time zone is dangerous
-org.joda.time.DateTime#<init>()
-org.joda.time.DateTime#<init>(long)
-org.joda.time.DateTime#<init>(int, int, int, int, int)
-org.joda.time.DateTime#<init>(int, int, int, int, int, int)
-org.joda.time.DateTime#<init>(int, int, int, int, int, int, int)
-org.joda.time.DateTime#now()
-org.joda.time.DateTimeZone#getDefault()
-
 @defaultMessage Local times may be ambiguous or nonexistent in a specific time zones. Use ZoneRules#getValidOffsets() instead.
 java.time.LocalDateTime#atZone(java.time.ZoneId)
 java.time.ZonedDateTime#of(int, int, int, int, int, int, int, java.time.ZoneId)

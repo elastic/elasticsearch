@@ -13,12 +13,12 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -39,11 +39,15 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
     public static class Request extends MasterNodeReadRequest<Request> {
 
         @Nullable
-        private String name;
+        private final String name;
 
-        public Request() { }
-
+        /**
+         * @param name A template name or pattern, or {@code null} to retrieve all templates.
+         */
         public Request(@Nullable String name) {
+            if (name != null && name.contains(",")) {
+                throw new IllegalArgumentException("template name may not contain ','");
+            }
             this.name = name;
         }
 
@@ -61,14 +65,6 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         @Override
         public ActionRequestValidationException validate() {
             return null;
-        }
-
-        /**
-         * Sets the name of the index template.
-         */
-        public Request name(String name) {
-            this.name = name;
-            return this;
         }
 
         /**

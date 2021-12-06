@@ -48,9 +48,7 @@ public class TransportTaskHelperTests extends ESTestCase {
         Map<Long, Task> tasks = getRandomTasks();
         when(taskManager.getTasks()).thenReturn(tasks);
 
-        Consumer<RollupJobTask> consumer = rollupJobTask -> {
-            fail("Should not have reached consumer");
-        };
+        Consumer<RollupJobTask> consumer = rollupJobTask -> { fail("Should not have reached consumer"); };
         TransportTaskHelper.doProcessTasks("foo", consumer, taskManager);
     }
 
@@ -71,22 +69,30 @@ public class TransportTaskHelperTests extends ESTestCase {
         when(task2.getConfig()).thenReturn(job2);
         tasks.put(2L, task2);
 
-        Consumer<RollupJobTask> consumer = rollupJobTask -> {
-            fail("Should not have reached consumer");
-        };
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> TransportTaskHelper.doProcessTasks("foo", consumer, taskManager));
-        assertThat(e.getMessage(), equalTo("Found more than one matching task for rollup job [foo] when " +
-                "there should only be one."));
+        Consumer<RollupJobTask> consumer = rollupJobTask -> { fail("Should not have reached consumer"); };
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportTaskHelper.doProcessTasks("foo", consumer, taskManager)
+        );
+        assertThat(e.getMessage(), equalTo("Found more than one matching task for rollup job [foo] when " + "there should only be one."));
     }
 
     private Map<Long, Task> getRandomTasks() {
-        int num = randomIntBetween(1,10);
+        int num = randomIntBetween(1, 10);
         Map<Long, Task> tasks = new HashMap<>(num);
         for (int i = 0; i < num; i++) {
             Long taskId = randomLongBetween(10, Long.MAX_VALUE);
-            tasks.put(taskId, new TestTask(taskId, randomAlphaOfLength(10), "test_action", "test_description",
-                    new TaskId("node:123"), Collections.emptyMap()));
+            tasks.put(
+                taskId,
+                new TestTask(
+                    taskId,
+                    randomAlphaOfLength(10),
+                    "test_action",
+                    "test_description",
+                    new TaskId("node:123"),
+                    Collections.emptyMap()
+                )
+            );
         }
         return tasks;
     }

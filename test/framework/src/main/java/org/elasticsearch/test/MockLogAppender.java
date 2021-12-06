@@ -150,12 +150,13 @@ public class MockLogAppender extends AbstractAppender {
         private final String exceptionMessage;
 
         public ExceptionSeenEventExpectation(
-                final String name,
-                final String logger,
-                final Level level,
-                final String message,
-                final Class<? extends Exception> clazz,
-                final String exceptionMessage) {
+            final String name,
+            final String logger,
+            final Level level,
+            final String message,
+            final Class<? extends Exception> clazz,
+            final String exceptionMessage
+        ) {
             super(name, logger, level, message);
             this.clazz = clazz;
             this.exceptionMessage = exceptionMessage;
@@ -164,8 +165,8 @@ public class MockLogAppender extends AbstractAppender {
         @Override
         public boolean innerMatch(final LogEvent event) {
             return event.getThrown() != null
-                    && event.getThrown().getClass() == clazz
-                    && event.getThrown().getMessage().equals(exceptionMessage);
+                && event.getThrown().getClass() == clazz
+                && event.getThrown().getMessage().equals(exceptionMessage);
         }
 
     }
@@ -175,20 +176,20 @@ public class MockLogAppender extends AbstractAppender {
         protected final String name;
         protected final String logger;
         protected final Level level;
-        protected final String pattern;
+        protected final Pattern pattern;
         volatile boolean saw;
 
         public PatternSeenEventExpectation(String name, String logger, Level level, String pattern) {
             this.name = name;
             this.logger = logger;
             this.level = level;
-            this.pattern = pattern;
+            this.pattern = Pattern.compile(pattern);
         }
 
         @Override
         public void match(LogEvent event) {
             if (event.getLevel().equals(level) && event.getLoggerName().equals(logger)) {
-                if (Pattern.matches(pattern, event.getMessage().getFormattedMessage())) {
+                if (pattern.matcher(event.getMessage().getFormattedMessage()).matches()) {
                     saw = true;
                 }
             }

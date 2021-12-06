@@ -79,9 +79,8 @@ Terms lookup fetches the field values of an existing document. {es} then uses
 those values as search terms. This can be helpful when searching for a large set
 of terms.
 
-Because terms lookup fetches values from a document, the <<mapping-source-field,
-`_source`>> mapping field must be enabled to use terms lookup. The `_source`
-field is enabled by default.
+To run a terms lookup, the field's <<mapping-source-field,`_source`>> must be
+enabled. You cannot use {ccs} to run a terms lookup on a remote index.
 
 [NOTE]
 By default, {es} limits the `terms` query to a maximum of 65,536

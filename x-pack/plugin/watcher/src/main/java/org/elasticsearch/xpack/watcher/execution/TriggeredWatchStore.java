@@ -27,13 +27,13 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
@@ -75,7 +75,7 @@ public class TriggeredWatchStore {
 
     public void putAll(final List<TriggeredWatch> triggeredWatches, final ActionListener<BulkResponse> listener) throws IOException {
         if (triggeredWatches.isEmpty()) {
-            listener.onResponse(new BulkResponse(new BulkItemResponse[]{}, 0));
+            listener.onResponse(new BulkResponse(new BulkItemResponse[] {}, 0));
             return;
         }
 
@@ -149,13 +149,9 @@ public class TriggeredWatchStore {
         Set<String> ids = watches.stream().map(Watch::id).collect(Collectors.toSet());
         Collection<TriggeredWatch> triggeredWatches = new ArrayList<>(ids.size());
 
-        SearchRequest searchRequest = new SearchRequest(TriggeredWatchStoreField.INDEX_NAME)
-            .scroll(scrollTimeout)
+        SearchRequest searchRequest = new SearchRequest(TriggeredWatchStoreField.INDEX_NAME).scroll(scrollTimeout)
             .preference(Preference.LOCAL.toString())
-            .source(new SearchSourceBuilder()
-                .size(scrollSize)
-                .sort(SortBuilders.fieldSort("_doc"))
-                .version(true));
+            .source(new SearchSourceBuilder().size(scrollSize).sort(SortBuilders.fieldSort("_doc")).version(true));
 
         SearchResponse response = null;
         try {
@@ -186,7 +182,8 @@ public class TriggeredWatchStore {
 
     public static boolean validate(ClusterState state) {
         IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(TriggeredWatchStoreField.INDEX_NAME, state.metadata());
-        return indexMetadata == null || (indexMetadata.getState() == IndexMetadata.State.OPEN &&
-            state.routingTable().index(indexMetadata.getIndex()).allPrimaryShardsActive());
+        return indexMetadata == null
+            || (indexMetadata.getState() == IndexMetadata.State.OPEN
+                && state.routingTable().index(indexMetadata.getIndex()).allPrimaryShardsActive());
     }
 }

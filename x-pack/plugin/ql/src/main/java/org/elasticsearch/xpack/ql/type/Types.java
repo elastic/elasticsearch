@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Booleans;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;

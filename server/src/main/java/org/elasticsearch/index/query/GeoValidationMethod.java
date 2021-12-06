@@ -24,7 +24,9 @@ import java.io.IOException;
  *  On COERCE invalid coordinates are being corrected to the most likely valid coordinate.
  * */
 public enum GeoValidationMethod implements Writeable {
-    COERCE, IGNORE_MALFORMED, STRICT;
+    COERCE,
+    IGNORE_MALFORMED,
+    STRICT;
 
     public static final GeoValidationMethod DEFAULT = STRICT;
     public static final boolean DEFAULT_LENIENT_PARSING = (DEFAULT != STRICT);
@@ -44,8 +46,9 @@ public enum GeoValidationMethod implements Writeable {
                 return method;
             }
         }
-        throw new IllegalArgumentException("operator needs to be either " + CollectionUtils.arrayAsArrayList(GeoValidationMethod.values())
-                + ", but not [" + op + "]");
+        throw new IllegalArgumentException(
+            "operator needs to be either " + CollectionUtils.arrayAsArrayList(GeoValidationMethod.values()) + ", but not [" + op + "]"
+        );
     }
 
     /** Returns whether or not to skip bounding box validation. */

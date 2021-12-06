@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.spatial;
 
 import org.apache.lucene.util.SloppyMath;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 
 /**
  * Utility class for storing different helpful re-usable spatial functions
@@ -32,21 +32,23 @@ public class SpatialUtils {
      * */
     public static Polygon createRegularGeoShapePolygon(Circle circle, int gons) {
         if (SloppyMath.haversinMeters(circle.getLat(), circle.getLon(), 90, 0) < circle.getRadiusMeters()) {
-            throw new IllegalArgumentException("circle [" + circle.toString() + "] contains the north pole. " +
-                "It cannot be translated to a polygon");
+            throw new IllegalArgumentException(
+                "circle [" + circle.toString() + "] contains the north pole. " + "It cannot be translated to a polygon"
+            );
         }
         if (SloppyMath.haversinMeters(circle.getLat(), circle.getLon(), -90, 0) < circle.getRadiusMeters()) {
-            throw new IllegalArgumentException("circle [" + circle.toString() + "] contains the south pole. " +
-                "It cannot be translated to a polygon");
+            throw new IllegalArgumentException(
+                "circle [" + circle.toString() + "] contains the south pole. " + "It cannot be translated to a polygon"
+            );
         }
         double[][] result = new double[2][];
-        result[0] = new double[gons+1];
-        result[1] = new double[gons+1];
-        for(int i=0; i<gons; i++) {
+        result[0] = new double[gons + 1];
+        result[1] = new double[gons + 1];
+        for (int i = 0; i < gons; i++) {
             // make sure we do not start at angle 0 or we have issues at the poles
             double angle = i * (360.0 / gons);
-            double x = Math.cos(SloppyMath.toRadians(angle));
-            double y = Math.sin(SloppyMath.toRadians(angle));
+            double x = Math.cos(Math.toRadians(angle));
+            double y = Math.sin(Math.toRadians(angle));
             double factor = 2.0;
             double step = 1.0;
             int last = 0;
@@ -95,12 +97,12 @@ public class SpatialUtils {
      **/
     public static Polygon createRegularShapePolygon(Circle circle, int gons) {
         double[][] result = new double[2][];
-        result[0] = new double[gons+1];
-        result[1] = new double[gons+1];
-        for(int i=0; i<gons; i++) {
+        result[0] = new double[gons + 1];
+        result[1] = new double[gons + 1];
+        for (int i = 0; i < gons; i++) {
             double angle = i * (360.0 / gons);
-            double x = circle.getRadiusMeters() * Math.cos(SloppyMath.toRadians(angle));
-            double y = circle.getRadiusMeters() * Math.sin(SloppyMath.toRadians(angle));
+            double x = circle.getRadiusMeters() * Math.cos(Math.toRadians(angle));
+            double y = circle.getRadiusMeters() * Math.sin(Math.toRadians(angle));
 
             result[0][i] = x + circle.getX();
             result[1][i] = y + circle.getY();

@@ -30,27 +30,22 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 
-
 public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new PercentileRanksAggregationBuilder("tdigest_ranks", new double[]{0.1, 0.5, 12})
-            .field(fieldName)
+        return new PercentileRanksAggregationBuilder("tdigest_ranks", new double[] { 0.1, 0.5, 12 }).field(fieldName)
             .percentilesConfig(new PercentilesConfig.TDigest());
     }
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return List.of(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.DATE,
-            CoreValuesSourceType.BOOLEAN);
+        return List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN);
     }
 
     public void testEmpty() throws IOException {
-        PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[]{0.5})
-                .field("field")
-                .method(PercentilesMethod.TDIGEST);
+        PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[] { 0.5 }).field("field")
+            .method(PercentilesMethod.TDIGEST);
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
         try (IndexReader reader = new MultiReader()) {
             IndexSearcher searcher = new IndexSearcher(reader);
@@ -58,22 +53,21 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
             Percentile rank = ranks.iterator().next();
             assertEquals(Double.NaN, rank.getPercent(), 0d);
             assertEquals(0.5, rank.getValue(), 0d);
-            assertFalse(AggregationInspectionHelper.hasValue(((InternalTDigestPercentileRanks)ranks)));
+            assertFalse(AggregationInspectionHelper.hasValue(((InternalTDigestPercentileRanks) ranks)));
         }
     }
 
     public void testSimple() throws IOException {
-        try (Directory dir = newDirectory();
-                RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            for (double value : new double[] {3, 0.2, 10}) {
+        try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+            for (double value : new double[] { 3, 0.2, 10 }) {
                 Document doc = new Document();
                 doc.add(new SortedNumericDocValuesField("field", NumericUtils.doubleToSortableLong(value)));
                 w.addDocument(doc);
             }
 
-            PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[]{0.1, 0.5, 12})
-                    .field("field")
-                    .method(PercentilesMethod.TDIGEST);
+            PercentileRanksAggregationBuilder aggBuilder = new PercentileRanksAggregationBuilder("my_agg", new double[] { 0.1, 0.5, 12 })
+                .field("field")
+                .method(PercentilesMethod.TDIGEST);
             MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
@@ -94,20 +88,24 @@ public class TDigestPercentileRanksAggregatorTests extends AggregatorTestCase {
                 // https://github.com/elastic/elasticsearch/issues/14851
                 // assertThat(rank.getPercent(), Matchers.equalTo(100d));
                 assertFalse(rankIterator.hasNext());
-                assertTrue(AggregationInspectionHelper.hasValue(((InternalTDigestPercentileRanks)ranks)));
+                assertTrue(AggregationInspectionHelper.hasValue(((InternalTDigestPercentileRanks) ranks)));
             }
         }
     }
 
     public void testNullValues() throws IOException {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new PercentileRanksAggregationBuilder("my_agg", null).field("field").method(PercentilesMethod.TDIGEST));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PercentileRanksAggregationBuilder("my_agg", null).field("field").method(PercentilesMethod.TDIGEST)
+        );
         assertThat(e.getMessage(), Matchers.equalTo("[values] must not be null: [my_agg]"));
     }
 
     public void testEmptyValues() throws IOException {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> new PercentileRanksAggregationBuilder("my_agg", new double[0]).field("field").method(PercentilesMethod.TDIGEST));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new PercentileRanksAggregationBuilder("my_agg", new double[0]).field("field").method(PercentilesMethod.TDIGEST)
+        );
 
         assertThat(e.getMessage(), Matchers.equalTo("[values] must not be an empty array: [my_agg]"));
     }

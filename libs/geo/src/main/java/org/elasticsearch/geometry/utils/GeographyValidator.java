@@ -66,7 +66,8 @@ public class GeographyValidator implements GeometryValidator {
     protected void checkLatitude(double latitude) {
         if (Double.isNaN(latitude) || latitude < MIN_LAT_INCL || latitude > MAX_LAT_INCL) {
             throw new IllegalArgumentException(
-                "invalid latitude " + latitude + "; must be between " + MIN_LAT_INCL + " and " + MAX_LAT_INCL);
+                "invalid latitude " + latitude + "; must be between " + MIN_LAT_INCL + " and " + MAX_LAT_INCL
+            );
         }
     }
 
@@ -76,14 +77,16 @@ public class GeographyValidator implements GeometryValidator {
     protected void checkLongitude(double longitude) {
         if (Double.isNaN(longitude) || longitude < MIN_LON_INCL || longitude > MAX_LON_INCL) {
             throw new IllegalArgumentException(
-                "invalid longitude " + longitude + "; must be between " + MIN_LON_INCL + " and " + MAX_LON_INCL);
+                "invalid longitude " + longitude + "; must be between " + MIN_LON_INCL + " and " + MAX_LON_INCL
+            );
         }
     }
 
     protected void checkAltitude(double zValue) {
         if (ignoreZValue == false && Double.isNaN(zValue) == false) {
-            throw new IllegalArgumentException("found Z value [" + zValue + "] but [ignore_z_value] "
-                + "parameter is [" + ignoreZValue + "]");
+            throw new IllegalArgumentException(
+                "found Z value [" + zValue + "] but [ignore_z_value] " + "parameter is [" + ignoreZValue + "]"
+            );
         }
     }
 

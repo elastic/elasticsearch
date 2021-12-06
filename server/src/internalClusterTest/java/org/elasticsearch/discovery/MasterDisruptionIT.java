@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockMasterServiceOnMaster;
 import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
@@ -25,6 +24,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -84,11 +84,13 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
     public void testIsolateMasterAndVerifyClusterStateConsensus() throws Exception {
         final List<String> nodes = startCluster(3);
 
-        assertAcked(prepareCreate("test")
-                .setSettings(Settings.builder()
-                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
-                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
-                ));
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1 + randomInt(2))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomInt(2))
+            )
+        );
 
         ensureGreen();
         String isolatedNode = internalCluster().getMasterName();
@@ -108,8 +110,12 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         networkDisruption.stopDisrupting();
 
         for (String node : nodes) {
-            ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkDisruption.expectedTimeToHeal().millis()),
-                    true, node);
+            ensureStableCluster(
+                3,
+                new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkDisruption.expectedTimeToHeal().millis()),
+                true,
+                node
+            );
         }
 
         logger.info("issue a reroute");
@@ -136,9 +142,19 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
                     assertEquals("different meta data version", state.metadata().version(), nodeState.metadata().version());
                     assertEquals("different routing", state.routingTable().toString(), nodeState.routingTable().toString());
                 } catch (AssertionError t) {
-                    fail("failed comparing cluster state: " + t.getMessage() + "\n" +
-                            "--- cluster state of node [" + nodes.get(0) + "]: ---\n" + state +
-                            "\n--- cluster state [" + node + "]: ---\n" + nodeState);
+                    fail(
+                        "failed comparing cluster state: "
+                            + t.getMessage()
+                            + "\n"
+                            + "--- cluster state of node ["
+                            + nodes.get(0)
+                            + "]: ---\n"
+                            + state
+                            + "\n--- cluster state ["
+                            + node
+                            + "]: ---\n"
+                            + nodeState
+                    );
                 }
 
             }
@@ -149,14 +165,14 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
      * Verify that the proper block is applied when nodes lose their master
      */
     public void testVerifyApiBlocksDuringPartition() throws Exception {
-        internalCluster().startNodes(3, Settings.builder()
-            .putNull(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey()).build());
+        internalCluster().startNodes(3, Settings.builder().putNull(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey()).build());
 
         // Makes sure that the get request can be executed on each node locally:
-        assertAcked(prepareCreate("test").setSettings(Settings.builder()
-                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
-        ));
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+            )
+        );
 
         // Everything is stable now, it is now time to simulate evil...
         // but first make sure we have no initializing shards and all is green
@@ -174,13 +190,11 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         // Simulate a network issue between the unlucky node and the rest of the cluster.
         networkDisruption.startDisrupting();
 
-
         // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected master
         logger.info("waiting for isolated node [{}] to have no master", isolatedNode);
         assertNoMaster(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_WRITES, TimeValue.timeValueSeconds(30));
-
 
         logger.info("wait until elected master has been removed and a new 2 node cluster was from (via [{}])", isolatedNode);
         ensureStableCluster(2, nonIsolatedNode);
@@ -195,11 +209,14 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
                 success = false;
             }
             if (success == false) {
-                fail("node [" + node + "] has no master or has blocks, despite of being on the right side of the partition. State dump:\n"
-                        + nodeState);
+                fail(
+                    "node ["
+                        + node
+                        + "] has no master or has blocks, despite of being on the right side of the partition. State dump:\n"
+                        + nodeState
+                );
             }
         }
-
 
         networkDisruption.stopDisrupting();
 
@@ -207,12 +224,13 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(3, new TimeValue(DISRUPTION_HEALING_OVERHEAD.millis() + networkDisruption.expectedTimeToHeal().millis()));
 
         logger.info("Verify no master block with {} set to {}", NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all");
-        client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all"))
-                .get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(NoMasterBlockService.NO_MASTER_BLOCK_SETTING.getKey(), "all"))
+            .get();
 
         networkDisruption.startDisrupting();
-
 
         // The unlucky node must report *no* master node, since it can't connect to master and in fact it should
         // continuously ping until network failures have been resolved. However
@@ -229,19 +247,26 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
 
     public void testMappingTimeout() throws Exception {
         startCluster(3);
-        createIndex("test", Settings.builder()
-            .put("index.number_of_shards", 1)
-            .put("index.number_of_replicas", 1)
-            .put("index.routing.allocation.exclude._name", internalCluster().getMasterName())
-        .build());
+        createIndex(
+            "test",
+            Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 1)
+                .put("index.routing.allocation.exclude._name", internalCluster().getMasterName())
+                .build()
+        );
 
         // create one field
         index("test", "1", "{ \"f\": 1 }");
 
         ensureGreen();
 
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-            Settings.builder().put("indices.mapping.dynamic_timeout", "1ms")));
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put("indices.mapping.dynamic_timeout", "1ms"))
+        );
 
         ServiceDisruptionScheme disruption = new BlockMasterServiceOnMaster(random());
         setDisruptionScheme(disruption);
@@ -260,8 +285,11 @@ public class MasterDisruptionIT extends AbstractDisruptionTestCase {
         assertBusy(() -> {
             IndicesStatsResponse stats = client().admin().indices().prepareStats("test").clear().get();
             for (ShardStats shardStats : stats.getShards()) {
-                assertThat(shardStats.getShardRouting().toString(),
-                    shardStats.getSeqNoStats().getGlobalCheckpoint(), equalTo(shardStats.getSeqNoStats().getLocalCheckpoint()));
+                assertThat(
+                    shardStats.getShardRouting().toString(),
+                    shardStats.getSeqNoStats().getGlobalCheckpoint(),
+                    equalTo(shardStats.getSeqNoStats().getLocalCheckpoint())
+                );
             }
         });
 

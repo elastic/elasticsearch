@@ -49,9 +49,7 @@ public class DlsRequestCacheIT extends SecurityOnTrialLicenseRestTestCase {
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public void testRequestCacheDisabledForDlsTemplateRoleWithPainless() throws IOException {
@@ -59,14 +57,18 @@ public class DlsRequestCacheIT extends SecurityOnTrialLicenseRestTestCase {
         final RestClient client = client();
 
         final Request putScriptRequest = new Request("PUT", "_scripts/range-now");
-        putScriptRequest.setJsonEntity("{\"script\":{\"lang\":\"painless\"," +
-            "\"source\":\"'{\\\"range\\\":{\\\"date\\\": {\\\"lte\\\": \\\"' + new Date().getTime() + '\\\"}}}' \"}}");
+        putScriptRequest.setJsonEntity(
+            "{\"script\":{\"lang\":\"painless\","
+                + "\"source\":\"'{\\\"range\\\":{\\\"date\\\": {\\\"lte\\\": \\\"' + new Date().getTime() + '\\\"}}}' \"}}"
+        );
         assertOK(adminClient.performRequest(putScriptRequest));
 
         // Create the index with a date field and 1 primary shard with no replica
         final Request putIndexRequest = new Request("PUT", DLS_TEMPLATE_PAINLESS_INDEX);
-        putIndexRequest.setJsonEntity("{\"mappings\":{\"properties\":{\"date\":{\"type\":\"date\",\"format\":\"epoch_millis\"}}}," +
-            "\"settings\":{\"number_of_shards\":1,\"number_of_replicas\":0}}");
+        putIndexRequest.setJsonEntity(
+            "{\"mappings\":{\"properties\":{\"date\":{\"type\":\"date\",\"format\":\"epoch_millis\"}}},"
+                + "\"settings\":{\"number_of_shards\":1,\"number_of_replicas\":0}}"
+        );
         assertOK(adminClient.performRequest(putIndexRequest));
 
         // A doc in the past 1 min
@@ -85,8 +87,10 @@ public class DlsRequestCacheIT extends SecurityOnTrialLicenseRestTestCase {
         // First search should only get 1 doc in the past
         final Request searchRequest = new Request("GET", DLS_TEMPLATE_PAINLESS_INDEX + "/_search");
         searchRequest.addParameter("request_cache", "true");
-        searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
-            UsernamePasswordToken.basicAuthHeaderValue(DLS_USER, DLS_USER_PASSWORD)));
+        searchRequest.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(DLS_USER, DLS_USER_PASSWORD))
+        );
         assertSearchResponse(client.performRequest(searchRequest), Set.of("1"));
         // Cache should not be used since DLS query uses stored script
         assertCacheState(0, 0);

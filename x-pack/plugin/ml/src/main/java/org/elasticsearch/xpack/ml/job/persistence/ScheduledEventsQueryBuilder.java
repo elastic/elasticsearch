@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.ml.calendars.Calendar;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.ml.utils.QueryBuilderHelper;
 
-
 /**
  * Query builder for {@link ScheduledEvent}s
  * If <code>calendarIds</code> are not set then all calendars will match.

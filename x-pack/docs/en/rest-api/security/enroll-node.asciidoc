@@ -1,7 +1,7 @@
 [[security-api-node-enrollment]]
 === Enroll Node API
 ++++
-<titleabbrev>Enroll Node</titleabbrev>
+<titleabbrev>Enroll node</titleabbrev>
 ++++
 
 Allows a new node to join an existing cluster with security features enabled.
@@ -37,9 +37,10 @@ The API returns a response such as
 {
   "http_ca_key" : "MIIJlAIBAzCCCVoGCSqGSIb3DQEHAaCCCUsEgglHMIIJQzCCA98GCSqGSIb3DQ....vsDfsA3UZBAjEPfhubpQysAICCAA=", <1>
   "http_ca_cert" : "MIIJlAIBAzCCCVoGCSqGSIb3DQEHAaCCCUsEgglHMIIJQzCCA98GCSqGSIb3DQ....vsDfsA3UZBAjEPfhubpQysAICCAA=", <2>
-  "transport_key" : "MIIEJgIBAzCCA98GCSqGSIb3DQEHAaCCA9AEggPMMIIDyDCCA8QGCSqGSIb3....YuEiOXvqZ6jxuVSQ0CAwGGoA==", <3>
-  "transport_cert" : "MIIEJgIBAzCCA98GCSqGSIb3DQEHAaCCA9AEggPMMIIDyDCCA8QGCSqGSIb3....YuEiOXvqZ6jxuVSQ0CAwGGoA==", <4>
-  "nodes_addresses" : [                          <5>
+  "transport_ca_cert" : "MIIJlAIBAzCCCVoGCSqGSIb3DQEHAaCCCUsEgglHMIIJQzCCA98GCSqG....vsDfsA3UZBAjEPfhubpQysAICCAA=", <3>
+  "transport_key" : "MIIEJgIBAzCCA98GCSqGSIb3DQEHAaCCA9AEggPMMIIDyDCCA8QGCSqGSIb3....YuEiOXvqZ6jxuVSQ0CAwGGoA==", <4>
+  "transport_cert" : "MIIEJgIBAzCCA98GCSqGSIb3DQEHAaCCA9AEggPMMIIDyDCCA8QGCSqGSIb3....YuEiOXvqZ6jxuVSQ0CAwGGoA==", <5>
+  "nodes_addresses" : [                          <6>
     "192.168.1.2:9300"
   ]
 }
@@ -48,9 +49,11 @@ The API returns a response such as
     for the HTTP layer, as a Base64 encoded string of the ASN.1 DER encoding of the key.
 <2> The CA certificate that can be used by the new node in order to sign its certificate
     for the HTTP layer, as a Base64 encoded string of the ASN.1 DER encoding of the certificate.
-<3> The private key that the node can use for  TLS for its transport layer, as a Base64 encoded
+<3> The CA certificate that is used to sign the TLS certificate for the transport layer, as
+    a Base64 encoded string of the ASN.1 DER encoding of the certificate.
+<4> The private key that the node can use for TLS for its transport layer, as a Base64 encoded
     string of the ASN.1 DER encoding of the key.
-<4> The certificate that the node can use for  TLS for its transport layer, as a Base64 encoded
+<5> The certificate that the node can use for TLS for its transport layer, as a Base64 encoded
     string of the ASN.1 DER encoding of the certificate.
-<5> A list of transport addresses in the form of `host:port` for the nodes that are already
+<6> A list of transport addresses in the form of `host:port` for the nodes that are already
     members of the cluster.

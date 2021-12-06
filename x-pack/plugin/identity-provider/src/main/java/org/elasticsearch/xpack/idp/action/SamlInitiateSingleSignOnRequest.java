@@ -30,8 +30,7 @@ public class SamlInitiateSingleSignOnRequest extends ActionRequest {
         samlAuthenticationState = in.readOptionalWriteable(SamlAuthenticationState::new);
     }
 
-    public SamlInitiateSingleSignOnRequest() {
-    }
+    public SamlInitiateSingleSignOnRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {

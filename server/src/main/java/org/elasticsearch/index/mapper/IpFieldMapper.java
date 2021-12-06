@@ -19,22 +19,27 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.IpScriptDocValues.IpSupplier;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -66,8 +71,8 @@ public class IpFieldMapper extends FieldMapper {
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
 
         private final Parameter<Boolean> ignoreMalformed;
-        private final Parameter<String> nullValue
-            = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null).acceptsNull();
+        private final Parameter<String> nullValue = Parameter.stringParam("null_value", false, m -> toType(m).nullValueAsString, null)
+            .acceptsNull();
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
         private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
@@ -84,18 +89,22 @@ public class IpFieldMapper extends FieldMapper {
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.ignoreMalformedByDefault = ignoreMalformedByDefault;
             this.indexCreatedVersion = indexCreatedVersion;
-            this.ignoreMalformed
-                = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
+            this.ignoreMalformed = Parameter.boolParam("ignore_malformed", true, m -> toType(m).ignoreMalformed, ignoreMalformedByDefault);
             this.script.precludesParameters(nullValue, ignoreMalformed);
             addScriptValidation(script, indexed, hasDocValues);
-            this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
-                .setValidator(v -> {
-                    if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
-                        throw new IllegalArgumentException(
-                            "Field [dimension] requires that [" + indexed.name + "] and [" + hasDocValues.name + "] are true"
-                        );
-                    }
-                });
+            this.dimension = TimeSeriesParams.dimensionParam(m -> toType(m).dimension).addValidator(v -> {
+                if (v && (indexed.getValue() == false || hasDocValues.getValue() == false)) {
+                    throw new IllegalArgumentException(
+                        "Field ["
+                            + TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM
+                            + "] requires that ["
+                            + indexed.name
+                            + "] and ["
+                            + hasDocValues.name
+                            + "] are true"
+                    );
+                }
+            });
         }
 
         Builder nullValue(String nullValue) {
@@ -119,8 +128,15 @@ public class IpFieldMapper extends FieldMapper {
                 if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
                 } else {
-                    DEPRECATION_LOGGER.deprecate(DeprecationCategory.MAPPINGS, "ip_mapper_null_field", "Error parsing [" +
-                        nullValue.getValue() + "] as IP in [null_value] on field [" + name() + "]); [null_value] will be ignored");
+                    DEPRECATION_LOGGER.warn(
+                        DeprecationCategory.MAPPINGS,
+                        "ip_mapper_null_field",
+                        "Error parsing ["
+                            + nullValue.getValue()
+                            + "] as IP in [null_value] on field ["
+                            + name()
+                            + "]); [null_value] will be ignored"
+                    );
                     return null;
                 }
             }
@@ -131,10 +147,11 @@ public class IpFieldMapper extends FieldMapper {
                 return null;
             }
             IpFieldScript.Factory factory = scriptCompiler.compile(this.script.get(), IpFieldScript.CONTEXT);
-            return factory == null ? null : (lookup, ctx, doc, consumer) -> factory
-                .newFactory(name, script.get().getParams(), lookup)
-                .newInstance(ctx)
-                .runForDoc(doc, consumer);
+            return factory == null
+                ? null
+                : (lookup, ctx, doc, consumer) -> factory.newFactory(name, script.get().getParams(), lookup)
+                    .newInstance(ctx)
+                    .runForDoc(doc, consumer);
         }
 
         @Override
@@ -143,11 +160,23 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public IpFieldMapper build(ContentPath contentPath) {
-            return new IpFieldMapper(name,
-                new IpFieldType(buildFullName(contentPath), indexed.getValue(), stored.getValue(),
-                    hasDocValues.getValue(), parseNullValue(), scriptValues(), meta.getValue(), dimension.getValue()),
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
+        public IpFieldMapper build(MapperBuilderContext context) {
+            return new IpFieldMapper(
+                name,
+                new IpFieldType(
+                    context.buildFullName(name),
+                    indexed.getValue(),
+                    stored.getValue(),
+                    hasDocValues.getValue(),
+                    parseNullValue(),
+                    scriptValues(),
+                    meta.getValue(),
+                    dimension.getValue()
+                ),
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                this
+            );
         }
 
     }
@@ -163,8 +192,16 @@ public class IpFieldMapper extends FieldMapper {
         private final FieldValues<InetAddress> scriptValues;
         private final boolean isDimension;
 
-        public IpFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
-                           InetAddress nullValue, FieldValues<InetAddress> scriptValues, Map<String, String> meta, boolean isDimension) {
+        public IpFieldType(
+            String name,
+            boolean indexed,
+            boolean stored,
+            boolean hasDocValues,
+            InetAddress nullValue,
+            FieldValues<InetAddress> scriptValues,
+            Map<String, String> meta,
+            boolean isDimension
+        ) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
@@ -197,7 +234,7 @@ public class IpFieldMapper extends FieldMapper {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
             if (scriptValues != null) {
-                return FieldValues.valueFetcher(scriptValues, v -> InetAddresses.toAddrString((InetAddress)v), context);
+                return FieldValues.valueFetcher(scriptValues, v -> InetAddresses.toAddrString((InetAddress) v), context);
             }
             return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
@@ -257,8 +294,13 @@ public class IpFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                                SearchExecutionContext context) {
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
             failIfNotIndexed();
             return rangeQuery(
                 lowerTerm,
@@ -311,27 +353,52 @@ public class IpFieldMapper extends FieldMapper {
 
         public static final class IpScriptDocValues extends ScriptDocValues<String> {
 
-            private final SortedSetDocValues in;
-            private long[] ords = new long[0];
-            private int count;
+            public static final class IpSupplier implements ScriptDocValues.Supplier<String> {
 
-            public IpScriptDocValues(SortedSetDocValues in) {
-                this.in = in;
-            }
+                private final SortedSetDocValues in;
+                private long[] ords = new long[0];
+                private int count;
 
-            @Override
-            public void setNextDocId(int docId) throws IOException {
-                count = 0;
-                if (in.advanceExact(docId)) {
-                    for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
-                        ords = ArrayUtil.grow(ords, count + 1);
-                        ords[count++] = ord;
+                public IpSupplier(SortedSetDocValues in) {
+                    this.in = in;
+                }
+
+                @Override
+                public void setNextDocId(int docId) throws IOException {
+                    count = 0;
+                    if (in.advanceExact(docId)) {
+                        for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
+                            ords = ArrayUtil.grow(ords, count + 1);
+                            ords[count++] = ord;
+                        }
                     }
+                }
+
+                @Override
+                public String getInternal(int index) {
+                    try {
+                        BytesRef encoded = in.lookupOrd(ords[index]);
+                        InetAddress address = InetAddressPoint.decode(
+                            Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)
+                        );
+                        return InetAddresses.toAddrString(address);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                @Override
+                public int size() {
+                    return count;
                 }
             }
 
+            public IpScriptDocValues(IpSupplier supplier) {
+                super(supplier);
+            }
+
             public String getValue() {
-                if (count == 0) {
+                if (supplier.size() == 0) {
                     return null;
                 } else {
                     return get(0);
@@ -340,26 +407,23 @@ public class IpFieldMapper extends FieldMapper {
 
             @Override
             public String get(int index) {
-                try {
-                    BytesRef encoded = in.lookupOrd(ords[index]);
-                    InetAddress address = InetAddressPoint.decode(
-                            Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length));
-                    return InetAddresses.toAddrString(address);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                return supplier.getInternal(index);
             }
 
             @Override
             public int size() {
-                return count;
+                return supplier.size();
             }
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), IpScriptDocValues::new, CoreValuesSourceType.IP);
+            return new SortedSetOrdinalsIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.IP,
+                (dv, n) -> new DelegateDocValuesField(new IpScriptDocValues(new IpSupplier(dv)), n)
+            );
         }
 
         @Override
@@ -372,13 +436,8 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         public DocValueFormat docValueFormat(@Nullable String format, ZoneId timeZone) {
-            if (format != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support custom formats");
-            }
-            if (timeZone != null) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName()
-                    + "] does not support custom time zones");
-            }
+            checkNoFormat(format);
+            checkNoTimeZone(timeZone);
             return DocValueFormat.IP;
         }
 
@@ -406,12 +465,7 @@ public class IpFieldMapper extends FieldMapper {
     private final FieldValues<InetAddress> scriptValues;
     private final ScriptCompiler scriptCompiler;
 
-    private IpFieldMapper(
-            String simpleName,
-            MappedFieldType mappedFieldType,
-            MultiFields multiFields,
-            CopyTo copyTo,
-            Builder builder) {
+    private IpFieldMapper(String simpleName, MappedFieldType mappedFieldType, MultiFields multiFields, CopyTo copyTo, Builder builder) {
         super(simpleName, mappedFieldType, multiFields, copyTo, builder.script.get() != null, builder.onScriptError.get());
         this.ignoreMalformedByDefault = builder.ignoreMalformedByDefault;
         this.indexed = builder.indexed.getValue();
@@ -443,49 +497,42 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        Object addressAsObject = context.parser().textOrNull();
-
-        if (addressAsObject == null) {
-            addressAsObject = nullValue;
-        }
-
-        if (addressAsObject == null) {
-            return;
-        }
-
-        String addressAsString = addressAsObject.toString();
         InetAddress address;
-        if (addressAsObject instanceof InetAddress) {
-            address = (InetAddress) addressAsObject;
-        } else {
-            try {
-                address = InetAddresses.forString(addressAsString);
-            } catch (IllegalArgumentException e) {
-                if (ignoreMalformed) {
-                    context.addIgnoredField(fieldType().name());
-                    return;
-                } else {
-                    throw e;
-                }
+        try {
+            address = value(context.parser(), nullValue);
+        } catch (IllegalArgumentException e) {
+            if (ignoreMalformed) {
+                context.addIgnoredField(fieldType().name());
+                return;
+            } else {
+                throw e;
             }
         }
+        if (address != null) {
+            indexValue(context, address);
+        }
+    }
 
-        indexValue(context, address);
+    private static InetAddress value(XContentParser parser, InetAddress nullValue) throws IOException {
+        String value = parser.textOrNull();
+        if (value == null) {
+            return nullValue;
+        }
+        return InetAddresses.forString(value);
     }
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
+        if (dimension) {
+            // Encode the tsid part of the dimension field if the _tsid field is enabled.
+            // If the _tsid field is not enabled, we can skip the encoding part.
+            BytesReference bytes = context.getMetadataMapper(TimeSeriesIdFieldMapper.NAME) != null
+                ? TimeSeriesIdFieldMapper.encodeTsidValue(NetworkAddress.format(address))
+                : null;
+            context.doc().addDimensionBytes(fieldType().name(), bytes);
+        }
         if (indexed) {
             Field field = new InetAddressPoint(fieldType().name(), address);
-            if (dimension) {
-                // Add dimension field with key so that we ensure it is single-valued.
-                // Dimension fields are always indexed.
-                if (context.doc().getByKey(fieldType().name()) != null) {
-                    throw new IllegalArgumentException("Dimension field [" + fieldType().name() + "] cannot be a multi-valued field.");
-                }
-                context.doc().addWithKey(fieldType().name(), field);
-            } else {
-                context.doc().add(field);
-            }
+            context.doc().add(field);
         }
         if (hasDocValues) {
             context.doc().add(new SortedSetDocValuesField(fieldType().name(), new BytesRef(InetAddressPoint.encode(address))));
@@ -498,8 +545,12 @@ public class IpFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void indexScriptValues(SearchLookup searchLookup, LeafReaderContext readerContext, int doc,
-                                     DocumentParserContext documentParserContext) {
+    protected void indexScriptValues(
+        SearchLookup searchLookup,
+        LeafReaderContext readerContext,
+        int doc,
+        DocumentParserContext documentParserContext
+    ) {
         this.scriptValues.valuesForDoc(searchLookup, readerContext, doc, value -> indexValue(documentParserContext, value));
     }
 
@@ -507,5 +558,4 @@ public class IpFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).dimension(dimension).init(this);
     }
-
 }

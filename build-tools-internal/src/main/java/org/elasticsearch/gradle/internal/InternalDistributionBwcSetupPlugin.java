@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
+import org.gradle.api.Action;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
@@ -21,12 +22,13 @@ import org.gradle.api.services.BuildServiceParameters;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 import static java.util.Arrays.asList;
 import static java.util.Arrays.stream;
@@ -164,18 +166,22 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
 
     private static List<DistributionProject> resolveArchiveProjects(File checkoutDir, Version bwcVersion) {
         List<String> projects = new ArrayList<>();
-        // All active BWC branches publish default and oss variants of rpm and deb packages
-        projects.addAll(asList("deb", "rpm", "oss-deb", "oss-rpm"));
+        if (bwcVersion.onOrAfter("7.13.0")) {
+            projects.addAll(asList("deb", "rpm"));
+            projects.addAll(asList("windows-zip", "darwin-tar", "linux-tar"));
+            projects.addAll(asList("darwin-aarch64-tar", "linux-aarch64-tar"));
+        } else {
+            projects.addAll(asList("deb", "rpm", "oss-deb", "oss-rpm"));
+            if (bwcVersion.onOrAfter("7.0.0")) { // starting with 7.0 we bundle a jdk which means we have platform-specific archives
+                projects.addAll(asList("oss-windows-zip", "windows-zip", "oss-darwin-tar", "darwin-tar", "oss-linux-tar", "linux-tar"));
 
-        if (bwcVersion.onOrAfter("7.0.0")) { // starting with 7.0 we bundle a jdk which means we have platform-specific archives
-            projects.addAll(asList("oss-windows-zip", "windows-zip", "oss-darwin-tar", "darwin-tar", "oss-linux-tar", "linux-tar"));
-
-            // We support aarch64 for linux and mac starting from 7.12
-            if (bwcVersion.onOrAfter("7.12.0")) {
-                projects.addAll(asList("oss-darwin-aarch64-tar", "oss-linux-aarch64-tar", "darwin-aarch64-tar", "linux-aarch64-tar"));
+                // We support aarch64 for linux and mac starting from 7.12
+                if (bwcVersion.onOrAfter("7.12.0")) {
+                    projects.addAll(asList("oss-darwin-aarch64-tar", "oss-linux-aarch64-tar", "darwin-aarch64-tar", "linux-aarch64-tar"));
+                }
+            } else { // prior to 7.0 we published only a single zip and tar archives for oss and default distributions
+                projects.addAll(asList("oss-zip", "zip", "tar", "oss-tar"));
             }
-        } else { // prior to 7.0 we published only a single zip and tar archives for oss and default distributions
-            projects.addAll(asList("oss-zip", "zip", "tar", "oss-tar"));
         }
 
         return projects.stream().map(name -> {
@@ -237,14 +243,16 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
             if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
                 c.args("--build-cache");
             }
-            c.doLast(task -> {
-                if (expectedOutputFile.exists() == false) {
-                    throw new InvalidUserDataException(
-                        "Building " + bwcVersion.get() + " didn't generate expected artifact " + expectedOutputFile
-                    );
+            c.doLast(new Action<Task>() {
+                @Override
+                public void execute(Task task) {
+                    if (expectedOutputFile.exists() == false) {
+                        throw new InvalidUserDataException(
+                            "Building " + bwcVersion.get() + " didn't generate expected artifact " + expectedOutputFile
+                        );
+                    }
                 }
             });
-
         });
         bwcTaskProvider.configure(t -> t.dependsOn(bwcTaskName));
     }

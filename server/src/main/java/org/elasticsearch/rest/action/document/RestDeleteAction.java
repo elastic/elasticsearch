@@ -31,9 +31,8 @@ public class RestDeleteAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             new Route(DELETE, "/{index}/_doc/{id}"),
-            Route.builder(DELETE, "/{index}/{type}/{id}")
-                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build());
+            Route.builder(DELETE, "/{index}/{type}/{id}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+        );
     }
 
     @Override

@@ -18,16 +18,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
-import org.joda.time.Instant;
 import org.junit.After;
 import org.junit.AfterClass;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -36,7 +36,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class TransformRestTestCase extends ESRestTestCase {
@@ -381,6 +381,13 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         // wait until the transform has been created and all data is available
         waitForTransformCheckpoint(transformId, checkpoint);
         refreshIndex(transformIndex);
+    }
+
+    protected void resetTransform(String transformId, boolean force) throws IOException {
+        final Request resetTransformRequest = createRequestWithAuth("POST", getTransformEndpoint() + transformId + "/_reset", null);
+        resetTransformRequest.addParameter(TransformField.FORCE.getPreferredName(), Boolean.toString(force));
+        Map<String, Object> resetTransformResponse = entityAsMap(client().performRequest(resetTransformRequest));
+        assertThat(resetTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
     }
 
     protected Request createRequestWithAuth(final String method, final String endpoint, final String authHeader) {

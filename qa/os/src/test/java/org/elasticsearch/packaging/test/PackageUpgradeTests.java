@@ -12,13 +12,13 @@ import org.apache.http.client.fluent.Request;
 import org.apache.http.entity.ContentType;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Packages;
+import org.elasticsearch.packaging.util.ServerUtils;
 
 import java.nio.file.Paths;
 
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
 import static org.hamcrest.Matchers.containsString;
 
 public class PackageUpgradeTests extends PackagingTestCase {
@@ -32,6 +32,9 @@ public class PackageUpgradeTests extends PackagingTestCase {
     public void test10InstallBwcVersion() throws Exception {
         installation = installPackage(sh, bwcDistribution);
         assertInstalled(bwcDistribution);
+        // TODO: Add more tests here to assert behavior when updating from < v8 to > v8 with implicit/explicit behavior,
+        // maybe as part of https://github.com/elastic/elasticsearch/pull/76879
+        ServerUtils.disableSecurityFeatures(installation);
     }
 
     public void test11ModifyKeystore() throws Exception {
@@ -44,25 +47,25 @@ public class PackageUpgradeTests extends PackagingTestCase {
         startElasticsearch();
 
         // create indexes explicitly with 0 replicas so when restarting we can reach green state
-        makeRequest(
+        ServerUtils.makeRequest(
             Request.Put("http://localhost:9200/library")
                 .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON)
         );
-        makeRequest(
+        ServerUtils.makeRequest(
             Request.Put("http://localhost:9200/library2")
                 .bodyString("{\"settings\":{\"index\":{\"number_of_replicas\":0}}}", ContentType.APPLICATION_JSON)
         );
 
         // add some docs
-        makeRequest(
+        ServerUtils.makeRequest(
             Request.Post("http://localhost:9200/library/_doc/1?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Elasticsearch - The Definitive Guide\"}", ContentType.APPLICATION_JSON)
         );
-        makeRequest(
+        ServerUtils.makeRequest(
             Request.Post("http://localhost:9200/library/_doc/2?refresh=true&pretty")
                 .bodyString("{ \"title\": \"Brave New World\"}", ContentType.APPLICATION_JSON)
         );
-        makeRequest(
+        ServerUtils.makeRequest(
             Request.Post("http://localhost:9200/library2/_doc/1?refresh=true&pretty")
                 .bodyString("{ \"title\": \"The Left Hand of Darkness\"}", ContentType.APPLICATION_JSON)
         );
@@ -72,27 +75,32 @@ public class PackageUpgradeTests extends PackagingTestCase {
         stopElasticsearch();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79950")
     public void test20InstallUpgradedVersion() throws Exception {
         if (bwcDistribution.path.equals(distribution.path)) {
             // the old and new distributions are the same, so we are testing force upgrading
             installation = Packages.forceUpgradePackage(sh, distribution);
         } else {
             installation = Packages.upgradePackage(sh, distribution);
+            verifySecurityNotAutoConfigured(installation);
         }
         assertInstalled(distribution);
         verifyPackageInstallation(installation, distribution, sh);
+        // Upgrade overwrites the configuration file because we run with --force-confnew so we need to disable security again
+        ServerUtils.disableSecurityFeatures(installation);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/76283")
     public void test21CheckUpgradedVersion() throws Exception {
         assertWhileRunning(() -> { assertDocsExist(); });
     }
 
     private void assertDocsExist() throws Exception {
-        String response1 = makeRequest(Request.Get("http://localhost:9200/library/_doc/1?pretty"));
+        String response1 = ServerUtils.makeRequest(Request.Get("http://localhost:9200/library/_doc/1?pretty"));
         assertThat(response1, containsString("Elasticsearch"));
-        String response2 = makeRequest(Request.Get("http://localhost:9200/library/_doc/2?pretty"));
+        String response2 = ServerUtils.makeRequest(Request.Get("http://localhost:9200/library/_doc/2?pretty"));
         assertThat(response2, containsString("World"));
-        String response3 = makeRequest(Request.Get("http://localhost:9200/library2/_doc/1?pretty"));
+        String response3 = ServerUtils.makeRequest(Request.Get("http://localhost:9200/library2/_doc/1?pretty"));
         assertThat(response3, containsString("Darkness"));
     }
 }

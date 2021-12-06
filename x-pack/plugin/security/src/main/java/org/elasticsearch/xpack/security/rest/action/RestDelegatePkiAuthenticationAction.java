@@ -11,20 +11,20 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationResponse;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.action.TransportDelegatePkiAuthenticationAction;
 
 import java.io.IOException;
@@ -55,7 +55,7 @@ public final class RestDelegatePkiAuthenticationAction extends SecurityBaseRestH
         Exception failedFeature = super.checkFeatureAvailable(request);
         if (failedFeature != null) {
             return failedFeature;
-        } else if (licenseState.checkFeature(Feature.SECURITY_STANDARD_REALMS)) {
+        } else if (Security.PKI_REALM_FEATURE.checkWithoutTracking(licenseState)) {
             return null;
         } else {
             logger.info("The '{}' realm is not available under the current license", PkiRealmSettings.TYPE);
@@ -67,15 +67,18 @@ public final class RestDelegatePkiAuthenticationAction extends SecurityBaseRestH
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         try (XContentParser parser = request.contentParser()) {
             final DelegatePkiAuthenticationRequest delegatePkiRequest = DelegatePkiAuthenticationRequest.fromXContent(parser);
-            return channel -> client.execute(DelegatePkiAuthenticationAction.INSTANCE, delegatePkiRequest,
-                    new RestBuilderListener<DelegatePkiAuthenticationResponse>(channel) {
-                        @Override
-                        public RestResponse buildResponse(DelegatePkiAuthenticationResponse delegatePkiResponse, XContentBuilder builder)
-                                throws Exception {
-                            delegatePkiResponse.toXContent(builder, channel.request());
-                            return new BytesRestResponse(RestStatus.OK, builder);
-                        }
-                    });
+            return channel -> client.execute(
+                DelegatePkiAuthenticationAction.INSTANCE,
+                delegatePkiRequest,
+                new RestBuilderListener<DelegatePkiAuthenticationResponse>(channel) {
+                    @Override
+                    public RestResponse buildResponse(DelegatePkiAuthenticationResponse delegatePkiResponse, XContentBuilder builder)
+                        throws Exception {
+                        delegatePkiResponse.toXContent(builder, channel.request());
+                        return new BytesRestResponse(RestStatus.OK, builder);
+                    }
+                }
+            );
         }
     }
 

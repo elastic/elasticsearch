@@ -9,10 +9,10 @@
 package org.elasticsearch.client.ilm;
 
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,7 +28,7 @@ public class LifecyclePolicyMetadataTests extends AbstractXContentTestCase<Lifec
 
     @Override
     protected LifecyclePolicyMetadata createTestInstance() {
-        policyName = randomAlphaOfLengthBetween(5,20);
+        policyName = randomAlphaOfLengthBetween(5, 20);
         LifecyclePolicy policy = createRandomPolicy(policyName);
         return new LifecyclePolicyMetadata(policy, randomLong(), randomLong());
     }
@@ -46,8 +46,8 @@ public class LifecyclePolicyMetadataTests extends AbstractXContentTestCase<Lifec
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         return (field) ->
-            // phases is a list of Phase parsable entries only
-            field.endsWith(".phases")
+        // phases is a list of Phase parsable entries only
+        field.endsWith(".phases")
             // these are all meant to be maps of strings, so complex objects will confuse the parser
             || field.endsWith(".include")
             || field.endsWith(".exclude")
@@ -60,21 +60,29 @@ public class LifecyclePolicyMetadataTests extends AbstractXContentTestCase<Lifec
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
-        entries.addAll(Arrays.asList(
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(WaitForSnapshotAction.NAME),
-                WaitForSnapshotAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SearchableSnapshotAction.NAME),
-                SearchableSnapshotAction::parse),
-            new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse)
-        ));
+        entries.addAll(
+            Arrays.asList(
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(AllocateAction.NAME), AllocateAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ForceMergeAction.NAME), ForceMergeAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ReadOnlyAction.NAME), ReadOnlyAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(RolloverAction.NAME), RolloverAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(ShrinkAction.NAME), ShrinkAction::parse),
+                new NamedXContentRegistry.Entry(
+                    LifecycleAction.class,
+                    new ParseField(WaitForSnapshotAction.NAME),
+                    WaitForSnapshotAction::parse
+                ),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(FreezeAction.NAME), FreezeAction::parse),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(SetPriorityAction.NAME), SetPriorityAction::parse),
+                new NamedXContentRegistry.Entry(
+                    LifecycleAction.class,
+                    new ParseField(SearchableSnapshotAction.NAME),
+                    SearchableSnapshotAction::parse
+                ),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(UnfollowAction.NAME), UnfollowAction::parse)
+            )
+        );
         return new NamedXContentRegistry(entries);
     }
 }

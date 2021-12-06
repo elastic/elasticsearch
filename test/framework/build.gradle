@@ -24,7 +24,12 @@ dependencies {
   api "org.apache.lucene:lucene-codecs:${versions.lucene}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api "org.elasticsearch:securemock:${versions.securemock}"
+
+  // mockito
+  api 'org.mockito:mockito-core:4.0.0'
+  api 'net.bytebuddy:byte-buddy:1.11.19'
+  api 'org.objenesis:objenesis:3.2'
+
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
   api "io.github.nik9000:mapmatcher:0.0.3"
 
@@ -89,7 +94,17 @@ tasks.named("thirdPartyAudit").configure {
           'org.tukaani.xz.X86Options',
           'org.tukaani.xz.XZ',
           'org.tukaani.xz.XZInputStream',
-          'org.tukaani.xz.XZOutputStream'
+          'org.tukaani.xz.XZOutputStream',
+
+          // mockito
+          'net.bytebuddy.agent.ByteBuddyAgent',
+          'org.mockito.internal.creation.bytebuddy.inject.MockMethodDispatcher',
+          'org.opentest4j.AssertionFailedError'
+  )
+
+  ignoreViolations(
+    'org.objenesis.instantiator.sun.UnsafeFactoryInstantiator',
+    'org.objenesis.instantiator.util.UnsafeUtils'
   )
 }
 

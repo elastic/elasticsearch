@@ -91,9 +91,9 @@ public abstract class ThreeArgsDateTimeProcessor implements Processor {
             return false;
         }
         ThreeArgsDateTimeProcessor that = (ThreeArgsDateTimeProcessor) o;
-        return Objects.equals(first, that.first) &&
-            Objects.equals(second, that.second) &&
-            Objects.equals(third, that.third) &&
-            Objects.equals(zoneId, that.zoneId);
+        return Objects.equals(first, that.first)
+            && Objects.equals(second, that.second)
+            && Objects.equals(third, that.third)
+            && Objects.equals(zoneId, that.zoneId);
     }
 }

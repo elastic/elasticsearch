@@ -37,7 +37,6 @@ public class ChangelogEntry {
     private Highlight highlight;
     private Breaking breaking;
     private Deprecation deprecation;
-    private List<String> versions;
 
     private static final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
 
@@ -113,14 +112,6 @@ public class ChangelogEntry {
         this.deprecation = deprecation;
     }
 
-    public List<String> getVersions() {
-        return versions;
-    }
-
-    public void setVersions(List<String> versions) {
-        this.versions = versions;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -136,20 +127,19 @@ public class ChangelogEntry {
             && Objects.equals(type, that.type)
             && Objects.equals(summary, that.summary)
             && Objects.equals(highlight, that.highlight)
-            && Objects.equals(breaking, that.breaking)
-            && Objects.equals(versions, that.versions);
+            && Objects.equals(breaking, that.breaking);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(pr, issues, area, type, summary, highlight, breaking, versions);
+        return Objects.hash(pr, issues, area, type, summary, highlight, breaking);
     }
 
     @Override
     public String toString() {
         return String.format(
             Locale.ROOT,
-            "ChangelogEntry{pr=%d, issues=%s, area='%s', type='%s', summary='%s', highlight=%s, breaking=%s, deprecation=%s versions=%s}",
+            "ChangelogEntry{pr=%d, issues=%s, area='%s', type='%s', summary='%s', highlight=%s, breaking=%s, deprecation=%s}",
             pr,
             issues,
             area,
@@ -157,8 +147,7 @@ public class ChangelogEntry {
             summary,
             highlight,
             breaking,
-            deprecation,
-            versions
+            deprecation
         );
     }
 
@@ -226,6 +215,7 @@ public class ChangelogEntry {
         private String details;
         private String impact;
         private boolean notable;
+        private boolean essSettingChange;
 
         public String getArea() {
             return area;
@@ -271,6 +261,14 @@ public class ChangelogEntry {
             return generatedAnchor(this.title);
         }
 
+        public boolean isEssSettingChange() {
+            return essSettingChange;
+        }
+
+        public void setEssSettingChange(boolean essSettingChange) {
+            this.essSettingChange = essSettingChange;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -284,23 +282,25 @@ public class ChangelogEntry {
                 && Objects.equals(area, breaking.area)
                 && Objects.equals(title, breaking.title)
                 && Objects.equals(details, breaking.details)
-                && Objects.equals(impact, breaking.impact);
+                && Objects.equals(impact, breaking.impact)
+                && Objects.equals(essSettingChange, breaking.essSettingChange);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(area, title, details, impact, notable);
+            return Objects.hash(area, title, details, impact, notable, essSettingChange);
         }
 
         @Override
         public String toString() {
             return String.format(
-                "Breaking{area='%s', title='%s', details='%s', impact='%s', isNotable=%s}",
+                "Breaking{area='%s', title='%s', details='%s', impact='%s', notable=%s, essSettingChange=%s}",
                 area,
                 title,
                 details,
                 impact,
-                notable
+                notable,
+                essSettingChange
             );
         }
     }
@@ -362,7 +362,7 @@ public class ChangelogEntry {
     }
 
     private static String generatedAnchor(String input) {
-        final List<String> excludes = List.of("the", "is", "a");
+        final List<String> excludes = List.of("the", "is", "a", "and");
 
         final String[] words = input.toLowerCase(Locale.ROOT)
             .replaceAll("[^\\w]+", "_")

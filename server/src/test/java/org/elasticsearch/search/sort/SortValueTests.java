@@ -15,12 +15,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -30,8 +30,11 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
-    private static final DocValueFormat STRICT_DATE_TIME = new DocValueFormat.DateTime(DateFormatter.forPattern("strict_date_time"),
-            ZoneId.of("UTC"), DateFieldMapper.Resolution.MILLISECONDS);
+    private static final DocValueFormat STRICT_DATE_TIME = new DocValueFormat.DateTime(
+        DateFormatter.forPattern("strict_date_time"),
+        ZoneId.of("UTC"),
+        DateFieldMapper.Resolution.MILLISECONDS
+    );
 
     @Override
     protected Class<SortValue> categoryClass() {
@@ -46,10 +49,14 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
     @Override
     protected SortValue createTestInstance() {
         switch (between(0, 2)) {
-            case 0: return SortValue.from(randomDouble());
-            case 1: return SortValue.from(randomLong());
-            case 2: return SortValue.from(new BytesRef(randomAlphaOfLength(5)));
-            default: throw new AssertionError();
+            case 0:
+                return SortValue.from(randomDouble());
+            case 1:
+                return SortValue.from(randomLong());
+            case 2:
+                return SortValue.from(new BytesRef(randomAlphaOfLength(5)));
+            default:
+                throw new AssertionError();
         }
     }
 

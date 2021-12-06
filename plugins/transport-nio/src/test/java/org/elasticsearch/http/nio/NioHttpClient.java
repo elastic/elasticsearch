@@ -21,6 +21,7 @@ import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpRequestEncoder;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseDecoder;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -83,8 +84,11 @@ class NioHttpClient implements Closeable {
 
     NioHttpClient() {
         try {
-            nioGroup = new NioSelectorGroup(daemonThreadFactory(Settings.EMPTY, "nio-http-client"), 1,
-                (s) -> new EventHandler(this::onException, s));
+            nioGroup = new NioSelectorGroup(
+                daemonThreadFactory(Settings.EMPTY, "nio-http-client"),
+                1,
+                (s) -> new EventHandler(this::onException, s)
+            );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -108,8 +112,10 @@ class NioHttpClient implements Closeable {
     }
 
     public final NioSocketChannel connect(InetSocketAddress remoteAddress) {
-        ChannelFactory<NioServerSocketChannel, NioSocketChannel> factory = new ClientChannelFactory(new CountDownLatch(0), new
-            ArrayList<>());
+        ChannelFactory<NioServerSocketChannel, NioSocketChannel> factory = new ClientChannelFactory(
+            new CountDownLatch(0),
+            new ArrayList<>()
+        );
         try {
             NioSocketChannel nioSocketChannel = nioGroup.openChannel(remoteAddress, factory);
             PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
@@ -140,8 +146,7 @@ class NioHttpClient implements Closeable {
             connectFuture.actionGet();
 
             for (HttpRequest request : requests) {
-                nioSocketChannel.getContext().sendMessage(request, (v, e) -> {
-                });
+                nioSocketChannel.getContext().sendMessage(request, (v, e) -> {});
             }
             if (latch.await(30L, TimeUnit.SECONDS) == false) {
                 fail("Failed to get all expected responses.");
@@ -169,14 +174,16 @@ class NioHttpClient implements Closeable {
         private final Collection<FullHttpResponse> content;
 
         private ClientChannelFactory(CountDownLatch latch, Collection<FullHttpResponse> content) {
-            super(NetworkService.TCP_NO_DELAY.get(Settings.EMPTY),
+            super(
+                NetworkService.TCP_NO_DELAY.get(Settings.EMPTY),
                 NetworkService.TCP_KEEP_ALIVE.get(Settings.EMPTY),
                 NetworkService.TCP_KEEP_IDLE.get(Settings.EMPTY),
                 NetworkService.TCP_KEEP_INTERVAL.get(Settings.EMPTY),
                 NetworkService.TCP_KEEP_COUNT.get(Settings.EMPTY),
                 NetworkService.TCP_REUSE_ADDRESS.get(Settings.EMPTY),
                 Math.toIntExact(NetworkService.TCP_SEND_BUFFER_SIZE.get(Settings.EMPTY).getBytes()),
-                Math.toIntExact(NetworkService.TCP_RECEIVE_BUFFER_SIZE.get(Settings.EMPTY).getBytes()));
+                Math.toIntExact(NetworkService.TCP_RECEIVE_BUFFER_SIZE.get(Settings.EMPTY).getBytes())
+            );
             this.latch = latch;
             this.content = content;
         }
@@ -190,15 +197,24 @@ class NioHttpClient implements Closeable {
                 onException(e);
                 nioSocketChannel.close();
             };
-            SocketChannelContext context = new BytesChannelContext(nioSocketChannel, selector, socketConfig, exceptionHandler, handler,
-                InboundChannelBuffer.allocatingInstance());
+            SocketChannelContext context = new BytesChannelContext(
+                nioSocketChannel,
+                selector,
+                socketConfig,
+                exceptionHandler,
+                handler,
+                InboundChannelBuffer.allocatingInstance()
+            );
             nioSocketChannel.setContext(context);
             return nioSocketChannel;
         }
 
         @Override
-        public NioServerSocketChannel createServerChannel(NioSelector selector, ServerSocketChannel channel,
-                                                          Config.ServerSocket socketConfig) {
+        public NioServerSocketChannel createServerChannel(
+            NioSelector selector,
+            ServerSocketChannel channel,
+            Config.ServerSocket socketConfig
+        ) {
             throw new UnsupportedOperationException("Cannot create server channel");
         }
     }
@@ -296,11 +312,13 @@ class NioHttpClient implements Closeable {
 
         private void handleResponse(Object message) {
             final FullHttpResponse response = (FullHttpResponse) message;
-            DefaultFullHttpResponse newResponse = new DefaultFullHttpResponse(response.protocolVersion(),
+            DefaultFullHttpResponse newResponse = new DefaultFullHttpResponse(
+                response.protocolVersion(),
                 response.status(),
                 Unpooled.copiedBuffer(response.content()),
                 response.headers().copy(),
-                response.trailingHeaders().copy());
+                response.trailingHeaders().copy()
+            );
             response.release();
             content.add(newResponse);
             latch.countDown();

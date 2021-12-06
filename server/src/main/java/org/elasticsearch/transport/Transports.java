@@ -13,6 +13,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.tasks.Task;
 
 import java.util.Arrays;
+import java.util.Set;
 
 public enum Transports {
     ;
@@ -28,9 +29,10 @@ public enum Transports {
     public static boolean isTransportThread(Thread t) {
         final String threadName = t.getName();
         for (String s : Arrays.asList(
-                HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX,
-                TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
-                TEST_MOCK_TRANSPORT_THREAD_PREFIX)) {
+            HttpServerTransport.HTTP_SERVER_WORKER_THREAD_NAME_PREFIX,
+            TcpTransport.TRANSPORT_WORKER_THREAD_NAME_PREFIX,
+            TEST_MOCK_TRANSPORT_THREAD_PREFIX
+        )) {
             if (threadName.contains(s)) {
                 return true;
             }
@@ -51,9 +53,11 @@ public enum Transports {
     }
 
     public static boolean assertDefaultThreadContext(ThreadContext threadContext) {
-        assert threadContext.getRequestHeadersOnly().isEmpty() ||
-            threadContext.getRequestHeadersOnly().size() == 1 && threadContext.getRequestHeadersOnly().containsKey(Task.X_OPAQUE_ID) :
-            "expected empty context but was " + threadContext.getRequestHeadersOnly() + " on " + Thread.currentThread().getName();
+        assert threadContext.getRequestHeadersOnly().isEmpty()
+            || threadContext.getRequestHeadersOnly().keySet().equals(Set.of(Task.X_OPAQUE_ID))
+            || threadContext.getRequestHeadersOnly().keySet().equals(Set.of(Task.TRACE_ID))
+            || threadContext.getRequestHeadersOnly().keySet().equals(Set.of(Task.X_OPAQUE_ID, Task.TRACE_ID))
+            : "expected empty context but was " + threadContext.getRequestHeadersOnly() + " on " + Thread.currentThread().getName();
         return true;
     }
 }

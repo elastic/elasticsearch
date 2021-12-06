@@ -50,12 +50,12 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
         String nn1Port = "10001";
         String nn2Port = "10002";
         if (ports.length() > 0) {
-             final Path path = PathUtils.get(ports);
-             final List<String> lines = AccessController.doPrivileged((PrivilegedExceptionAction<List<String>>) () -> {
-                return Files.readAllLines(path);
-             });
-             nn1Port = lines.get(0);
-             nn2Port = lines.get(1);
+            final Path path = PathUtils.get(ports);
+            final List<String> lines = AccessController.doPrivileged(
+                (PrivilegedExceptionAction<List<String>>) () -> { return Files.readAllLines(path); }
+            );
+            nn1Port = lines.get(0);
+            nn2Port = lines.get(1);
         }
         boolean securityEnabled = hdfsKerberosPrincipal != null;
 
@@ -101,21 +101,26 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
         {
             Request request = new Request("PUT", "/_snapshot/hdfs_ha_repo_read");
             request.setJsonEntity(
-                "{" +
-                    "\"type\":\"hdfs\"," +
-                    "\"settings\":{" +
-                        "\"uri\": \"hdfs://ha-hdfs/\",\n" +
-                        "\"path\": \"/user/elasticsearch/existing/readonly-repository\"," +
-                        "\"readonly\": \"true\"," +
-                        securityCredentials(securityEnabled, esKerberosPrincipal) +
-                        "\"conf.dfs.nameservices\": \"ha-hdfs\"," +
-                        "\"conf.dfs.ha.namenodes.ha-hdfs\": \"nn1,nn2\"," +
-                        "\"conf.dfs.namenode.rpc-address.ha-hdfs.nn1\": \"localhost:"+nn1Port+"\"," +
-                        "\"conf.dfs.namenode.rpc-address.ha-hdfs.nn2\": \"localhost:"+nn2Port+"\"," +
-                        "\"conf.dfs.client.failover.proxy.provider.ha-hdfs\": " +
-                            "\"org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider\"" +
-                    "}" +
-                "}");
+                "{"
+                    + "\"type\":\"hdfs\","
+                    + "\"settings\":{"
+                    + "\"uri\": \"hdfs://ha-hdfs/\",\n"
+                    + "\"path\": \"/user/elasticsearch/existing/readonly-repository\","
+                    + "\"readonly\": \"true\","
+                    + securityCredentials(securityEnabled, esKerberosPrincipal)
+                    + "\"conf.dfs.nameservices\": \"ha-hdfs\","
+                    + "\"conf.dfs.ha.namenodes.ha-hdfs\": \"nn1,nn2\","
+                    + "\"conf.dfs.namenode.rpc-address.ha-hdfs.nn1\": \"localhost:"
+                    + nn1Port
+                    + "\","
+                    + "\"conf.dfs.namenode.rpc-address.ha-hdfs.nn2\": \"localhost:"
+                    + nn2Port
+                    + "\","
+                    + "\"conf.dfs.client.failover.proxy.provider.ha-hdfs\": "
+                    + "\"org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider\""
+                    + "}"
+                    + "}"
+            );
             Response response = client.performRequest(request);
 
             Assert.assertEquals(200, response.getStatusLine().getStatusCode());
@@ -139,8 +144,7 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
 
     private String securityCredentials(boolean securityEnabled, String kerberosPrincipal) {
         if (securityEnabled) {
-            return "\"security.principal\": \""+kerberosPrincipal+"\"," +
-                "\"conf.dfs.data.transfer.protection\": \"authentication\",";
+            return "\"security.principal\": \"" + kerberosPrincipal + "\"," + "\"conf.dfs.data.transfer.protection\": \"authentication\",";
         } else {
             return "";
         }
@@ -235,11 +239,11 @@ public class HaHdfsFailoverTestSuiteIT extends ESRestTestCase {
         }
 
         public int transitionToStandby(String namenodeID) throws Exception {
-            return run(new String[]{"-transitionToStandby", namenodeID});
+            return run(new String[] { "-transitionToStandby", namenodeID });
         }
 
         public int transitionToActive(String namenodeID) throws Exception {
-            return run(new String[]{"-transitionToActive", namenodeID});
+            return run(new String[] { "-transitionToActive", namenodeID });
         }
 
         public void close() {

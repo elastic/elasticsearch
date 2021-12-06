@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceB
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.HistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
@@ -705,22 +706,31 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     }
 
     @Override
-    public QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextCheckpointTimestamp) {
+    public QueryBuilder buildFilterQuery(TransformCheckpoint lastCheckpoint, TransformCheckpoint nextCheckpoint) {
         // shortcut for only 1 element
         if (fieldCollectors.size() == 1) {
-            return fieldCollectors.values().iterator().next().filterByChanges(lastCheckpointTimestamp, nextCheckpointTimestamp);
+            return fieldCollectors.values()
+                .iterator()
+                .next()
+                .filterByChanges(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound());
         }
 
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder();
 
         for (FieldCollector fieldCollector : fieldCollectors.values()) {
-            QueryBuilder filter = fieldCollector.filterByChanges(lastCheckpointTimestamp, nextCheckpointTimestamp);
+            QueryBuilder filter = fieldCollector.filterByChanges(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound());
             if (filter != null) {
                 filteredQuery.filter(filter);
             }
         }
 
         return filteredQuery;
+    }
+
+    @Override
+    public Collection<String> getIndicesToQuery(TransformCheckpoint lastCheckpoint, TransformCheckpoint nextCheckpoint) {
+        // for updating the data, all indices have to be queried
+        return TransformCheckpoint.getChangedIndices(TransformCheckpoint.EMPTY, nextCheckpoint);
     }
 
     @Override

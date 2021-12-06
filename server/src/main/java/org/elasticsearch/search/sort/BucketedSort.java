@@ -10,8 +10,6 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.common.util.BigArray;
 import org.elasticsearch.common.util.BigArrays;
@@ -19,6 +17,8 @@ import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.FloatArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -83,10 +83,12 @@ public abstract class BucketedSort implements Releasable {
          * </p>
          */
         void swap(long lhs, long rhs);
+
         /**
          * Prepare to load extra data from a leaf.
          */
         Loader loader(LeafReaderContext ctx) throws IOException;
+
         @FunctionalInterface
         interface Loader {
             /**
@@ -402,8 +404,8 @@ public abstract class BucketedSort implements Releasable {
                 grow(requiredSize);
             }
             int next = getNextGatherOffset(rootIndex);
-            assert 0 <= next && next < bucketSize :
-                "Expected next to be in the range of valid buckets [0 <= " + next + " < " + bucketSize + "]";
+            assert 0 <= next && next < bucketSize
+                : "Expected next to be in the range of valid buckets [0 <= " + next + " < " + bucketSize + "]";
             long index = next + rootIndex;
             setIndexToDocValue(index);
             loader().loadFromDoc(index, doc);
@@ -451,18 +453,31 @@ public abstract class BucketedSort implements Releasable {
      * Superclass for implementations of {@linkplain BucketedSort} for {@code double} keys.
      */
     public abstract static class ForDoubles extends BucketedSort {
-        private DoubleArray values = bigArrays.newDoubleArray(getBucketSize(), false);
+        private DoubleArray values;
 
         public ForDoubles(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format, int bucketSize, ExtraData extra) {
             super(bigArrays, sortOrder, format, bucketSize, extra);
+            boolean success = false;
+            try {
+                values = bigArrays.newDoubleArray(getBucketSize(), false);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
             initGatherOffsets();
         }
 
         @Override
-        public boolean needsScores() { return false; }
+        public boolean needsScores() {
+            return false;
+        }
 
         @Override
-        protected final BigArray values() { return values; }
+        protected final BigArray values() {
+            return values;
+        }
 
         @Override
         protected final void growValues(long minSize) {
@@ -538,7 +553,7 @@ public abstract class BucketedSort implements Releasable {
          */
         public static final int MAX_BUCKET_SIZE = (int) Math.pow(2, 24);
 
-        private FloatArray values = bigArrays.newFloatArray(1, false);
+        private FloatArray values;
 
         public ForFloats(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format, int bucketSize, ExtraData extra) {
             super(bigArrays, sortOrder, format, bucketSize, extra);
@@ -546,11 +561,22 @@ public abstract class BucketedSort implements Releasable {
                 close();
                 throw new IllegalArgumentException("bucket size must be less than [2^24] but was [" + bucketSize + "]");
             }
+            boolean success = false;
+            try {
+                values = bigArrays.newFloatArray(1, false);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
             initGatherOffsets();
         }
 
         @Override
-        protected final BigArray values() { return values; }
+        protected final BigArray values() {
+            return values;
+        }
 
         @Override
         protected final void growValues(long minSize) {
@@ -618,18 +644,31 @@ public abstract class BucketedSort implements Releasable {
      * Superclass for implementations of {@linkplain BucketedSort} for {@code long} keys.
      */
     public abstract static class ForLongs extends BucketedSort {
-        private LongArray values = bigArrays.newLongArray(1, false);
+        private LongArray values;
 
         public ForLongs(BigArrays bigArrays, SortOrder sortOrder, DocValueFormat format, int bucketSize, ExtraData extra) {
             super(bigArrays, sortOrder, format, bucketSize, extra);
+            boolean success = false;
+            try {
+                values = bigArrays.newLongArray(1, false);
+                success = true;
+            } finally {
+                if (success == false) {
+                    close();
+                }
+            }
             initGatherOffsets();
         }
 
         @Override
-        public final boolean needsScores() { return false; }
+        public final boolean needsScores() {
+            return false;
+        }
 
         @Override
-        protected final BigArray values() { return values; }
+        protected final BigArray values() {
+            return values;
+        }
 
         @Override
         protected final void growValues(long minSize) {

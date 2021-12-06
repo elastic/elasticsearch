@@ -8,7 +8,6 @@
 
 package org.elasticsearch.indices.mapping;
 
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -29,18 +28,23 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
     // see #3544
     public void testConcurrentDynamicMapping() throws Exception {
         final String fieldName = "field";
-        final String mapping = "{" +
-                "\"dynamic_templates\": ["
-                + "{ \"" + fieldName + "\": {" + "\"path_match\": \"*\"," + "\"mapping\": {" + "\"type\": \"text\"," + "\"store\": true,"
-                + "\"analyzer\": \"whitespace\" } } } ] }";
+        final String mapping = "{"
+            + "\"dynamic_templates\": ["
+            + "{ \""
+            + fieldName
+            + "\": {"
+            + "\"path_match\": \"*\","
+            + "\"mapping\": {"
+            + "\"type\": \"text\","
+            + "\"store\": true,"
+            + "\"analyzer\": \"whitespace\" } } } ] }";
         // The 'fieldNames' array is used to help with retrieval of index terms
         // after testing
 
         int iters = scaledRandomIntBetween(5, 15);
         for (int i = 0; i < iters; i++) {
             cluster().wipeIndices("test");
-            assertAcked(prepareCreate("test")
-                    .setMapping(mapping));
+            assertAcked(prepareCreate("test").setMapping(mapping));
             int numDocs = scaledRandomIntBetween(10, 100);
             final CountDownLatch latch = new CountDownLatch(numDocs);
             final List<Throwable> throwable = new CopyOnWriteArrayList<>();
@@ -48,19 +52,21 @@ public class ConcurrentDynamicTemplateIT extends ESIntegTestCase {
             for (int j = 0; j < numDocs; j++) {
                 Map<String, Object> source = new HashMap<>();
                 source.put(fieldName, "test-user");
-                client().prepareIndex("test").setId(Integer.toString(currentID++)).setSource(source).execute(
-                    new ActionListener<IndexResponse>() {
-                    @Override
-                    public void onResponse(IndexResponse response) {
-                        latch.countDown();
-                    }
+                client().prepareIndex("test")
+                    .setId(Integer.toString(currentID++))
+                    .setSource(source)
+                    .execute(new ActionListener<IndexResponse>() {
+                        @Override
+                        public void onResponse(IndexResponse response) {
+                            latch.countDown();
+                        }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        throwable.add(e);
-                        latch.countDown();
-                    }
-                });
+                        @Override
+                        public void onFailure(Exception e) {
+                            throwable.add(e);
+                            latch.countDown();
+                        }
+                    });
             }
             latch.await();
             assertThat(throwable, emptyIterable());

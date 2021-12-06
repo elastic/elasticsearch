@@ -378,7 +378,7 @@ public class CoordinatorTests extends ESTestCase {
                 });
             }
 
-            assertTrue(completionCountdown.await(10L, TimeUnit.SECONDS));
+            assertTrue(completionCountdown.await(20L, TimeUnit.SECONDS));
             assertThat(coordinator.queue, empty());
 
             assertBusy(() -> assertThat(coordinator.getRemoteRequestsCurrent(), equalTo(0)));

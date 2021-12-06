@@ -8,11 +8,14 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.ScriptDocValues.GeoPointsSupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -25,8 +28,8 @@ public abstract class AbstractLeafGeoPointFieldData implements LeafGeoPointField
     }
 
     @Override
-    public final ScriptDocValues.GeoPoints getScriptValues() {
-        return new ScriptDocValues.GeoPoints(getGeoPointValues());
+    public final DocValuesField<?> getScriptField(String name) {
+        return new DelegateDocValuesField(new ScriptDocValues.GeoPoints(new GeoPointsSupplier(getGeoPointValues())), name);
     }
 
     public static LeafGeoPointFieldData empty(final int maxDoc) {
@@ -43,8 +46,7 @@ public abstract class AbstractLeafGeoPointFieldData implements LeafGeoPointField
             }
 
             @Override
-            public void close() {
-            }
+            public void close() {}
 
             @Override
             public MultiGeoPointValues getGeoPointValues() {

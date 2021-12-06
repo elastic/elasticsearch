@@ -29,7 +29,7 @@ public class SecurityActionMapper {
         switch (action) {
             case ClearScrollAction.NAME:
                 assert request instanceof ClearScrollRequest;
-                boolean isClearAllScrollRequest =  ((ClearScrollRequest) request).scrollIds().contains("_all");
+                boolean isClearAllScrollRequest = ((ClearScrollRequest) request).scrollIds().contains("_all");
                 if (isClearAllScrollRequest) {
                     return CLUSTER_PERMISSION_SCROLL_CLEAR_ALL_NAME;
                 }

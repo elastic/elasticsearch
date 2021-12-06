@@ -9,14 +9,9 @@ package org.elasticsearch.xpack.searchbusinessrules;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
-import org.apache.lucene.search.CappedScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -24,6 +19,10 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.Item;
 
 import java.io.IOException;
@@ -52,48 +51,48 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     private QueryBuilder createTestTermQueryBuilder() {
-            String fieldName = null;
-            Object value;
-            switch (randomIntBetween(0, 3)) {
-                case 0:
-                    if (randomBoolean()) {
-                        fieldName = BOOLEAN_FIELD_NAME;
-                    }
-                    value = randomBoolean();
-                    break;
-                case 1:
-                    if (randomBoolean()) {
-                        fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
-                    }
-                    if (frequently()) {
-                        value = randomAlphaOfLengthBetween(1, 10);
-                    } else {
-                        // generate unicode string in 10% of cases
-                        JsonStringEncoder encoder = JsonStringEncoder.getInstance();
-                        value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
-                    }
-                    break;
-                case 2:
-                    if (randomBoolean()) {
-                        fieldName = INT_FIELD_NAME;
-                    }
-                    value = randomInt(10000);
-                    break;
-                case 3:
-                    if (randomBoolean()) {
-                        fieldName = DOUBLE_FIELD_NAME;
-                    }
-                    value = randomDouble();
-                    break;
-                default:
-                    throw new UnsupportedOperationException();
-            }
-
-            if (fieldName == null) {
-                fieldName = randomAlphaOfLengthBetween(1, 10);
-            }
-            return new TermQueryBuilder(fieldName, value);
+        String fieldName = null;
+        Object value;
+        switch (randomIntBetween(0, 3)) {
+            case 0:
+                if (randomBoolean()) {
+                    fieldName = BOOLEAN_FIELD_NAME;
+                }
+                value = randomBoolean();
+                break;
+            case 1:
+                if (randomBoolean()) {
+                    fieldName = randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME);
+                }
+                if (frequently()) {
+                    value = randomAlphaOfLengthBetween(1, 10);
+                } else {
+                    // generate unicode string in 10% of cases
+                    JsonStringEncoder encoder = JsonStringEncoder.getInstance();
+                    value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
+                }
+                break;
+            case 2:
+                if (randomBoolean()) {
+                    fieldName = INT_FIELD_NAME;
+                }
+                value = randomInt(10000);
+                break;
+            case 3:
+                if (randomBoolean()) {
+                    fieldName = DOUBLE_FIELD_NAME;
+                }
+                value = randomDouble();
+                break;
+            default:
+                throw new UnsupportedOperationException();
         }
+
+        if (fieldName == null) {
+            fieldName = randomAlphaOfLengthBetween(1, 10);
+        }
+        return new TermQueryBuilder(fieldName, value);
+    }
 
     private Item[] generateRandomItems() {
         return randomArray(1, 100, Item[]::new, () -> new Item(randomAlphaOfLength(64), randomAlphaOfLength(256)));
@@ -118,25 +117,19 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     public void testIllegalArguments() {
-        expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), (String)null));
+        expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), (String) null));
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(null, "1"));
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), "1", null, "2"));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), (PinnedQueryBuilder.Item)null)
+            () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), (PinnedQueryBuilder.Item) null)
         );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new PinnedQueryBuilder(null, new Item("test", "1"))
-        );
+        expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(null, new Item("test", "1")));
         expectThrows(
             IllegalArgumentException.class,
             () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), new Item("test", "1"), null, new Item("test", "2"))
         );
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), new Item("test*", "1"))
-        );
+        expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), new Item("test*", "1")));
         String[] bigIdList = new String[PinnedQueryBuilder.MAX_NUM_PINNED_HITS + 1];
         Item[] bigItemList = new Item[PinnedQueryBuilder.MAX_NUM_PINNED_HITS + 1];
         for (int i = 0; i < bigIdList.length; i++) {
@@ -157,21 +150,20 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     public void testIdsFromJson() throws IOException {
-        String query =
-                "{" +
-                "\"pinned\" : {" +
-                "  \"organic\" : {" +
-                "    \"term\" : {" +
-                "      \"tag\" : {" +
-                "        \"value\" : \"tech\"," +
-                "        \"boost\" : 1.0" +
-                "      }" +
-                "    }" +
-                "  }, "+
-                "  \"ids\" : [ \"1\",\"2\" ]," +
-                "  \"boost\":1.0 "+
-                "}" +
-              "}";
+        String query = "{"
+            + "\"pinned\" : {"
+            + "  \"organic\" : {"
+            + "    \"term\" : {"
+            + "      \"tag\" : {"
+            + "        \"value\" : \"tech\","
+            + "        \"boost\" : 1.0"
+            + "      }"
+            + "    }"
+            + "  }, "
+            + "  \"ids\" : [ \"1\",\"2\" ],"
+            + "  \"boost\":1.0 "
+            + "}"
+            + "}";
 
         PinnedQueryBuilder queryBuilder = (PinnedQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
@@ -181,21 +173,20 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     public void testDocsFromJson() throws IOException {
-        String query =
-                "{" +
-                "\"pinned\" : {" +
-                "  \"organic\" : {" +
-                "    \"term\" : {" +
-                "      \"tag\" : {" +
-                "        \"value\" : \"tech\"," +
-                "        \"boost\" : 1.0" +
-                "      }" +
-                "    }" +
-                "  }, "+
-                "  \"docs\" : [{ \"_index\": \"test\", \"_id\": \"1\" }, { \"_index\": \"test\", \"_id\": \"2\" }]," +
-                "  \"boost\":1.0 "+
-                "}" +
-              "}";
+        String query = "{"
+            + "\"pinned\" : {"
+            + "  \"organic\" : {"
+            + "    \"term\" : {"
+            + "      \"tag\" : {"
+            + "        \"value\" : \"tech\","
+            + "        \"boost\" : 1.0"
+            + "      }"
+            + "    }"
+            + "  }, "
+            + "  \"docs\" : [{ \"_index\": \"test\", \"_id\": \"1\" }, { \"_index\": \"test\", \"_id\": \"2\" }],"
+            + "  \"boost\":1.0 "
+            + "}"
+            + "}";
 
         PinnedQueryBuilder queryBuilder = (PinnedQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
@@ -234,8 +225,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         SearchExecutionContext context = createSearchExecutionContext();
         context.setAllowUnmappedFields(true);
         PinnedQueryBuilder queryBuilder = new PinnedQueryBuilder(new TermQueryBuilder("unmapped_field", "42"), "42");
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-                () -> queryBuilder.toQuery(context));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
     }
 

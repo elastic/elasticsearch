@@ -21,6 +21,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -31,28 +32,41 @@ import org.elasticsearch.search.runtime.GeoPointScriptFieldGeoShapeQuery;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPointFieldScript.LeafFactory> implements GeoShapeQueryable {
 
-    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, GeoPointFieldScript.CONTEXT, GeoPointFieldScript.PARSE_FROM_SOURCE) {
-            @Override
-            AbstractScriptFieldType<?> createFieldType(String name,
-                                                       GeoPointFieldScript.Factory factory,
-                                                       Script script,
-                                                       Map<String, String> meta) {
-                return new GeoPointScriptFieldType(name, factory, getScript(), meta());
-            }
-        });
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name -> new Builder<>(name, GeoPointFieldScript.CONTEXT) {
+        @Override
+        AbstractScriptFieldType<?> createFieldType(
+            String name,
+            GeoPointFieldScript.Factory factory,
+            Script script,
+            Map<String, String> meta
+        ) {
+            return new GeoPointScriptFieldType(name, factory, getScript(), meta());
+        }
 
-    GeoPointScriptFieldType(
-        String name,
-        GeoPointFieldScript.Factory scriptFactory,
-        Script script,
-        Map<String, String> meta
-    ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
+        @Override
+        GeoPointFieldScript.Factory getParseFromSourceFactory() {
+            return GeoPointFieldScript.PARSE_FROM_SOURCE;
+        }
+
+        @Override
+        GeoPointFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+            return GeoPointFieldScript.leafAdapter(parentScriptFactory);
+        }
+    });
+
+    GeoPointScriptFieldType(String name, GeoPointFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+        super(
+            name,
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            script,
+            scriptFactory.isResultDeterministic(),
+            meta
+        );
     }
 
     @Override
@@ -87,7 +101,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new GeoPointScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 

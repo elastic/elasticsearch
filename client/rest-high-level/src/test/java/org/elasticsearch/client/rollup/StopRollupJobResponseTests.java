@@ -17,13 +17,14 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class StopRollupJobResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
+        xContentTester(
+            this::createParser,
             this::createTestInstance,
             AcknowledgedResponseTests::toXContent,
-            StopRollupJobResponse::fromXContent)
-            .supportsUnknownFields(false)
-            .test();
+            StopRollupJobResponse::fromXContent
+        ).supportsUnknownFields(false).test();
     }
+
     private StopRollupJobResponse createTestInstance() {
         return new StopRollupJobResponse(randomBoolean());
     }

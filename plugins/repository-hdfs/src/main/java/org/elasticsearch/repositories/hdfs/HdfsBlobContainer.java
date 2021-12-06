@@ -15,8 +15,6 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -26,6 +24,8 @@ import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.hdfs.HdfsBlobStore.Operation;
 
 import java.io.FileNotFoundException;
@@ -98,8 +98,8 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         // HDFSPrivilegedInputSteam which will ensure that underlying methods will
         // be called with the proper privileges.
         try {
-            return store.execute(fileContext ->
-                new HDFSPrivilegedInputSteam(fileContext.open(new Path(path, blobName), bufferSize), securityContext)
+            return store.execute(
+                fileContext -> new HDFSPrivilegedInputSteam(fileContext.open(new Path(path, blobName), bufferSize), securityContext)
             );
         } catch (FileNotFoundException fnfe) {
             throw new NoSuchFileException("[" + blobName + "] blob not found");
@@ -130,7 +130,8 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         Path blob = new Path(path, blobName);
         // we pass CREATE, which means it fails if a blob already exists.
-        final EnumSet<CreateFlag> flags = failIfAlreadyExists ? EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK)
+        final EnumSet<CreateFlag> flags = failIfAlreadyExists
+            ? EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK)
             : EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE, CreateFlag.SYNC_BLOCK);
         store.execute((Operation<Void>) fileContext -> {
             try {
@@ -146,8 +147,9 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         Path blob = new Path(path, blobName);
         // we pass CREATE, which means it fails if a blob already exists.
-        final EnumSet<CreateFlag> flags = failIfAlreadyExists ? EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK)
-                : EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE, CreateFlag.SYNC_BLOCK);
+        final EnumSet<CreateFlag> flags = failIfAlreadyExists
+            ? EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK)
+            : EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE, CreateFlag.SYNC_BLOCK);
         store.execute((Operation<Void>) fileContext -> {
             try {
                 writeToPath(bytes, blob, fileContext, flags);
@@ -159,10 +161,8 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlob(String blobName,
-                          boolean failIfAlreadyExists,
-                          boolean atomic,
-                          CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+    public void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic, CheckedConsumer<OutputStream, IOException> writer)
+        throws IOException {
         Path blob = new Path(path, blobName);
         if (atomic) {
             final Path tempBlobPath = new Path(path, FsBlobContainer.tempBlobName(blobName));
@@ -177,8 +177,9 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
             });
         } else {
             // we pass CREATE, which means it fails if a blob already exists.
-            final EnumSet<CreateFlag> flags = failIfAlreadyExists ? EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK)
-                    : EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE, CreateFlag.SYNC_BLOCK);
+            final EnumSet<CreateFlag> flags = failIfAlreadyExists
+                ? EnumSet.of(CreateFlag.CREATE, CreateFlag.SYNC_BLOCK)
+                : EnumSet.of(CreateFlag.CREATE, CreateFlag.OVERWRITE, CreateFlag.SYNC_BLOCK);
             store.execute((Operation<Void>) fileContext -> {
                 try (FSDataOutputStream stream = fileContext.create(blob, flags)) {
                     writer.accept(stream);
@@ -206,15 +207,20 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
         });
     }
 
-    private void writeToPath(BytesReference bytes, Path blobPath, FileContext fileContext,
-                             EnumSet<CreateFlag> createFlags) throws IOException {
+    private void writeToPath(BytesReference bytes, Path blobPath, FileContext fileContext, EnumSet<CreateFlag> createFlags)
+        throws IOException {
         try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags)) {
             bytes.writeTo(stream);
         }
     }
 
-    private void writeToPath(InputStream inputStream, long blobSize, FileContext fileContext, Path blobPath,
-                             EnumSet<CreateFlag> createFlags) throws IOException {
+    private void writeToPath(
+        InputStream inputStream,
+        long blobSize,
+        FileContext fileContext,
+        Path blobPath,
+        EnumSet<CreateFlag> createFlags
+    ) throws IOException {
         final byte[] buffer = new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize];
         try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags, CreateOpts.bufferSize(buffer.length))) {
             int bytesRead;
@@ -226,8 +232,14 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public Map<String, BlobMetadata> listBlobsByPrefix(@Nullable final String prefix) throws IOException {
-        FileStatus[] files = store.execute(fileContext -> fileContext.util().listStatus(path,
-            path -> prefix == null || path.getName().startsWith(prefix)));
+        FileStatus[] files;
+        try {
+            files = store.execute(
+                fileContext -> fileContext.util().listStatus(path, eachPath -> prefix == null || eachPath.getName().startsWith(prefix))
+            );
+        } catch (FileNotFoundException e) {
+            files = new FileStatus[0];
+        }
         Map<String, BlobMetadata> map = new LinkedHashMap<>();
         for (FileStatus file : files) {
             if (file.isFile()) {

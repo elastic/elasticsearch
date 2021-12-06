@@ -35,7 +35,10 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
     private static Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
     private static TokenFilterFactory NO_OP_SEARCH_TIME_FILTER = new AbstractTokenFilterFactory(
-            IndexSettingsModule.newIndexSettings("index", settings), "my_filter", Settings.EMPTY) {
+        IndexSettingsModule.newIndexSettings("index", settings),
+        "my_filter",
+        Settings.EMPTY
+    ) {
         @Override
         public AnalysisMode getAnalysisMode() {
             return AnalysisMode.SEARCH_TIME;
@@ -48,7 +51,10 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
     };
 
     private static TokenFilterFactory LOWERCASE_SEARCH_TIME_FILTER = new AbstractTokenFilterFactory(
-            IndexSettingsModule.newIndexSettings("index", settings), "my_other_filter", Settings.EMPTY) {
+        IndexSettingsModule.newIndexSettings("index", settings),
+        "my_other_filter",
+        Settings.EMPTY
+    ) {
         @Override
         public AnalysisMode getAnalysisMode() {
             return AnalysisMode.SEARCH_TIME;
@@ -72,13 +78,15 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
         int positionIncrementGap = randomInt();
         int offsetGap = randomInt();
 
-        Settings analyzerSettings = Settings.builder()
-                .put("tokenizer", "standard")
-                .putList("filter", "my_filter")
-                .build();
+        Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "my_filter").build();
 
-        AnalyzerComponents components = createComponents("my_analyzer", analyzerSettings, testAnalysis.tokenizer, testAnalysis.charFilter,
-                Collections.singletonMap("my_filter", NO_OP_SEARCH_TIME_FILTER));
+        AnalyzerComponents components = createComponents(
+            "my_analyzer",
+            analyzerSettings,
+            testAnalysis.tokenizer,
+            testAnalysis.charFilter,
+            Collections.singletonMap("my_filter", NO_OP_SEARCH_TIME_FILTER)
+        );
 
         try (ReloadableCustomAnalyzer analyzer = new ReloadableCustomAnalyzer(components, positionIncrementGap, offsetGap)) {
             assertEquals(positionIncrementGap, analyzer.getPositionIncrementGap(randomAlphaOfLength(5)));
@@ -91,29 +99,37 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
         }
 
         // check that when using regular non-search time filters only, we get an exception
-        final Settings indexAnalyzerSettings = Settings.builder()
-                .put("tokenizer", "standard")
-                .putList("filter", "lowercase")
-                .build();
-        AnalyzerComponents indexAnalyzerComponents = createComponents("my_analyzer", indexAnalyzerSettings, testAnalysis.tokenizer,
-                testAnalysis.charFilter, testAnalysis.tokenFilter);
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
-                () -> new ReloadableCustomAnalyzer(indexAnalyzerComponents, positionIncrementGap, offsetGap));
-        assertEquals("ReloadableCustomAnalyzer must only be initialized with analysis components in AnalysisMode.SEARCH_TIME mode",
-                ex.getMessage());
+        final Settings indexAnalyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "lowercase").build();
+        AnalyzerComponents indexAnalyzerComponents = createComponents(
+            "my_analyzer",
+            indexAnalyzerSettings,
+            testAnalysis.tokenizer,
+            testAnalysis.charFilter,
+            testAnalysis.tokenFilter
+        );
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new ReloadableCustomAnalyzer(indexAnalyzerComponents, positionIncrementGap, offsetGap)
+        );
+        assertEquals(
+            "ReloadableCustomAnalyzer must only be initialized with analysis components in AnalysisMode.SEARCH_TIME mode",
+            ex.getMessage()
+        );
     }
 
     /**
      * start multiple threads that create token streams from this analyzer until reloaded tokenfilter takes effect
      */
     public void testReloading() throws IOException, InterruptedException {
-        Settings analyzerSettings = Settings.builder()
-                .put("tokenizer", "standard")
-                .putList("filter", "my_filter")
-                .build();
+        Settings analyzerSettings = Settings.builder().put("tokenizer", "standard").putList("filter", "my_filter").build();
 
-        AnalyzerComponents components = createComponents("my_analyzer", analyzerSettings, testAnalysis.tokenizer, testAnalysis.charFilter,
-                Collections.singletonMap("my_filter", NO_OP_SEARCH_TIME_FILTER));
+        AnalyzerComponents components = createComponents(
+            "my_analyzer",
+            analyzerSettings,
+            testAnalysis.tokenizer,
+            testAnalysis.charFilter,
+            Collections.singletonMap("my_filter", NO_OP_SEARCH_TIME_FILTER)
+        );
         int numThreads = randomIntBetween(5, 10);
 
         ExecutorService executorService = Executors.newFixedThreadPool(numThreads);
@@ -144,8 +160,13 @@ public class ReloadableCustomAnalyzerTests extends ESTestCase {
             // wait until all running threads have seen the unaltered upper case analysis at least once
             assertTrue(firstCheckpoint.await(5, TimeUnit.SECONDS));
 
-            analyzer.reload("my_analyzer", analyzerSettings, testAnalysis.tokenizer, testAnalysis.charFilter,
-                    Collections.singletonMap("my_filter", LOWERCASE_SEARCH_TIME_FILTER));
+            analyzer.reload(
+                "my_analyzer",
+                analyzerSettings,
+                testAnalysis.tokenizer,
+                testAnalysis.charFilter,
+                Collections.singletonMap("my_filter", LOWERCASE_SEARCH_TIME_FILTER)
+            );
 
             // wait until all running threads have seen the new lower case analysis at least once
             assertTrue(secondCheckpoint.await(5, TimeUnit.SECONDS));

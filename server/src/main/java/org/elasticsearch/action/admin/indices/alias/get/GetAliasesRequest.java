@@ -19,9 +19,11 @@ import java.io.IOException;
 
 public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> implements AliasesRequest {
 
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandHidden();
+
     private String[] indices = Strings.EMPTY_ARRAY;
     private String[] aliases = Strings.EMPTY_ARRAY;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandHidden();
+    private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
     private String[] originalAliases = Strings.EMPTY_ARRAY;
 
     public GetAliasesRequest(String... aliases) {
@@ -29,8 +31,7 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
         this.originalAliases = aliases;
     }
 
-    public GetAliasesRequest() {
-    }
+    public GetAliasesRequest() {}
 
     public GetAliasesRequest(StreamInput in) throws IOException {
         super(in);

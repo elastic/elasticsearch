@@ -121,20 +121,29 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
         return newVotingConfigExclusions;
     }
 
-    Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(ClusterState currentState, int maxExclusionsCount,
-                                                                            String maximumSettingKey) {
+    Set<VotingConfigExclusion> resolveVotingConfigExclusionsAndCheckMaximum(
+        ClusterState currentState,
+        int maxExclusionsCount,
+        String maximumSettingKey
+    ) {
         final Set<VotingConfigExclusion> resolvedExclusions = resolveVotingConfigExclusions(currentState);
 
         final int oldExclusionsCount = currentState.getVotingConfigExclusions().size();
         final int newExclusionsCount = resolvedExclusions.size();
         if (oldExclusionsCount + newExclusionsCount > maxExclusionsCount) {
-            throw new IllegalArgumentException("add voting config exclusions request for "
-                + (nodeNames.length > 0
-                    ? "nodes named " + Arrays.asList(nodeNames)
-                    : "nodes with ids " + Arrays.asList(nodeIds))
-                + " would add [" + newExclusionsCount + "] exclusions to the existing [" + oldExclusionsCount
-                + "] which would exceed the maximum of [" + maxExclusionsCount + "] set by ["
-                + maximumSettingKey + "]");
+            throw new IllegalArgumentException(
+                "add voting config exclusions request for "
+                    + (nodeNames.length > 0 ? "nodes named " + Arrays.asList(nodeNames) : "nodes with ids " + Arrays.asList(nodeIds))
+                    + " would add ["
+                    + newExclusionsCount
+                    + "] exclusions to the existing ["
+                    + oldExclusionsCount
+                    + "] which would exceed the maximum of ["
+                    + maxExclusionsCount
+                    + "] set by ["
+                    + maximumSettingKey
+                    + "]"
+            );
         }
         return resolvedExclusions;
     }
@@ -178,10 +187,15 @@ public class AddVotingConfigExclusionsRequest extends MasterNodeRequest<AddVotin
 
     @Override
     public String toString() {
-        return "AddVotingConfigExclusionsRequest{" +
-            "nodeIds=" + Arrays.asList(nodeIds) + ", " +
-            "nodeNames=" + Arrays.asList(nodeNames) + ", " +
-            "timeout=" + timeout +
-            '}';
+        return "AddVotingConfigExclusionsRequest{"
+            + "nodeIds="
+            + Arrays.asList(nodeIds)
+            + ", "
+            + "nodeNames="
+            + Arrays.asList(nodeNames)
+            + ", "
+            + "timeout="
+            + timeout
+            + '}';
     }
 }

@@ -9,19 +9,21 @@
 package org.elasticsearch.bootstrap;
 
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.secure_sm.SecureSM;
+import org.elasticsearch.test.mockito.SecureMockMaker;
 import org.junit.Assert;
 
 import java.io.InputStream;
@@ -63,8 +65,9 @@ public class BootstrapForTesting {
 
     static {
         // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
-        Path javaTmpDir = PathUtils.get(Objects.requireNonNull(System.getProperty("java.io.tmpdir"),
-                                                               "please set ${java.io.tmpdir} in pom.xml"));
+        Path javaTmpDir = PathUtils.get(
+            Objects.requireNonNull(System.getProperty("java.io.tmpdir"), "please set ${java.io.tmpdir} in pom.xml")
+        );
         try {
             Security.ensureDirectoryExists(javaTmpDir);
         } catch (Exception e) {
@@ -72,8 +75,8 @@ public class BootstrapForTesting {
         }
 
         // just like bootstrap, initialize natives, then SM
-        final boolean memoryLock =
-                BootstrapSettings.MEMORY_LOCK_SETTING.get(Settings.EMPTY); // use the default bootstrap.memory_lock setting
+        final boolean memoryLock = BootstrapSettings.MEMORY_LOCK_SETTING.get(Settings.EMPTY); // use the default bootstrap.memory_lock
+                                                                                              // setting
         // some tests need the ability to disable system call filters (so they can fork other processes as part of test execution)
         final boolean systemCallFilter = Booleans.parseBoolean(System.getProperty("tests.system_call_filter", "true"));
         Bootstrap.initializeNatives(javaTmpDir, memoryLock, systemCallFilter, true);
@@ -92,6 +95,9 @@ public class BootstrapForTesting {
             throw new RuntimeException("found jar hell in test classpath", e);
         }
 
+        // init mockito
+        SecureMockMaker.init();
+
         // Log ifconfig output before SecurityManager is installed
         IfConfig.logIfNecessary();
 
@@ -108,8 +114,7 @@ public class BootstrapForTesting {
                     FilePermissionUtils.addSingleFilePath(perms, PathUtils.get(System.getProperty("tests.config")), "read,readlink");
                 }
                 // jacoco coverage output file
-                final boolean testsCoverage =
-                        Booleans.parseBoolean(System.getProperty("tests.coverage", "false"));
+                final boolean testsCoverage = Booleans.parseBoolean(System.getProperty("tests.coverage", "false"));
                 if (testsCoverage) {
                     Path coverageDir = PathUtils.get(System.getProperty("tests.coverage.dir"));
                     FilePermissionUtils.addSingleFilePath(perms, coverageDir.resolve("jacoco.exec"), "read,write");
@@ -151,8 +156,9 @@ public class BootstrapForTesting {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {
                         // implements union
-                        return esPolicy.implies(domain, permission) || testFramework.implies(domain, permission) ||
-                            runnerPolicy.implies(domain, permission);
+                        return esPolicy.implies(domain, permission)
+                            || testFramework.implies(domain, permission)
+                            || runnerPolicy.implies(domain, permission);
                     }
                 });
                 System.setSecurityManager(SecureSM.createTestSecureSM());
@@ -179,9 +185,9 @@ public class BootstrapForTesting {
     static Map<String, URL> getCodebases() {
         Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseClassPath());
         // when testing server, the main elasticsearch code is not yet in a jar, so we need to manually add it
-        addClassCodebase(codebases,"elasticsearch", "org.elasticsearch.plugins.PluginsService");
-        addClassCodebase(codebases,"elasticsearch-plugin-classloader", "org.elasticsearch.plugins.loader.ExtendedPluginsClassLoader");
-        addClassCodebase(codebases,"elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
+        addClassCodebase(codebases, "elasticsearch", "org.elasticsearch.plugins.PluginsService");
+        addClassCodebase(codebases, "elasticsearch-plugin-classloader", "org.elasticsearch.plugins.loader.ExtendedPluginsClassLoader");
+        addClassCodebase(codebases, "elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
         addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
         addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
         return codebases;
@@ -211,7 +217,7 @@ public class BootstrapForTesting {
      * like core, test-framework, etc. this way tests fail if accesscontroller blocks are missing.
      */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
-    static Map<String,Policy> getPluginPermissions() throws Exception {
+    static Map<String, Policy> getPluginPermissions() throws Exception {
         List<URL> pluginPolicies = Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.ES_PLUGIN_POLICY));
         if (pluginPolicies.isEmpty()) {
             return Collections.emptyMap();
@@ -219,7 +225,8 @@ public class BootstrapForTesting {
 
         // compute classpath minus obvious places, all other jars will get the permission.
         Set<URL> codebases = new HashSet<>(parseClassPathWithSymlinks());
-        Set<URL> excluded = new HashSet<>(Arrays.asList(
+        Set<URL> excluded = new HashSet<>(
+            Arrays.asList(
                 // es core
                 Bootstrap.class.getProtectionDomain().getCodeSource().getLocation(),
                 // es test framework
@@ -230,7 +237,8 @@ public class BootstrapForTesting {
                 RandomizedRunner.class.getProtectionDomain().getCodeSource().getLocation(),
                 // junit library
                 Assert.class.getProtectionDomain().getCodeSource().getLocation()
-        ));
+            )
+        );
         codebases.removeAll(excluded);
         final Map<String, URL> codebasesMap = PolicyUtil.getCodebaseJarMap(codebases);
 
@@ -259,7 +267,7 @@ public class BootstrapForTesting {
         }
 
         // consult each policy file for those codebases
-        Map<String,Policy> map = new HashMap<>();
+        Map<String, Policy> map = new HashMap<>();
         for (URL url : codebases) {
             map.put(url.getFile(), new Policy() {
                 @Override

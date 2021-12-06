@@ -22,7 +22,6 @@ public class DeleteTrainedModelRequestTests extends ESTestCase {
     }
 
     public void testValidate_Failure() {
-        assertThat(new DeleteTrainedModelRequest(null).validate().get().getMessage(),
-            containsString("trained model id must not be null"));
+        assertThat(new DeleteTrainedModelRequest(null).validate().get().getMessage(), containsString("trained model id must not be null"));
     }
 }

@@ -9,18 +9,18 @@ package org.elasticsearch.xpack.core.ml.dataframe.analyses;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.LenientlyParsedPreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.StrictlyParsedPreProcessor;
@@ -42,8 +42,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class Classification implements DataFrameAnalysis {
 
@@ -77,15 +77,29 @@ public class Classification implements DataFrameAnalysis {
             lenient,
             a -> new Classification(
                 (String) a[0],
-                new BoostedTreeParams((Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5], (Integer) a[6],
-                    (Double) a[7], (Double) a[8], (Double) a[9], (Double) a[10], (Double) a[11], (Integer) a[12]),
+                new BoostedTreeParams(
+                    (Double) a[1],
+                    (Double) a[2],
+                    (Double) a[3],
+                    (Integer) a[4],
+                    (Double) a[5],
+                    (Integer) a[6],
+                    (Double) a[7],
+                    (Double) a[8],
+                    (Double) a[9],
+                    (Double) a[10],
+                    (Double) a[11],
+                    (Integer) a[12]
+                ),
                 (String) a[13],
                 (ClassAssignmentObjective) a[14],
                 (Integer) a[15],
                 (Double) a[16],
                 (Long) a[17],
                 (List<PreProcessor>) a[18],
-                (Boolean) a[19]));
+                (Boolean) a[19]
+            )
+        );
         parser.declareString(constructorArg(), DEPENDENT_VARIABLE);
         BoostedTreeParams.declareFields(parser);
         parser.declareString(optionalConstructorArg(), PREDICTION_FIELD_NAME);
@@ -93,12 +107,14 @@ public class Classification implements DataFrameAnalysis {
         parser.declareInt(optionalConstructorArg(), NUM_TOP_CLASSES);
         parser.declareDouble(optionalConstructorArg(), TRAINING_PERCENT);
         parser.declareLong(optionalConstructorArg(), RANDOMIZE_SEED);
-        parser.declareNamedObjects(optionalConstructorArg(),
-            (p, c, n) -> lenient ?
-                p.namedObject(LenientlyParsedPreProcessor.class, n, new PreProcessor.PreProcessorParseContext(true)) :
-                p.namedObject(StrictlyParsedPreProcessor.class, n, new PreProcessor.PreProcessorParseContext(true)),
+        parser.declareNamedObjects(
+            optionalConstructorArg(),
+            (p, c, n) -> lenient
+                ? p.namedObject(LenientlyParsedPreProcessor.class, n, new PreProcessor.PreProcessorParseContext(true))
+                : p.namedObject(StrictlyParsedPreProcessor.class, n, new PreProcessor.PreProcessorParseContext(true)),
             (classification) -> {/*TODO should we throw if this is not set?*/},
-            FEATURE_PROCESSORS);
+            FEATURE_PROCESSORS
+        );
         parser.declareBoolean(optionalConstructorArg(), EARLY_STOPPING_ENABLED);
         return parser;
     }
@@ -107,10 +123,11 @@ public class Classification implements DataFrameAnalysis {
         return ignoreUnknownFields ? LENIENT_PARSER.apply(parser, null) : STRICT_PARSER.apply(parser, null);
     }
 
-    private static final Set<String> ALLOWED_DEPENDENT_VARIABLE_TYPES =
-        Stream.of(Types.categorical(), Types.discreteNumerical(), Types.bool())
-            .flatMap(Set::stream)
-            .collect(Collectors.toUnmodifiableSet());
+    private static final Set<String> ALLOWED_DEPENDENT_VARIABLE_TYPES = Stream.of(
+        Types.categorical(),
+        Types.discreteNumerical(),
+        Types.bool()
+    ).flatMap(Set::stream).collect(Collectors.toUnmodifiableSet());
     /**
      * Name of the parameter passed down to C++.
      * This parameter is used to decide which JSON data type from {string, int, bool} to use when writing the prediction.
@@ -124,12 +141,7 @@ public class Classification implements DataFrameAnalysis {
     private static final int DEFAULT_NUM_TOP_CLASSES = 2;
 
     private static final List<String> PROGRESS_PHASES = Collections.unmodifiableList(
-        Arrays.asList(
-            "feature_selection",
-            "coarse_parameter_search",
-            "fine_tuning_parameters",
-            "final_training"
-        )
+        Arrays.asList("feature_selection", "coarse_parameter_search", "fine_tuning_parameters", "final_training")
     );
 
     static final Map<String, Object> FEATURE_IMPORTANCE_MAPPING;
@@ -165,18 +177,22 @@ public class Classification implements DataFrameAnalysis {
     private final List<PreProcessor> featureProcessors;
     private final boolean earlyStoppingEnabled;
 
-    public Classification(String dependentVariable,
-                          BoostedTreeParams boostedTreeParams,
-                          @Nullable String predictionFieldName,
-                          @Nullable ClassAssignmentObjective classAssignmentObjective,
-                          @Nullable Integer numTopClasses,
-                          @Nullable Double trainingPercent,
-                          @Nullable Long randomizeSeed,
-                          @Nullable List<PreProcessor> featureProcessors,
-                          @Nullable Boolean earlyStoppingEnabled) {
+    public Classification(
+        String dependentVariable,
+        BoostedTreeParams boostedTreeParams,
+        @Nullable String predictionFieldName,
+        @Nullable ClassAssignmentObjective classAssignmentObjective,
+        @Nullable Integer numTopClasses,
+        @Nullable Double trainingPercent,
+        @Nullable Long randomizeSeed,
+        @Nullable List<PreProcessor> featureProcessors,
+        @Nullable Boolean earlyStoppingEnabled
+    ) {
         if (numTopClasses != null && (numTopClasses < -1 || numTopClasses > 1000)) {
             throw ExceptionsHelper.badRequestException(
-                "[{}] must be an integer in [0, 1000] or a special value -1", NUM_TOP_CLASSES.getPreferredName());
+                "[{}] must be an integer in [0, 1000] or a special value -1",
+                NUM_TOP_CLASSES.getPreferredName()
+            );
         }
         if (trainingPercent != null && (trainingPercent <= 0.0 || trainingPercent > 100.0)) {
             throw ExceptionsHelper.badRequestException("[{}] must be a positive double in (0, 100]", TRAINING_PERCENT.getPreferredName());
@@ -184,8 +200,9 @@ public class Classification implements DataFrameAnalysis {
         this.dependentVariable = ExceptionsHelper.requireNonNull(dependentVariable, DEPENDENT_VARIABLE);
         this.boostedTreeParams = ExceptionsHelper.requireNonNull(boostedTreeParams, BoostedTreeParams.NAME);
         this.predictionFieldName = predictionFieldName == null ? dependentVariable + "_prediction" : predictionFieldName;
-        this.classAssignmentObjective = classAssignmentObjective == null ?
-            ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL : classAssignmentObjective;
+        this.classAssignmentObjective = classAssignmentObjective == null
+            ? ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL
+            : classAssignmentObjective;
         this.numTopClasses = numTopClasses == null ? DEFAULT_NUM_TOP_CLASSES : numTopClasses;
         this.trainingPercent = trainingPercent == null ? 100.0 : trainingPercent;
         this.randomizeSeed = randomizeSeed == null ? Randomness.get().nextLong() : randomizeSeed;
@@ -202,23 +219,11 @@ public class Classification implements DataFrameAnalysis {
         dependentVariable = in.readString();
         boostedTreeParams = new BoostedTreeParams(in);
         predictionFieldName = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            classAssignmentObjective = in.readEnum(ClassAssignmentObjective.class);
-        } else {
-            classAssignmentObjective = ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL;
-        }
+        classAssignmentObjective = in.readEnum(ClassAssignmentObjective.class);
         numTopClasses = in.readOptionalVInt();
         trainingPercent = in.readDouble();
-        if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-            randomizeSeed = in.readOptionalLong();
-        } else {
-            randomizeSeed = Randomness.get().nextLong();
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            featureProcessors = Collections.unmodifiableList(in.readNamedWriteableList(PreProcessor.class));
-        } else {
-            featureProcessors = Collections.emptyList();
-        }
+        randomizeSeed = in.readOptionalLong();
+        featureProcessors = Collections.unmodifiableList(in.readNamedWriteableList(PreProcessor.class));
         earlyStoppingEnabled = in.readBoolean();
     }
 
@@ -269,17 +274,11 @@ public class Classification implements DataFrameAnalysis {
         out.writeString(dependentVariable);
         boostedTreeParams.writeTo(out);
         out.writeOptionalString(predictionFieldName);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeEnum(classAssignmentObjective);
-        }
+        out.writeEnum(classAssignmentObjective);
         out.writeOptionalVInt(numTopClasses);
         out.writeDouble(trainingPercent);
-        if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-            out.writeOptionalLong(randomizeSeed);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeNamedWriteableList(featureProcessors);
-        }
+        out.writeOptionalLong(randomizeSeed);
+        out.writeNamedWriteableList(featureProcessors);
         out.writeBoolean(earlyStoppingEnabled);
     }
 
@@ -324,8 +323,10 @@ public class Classification implements DataFrameAnalysis {
         params.put(NUM_CLASSES, fieldInfo.getCardinality(dependentVariable));
         params.put(TRAINING_PERCENT.getPreferredName(), trainingPercent);
         if (featureProcessors.isEmpty() == false) {
-            params.put(FEATURE_PROCESSORS.getPreferredName(),
-                featureProcessors.stream().map(p -> Collections.singletonMap(p.getName(), p)).collect(Collectors.toList()));
+            params.put(
+                FEATURE_PROCESSORS.getPreferredName(),
+                featureProcessors.stream().map(p -> Collections.singletonMap(p.getName(), p)).collect(Collectors.toList())
+            );
         }
         params.put(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
         return params;
@@ -335,8 +336,7 @@ public class Classification implements DataFrameAnalysis {
         if (predictionFieldType == null) {
             return null;
         }
-        switch(predictionFieldType)
-        {
+        switch (predictionFieldType) {
             case NUMBER:
                 // C++ process uses int64_t type, so it is safe for the dependent variable to use long numbers.
                 return "int";
@@ -394,10 +394,14 @@ public class Classification implements DataFrameAnalysis {
     public Map<String, Object> getResultMappings(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Map<String, Object> additionalProperties = new HashMap<>();
         additionalProperties.put(resultsFieldName + ".is_training", Collections.singletonMap("type", BooleanFieldMapper.CONTENT_TYPE));
-        additionalProperties.put(resultsFieldName + ".prediction_probability",
-            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
-        additionalProperties.put(resultsFieldName + ".prediction_score",
-            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));
+        additionalProperties.put(
+            resultsFieldName + ".prediction_probability",
+            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName())
+        );
+        additionalProperties.put(
+            resultsFieldName + ".prediction_score",
+            Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName())
+        );
         additionalProperties.put(resultsFieldName + ".feature_importance", FEATURE_IMPORTANCE_MAPPING);
 
         Map<String, FieldCapabilities> dependentVariableFieldCaps = fieldCapabilitiesResponse.getField(dependentVariable);
@@ -406,7 +410,9 @@ public class Classification implements DataFrameAnalysis {
         }
         Object dependentVariableMappingType = dependentVariableFieldCaps.values().iterator().next().getType();
         additionalProperties.put(
-            resultsFieldName + "." + predictionFieldName, Collections.singletonMap("type", dependentVariableMappingType));
+            resultsFieldName + "." + predictionFieldName,
+            Collections.singletonMap("type", dependentVariableMappingType)
+        );
 
         Map<String, Object> topClassesProperties = new HashMap<>();
         topClassesProperties.put("class_name", Collections.singletonMap("type", dependentVariableMappingType));
@@ -480,13 +486,22 @@ public class Classification implements DataFrameAnalysis {
 
     @Override
     public int hashCode() {
-        return Objects.hash(dependentVariable, boostedTreeParams, predictionFieldName, classAssignmentObjective,
-                            numTopClasses, trainingPercent, randomizeSeed, featureProcessors,
-                            earlyStoppingEnabled);
+        return Objects.hash(
+            dependentVariable,
+            boostedTreeParams,
+            predictionFieldName,
+            classAssignmentObjective,
+            numTopClasses,
+            trainingPercent,
+            randomizeSeed,
+            featureProcessors,
+            earlyStoppingEnabled
+        );
     }
 
     public enum ClassAssignmentObjective {
-        MAXIMIZE_ACCURACY, MAXIMIZE_MINIMUM_RECALL;
+        MAXIMIZE_ACCURACY,
+        MAXIMIZE_MINIMUM_RECALL;
 
         public static ClassAssignmentObjective fromString(String value) {
             return ClassAssignmentObjective.valueOf(value.toUpperCase(Locale.ROOT));

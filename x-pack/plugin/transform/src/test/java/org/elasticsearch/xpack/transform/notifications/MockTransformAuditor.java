@@ -156,7 +156,6 @@ public class MockTransformAuditor extends TransformAuditor {
         }
     }
 
-
     private void audit(Level level, String resourceId, String message) {
         for (AuditExpectation expectation : expectations) {
             expectation.match(level, resourceId, message);

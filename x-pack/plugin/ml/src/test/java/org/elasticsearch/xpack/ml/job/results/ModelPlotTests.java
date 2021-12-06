@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 
@@ -34,8 +34,7 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
     }
 
     public ModelPlot createTestInstance(String jobId) {
-        ModelPlot modelPlot =
-                new ModelPlot(jobId, randomDate(), randomNonNegativeLong(), randomInt());
+        ModelPlot modelPlot = new ModelPlot(jobId, randomDate(), randomNonNegativeLong(), randomInt());
         if (randomBoolean()) {
             modelPlot.setByFieldName(randomAlphaOfLengthBetween(1, 20));
         }
@@ -77,17 +76,13 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
     }
 
     public void testEquals_GivenSameObject() {
-        ModelPlot modelPlot =
-                new ModelPlot(randomAlphaOfLength(15),
-                    randomDate(), randomNonNegativeLong(), randomInt());
+        ModelPlot modelPlot = new ModelPlot(randomAlphaOfLength(15), randomDate(), randomNonNegativeLong(), randomInt());
 
         assertTrue(modelPlot.equals(modelPlot));
     }
 
     public void testEquals_GivenObjectOfDifferentClass() {
-        ModelPlot modelPlot =
-                new ModelPlot(randomAlphaOfLength(15),
-                    randomDate(), randomNonNegativeLong(), randomInt());
+        ModelPlot modelPlot = new ModelPlot(randomAlphaOfLength(15), randomDate(), randomNonNegativeLong(), randomInt());
 
         assertFalse(modelPlot.equals("a string"));
     }
@@ -248,8 +243,7 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
     public void testStrictParser() throws IOException {
         String json = "{\"job_id\":\"job_1\", \"timestamp\":12354667, \"bucket_span\": 3600, \"detector_index\":3, \"foo\":\"bar\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> ModelPlot.STRICT_PARSER.apply(parser, null));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ModelPlot.STRICT_PARSER.apply(parser, null));
 
             assertThat(e.getMessage(), containsString("unknown field [foo]"));
         }
@@ -265,16 +259,99 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
     public void testIdUniqueness() {
         ModelPlot modelPlot = new ModelPlot("foo", new Date(), 3600, 0);
 
-        String[] partitionFieldValues =  { "730", "132", "358", "552", "888", "236", "224", "674",
-                                           "438", "128", "722", "560", "228", "628", "226", "656" };
-        String[] byFieldValues = { "S000", "S001", "S002", "S003", "S004", "S005", "S006", "S007", "S008", "S009",
-                                   "S010", "S011", "S012", "S013", "S014", "S015", "S016", "S017", "S018", "S019",
-                                   "S020", "S021", "S022", "S023", "S024", "S025", "S026", "S027", "S028", "S029",
-                                   "S057", "S058", "S059", "M020", "M021", "M026", "M027", "M028", "M029", "M030",
-                                   "M031", "M032", "M033", "M056", "M057", "M058", "M059", "M060", "M061", "M062",
-                                   "M063", "M086", "M087", "M088", "M089", "M090", "M091", "M092", "M093", "M116",
-                                   "M117", "M118", "M119", "L012", "L013", "L014", "L017", "L018", "L019", "L023",
-                                   "L024", "L025", "L029", "L030", "L031" };
+        String[] partitionFieldValues = {
+            "730",
+            "132",
+            "358",
+            "552",
+            "888",
+            "236",
+            "224",
+            "674",
+            "438",
+            "128",
+            "722",
+            "560",
+            "228",
+            "628",
+            "226",
+            "656" };
+        String[] byFieldValues = {
+            "S000",
+            "S001",
+            "S002",
+            "S003",
+            "S004",
+            "S005",
+            "S006",
+            "S007",
+            "S008",
+            "S009",
+            "S010",
+            "S011",
+            "S012",
+            "S013",
+            "S014",
+            "S015",
+            "S016",
+            "S017",
+            "S018",
+            "S019",
+            "S020",
+            "S021",
+            "S022",
+            "S023",
+            "S024",
+            "S025",
+            "S026",
+            "S027",
+            "S028",
+            "S029",
+            "S057",
+            "S058",
+            "S059",
+            "M020",
+            "M021",
+            "M026",
+            "M027",
+            "M028",
+            "M029",
+            "M030",
+            "M031",
+            "M032",
+            "M033",
+            "M056",
+            "M057",
+            "M058",
+            "M059",
+            "M060",
+            "M061",
+            "M062",
+            "M063",
+            "M086",
+            "M087",
+            "M088",
+            "M089",
+            "M090",
+            "M091",
+            "M092",
+            "M093",
+            "M116",
+            "M117",
+            "M118",
+            "M119",
+            "L012",
+            "L013",
+            "L014",
+            "L017",
+            "L018",
+            "L019",
+            "L023",
+            "L024",
+            "L025",
+            "L029",
+            "L030",
+            "L031" };
 
         Map<String, List<String>> uniqueIds = new HashMap<>();
 
@@ -284,14 +361,14 @@ public class ModelPlotTests extends AbstractSerializingTestCase<ModelPlot> {
                 modelPlot.setByFieldValue(byFieldValue);
                 String id = modelPlot.getId();
                 uniqueIds.compute(id, (k, v) -> {
-                   if (v == null) {
-                       v = new ArrayList<>();
-                   }
-                   v.add(partitionFieldValue + "/" + byFieldValue);
-                   if (v.size() > 1) {
-                       logger.error("Duplicates for ID [" + id + "]: " + v);
-                   }
-                   return v;
+                    if (v == null) {
+                        v = new ArrayList<>();
+                    }
+                    v.add(partitionFieldValue + "/" + byFieldValue);
+                    if (v.size() > 1) {
+                        logger.error("Duplicates for ID [" + id + "]: " + v);
+                    }
+                    return v;
                 });
             }
         }

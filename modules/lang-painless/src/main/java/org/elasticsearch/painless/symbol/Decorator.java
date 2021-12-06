@@ -39,7 +39,7 @@ public class Decorator {
 
     @SuppressWarnings("unchecked")
     public <T extends Decoration> T put(int identifier, T decoration) {
-        return (T)decorations.get(identifier).put(decoration.getClass(), decoration);
+        return (T) decorations.get(identifier).put(decoration.getClass(), decoration);
     }
 
     public <T extends Decoration> T remove(int identifier, Class<T> type) {

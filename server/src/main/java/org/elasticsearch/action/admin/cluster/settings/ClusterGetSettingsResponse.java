@@ -9,20 +9,20 @@
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * This response is specific to the REST client. {@link org.elasticsearch.action.admin.cluster.state.ClusterStateResponse}
@@ -38,15 +38,14 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
     static final String TRANSIENT_FIELD = "transient";
     static final String DEFAULTS_FIELD = "defaults";
 
-    private static final ConstructingObjectParser<ClusterGetSettingsResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "cluster_get_settings_response",
-            true,
-            a -> {
-                Settings defaultSettings = a[2] == null ? Settings.EMPTY : (Settings) a[2];
-                return new ClusterGetSettingsResponse((Settings) a[0], (Settings) a[1], defaultSettings);
-            }
-        );
+    private static final ConstructingObjectParser<ClusterGetSettingsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "cluster_get_settings_response",
+        true,
+        a -> {
+            Settings defaultSettings = a[2] == null ? Settings.EMPTY : (Settings) a[2];
+            return new ClusterGetSettingsResponse((Settings) a[0], (Settings) a[1], defaultSettings);
+        }
+    );
     static {
         PARSER.declareObject(constructorArg(), (p, c) -> Settings.fromXContent(p), new ParseField(PERSISTENT_FIELD));
         PARSER.declareObject(constructorArg(), (p, c) -> Settings.fromXContent(p), new ParseField(TRANSIENT_FIELD));
@@ -137,9 +136,9 @@ public class ClusterGetSettingsResponse extends ActionResponse implements ToXCon
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ClusterGetSettingsResponse that = (ClusterGetSettingsResponse) o;
-        return Objects.equals(transientSettings, that.transientSettings) &&
-            Objects.equals(persistentSettings, that.persistentSettings) &&
-            Objects.equals(defaultSettings, that.defaultSettings);
+        return Objects.equals(transientSettings, that.transientSettings)
+            && Objects.equals(persistentSettings, that.persistentSettings)
+            && Objects.equals(defaultSettings, that.defaultSettings);
     }
 
     @Override

@@ -42,7 +42,7 @@ public class AggregateSort extends Sort {
 
         AggregateSort other = (AggregateSort) obj;
         return Objects.equals(direction(), other.direction())
-                && Objects.equals(missing(), other.missing())
-                && Objects.equals(agg, other.agg);
+            && Objects.equals(missing(), other.missing())
+            && Objects.equals(agg, other.agg);
     }
 }

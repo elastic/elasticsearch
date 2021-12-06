@@ -28,20 +28,22 @@ public class CloseIndexStep extends AsyncActionStep {
     }
 
     @Override
-    public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
-                              ClusterStateObserver observer, ActionListener<Boolean> listener) {
+    public void performAction(
+        IndexMetadata indexMetadata,
+        ClusterState currentClusterState,
+        ClusterStateObserver observer,
+        ActionListener<Void> listener
+    ) {
         if (indexMetadata.getState() == IndexMetadata.State.OPEN) {
             CloseIndexRequest request = new CloseIndexRequest(indexMetadata.getIndex().getName()).masterNodeTimeout(TimeValue.MAX_VALUE);
-            getClient().admin().indices()
-                .close(request, ActionListener.wrap(closeIndexResponse -> {
-                    if (closeIndexResponse.isAcknowledged() == false) {
-                        throw new ElasticsearchException("close index request failed to be acknowledged");
-                    }
-                    listener.onResponse(true);
-                }, listener::onFailure));
-        }
-        else {
-            listener.onResponse(true);
+            getClient().admin().indices().close(request, ActionListener.wrap(closeIndexResponse -> {
+                if (closeIndexResponse.isAcknowledged() == false) {
+                    throw new ElasticsearchException("close index request failed to be acknowledged");
+                }
+                listener.onResponse(null);
+            }, listener::onFailure));
+        } else {
+            listener.onResponse(null);
         }
     }
 

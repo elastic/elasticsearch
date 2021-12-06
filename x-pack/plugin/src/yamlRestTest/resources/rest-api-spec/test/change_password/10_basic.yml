@@ -84,6 +84,59 @@ teardown:
   - match: { timed_out: false }
 
 ---
+"Test changing users password with prehashed password":
+  - skip:
+      features: ["catch_unauthorized", "warnings"]
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+  # We need this so that we can get hold of the password hash of the user without conditionals or multiple tests as the default hashing
+  # algorithm is different in FIPS mode. Additionally, for bcrypt, the stored hash string starts with a "$" and it would otherwise be
+  # interpreted as a stashed value, if we tried to use it as the value of "password_hash".
+  - do:
+      warnings:
+        - "this request accesses system indices: [.security-7], but in a future major version, direct access to system indices will be prevented by default"
+      get:
+        index: .security
+        id: user-joe
+  - set: { _source.password: "hash" }
+
+  # change password
+  - do:
+      security.change_password:
+        username: "joe"
+        body: >
+          {
+            "password" : "s3krit-password2"
+          }
+
+  # login with new credentials
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZDI="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+  # We change the password to the original one using the hash
+  - do:
+      security.change_password:
+        username: "joe"
+        body:  >
+          {
+            "password_hash" : "$hash"
+          }
+
+  # login with original credentials
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
+      cluster.health: {}
+  - match: { timed_out: false }
+
+---
 "Test user changing their own password":
   - skip:
       features: catch_unauthorized

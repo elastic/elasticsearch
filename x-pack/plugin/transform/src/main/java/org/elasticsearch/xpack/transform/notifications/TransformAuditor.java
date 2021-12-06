@@ -6,16 +6,14 @@
  */
 package org.elasticsearch.xpack.transform.notifications;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.AliasMetadata;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.notifications.TransformAuditMessage;
@@ -23,6 +21,7 @@ import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformIn
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 
@@ -34,38 +33,27 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
     private volatile boolean isResetMode = false;
 
     public TransformAuditor(Client client, String nodeName, ClusterService clusterService) {
-        super(new OriginSettingClient(client, TRANSFORM_ORIGIN), TransformInternalIndexConstants.AUDIT_INDEX,
-            TransformInternalIndexConstants.AUDIT_INDEX, null,
+        super(
+            new OriginSettingClient(client, TRANSFORM_ORIGIN),
+            TransformInternalIndexConstants.AUDIT_INDEX,
+            TransformInternalIndexConstants.AUDIT_INDEX,
             () -> {
                 try {
-                    IndexTemplateMetadata templateMeta = TransformInternalIndex.getAuditIndexTemplateMetadata();
-
-                    PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateMeta.name())
-                        .patterns(templateMeta.patterns())
-                        .version(templateMeta.version())
-                        .settings(templateMeta.settings())
-                        .mapping(templateMeta.mappings().uncompressed(), XContentType.JSON);
-
-                    for (ObjectObjectCursor<String, AliasMetadata> cursor : templateMeta.getAliases()) {
-                        AliasMetadata meta = cursor.value;
-                        Alias alias = new Alias(meta.alias())
-                            .indexRouting(meta.indexRouting())
-                            .searchRouting(meta.searchRouting())
-                            .isHidden(meta.isHidden())
-                            .writeIndex(meta.writeIndex());
-                        if (meta.filter() != null) {
-                            alias.filter(meta.getFilter().string());
-                        }
-
-                        request.alias(alias);
-                    }
-
-                    return request;
+                    return new PutComposableIndexTemplateAction.Request(TransformInternalIndexConstants.AUDIT_INDEX).indexTemplate(
+                        new ComposableIndexTemplate.Builder().template(TransformInternalIndex.getAuditIndexTemplate())
+                            .version((long) Version.CURRENT.id)
+                            .indexPatterns(Collections.singletonList(TransformInternalIndexConstants.AUDIT_INDEX_PREFIX + "*"))
+                            .priority(Long.MAX_VALUE)
+                            .build()
+                    );
                 } catch (IOException e) {
-                    return null;
+                    throw new ElasticsearchException("Failure creating transform notification index", e);
                 }
             },
-            () -> null, nodeName, TransformAuditMessage::new, clusterService);
+            nodeName,
+            TransformAuditMessage::new,
+            clusterService
+        );
         clusterService.addListener(event -> {
             if (event.metadataChanged()) {
                 isResetMode = TransformMetadata.getTransformMetadata(event.state()).isResetMode();

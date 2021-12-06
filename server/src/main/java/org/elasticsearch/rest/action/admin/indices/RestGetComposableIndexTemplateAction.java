@@ -32,7 +32,8 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
         return List.of(
             new Route(GET, "/_index_template"),
             new Route(GET, "/_index_template/{name}"),
-            new Route(HEAD, "/_index_template/{name}"));
+            new Route(HEAD, "/_index_template/{name}")
+        );
     }
 
     @Override
@@ -49,14 +50,13 @@ public class RestGetComposableIndexTemplateAction extends BaseRestHandler {
 
         final boolean implicitAll = getRequest.name() == null;
 
-        return channel ->
-            client.execute(GetComposableIndexTemplateAction.INSTANCE, getRequest, new RestToXContentListener<>(channel) {
-                @Override
-                protected RestStatus getStatus(final GetComposableIndexTemplateAction.Response response) {
-                    final boolean templateExists = response.indexTemplates().isEmpty() == false;
-                    return (templateExists || implicitAll) ? OK : NOT_FOUND;
-                }
-            });
+        return channel -> client.execute(GetComposableIndexTemplateAction.INSTANCE, getRequest, new RestToXContentListener<>(channel) {
+            @Override
+            protected RestStatus getStatus(final GetComposableIndexTemplateAction.Response response) {
+                final boolean templateExists = response.indexTemplates().isEmpty() == false;
+                return (templateExists || implicitAll) ? OK : NOT_FOUND;
+            }
+        });
     }
 
     @Override

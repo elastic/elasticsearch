@@ -18,7 +18,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -30,6 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -64,12 +64,10 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
      * Each feature corresponds to a field in {@link TransformConfig}.
      * If the field exists in the config then we assume the feature is used.
      */
-    private static final String[] FEATURES =
-        Stream.concat(
-                Stream.of(TransformConfig.Function.values()).map(TransformConfig.Function::getParseField),
-                Stream.of(TransformField.RETENTION_POLICY, TransformField.SYNC))
-            .map(ParseField::getPreferredName)
-            .toArray(String[]::new);
+    private static final String[] FEATURES = Stream.concat(
+        Stream.of(TransformConfig.Function.values()).map(TransformConfig.Function::getParseField),
+        Stream.of(TransformField.RETENTION_POLICY, TransformField.SYNC)
+    ).map(ParseField::getPreferredName).toArray(String[]::new);
 
     private final Client client;
 

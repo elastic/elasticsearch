@@ -8,9 +8,10 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 
@@ -19,13 +20,12 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
  */
 public class SecurityInfoTransportAction extends XPackInfoFeatureTransportAction {
 
-    private final XPackLicenseState licenseState;
+    private final Settings settings;
 
     @Inject
-    public SecurityInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                       XPackLicenseState licenseState) {
+    public SecurityInfoTransportAction(TransportService transportService, ActionFilters actionFilters, Settings settings) {
         super(XPackInfoFeatureAction.SECURITY.name(), transportService, actionFilters);
-        this.licenseState = licenseState;
+        this.settings = settings;
     }
 
     @Override
@@ -40,6 +40,6 @@ public class SecurityInfoTransportAction extends XPackInfoFeatureTransportAction
 
     @Override
     public boolean enabled() {
-        return licenseState.isSecurityEnabled();
+        return XPackSettings.SECURITY_ENABLED.get(settings);
     }
 }

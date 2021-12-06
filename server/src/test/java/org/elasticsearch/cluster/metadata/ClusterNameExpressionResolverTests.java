@@ -33,8 +33,10 @@ public class ClusterNameExpressionResolverTests extends ESTestCase {
     }
 
     public void testNoWildCardNoMatch() {
-        expectThrows(NoSuchRemoteClusterException.class,
-            () -> clusterNameResolver.resolveClusterNames(remoteClusters, "totallyDifferent2"));
+        expectThrows(
+            NoSuchRemoteClusterException.class,
+            () -> clusterNameResolver.resolveClusterNames(remoteClusters, "totallyDifferent2")
+        );
     }
 
     public void testWildCardNoMatch() {

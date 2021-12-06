@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
 
@@ -46,16 +46,15 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
 
-
         switch (between(0, 1)) {
-        case 0:
-            key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        case 1:
-            nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            case 1:
+                nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
 
         return new RolloverStep(key, nextKey, instance.getClient());
@@ -70,7 +69,9 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         return IndexMetadata.builder(randomAlphaOfLength(10))
             .putAlias(AliasMetadata.builder(alias))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
     }
 
     private static void assertRolloverIndexRequest(RolloverRequest request, String rolloverTarget) {
@@ -82,7 +83,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         assertEquals(0, request.getConditions().size());
     }
 
-    public void testPerformAction() {
+    public void testPerformAction() throws Exception {
         String alias = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = getIndexMetadata(alias);
 
@@ -90,24 +91,21 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
 
         mockClientRolloverCall(alias);
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, true)
-            )
-            .build();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
-    public void testPerformActionOnDataStream() {
+    public void testPerformActionOnDataStream() throws Exception {
         String dataStreamName = "test-datastream";
         IndexMetadata indexMetadata = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
             .settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
 
         RolloverStep step = createRandomInstance();
 
@@ -116,42 +114,51 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                        List.of(indexMetadata.getIndex())))
+                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(indexMetadata.getIndex())))
                     .put(indexMetadata, true)
             )
             .build();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
-    public void testSkipRolloverIfDataStreamIsAlreadyRolledOver() {
+    public void testSkipRolloverIfDataStreamIsAlreadyRolledOver() throws Exception {
         String dataStreamName = "test-datastream";
         IndexMetadata firstGenerationIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
             .settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
 
         IndexMetadata writeIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
             .settings(settings(Version.CURRENT))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
         RolloverStep step = createRandomInstance();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
-                Metadata.builder().put(firstGenerationIndex, true)
+                Metadata.builder()
+                    .put(firstGenerationIndex, true)
                     .put(writeIndex, true)
-                    .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                        List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())))
+                    .put(
+                        new DataStream(
+                            dataStreamName,
+                            createTimestampField("@timestamp"),
+                            List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())
+                        )
+                    )
             )
             .build();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(firstGenerationIndex, clusterState, null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(firstGenerationIndex, clusterState, null, f));
 
-        verifyZeroInteractions(client);
-        verifyZeroInteractions(adminClient);
-        verifyZeroInteractions(indicesClient);
+        verifyNoMoreInteractions(client);
+        verifyNoMoreInteractions(adminClient);
+        verifyNoMoreInteractions(indicesClient);
     }
 
     private void mockClientRolloverCall(String rolloverTarget) {
@@ -165,45 +172,43 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
     }
 
-    public void testPerformActionWithIndexingComplete() {
+    public void testPerformActionWithIndexingComplete() throws Exception {
         String alias = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .putAlias(AliasMetadata.builder(alias))
-            .settings(settings(Version.CURRENT)
-                .put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
-                .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .settings(
+                settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias)
+                    .put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, true)
+            )
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
 
         RolloverStep step = createRandomInstance();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, true)
-            )
-            .build();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
     }
 
-    public void testPerformActionSkipsRolloverForAlreadyRolledIndex() {
+    public void testPerformActionSkipsRolloverForAlreadyRolledIndex() throws Exception {
         String rolloverAlias = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .putAlias(AliasMetadata.builder(rolloverAlias))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, rolloverAlias))
-            .putRolloverInfo(new RolloverInfo(rolloverAlias,
-                Collections.singletonList(new MaxSizeCondition(new ByteSizeValue(2L))),
-                System.currentTimeMillis())
+            .putRolloverInfo(
+                new RolloverInfo(
+                    rolloverAlias,
+                    Collections.singletonList(new MaxSizeCondition(new ByteSizeValue(2L))),
+                    System.currentTimeMillis()
+                )
             )
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
 
         RolloverStep step = createRandomInstance();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, true)
-            )
-            .build();
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
 
         Mockito.verify(indicesClient, Mockito.never()).rolloverIndex(Mockito.any(), Mockito.any());
     }
@@ -223,14 +228,14 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
             return null;
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, true)
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
+        assertSame(
+            exception,
+            expectThrows(
+                Exception.class,
+                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))
             )
-            .build();
-        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
-            f -> step.performAction(indexMetadata, clusterState, null, f))));
+        );
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -241,39 +246,55 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
         String alias = randomBoolean() ? "" : null;
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
         RolloverStep step = createRandomInstance();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, true)
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))
+        );
+        assertThat(
+            e.getMessage(),
+            Matchers.is(
+                String.format(
+                    Locale.ROOT,
+                    "setting [%s] for index [%s] is empty or not defined, it must be set to the name of the alias pointing to the group of "
+                        + "indices being rolled over",
+                    RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
+                    indexMetadata.getIndex().getName()
+                )
             )
-            .build();
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
-        assertThat(e.getMessage(), Matchers.is(String.format(Locale.ROOT,
-            "setting [%s] for index [%s] is empty or not defined, it must be set to the name of the alias pointing to the group of " +
-                "indices being rolled over", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, indexMetadata.getIndex().getName())));
+        );
     }
 
     public void testPerformActionAliasDoesNotPointToIndex() {
         String alias = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
-            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+            .numberOfShards(randomIntBetween(1, 5))
+            .numberOfReplicas(randomIntBetween(0, 5))
+            .build();
         RolloverStep step = createRandomInstance();
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, true)
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true)).build();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))
+        );
+        assertThat(
+            e.getMessage(),
+            Matchers.is(
+                String.format(
+                    Locale.ROOT,
+                    "%s [%s] does not point to index [%s]",
+                    RolloverAction.LIFECYCLE_ROLLOVER_ALIAS,
+                    alias,
+                    indexMetadata.getIndex().getName()
+                )
             )
-            .build();
-        Exception e = expectThrows(IllegalArgumentException.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f)));
-        assertThat(e.getMessage(), Matchers.is(String.format(Locale.ROOT,
-            "%s [%s] does not point to index [%s]", RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias,
-            indexMetadata.getIndex().getName())));
+        );
     }
 }

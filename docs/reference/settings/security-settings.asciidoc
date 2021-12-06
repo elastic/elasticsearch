@@ -63,7 +63,9 @@ Enables fips mode of operation. Set this to `true` if you run this {es} instance
 `xpack.security.authc.password_hashing.algorithm`::
 (<<static-cluster-setting,Static>>)
 Specifies the hashing algorithm that is used for secure user credential storage.
-See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
+See <<password-hashing-algorithms>>.
+If `xpack.security.fips_mode.enabled` is true (see <<fips-140-compliance>>), defaults to `pbkdf2_stretch`. 
+In all other cases, defaults to `bcrypt`.
 
 [discrete]
 [[anonymous-access-settings]]
@@ -176,9 +178,7 @@ You can set the following API key service settings in
 
 `xpack.security.authc.api_key.enabled`::
 (<<static-cluster-setting,Static>>)
-Set to `false` to disable the built-in API key service. Defaults to `true` unless
- `xpack.security.http.ssl.enabled` is `false`. This prevents sniffing the API key
-  from a connection over plain http.
+Set to `false` to disable the built-in API key service. Defaults to `true`.
 
 `xpack.security.authc.api_key.hashing.algorithm`::
 (<<static-cluster-setting,Static>>)
@@ -2019,6 +2019,7 @@ a PKCS#12 container includes trusted certificate ("anchor") entries look for
 :verifies!:
 :server:
 :ssl-context:            security-http
+:ssl-layer:              HTTP networking layer, which {es} uses to communicate with other clients
 
 include::ssl-settings.asciidoc[]
 
@@ -2029,6 +2030,7 @@ include::ssl-settings.asciidoc[]
 :verifies:
 :server:
 :ssl-context:            security-transport
+:ssl-layer:              transport networking layer, which nodes use to communicate with each other
 
 include::ssl-settings.asciidoc[]
 

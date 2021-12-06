@@ -7,16 +7,14 @@
  */
 package org.elasticsearch.client.ml.inference.trainedmodel.ensemble;
 
-
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-
 
 public class Exponent implements OutputAggregator {
 
@@ -27,7 +25,8 @@ public class Exponent implements OutputAggregator {
     private static final ConstructingObjectParser<Exponent, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new Exponent((List<Double>)a[0]));
+        a -> new Exponent((List<Double>) a[0])
+    );
     static {
         PARSER.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS);
     }

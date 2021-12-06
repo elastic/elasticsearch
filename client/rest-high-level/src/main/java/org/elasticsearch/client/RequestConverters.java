@@ -47,22 +47,15 @@ import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.tasks.TaskId;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.rankeval.RankEvalRequest;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
@@ -74,6 +67,13 @@ import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.script.mustache.MultiSearchTemplateRequest;
 import org.elasticsearch.script.mustache.SearchTemplateRequest;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -216,14 +216,19 @@ final class RequestConverters {
                 BytesReference indexSource = indexRequest.source();
                 XContentType indexXContentType = indexRequest.getContentType();
 
-                try (XContentParser parser = XContentHelper.createParser(
+                try (
+                    XContentParser parser = XContentHelper.createParser(
                         /*
                          * EMPTY and THROW are fine here because we just call
                          * copyCurrentStructure which doesn't touch the
                          * registry or deprecation.
                          */
-                        NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                        indexSource, indexXContentType)) {
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        indexSource,
+                        indexXContentType
+                    )
+                ) {
                     try (XContentBuilder builder = XContentBuilder.builder(bulkContentType.xContent())) {
                         builder.copyCurrentStructure(parser);
                         source = BytesReference.bytes(builder).toBytesRef();
@@ -363,8 +368,14 @@ final class RequestConverters {
         if (updateRequest.upsertRequest() != null) {
             XContentType upsertContentType = updateRequest.upsertRequest().getContentType();
             if ((xContentType != null) && (xContentType != upsertContentType)) {
-                throw new IllegalStateException("Update request cannot have different content types for doc [" + xContentType + "]" +
-                        " and upsert [" + upsertContentType + "] documents");
+                throw new IllegalStateException(
+                    "Update request cannot have different content types for doc ["
+                        + xContentType
+                        + "]"
+                        + " and upsert ["
+                        + upsertContentType
+                        + "] documents"
+                );
             } else {
                 xContentType = upsertContentType;
             }
@@ -401,7 +412,9 @@ final class RequestConverters {
         params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
         params.withRouting(searchRequest.routing());
         params.withPreference(searchRequest.preference());
-        params.withIndicesOptions(searchRequest.indicesOptions());
+        if (SearchRequest.DEFAULT_INDICES_OPTIONS.equals(searchRequest.indicesOptions()) == false) {
+            params.withIndicesOptions(searchRequest.indicesOptions());
+        }
         params.withSearchType(searchRequest.searchType().name().toLowerCase(Locale.ROOT));
         if (searchRequest.isCcsMinimizeRoundtrips() != SearchRequest.defaultCcsMinimizeRoundtrips(searchRequest)) {
             params.putParam("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
@@ -437,7 +450,9 @@ final class RequestConverters {
     static Request openPointInTime(OpenPointInTimeRequest openRequest) {
         Request request = new Request(HttpPost.METHOD_NAME, endpoint(openRequest.indices(), "_pit"));
         Params params = new Params();
-        params.withIndicesOptions(openRequest.indicesOptions());
+        if (OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS.equals(openRequest.indicesOptions()) == false) {
+            params.withIndicesOptions(openRequest.indicesOptions());
+        }
         params.withRouting(openRequest.routing());
         params.withPreference(openRequest.preference());
         params.putParam("keep_alive", openRequest.keepAlive());
@@ -508,10 +523,10 @@ final class RequestConverters {
         params.withRouting(countRequest.routing());
         params.withPreference(countRequest.preference());
         params.withIndicesOptions(countRequest.indicesOptions());
-        if (countRequest.terminateAfter() != 0){
+        if (countRequest.terminateAfter() != 0) {
             params.withTerminateAfter(countRequest.terminateAfter());
         }
-        if (countRequest.minScore() != null){
+        if (countRequest.minScore() != null) {
             params.putParam("min_score", String.valueOf(countRequest.minScore()));
         }
         request.addParameters(params.asMap());
@@ -534,12 +549,14 @@ final class RequestConverters {
     }
 
     static Request fieldCaps(FieldCapabilitiesRequest fieldCapabilitiesRequest) throws IOException {
-        String methodName = fieldCapabilitiesRequest.indexFilter() != null ? HttpPost.METHOD_NAME  : HttpGet.METHOD_NAME;
+        String methodName = fieldCapabilitiesRequest.indexFilter() != null ? HttpPost.METHOD_NAME : HttpGet.METHOD_NAME;
         Request request = new Request(methodName, endpoint(fieldCapabilitiesRequest.indices(), "_field_caps"));
 
         Params params = new Params();
         params.withFields(fieldCapabilitiesRequest.fields());
-        params.withIndicesOptions(fieldCapabilitiesRequest.indicesOptions());
+        if (FieldCapabilitiesRequest.DEFAULT_INDICES_OPTIONS.equals(fieldCapabilitiesRequest.indicesOptions()) == false) {
+            params.withIndicesOptions(fieldCapabilitiesRequest.indicesOptions());
+        }
         request.addParameters(params.asMap());
         if (fieldCapabilitiesRequest.indexFilter() != null) {
             request.setEntity(createEntity(fieldCapabilitiesRequest, REQUEST_BODY_CONTENT_TYPE));
@@ -551,7 +568,9 @@ final class RequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint(rankEvalRequest.indices(), Strings.EMPTY_ARRAY, "_rank_eval"));
 
         Params params = new Params();
-        params.withIndicesOptions(rankEvalRequest.indicesOptions());
+        if (SearchRequest.DEFAULT_INDICES_OPTIONS.equals(rankEvalRequest.indicesOptions()) == false) {
+            params.withIndicesOptions(rankEvalRequest.indicesOptions());
+        }
         params.putParam("search_type", rankEvalRequest.searchType().name().toLowerCase(Locale.ROOT));
         request.addParameters(params.asMap());
         request.setEntity(createEntity(rankEvalRequest.getRankEvalSpec(), REQUEST_BODY_CONTENT_TYPE));
@@ -585,8 +604,7 @@ final class RequestConverters {
     private static Request prepareReindexRequest(ReindexRequest reindexRequest, boolean waitForCompletion) throws IOException {
         String endpoint = new EndpointBuilder().addPathPart("_reindex").build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params()
-            .withWaitForCompletion(waitForCompletion)
+        Params params = new Params().withWaitForCompletion(waitForCompletion)
             .withRefresh(reindexRequest.isRefresh())
             .withTimeout(reindexRequest.getTimeout())
             .withWaitForActiveShards(reindexRequest.getWaitForActiveShards())
@@ -603,19 +621,22 @@ final class RequestConverters {
         return request;
     }
 
-    private static Request prepareDeleteByQueryRequest(DeleteByQueryRequest deleteByQueryRequest,
-                                                       boolean waitForCompletion) throws IOException {
+    private static Request prepareDeleteByQueryRequest(DeleteByQueryRequest deleteByQueryRequest, boolean waitForCompletion)
+        throws IOException {
         String endpoint = endpoint(deleteByQueryRequest.indices(), "_delete_by_query");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params()
-            .withRouting(deleteByQueryRequest.getRouting())
+        Params params = new Params().withRouting(deleteByQueryRequest.getRouting())
             .withRefresh(deleteByQueryRequest.isRefresh())
             .withTimeout(deleteByQueryRequest.getTimeout())
             .withWaitForActiveShards(deleteByQueryRequest.getWaitForActiveShards())
             .withRequestsPerSecond(deleteByQueryRequest.getRequestsPerSecond())
-            .withIndicesOptions(deleteByQueryRequest.indicesOptions())
             .withWaitForCompletion(waitForCompletion)
             .withSlices(deleteByQueryRequest.getSlices());
+
+        if (SearchRequest.DEFAULT_INDICES_OPTIONS.equals(deleteByQueryRequest.indicesOptions()) == false) {
+            params = params.withIndicesOptions(deleteByQueryRequest.indicesOptions());
+        }
+
         if (deleteByQueryRequest.isAbortOnVersionConflict() == false) {
             params.putParam("conflicts", "proceed");
         }
@@ -633,20 +654,20 @@ final class RequestConverters {
         return request;
     }
 
-    static Request prepareUpdateByQueryRequest(UpdateByQueryRequest updateByQueryRequest,
-                                               boolean waitForCompletion) throws IOException {
+    static Request prepareUpdateByQueryRequest(UpdateByQueryRequest updateByQueryRequest, boolean waitForCompletion) throws IOException {
         String endpoint = endpoint(updateByQueryRequest.indices(), "_update_by_query");
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params()
-            .withRouting(updateByQueryRequest.getRouting())
+        Params params = new Params().withRouting(updateByQueryRequest.getRouting())
             .withPipeline(updateByQueryRequest.getPipeline())
             .withRefresh(updateByQueryRequest.isRefresh())
             .withTimeout(updateByQueryRequest.getTimeout())
             .withWaitForActiveShards(updateByQueryRequest.getWaitForActiveShards())
             .withRequestsPerSecond(updateByQueryRequest.getRequestsPerSecond())
-            .withIndicesOptions(updateByQueryRequest.indicesOptions())
             .withWaitForCompletion(waitForCompletion)
             .withSlices(updateByQueryRequest.getSlices());
+        if (SearchRequest.DEFAULT_INDICES_OPTIONS.equals(updateByQueryRequest.indicesOptions()) == false) {
+            params = params.withIndicesOptions(updateByQueryRequest.indicesOptions());
+        }
         if (updateByQueryRequest.isAbortOnVersionConflict() == false) {
             params.putParam("conflicts", "proceed");
         }
@@ -677,11 +698,12 @@ final class RequestConverters {
     }
 
     private static Request rethrottle(RethrottleRequest rethrottleRequest, String firstPathPart) {
-        String endpoint = new EndpointBuilder().addPathPart(firstPathPart).addPathPart(rethrottleRequest.getTaskId().toString())
-                .addPathPart("_rethrottle").build();
+        String endpoint = new EndpointBuilder().addPathPart(firstPathPart)
+            .addPathPart(rethrottleRequest.getTaskId().toString())
+            .addPathPart("_rethrottle")
+            .build();
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
-        Params params = new Params()
-                .withRequestsPerSecond(rethrottleRequest.getRequestsPerSecond());
+        Params params = new Params().withRequestsPerSecond(rethrottleRequest.getRequestsPerSecond());
         // we set "group_by" to "none" because this is the response format we can parse back
         params.putParam("group_by", "none");
         request.addParameters(params.asMap());
@@ -797,13 +819,17 @@ final class RequestConverters {
 
     @Deprecated
     static String endpoint(String[] indices, String[] types, String endpoint) {
-        return new EndpointBuilder().addCommaSeparatedPathParts(indices).addCommaSeparatedPathParts(types)
-                .addPathPartAsIs(endpoint).build();
+        return new EndpointBuilder().addCommaSeparatedPathParts(indices)
+            .addCommaSeparatedPathParts(types)
+            .addPathPartAsIs(endpoint)
+            .build();
     }
 
     static String endpoint(String[] indices, String endpoint, String[] suffixes) {
-        return new EndpointBuilder().addCommaSeparatedPathParts(indices).addPathPartAsIs(endpoint)
-                .addCommaSeparatedPathParts(suffixes).build();
+        return new EndpointBuilder().addCommaSeparatedPathParts(indices)
+            .addPathPartAsIs(endpoint)
+            .addCommaSeparatedPathParts(suffixes)
+            .build();
     }
 
     @Deprecated
@@ -827,14 +853,13 @@ final class RequestConverters {
      * a {@link Request} and adds the parameters to it directly.
      */
     static class Params {
-        private final Map<String,String> parameters = new HashMap<>();
+        private final Map<String, String> parameters = new HashMap<>();
 
-        Params() {
-        }
+        Params() {}
 
         Params putParam(String name, String value) {
             if (Strings.hasLength(value)) {
-                parameters.put(name,value);
+                parameters.put(name, value);
             }
             return this;
         }
@@ -846,7 +871,7 @@ final class RequestConverters {
             return this;
         }
 
-        Map<String, String> asMap(){
+        Map<String, String> asMap() {
             return parameters;
         }
 
@@ -980,7 +1005,7 @@ final class RequestConverters {
             return this;
         }
 
-        Params withTerminateAfter(int terminateAfter){
+        Params withTerminateAfter(int terminateAfter) {
             return putParam("terminate_after", String.valueOf(terminateAfter));
         }
 
@@ -1103,7 +1128,7 @@ final class RequestConverters {
         }
 
         Params withNodes(String[] nodes) {
-           return withNodes(Arrays.asList(nodes));
+            return withNodes(Arrays.asList(nodes));
         }
 
         Params withNodes(List<String> nodes) {
@@ -1198,15 +1223,23 @@ final class RequestConverters {
     static XContentType enforceSameContentType(IndexRequest indexRequest, @Nullable XContentType xContentType) {
         XContentType requestContentType = indexRequest.getContentType();
         if (requestContentType.canonical() != XContentType.JSON && requestContentType.canonical() != XContentType.SMILE) {
-            throw new IllegalArgumentException("Unsupported content-type found for request with content-type [" + requestContentType
-                    + "], only JSON and SMILE are supported");
+            throw new IllegalArgumentException(
+                "Unsupported content-type found for request with content-type ["
+                    + requestContentType
+                    + "], only JSON and SMILE are supported"
+            );
         }
         if (xContentType == null) {
             return requestContentType;
         }
         if (requestContentType.canonical() != xContentType.canonical()) {
-            throw new IllegalArgumentException("Mismatching content-type found for request with content-type [" + requestContentType
-                    + "], previous requests have content-type [" + xContentType + "]");
+            throw new IllegalArgumentException(
+                "Mismatching content-type found for request with content-type ["
+                    + requestContentType
+                    + "], previous requests have content-type ["
+                    + xContentType
+                    + "]"
+            );
         }
         return xContentType;
     }
@@ -1237,7 +1270,7 @@ final class RequestConverters {
             return this;
         }
 
-        EndpointBuilder addPathPartAsIs(String ... parts) {
+        EndpointBuilder addPathPartAsIs(String... parts) {
             for (String part : parts) {
                 if (Strings.hasLength(part)) {
                     joiner.add(part);
@@ -1252,13 +1285,13 @@ final class RequestConverters {
 
         private static String encodePart(String pathPart) {
             try {
-                //encode each part (e.g. index, type and id) separately before merging them into the path
-                //we prepend "/" to the path part to make this path absolute, otherwise there can be issues with
-                //paths that start with `-` or contain `:`
-                //the authority must be an empty string and not null, else paths that being with slashes could have them
-                //misinterpreted as part of the authority.
+                // encode each part (e.g. index, type and id) separately before merging them into the path
+                // we prepend "/" to the path part to make this path absolute, otherwise there can be issues with
+                // paths that start with `-` or contain `:`
+                // the authority must be an empty string and not null, else paths that being with slashes could have them
+                // misinterpreted as part of the authority.
                 URI uri = new URI(null, "", "/" + pathPart, null, null);
-                //manually encode any slash that each part may contain
+                // manually encode any slash that each part may contain
                 return uri.getRawPath().substring(1).replaceAll("/", "%2F");
             } catch (URISyntaxException e) {
                 throw new IllegalArgumentException("Path part [" + pathPart + "] couldn't be encoded", e);
@@ -1266,4 +1299,3 @@ final class RequestConverters {
         }
     }
 }
-

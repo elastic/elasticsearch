@@ -107,7 +107,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
 
         d = new Document();
         addField(d, "_id", "2");
-        //d.add(new StringField("value", one(), Field.Store.NO)); // MISSING....
+        // d.add(new StringField("value", one(), Field.Store.NO)); // MISSING....
         writer.addDocument(d);
 
         d = new Document();
@@ -146,7 +146,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
 
         d = new Document();
         addField(d, "_id", "2");
-        //d.add(new StringField("value", one(), Field.Store.NO)); // MISSING
+        // d.add(new StringField("value", one(), Field.Store.NO)); // MISSING
         writer.addDocument(d);
 
         d = new Document();
@@ -203,7 +203,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         writer.addDocument(d);
 
         d = new Document();
-        d.add(new StringField("_id", "6", Field.Store.NO));
+        addField(d, "_id", "6");
         writer.addDocument(d);
 
         d = new Document();
@@ -255,8 +255,11 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         final String missingValue = values[1];
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(missingValue, MultiValueMode.MIN, null, reverse);
-        TopFieldDocs topDocs =
-            searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(sortField));
+        TopFieldDocs topDocs = searcher.search(
+            new MatchAllDocsQuery(),
+            randomBoolean() ? numDocs : randomIntBetween(10, numDocs),
+            new Sort(sortField)
+        );
         assertEquals(numDocs, topDocs.totalHits.value);
         BytesRef previousValue = reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
@@ -310,8 +313,11 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         final IndexFieldData<?> indexFieldData = getForField("value");
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer));
         SortField sortField = indexFieldData.sortField(first ? "_first" : "_last", MultiValueMode.MIN, null, reverse);
-        TopFieldDocs topDocs =
-            searcher.search(new MatchAllDocsQuery(), randomBoolean() ? numDocs : randomIntBetween(10, numDocs), new Sort(sortField));
+        TopFieldDocs topDocs = searcher.search(
+            new MatchAllDocsQuery(),
+            randomBoolean() ? numDocs : randomIntBetween(10, numDocs),
+            new Sort(sortField)
+        );
         assertEquals(numDocs, topDocs.totalHits.value);
         BytesRef previousValue = first ? null : reverse ? UnicodeUtil.BIG_TERM : new BytesRef();
         for (int i = 0; i < topDocs.scoreDocs.length; ++i) {
@@ -383,26 +389,28 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         IndexFieldData<?> fieldData = getForField("text");
         final Object missingValue;
         switch (randomInt(4)) {
-        case 0:
-            missingValue = "_first";
-            break;
-        case 1:
-            missingValue = "_last";
-            break;
-        case 2:
-            missingValue = new BytesRef(RandomPicks.randomFrom(random(), values));
-            break;
-        default:
-            missingValue = new BytesRef(TestUtil.randomSimpleString(random()));
-            break;
+            case 0:
+                missingValue = "_first";
+                break;
+            case 1:
+                missingValue = "_last";
+                break;
+            case 2:
+                missingValue = new BytesRef(RandomPicks.randomFrom(random(), values));
+                break;
+            default:
+                missingValue = new BytesRef(TestUtil.randomSimpleString(random()));
+                break;
         }
         Query parentFilter = new TermQuery(new Term("type", "parent"));
         Query childFilter = Queries.not(parentFilter);
         Nested nested = createNested(searcher, parentFilter, childFilter);
-        BytesRefFieldComparatorSource nestedComparatorSource =
-            new BytesRefFieldComparatorSource(fieldData, missingValue, sortMode, nested);
-        ToParentBlockJoinQuery query =
-            new ToParentBlockJoinQuery(new ConstantScoreQuery(childFilter), new QueryBitSetProducer(parentFilter), ScoreMode.None);
+        BytesRefFieldComparatorSource nestedComparatorSource = new BytesRefFieldComparatorSource(fieldData, missingValue, sortMode, nested);
+        ToParentBlockJoinQuery query = new ToParentBlockJoinQuery(
+            new ConstantScoreQuery(childFilter),
+            new QueryBitSetProducer(parentFilter),
+            ScoreMode.None
+        );
         Sort sort = new Sort(new SortField("text", nestedComparatorSource));
         TopFieldDocs topDocs = searcher.search(query, randomIntBetween(1, numParents), sort);
         assertTrue(topDocs.scoreDocs.length > 0);

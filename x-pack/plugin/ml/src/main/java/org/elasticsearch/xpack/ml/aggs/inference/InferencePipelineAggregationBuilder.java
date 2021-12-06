@@ -10,23 +10,26 @@ package org.elasticsearch.xpack.ml.aggs.inference;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ContextParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
@@ -48,7 +51,7 @@ import java.util.TreeMap;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 public class InferencePipelineAggregationBuilder extends AbstractPipelineAggregationBuilder<InferencePipelineAggregationBuilder> {
@@ -62,24 +65,43 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<InferencePipelineAggregationBuilder, ParserSupplement> PARSER =
-        new ConstructingObjectParser<>(NAME, false,
-        (args, context) -> new InferencePipelineAggregationBuilder(context.name, context.modelLoadingService,
-            context.licenseState, (Map<String, String>) args[0])
-    );
+        new ConstructingObjectParser<>(
+            NAME,
+            false,
+            (args, context) -> new InferencePipelineAggregationBuilder(
+                context.name,
+                context.modelLoadingService,
+                context.licenseState,
+                context.settings,
+                (Map<String, String>) args[0]
+            )
+        );
 
     static {
         PARSER.declareObject(constructorArg(), (p, c) -> p.mapStrings(), BUCKETS_PATH_FIELD);
         PARSER.declareString(InferencePipelineAggregationBuilder::setModelId, MODEL_ID);
-        PARSER.declareNamedObject(InferencePipelineAggregationBuilder::setInferenceConfig,
-            (p, c, n) -> p.namedObject(InferenceConfigUpdate.class, n, c), INFERENCE_CONFIG);
+        PARSER.declareNamedObject(
+            InferencePipelineAggregationBuilder::setInferenceConfig,
+            (p, c, n) -> p.namedObject(InferenceConfigUpdate.class, n, c),
+            INFERENCE_CONFIG
+        );
     }
 
-    public static SearchPlugin.PipelineAggregationSpec buildSpec(SetOnce<ModelLoadingService> modelLoadingService,
-                                                                 XPackLicenseState xPackLicenseState) {
-        SearchPlugin.PipelineAggregationSpec spec = new SearchPlugin.PipelineAggregationSpec(InferencePipelineAggregationBuilder.NAME,
-            in -> new InferencePipelineAggregationBuilder(in, xPackLicenseState, modelLoadingService),
-            (ContextParser<String, ? extends PipelineAggregationBuilder>)
-                (parser, name) -> InferencePipelineAggregationBuilder.parse(modelLoadingService, xPackLicenseState, name, parser)
+    public static SearchPlugin.PipelineAggregationSpec buildSpec(
+        SetOnce<ModelLoadingService> modelLoadingService,
+        XPackLicenseState xPackLicenseState,
+        Settings settings
+    ) {
+        SearchPlugin.PipelineAggregationSpec spec = new SearchPlugin.PipelineAggregationSpec(
+            InferencePipelineAggregationBuilder.NAME,
+            in -> new InferencePipelineAggregationBuilder(in, xPackLicenseState, settings, modelLoadingService),
+            (ContextParser<String, ? extends PipelineAggregationBuilder>) (parser, name) -> InferencePipelineAggregationBuilder.parse(
+                modelLoadingService,
+                xPackLicenseState,
+                settings,
+                name,
+                parser
+            )
         );
         spec.addResultReader(InternalInferenceAggregation::new);
         return spec;
@@ -89,6 +111,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
     private String modelId;
     private InferenceConfigUpdate inferenceConfig;
     private final XPackLicenseState licenseState;
+    private final Settings settings;
     private final SetOnce<ModelLoadingService> modelLoadingService;
     /**
      * The model. Set to a non-null value during the rewrite phase.
@@ -97,36 +120,49 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
 
     private static class ParserSupplement {
         final XPackLicenseState licenseState;
+        final Settings settings;
         final SetOnce<ModelLoadingService> modelLoadingService;
         final String name;
 
-        ParserSupplement(String name, XPackLicenseState licenseState, SetOnce<ModelLoadingService> modelLoadingService) {
+        ParserSupplement(String name, XPackLicenseState licenseState, Settings settings, SetOnce<ModelLoadingService> modelLoadingService) {
             this.name = name;
             this.licenseState = licenseState;
+            this.settings = settings;
             this.modelLoadingService = modelLoadingService;
         }
     }
-    public static InferencePipelineAggregationBuilder parse(SetOnce<ModelLoadingService> modelLoadingService,
-                                                            XPackLicenseState licenseState,
-                                                            String pipelineAggregatorName,
-                                                            XContentParser parser) {
-        return PARSER.apply(parser, new ParserSupplement(pipelineAggregatorName, licenseState, modelLoadingService));
+
+    public static InferencePipelineAggregationBuilder parse(
+        SetOnce<ModelLoadingService> modelLoadingService,
+        XPackLicenseState licenseState,
+        Settings settings,
+        String pipelineAggregatorName,
+        XContentParser parser
+    ) {
+        return PARSER.apply(parser, new ParserSupplement(pipelineAggregatorName, licenseState, settings, modelLoadingService));
     }
 
-    public InferencePipelineAggregationBuilder(String name,
-                                               SetOnce<ModelLoadingService> modelLoadingService,
-                                               XPackLicenseState licenseState,
-                                               Map<String, String> bucketsPath) {
+    public InferencePipelineAggregationBuilder(
+        String name,
+        SetOnce<ModelLoadingService> modelLoadingService,
+        XPackLicenseState licenseState,
+        Settings settings,
+        Map<String, String> bucketsPath
+    ) {
         super(name, NAME, new TreeMap<>(bucketsPath).values().toArray(new String[] {}));
         this.modelLoadingService = modelLoadingService;
         this.bucketPathMap = bucketsPath;
         this.model = null;
         this.licenseState = licenseState;
+        this.settings = settings;
     }
 
-    public InferencePipelineAggregationBuilder(StreamInput in,
-                                               XPackLicenseState licenseState,
-                                               SetOnce<ModelLoadingService> modelLoadingService) throws IOException {
+    public InferencePipelineAggregationBuilder(
+        StreamInput in,
+        XPackLicenseState licenseState,
+        Settings settings,
+        SetOnce<ModelLoadingService> modelLoadingService
+    ) throws IOException {
         super(in, NAME);
         modelId = in.readString();
         bucketPathMap = in.readMap(StreamInput::readString, StreamInput::readString);
@@ -134,6 +170,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         this.modelLoadingService = modelLoadingService;
         this.model = null;
         this.licenseState = licenseState;
+        this.settings = settings;
     }
 
     /**
@@ -145,7 +182,8 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         Supplier<LocalModel> model,
         String modelId,
         InferenceConfigUpdate inferenceConfig,
-        XPackLicenseState licenseState
+        XPackLicenseState licenseState,
+        Settings settings
     ) {
         super(name, NAME, new TreeMap<>(bucketsPath).values().toArray(new String[] {}));
         modelLoadingService = null;
@@ -161,6 +199,7 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         this.modelId = modelId;
         this.inferenceConfig = inferenceConfig;
         this.licenseState = licenseState;
+        this.settings = settings;
     }
 
     public void setModelId(String modelId) {
@@ -182,19 +221,29 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
             // error if the results field is set and not equal to the only acceptable value
             String resultsField = inferenceConfig.getResultsField();
             if (Strings.isNullOrEmpty(resultsField) == false && AGGREGATIONS_RESULTS_FIELD.equals(resultsField) == false) {
-                context.addValidationError("setting option [" + ClassificationConfig.RESULTS_FIELD.getPreferredName()
-                    + "] to [" + resultsField + "] is not valid for inference aggregations");
+                context.addValidationError(
+                    "setting option ["
+                        + ClassificationConfig.RESULTS_FIELD.getPreferredName()
+                        + "] to ["
+                        + resultsField
+                        + "] is not valid for inference aggregations"
+                );
             }
 
             if (inferenceConfig instanceof ClassificationConfigUpdate) {
-                ClassificationConfigUpdate classUpdate = (ClassificationConfigUpdate)inferenceConfig;
+                ClassificationConfigUpdate classUpdate = (ClassificationConfigUpdate) inferenceConfig;
 
                 // error if the top classes result field is set and not equal to the only acceptable value
                 String topClassesField = classUpdate.getTopClassesResultsField();
-                if (Strings.isNullOrEmpty(topClassesField) == false &&
-                    ClassificationConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD.equals(topClassesField) == false) {
-                    context.addValidationError("setting option [" + ClassificationConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD
-                        + "] to [" + topClassesField + "] is not valid for inference aggregations");
+                if (Strings.isNullOrEmpty(topClassesField) == false
+                    && ClassificationConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD.equals(topClassesField) == false) {
+                    context.addValidationError(
+                        "setting option ["
+                            + ClassificationConfig.DEFAULT_TOP_CLASSES_RESULTS_FIELD
+                            + "] to ["
+                            + topClassesField
+                            + "] is not valid for inference aggregations"
+                    );
                 }
             }
         }
@@ -214,12 +263,12 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         }
 
         SetOnce<LocalModel> loadedModel = new SetOnce<>();
-        BiConsumer<Client, ActionListener<?>> modelLoadAction = (client, listener) ->
-            modelLoadingService.get().getModelForSearch(modelId, listener.delegateFailure((delegate, model) -> {
+        BiConsumer<Client, ActionListener<?>> modelLoadAction = (client, listener) -> modelLoadingService.get()
+            .getModelForSearch(modelId, listener.delegateFailure((delegate, model) -> {
                 loadedModel.set(model);
 
-                boolean isLicensed = licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING) ||
-                    licenseState.isAllowedByLicense(model.getLicenseLevel());
+                boolean isLicensed = model.getLicenseLevel() == License.OperationMode.BASIC
+                    || MachineLearningField.ML_API_FEATURE.check(licenseState);
                 if (isLicensed) {
                     delegate.onResponse(null);
                 } else {
@@ -227,29 +276,29 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
                 }
             }));
 
-
         context.registerAsyncAction((client, listener) -> {
-            if (licenseState.isSecurityEnabled()) {
+            if (XPackSettings.SECURITY_ENABLED.get(settings)) {
                 // check the user has ml privileges
-                SecurityContext securityContext = new SecurityContext(Settings.EMPTY, client.threadPool().getThreadContext());
+                SecurityContext securityContext = new SecurityContext(settings, client.threadPool().getThreadContext());
                 useSecondaryAuthIfAvailable(securityContext, () -> {
                     final String username = securityContext.getUser().principal();
                     final HasPrivilegesRequest privRequest = new HasPrivilegesRequest();
                     privRequest.username(username);
                     privRequest.clusterPrivileges(GetTrainedModelsAction.NAME);
-                    privRequest.indexPrivileges(new RoleDescriptor.IndicesPrivileges[]{});
-                    privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[]{});
+                    privRequest.indexPrivileges(new RoleDescriptor.IndicesPrivileges[] {});
+                    privRequest.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[] {});
 
-                    ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(
-                        r -> {
-                            if (r.isCompleteMatch()) {
-                                modelLoadAction.accept(client, listener);
-                            } else {
-                                listener.onFailure(Exceptions.authorizationError("user [" + username
-                                    + "] does not have the privilege to get trained models so cannot use ml inference"));
-                            }
-                        },
-                        listener::onFailure);
+                    ActionListener<HasPrivilegesResponse> privResponseListener = ActionListener.wrap(r -> {
+                        if (r.isCompleteMatch()) {
+                            modelLoadAction.accept(client, listener);
+                        } else {
+                            listener.onFailure(
+                                Exceptions.authorizationError(
+                                    "user [" + username + "] does not have the privilege to get trained models so cannot use ml inference"
+                                )
+                            );
+                        }
+                    }, listener::onFailure);
 
                     client.execute(HasPrivilegesAction.INSTANCE, privRequest, privResponseListener);
                 });
@@ -257,7 +306,15 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
                 modelLoadAction.accept(client, listener);
             }
         });
-        return new InferencePipelineAggregationBuilder(name, bucketPathMap, loadedModel::get, modelId, inferenceConfig, licenseState);
+        return new InferencePipelineAggregationBuilder(
+            name,
+            bucketPathMap,
+            loadedModel::get,
+            modelId,
+            inferenceConfig,
+            licenseState,
+            settings
+        );
     }
 
     @Override

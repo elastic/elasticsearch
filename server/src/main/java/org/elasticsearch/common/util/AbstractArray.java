@@ -14,7 +14,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-
 abstract class AbstractArray implements BigArray {
 
     private final BigArrays bigArrays;

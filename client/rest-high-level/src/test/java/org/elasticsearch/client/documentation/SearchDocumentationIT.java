@@ -49,8 +49,6 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -89,7 +87,7 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.profile.ProfileResult;
-import org.elasticsearch.search.profile.ProfileShardResult;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.QueryProfileShardResult;
@@ -101,6 +99,8 @@ import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -122,9 +122,10 @@ import static org.hamcrest.Matchers.greaterThan;
  * Documentation for search APIs in the high level java client.
  * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
+@SuppressWarnings("removal")
 public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
-    @SuppressWarnings({"unused", "unchecked"})
+    @SuppressWarnings({ "unused", "unchecked" })
     public void testSearch() throws Exception {
         indexSearchTestData();
         RestHighLevelClient client = highLevelClient();
@@ -149,7 +150,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::search-request-preference
             searchRequest.preference("_local"); // <1>
             // end::search-request-preference
-            assertNotNull(client.search(searchRequest, RequestOptions.DEFAULT));
+            assertNotNull(client.search(searchRequest, IGNORE_THROTTLED_WARNING));
         }
         {
             // tag::search-source-basics
@@ -299,12 +300,9 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             BulkRequest request = new BulkRequest();
-            request.add(new IndexRequest("posts").id("1")
-                    .source(XContentType.JSON, "company", "Elastic", "age", 20));
-            request.add(new IndexRequest("posts").id("2")
-                    .source(XContentType.JSON, "company", "Elastic", "age", 30));
-            request.add(new IndexRequest("posts").id("3")
-                    .source(XContentType.JSON, "company", "Elastic", "age", 40));
+            request.add(new IndexRequest("posts").id("1").source(XContentType.JSON, "company", "Elastic", "age", 20));
+            request.add(new IndexRequest("posts").id("2").source(XContentType.JSON, "company", "Elastic", "age", 30));
+            request.add(new IndexRequest("posts").id("3").source(XContentType.JSON, "company", "Elastic", "age", 40));
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
@@ -370,7 +368,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @SuppressWarnings({"unused", "rawtypes"})
+    @SuppressWarnings({ "unused", "rawtypes" })
     public void testSearchRequestSuggestions() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -418,15 +416,42 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             BulkRequest request = new BulkRequest();
-            request.add(new IndexRequest("posts").id("1")
-                    .source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?", "user",
-                            Arrays.asList("kimchy", "luca"), "innerObject", Collections.singletonMap("key", "value")));
-            request.add(new IndexRequest("posts").id("2")
-                    .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch", "user",
-                            Arrays.asList("kimchy", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
-            request.add(new IndexRequest("posts").id("3")
-                    .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch", "user",
-                            Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
+            request.add(
+                new IndexRequest("posts").id("1")
+                    .source(
+                        XContentType.JSON,
+                        "title",
+                        "In which order are my Elasticsearch queries executed?",
+                        "user",
+                        Arrays.asList("kimchy", "luca"),
+                        "innerObject",
+                        Collections.singletonMap("key", "value")
+                    )
+            );
+            request.add(
+                new IndexRequest("posts").id("2")
+                    .source(
+                        XContentType.JSON,
+                        "title",
+                        "Current status and upcoming changes in Elasticsearch",
+                        "user",
+                        Arrays.asList("kimchy", "christoph"),
+                        "innerObject",
+                        Collections.singletonMap("key", "value")
+                    )
+            );
+            request.add(
+                new IndexRequest("posts").id("3")
+                    .source(
+                        XContentType.JSON,
+                        "title",
+                        "The Future of Federated Search in Elasticsearch",
+                        "user",
+                        Arrays.asList("kimchy", "tanguy"),
+                        "innerObject",
+                        Collections.singletonMap("key", "value")
+                    )
+            );
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
@@ -445,9 +470,9 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             highlightBuilder.field(highlightUser);
             searchSourceBuilder.highlighter(highlightBuilder);
             // end::search-request-highlighting
-            searchSourceBuilder.query(QueryBuilders.boolQuery()
-                    .should(matchQuery("title", "Elasticsearch"))
-                    .should(matchQuery("user", "kimchy")));
+            searchSourceBuilder.query(
+                QueryBuilders.boolQuery().should(matchQuery("title", "Elasticsearch")).should(matchQuery("user", "kimchy"))
+            );
             searchRequest.source(searchSourceBuilder);
             SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
             {
@@ -481,8 +506,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testSearchRequestProfiling() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
-            IndexRequest request = new IndexRequest("posts").id("1")
-                    .source(XContentType.JSON, "tags", "elasticsearch", "comments", 123);
+            IndexRequest request = new IndexRequest("posts").id("1").source(XContentType.JSON, "tags", "elasticsearch", "comments", 123);
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
             IndexResponse indexResponse = client.index(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.CREATED, indexResponse.status());
@@ -499,15 +523,15 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
             // tag::search-request-profiling-get
-            Map<String, ProfileShardResult> profilingResults =
+            Map<String, SearchProfileShardResult> profilingResults =
                     searchResponse.getProfileResults(); // <1>
-            for (Map.Entry<String, ProfileShardResult> profilingResult : profilingResults.entrySet()) { // <2>
+            for (Map.Entry<String, SearchProfileShardResult> profilingResult : profilingResults.entrySet()) { // <2>
                 String key = profilingResult.getKey(); // <3>
-                ProfileShardResult profileShardResult = profilingResult.getValue(); // <4>
+                SearchProfileShardResult profileShardResult = profilingResult.getValue(); // <4>
             }
             // end::search-request-profiling-get
 
-            ProfileShardResult profileShardResult = profilingResults.values().iterator().next();
+            SearchProfileShardResult profileShardResult = profilingResults.values().iterator().next();
             assertNotNull(profileShardResult);
 
             // tag::search-request-profiling-queries
@@ -553,12 +577,16 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             BulkRequest request = new BulkRequest();
-            request.add(new IndexRequest("posts").id("1")
-                    .source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?"));
-            request.add(new IndexRequest("posts").id("2")
-                    .source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch"));
-            request.add(new IndexRequest("posts").id("3")
-                    .source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch"));
+            request.add(
+                new IndexRequest("posts").id("1")
+                    .source(XContentType.JSON, "title", "In which order are my Elasticsearch queries executed?")
+            );
+            request.add(
+                new IndexRequest("posts").id("2").source(XContentType.JSON, "title", "Current status and upcoming changes in Elasticsearch")
+            );
+            request.add(
+                new IndexRequest("posts").id("3").source(XContentType.JSON, "title", "The Future of Federated Search in Elasticsearch")
+            );
             request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
             assertSame(RestStatus.OK, bulkResponse.status());
@@ -777,7 +805,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             openRequest.preference("_local"); // <1>
             // end::open-point-in-time-preference
 
-            openResponse = client.openPointInTime(openRequest, RequestOptions.DEFAULT);
+            openResponse = client.openPointInTime(openRequest, IGNORE_THROTTLED_WARNING);
             pitId = openResponse.getPointInTimeId();
             client.closePointInTime(new ClosePointInTimeRequest(pitId), RequestOptions.DEFAULT);
         }
@@ -888,7 +916,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
 
-
     @SuppressWarnings("unused")
     public void testMultiSearchTemplateWithInlineScript() throws Exception {
         indexSearchTestData();
@@ -971,9 +998,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
         // end::multi-search-template-request-stored
 
-
-
-
         // tag::multi-search-template-execute
         MultiSearchTemplateResponse multiResponse = client.msearchTemplate(multiRequest, RequestOptions.DEFAULT);
         // end::multi-search-template-execute
@@ -1026,7 +1050,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         // end::register-script
         assertEquals(RestStatus.OK.getStatus(), scriptResponse.getStatusLine().getStatusCode());
     }
-
 
     public void testExplain() throws Exception {
         indexSearchTestData();
@@ -1119,8 +1142,9 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         request.indicesOptions(IndicesOptions.lenientExpandOpen()); // <1>
         // end::field-caps-request-indicesOptions
 
+        RequestOptions requestOptions = IGNORE_THROTTLED_WARNING;
         // tag::field-caps-execute
-        FieldCapabilitiesResponse response = client.fieldCaps(request, RequestOptions.DEFAULT);
+        FieldCapabilitiesResponse response = client.fieldCaps(request, requestOptions);
         // end::field-caps-execute
 
         // tag::field-caps-response
@@ -1140,9 +1164,9 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         assertTrue(isSearchable);
         assertFalse(isAggregatable);
 
-        assertArrayEquals(indices, new String[]{"authors", "contributors"});
+        assertArrayEquals(indices, new String[] { "authors", "contributors" });
         assertNull(nonSearchableIndices);
-        assertArrayEquals(nonAggregatableIndices, new String[]{"authors"});
+        assertArrayEquals(nonAggregatableIndices, new String[] { "authors" });
 
         // tag::field-caps-execute-listener
         ActionListener<FieldCapabilitiesResponse> listener = new ActionListener<FieldCapabilitiesResponse>() {
@@ -1298,52 +1322,86 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     private void indexSearchTestData() throws IOException {
-        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors")
-            .mapping(XContentFactory.jsonBuilder().startObject()
+        CreateIndexRequest authorsRequest = new CreateIndexRequest("authors").mapping(
+            XContentFactory.jsonBuilder()
+                .startObject()
                 .startObject("properties")
-                    .startObject("id")
-                        .field("type", "keyword")
-                    .endObject()
-                    .startObject("user")
-                        .field("type", "keyword")
-                        .field("doc_values", "false")
-                    .endObject()
+                .startObject("id")
+                .field("type", "keyword")
                 .endObject()
-            .endObject());
+                .startObject("user")
+                .field("type", "keyword")
+                .field("doc_values", "false")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         CreateIndexResponse authorsResponse = highLevelClient().indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
 
-        CreateIndexRequest reviewersRequest = new CreateIndexRequest("contributors")
-            .mapping(XContentFactory.jsonBuilder().startObject()
+        CreateIndexRequest reviewersRequest = new CreateIndexRequest("contributors").mapping(
+            XContentFactory.jsonBuilder()
+                .startObject()
                 .startObject("properties")
-                    .startObject("id")
-                        .field("type", "keyword")
-                    .endObject()
-                    .startObject("user")
-                        .field("type", "keyword")
-                        .field("store", "true")
-                    .endObject()
+                .startObject("id")
+                .field("type", "keyword")
                 .endObject()
-            .endObject());
+                .startObject("user")
+                .field("type", "keyword")
+                .field("store", "true")
+                .endObject()
+                .endObject()
+                .endObject()
+        );
         CreateIndexResponse reviewersResponse = highLevelClient().indices().create(reviewersRequest, RequestOptions.DEFAULT);
         assertTrue(reviewersResponse.isAcknowledged());
 
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest("posts").id("1")
-                .source(XContentType.JSON, "id", 1, "title", "In which order are my Elasticsearch queries executed?", "user",
-                        Arrays.asList("kimchy", "luca"), "innerObject", Collections.singletonMap("key", "value")));
-        bulkRequest.add(new IndexRequest("posts").id("2")
-                .source(XContentType.JSON, "id", 2, "title", "Current status and upcoming changes in Elasticsearch", "user",
-                        Arrays.asList("kimchy", "christoph"), "innerObject", Collections.singletonMap("key", "value")));
-        bulkRequest.add(new IndexRequest("posts").id("3")
-                .source(XContentType.JSON, "id", 3, "title", "The Future of Federated Search in Elasticsearch", "user",
-                        Arrays.asList("kimchy", "tanguy"), "innerObject", Collections.singletonMap("key", "value")));
+        bulkRequest.add(
+            new IndexRequest("posts").id("1")
+                .source(
+                    XContentType.JSON,
+                    "id",
+                    1,
+                    "title",
+                    "In which order are my Elasticsearch queries executed?",
+                    "user",
+                    Arrays.asList("kimchy", "luca"),
+                    "innerObject",
+                    Collections.singletonMap("key", "value")
+                )
+        );
+        bulkRequest.add(
+            new IndexRequest("posts").id("2")
+                .source(
+                    XContentType.JSON,
+                    "id",
+                    2,
+                    "title",
+                    "Current status and upcoming changes in Elasticsearch",
+                    "user",
+                    Arrays.asList("kimchy", "christoph"),
+                    "innerObject",
+                    Collections.singletonMap("key", "value")
+                )
+        );
+        bulkRequest.add(
+            new IndexRequest("posts").id("3")
+                .source(
+                    XContentType.JSON,
+                    "id",
+                    3,
+                    "title",
+                    "The Future of Federated Search in Elasticsearch",
+                    "user",
+                    Arrays.asList("kimchy", "tanguy"),
+                    "innerObject",
+                    Collections.singletonMap("key", "value")
+                )
+        );
 
-        bulkRequest.add(new IndexRequest("authors").id("1")
-            .source(XContentType.JSON, "id", 1, "user", "kimchy"));
-        bulkRequest.add(new IndexRequest("contributors").id("1")
-            .source(XContentType.JSON, "id", 1, "user", "tanguy"));
-
+        bulkRequest.add(new IndexRequest("authors").id("1").source(XContentType.JSON, "id", 1, "user", "kimchy"));
+        bulkRequest.add(new IndexRequest("contributors").id("1").source(XContentType.JSON, "id", 1, "user", "tanguy"));
 
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);
@@ -1351,8 +1409,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         assertFalse(bulkResponse.hasFailures());
     }
 
-
-    @SuppressWarnings({"unused", "unchecked"})
+    @SuppressWarnings({ "unused", "unchecked" })
     public void testCount() throws Exception {
         indexCountTestData();
         RestHighLevelClient client = highLevelClient();
@@ -1371,7 +1428,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
                 .indicesOptions(IndicesOptions.lenientExpandOpen()) // <3>
                 .preference("_local"); // <4>
             // end::count-request-args
-            assertNotNull(client.count(countRequest, RequestOptions.DEFAULT));
+            assertNotNull(client.count(countRequest, IGNORE_THROTTLED_WARNING));
         }
         {
             // tag::count-source-basics
@@ -1437,32 +1494,59 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     private static void indexCountTestData() throws IOException {
-        CreateIndexRequest authorsRequest = new CreateIndexRequest("author")
-            .mapping(XContentFactory.jsonBuilder().startObject()
+        CreateIndexRequest authorsRequest = new CreateIndexRequest("author").mapping(
+            XContentFactory.jsonBuilder()
+                .startObject()
                 .startObject("properties")
-                    .startObject("user")
-                        .field("type", "keyword")
-                        .field("doc_values", "false")
-                    .endObject()
+                .startObject("user")
+                .field("type", "keyword")
+                .field("doc_values", "false")
                 .endObject()
-            .endObject());
+                .endObject()
+                .endObject()
+        );
         CreateIndexResponse authorsResponse = highLevelClient().indices().create(authorsRequest, RequestOptions.DEFAULT);
         assertTrue(authorsResponse.isAcknowledged());
 
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest("blog").id("1")
-            .source(XContentType.JSON, "title", "Doubling Down on Open?", "user",
-                Collections.singletonList("kimchy"), "innerObject", Collections.singletonMap("key", "value")));
-        bulkRequest.add(new IndexRequest("blog").id("2")
-            .source(XContentType.JSON, "title", "Swiftype Joins Forces with Elastic", "user",
-                Arrays.asList("kimchy", "matt"), "innerObject", Collections.singletonMap("key", "value")));
-        bulkRequest.add(new IndexRequest("blog").id("3")
-            .source(XContentType.JSON, "title", "On Net Neutrality", "user",
-                Arrays.asList("tyler", "kimchy"), "innerObject", Collections.singletonMap("key", "value")));
+        bulkRequest.add(
+            new IndexRequest("blog").id("1")
+                .source(
+                    XContentType.JSON,
+                    "title",
+                    "Doubling Down on Open?",
+                    "user",
+                    Collections.singletonList("kimchy"),
+                    "innerObject",
+                    Collections.singletonMap("key", "value")
+                )
+        );
+        bulkRequest.add(
+            new IndexRequest("blog").id("2")
+                .source(
+                    XContentType.JSON,
+                    "title",
+                    "Swiftype Joins Forces with Elastic",
+                    "user",
+                    Arrays.asList("kimchy", "matt"),
+                    "innerObject",
+                    Collections.singletonMap("key", "value")
+                )
+        );
+        bulkRequest.add(
+            new IndexRequest("blog").id("3")
+                .source(
+                    XContentType.JSON,
+                    "title",
+                    "On Net Neutrality",
+                    "user",
+                    Arrays.asList("tyler", "kimchy"),
+                    "innerObject",
+                    Collections.singletonMap("key", "value")
+                )
+        );
 
-        bulkRequest.add(new IndexRequest("author").id("1")
-            .source(XContentType.JSON, "user", "kimchy"));
-
+        bulkRequest.add(new IndexRequest("author").id("1").source(XContentType.JSON, "user", "kimchy"));
 
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         BulkResponse bulkResponse = highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);

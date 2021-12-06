@@ -21,7 +21,8 @@ public class JdbcDatabaseMetaDataTests extends ESTestCase {
     {
         try {
             md = new JdbcDatabaseMetaData(
-                    new JdbcConnection(JdbcConfiguration.create("jdbc:es://localhost:9200/", new Properties(), 10), false));
+                new JdbcConnection(JdbcConfiguration.create("jdbc:es://localhost:9200/", new Properties(), 10), false)
+            );
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }

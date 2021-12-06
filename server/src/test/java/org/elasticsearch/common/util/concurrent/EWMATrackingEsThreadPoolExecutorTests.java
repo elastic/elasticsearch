@@ -25,35 +25,32 @@ public class EWMATrackingEsThreadPoolExecutorTests extends ESTestCase {
     public void testExecutionEWMACalculation() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
 
-        EWMATrackingEsThreadPoolExecutor executor =
-                new EWMATrackingEsThreadPoolExecutor(
-                        "test-threadpool", 1, 1, 1000,
-                        TimeUnit.MILLISECONDS, ConcurrentCollections.newBlockingQueue(), fastWrapper(),
-                        EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+        EWMATrackingEsThreadPoolExecutor executor = new EWMATrackingEsThreadPoolExecutor(
+            "test-threadpool",
+            1,
+            1,
+            1000,
+            TimeUnit.MILLISECONDS,
+            ConcurrentCollections.newBlockingQueue(),
+            fastWrapper(),
+            EsExecutors.daemonThreadFactory("queuetest"),
+            new EsAbortPolicy(),
+            context
+        );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
-        assertThat((long)executor.getTaskExecutionEWMA(), equalTo(0L));
-        executeTask(executor,  1);
-        assertBusy(() -> {
-            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(30L));
-        });
-        executeTask(executor,  1);
-        assertBusy(() -> {
-            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(51L));
-        });
-        executeTask(executor,  1);
-        assertBusy(() -> {
-            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(65L));
-        });
-        executeTask(executor,  1);
-        assertBusy(() -> {
-            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(75L));
-        });
-        executeTask(executor,  1);
-        assertBusy(() -> {
-            assertThat((long)executor.getTaskExecutionEWMA(), equalTo(83L));
-        });
+        assertThat((long) executor.getTaskExecutionEWMA(), equalTo(0L));
+        executeTask(executor, 1);
+        assertBusy(() -> { assertThat((long) executor.getTaskExecutionEWMA(), equalTo(30L)); });
+        executeTask(executor, 1);
+        assertBusy(() -> { assertThat((long) executor.getTaskExecutionEWMA(), equalTo(51L)); });
+        executeTask(executor, 1);
+        assertBusy(() -> { assertThat((long) executor.getTaskExecutionEWMA(), equalTo(65L)); });
+        executeTask(executor, 1);
+        assertBusy(() -> { assertThat((long) executor.getTaskExecutionEWMA(), equalTo(75L)); });
+        executeTask(executor, 1);
+        assertBusy(() -> { assertThat((long) executor.getTaskExecutionEWMA(), equalTo(83L)); });
 
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);
@@ -62,15 +59,22 @@ public class EWMATrackingEsThreadPoolExecutorTests extends ESTestCase {
     /** Use a runnable wrapper that simulates a task with unknown failures. */
     public void testExceptionThrowingTask() throws Exception {
         ThreadContext context = new ThreadContext(Settings.EMPTY);
-        EWMATrackingEsThreadPoolExecutor executor =
-            new EWMATrackingEsThreadPoolExecutor(
-                "test-threadpool", 1, 1, 1000,
-                TimeUnit.MILLISECONDS, ConcurrentCollections.newBlockingQueue(), exceptionalWrapper(),
-                EsExecutors.daemonThreadFactory("queuetest"), new EsAbortPolicy(), context);
+        EWMATrackingEsThreadPoolExecutor executor = new EWMATrackingEsThreadPoolExecutor(
+            "test-threadpool",
+            1,
+            1,
+            1000,
+            TimeUnit.MILLISECONDS,
+            ConcurrentCollections.newBlockingQueue(),
+            exceptionalWrapper(),
+            EsExecutors.daemonThreadFactory("queuetest"),
+            new EsAbortPolicy(),
+            context
+        );
         executor.prestartAllCoreThreads();
         logger.info("--> executor: {}", executor);
 
-        assertThat((long)executor.getTaskExecutionEWMA(), equalTo(0L));
+        assertThat((long) executor.getTaskExecutionEWMA(), equalTo(0L));
         executeTask(executor, 1);
         executor.shutdown();
         executor.awaitTermination(10, TimeUnit.SECONDS);

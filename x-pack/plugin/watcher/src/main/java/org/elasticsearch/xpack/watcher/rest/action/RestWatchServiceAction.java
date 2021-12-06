@@ -23,10 +23,7 @@ public class RestWatchServiceAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_watcher/_start")
-                .replaces(POST, "/_xpack/watcher/_start", RestApiVersion.V_7).build()
-        );
+        return List.of(Route.builder(POST, "/_watcher/_start").replaces(POST, "/_xpack/watcher/_start", RestApiVersion.V_7).build());
     }
 
     @Override
@@ -36,18 +33,18 @@ public class RestWatchServiceAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        return channel ->
-            client.execute(WatcherServiceAction.INSTANCE, new WatcherServiceRequest().start(), new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            WatcherServiceAction.INSTANCE,
+            new WatcherServiceRequest().start(),
+            new RestToXContentListener<>(channel)
+        );
     }
 
     public static class StopRestHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(
-                Route.builder(POST, "/_watcher/_stop")
-                    .replaces(POST, "/_xpack/watcher/_stop", RestApiVersion.V_7).build()
-            );
+            return List.of(Route.builder(POST, "/_watcher/_stop").replaces(POST, "/_xpack/watcher/_stop", RestApiVersion.V_7).build());
         }
 
         @Override

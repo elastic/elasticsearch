@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
@@ -82,17 +83,27 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
 
     @Inject
     public TransportResumeFollowAction(
-            final ThreadPool threadPool,
-            final TransportService transportService,
-            final ActionFilters actionFilters,
-            final Client client,
-            final ClusterService clusterService,
-            final IndexNameExpressionResolver indexNameExpressionResolver,
-            final PersistentTasksService persistentTasksService,
-            final IndicesService indicesService,
-            final CcrLicenseChecker ccrLicenseChecker) {
-        super(ResumeFollowAction.NAME, true, transportService, clusterService, threadPool, actionFilters,
-            ResumeFollowAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+        final ThreadPool threadPool,
+        final TransportService transportService,
+        final ActionFilters actionFilters,
+        final Client client,
+        final ClusterService clusterService,
+        final IndexNameExpressionResolver indexNameExpressionResolver,
+        final PersistentTasksService persistentTasksService,
+        final IndicesService indicesService,
+        final CcrLicenseChecker ccrLicenseChecker
+    ) {
+        super(
+            ResumeFollowAction.NAME,
+            true,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            ResumeFollowAction.Request::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.client = client;
         this.threadPool = threadPool;
         this.persistentTasksService = persistentTasksService;
@@ -106,9 +117,12 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
     }
 
     @Override
-    protected void masterOperation(Task task, final ResumeFollowAction.Request request,
-                                   ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        final ResumeFollowAction.Request request,
+        ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) throws Exception {
         if (ccrLicenseChecker.isCcrAllowed() == false) {
             listener.onFailure(LicenseUtils.newComplianceException("ccr"));
             return;
@@ -122,7 +136,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
 
         final Map<String, String> ccrMetadata = followerIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         if (ccrMetadata == null) {
-            throw new IllegalArgumentException("follow index ["+ request.getFollowerIndex() + "] does not have ccr metadata");
+            throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] does not have ccr metadata");
         }
         final String leaderCluster = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
         // Validates whether the leader cluster has been configured properly:
@@ -139,7 +153,8 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
                 } catch (final IOException e) {
                     listener.onFailure(e);
                 }
-            });
+            }
+        );
     }
 
     /**
@@ -153,12 +168,13 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
      * </ul>
      */
     void start(
-            ResumeFollowAction.Request request,
-            String clusterNameAlias,
-            IndexMetadata leaderIndexMetadata,
-            IndexMetadata followIndexMetadata,
-            String[] leaderIndexHistoryUUIDs,
-            ActionListener<AcknowledgedResponse> listener) throws IOException {
+        ResumeFollowAction.Request request,
+        String clusterNameAlias,
+        IndexMetadata leaderIndexMetadata,
+        IndexMetadata followIndexMetadata,
+        String[] leaderIndexHistoryUUIDs,
+        ActionListener<AcknowledgedResponse> listener
+    ) throws IOException {
 
         MapperService mapperService = followIndexMetadata != null ? indicesService.createIndexMapperService(followIndexMetadata) : null;
         validate(request, leaderIndexMetadata, followIndexMetadata, leaderIndexHistoryUUIDs, mapperService);
@@ -168,28 +184,42 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
 
         for (int shardId = 0; shardId < numShards; shardId++) {
             String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
-            final ShardFollowTask shardFollowTask = createShardFollowTask(shardId, clusterNameAlias, request.getParameters(),
-                leaderIndexMetadata, followIndexMetadata, filteredHeaders);
+            final ShardFollowTask shardFollowTask = createShardFollowTask(
+                shardId,
+                clusterNameAlias,
+                request.getParameters(),
+                leaderIndexMetadata,
+                followIndexMetadata,
+                filteredHeaders
+            );
             persistentTasksService.sendStartRequest(taskId, ShardFollowTask.NAME, shardFollowTask, handler.getActionListener(shardId));
         }
     }
 
     static void validate(
-            final ResumeFollowAction.Request request,
-            final IndexMetadata leaderIndex,
-            final IndexMetadata followIndex,
-            final String[] leaderIndexHistoryUUID,
-            final MapperService followerMapperService) {
+        final ResumeFollowAction.Request request,
+        final IndexMetadata leaderIndex,
+        final IndexMetadata followIndex,
+        final String[] leaderIndexHistoryUUID,
+        final MapperService followerMapperService
+    ) {
 
         Map<String, String> ccrIndexMetadata = followIndex.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
         if (ccrIndexMetadata == null) {
-            throw new IllegalArgumentException("follow index ["+ followIndex.getIndex().getName() + "] does not have ccr metadata");
+            throw new IllegalArgumentException("follow index [" + followIndex.getIndex().getName() + "] does not have ccr metadata");
         }
         String leaderIndexUUID = leaderIndex.getIndex().getUUID();
         String recordedLeaderIndexUUID = ccrIndexMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
         if (leaderIndexUUID.equals(recordedLeaderIndexUUID) == false) {
-            throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] should reference [" +
-                leaderIndexUUID + "] as leader index but instead reference [" + recordedLeaderIndexUUID + "] as leader index");
+            throw new IllegalArgumentException(
+                "follow index ["
+                    + request.getFollowerIndex()
+                    + "] should reference ["
+                    + leaderIndexUUID
+                    + "] as leader index but instead reference ["
+                    + recordedLeaderIndexUUID
+                    + "] as leader index"
+            );
         }
 
         String[] recordedHistoryUUIDs = extractLeaderShardHistoryUUIDs(ccrIndexMetadata);
@@ -198,41 +228,71 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             String recordedLeaderIndexHistoryUUID = recordedHistoryUUIDs[i];
             String actualLeaderIndexHistoryUUID = leaderIndexHistoryUUID[i];
             if (recordedLeaderIndexHistoryUUID.equals(actualLeaderIndexHistoryUUID) == false) {
-                throw new IllegalArgumentException("leader shard [" + request.getFollowerIndex() + "][" + i + "] should reference [" +
-                    recordedLeaderIndexHistoryUUID + "] as history uuid but instead reference [" + actualLeaderIndexHistoryUUID +
-                    "] as history uuid");
+                throw new IllegalArgumentException(
+                    "leader shard ["
+                        + request.getFollowerIndex()
+                        + "]["
+                        + i
+                        + "] should reference ["
+                        + recordedLeaderIndexHistoryUUID
+                        + "] as history uuid but instead reference ["
+                        + actualLeaderIndexHistoryUUID
+                        + "] as history uuid"
+                );
             }
         }
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(leaderIndex.getSettings()) == false) {
-            throw new IllegalArgumentException("leader index [" + leaderIndex.getIndex().getName() +
-                "] does not have soft deletes enabled");
+            throw new IllegalArgumentException(
+                "leader index [" + leaderIndex.getIndex().getName() + "] does not have soft deletes enabled"
+            );
         }
         if (SearchableSnapshotsSettings.isSearchableSnapshotStore(leaderIndex.getSettings())) {
-            throw new IllegalArgumentException("leader index [" + leaderIndex.getIndex().getName() +
-                "] is a searchable snapshot index and cannot be used for cross-cluster replication purpose");
+            throw new IllegalArgumentException(
+                "leader index ["
+                    + leaderIndex.getIndex().getName()
+                    + "] is a searchable snapshot index and cannot be used for cross-cluster replication purpose"
+            );
         }
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(followIndex.getSettings()) == false) {
-            throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() +
-                "] does not have soft deletes enabled");
+            throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() + "] does not have soft deletes enabled");
         }
         if (SearchableSnapshotsSettings.isSearchableSnapshotStore(followIndex.getSettings())) {
-            throw new IllegalArgumentException("follower index [" + request.getFollowerIndex() +
-                "] is a searchable snapshot index and cannot be used for cross-cluster replication purpose");
+            throw new IllegalArgumentException(
+                "follower index ["
+                    + request.getFollowerIndex()
+                    + "] is a searchable snapshot index and cannot be used for cross-cluster replication purpose"
+            );
         }
         if (leaderIndex.getNumberOfShards() != followIndex.getNumberOfShards()) {
-            throw new IllegalArgumentException("leader index primary shards [" + leaderIndex.getNumberOfShards() +
-                    "] does not match with the number of shards of the follow index [" + followIndex.getNumberOfShards() + "]");
+            throw new IllegalArgumentException(
+                "leader index primary shards ["
+                    + leaderIndex.getNumberOfShards()
+                    + "] does not match with the number of shards of the follow index ["
+                    + followIndex.getNumberOfShards()
+                    + "]"
+            );
         }
         if (leaderIndex.getRoutingNumShards() != followIndex.getRoutingNumShards()) {
-            throw new IllegalArgumentException("leader index number_of_routing_shards [" + leaderIndex.getRoutingNumShards() +
-                    "] does not match with the number_of_routing_shards of the follow index [" + followIndex.getRoutingNumShards() + "]");
+            throw new IllegalArgumentException(
+                "leader index number_of_routing_shards ["
+                    + leaderIndex.getRoutingNumShards()
+                    + "] does not match with the number_of_routing_shards of the follow index ["
+                    + followIndex.getRoutingNumShards()
+                    + "]"
+            );
         }
         if (leaderIndex.getState() != IndexMetadata.State.OPEN || followIndex.getState() != IndexMetadata.State.OPEN) {
             throw new IllegalArgumentException("leader and follow index must be open");
         }
         if (CcrSettings.CCR_FOLLOWING_INDEX_SETTING.get(followIndex.getSettings()) == false) {
-            throw new IllegalArgumentException("the following index [" + request.getFollowerIndex() + "] is not ready " +
-                    "to follow; the setting [" + CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey() + "] must be enabled.");
+            throw new IllegalArgumentException(
+                "the following index ["
+                    + request.getFollowerIndex()
+                    + "] is not ready "
+                    + "to follow; the setting ["
+                    + CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey()
+                    + "] must be enabled."
+            );
         }
 
         validateSettings(leaderIndex.getSettings(), followIndex.getSettings());
@@ -287,7 +347,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         }
 
         int maxOutstandingReadRequests;
-        if (parameters.getMaxOutstandingReadRequests() != null){
+        if (parameters.getMaxOutstandingReadRequests() != null) {
             maxOutstandingReadRequests = parameters.getMaxOutstandingReadRequests();
         } else {
             maxOutstandingReadRequests = DEFAULT_MAX_OUTSTANDING_READ_REQUESTS;
@@ -367,84 +427,86 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
      * are inconvenient if they were replicated (e.g. changing number of replicas).
      */
     static final Set<Setting<?>> NON_REPLICATED_SETTINGS = Set.of(
-            IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING,
-            IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING,
-            IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING,
-            IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
-            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
-            IndexMetadata.INDEX_READ_ONLY_SETTING,
-            IndexMetadata.INDEX_BLOCKS_READ_SETTING,
-            IndexMetadata.INDEX_BLOCKS_WRITE_SETTING,
-            IndexMetadata.INDEX_BLOCKS_METADATA_SETTING,
-            IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING,
-            IndexMetadata.INDEX_PRIORITY_SETTING,
-            IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS,
-            IndexMetadata.INDEX_HIDDEN_SETTING,
-            EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING,
-            EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING,
-            ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
-            MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY,
-            UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING,
-            IndexSettings.MAX_RESULT_WINDOW_SETTING,
-            IndexSettings.INDEX_WARMER_ENABLED_SETTING,
-            IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
-            IndexSettings.MAX_RESCORE_WINDOW_SETTING,
-            IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING,
-            IndexSettings.DEFAULT_FIELD_SETTING,
-            IndexSettings.QUERY_STRING_LENIENT_SETTING,
-            IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
-            IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
-            IndexSettings.ALLOW_UNMAPPED,
-            IndexSettings.INDEX_SEARCH_IDLE_AFTER,
-            IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING,
-            IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING,
-            IndexSettings.MAX_SCRIPT_FIELDS_SETTING,
-            IndexSettings.MAX_REGEX_LENGTH_SETTING,
-            IndexSettings.MAX_TERMS_COUNT_SETTING,
-            IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
-            IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
-            IndexSettings.MAX_TOKEN_COUNT_SETTING,
-            IndexSettings.MAX_SLICES_PER_SCROLL,
-            IndexSettings.DEFAULT_PIPELINE,
-            IndexSettings.FINAL_PIPELINE,
-            IndexSettings.INDEX_SEARCH_THROTTLED,
-            IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
-            IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
-            IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
-            IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
-            IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
-            IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
-            IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING,
-            IndexSettings.INDEX_GC_DELETES_SETTING,
-            IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
-            IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,
-            BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
-            SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
-            SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
-            SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
-            SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING,
-            SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
-            SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
-            SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
-            SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
-            IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING,
-            IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING,
-            IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING,
-            IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING,
-            IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING,
-            IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING,
-            MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
-            MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
-            MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
-            MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
-            MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING,
-            MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING,
-            MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING,
-            MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
-            MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
-            MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
-            MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
-            EngineConfig.INDEX_CODEC_SETTING);
+        IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING,
+        IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING,
+        IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING,
+        IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING,
+        IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING,
+        IndexMetadata.INDEX_READ_ONLY_SETTING,
+        IndexMetadata.INDEX_BLOCKS_READ_SETTING,
+        IndexMetadata.INDEX_BLOCKS_WRITE_SETTING,
+        IndexMetadata.INDEX_BLOCKS_METADATA_SETTING,
+        IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING,
+        IndexMetadata.INDEX_PRIORITY_SETTING,
+        IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS,
+        IndexMetadata.INDEX_HIDDEN_SETTING,
+        EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING,
+        EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING,
+        ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
+        MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY,
+        UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING,
+        IndexSettings.MAX_RESULT_WINDOW_SETTING,
+        IndexSettings.INDEX_WARMER_ENABLED_SETTING,
+        IndexSettings.INDEX_REFRESH_INTERVAL_SETTING,
+        IndexSettings.MAX_RESCORE_WINDOW_SETTING,
+        IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING,
+        IndexSettings.DEFAULT_FIELD_SETTING,
+        IndexSettings.QUERY_STRING_LENIENT_SETTING,
+        IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
+        IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
+        IndexSettings.ALLOW_UNMAPPED,
+        IndexSettings.INDEX_SEARCH_IDLE_AFTER,
+        IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING,
+        IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING,
+        IndexSettings.MAX_SCRIPT_FIELDS_SETTING,
+        IndexSettings.MAX_REGEX_LENGTH_SETTING,
+        IndexSettings.MAX_TERMS_COUNT_SETTING,
+        IndexSettings.MAX_ANALYZED_OFFSET_SETTING,
+        IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING,
+        IndexSettings.MAX_TOKEN_COUNT_SETTING,
+        IndexSettings.MAX_SLICES_PER_SCROLL,
+        IndexSettings.DEFAULT_PIPELINE,
+        IndexSettings.FINAL_PIPELINE,
+        IndexSettings.INDEX_SEARCH_THROTTLED,
+        IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING,
+        IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
+        IndexSettings.INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING,
+        IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
+        IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING,
+        IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING,
+        IndexSettings.INDEX_FLUSH_AFTER_MERGE_THRESHOLD_SIZE_SETTING,
+        IndexSettings.INDEX_GC_DELETES_SETTING,
+        IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
+        IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING,
+        BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
+        SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
+        SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
+        SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
+        SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE_SETTING,
+        SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING,
+        SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG_SETTING,
+        SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO_SETTING,
+        SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE_SETTING,
+        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN_SETTING,
+        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG_SETTING,
+        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO_SETTING,
+        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE_SETTING,
+        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_REFORMAT_SETTING,
+        IndexingSlowLog.INDEX_INDEXING_SLOWLOG_MAX_SOURCE_CHARS_TO_LOG_SETTING,
+        MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_DELETES_PCT_ALLOWED_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_EXPLICIT_SETTING,
+        MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGED_SEGMENT_SETTING,
+        MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
+        MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
+        MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
+        EngineConfig.INDEX_CODEC_SETTING,
+        DataTier.TIER_PREFERENCE_SETTING
+    );
 
     public static Settings filter(Settings originalSettings) {
         Settings.Builder settings = Settings.builder().put(originalSettings);

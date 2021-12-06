@@ -8,20 +8,20 @@ package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
@@ -64,17 +64,32 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
         parser.declareString(Builder::setJobId, Job.ID);
         parser.declareString(Builder::setMinVersion, MIN_VERSION);
-        parser.declareField(Builder::setTimestamp,
-                p -> TimeUtils.parseTimeField(p, TIMESTAMP.getPreferredName()), TIMESTAMP, ValueType.VALUE);
+        parser.declareField(
+            Builder::setTimestamp,
+            p -> TimeUtils.parseTimeField(p, TIMESTAMP.getPreferredName()),
+            TIMESTAMP,
+            ValueType.VALUE
+        );
         parser.declareString(Builder::setDescription, DESCRIPTION);
         parser.declareString(Builder::setSnapshotId, ModelSnapshotField.SNAPSHOT_ID);
         parser.declareInt(Builder::setSnapshotDocCount, SNAPSHOT_DOC_COUNT);
-        parser.declareObject(Builder::setModelSizeStats, ignoreUnknownFields ? ModelSizeStats.LENIENT_PARSER : ModelSizeStats.STRICT_PARSER,
-                ModelSizeStats.RESULT_TYPE_FIELD);
-        parser.declareField(Builder::setLatestRecordTimeStamp,
-                p -> TimeUtils.parseTimeField(p, LATEST_RECORD_TIME.getPreferredName()), LATEST_RECORD_TIME, ValueType.VALUE);
-        parser.declareField(Builder::setLatestResultTimeStamp,
-                p -> TimeUtils.parseTimeField(p, LATEST_RESULT_TIME.getPreferredName()), LATEST_RESULT_TIME, ValueType.VALUE);
+        parser.declareObject(
+            Builder::setModelSizeStats,
+            ignoreUnknownFields ? ModelSizeStats.LENIENT_PARSER : ModelSizeStats.STRICT_PARSER,
+            ModelSizeStats.RESULT_TYPE_FIELD
+        );
+        parser.declareField(
+            Builder::setLatestRecordTimeStamp,
+            p -> TimeUtils.parseTimeField(p, LATEST_RECORD_TIME.getPreferredName()),
+            LATEST_RECORD_TIME,
+            ValueType.VALUE
+        );
+        parser.declareField(
+            Builder::setLatestResultTimeStamp,
+            p -> TimeUtils.parseTimeField(p, LATEST_RESULT_TIME.getPreferredName()),
+            LATEST_RESULT_TIME,
+            ValueType.VALUE
+        );
         parser.declareObject(Builder::setQuantiles, ignoreUnknownFields ? Quantiles.LENIENT_PARSER : Quantiles.STRICT_PARSER, QUANTILES);
         parser.declareBoolean(Builder::setRetain, RETAIN);
 
@@ -105,10 +120,19 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     private final Quantiles quantiles;
     private final boolean retain;
 
-
-    private ModelSnapshot(String jobId, Version minVersion, Date timestamp, String description, String snapshotId, int snapshotDocCount,
-                          ModelSizeStats modelSizeStats, Date latestRecordTimeStamp, Date latestResultTimeStamp, Quantiles quantiles,
-                          boolean retain) {
+    private ModelSnapshot(
+        String jobId,
+        Version minVersion,
+        Date timestamp,
+        String description,
+        String snapshotId,
+        int snapshotDocCount,
+        ModelSizeStats modelSizeStats,
+        Date latestRecordTimeStamp,
+        Date latestResultTimeStamp,
+        Quantiles quantiles,
+        boolean retain
+    ) {
         this.jobId = jobId;
         this.minVersion = minVersion;
         this.timestamp = timestamp;
@@ -185,12 +209,18 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
             builder.field(ModelSizeStats.RESULT_TYPE_FIELD.getPreferredName(), modelSizeStats);
         }
         if (latestRecordTimeStamp != null) {
-            builder.timeField(LATEST_RECORD_TIME.getPreferredName(), LATEST_RECORD_TIME.getPreferredName() + "_string",
-                    latestRecordTimeStamp.getTime());
+            builder.timeField(
+                LATEST_RECORD_TIME.getPreferredName(),
+                LATEST_RECORD_TIME.getPreferredName() + "_string",
+                latestRecordTimeStamp.getTime()
+            );
         }
         if (latestResultTimeStamp != null) {
-            builder.timeField(LATEST_RESULT_TIME.getPreferredName(), LATEST_RESULT_TIME.getPreferredName() + "_string",
-                    latestResultTimeStamp.getTime());
+            builder.timeField(
+                LATEST_RESULT_TIME.getPreferredName(),
+                LATEST_RESULT_TIME.getPreferredName() + "_string",
+                latestResultTimeStamp.getTime()
+            );
         }
         if (quantiles != null) {
             builder.field(QUANTILES.getPreferredName(), quantiles);
@@ -246,8 +276,19 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, minVersion, timestamp, description, snapshotId, quantiles, snapshotDocCount, modelSizeStats,
-                latestRecordTimeStamp, latestResultTimeStamp, retain);
+        return Objects.hash(
+            jobId,
+            minVersion,
+            timestamp,
+            description,
+            snapshotId,
+            quantiles,
+            snapshotDocCount,
+            modelSizeStats,
+            latestRecordTimeStamp,
+            latestResultTimeStamp,
+            retain
+        );
     }
 
     /**
@@ -266,16 +307,16 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         ModelSnapshot that = (ModelSnapshot) other;
 
         return Objects.equals(this.jobId, that.jobId)
-                && Objects.equals(this.minVersion, that.minVersion)
-                && Objects.equals(this.timestamp, that.timestamp)
-                && Objects.equals(this.description, that.description)
-                && Objects.equals(this.snapshotId, that.snapshotId)
-                && this.snapshotDocCount == that.snapshotDocCount
-                && Objects.equals(this.modelSizeStats, that.modelSizeStats)
-                && Objects.equals(this.quantiles, that.quantiles)
-                && Objects.equals(this.latestRecordTimeStamp, that.latestRecordTimeStamp)
-                && Objects.equals(this.latestResultTimeStamp, that.latestResultTimeStamp)
-                && this.retain == that.retain;
+            && Objects.equals(this.minVersion, that.minVersion)
+            && Objects.equals(this.timestamp, that.timestamp)
+            && Objects.equals(this.description, that.description)
+            && Objects.equals(this.snapshotId, that.snapshotId)
+            && this.snapshotDocCount == that.snapshotDocCount
+            && Objects.equals(this.modelSizeStats, that.modelSizeStats)
+            && Objects.equals(this.quantiles, that.quantiles)
+            && Objects.equals(this.latestRecordTimeStamp, that.latestRecordTimeStamp)
+            && Objects.equals(this.latestResultTimeStamp, that.latestResultTimeStamp)
+            && this.retain == that.retain;
     }
 
     public List<String> stateDocumentIds() {
@@ -326,9 +367,11 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
     }
 
     public static ModelSnapshot fromJson(BytesReference bytesReference) {
-        try (InputStream stream = bytesReference.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = bytesReference.streamInput();
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             return LENIENT_PARSER.apply(parser, null).build();
         } catch (IOException e) {
             throw new ElasticsearchParseException("failed to parse modelSnapshot", e);
@@ -352,9 +395,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         private Quantiles quantiles;
         private boolean retain;
 
-
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder(String jobId) {
             this();
@@ -441,13 +482,35 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         }
 
         public ModelSnapshot build() {
-            return new ModelSnapshot(jobId, minVersion, timestamp, description, snapshotId, snapshotDocCount, modelSizeStats,
-                    latestRecordTimeStamp, latestResultTimeStamp, quantiles, retain);
+            return new ModelSnapshot(
+                jobId,
+                minVersion,
+                timestamp,
+                description,
+                snapshotId,
+                snapshotDocCount,
+                modelSizeStats,
+                latestRecordTimeStamp,
+                latestResultTimeStamp,
+                quantiles,
+                retain
+            );
         }
     }
 
     public static ModelSnapshot emptySnapshot(String jobId) {
-        return new ModelSnapshot(jobId, Version.CURRENT, new Date(), "empty snapshot", EMPTY_SNAPSHOT_ID, 0,
-            new ModelSizeStats.Builder(jobId).build(), null, null, null, false);
+        return new ModelSnapshot(
+            jobId,
+            Version.CURRENT,
+            new Date(),
+            "empty snapshot",
+            EMPTY_SNAPSHOT_ID,
+            0,
+            new ModelSizeStats.Builder(jobId).build(),
+            null,
+            null,
+            null,
+            false
+        );
     }
 }

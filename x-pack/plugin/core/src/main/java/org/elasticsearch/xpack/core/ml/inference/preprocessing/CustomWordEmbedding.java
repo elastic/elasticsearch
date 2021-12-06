@@ -8,18 +8,19 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.FeatureExtractor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.FeatureUtils;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.FeatureValue;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.NGramFeatureExtractor;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.RelevantScriptFeatureExtractor;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.ScriptCode;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding.ScriptFeatureExtractor;
 import org.elasticsearch.xpack.core.ml.utils.MlParserUtils;
 
@@ -43,6 +44,24 @@ import java.util.stream.Collectors;
  */
 public class CustomWordEmbedding implements LenientlyParsedPreProcessor, StrictlyParsedPreProcessor {
 
+    public static class StringLengthAndEmbedding {
+        final int stringLen;
+        final double[] embedding;
+
+        public StringLengthAndEmbedding(int stringLen, double[] embedding) {
+            this.stringLen = stringLen;
+            this.embedding = embedding;
+        }
+
+        public int getStringLen() {
+            return stringLen;
+        }
+
+        public double[] getEmbedding() {
+            return embedding;
+        }
+    }
+
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(CustomWordEmbedding.class);
     public static final int MAX_STRING_SIZE_IN_BYTES = 10000;
     public static final ParseField NAME = new ParseField("custom_word_embedding");
@@ -59,41 +78,38 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         ConstructingObjectParser<CustomWordEmbedding, PreProcessorParseContext> parser = new ConstructingObjectParser<>(
             NAME.getPreferredName(),
             lenient,
-            (a, c) -> new CustomWordEmbedding((short[][])a[0], (byte[][])a[1], (String)a[2], (String)a[3]));
+            (a, c) -> new CustomWordEmbedding((short[][]) a[0], (byte[][]) a[1], (String) a[2], (String) a[3])
+        );
 
-        parser.declareField(ConstructingObjectParser.constructorArg(),
-            (p, c) -> {
-                List<List<Short>> listOfListOfShorts = MlParserUtils.parseArrayOfArrays(EMBEDDING_QUANT_SCALES.getPreferredName(),
-                    XContentParser::shortValue,
-                    p);
-                short[][] primitiveShorts = new short[listOfListOfShorts.size()][];
-                int i = 0;
-                for (List<Short> shorts : listOfListOfShorts) {
-                    short[] innerShorts = new short[shorts.size()];
-                    for (int j = 0; j < shorts.size(); j++) {
-                        innerShorts[j] = shorts.get(j);
-                    }
-                    primitiveShorts[i++] = innerShorts;
+        parser.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> {
+            List<List<Short>> listOfListOfShorts = MlParserUtils.parseArrayOfArrays(
+                EMBEDDING_QUANT_SCALES.getPreferredName(),
+                XContentParser::shortValue,
+                p
+            );
+            short[][] primitiveShorts = new short[listOfListOfShorts.size()][];
+            int i = 0;
+            for (List<Short> shorts : listOfListOfShorts) {
+                short[] innerShorts = new short[shorts.size()];
+                for (int j = 0; j < shorts.size(); j++) {
+                    innerShorts[j] = shorts.get(j);
                 }
-                return primitiveShorts;
-            },
-            EMBEDDING_QUANT_SCALES,
-            ObjectParser.ValueType.VALUE_ARRAY);
-        parser.declareField(ConstructingObjectParser.constructorArg(),
-            (p, c) -> {
-                List<byte[]> values = new ArrayList<>();
-                while(p.nextToken() != XContentParser.Token.END_ARRAY) {
-                    values.add(p.binaryValue());
-                }
-                byte[][] primitiveBytes = new byte[values.size()][];
-                int i = 0;
-                for (byte[] bytes : values) {
-                    primitiveBytes[i++] = bytes;
-                }
-                return primitiveBytes;
-            },
-            EMBEDDING_WEIGHTS,
-            ObjectParser.ValueType.VALUE_ARRAY);
+                primitiveShorts[i++] = innerShorts;
+            }
+            return primitiveShorts;
+        }, EMBEDDING_QUANT_SCALES, ObjectParser.ValueType.VALUE_ARRAY);
+        parser.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> {
+            List<byte[]> values = new ArrayList<>();
+            while (p.nextToken() != XContentParser.Token.END_ARRAY) {
+                values.add(p.binaryValue());
+            }
+            byte[][] primitiveBytes = new byte[values.size()][];
+            int i = 0;
+            for (byte[] bytes : values) {
+                primitiveBytes[i++] = bytes;
+            }
+            return primitiveBytes;
+        }, EMBEDDING_WEIGHTS, ObjectParser.ValueType.VALUE_ARRAY);
         parser.declareString(ConstructingObjectParser.constructorArg(), FIELD);
         parser.declareString(ConstructingObjectParser.constructorArg(), DEST_FIELD);
         return parser;
@@ -108,7 +124,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
     }
 
     private static final int CONCAT_LAYER_SIZE = 80;
-    private static final int[] EMBEDDING_DIMENSIONS = new int[]{16, 16, 8, 8, 16, 16};
+    private static final int[] EMBEDDING_DIMENSIONS = new int[] { 16, 16, 8, 8, 16, 16 };
 
     // Order matters
     private static final List<FeatureExtractor> FEATURE_EXTRACTORS = Arrays.asList(
@@ -213,14 +229,78 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         if ((field instanceof String) == false) {
             return;
         }
-        String text = (String)field;
+        String text = (String) field;
         text = FeatureUtils.cleanAndLowerText(text);
         text = FeatureUtils.truncateToNumValidBytes(text, MAX_STRING_SIZE_IN_BYTES);
-        String finalText = text;
-        List<FeatureValue[]> processedFeatures = FEATURE_EXTRACTORS.stream()
-            .map((featureExtractor) -> featureExtractor.extractFeatures(finalText))
-            .collect(Collectors.toList());
-        fields.put(destField, concatEmbeddings(processedFeatures));
+        final String finalText = text;
+        if (finalText.isEmpty() || finalText.isBlank()) {
+            fields.put(
+                destField,
+                Collections.singletonList(
+                    new StringLengthAndEmbedding(
+                        0,
+                        concatEmbeddings(
+                            FEATURE_EXTRACTORS.stream()
+                                .map((featureExtractor) -> featureExtractor.extractFeatures(finalText))
+                                .collect(Collectors.toList())
+                        )
+                    )
+                )
+            );
+            return;
+        }
+        List<StringLengthAndEmbedding> embeddings = new ArrayList<>();
+        int[] codePoints = finalText.codePoints().toArray();
+        for (int i = 0; i < codePoints.length - 1;) {
+            while (i < codePoints.length - 1 && Character.isLetter(codePoints[i]) == false) {
+                i++;
+            }
+            if (i >= codePoints.length) {
+                break;
+            }
+            ScriptCode currentCode = ScriptCode.unicodeScriptToULScript(Character.UnicodeScript.of(codePoints[i]));
+            int j = i + 1;
+            for (; j < codePoints.length; j++) {
+                while (j < codePoints.length && Character.isLetter(codePoints[j]) == false) {
+                    j++;
+                }
+                if (j >= codePoints.length) {
+                    break;
+                }
+                ScriptCode j1 = ScriptCode.unicodeScriptToULScript(Character.UnicodeScript.of(codePoints[j]));
+                if (j1 != currentCode && j1 != ScriptCode.Inherited) {
+                    if (j < codePoints.length - 1) {
+                        ScriptCode j2 = ScriptCode.unicodeScriptToULScript(Character.UnicodeScript.of(codePoints[j + 1]));
+                        if (j2 != ScriptCode.Common && j2 != currentCode) {
+                            break;
+                        }
+                    }
+                }
+            }
+            // Knowing the start and the end of the section is important for feature building, so make sure its wrapped in spaces
+            String str = new String(codePoints, i, j - i);
+            StringBuilder builder = new StringBuilder();
+            if (str.startsWith(" ") == false) {
+                builder.append(" ");
+            }
+            builder.append(str);
+            if (str.endsWith(" ") == false) {
+                builder.append(" ");
+            }
+            embeddings.add(
+                new StringLengthAndEmbedding(
+                    // Don't count white spaces as bytes for the prediction
+                    str.trim().length(),
+                    concatEmbeddings(
+                        FEATURE_EXTRACTORS.stream()
+                            .map((featureExtractor) -> featureExtractor.extractFeatures(builder.toString()))
+                            .collect(Collectors.toList())
+                    )
+                )
+            );
+            i = j;
+        }
+        fields.put(destField, embeddings);
     }
 
     @Override
@@ -241,10 +321,10 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
     @Override
     public long ramBytesUsed() {
         long size = SHALLOW_SIZE;
-        for(byte[] bytes : embeddingsWeights) {
+        for (byte[] bytes : embeddingsWeights) {
             size += RamUsageEstimator.sizeOf(bytes);
         }
-        for(short[] shorts : embeddingsQuantScales) {
+        for (short[] shorts : embeddingsQuantScales) {
             size += RamUsageEstimator.sizeOf(shorts);
         }
         return size;
@@ -262,7 +342,7 @@ public class CustomWordEmbedding implements LenientlyParsedPreProcessor, Strictl
         out.writeArray(StreamOutput::writeByteArray, embeddingsWeights);
         out.writeArray((output, value) -> {
             output.writeVInt(value.length);
-            for(short s : value) {
+            for (short s : value) {
                 output.writeShort(s);
             }
         }, embeddingsQuantScales);

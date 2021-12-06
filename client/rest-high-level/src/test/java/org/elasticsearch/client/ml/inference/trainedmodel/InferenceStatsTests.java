@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.ml.inference.trainedmodel;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -17,12 +17,13 @@ import java.time.Instant;
 public class InferenceStatsTests extends AbstractXContentTestCase<InferenceStats> {
 
     public static InferenceStats randomInstance() {
-        return new InferenceStats(randomNonNegativeLong(),
+        return new InferenceStats(
+            randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             Instant.now()
-            );
+        );
     }
 
     @Override

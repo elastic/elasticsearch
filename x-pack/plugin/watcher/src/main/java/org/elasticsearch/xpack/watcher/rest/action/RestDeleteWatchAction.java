@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -18,6 +17,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
 
 import java.util.List;
@@ -31,8 +31,7 @@ public class RestDeleteWatchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(DELETE, "/_watcher/watch/{id}")
-                .replaces(DELETE, "/_xpack/watcher/watch/{id}", RestApiVersion.V_7).build()
+            Route.builder(DELETE, "/_watcher/watch/{id}").replaces(DELETE, "/_xpack/watcher/watch/{id}", RestApiVersion.V_7).build()
         );
     }
 
@@ -48,10 +47,10 @@ public class RestDeleteWatchAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(DeleteWatchResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject()
-                        .field("_id", response.getId())
-                        .field("_version", response.getVersion())
-                        .field("found", response.isFound())
-                        .endObject();
+                    .field("_id", response.getId())
+                    .field("_version", response.getVersion())
+                    .field("found", response.isFound())
+                    .endObject();
                 RestStatus status = response.isFound() ? OK : NOT_FOUND;
                 return new BytesRestResponse(status, builder);
             }

@@ -15,11 +15,11 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -84,10 +84,10 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
 
         static final ParseField MESSAGE_FIELD = new ParseField("message");
 
-        private static final String message = "this index is a leader index; waiting for all following indices to cease " +
-            "following before proceeding";
+        private static final String message = "this index is a leader index; waiting for all following indices to cease "
+            + "following before proceeding";
 
-        Info() { }
+        Info() {}
 
         String getMessage() {
             return message;

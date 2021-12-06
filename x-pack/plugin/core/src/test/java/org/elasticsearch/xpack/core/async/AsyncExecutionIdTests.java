@@ -37,11 +37,13 @@ public class AsyncExecutionIdTests extends ESTestCase {
         int rand = randomIntBetween(0, 1);
         switch (rand) {
             case 0:
-                return new AsyncExecutionId(randomAlphaOfLength(id.getDocId().length()+1), id.getTaskId());
+                return new AsyncExecutionId(randomAlphaOfLength(id.getDocId().length() + 1), id.getTaskId());
 
             case 1:
-                return new AsyncExecutionId(id.getDocId(),
-                    new TaskId(randomAlphaOfLength(id.getTaskId().getNodeId().length()), randomNonNegativeLong()));
+                return new AsyncExecutionId(
+                    id.getDocId(),
+                    new TaskId(randomAlphaOfLength(id.getTaskId().getNodeId().length()), randomNonNegativeLong())
+                );
 
             default:
                 throw new AssertionError();
@@ -49,9 +51,11 @@ public class AsyncExecutionIdTests extends ESTestCase {
     }
 
     public void testEqualsAndHashcode() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(randomAsyncId(),
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            randomAsyncId(),
             instance -> new AsyncExecutionId(instance.getDocId(), instance.getTaskId()),
-            AsyncExecutionIdTests::mutate);
+            AsyncExecutionIdTests::mutate
+        );
     }
 
     public void testDecodeInvalidId() throws IOException {
@@ -61,8 +65,10 @@ public class AsyncExecutionIdTests extends ESTestCase {
             assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
         }
         {
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-                () -> AsyncExecutionId.decode("FmhEOGQtRWVpVGplSXRtOVZudXZCOVEaYjFVZjZNWndRa3V0VmJvNV8tQmRpZzoxMzM=?pretty"));
+            IllegalArgumentException exc = expectThrows(
+                IllegalArgumentException.class,
+                () -> AsyncExecutionId.decode("FmhEOGQtRWVpVGplSXRtOVZudXZCOVEaYjFVZjZNWndRa3V0VmJvNV8tQmRpZzoxMzM=?pretty")
+            );
             assertEquals("invalid id: [FmhEOGQtRWVpVGplSXRtOVZudXZCOVEaYjFVZjZNWndRa3V0VmJvNV8tQmRpZzoxMzM=?pretty]", exc.getMessage());
             assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
         }

@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.logstash.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActionListener;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.logstash.action.DeletePipelineAction;
 import org.elasticsearch.xpack.logstash.action.DeletePipelineRequest;
 import org.elasticsearch.xpack.logstash.action.DeletePipelineResponse;

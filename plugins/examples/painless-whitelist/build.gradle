@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
@@ -13,17 +13,15 @@ esplugin {
   description 'An example whitelisting additional classes and methods in painless'
   classname 'org.elasticsearch.example.painlesswhitelist.MyWhitelistPlugin'
   extendedPlugins = ['lang-painless']
-  licenseFile rootProject.file('licenses/SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
+  licenseFile rootProject.file('SSPL-1.0+ELASTIC-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
 
 dependencies {
-  compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${versions.elasticsearch}"
+  compileOnly "org.elasticsearch.plugin:elasticsearch-scripting-painless-spi:${elasticsearchVersion}"
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'false'
 }
-
-tasks.named("test").configure { enabled = false }

@@ -7,7 +7,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -29,6 +29,7 @@ dependencies {
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  api "joda-time:joda-time:2.10.10"
 }
 
 restResources {

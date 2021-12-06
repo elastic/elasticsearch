@@ -97,8 +97,7 @@ public class SecureSM extends SecurityManager {
         // intellij test runner (before IDEA version 2019.3)
         "com\\.intellij\\.rt\\.execution\\.junit\\..*",
         // intellij test runner (since IDEA version 2019.3)
-        "com\\.intellij\\.rt\\.junit\\..*"
-    };
+        "com\\.intellij\\.rt\\.junit\\..*" };
 
     // java.security.debug support
     private static final boolean DEBUG = AccessController.doPrivileged(new PrivilegedAction<Boolean>() {
@@ -154,6 +153,12 @@ public class SecureSM extends SecurityManager {
     private static final Permission MODIFY_THREAD_PERMISSION = new RuntimePermission("modifyThread");
     private static final Permission MODIFY_ARBITRARY_THREAD_PERMISSION = new ThreadPermission("modifyArbitraryThread");
 
+    // Returns true if the given thread is an instance of the JDK's InnocuousThread.
+    private static boolean isInnocuousThread(Thread t) {
+        final Class<?> c = t.getClass();
+        return c.getModule() == Object.class.getModule() && c.getName().equals("jdk.internal.misc.InnocuousThread");
+    }
+
     protected void checkThreadAccess(Thread t) {
         Objects.requireNonNull(t);
 
@@ -166,7 +171,7 @@ public class SecureSM extends SecurityManager {
 
         if (target == null) {
             return;    // its a dead thread, do nothing.
-        } else if (source.parentOf(target) == false) {
+        } else if (source.parentOf(target) == false && isInnocuousThread(t) == false) {
             checkPermission(MODIFY_ARBITRARY_THREAD_PERMISSION);
         }
     }
@@ -206,15 +211,12 @@ public class SecureSM extends SecurityManager {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
             @Override
             public Void run() {
-                final String systemClassName = System.class.getName(),
-                        runtimeClassName = Runtime.class.getName();
+                final String systemClassName = System.class.getName(), runtimeClassName = Runtime.class.getName();
                 String exitMethodHit = null;
                 for (final StackTraceElement se : Thread.currentThread().getStackTrace()) {
                     final String className = se.getClassName(), methodName = se.getMethodName();
-                    if (
-                        ("exit".equals(methodName) || "halt".equals(methodName)) &&
-                        (systemClassName.equals(className) || runtimeClassName.equals(className))
-                    ) {
+                    if (("exit".equals(methodName) || "halt".equals(methodName))
+                        && (systemClassName.equals(className) || runtimeClassName.equals(className))) {
                         exitMethodHit = className + '#' + methodName + '(' + status + ')';
                         continue;
                     }

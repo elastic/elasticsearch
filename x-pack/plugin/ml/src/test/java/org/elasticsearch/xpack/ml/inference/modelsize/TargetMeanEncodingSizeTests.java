@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.modelsize;
 
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncodingTests;
 
@@ -17,17 +17,19 @@ import java.util.stream.Stream;
 public class TargetMeanEncodingSizeTests extends SizeEstimatorTestCase<TargetMeanEncodingSize, TargetMeanEncoding> {
 
     static TargetMeanEncodingSize createRandom() {
-        return new TargetMeanEncodingSize(randomInt(100),
+        return new TargetMeanEncodingSize(
             randomInt(100),
-            Stream.generate(() -> randomIntBetween(5, 10))
-                .limit(randomIntBetween(1, 10))
-                .collect(Collectors.toList()));
+            randomInt(100),
+            Stream.generate(() -> randomIntBetween(5, 10)).limit(randomIntBetween(1, 10)).collect(Collectors.toList())
+        );
     }
 
     static TargetMeanEncodingSize translateToEstimate(TargetMeanEncoding encoding) {
-        return new TargetMeanEncodingSize(encoding.getField().length(),
+        return new TargetMeanEncodingSize(
+            encoding.getField().length(),
             encoding.getFeatureName().length(),
-            encoding.getMeanMap().keySet().stream().map(String::length).collect(Collectors.toList()));
+            encoding.getMeanMap().keySet().stream().map(String::length).collect(Collectors.toList())
+        );
     }
 
     @Override

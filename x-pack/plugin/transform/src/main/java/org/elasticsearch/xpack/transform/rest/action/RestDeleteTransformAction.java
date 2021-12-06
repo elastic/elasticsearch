@@ -6,8 +6,9 @@
  */
 package org.elasticsearch.xpack.transform.rest.action;
 
-
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -33,10 +34,11 @@ public class RestDeleteTransformAction extends BaseRestHandler {
 
         String id = restRequest.param(TransformField.ID.getPreferredName());
         boolean force = restRequest.paramAsBoolean(TransformField.FORCE.getPreferredName(), false);
-        DeleteTransformAction.Request request = new DeleteTransformAction.Request(id, force);
+        TimeValue timeout = restRequest.paramAsTime(TransformField.TIMEOUT.getPreferredName(), AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
 
-        return channel -> client.execute(DeleteTransformAction.INSTANCE, request,
-                new RestToXContentListener<>(channel));
+        DeleteTransformAction.Request request = new DeleteTransformAction.Request(id, force, timeout);
+
+        return channel -> client.execute(DeleteTransformAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 
     @Override

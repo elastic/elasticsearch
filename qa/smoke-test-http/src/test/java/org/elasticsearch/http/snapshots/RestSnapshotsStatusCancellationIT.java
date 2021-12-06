@@ -44,7 +44,9 @@ public class RestSnapshotsStatusCancellationIT extends AbstractSnapshotRestTestC
 
         final Request request = new Request(
             HttpGet.METHOD_NAME,
-            "/_snapshot/" + repoName + "/"
+            "/_snapshot/"
+                + repoName
+                + "/"
                 + String.join(",", randomSubsetOf(randomIntBetween(1, snapshotCount), snapshotNames))
                 + "/_status"
         );

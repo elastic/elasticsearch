@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.enrich;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.enrich.action.EnrichStatsAction.Response.CoordinatorStats;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
@@ -20,11 +20,13 @@ public final class EnrichCoordinatorDoc extends MonitoringDoc {
 
     private final CoordinatorStats coordinatorStats;
 
-    public EnrichCoordinatorDoc(String cluster,
-                                long timestamp,
-                                long intervalMillis,
-                                MonitoringDoc.Node node,
-                                CoordinatorStats coordinatorStats) {
+    public EnrichCoordinatorDoc(
+        String cluster,
+        long timestamp,
+        long intervalMillis,
+        MonitoringDoc.Node node,
+        CoordinatorStats coordinatorStats
+    ) {
         super(cluster, timestamp, intervalMillis, node, MonitoredSystem.ES, TYPE, null);
         this.coordinatorStats = Objects.requireNonNull(coordinatorStats, "stats");
     }

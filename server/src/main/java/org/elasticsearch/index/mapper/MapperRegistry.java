@@ -28,10 +28,12 @@ public final class MapperRegistry {
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers7x;
     private final Function<String, Predicate<String>> fieldFilter;
 
-
-    public MapperRegistry(Map<String, Mapper.TypeParser> mapperParsers, Map<String, RuntimeField.Parser> runtimeFieldParsers,
-                          Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
-                          Function<String, Predicate<String>> fieldFilter) {
+    public MapperRegistry(
+        Map<String, Mapper.TypeParser> mapperParsers,
+        Map<String, RuntimeField.Parser> runtimeFieldParsers,
+        Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
+        Function<String, Predicate<String>> fieldFilter
+    ) {
         this.mapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(mapperParsers));
         this.runtimeFieldParsers = runtimeFieldParsers;
         this.metadataMapperParsers = Collections.unmodifiableMap(new LinkedHashMap<>(metadataMapperParsers));

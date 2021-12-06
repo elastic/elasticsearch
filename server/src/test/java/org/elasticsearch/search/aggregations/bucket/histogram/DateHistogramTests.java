@@ -24,26 +24,35 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
             factory.fixedInterval(new DateHistogramInterval(randomIntBetween(1, 100000) + "ms"));
         } else {
             if (randomBoolean()) {
-                factory.calendarInterval(randomFrom(DateHistogramInterval.YEAR, DateHistogramInterval.QUARTER,
-                        DateHistogramInterval.MONTH, DateHistogramInterval.WEEK, DateHistogramInterval.DAY, DateHistogramInterval.HOUR,
-                        DateHistogramInterval.MINUTE, DateHistogramInterval.SECOND));
+                factory.calendarInterval(
+                    randomFrom(
+                        DateHistogramInterval.YEAR,
+                        DateHistogramInterval.QUARTER,
+                        DateHistogramInterval.MONTH,
+                        DateHistogramInterval.WEEK,
+                        DateHistogramInterval.DAY,
+                        DateHistogramInterval.HOUR,
+                        DateHistogramInterval.MINUTE,
+                        DateHistogramInterval.SECOND
+                    )
+                );
             } else {
                 int branch = randomInt(3);
                 switch (branch) {
-                case 0:
-                    factory.fixedInterval(DateHistogramInterval.seconds(randomIntBetween(1, 1000)));
-                    break;
-                case 1:
-                    factory.fixedInterval(DateHistogramInterval.minutes(randomIntBetween(1, 1000)));
-                    break;
-                case 2:
-                    factory.fixedInterval(DateHistogramInterval.hours(randomIntBetween(1, 1000)));
-                    break;
-                case 3:
-                    factory.fixedInterval(DateHistogramInterval.days(randomIntBetween(1, 1000)));
-                    break;
-                default:
-                    throw new IllegalStateException("invalid branch: " + branch);
+                    case 0:
+                        factory.fixedInterval(DateHistogramInterval.seconds(randomIntBetween(1, 1000)));
+                        break;
+                    case 1:
+                        factory.fixedInterval(DateHistogramInterval.minutes(randomIntBetween(1, 1000)));
+                        break;
+                    case 2:
+                        factory.fixedInterval(DateHistogramInterval.hours(randomIntBetween(1, 1000)));
+                        break;
+                    case 3:
+                        factory.fixedInterval(DateHistogramInterval.days(randomIntBetween(1, 1000)));
+                        break;
+                    default:
+                        throw new IllegalStateException("invalid branch: " + branch);
                 }
             }
         }
@@ -67,7 +76,7 @@ public class DateHistogramTests extends BaseAggregationTestCase<DateHistogramAgg
         }
         if (randomBoolean()) {
             List<BucketOrder> order = randomOrder();
-            if(order.size() == 1 && randomBoolean()) {
+            if (order.size() == 1 && randomBoolean()) {
                 factory.order(order.get(0));
             } else {
                 factory.order(order);

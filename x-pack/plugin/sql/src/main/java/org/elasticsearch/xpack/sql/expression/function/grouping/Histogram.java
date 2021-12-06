@@ -55,13 +55,7 @@ public class Histogram extends GroupingFunction {
         if (resolution == TypeResolution.TYPE_RESOLVED) {
             // interval must be Literal interval
             if (SqlDataTypes.isDateBased(field().dataType())) {
-                resolution = isType(
-                    interval,
-                    SqlDataTypes::isInterval,
-                    "(Date) HISTOGRAM",
-                    SECOND,
-                    "interval"
-                );
+                resolution = isType(interval, SqlDataTypes::isInterval, "(Date) HISTOGRAM", SECOND, "interval");
             } else {
                 resolution = isNumeric(interval, "(Numeric) HISTOGRAM", SECOND);
             }
@@ -94,8 +88,7 @@ public class Histogram extends GroupingFunction {
     public boolean equals(Object obj) {
         if (super.equals(obj)) {
             Histogram other = (Histogram) obj;
-            return Objects.equals(interval, other.interval)
-                    && Objects.equals(zoneId, other.zoneId);
+            return Objects.equals(interval, other.interval) && Objects.equals(zoneId, other.zoneId);
         }
         return false;
     }

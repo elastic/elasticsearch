@@ -13,13 +13,14 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
+import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -36,34 +37,28 @@ import static org.hamcrest.Matchers.notNullValue;
 public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
 
     private static boolean securityEnabled;
-    private static boolean securityExplicitlySet;
 
     @BeforeClass
     public static void checkTestMode() {
         final String hasSecurity = System.getProperty("tests.has_security");
-        securityExplicitlySet = hasSecurity != null;
-        securityEnabled = hasSecurity == null ? false : Booleans.parseBoolean(hasSecurity);
+        securityEnabled = Booleans.parseBoolean(hasSecurity);
     }
 
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("security_test_user", new SecureString("security-test-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     @Override
     protected boolean preserveClusterUponCompletion() {
-        // If this is one of the first two runs (security not yet enabled), then don't clean up afterwards because we want to test restart
+        // If this is the first run (security is disabled), then don't clean up afterwards because we want to test restart
         // with data
         return securityEnabled == false;
     }
@@ -72,14 +67,8 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
     protected RestClient buildClient(Settings settings, HttpHost[] hosts) throws IOException {
         RestClientBuilder builder = RestClient.builder(hosts);
         configureClient(builder, settings);
-        if (System.getProperty("tests.has_security") != null) {
-            builder.setStrictDeprecationMode(true);
-        } else {
-            builder.setStrictDeprecationMode(false);
-        }
         return builder.build();
     }
-
 
     public void testSecuritySetup() throws Exception {
         logger.info("Security status: {}", securityEnabled);
@@ -93,8 +82,7 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         }
 
         checkAllowedWrite("index_allowed");
-        // Security runs third, and should see the docs from the first two (non-security) runs
-        // Security explicitly disabled runs second and should see the doc from the first (implicitly disabled) run
+        // Security runs second, and should see the docs from the first (non-security) run
         final int expectedIndexCount = securityEnabled ? 2 : 1;
         checkIndexCount("index_allowed", expectedIndexCount);
 
@@ -104,6 +92,14 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         } else {
             checkAllowedWrite(otherIndex);
         }
+        checkSecurityDisabledWarning();
+    }
+
+    public void checkSecurityDisabledWarning() throws Exception {
+        final Request request = new Request("GET", "/_cat/indices");
+        Response response = client().performRequest(request);
+        List<String> warningHeaders = response.getWarnings();
+        assertThat(warningHeaders, Matchers.empty());
     }
 
     private String getClusterInfo() throws IOException {

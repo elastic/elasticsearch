@@ -49,9 +49,7 @@ public class GeoPointScriptMapperTests extends MapperScriptTestCase<GeoPointFiel
 
     @Override
     protected GeoPointFieldScript.Factory errorThrowingScript() {
-        return factory(s -> {
-            throw new UnsupportedOperationException("Oops");
-        });
+        return factory(s -> { throw new UnsupportedOperationException("Oops"); });
     }
 
     @Override

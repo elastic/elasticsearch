@@ -33,7 +33,7 @@ public class Tail extends LimitWithOffset {
     }
 
     @Override
-    protected Tail replaceChild(LogicalPlan newChild) {
+    public Tail replaceChild(LogicalPlan newChild) {
         return new Tail(source(), newChild, limit());
     }
 }

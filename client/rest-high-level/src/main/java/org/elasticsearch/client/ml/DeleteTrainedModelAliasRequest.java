@@ -35,8 +35,7 @@ public class DeleteTrainedModelAliasRequest implements Validatable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DeleteTrainedModelAliasRequest request = (DeleteTrainedModelAliasRequest) o;
-        return Objects.equals(modelAlias, request.modelAlias)
-            && Objects.equals(modelId, request.modelId);
+        return Objects.equals(modelAlias, request.modelAlias) && Objects.equals(modelId, request.modelId);
     }
 
     @Override

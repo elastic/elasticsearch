@@ -38,9 +38,17 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
     protected final ValuesSource.Numeric valuesSource;
     protected final LongKeyedBucketOrds bucketOrds;
 
-    GeoGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
-                      int requiredSize, int shardSize, AggregationContext aggregationContext,
-                      Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
+    GeoGridAggregator(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource.Numeric valuesSource,
+        int requiredSize,
+        int shardSize,
+        AggregationContext aggregationContext,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;
@@ -57,8 +65,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         SortedNumericDocValues values = valuesSource.longValues(ctx);
         return new LeafBucketCollectorBase(sub, null) {
             @Override

@@ -19,7 +19,6 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -36,9 +35,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
  */
 public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
-    private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(
-            IdFieldMapper.NAME,
-            RoutingFieldMapper.NAME));
+    private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(IdFieldMapper.NAME, RoutingFieldMapper.NAME));
 
     private final boolean loadSource;
     private final String sourceFieldName;
@@ -71,9 +68,7 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
         }
         // All these fields are single-valued so we can stop when the set is
         // empty
-        return requiredFields.isEmpty()
-                ? Status.STOP
-                : Status.NO;
+        return requiredFields.isEmpty() ? Status.STOP : Status.NO;
     }
 
     @Override
@@ -107,10 +102,9 @@ public class FieldsVisitor extends FieldNamesProvidingStoredFieldsVisitor {
     }
 
     @Override
-    public void stringField(FieldInfo fieldInfo, byte[] bytes) {
+    public void stringField(FieldInfo fieldInfo, String value) {
         assert IdFieldMapper.NAME.equals(fieldInfo.name) == false : "_id field must go through binaryField";
         assert sourceFieldName.equals(fieldInfo.name) == false : "source field must go through binaryField";
-        final String value = new String(bytes, StandardCharsets.UTF_8);
         addValue(fieldInfo.name, value);
     }
 

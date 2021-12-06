@@ -8,10 +8,10 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queries.spans.SpanNearQuery;
+import org.apache.lucene.queries.spans.SpanQuery;
+import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanNearQuery;
-import org.apache.lucene.search.spans.SpanQuery;
-import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -37,7 +37,7 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
             SpanTermQueryBuilder termQB = spanTermQueries[i];
             queryBuilder.addClause(termQB);
             if (i % 2 == 1) {
-                SpanGapQueryBuilder gapQB = new SpanGapQueryBuilder(termQB.fieldName(), randomIntBetween(1,2));
+                SpanGapQueryBuilder gapQB = new SpanGapQueryBuilder(termQB.fieldName(), randomIntBetween(1, 2));
                 queryBuilder.addClause(gapQB);
             }
         }
@@ -47,9 +47,10 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
 
     @Override
     protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
-        assertThat(query, either(instanceOf(SpanNearQuery.class))
-            .or(instanceOf(SpanTermQuery.class))
-            .or(instanceOf(MatchAllQueryBuilder.class)));
+        assertThat(
+            query,
+            either(instanceOf(SpanNearQuery.class)).or(instanceOf(SpanTermQuery.class)).or(instanceOf(MatchAllQueryBuilder.class))
+        );
         if (query instanceof SpanNearQuery) {
             SpanNearQuery spanNearQuery = (SpanNearQuery) query;
             assertThat(spanNearQuery.getSlop(), equalTo(queryBuilder.slop()));
@@ -68,38 +69,37 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
     }
 
     public void testIllegalArguments() {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SpanGapQueryBuilder(null, 1));
-            assertEquals("[span_gap] field name is null or empty", e.getMessage());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SpanGapQueryBuilder(null, 1));
+        assertEquals("[span_gap] field name is null or empty", e.getMessage());
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{\n" +
-                "  \"span_near\" : {\n" +
-                "    \"clauses\" : [ {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field\" : {\n" +
-                "          \"value\" : \"value1\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    }, {\n" +
-                "      \"span_gap\" : {\n" +
-                "        \"field\" : 2" +
-                "      }\n" +
-                "    }, {\n" +
-                "      \"span_term\" : {\n" +
-                "        \"field\" : {\n" +
-                "          \"value\" : \"value3\",\n" +
-                "          \"boost\" : 1.0\n" +
-                "        }\n" +
-                "      }\n" +
-                "    } ],\n" +
-                "    \"slop\" : 12,\n" +
-                "    \"in_order\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"span_near\" : {\n"
+            + "    \"clauses\" : [ {\n"
+            + "      \"span_term\" : {\n"
+            + "        \"field\" : {\n"
+            + "          \"value\" : \"value1\",\n"
+            + "          \"boost\" : 1.0\n"
+            + "        }\n"
+            + "      }\n"
+            + "    }, {\n"
+            + "      \"span_gap\" : {\n"
+            + "        \"field\" : 2"
+            + "      }\n"
+            + "    }, {\n"
+            + "      \"span_term\" : {\n"
+            + "        \"field\" : {\n"
+            + "          \"value\" : \"value3\",\n"
+            + "          \"boost\" : 1.0\n"
+            + "        }\n"
+            + "      }\n"
+            + "    } ],\n"
+            + "    \"slop\" : 12,\n"
+            + "    \"in_order\" : false,\n"
+            + "    \"boost\" : 1.0\n"
+            + "  }\n"
+            + "}";
 
         SpanNearQueryBuilder parsed = (SpanNearQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

@@ -15,7 +15,8 @@ import org.elasticsearch.client.ElasticsearchClient;
  * org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore
  */
 public class DeleteRoleMappingRequestBuilder extends ActionRequestBuilder<DeleteRoleMappingRequest, DeleteRoleMappingResponse>
-        implements WriteRequestBuilder<DeleteRoleMappingRequestBuilder> {
+    implements
+        WriteRequestBuilder<DeleteRoleMappingRequestBuilder> {
 
     public DeleteRoleMappingRequestBuilder(ElasticsearchClient client) {
         super(client, DeleteRoleMappingAction.INSTANCE, new DeleteRoleMappingRequest());

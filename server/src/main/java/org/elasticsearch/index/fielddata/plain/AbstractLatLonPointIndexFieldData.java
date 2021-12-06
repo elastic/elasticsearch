@@ -13,8 +13,8 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.SortField;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -48,14 +48,26 @@ public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPoint
     }
 
     @Override
-    public SortField sortField(@Nullable Object missingValue, MultiValueMode sortMode, XFieldComparatorSource.Nested nested,
-            boolean reverse) {
+    public SortField sortField(
+        @Nullable Object missingValue,
+        MultiValueMode sortMode,
+        XFieldComparatorSource.Nested nested,
+        boolean reverse
+    ) {
         throw new IllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
     }
 
     @Override
-    public BucketedSort newBucketedSort(BigArrays bigArrays, Object missingValue, MultiValueMode sortMode, Nested nested,
-            SortOrder sortOrder, DocValueFormat format, int bucketSize, BucketedSort.ExtraData extra) {
+    public BucketedSort newBucketedSort(
+        BigArrays bigArrays,
+        Object missingValue,
+        MultiValueMode sortMode,
+        Nested nested,
+        SortOrder sortOrder,
+        DocValueFormat format,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) {
         throw new IllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
     }
 
@@ -84,9 +96,15 @@ public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPoint
             // dv properties could be "unset", if you e.g. used only StoredField with this same name in the segment.
             if (fieldInfo.getDocValuesType() != DocValuesType.NONE
                 && fieldInfo.getDocValuesType() != LatLonDocValuesField.TYPE.docValuesType()) {
-                throw new IllegalArgumentException("field=\"" + fieldInfo.name + "\" was indexed with docValuesType="
-                    + fieldInfo.getDocValuesType() + " but this type has docValuesType="
-                    + LatLonDocValuesField.TYPE.docValuesType() + ", is the field really a LatLonDocValuesField?");
+                throw new IllegalArgumentException(
+                    "field=\""
+                        + fieldInfo.name
+                        + "\" was indexed with docValuesType="
+                        + fieldInfo.getDocValuesType()
+                        + " but this type has docValuesType="
+                        + LatLonDocValuesField.TYPE.docValuesType()
+                        + ", is the field really a LatLonDocValuesField?"
+                );
             }
         }
     }
@@ -97,7 +115,7 @@ public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPoint
 
         public Builder(String name, ValuesSourceType valuesSourceType) {
             this.name = name;
-            this.valuesSourceType =  valuesSourceType;
+            this.valuesSourceType = valuesSourceType;
         }
 
         @Override

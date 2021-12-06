@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
+import org.elasticsearch.xcontent.XContentLocation;
 
 import java.io.IOException;
 import java.util.Map;

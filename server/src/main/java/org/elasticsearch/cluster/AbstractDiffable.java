@@ -8,9 +8,9 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
@@ -79,4 +79,3 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
         }
     }
 }
-

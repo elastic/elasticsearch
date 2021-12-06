@@ -30,22 +30,30 @@ public class TransportDeleteAsyncResultAction extends HandledTransportAction<Del
     private final TransportService transportService;
 
     @Inject
-    public TransportDeleteAsyncResultAction(TransportService transportService,
-                                            ActionFilters actionFilters,
-                                            ClusterService clusterService,
-                                            NamedWriteableRegistry registry,
-                                            Client client,
-                                            ThreadPool threadPool,
-                                            BigArrays bigArrays) {
+    public TransportDeleteAsyncResultAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        NamedWriteableRegistry registry,
+        Client client,
+        ThreadPool threadPool,
+        BigArrays bigArrays
+    ) {
         super(DeleteAsyncResultAction.NAME, transportService, actionFilters, DeleteAsyncResultRequest::new);
         this.transportService = transportService;
         this.clusterService = clusterService;
-        AsyncTaskIndexService<?> store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService,
-            threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN,
-            (in) -> {throw new UnsupportedOperationException("Reading is not supported during deletion");}, registry, bigArrays);
+        AsyncTaskIndexService<?> store = new AsyncTaskIndexService<>(
+            XPackPlugin.ASYNC_RESULTS_INDEX,
+            clusterService,
+            threadPool.getThreadContext(),
+            client,
+            ASYNC_SEARCH_ORIGIN,
+            (in) -> { throw new UnsupportedOperationException("Reading is not supported during deletion"); },
+            registry,
+            bigArrays
+        );
         this.deleteResultsService = new DeleteAsyncResultsService(store, transportService.getTaskManager());
     }
-
 
     @Override
     protected void doExecute(Task task, DeleteAsyncResultRequest request, ActionListener<AcknowledgedResponse> listener) {
@@ -54,8 +62,12 @@ public class TransportDeleteAsyncResultAction extends HandledTransportAction<Del
         if (clusterService.localNode().getId().equals(searchId.getTaskId().getNodeId()) || node == null) {
             deleteResultsService.deleteResponse(request, listener);
         } else {
-            transportService.sendRequest(node, DeleteAsyncResultAction.NAME, request,
-                new ActionListenerResponseHandler<>(listener, AcknowledgedResponse::readFrom, ThreadPool.Names.SAME));
+            transportService.sendRequest(
+                node,
+                DeleteAsyncResultAction.NAME,
+                request,
+                new ActionListenerResponseHandler<>(listener, AcknowledgedResponse::readFrom, ThreadPool.Names.SAME)
+            );
         }
     }
 }

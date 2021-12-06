@@ -341,7 +341,7 @@ public class DecorationToXContent {
     }
 
     public static void ToXContent(Decoration decoration, XContentBuilderWrapper builder) {
-        if  (decoration instanceof TargetType) {
+        if (decoration instanceof TargetType) {
             ToXContent((TargetType) decoration, builder);
         } else if (decoration instanceof ValueType) {
             ToXContent((ValueType) decoration, builder);

@@ -19,10 +19,10 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,22 +44,31 @@ public class SearchPreferenceIT extends ESIntegTestCase {
 
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put(OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING.getKey(), false).build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING.getKey(), false)
+            .build();
     }
 
     // see #2896
     public void testStopOneNodePreferenceWithRedState() throws IOException {
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", cluster().numDataNodes()+2)
-                .put("index.number_of_replicas", 0)));
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder().put("index.number_of_shards", cluster().numDataNodes() + 2).put("index.number_of_replicas", 0)
+            )
+        );
         ensureGreen();
         for (int i = 0; i < 10; i++) {
-            client().prepareIndex("test").setId(""+i).setSource("field1", "value1").get();
+            client().prepareIndex("test").setId("" + i).setSource("field1", "value1").get();
         }
         refresh();
         internalCluster().stopRandomDataNode();
         client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
-        String[] preferences = new String[]{"_local", "_prefer_nodes:somenode", "_prefer_nodes:server2", "_prefer_nodes:somenode,server2"};
+        String[] preferences = new String[] {
+            "_local",
+            "_prefer_nodes:somenode",
+            "_prefer_nodes:server2",
+            "_prefer_nodes:somenode,server2" };
         for (String pref : preferences) {
             logger.info("--> Testing out preference={}", pref);
             SearchResponse searchResponse = client().prepareSearch().setSize(0).setPreference(pref).get();
@@ -70,7 +79,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
             assertThat(pref, searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
         }
 
-        //_only_local is a stricter preference, we need to send the request to a data node
+        // _only_local is a stricter preference, we need to send the request to a data node
         SearchResponse searchResponse = dataNodeClient().prepareSearch().setSize(0).setPreference("_only_local").get();
         assertThat(RestStatus.OK, equalTo(searchResponse.status()));
         assertThat("_only_local", searchResponse.getFailedShards(), greaterThanOrEqualTo(0));
@@ -80,10 +89,12 @@ public class SearchPreferenceIT extends ESIntegTestCase {
     }
 
     public void testNoPreferenceRandom() {
-        assertAcked(prepareCreate("test").setSettings(
-                //this test needs at least a replica to make sure two consecutive searches go to two different copies of the same data
+        assertAcked(
+            prepareCreate("test").setSettings(
+                // this test needs at least a replica to make sure two consecutive searches go to two different copies of the same data
                 Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(1, maximumNumberOfReplicas()))
-        ));
+            )
+        );
         ensureGreen();
 
         client().prepareIndex("test").setSource("field1", "value1").get();
@@ -128,9 +139,12 @@ public class SearchPreferenceIT extends ESIntegTestCase {
     }
 
     public void testNodesOnlyRandom() {
-        assertAcked(prepareCreate("test").setSettings(
-            //this test needs at least a replica to make sure two consecutive searches go to two different copies of the same data
-            Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(1, maximumNumberOfReplicas()))));
+        assertAcked(
+            prepareCreate("test").setSettings(
+                // this test needs at least a replica to make sure two consecutive searches go to two different copies of the same data
+                Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, between(1, maximumNumberOfReplicas()))
+            )
+        );
         ensureGreen();
         client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
@@ -140,8 +154,7 @@ public class SearchPreferenceIT extends ESIntegTestCase {
         SearchRequestBuilder request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference("_only_nodes:*,nodes*");
         assertSearchOnRandomNodes(request);
 
-        request = client.prepareSearch("test")
-            .setQuery(matchAllQuery()).setPreference("_only_nodes:*");
+        request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference("_only_nodes:*");
         assertSearchOnRandomNodes(request);
 
         ArrayList<String> allNodeIds = new ArrayList<>();
@@ -194,36 +207,61 @@ public class SearchPreferenceIT extends ESIntegTestCase {
          * unnecessarily, so this test verifies a consistent routing even as other shards are created/relocated/removed.
          */
 
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings())
-            .put(SETTING_NUMBER_OF_REPLICAS, between(1, maximumNumberOfReplicas()))
-            .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)));
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put(indexSettings())
+                    .put(SETTING_NUMBER_OF_REPLICAS, between(1, maximumNumberOfReplicas()))
+                    .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            )
+        );
         ensureGreen();
         client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
         final String customPreference = randomAlphaOfLength(10);
 
-        final String nodeId = client().prepareSearch("test").setQuery(matchAllQuery()).setPreference(customPreference)
-            .get().getHits().getAt(0).getShard().getNodeId();
+        final String nodeId = client().prepareSearch("test")
+            .setQuery(matchAllQuery())
+            .setPreference(customPreference)
+            .get()
+            .getHits()
+            .getAt(0)
+            .getShard()
+            .getNodeId();
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
 
         final int replicasInNewIndex = between(1, maximumNumberOfReplicas());
-        assertAcked(prepareCreate("test2").setSettings(
-            Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, replicasInNewIndex)));
+        assertAcked(
+            prepareCreate("test2").setSettings(Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, replicasInNewIndex))
+        );
         ensureGreen();
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
 
-        assertAcked(client().admin().indices().prepareUpdateSettings("test2").setSettings(Settings.builder()
-            .put(SETTING_NUMBER_OF_REPLICAS, replicasInNewIndex - 1)));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test2")
+                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, replicasInNewIndex - 1))
+        );
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
 
-        assertAcked(client().admin().indices().prepareUpdateSettings("test2").setSettings(Settings.builder()
-            .put(SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name",
-                internalCluster().getDataNodeInstance(Node.class).settings().get(Node.NODE_NAME_SETTING.getKey()))));
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings("test2")
+                .setSettings(
+                    Settings.builder()
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(
+                            IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name",
+                            internalCluster().getDataNodeInstance(Node.class).settings().get(Node.NODE_NAME_SETTING.getKey())
+                        )
+                )
+        );
 
         ensureGreen();
 

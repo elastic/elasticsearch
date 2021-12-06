@@ -18,9 +18,6 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * Response for shard level operation in {@link TransportFieldCapabilitiesAction}.
- */
 public class FieldCapabilitiesIndexResponse extends ActionResponse implements Writeable {
     private final String indexName;
     private final Map<String, IndexFieldCapabilities> responseMap;
@@ -84,9 +81,7 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesIndexResponse that = (FieldCapabilitiesIndexResponse) o;
-        return canMatch == that.canMatch &&
-            Objects.equals(indexName, that.indexName) &&
-            Objects.equals(responseMap, that.responseMap);
+        return canMatch == that.canMatch && Objects.equals(indexName, that.indexName) && Objects.equals(responseMap, that.responseMap);
     }
 
     @Override

@@ -19,11 +19,11 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
@@ -36,8 +36,9 @@ import java.util.function.Consumer;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class TransportUpdateModelSnapshotAction extends HandledTransportAction<UpdateModelSnapshotAction.Request,
-        UpdateModelSnapshotAction.Response> {
+public class TransportUpdateModelSnapshotAction extends HandledTransportAction<
+    UpdateModelSnapshotAction.Request,
+    UpdateModelSnapshotAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateModelSnapshotAction.class);
 
@@ -45,28 +46,39 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<U
     private final Client client;
 
     @Inject
-    public TransportUpdateModelSnapshotAction(TransportService transportService, ActionFilters actionFilters,
-                                              JobResultsProvider jobResultsProvider, Client client) {
+    public TransportUpdateModelSnapshotAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        JobResultsProvider jobResultsProvider,
+        Client client
+    ) {
         super(UpdateModelSnapshotAction.NAME, transportService, actionFilters, UpdateModelSnapshotAction.Request::new);
         this.jobResultsProvider = jobResultsProvider;
         this.client = client;
     }
 
     @Override
-    protected void doExecute(Task task, UpdateModelSnapshotAction.Request request,
-                             ActionListener<UpdateModelSnapshotAction.Response> listener) {
+    protected void doExecute(
+        Task task,
+        UpdateModelSnapshotAction.Request request,
+        ActionListener<UpdateModelSnapshotAction.Response> listener
+    ) {
         logger.debug("Received request to update model snapshot [{}] for job [{}]", request.getSnapshotId(), request.getJobId());
         jobResultsProvider.getModelSnapshot(request.getJobId(), request.getSnapshotId(), modelSnapshot -> {
             if (modelSnapshot == null) {
-                listener.onFailure(new ResourceNotFoundException(Messages.getMessage(
-                        Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(), request.getJobId())));
+                listener.onFailure(
+                    new ResourceNotFoundException(
+                        Messages.getMessage(Messages.REST_NO_SUCH_MODEL_SNAPSHOT, request.getSnapshotId(), request.getJobId())
+                    )
+                );
             } else {
                 Result<ModelSnapshot> updatedSnapshot = applyUpdate(request, modelSnapshot);
                 indexModelSnapshot(updatedSnapshot, b -> {
                     // The quantiles can be large, and totally dominate the output -
                     // it's clearer to remove them
-                    listener.onResponse(new UpdateModelSnapshotAction.Response(
-                            new ModelSnapshot.Builder(updatedSnapshot.result).setQuantiles(null).build()));
+                    listener.onResponse(
+                        new UpdateModelSnapshotAction.Response(new ModelSnapshot.Builder(updatedSnapshot.result).setQuantiles(null).build())
+                    );
                 }, listener::onFailure);
             }
         }, listener::onFailure);
@@ -95,17 +107,16 @@ public class TransportUpdateModelSnapshotAction extends HandledTransportAction<U
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         bulkRequestBuilder.add(indexRequest);
         bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(),
-                new ActionListener<BulkResponse>() {
-                    @Override
-                    public void onResponse(BulkResponse indexResponse) {
-                        handler.accept(true);
-                    }
+        executeAsyncWithOrigin(client, ML_ORIGIN, BulkAction.INSTANCE, bulkRequestBuilder.request(), new ActionListener<BulkResponse>() {
+            @Override
+            public void onResponse(BulkResponse indexResponse) {
+                handler.accept(true);
+            }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        errorHandler.accept(e);
-                    }
-                });
+            @Override
+            public void onFailure(Exception e) {
+                errorHandler.accept(e);
+            }
+        });
     }
 }

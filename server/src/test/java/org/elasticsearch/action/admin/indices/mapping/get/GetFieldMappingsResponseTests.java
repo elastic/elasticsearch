@@ -9,20 +9,20 @@
 package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetadata;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -62,16 +62,16 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
         FieldMappingMetadata fieldMappingMetadata = new FieldMappingMetadata("my field", new BytesArray("{}"));
         mappings.put("index", Collections.singletonMap("field", fieldMappingMetadata));
         GetFieldMappingsResponse response = new GetFieldMappingsResponse(mappings);
-        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER,
-            "true"));
+        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "true"));
 
-        // v7 with  include_type_name attaches _doc
+        // v7 with include_type_name attaches _doc
         try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7)) {
             response.toXContent(builder, params);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-                Map<String, Map<String, Map<String, Object>>> index =
-                    (Map<String, Map<String, Map<String, Object>>>) parser.map().get("index");
+                @SuppressWarnings("unchecked")
+                Map<String, Map<String, Map<String, Object>>> index = (Map<String, Map<String, Map<String, Object>>>) parser.map()
+                    .get("index");
                 assertThat(index.get("mappings"), hasKey(MapperService.SINGLE_MAPPING_NAME));
                 assertThat(index.get("mappings").get(MapperService.SINGLE_MAPPING_NAME), hasKey("field"));
             }
@@ -82,16 +82,18 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                @SuppressWarnings("unchecked")
                 Map<String, Map<String, Object>> index = (Map<String, Map<String, Object>>) parser.map().get("index");
                 assertThat(index.get("mappings"), hasKey("field"));
             }
         }
-        //v8 does not have _doc, even when include_type_name is present
+        // v8 does not have _doc, even when include_type_name is present
         // (although this throws unconsumed parameter exception in RestGetFieldMappingsAction)
         try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_8)) {
             response.toXContent(builder, params);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                @SuppressWarnings("unchecked")
                 Map<String, Map<String, Object>> index = (Map<String, Map<String, Object>>) parser.map().get("index");
                 assertThat(index.get("mappings"), hasKey("field"));
             }
@@ -101,6 +103,7 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                @SuppressWarnings("unchecked")
                 Map<String, Map<String, Object>> index = (Map<String, Map<String, Object>>) parser.map().get("index");
                 assertThat(index.get("mappings"), hasKey("field"));
             }
@@ -126,8 +129,7 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
             int fields = randomInt(10);
             for (int k = 0; k < fields; k++) {
                 final String mapping = randomBoolean() ? "{\"type\":\"string\"}" : "{\"type\":\"keyword\"}";
-                FieldMappingMetadata metadata =
-                    new FieldMappingMetadata("my field", new BytesArray(mapping));
+                FieldMappingMetadata metadata = new FieldMappingMetadata("my field", new BytesArray(mapping));
                 fieldMappings.put("field" + k, metadata);
             }
             mappings.put("index" + i, fieldMappings);

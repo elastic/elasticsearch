@@ -59,8 +59,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -68,7 +68,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
-
 
 public class JobResultsPersisterTests extends ESTestCase {
 
@@ -114,7 +113,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         BulkRequest bulkRequest = bulkRequestCaptor.getValue();
         assertEquals(2, bulkRequest.numberOfActions());
 
-        String s = ((IndexRequest)bulkRequest.requests().get(0)).source().utf8ToString();
+        String s = ((IndexRequest) bulkRequest.requests().get(0)).source().utf8ToString();
         assertTrue(s.matches(".*anomaly_score.:99\\.9.*"));
         assertTrue(s.matches(".*initial_anomaly_score.:88\\.8.*"));
         assertTrue(s.matches(".*event_count.:57.*"));
@@ -123,7 +122,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         // There should NOT be any nested records
         assertFalse(s.matches(".*records*"));
 
-        s = ((IndexRequest)bulkRequest.requests().get(1)).source().utf8ToString();
+        s = ((IndexRequest) bulkRequest.requests().get(1)).source().utf8ToString();
         assertTrue(s.matches(".*probability.:0\\.0054.*"));
         assertTrue(s.matches(".*influencer_field_name.:.biOne.*"));
         assertTrue(s.matches(".*initial_anomaly_score.:18\\.12.*"));
@@ -224,7 +223,7 @@ public class JobResultsPersisterTests extends ESTestCase {
     public void testBulkRequestExecutesWhenReachMaxDocs() {
         JobResultsPersister.Builder bulkBuilder = persister.bulkPersisterBuilder("foo");
         ModelPlot modelPlot = new ModelPlot("foo", new Date(), 123456, 0);
-        for (int i=0; i<=JobRenormalizedResultsPersister.BULK_LIMIT; i++) {
+        for (int i = 0; i <= JobRenormalizedResultsPersister.BULK_LIMIT; i++) {
             bulkBuilder.persistModelPlot(modelPlot);
         }
 
@@ -236,9 +235,15 @@ public class JobResultsPersisterTests extends ESTestCase {
     }
 
     public void testPersistTimingStats() {
-        TimingStats timingStats =
-            new TimingStats(
-                "foo", 7, 1.0, 2.0, 1.23, 7.89, new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0));
+        TimingStats timingStats = new TimingStats(
+            "foo",
+            7,
+            1.0,
+            2.0,
+            1.23,
+            7.89,
+            new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0)
+        );
         persister.bulkPersisterBuilder(JOB_ID).persistTimingStats(timingStats).executeRequest();
 
         InOrder inOrder = inOrder(client);
@@ -256,24 +261,36 @@ public class JobResultsPersisterTests extends ESTestCase {
             indexRequest.sourceAsMap(),
             equalTo(
                 Map.of(
-                    "result_type", "timing_stats",
-                    "job_id", "foo",
-                    "bucket_count", 7,
-                    "minimum_bucket_processing_time_ms", 1.0,
-                    "maximum_bucket_processing_time_ms", 2.0,
-                    "average_bucket_processing_time_ms", 1.23,
-                    "exponential_average_bucket_processing_time_ms", 7.89,
-                    "exponential_average_calculation_context", Map.of(
-                        "incremental_metric_value_ms", 600.0,
-                        "previous_exponential_average_ms", 60.0,
-                        "latest_timestamp", 123456789))));
+                    "result_type",
+                    "timing_stats",
+                    "job_id",
+                    "foo",
+                    "bucket_count",
+                    7,
+                    "minimum_bucket_processing_time_ms",
+                    1.0,
+                    "maximum_bucket_processing_time_ms",
+                    2.0,
+                    "average_bucket_processing_time_ms",
+                    1.23,
+                    "exponential_average_bucket_processing_time_ms",
+                    7.89,
+                    "exponential_average_calculation_context",
+                    Map.of("incremental_metric_value_ms", 600.0, "previous_exponential_average_ms", 60.0, "latest_timestamp", 123456789)
+                )
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")
     public void testPersistDatafeedTimingStats() {
-        DatafeedTimingStats timingStats =
-            new DatafeedTimingStats(
-                "foo", 6, 66, 666.0, new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0));
+        DatafeedTimingStats timingStats = new DatafeedTimingStats(
+            "foo",
+            6,
+            66,
+            666.0,
+            new ExponentialAverageCalculationContext(600.0, Instant.ofEpochMilli(123456789), 60.0)
+        );
         persister.persistDatafeedTimingStats(timingStats, WriteRequest.RefreshPolicy.IMMEDIATE);
 
         InOrder inOrder = inOrder(client);
@@ -291,15 +308,21 @@ public class JobResultsPersisterTests extends ESTestCase {
             indexRequest.sourceAsMap(),
             equalTo(
                 Map.of(
-                    "result_type", "datafeed_timing_stats",
-                    "job_id", "foo",
-                    "search_count", 6,
-                    "bucket_count", 66,
-                    "total_search_time_ms", 666.0,
-                    "exponential_average_calculation_context", Map.of(
-                        "incremental_metric_value_ms", 600.0,
-                        "previous_exponential_average_ms", 60.0,
-                        "latest_timestamp", 123456789))));
+                    "result_type",
+                    "datafeed_timing_stats",
+                    "job_id",
+                    "foo",
+                    "search_count",
+                    6,
+                    "bucket_count",
+                    66,
+                    "total_search_time_ms",
+                    666.0,
+                    "exponential_average_calculation_context",
+                    Map.of("incremental_metric_value_ms", 600.0, "previous_exponential_average_ms", 60.0, "latest_timestamp", 123456789)
+                )
+            )
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -332,8 +355,9 @@ public class JobResultsPersisterTests extends ESTestCase {
 
     public void testPersistQuantilesSync_QuantilesDocumentUpdated() {
         testPersistQuantilesSync(
-            new SearchHits(new SearchHit[]{ SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
-            ".ml-state-dummy");
+            new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
+            ".ml-state-dummy"
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -370,8 +394,9 @@ public class JobResultsPersisterTests extends ESTestCase {
 
     public void testPersistQuantilesAsync_QuantilesDocumentUpdated() {
         testPersistQuantilesAsync(
-            new SearchHits(new SearchHit[]{ SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
-            ".ml-state-dummy");
+            new SearchHits(new SearchHit[] { SearchHit.createFromMap(Map.of("_index", ".ml-state-dummy")) }, null, 0.0f),
+            ".ml-state-dummy"
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -385,13 +410,19 @@ public class JobResultsPersisterTests extends ESTestCase {
 
     private ResultsPersisterService buildResultsPersisterService(OriginSettingClient client) {
         ThreadPool tp = mock(ThreadPool.class);
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
-            new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
-                MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
-                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
-                ClusterService.USER_DEFINED_METADATA,
-                ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            Settings.EMPTY,
+            new HashSet<>(
+                Arrays.asList(
+                    InferenceProcessor.MAX_INFERENCE_PROCESSORS,
+                    MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                    ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
+                    ClusterService.USER_DEFINED_METADATA,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                )
+            )
+        );
         ClusterService clusterService = new ClusterService(Settings.EMPTY, clusterSettings, tp);
         ExecutorService executor = mock(ExecutorService.class);
         doAnswer(invocationOnMock -> {
@@ -402,9 +433,7 @@ public class JobResultsPersisterTests extends ESTestCase {
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
             return null;
-        }).when(tp).schedule(
-            any(Runnable.class), any(TimeValue.class), any(String.class)
-        );
+        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(String.class));
 
         return new ResultsPersisterService(tp, client, clusterService, Settings.EMPTY);
     }

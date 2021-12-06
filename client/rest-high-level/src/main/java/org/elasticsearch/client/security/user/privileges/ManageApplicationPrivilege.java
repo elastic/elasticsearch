@@ -30,7 +30,7 @@ public class ManageApplicationPrivilege extends GlobalOperationPrivilege {
 
     @SuppressWarnings("unchecked")
     public Set<String> getManagedApplications() {
-        return (Set<String>)getRaw().get(KEY);
+        return (Set<String>) getRaw().get(KEY);
     }
 
     @Override

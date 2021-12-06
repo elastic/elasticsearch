@@ -10,11 +10,9 @@ package org.elasticsearch.repositories.s3;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.internal.MD5DigestCalculatingInputStream;
 import com.amazonaws.util.Base16;
+
 import org.apache.http.HttpStatus;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -26,8 +24,11 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.junit.After;
@@ -76,8 +77,8 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     @Override
-    protected String downloadStorageEndpoint(String blob) {
-        return "/bucket/" + blob;
+    protected String downloadStorageEndpoint(BlobContainer container, String blob) {
+        return "/bucket/" + container.path().buildAsString() + blob;
     }
 
     @Override
@@ -91,10 +92,12 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     @Override
-    protected BlobContainer createBlobContainer(final @Nullable Integer maxRetries,
-                                              final @Nullable TimeValue readTimeout,
-                                              final @Nullable Boolean disableChunkedEncoding,
-                                              final @Nullable ByteSizeValue bufferSize) {
+    protected BlobContainer createBlobContainer(
+        final @Nullable Integer maxRetries,
+        final @Nullable TimeValue readTimeout,
+        final @Nullable Boolean disableChunkedEncoding,
+        final @Nullable ByteSizeValue bufferSize
+    ) {
         final Settings.Builder clientSettings = Settings.builder();
         final String clientName = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
 
@@ -113,31 +116,45 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         }
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
-            "test_access_key");
-        secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
-            "test_secret_key");
+        secureSettings.setString(
+            S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+            "test_access_key"
+        );
+        secureSettings.setString(
+            S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(),
+            "test_secret_key"
+        );
         clientSettings.setSecureSettings(secureSettings);
         service.refreshAndClearCache(S3ClientSettings.load(clientSettings.build()));
 
-        final RepositoryMetadata repositoryMetadata = new RepositoryMetadata("repository", S3Repository.TYPE,
-            Settings.builder().put(S3Repository.CLIENT_NAME.getKey(), clientName).build());
+        final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
+            "repository",
+            S3Repository.TYPE,
+            Settings.builder().put(S3Repository.CLIENT_NAME.getKey(), clientName).build()
+        );
 
-        return new S3BlobContainer(BlobPath.EMPTY, new S3BlobStore(service, "bucket",
-            S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
-            bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
-            S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
-            S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
-            repositoryMetadata, BigArrays.NON_RECYCLING_INSTANCE)) {
-                @Override
-                public InputStream readBlob(String blobName) throws IOException {
-                    return new AssertingInputStream(super.readBlob(blobName), blobName);
-                }
+        return new S3BlobContainer(
+            randomBoolean() ? BlobPath.EMPTY : BlobPath.EMPTY.add("foo"),
+            new S3BlobStore(
+                service,
+                "bucket",
+                S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
+                bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
+                S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
+                S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
+                repositoryMetadata,
+                BigArrays.NON_RECYCLING_INSTANCE
+            )
+        ) {
+            @Override
+            public InputStream readBlob(String blobName) throws IOException {
+                return new AssertingInputStream(super.readBlob(blobName), blobName);
+            }
 
-                @Override
-                public InputStream readBlob(String blobName, long position, long length) throws IOException {
-                    return new AssertingInputStream(super.readBlob(blobName, position, length), blobName, position, length);
-                }
+            @Override
+            public InputStream readBlob(String blobName, long position, long length) throws IOException {
+                return new AssertingInputStream(super.readBlob(blobName, position, length), blobName, position, length);
+            }
         };
     }
 
@@ -145,8 +162,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final int maxRetries = randomInt(5);
         final CountDown countDown = new CountDown(maxRetries + 1);
 
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
+
         final byte[] bytes = randomBlobContent();
-        httpServer.createContext("/bucket/write_blob_max_retries", exchange -> {
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_blob_max_retries"), exchange -> {
             if ("PUT".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery() == null) {
                 if (countDown.countDown()) {
                     final BytesReference body = Streams.readFully(exchange.getRequestBody());
@@ -164,15 +183,20 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                         Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]);
                     } else {
                         Streams.readFully(exchange.getRequestBody());
-                        exchange.sendResponseHeaders(randomFrom(HttpStatus.SC_INTERNAL_SERVER_ERROR, HttpStatus.SC_BAD_GATEWAY,
-                            HttpStatus.SC_SERVICE_UNAVAILABLE, HttpStatus.SC_GATEWAY_TIMEOUT), -1);
+                        exchange.sendResponseHeaders(
+                            randomFrom(
+                                HttpStatus.SC_INTERNAL_SERVER_ERROR,
+                                HttpStatus.SC_BAD_GATEWAY,
+                                HttpStatus.SC_SERVICE_UNAVAILABLE,
+                                HttpStatus.SC_GATEWAY_TIMEOUT
+                            ),
+                            -1
+                        );
                     }
                 }
                 exchange.close();
             }
         });
-
-        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
         try (InputStream stream = new InputStreamIndexInput(new ByteArrayIndexInput("desc", bytes), bytes.length)) {
             blobContainer.writeBlob("write_blob_max_retries", stream, bytes.length, false);
         }
@@ -185,7 +209,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final BlobContainer blobContainer = createBlobContainer(1, readTimeout, true, null);
 
         // HTTP server does not send a response
-        httpServer.createContext("/bucket/write_blob_timeout", exchange -> {
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_blob_timeout"), exchange -> {
             if (randomBoolean()) {
                 if (randomBoolean()) {
                     Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, bytes.length - 1)]);
@@ -200,8 +224,10 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 blobContainer.writeBlob("write_blob_timeout", stream, bytes.length, false);
             }
         });
-        assertThat(exception.getMessage().toLowerCase(Locale.ROOT),
-            containsString("unable to upload object [write_blob_timeout] using a single upload"));
+        assertThat(
+            exception.getMessage().toLowerCase(Locale.ROOT),
+            containsString("unable to upload object [" + blobContainer.path().buildAsString() + "write_blob_timeout] using a single upload")
+        );
 
         assertThat(exception.getCause(), instanceOf(SdkClientException.class));
         assertThat(exception.getCause().getMessage().toLowerCase(Locale.ROOT), containsString("read timed out"));
@@ -225,19 +251,18 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final AtomicInteger countDownUploads = new AtomicInteger(nbErrors * (parts + 1));
         final CountDown countDownComplete = new CountDown(nbErrors);
 
-        httpServer.createContext("/bucket/write_large_blob", exchange -> {
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob"), exchange -> {
             final long contentLength = Long.parseLong(exchange.getRequestHeaders().getFirst("Content-Length"));
 
-            if ("POST".equals(exchange.getRequestMethod())
-                && exchange.getRequestURI().getQuery().equals("uploads")) {
+            if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploads")) {
                 // initiate multipart upload request
                 if (countDownInitiate.countDown()) {
-                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-                        "<InitiateMultipartUploadResult>\n" +
-                        "  <Bucket>bucket</Bucket>\n" +
-                        "  <Key>write_large_blob</Key>\n" +
-                        "  <UploadId>TEST</UploadId>\n" +
-                        "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<InitiateMultipartUploadResult>\n"
+                        + "  <Bucket>bucket</Bucket>\n"
+                        + "  <Key>write_large_blob</Key>\n"
+                        + "  <UploadId>TEST</UploadId>\n"
+                        + "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/xml");
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
                     exchange.getResponseBody().write(response);
@@ -247,36 +272,35 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             } else if ("PUT".equals(exchange.getRequestMethod())
                 && exchange.getRequestURI().getQuery().contains("uploadId=TEST")
                 && exchange.getRequestURI().getQuery().contains("partNumber=")) {
-                // upload part request
-                MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
-                BytesReference bytes = Streams.readFully(md5);
-                assertThat((long) bytes.length(), anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
-                assertThat(contentLength, anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
+                    // upload part request
+                    MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
+                    BytesReference bytes = Streams.readFully(md5);
+                    assertThat((long) bytes.length(), anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
+                    assertThat(contentLength, anyOf(equalTo(lastPartSize), equalTo(bufferSize.getBytes())));
 
-                if (countDownUploads.decrementAndGet() % 2 == 0) {
-                    exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
-                    exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
-                    exchange.close();
-                    return;
-                }
+                    if (countDownUploads.decrementAndGet() % 2 == 0) {
+                        exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
+                        exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
+                        exchange.close();
+                        return;
+                    }
 
-            } else if ("POST".equals(exchange.getRequestMethod())
-                && exchange.getRequestURI().getQuery().equals("uploadId=TEST")) {
-                // complete multipart upload request
-                if (countDownComplete.countDown()) {
-                    Streams.readFully(exchange.getRequestBody());
-                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-                        "<CompleteMultipartUploadResult>\n" +
-                        "  <Bucket>bucket</Bucket>\n" +
-                        "  <Key>write_large_blob</Key>\n" +
-                        "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
-                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                    exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
-                    exchange.getResponseBody().write(response);
-                    exchange.close();
-                    return;
+                } else if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploadId=TEST")) {
+                    // complete multipart upload request
+                    if (countDownComplete.countDown()) {
+                        Streams.readFully(exchange.getRequestBody());
+                        byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                            + "<CompleteMultipartUploadResult>\n"
+                            + "  <Bucket>bucket</Bucket>\n"
+                            + "  <Key>write_large_blob</Key>\n"
+                            + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                        exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
+                        exchange.getResponseBody().write(response);
+                        exchange.close();
+                        return;
+                    }
                 }
-            }
 
             // sends an error back or let the request time out
             if (useTimeout == false) {
@@ -284,8 +308,15 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.toIntExact(contentLength - 1))]);
                 } else {
                     Streams.readFully(exchange.getRequestBody());
-                    exchange.sendResponseHeaders(randomFrom(HttpStatus.SC_INTERNAL_SERVER_ERROR, HttpStatus.SC_BAD_GATEWAY,
-                        HttpStatus.SC_SERVICE_UNAVAILABLE, HttpStatus.SC_GATEWAY_TIMEOUT), -1);
+                    exchange.sendResponseHeaders(
+                        randomFrom(
+                            HttpStatus.SC_INTERNAL_SERVER_ERROR,
+                            HttpStatus.SC_BAD_GATEWAY,
+                            HttpStatus.SC_SERVICE_UNAVAILABLE,
+                            HttpStatus.SC_GATEWAY_TIMEOUT
+                        ),
+                        -1
+                    );
                 }
                 exchange.close();
             }
@@ -314,19 +345,18 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         final AtomicLong bytesReceived = new AtomicLong(0L);
         final CountDown countDownComplete = new CountDown(nbErrors);
 
-        httpServer.createContext("/bucket/write_large_blob_streaming", exchange -> {
+        httpServer.createContext(downloadStorageEndpoint(blobContainer, "write_large_blob_streaming"), exchange -> {
             final long contentLength = Long.parseLong(exchange.getRequestHeaders().getFirst("Content-Length"));
 
-            if ("POST".equals(exchange.getRequestMethod())
-                    && exchange.getRequestURI().getQuery().equals("uploads")) {
+            if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploads")) {
                 // initiate multipart upload request
                 if (countDownInitiate.countDown()) {
-                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-                            "<InitiateMultipartUploadResult>\n" +
-                            "  <Bucket>bucket</Bucket>\n" +
-                            "  <Key>write_large_blob_streaming</Key>\n" +
-                            "  <UploadId>TEST</UploadId>\n" +
-                            "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                        + "<InitiateMultipartUploadResult>\n"
+                        + "  <Bucket>bucket</Bucket>\n"
+                        + "  <Key>write_large_blob_streaming</Key>\n"
+                        + "  <UploadId>TEST</UploadId>\n"
+                        + "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/xml");
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
                     exchange.getResponseBody().write(response);
@@ -334,37 +364,36 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     return;
                 }
             } else if ("PUT".equals(exchange.getRequestMethod())
-                    && exchange.getRequestURI().getQuery().contains("uploadId=TEST")
-                    && exchange.getRequestURI().getQuery().contains("partNumber=")) {
-                // upload part request
-                MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
-                BytesReference bytes = Streams.readFully(md5);
+                && exchange.getRequestURI().getQuery().contains("uploadId=TEST")
+                && exchange.getRequestURI().getQuery().contains("partNumber=")) {
+                    // upload part request
+                    MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
+                    BytesReference bytes = Streams.readFully(md5);
 
-                if (counterUploads.incrementAndGet() % 2 == 0) {
-                    bytesReceived.addAndGet(bytes.length());
-                    exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
-                    exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
-                    exchange.close();
-                    return;
-                }
+                    if (counterUploads.incrementAndGet() % 2 == 0) {
+                        bytesReceived.addAndGet(bytes.length());
+                        exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
+                        exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
+                        exchange.close();
+                        return;
+                    }
 
-            } else if ("POST".equals(exchange.getRequestMethod())
-                    && exchange.getRequestURI().getQuery().equals("uploadId=TEST")) {
-                // complete multipart upload request
-                if (countDownComplete.countDown()) {
-                    Streams.readFully(exchange.getRequestBody());
-                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-                            "<CompleteMultipartUploadResult>\n" +
-                            "  <Bucket>bucket</Bucket>\n" +
-                            "  <Key>write_large_blob_streaming</Key>\n" +
-                            "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
-                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
-                    exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
-                    exchange.getResponseBody().write(response);
-                    exchange.close();
-                    return;
+                } else if ("POST".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery().equals("uploadId=TEST")) {
+                    // complete multipart upload request
+                    if (countDownComplete.countDown()) {
+                        Streams.readFully(exchange.getRequestBody());
+                        byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n"
+                            + "<CompleteMultipartUploadResult>\n"
+                            + "  <Bucket>bucket</Bucket>\n"
+                            + "  <Key>write_large_blob_streaming</Key>\n"
+                            + "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                        exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
+                        exchange.getResponseBody().write(response);
+                        exchange.close();
+                        return;
+                    }
                 }
-            }
 
             // sends an error back or let the request time out
             if (useTimeout == false) {
@@ -372,8 +401,15 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.toIntExact(contentLength - 1))]);
                 } else {
                     Streams.readFully(exchange.getRequestBody());
-                    exchange.sendResponseHeaders(randomFrom(HttpStatus.SC_INTERNAL_SERVER_ERROR, HttpStatus.SC_BAD_GATEWAY,
-                            HttpStatus.SC_SERVICE_UNAVAILABLE, HttpStatus.SC_GATEWAY_TIMEOUT), -1);
+                    exchange.sendResponseHeaders(
+                        randomFrom(
+                            HttpStatus.SC_INTERNAL_SERVER_ERROR,
+                            HttpStatus.SC_BAD_GATEWAY,
+                            HttpStatus.SC_SERVICE_UNAVAILABLE,
+                            HttpStatus.SC_GATEWAY_TIMEOUT
+                        ),
+                        -1
+                    );
                 }
                 exchange.close();
             }
@@ -439,8 +475,16 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             super.close();
             if (in instanceof S3RetryingInputStream) {
                 final S3RetryingInputStream s3Stream = (S3RetryingInputStream) in;
-                assertTrue("Stream " + toString() + " should have reached EOF or should have been aborted but got [eof=" + s3Stream.isEof()
-                    + ", aborted=" + s3Stream.isAborted() + ']', s3Stream.isEof() || s3Stream.isAborted());
+                assertTrue(
+                    "Stream "
+                        + toString()
+                        + " should have reached EOF or should have been aborted but got [eof="
+                        + s3Stream.isEof()
+                        + ", aborted="
+                        + s3Stream.isAborted()
+                        + ']',
+                    s3Stream.isEof() || s3Stream.isAborted()
+                );
             } else {
                 assertThat(in, instanceOf(ByteArrayInputStream.class));
                 assertThat(((ByteArrayInputStream) in).available(), equalTo(0));

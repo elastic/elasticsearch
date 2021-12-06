@@ -8,13 +8,15 @@
 package org.elasticsearch.xpack.core.ml.inference.results;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.ingest.IngestDocument;
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig.DEFAULT_RESULTS_FIELD;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
-public class PyTorchPassThroughResultsTests extends AbstractWireSerializingTestCase<PyTorchPassThroughResults> {
+public class PyTorchPassThroughResultsTests extends InferenceResultsTestCase<PyTorchPassThroughResults> {
     @Override
     protected Writeable.Reader<PyTorchPassThroughResults> instanceReader() {
         return PyTorchPassThroughResults::new;
@@ -24,20 +26,32 @@ public class PyTorchPassThroughResultsTests extends AbstractWireSerializingTestC
     protected PyTorchPassThroughResults createTestInstance() {
         int rows = randomIntBetween(1, 10);
         int columns = randomIntBetween(1, 10);
-        double [][] arr = new double[rows][columns];
-        for (int i=0; i<rows; i++) {
-            for (int j=0; j<columns; j++) {
+        double[][] arr = new double[rows][columns];
+        for (int i = 0; i < rows; i++) {
+            for (int j = 0; j < columns; j++) {
                 arr[i][j] = randomDouble();
             }
         }
 
-        return new PyTorchPassThroughResults(arr);
+        return new PyTorchPassThroughResults(DEFAULT_RESULTS_FIELD, arr, randomBoolean());
     }
 
     public void testAsMap() {
         PyTorchPassThroughResults testInstance = createTestInstance();
         Map<String, Object> asMap = testInstance.asMap();
-        assertThat(asMap.keySet(), hasSize(1));
-        assertArrayEquals(testInstance.getInference(), (double[][]) asMap.get(PyTorchPassThroughResults.DEFAULT_RESULTS_FIELD));
+        int size = testInstance.isTruncated ? 2 : 1;
+        assertThat(asMap.keySet(), hasSize(size));
+        assertArrayEquals(testInstance.getInference(), (double[][]) asMap.get(DEFAULT_RESULTS_FIELD));
+        if (testInstance.isTruncated) {
+            assertThat(asMap.get("is_truncated"), is(true));
+        }
+    }
+
+    @Override
+    void assertFieldValues(PyTorchPassThroughResults createdInstance, IngestDocument document, String resultsField) {
+        assertArrayEquals(
+            createdInstance.getInference(),
+            document.getFieldValue(resultsField + "." + createdInstance.getResultsField(), double[][].class)
+        );
     }
 }

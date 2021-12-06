@@ -60,10 +60,42 @@ setup:
   - is_true: index_templates.1.name
 
 ---
+"Pattern matching in index templates":
+  - skip:
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [test2] has index patterns [test2-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [test2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: test2
+        body:
+          index_patterns: test2-*
+          template:
+            settings:
+              number_of_shards:   1
+
+  - do:
+      indices.get_index_template:
+        name: "*"
+
+  - is_true: index_templates.0.name
+  - is_true: index_templates.1.name
+
+  - do:
+      indices.get_index_template:
+        name: "test*"
+
+  - match: { index_templates.0.name: "/test.*/" }
+  - match: { index_templates.1.name: "/test.*/" }
+
+---
 "Get index template with local flag":
   - skip:
-      version: " - 7.99.99"
-      reason: "index template v2 API has not been backported"
+      version: " - 7.7.99"
+      reason: "index template v2 API unavailable before 7.8"
 
   - do:
       indices.get_index_template:

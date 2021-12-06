@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,6 +41,7 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
             super(in);
             request = new NodesDeprecationCheckRequest(in);
         }
+
         public NodeRequest(NodesDeprecationCheckRequest request) {
             this.request = request;
         }
@@ -79,8 +81,7 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NodeResponse that = (NodeResponse) o;
-            return Objects.equals(getDeprecationIssues(), that.getDeprecationIssues())
-                && Objects.equals(getNode(), that.getNode());
+            return Objects.equals(getDeprecationIssues(), that.getDeprecationIssues()) && Objects.equals(getNode(), that.getNode());
         }
 
         @Override
@@ -89,12 +90,16 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
         }
     }
 
-    public static class RequestBuilder extends NodesOperationRequestBuilder<NodesDeprecationCheckRequest,
-        NodesDeprecationCheckResponse, RequestBuilder> {
+    public static class RequestBuilder extends NodesOperationRequestBuilder<
+        NodesDeprecationCheckRequest,
+        NodesDeprecationCheckResponse,
+        RequestBuilder> {
 
-        protected RequestBuilder(ElasticsearchClient client,
-                                 ActionType<NodesDeprecationCheckResponse> action,
-                                 NodesDeprecationCheckRequest request) {
+        protected RequestBuilder(
+            ElasticsearchClient client,
+            ActionType<NodesDeprecationCheckResponse> action,
+            NodesDeprecationCheckRequest request
+        ) {
             super(client, action, request);
         }
     }

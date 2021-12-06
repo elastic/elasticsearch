@@ -12,10 +12,10 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,7 +25,6 @@ import java.util.Set;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestClusterUpdateSettingsAction extends BaseRestHandler {
-
     private static final String PERSISTENT = "persistent";
     private static final String TRANSIENT = "transient";
 
@@ -40,20 +39,22 @@ public class RestClusterUpdateSettingsAction extends BaseRestHandler {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
         clusterUpdateSettingsRequest.timeout(request.paramAsTime("timeout", clusterUpdateSettingsRequest.timeout()));
         clusterUpdateSettingsRequest.masterNodeTimeout(
-                request.paramAsTime("master_timeout", clusterUpdateSettingsRequest.masterNodeTimeout()));
+            request.paramAsTime("master_timeout", clusterUpdateSettingsRequest.masterNodeTimeout())
+        );
         Map<String, Object> source;
         try (XContentParser parser = request.contentParser()) {
             source = parser.map();
         }
         if (source.containsKey(TRANSIENT)) {
-            clusterUpdateSettingsRequest.transientSettings((Map) source.get(TRANSIENT));
+            clusterUpdateSettingsRequest.transientSettings((Map<String, ?>) source.get(TRANSIENT));
         }
         if (source.containsKey(PERSISTENT)) {
-            clusterUpdateSettingsRequest.persistentSettings((Map) source.get(PERSISTENT));
+            clusterUpdateSettingsRequest.persistentSettings((Map<String, ?>) source.get(PERSISTENT));
         }
 
         return channel -> client.admin().cluster().updateSettings(clusterUpdateSettingsRequest, new RestToXContentListener<>(channel));

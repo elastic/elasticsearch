@@ -19,18 +19,28 @@ import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.ql.plugin.AbstractTransportQlAsyncGetStatusAction;
 
-
 public class TransportEqlAsyncGetStatusAction extends AbstractTransportQlAsyncGetStatusAction<EqlSearchResponse, EqlSearchTask> {
     @Inject
-    public TransportEqlAsyncGetStatusAction(TransportService transportService,
-                                            ActionFilters actionFilters,
-                                            ClusterService clusterService,
-                                            NamedWriteableRegistry registry,
-                                            Client client,
-                                            ThreadPool threadPool,
-                                            BigArrays bigArrays) {
-        super(EqlAsyncGetStatusAction.NAME, transportService, actionFilters, clusterService, registry, client, threadPool, bigArrays,
-            EqlSearchTask.class);
+    public TransportEqlAsyncGetStatusAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        NamedWriteableRegistry registry,
+        Client client,
+        ThreadPool threadPool,
+        BigArrays bigArrays
+    ) {
+        super(
+            EqlAsyncGetStatusAction.NAME,
+            transportService,
+            actionFilters,
+            clusterService,
+            registry,
+            client,
+            threadPool,
+            bigArrays,
+            EqlSearchTask.class
+        );
     }
 
     @Override

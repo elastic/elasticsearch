@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,11 +23,11 @@ public class StopDataFrameAnalyticsResponse implements ToXContentObject {
 
     private static final ParseField STOPPED = new ParseField("stopped");
 
-    public static final ConstructingObjectParser<StopDataFrameAnalyticsResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "stop_data_frame_analytics_response",
-            true,
-            args -> new StopDataFrameAnalyticsResponse((Boolean) args[0]));
+    public static final ConstructingObjectParser<StopDataFrameAnalyticsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "stop_data_frame_analytics_response",
+        true,
+        args -> new StopDataFrameAnalyticsResponse((Boolean) args[0])
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), STOPPED);
@@ -68,9 +68,6 @@ public class StopDataFrameAnalyticsResponse implements ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder
-            .startObject()
-            .field(STOPPED.getPreferredName(), stopped)
-            .endObject();
+        return builder.startObject().field(STOPPED.getPreferredName(), stopped).endObject();
     }
 }

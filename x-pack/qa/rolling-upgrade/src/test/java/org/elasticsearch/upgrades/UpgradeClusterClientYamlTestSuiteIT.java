@@ -8,6 +8,7 @@ package org.elasticsearch.upgrades;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -43,8 +44,11 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
         if (AbstractUpgradeTestCase.CLUSTER_TYPE == AbstractUpgradeTestCase.ClusterType.OLD) {
             try {
                 boolean clusterUnderstandsComposableTemplates = AbstractUpgradeTestCase.UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_8_0);
-                XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V7120_TEMPLATES,
-                    clusterUnderstandsComposableTemplates);
+                XPackRestTestHelper.waitForTemplates(
+                    client(),
+                    XPackRestTestConstants.ML_POST_V7120_TEMPLATES,
+                    clusterUnderstandsComposableTemplates
+                );
             } catch (AssertionError e) {
                 throw new AssertionError("Failure in test setup: Failed to initialize ML index templates", e);
             }
@@ -124,11 +128,11 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
     protected Settings restClientSettings() {
         String token = "Basic " + Base64.getEncoder().encodeToString(("test_user:x-pack-test-password").getBytes(StandardCharsets.UTF_8));
         return Settings.builder()
-                .put(ThreadContext.PREFIX + ".Authorization", token)
-                // we increase the timeout here to 90 seconds to handle long waits for a green
-                // cluster health. the waits for green need to be longer than a minute to
-                // account for delayed shards
-                .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
-                .build();
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            // we increase the timeout here to 90 seconds to handle long waits for a green
+            // cluster health. the waits for green need to be longer than a minute to
+            // account for delayed shards
+            .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
+            .build();
     }
 }

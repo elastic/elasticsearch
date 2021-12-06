@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.ml.datafeed.extractor.aggregation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -24,6 +22,8 @@ import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 
@@ -71,11 +71,13 @@ class AggregationToJsonProcessor {
      * @param startTime buckets with a timestamp before this time are discarded
      * @param compositeAggDateValueSourceName the value source for the date_histogram source in the composite agg, if it exists
      */
-    AggregationToJsonProcessor(String timeField,
-                               Set<String> fields,
-                               boolean includeDocCount,
-                               long startTime,
-                               @Nullable String compositeAggDateValueSourceName) {
+    AggregationToJsonProcessor(
+        String timeField,
+        Set<String> fields,
+        boolean includeDocCount,
+        long startTime,
+        @Nullable String compositeAggDateValueSourceName
+    ) {
         this.timeField = Objects.requireNonNull(timeField);
         this.fields = Objects.requireNonNull(fields);
         this.includeDocCount = includeDocCount;
@@ -114,11 +116,11 @@ class AggregationToJsonProcessor {
         // The leaf aggregations will be processed first.
         for (Aggregation agg : aggregations) {
             if (agg instanceof MultiBucketsAggregation) {
-                bucketAggregations.add((MultiBucketsAggregation)agg);
-            } else if (agg instanceof SingleBucketAggregation){
+                bucketAggregations.add((MultiBucketsAggregation) agg);
+            } else if (agg instanceof SingleBucketAggregation) {
                 // Skip a level down for single bucket aggs, if they have a sub-agg that is not
                 // a bucketed agg we should treat it like a leaf in this bucket
-                SingleBucketAggregation singleBucketAggregation = (SingleBucketAggregation)agg;
+                SingleBucketAggregation singleBucketAggregation = (SingleBucketAggregation) agg;
                 for (Aggregation subAgg : singleBucketAggregation.getAggregations()) {
                     if (subAgg instanceof MultiBucketsAggregation || subAgg instanceof SingleBucketAggregation) {
                         singleBucketAggregations.add(singleBucketAggregation);
@@ -135,10 +137,13 @@ class AggregationToJsonProcessor {
         // we have more than 1 `MultiBucketsAggregation`, we should error out.
         // We need to make the check in this way as each of the items in `singleBucketAggregations` is treated as a separate branch
         // in the recursive handling of this method.
-        int bucketAggLevelCount = Math.max(bucketAggregations.size(), (int)singleBucketAggregations.stream()
-            .flatMap(s -> asList(s.getAggregations()).stream())
-            .filter(MultiBucketsAggregation.class::isInstance)
-            .count());
+        int bucketAggLevelCount = Math.max(
+            bucketAggregations.size(),
+            (int) singleBucketAggregations.stream()
+                .flatMap(s -> asList(s.getAggregations()).stream())
+                .filter(MultiBucketsAggregation.class::isInstance)
+                .count()
+        );
 
         if (bucketAggLevelCount > 1) {
             throw new IllegalArgumentException("Multiple bucket aggregations at the same level are not supported");
@@ -181,12 +186,14 @@ class AggregationToJsonProcessor {
         // However, we only want to recurse with multi/single bucket aggs.
         // Non-bucketed sub-aggregations were handle as leaf aggregations at this level
         for (SingleBucketAggregation singleBucketAggregation : singleBucketAggregations) {
-            processAggs(singleBucketAggregation.getDocCount(),
-                asList(singleBucketAggregation.getAggregations())
-                    .stream()
+            processAggs(
+                singleBucketAggregation.getDocCount(),
+                asList(singleBucketAggregation.getAggregations()).stream()
                     .filter(
-                        aggregation -> (aggregation instanceof MultiBucketsAggregation || aggregation instanceof SingleBucketAggregation))
-                    .collect(Collectors.toList()));
+                        aggregation -> (aggregation instanceof MultiBucketsAggregation || aggregation instanceof SingleBucketAggregation)
+                    )
+                    .collect(Collectors.toList())
+            );
         }
 
         // If there are no more bucket aggregations to process we've reached the end
@@ -200,8 +207,12 @@ class AggregationToJsonProcessor {
 
     private void processDateHistogram(Histogram agg) throws IOException {
         if (keyValuePairs.containsKey(timeField)) {
-            throw new IllegalArgumentException("More than one composite or date_histogram cannot be used in the aggregation. " +
-                "[" + agg.getName() + "] is another instance of a composite or date_histogram aggregation");
+            throw new IllegalArgumentException(
+                "More than one composite or date_histogram cannot be used in the aggregation. "
+                    + "["
+                    + agg.getName()
+                    + "] is another instance of a composite or date_histogram aggregation"
+            );
         }
 
         // buckets are ordered by time, once we get to a bucket past the
@@ -227,14 +238,18 @@ class AggregationToJsonProcessor {
 
     private void processCompositeAgg(CompositeAggregation agg) throws IOException {
         if (keyValuePairs.containsKey(timeField)) {
-            throw new IllegalArgumentException("More than one composite or date_histogram cannot be used in the aggregation. " +
-                "[" + agg.getName() + "] is another instance of a composite or date_histogram aggregation");
+            throw new IllegalArgumentException(
+                "More than one composite or date_histogram cannot be used in the aggregation. "
+                    + "["
+                    + agg.getName()
+                    + "] is another instance of a composite or date_histogram aggregation"
+            );
         }
         // Shouldn't ever happen
         if (compositeAggDateValueSourceName == null) {
-            throw new IllegalArgumentException("attempted to process composite agg ["
-                + agg.getName()
-                + "] but does not contain date_histogram value source");
+            throw new IllegalArgumentException(
+                "attempted to process composite agg [" + agg.getName() + "] but does not contain date_histogram value source"
+            );
         }
 
         // Composite aggs have multiple items in the bucket. It is possible that within the current
@@ -287,11 +302,11 @@ class AggregationToJsonProcessor {
      */
     private long toHistogramKeyToEpoch(Object key) {
         if (key instanceof ZonedDateTime) {
-            return ((ZonedDateTime)key).toInstant().toEpochMilli();
+            return ((ZonedDateTime) key).toInstant().toEpochMilli();
         } else if (key instanceof Double) {
-            return ((Double)key).longValue();
+            return ((Double) key).longValue();
         } else if (key instanceof Long) {
-            return (Long)key;
+            return (Long) key;
         } else {
             throw new IllegalStateException("Histogram key [" + key + "] cannot be converted to a timestamp");
         }
@@ -346,7 +361,7 @@ class AggregationToJsonProcessor {
                 keyValuePairs.put(bucketAgg.getName(), bucket.getKey());
             }
             if (bucket instanceof CompositeAggregation.Bucket) {
-                addedFields.addAll(processCompositeAggBucketKeys(((CompositeAggregation.Bucket)bucket).getKey()));
+                addedFields.addAll(processCompositeAggBucketKeys(((CompositeAggregation.Bucket) bucket).getKey()));
             }
             processAggs(bucket.getDocCount(), asList(bucket.getAggregations()));
             for (String fieldName : addedFields) {
@@ -364,7 +379,7 @@ class AggregationToJsonProcessor {
             return processSingleValue((NumericMetricsAggregation.SingleValue) agg);
         } else if (agg instanceof Percentiles) {
             return processPercentiles((Percentiles) agg);
-        } else if (agg instanceof GeoCentroid){
+        } else if (agg instanceof GeoCentroid) {
             return processGeoCentroid((GeoCentroid) agg);
         } else {
             throw new IllegalArgumentException("Unsupported aggregation type [" + agg.getName() + "]");
@@ -410,7 +425,8 @@ class AggregationToJsonProcessor {
             Long timeStamp = (Long) copy.get(timeField);
             if (timeStamp == null) {
                 throw new IllegalArgumentException(
-                        Messages.getMessage(Messages.DATAFEED_MISSING_MAX_AGGREGATION_FOR_TIME_FIELD, timeField));
+                    Messages.getMessage(Messages.DATAFEED_MISSING_MAX_AGGREGATION_FOR_TIME_FIELD, timeField)
+                );
             }
 
             docsByBucketTimestamp.computeIfAbsent(timeStamp, (t) -> new ArrayList<>()).add(copy);

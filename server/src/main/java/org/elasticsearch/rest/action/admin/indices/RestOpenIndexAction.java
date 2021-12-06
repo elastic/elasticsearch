@@ -26,9 +26,7 @@ public class RestOpenIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/_open"),
-            new Route(POST, "/{index}/_open"));
+        return List.of(new Route(POST, "/_open"), new Route(POST, "/{index}/_open"));
     }
 
     @Override

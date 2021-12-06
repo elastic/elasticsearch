@@ -10,8 +10,8 @@ package org.elasticsearch.gradle.internal.vagrant;
 
 import org.apache.commons.io.output.TeeOutputStream;
 import org.elasticsearch.gradle.LoggedExec;
-import org.elasticsearch.gradle.internal.LoggingOutputStream;
 import org.elasticsearch.gradle.ReaperService;
+import org.elasticsearch.gradle.internal.LoggingOutputStream;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Action;
 import org.gradle.api.Project;
@@ -20,13 +20,14 @@ import org.gradle.internal.logging.progress.ProgressLogger;
 import org.gradle.internal.logging.progress.ProgressLoggerFactory;
 import org.gradle.process.ExecOperations;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.io.OutputStream;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.function.UnaryOperator;
+
+import javax.inject.Inject;
 
 /**
  * An helper to manage a vagrant box.

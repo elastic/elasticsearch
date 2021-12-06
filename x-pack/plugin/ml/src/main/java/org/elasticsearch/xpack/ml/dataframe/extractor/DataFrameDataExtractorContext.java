@@ -31,9 +31,18 @@ public class DataFrameDataExtractorContext {
     // fields should be mapped in the index.
     final Map<String, Object> runtimeMappings;
 
-    DataFrameDataExtractorContext(String jobId, ExtractedFields extractedFields, List<String> indices, QueryBuilder query, int scrollSize,
-                                  Map<String, String> headers, boolean includeSource, boolean supportsRowsWithMissingValues,
-                                  TrainTestSplitterFactory trainTestSplitterFactory, Map<String, Object> runtimeMappings) {
+    DataFrameDataExtractorContext(
+        String jobId,
+        ExtractedFields extractedFields,
+        List<String> indices,
+        QueryBuilder query,
+        int scrollSize,
+        Map<String, String> headers,
+        boolean includeSource,
+        boolean supportsRowsWithMissingValues,
+        TrainTestSplitterFactory trainTestSplitterFactory,
+        Map<String, Object> runtimeMappings
+    ) {
         this.jobId = Objects.requireNonNull(jobId);
         this.extractedFields = Objects.requireNonNull(extractedFields);
         this.indices = indices.toArray(new String[indices.size()]);

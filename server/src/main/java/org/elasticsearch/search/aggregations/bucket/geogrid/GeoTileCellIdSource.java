@@ -42,9 +42,9 @@ public class GeoTileCellIdSource extends ValuesSource.Numeric {
 
     @Override
     public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-        return geoBoundingBox.isUnbounded() ?
-            new UnboundedCellValues(valuesSource.geoPointValues(ctx), precision) :
-            new BoundedCellValues(valuesSource.geoPointValues(ctx), precision, geoBoundingBox);
+        return geoBoundingBox.isUnbounded()
+            ? new UnboundedCellValues(valuesSource.geoPointValues(ctx), precision)
+            : new BoundedCellValues(valuesSource.geoPointValues(ctx), precision, geoBoundingBox);
     }
 
     @Override
@@ -58,7 +58,6 @@ public class GeoTileCellIdSource extends ValuesSource.Numeric {
     }
 
     private static class UnboundedCellValues extends CellValues {
-
 
         UnboundedCellValues(MultiGeoPointValues geoValues, int precision) {
             super(geoValues, precision);
@@ -86,7 +85,7 @@ public class GeoTileCellIdSource extends ValuesSource.Numeric {
             final int minY = GeoTileUtils.getYTile(bbox.top(), this.tiles);
             final Rectangle minTile = GeoTileUtils.toBoundingBox(minX, minY, precision);
             // touching tiles are excluded, they need to share at least one interior point
-            this.minX = minTile.getMaxX() == bbox.left() ? minX + 1: minX;
+            this.minX = minTile.getMaxX() == bbox.left() ? minX + 1 : minX;
             this.minY = minTile.getMinY() == bbox.top() ? minY + 1 : minY;
             // compute maxX, maxY
             final int maxX = GeoTileUtils.getXTile(bbox.right(), this.tiles);

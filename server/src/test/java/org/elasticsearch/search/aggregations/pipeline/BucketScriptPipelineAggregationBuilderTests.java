@@ -31,7 +31,9 @@ public class BucketScriptPipelineAggregationBuilderTests extends BasePipelineAgg
     }
 
     public void testNoParent() {
-        assertThat(validate(emptyList(), new BucketScriptPipelineAggregationBuilder("foo", emptyMap(), new Script("foo"))),
-            equalTo("Validation Failed: 1: bucket_script aggregation [foo] must be declared inside of another aggregation;"));
+        assertThat(
+            validate(emptyList(), new BucketScriptPipelineAggregationBuilder("foo", emptyMap(), new Script("foo"))),
+            equalTo("Validation Failed: 1: bucket_script aggregation [foo] must be declared inside of another aggregation;")
+        );
     }
 }

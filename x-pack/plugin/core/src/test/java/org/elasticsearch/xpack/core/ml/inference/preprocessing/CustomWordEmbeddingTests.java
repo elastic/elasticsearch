@@ -7,10 +7,9 @@
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-
 
 public class CustomWordEmbeddingTests extends PreProcessingTests<CustomWordEmbedding> {
 

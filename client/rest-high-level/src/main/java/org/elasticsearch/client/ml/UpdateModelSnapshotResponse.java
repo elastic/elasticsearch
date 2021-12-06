@@ -8,12 +8,12 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.job.process.ModelSnapshot;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -31,9 +31,11 @@ public class UpdateModelSnapshotResponse implements ToXContentObject {
         this.model = modelSnapshot.build();
     }
 
-    public static final ConstructingObjectParser<UpdateModelSnapshotResponse, Void> PARSER =
-        new ConstructingObjectParser<>("update_model_snapshot_response", true,
-            a -> new UpdateModelSnapshotResponse((Boolean) a[0], ((ModelSnapshot.Builder) a[1])));
+    public static final ConstructingObjectParser<UpdateModelSnapshotResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "update_model_snapshot_response",
+        true,
+        a -> new UpdateModelSnapshotResponse((Boolean) a[0], ((ModelSnapshot.Builder) a[1]))
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ACKNOWLEDGED);
@@ -59,7 +61,7 @@ public class UpdateModelSnapshotResponse implements ToXContentObject {
      * Get the updated snapshot of the model
      * @return the updated model snapshot.
      */
-    public  ModelSnapshot getModel() {
+    public ModelSnapshot getModel() {
         return model;
     }
 
@@ -81,7 +83,6 @@ public class UpdateModelSnapshotResponse implements ToXContentObject {
         return builder;
     }
 
-
     @Override
     public boolean equals(Object obj) {
         if (obj == null) {
@@ -91,7 +92,6 @@ public class UpdateModelSnapshotResponse implements ToXContentObject {
             return false;
         }
         UpdateModelSnapshotResponse request = (UpdateModelSnapshotResponse) obj;
-        return Objects.equals(acknowledged, request.acknowledged)
-            && Objects.equals(model, request.model);
+        return Objects.equals(acknowledged, request.acknowledged) && Objects.equals(model, request.model);
     }
 }

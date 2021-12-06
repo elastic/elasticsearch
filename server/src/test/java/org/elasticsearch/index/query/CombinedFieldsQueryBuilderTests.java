@@ -8,12 +8,12 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.sandbox.search.CombinedFieldQuery;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.XCombinedFieldQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -36,7 +36,7 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
         if (randomBoolean()) {
             query.field(field);
         } else {
-            query.field(field,  1.0f + randomFloat());
+            query.field(field, 1.0f + randomFloat());
         }
 
         if (randomBoolean()) {
@@ -59,26 +59,31 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
      */
     @Override
     protected void doAssertLuceneQuery(CombinedFieldsQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
-        assertThat(query, anyOf(Arrays.asList(
-            instanceOf(BooleanQuery.class),
-            instanceOf(TermQuery.class),
-            instanceOf(MatchAllDocsQuery.class),
-            instanceOf(MatchNoDocsQuery.class),
-            instanceOf(XCombinedFieldQuery.class)
-        )));
+        assertThat(
+            query,
+            anyOf(
+                Arrays.asList(
+                    instanceOf(BooleanQuery.class),
+                    instanceOf(TermQuery.class),
+                    instanceOf(MatchAllDocsQuery.class),
+                    instanceOf(MatchNoDocsQuery.class),
+                    instanceOf(CombinedFieldQuery.class)
+                )
+            )
+        );
     }
 
     public void testValuesFromXContent() throws IOException {
-        String json = "{\n" +
-                "  \"combined_fields\" : {\n" +
-                "    \"query\" : \"quick brown fox\",\n" +
-                "    \"fields\" : [ \"abstract^1.0\", \"body^1.0\", \"title^1.0\" ],\n" +
-                "    \"operator\" : \"OR\",\n" +
-                "    \"zero_terms_query\" : \"NONE\",\n" +
-                "    \"auto_generate_synonyms_phrase_query\" : true,\n" +
-                "    \"boost\" : 2.0\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"combined_fields\" : {\n"
+            + "    \"query\" : \"quick brown fox\",\n"
+            + "    \"fields\" : [ \"abstract^1.0\", \"body^1.0\", \"title^1.0\" ],\n"
+            + "    \"operator\" : \"OR\",\n"
+            + "    \"zero_terms_query\" : \"NONE\",\n"
+            + "    \"auto_generate_synonyms_phrase_query\" : true,\n"
+            + "    \"boost\" : 2.0\n"
+            + "  }\n"
+            + "}";
 
         CombinedFieldsQueryBuilder parsed = (CombinedFieldsQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
@@ -100,7 +105,9 @@ public class CombinedFieldsQueryBuilderTests extends AbstractQueryTestCase<Combi
             String json = "{\n"
                 + "  \"combined_fields\" : {\n"
                 + "    \"query\" : \"quick brown fox\",\n"
-                + "    \"minimum_should_match\" : " + value + "\n"
+                + "    \"minimum_should_match\" : "
+                + value
+                + "\n"
                 + "  }\n"
                 + "}";
 

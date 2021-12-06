@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.blobstore.url;
 
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedFunction;
 
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -35,7 +35,6 @@ public class URLBlobStore implements BlobStore {
         new ByteSizeValue(100, ByteSizeUnit.KB),
         Setting.Property.NodeScope
     );
-
 
     private final URL path;
 
@@ -60,8 +59,13 @@ public class URLBlobStore implements BlobStore {
 
         final String protocol = this.path.getProtocol();
         if (protocol.equals("http") || protocol.equals("https")) {
-            this.blobContainerFactory = (blobPath) ->
-                new HttpURLBlobContainer(this, blobPath, buildPath(blobPath), httpClient, httpClientSettings);
+            this.blobContainerFactory = (blobPath) -> new HttpURLBlobContainer(
+                this,
+                blobPath,
+                buildPath(blobPath),
+                httpClient,
+                httpClientSettings
+            );
         } else if (protocol.equals("file")) {
             this.blobContainerFactory = (blobPath) -> new FileURLBlobContainer(this, blobPath, buildPath(blobPath));
         } else {
@@ -93,11 +97,11 @@ public class URLBlobStore implements BlobStore {
     }
 
     @Override
-    public BlobContainer blobContainer(BlobPath path) {
+    public BlobContainer blobContainer(BlobPath blobPath) {
         try {
-            return blobContainerFactory.apply(path);
+            return blobContainerFactory.apply(blobPath);
         } catch (MalformedURLException ex) {
-            throw new BlobStoreException("malformed URL " + path, ex);
+            throw new BlobStoreException("malformed URL " + blobPath, ex);
         }
     }
 
@@ -109,11 +113,11 @@ public class URLBlobStore implements BlobStore {
     /**
      * Builds URL using base URL and specified path
      *
-     * @param path relative path
+     * @param relativePath relative path
      * @return Base URL + path
      */
-    private URL buildPath(BlobPath path) throws MalformedURLException {
-        List<String> paths = path.parts();
+    private URL buildPath(BlobPath relativePath) throws MalformedURLException {
+        List<String> paths = relativePath.parts();
         if (paths.isEmpty()) {
             return path();
         }

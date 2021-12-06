@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
 
@@ -155,8 +155,10 @@ public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<Ca
     public void testStrictParser() throws IOException {
         String json = "{\"job_id\":\"job_1\", \"foo\":\"bar\"}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, json)) {
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> CategoryDefinition.STRICT_PARSER.apply(parser, null));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> CategoryDefinition.STRICT_PARSER.apply(parser, null)
+            );
 
             assertThat(e.getMessage(), containsString("unknown field [foo]"));
         }
@@ -171,10 +173,6 @@ public class CategoryDefinitionTests extends AbstractBWCSerializationTestCase<Ca
 
     @Override
     protected CategoryDefinition mutateInstanceForVersion(CategoryDefinition instance, Version version) {
-        if (version.before(Version.V_7_8_0)) {
-            instance.setPreferredToCategories(new long[0]);
-            instance.setNumMatches(0L);
-        }
         return instance;
     }
 }

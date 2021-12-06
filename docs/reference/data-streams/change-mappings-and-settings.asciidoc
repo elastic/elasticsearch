@@ -514,14 +514,14 @@ index doesn’t grow too large while waiting for the rollover check. By default,
 {ilm-init} checks rollover conditions every 10 minutes.
 +
 --
-The following <<cluster-update-settings,update cluster settings API>> request
+The following <<cluster-update-settings,cluster update settings API>> request
 lowers the `indices.lifecycle.poll_interval` setting to `1m` (one minute).
 
 [source,console]
 ----
 PUT /_cluster/settings
 {
-  "transient": {
+  "persistent": {
     "indices.lifecycle.poll_interval": "1m"
   }
 }
@@ -577,7 +577,9 @@ stream's oldest backing index.
       "status": "GREEN",
       "template": "my-data-stream-template",
       "hidden": false,
-      "system": false
+      "system": false,
+      "allow_custom_routing": false,
+      "replicated": false
     }
   ]
 }
@@ -650,14 +652,14 @@ original value when reindexing is complete. This prevents unnecessary load on
 the master node.
 +
 --
-The following update cluster settings API request resets the
-`indices.lifecycle.poll_interval` setting to its default value, 10 minutes.
+The following cluster update settings API request resets the
+`indices.lifecycle.poll_interval` setting to its default value.
 
 [source,console]
 ----
 PUT /_cluster/settings
 {
-  "transient": {
+  "persistent": {
     "indices.lifecycle.poll_interval": null
   }
 }

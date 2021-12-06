@@ -89,7 +89,8 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
             null,
             Collections.emptyMap(),
             null,
-            false
+            false,
+            null
         );
         return ValuesSourceConfig.resolveFieldOnly(ft, context);
     }
@@ -118,35 +119,21 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
         withAggregationContext(mapperService, List.of(source(b -> b.field("field", "abc"))), context -> {
             for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
-                assertNotNull(
-                    pointReaderShim(context(new MatchAllDocsQuery()), null, getVSConfig("number", type, true, context))
-                );
+                assertNotNull(pointReaderShim(context(new MatchAllDocsQuery()), null, getVSConfig("number", type, true, context)));
                 assertNotNull(pointReaderShim(context(null), null, getVSConfig("number", type, true, context)));
                 assertNull(pointReaderShim(context(null), mockAggregator(), getVSConfig("number", type, true, context)));
                 assertNull(
-                    pointReaderShim(
-                        context(new TermQuery(new Term("foo", "bar"))),
-                        null,
-                        getVSConfig("number", type, true, context)
-                    )
+                    pointReaderShim(context(new TermQuery(new Term("foo", "bar"))), null, getVSConfig("number", type, true, context))
                 );
                 assertNull(pointReaderShim(context(null), mockAggregator(), getVSConfig("number", type, true, context)));
                 assertNull(pointReaderShim(context(null), null, getVSConfig("number", type, false, context)));
             }
             for (DateFieldMapper.Resolution resolution : DateFieldMapper.Resolution.values()) {
                 assertNull(
-                    pointReaderShim(
-                        context(new MatchAllDocsQuery()),
-                        mockAggregator(),
-                        getVSConfig("number", resolution, true, context)
-                    )
+                    pointReaderShim(context(new MatchAllDocsQuery()), mockAggregator(), getVSConfig("number", resolution, true, context))
                 );
                 assertNull(
-                    pointReaderShim(
-                        context(new TermQuery(new Term("foo", "bar"))),
-                        null,
-                        getVSConfig("number", resolution, true, context)
-                    )
+                    pointReaderShim(context(new TermQuery(new Term("foo", "bar"))), null, getVSConfig("number", resolution, true, context))
                 );
                 assertNull(pointReaderShim(context(null), mockAggregator(), getVSConfig("number", resolution, true, context)));
                 assertNull(pointReaderShim(context(null), null, getVSConfig("number", resolution, false, context)));

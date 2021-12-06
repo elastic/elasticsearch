@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.core.security.action;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 
@@ -28,12 +28,12 @@ public class CreateApiKeyRequestBuilderTests extends ESTestCase {
     public void testParserAndCreateApiRequestBuilder() throws IOException {
         boolean withExpiration = randomBoolean();
         final String json = "{ \"name\" : \"my-api-key\", "
-                + ((withExpiration) ? " \"expiration\": \"1d\", " : "")
-                +" \"role_descriptors\": { \"role-a\": {\"cluster\":[\"a-1\", \"a-2\"],"
-                + " \"index\": [{\"names\": [\"indx-a\"], \"privileges\": [\"read\"] }] }, "
-                + " \"role-b\": {\"cluster\":[\"b\"],"
-                + " \"index\": [{\"names\": [\"indx-b\"], \"privileges\": [\"read\"] }] } "
-                + "} }";
+            + ((withExpiration) ? " \"expiration\": \"1d\", " : "")
+            + " \"role_descriptors\": { \"role-a\": {\"cluster\":[\"a-1\", \"a-2\"],"
+            + " \"index\": [{\"names\": [\"indx-a\"], \"privileges\": [\"read\"] }] }, "
+            + " \"role-b\": {\"cluster\":[\"b\"],"
+            + " \"index\": [{\"names\": [\"indx-b\"], \"privileges\": [\"read\"] }] } "
+            + "} }";
         final BytesArray source = new BytesArray(json);
         final NodeClient mockClient = mock(NodeClient.class);
         final CreateApiKeyRequest request = new CreateApiKeyRequestBuilder(mockClient).source(source, XContentType.JSON).request();
@@ -46,15 +46,14 @@ public class CreateApiKeyRequestBuilderTests extends ESTestCase {
             if (rd.getName().equals("role-a")) {
                 clusters = new String[] { "a-1", "a-2" };
                 indicesPrivileges = RoleDescriptor.IndicesPrivileges.builder().indices("indx-a").privileges("read").build();
-            } else if (rd.getName().equals("role-b")){
+            } else if (rd.getName().equals("role-b")) {
                 clusters = new String[] { "b" };
                 indicesPrivileges = RoleDescriptor.IndicesPrivileges.builder().indices("indx-b").privileges("read").build();
             } else {
                 fail("unexpected role name");
             }
             assertThat(rd.getClusterPrivileges(), arrayContainingInAnyOrder(clusters));
-            assertThat(rd.getIndicesPrivileges(),
-                    arrayContainingInAnyOrder(indicesPrivileges));
+            assertThat(rd.getIndicesPrivileges(), arrayContainingInAnyOrder(indicesPrivileges));
         }
         if (withExpiration) {
             assertThat(request.getExpiration(), equalTo(TimeValue.parseTimeValue("1d", "expiration")));
@@ -65,9 +64,9 @@ public class CreateApiKeyRequestBuilderTests extends ESTestCase {
         boolean withExpiration = randomBoolean();
         boolean noRoleDescriptorsField = randomBoolean();
         final String json = "{ \"name\" : \"my-api-key\""
-                + ((withExpiration) ? ", \"expiration\": \"1d\"" : "")
-                + ((noRoleDescriptorsField) ? "" : ", \"role_descriptors\": {}")
-                + "}";
+            + ((withExpiration) ? ", \"expiration\": \"1d\"" : "")
+            + ((noRoleDescriptorsField) ? "" : ", \"role_descriptors\": {}")
+            + "}";
         final BytesArray source = new BytesArray(json);
         final NodeClient mockClient = mock(NodeClient.class);
         final CreateApiKeyRequest request = new CreateApiKeyRequestBuilder(mockClient).source(source, XContentType.JSON).request();

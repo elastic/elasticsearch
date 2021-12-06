@@ -24,8 +24,7 @@ public class RestGetTrialStatus extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(GET, "/_license/trial_status")
-                .replaces(GET, "/_xpack/license/trial_status", RestApiVersion.V_7).build()
+            Route.builder(GET, "/_license/trial_status").replaces(GET, "/_xpack/license/trial_status", RestApiVersion.V_7).build()
         );
     }
 

@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.core.security.action.enrollment;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,10 +25,12 @@ public final class NodeEnrollmentResponse extends ActionResponse implements ToXC
     private static final ParseField HTTP_CA_CERT = new ParseField("http_ca_cert");
     private static final ParseField TRANSPORT_KEY = new ParseField("transport_key");
     private static final ParseField TRANSPORT_CERT = new ParseField("transport_cert");
+    private static final ParseField TRANSPORT_CA_CERT = new ParseField("transport_ca_cert");
     private static final ParseField NODES_ADDRESSES = new ParseField("nodes_addresses");
 
     private final String httpCaKey;
     private final String httpCaCert;
+    private final String transportCaCert;
     private final String transportKey;
     private final String transportCert;
     private final List<String> nodesAddresses;
@@ -37,15 +39,23 @@ public final class NodeEnrollmentResponse extends ActionResponse implements ToXC
         super(in);
         httpCaKey = in.readString();
         httpCaCert = in.readString();
+        transportCaCert = in.readString();
         transportKey = in.readString();
         transportCert = in.readString();
         nodesAddresses = in.readStringList();
     }
 
-    public NodeEnrollmentResponse(String httpCaKey, String httpCaCert, String transportKey, String transportCert,
-                                  List<String> nodesAddresses) {
+    public NodeEnrollmentResponse(
+        String httpCaKey,
+        String httpCaCert,
+        String transportCaCert,
+        String transportKey,
+        String transportCert,
+        List<String> nodesAddresses
+    ) {
         this.httpCaKey = httpCaKey;
         this.httpCaCert = httpCaCert;
+        this.transportCaCert = transportCaCert;
         this.transportKey = transportKey;
         this.transportCert = transportCert;
         this.nodesAddresses = nodesAddresses;
@@ -57,6 +67,10 @@ public final class NodeEnrollmentResponse extends ActionResponse implements ToXC
 
     public String getHttpCaCert() {
         return httpCaCert;
+    }
+
+    public String getTransportCaCert() {
+        return transportCaCert;
     }
 
     public String getTransportKey() {
@@ -71,34 +85,43 @@ public final class NodeEnrollmentResponse extends ActionResponse implements ToXC
         return nodesAddresses;
     }
 
-    @Override public void writeTo(StreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         out.writeString(httpCaKey);
         out.writeString(httpCaCert);
+        out.writeString(transportCaCert);
         out.writeString(transportKey);
         out.writeString(transportCert);
         out.writeStringCollection(nodesAddresses);
     }
 
-    @Override public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field(HTTP_CA_KEY.getPreferredName(), httpCaKey);
         builder.field(HTTP_CA_CERT.getPreferredName(), httpCaCert);
+        builder.field(TRANSPORT_CA_CERT.getPreferredName(), transportCaCert);
         builder.field(TRANSPORT_KEY.getPreferredName(), transportKey);
         builder.field(TRANSPORT_CERT.getPreferredName(), transportCert);
         builder.field(NODES_ADDRESSES.getPreferredName(), nodesAddresses);
         return builder.endObject();
     }
 
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NodeEnrollmentResponse that = (NodeEnrollmentResponse) o;
-        return httpCaKey.equals(that.httpCaKey) && httpCaCert.equals(that.httpCaCert) && transportKey.equals(that.transportKey)
+        return httpCaKey.equals(that.httpCaKey)
+            && httpCaCert.equals(that.httpCaCert)
+            && transportCaCert.equals(that.transportCaCert)
+            && transportKey.equals(that.transportKey)
             && transportCert.equals(that.transportCert)
             && nodesAddresses.equals(that.nodesAddresses);
     }
 
-    @Override public int hashCode() {
-        return Objects.hash(httpCaKey, httpCaCert, transportKey, transportCert, nodesAddresses);
+    @Override
+    public int hashCode() {
+        return Objects.hash(httpCaKey, httpCaCert, transportCaCert, transportKey, transportCert, nodesAddresses);
     }
 }

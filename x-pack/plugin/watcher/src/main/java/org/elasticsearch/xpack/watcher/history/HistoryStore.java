@@ -15,8 +15,8 @@ import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.history.WatchRecord;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
@@ -57,12 +57,12 @@ public class HistoryStore {
      * Any existing watchRecord will be overwritten.
      */
     public void forcePut(WatchRecord watchRecord) {
-            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            watchRecord.toXContent(builder, WatcherParams.HIDE_SECRETS);
 
-                IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM).id(watchRecord.id().value()).source(builder);
-                request.opType(DocWriteRequest.OpType.CREATE);
-                bulkProcessor.add(request);
+            IndexRequest request = new IndexRequest(HistoryStoreField.DATA_STREAM).id(watchRecord.id().value()).source(builder);
+            request.opType(DocWriteRequest.OpType.CREATE);
+            bulkProcessor.add(request);
         } catch (IOException ioe) {
             final WatchRecord wr = watchRecord;
             logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to persist watch record [{}]", wr), ioe);
@@ -78,8 +78,9 @@ public class HistoryStore {
      */
     public static boolean validate(ClusterState state) {
         IndexMetadata indexMetadata = WatchStoreUtils.getConcreteIndex(HistoryStoreField.DATA_STREAM, state.metadata());
-        return indexMetadata == null || (indexMetadata.getState() == IndexMetadata.State.OPEN &&
-            state.routingTable().index(indexMetadata.getIndex()).allPrimaryShardsActive());
+        return indexMetadata == null
+            || (indexMetadata.getState() == IndexMetadata.State.OPEN
+                && state.routingTable().index(indexMetadata.getIndex()).allPrimaryShardsActive());
     }
 
     public void flush() {

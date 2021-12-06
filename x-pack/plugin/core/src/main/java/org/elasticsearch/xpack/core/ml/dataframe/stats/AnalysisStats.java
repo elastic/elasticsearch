@@ -7,10 +7,9 @@
 package org.elasticsearch.xpack.core.ml.dataframe.stats;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 /**
  * Statistics for the data frame analysis
  */
-public interface AnalysisStats extends ToXContentObject, NamedWriteable {
-}
+public interface AnalysisStats extends ToXContentObject, NamedWriteable {}

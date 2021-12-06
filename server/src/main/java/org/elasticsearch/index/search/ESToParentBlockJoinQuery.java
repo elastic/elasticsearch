@@ -94,7 +94,7 @@ public final class ESToParentBlockJoinQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(getClass(), query, path);
+        return Objects.hash(classHash(), query, path);
     }
 
     @Override

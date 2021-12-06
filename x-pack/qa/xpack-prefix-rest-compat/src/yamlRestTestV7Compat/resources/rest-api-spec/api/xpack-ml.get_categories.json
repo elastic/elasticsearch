@@ -1,0 +1,73 @@
+{
+  "xpack-ml.get_categories":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-category.html",
+      "description":"Retrieves anomaly detection job results for one or more categories."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/ml/anomaly_detectors/{job_id}/results/categories/{category_id}",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The name of the job"
+            },
+            "category_id":{
+              "type":"long",
+              "description":"The identifier of the category definition of interest"
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        },
+        {
+          "path":"/_xpack/ml/anomaly_detectors/{job_id}/results/categories/",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "job_id":{
+              "type":"string",
+              "description":"The name of the job"
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        }
+      ]
+    },
+    "params":{
+      "from":{
+        "type":"int",
+        "description":"skips a number of categories"
+      },
+      "size":{
+        "type":"int",
+        "description":"specifies a max number of categories to get"
+      },
+      "partition_field_value":{
+        "type":"string",
+        "description":"Specifies the partition to retrieve categories for. This is optional, and should never be used for jobs where per-partition categorization is disabled."
+      }
+    },
+    "body":{
+      "description":"Category selection details if not provided in URI"
+    }
+  }
+}

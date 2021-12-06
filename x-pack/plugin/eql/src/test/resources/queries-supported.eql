@@ -1,6 +1,6 @@
 process where process_name : "svchost.exe" and command_line != "* -k *";
 process where process_name in ("ipconfig.exe", "netstat.exe", "systeminfo.exe", "route.exe");
-process where subtype.create and wildcard(command_line, "*.ost *", "*.pst *")
+process where subtype.create and command_line like ("*.ost *", "*.pst *")
 ;
 
 process where subtype.create and
@@ -698,3 +698,20 @@ sequence
 
 // case sensitive
 process where startswith~(process_name,"net") and endswith(command_line,".exe");
+
+// optional fields
+sequence by `?somefield` [any where true] [any where true]
+sequence by x [any where true] by ?`?somefield` [any where true]
+sequence by ?`?somefield` [any where true] [any where true]
+sequence by x [any where true] [any where true] by `?somefield`
+
+sequence by ?x, ?y, z, ?t [any where true] by ?z [any where t == ?y] by t
+sequence by ?x, ?y, z, ?t [any where true] by z [any where t == y] by t
+sequence by z, ?t [any where true] by ?a, ?b [any where t == y] by ?a, ?b
+sequence by z, ?t [any where true] by ?a, ?b [any where t == y] by ?a, ?b
+sequence by z, ?`t?t` [any where ?a == concat(?b,?c)] by ?a, ?b [any where ?`abc` == y] by ?a, ?b
+
+any where `some?field` == null
+any where ?`some?field` == null
+any where `somefield?`
+any where ?`somefield?`

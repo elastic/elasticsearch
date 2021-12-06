@@ -44,10 +44,9 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
     public void setUpTest() {
         // set up a system index upgrade service
         this.service = new SystemIndexMetadataUpgradeService(
-            new SystemIndices(
-                Map.of("MyIndex", new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR)))),
+            new SystemIndices(Map.of("MyIndex", new SystemIndices.Feature("foo", "a test feature", List.of(DESCRIPTOR)))),
             mock(ClusterService.class)
-            );
+        );
     }
 
     /**
@@ -82,7 +81,8 @@ public class SystemIndexMetadataUpgradeServiceTests extends ESTestCase {
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("system-index-metadata-upgrade-service-tests"))
             .metadata(clusterMetadata.build())
-            .customs(ImmutableOpenMap.of()).build();
+            .customs(ImmutableOpenMap.of())
+            .build();
 
         // Get a metadata upgrade task and execute it on the initial cluster state
         ClusterState newState = service.getTask().execute(clusterState);

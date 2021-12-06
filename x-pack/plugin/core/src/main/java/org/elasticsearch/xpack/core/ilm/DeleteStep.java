@@ -31,7 +31,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, ActionListener<Boolean> listener) {
+    public void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentState, ActionListener<Void> listener) {
         String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         String indexName = indexMetadata.getIndex().getName();
         IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(indexName);
@@ -40,26 +40,37 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
 
         if (dataStream != null) {
             assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
-            if (dataStream.getIndices().size() == 1 && dataStream.getIndices().get(0).equals(indexMetadata)) {
+            if (dataStream.getIndices().size() == 1 && dataStream.getIndices().get(0).equals(indexMetadata.getIndex())) {
                 // This is the last index in the data stream, the entire stream
                 // needs to be deleted, because we can't have an empty data stream
-                DeleteDataStreamAction.Request deleteReq = new DeleteDataStreamAction.Request(new String[]{dataStream.getName()});
-                getClient().execute(DeleteDataStreamAction.INSTANCE, deleteReq,
-                    ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
+                DeleteDataStreamAction.Request deleteReq = new DeleteDataStreamAction.Request(new String[] { dataStream.getName() });
+                getClient().execute(
+                    DeleteDataStreamAction.INSTANCE,
+                    deleteReq,
+                    ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
+                );
                 return;
-            } else if (dataStream.getWriteIndex().getIndex().getName().equals(indexName)) {
-                String errorMessage = String.format(Locale.ROOT, "index [%s] is the write index for data stream [%s]. " +
-                        "stopping execution of lifecycle [%s] as a data stream's write index cannot be deleted. manually rolling over the" +
-                        " index will resume the execution of the policy as the index will not be the data stream's write index anymore",
-                    indexName, dataStream.getName(), policyName);
+            } else if (dataStream.getWriteIndex().getName().equals(indexName)) {
+                String errorMessage = String.format(
+                    Locale.ROOT,
+                    "index [%s] is the write index for data stream [%s]. "
+                        + "stopping execution of lifecycle [%s] as a data stream's write index cannot be deleted. manually rolling over the"
+                        + " index will resume the execution of the policy as the index will not be the data stream's write index anymore",
+                    indexName,
+                    dataStream.getName(),
+                    policyName
+                );
                 logger.debug(errorMessage);
                 throw new IllegalStateException(errorMessage);
             }
         }
 
-        getClient().admin().indices()
-            .delete(new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE),
-                ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
+        getClient().admin()
+            .indices()
+            .delete(
+                new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE),
+                ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
+            );
     }
 
     @Override

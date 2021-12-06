@@ -61,12 +61,27 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
     private final AnomalyDetectionAuditor auditor;
 
     @Inject
-    public TransportResetJobAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, Client client,
-                                   JobConfigProvider jobConfigProvider, JobResultsProvider jobResultsProvider,
-                                   AnomalyDetectionAuditor auditor) {
-        super(ResetJobAction.NAME, transportService, clusterService, threadPool, actionFilters, ResetJobAction.Request::new,
-            indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportResetJobAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client,
+        JobConfigProvider jobConfigProvider,
+        JobResultsProvider jobResultsProvider,
+        AnomalyDetectionAuditor auditor
+    ) {
+        super(
+            ResetJobAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            ResetJobAction.Request::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.client = Objects.requireNonNull(client);
         this.jobConfigProvider = Objects.requireNonNull(jobConfigProvider);
         this.jobResultsProvider = Objects.requireNonNull(jobResultsProvider);
@@ -74,8 +89,12 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
     }
 
     @Override
-    protected void masterOperation(Task task, ResetJobAction.Request request, ClusterState state,
-                                   ActionListener<AcknowledgedResponse> listener) throws Exception {
+    protected void masterOperation(
+        Task task,
+        ResetJobAction.Request request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) throws Exception {
         if (MlMetadata.getMlMetadata(state).isUpgradeMode()) {
             listener.onFailure(ExceptionsHelper.conflictStatusException("cannot reset job while indices are being upgraded"));
             return;
@@ -83,66 +102,105 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
 
         final TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
-        ActionListener<Job.Builder> jobListener = ActionListener.wrap(
-            jobBuilder -> {
-                Job job = jobBuilder.build();
-                PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-                JobState jobState = MlTasks.getJobState(job.getId(), tasks);
-                if (request.isSkipJobStateValidation() == false && jobState != JobState.CLOSED) {
-                    listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_RESET)));
-                    return;
-                }
-                if (job.getBlocked().getReason() != Blocked.Reason.NONE && job.getBlocked().getReason() != Blocked.Reason.RESET) {
-                    listener.onFailure(ExceptionsHelper.conflictStatusException(
-                        "cannot reset job while it is blocked with [" + job.getBlocked().getReason() + "]"));
-                    return;
-                }
+        ActionListener<Job.Builder> jobListener = ActionListener.wrap(jobBuilder -> {
+            Job job = jobBuilder.build();
+            PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+            JobState jobState = MlTasks.getJobState(job.getId(), tasks);
+            if (request.isSkipJobStateValidation() == false && jobState != JobState.CLOSED) {
+                listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_RESET)));
+                return;
+            }
+            if (job.getBlocked().getReason() != Blocked.Reason.NONE && job.getBlocked().getReason() != Blocked.Reason.RESET) {
+                listener.onFailure(
+                    ExceptionsHelper.conflictStatusException(
+                        "cannot reset job while it is blocked with [" + job.getBlocked().getReason() + "]"
+                    )
+                );
+                return;
+            }
 
-                if (job.getBlocked().getReason() == Blocked.Reason.RESET) {
-                    waitExistingResetTaskToComplete(job.getBlocked().getTaskId(), request, listener);
-                } else {
-                    ParentTaskAssigningClient taskClient = new ParentTaskAssigningClient(client, taskId);
-                    jobConfigProvider.updateJobBlockReason(job.getId(), new Blocked(Blocked.Reason.RESET, taskId), ActionListener.wrap(
-                        r -> resetJob(taskClient, (CancellableTask) task, request, listener),
-                        listener::onFailure
-                    ));
-                }
-            },
-            listener::onFailure
-        );
+            if (job.getBlocked().getReason() == Blocked.Reason.RESET) {
+                waitExistingResetTaskToComplete(
+                    job.getBlocked().getTaskId(),
+                    request,
+                    ActionListener.wrap(r -> resetIfJobIsStillBlockedOnReset(task, request, listener), listener::onFailure)
+                );
+            } else {
+                ParentTaskAssigningClient taskClient = new ParentTaskAssigningClient(client, taskId);
+                jobConfigProvider.updateJobBlockReason(
+                    job.getId(),
+                    new Blocked(Blocked.Reason.RESET, taskId),
+                    ActionListener.wrap(r -> resetJob(taskClient, (CancellableTask) task, request, listener), listener::onFailure)
+                );
+            }
+        }, listener::onFailure);
 
         jobConfigProvider.getJob(request.getJobId(), jobListener);
     }
 
-    private void waitExistingResetTaskToComplete(TaskId existingTaskId, ResetJobAction.Request request,
-                                                 ActionListener<AcknowledgedResponse> listener) {
-        logger.debug(() -> new ParameterizedMessage(
-            "[{}] Waiting on existing reset task: {}", request.getJobId(), existingTaskId));
+    private void waitExistingResetTaskToComplete(
+        TaskId existingTaskId,
+        ResetJobAction.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        logger.debug(() -> new ParameterizedMessage("[{}] Waiting on existing reset task: {}", request.getJobId(), existingTaskId));
         GetTaskRequest getTaskRequest = new GetTaskRequest();
         getTaskRequest.setTaskId(existingTaskId);
         getTaskRequest.setWaitForCompletion(true);
         getTaskRequest.setTimeout(request.timeout());
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetTaskAction.INSTANCE, getTaskRequest, ActionListener.wrap(
-            getTaskResponse -> {
-                TaskResult taskResult = getTaskResponse.getTask();
-                if (taskResult.isCompleted()) {
-                    listener.onResponse(AcknowledgedResponse.of(true));
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetTaskAction.INSTANCE, getTaskRequest, ActionListener.wrap(getTaskResponse -> {
+            TaskResult taskResult = getTaskResponse.getTask();
+            if (taskResult.isCompleted()) {
+                listener.onResponse(AcknowledgedResponse.of(true));
+            } else {
+                BytesReference taskError = taskResult.getError();
+                if (taskError != null) {
+                    listener.onFailure(ExceptionsHelper.serverError("reset failed to complete; error [{}]", taskError.utf8ToString()));
                 } else {
-                    BytesReference taskError = taskResult.getError();
-                    if (taskError != null) {
-                        listener.onFailure(ExceptionsHelper.serverError("reset failed to complete; error [{}]",
-                            taskError.utf8ToString()));
-                    } else {
-                        listener.onFailure(ExceptionsHelper.serverError("reset failed to complete"));
-                    }
+                    listener.onFailure(ExceptionsHelper.serverError("reset failed to complete"));
                 }
-            },
-            listener::onFailure
-        ));
+            }
+        }, listener::onFailure));
     }
 
-    private void resetJob(ParentTaskAssigningClient taskClient, CancellableTask task, ResetJobAction.Request request,
-                          ActionListener<AcknowledgedResponse> listener) {
+    private void resetIfJobIsStillBlockedOnReset(Task task, ResetJobAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+        ActionListener<Job.Builder> jobListener = ActionListener.wrap(jobResponse -> {
+            Job job = jobResponse.build();
+            if (job.getBlocked().getReason() == Blocked.Reason.NONE) {
+                // This means the previous reset task finished successfully as it managed to unset the blocked reason.
+                logger.debug(() -> new ParameterizedMessage("[{}] Existing reset task finished successfully", request.getJobId()));
+                listener.onResponse(AcknowledgedResponse.TRUE);
+            } else if (job.getBlocked().getReason() == Blocked.Reason.RESET) {
+                // Seems like the task was removed abruptly as it hasn't unset the block on reset.
+                // Let us try reset again.
+                logger.debug(
+                    () -> new ParameterizedMessage("[{}] Existing reset task was interrupted; retrying reset", request.getJobId())
+                );
+                ParentTaskAssigningClient taskClient = new ParentTaskAssigningClient(
+                    client,
+                    new TaskId(clusterService.localNode().getId(), task.getId())
+                );
+                resetJob(taskClient, (CancellableTask) task, request, listener);
+            } else {
+                // Blocked reason is now different. Let us just communicate the conflict.
+                listener.onFailure(
+                    ExceptionsHelper.conflictStatusException(
+                        "cannot reset job while it is blocked with [" + job.getBlocked().getReason() + "]"
+                    )
+                );
+            }
+        }, listener::onFailure);
+
+        // Get job again to check if it is still blocked
+        jobConfigProvider.getJob(request.getJobId(), jobListener);
+    }
+
+    private void resetJob(
+        ParentTaskAssigningClient taskClient,
+        CancellableTask task,
+        ResetJobAction.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         String jobId = request.getJobId();
 
         // Now that we have updated the job's block reason, we should check again
@@ -150,59 +208,61 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
         PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, tasks);
         if (request.isSkipJobStateValidation() == false && jobState != JobState.CLOSED) {
-            jobConfigProvider.updateJobBlockReason(jobId, null, ActionListener.wrap(
-                clearResetResponse -> listener.onFailure(ExceptionsHelper.conflictStatusException(
-                    Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_RESET))),
-                e -> listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_RESET)))
-            ));
+            jobConfigProvider.updateJobBlockReason(
+                jobId,
+                null,
+                ActionListener.wrap(
+                    clearResetResponse -> listener.onFailure(
+                        ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_RESET))
+                    ),
+                    e -> listener.onFailure(
+                        ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_RESET))
+                    )
+                )
+            );
             return;
         }
 
         logger.info("[{}] Resetting job", jobId);
 
-        ActionListener<Boolean> resultsIndexCreatedListener = ActionListener.wrap(
-            resultsIndexCreatedResponse -> {
-                if (task.isCancelled()) {
-                    listener.onResponse(AcknowledgedResponse.of(false));
-                    return;
-                }
-                finishSuccessfulReset(jobId, listener);
-            },
-            listener::onFailure
-        );
+        ActionListener<Boolean> resultsIndexCreatedListener = ActionListener.wrap(resultsIndexCreatedResponse -> {
+            if (task.isCancelled()) {
+                listener.onResponse(AcknowledgedResponse.of(false));
+                return;
+            }
+            finishSuccessfulReset(jobId, listener);
+        }, listener::onFailure);
 
         CheckedConsumer<Boolean, Exception> jobDocsDeletionListener = response -> {
             if (task.isCancelled()) {
                 listener.onResponse(AcknowledgedResponse.of(false));
                 return;
             }
-            jobConfigProvider.getJob(jobId, ActionListener.wrap(
-                jobBuilder -> {
-                    if (task.isCancelled()) {
-                        listener.onResponse(AcknowledgedResponse.of(false));
-                        return;
-                    }
-                    jobResultsProvider.createJobResultIndex(
-                        jobBuilder.build(), clusterService.state(), resultsIndexCreatedListener);
-                },
-                listener::onFailure
-            ));
+            jobConfigProvider.getJob(jobId, ActionListener.wrap(jobBuilder -> {
+                if (task.isCancelled()) {
+                    listener.onResponse(AcknowledgedResponse.of(false));
+                    return;
+                }
+                jobResultsProvider.createJobResultIndex(jobBuilder.build(), clusterService.state(), resultsIndexCreatedListener);
+            }, listener::onFailure));
         };
 
         JobDataDeleter jobDataDeleter = new JobDataDeleter(taskClient, jobId);
-        jobDataDeleter.deleteJobDocuments(jobConfigProvider, indexNameExpressionResolver,
-            clusterService.state(), jobDocsDeletionListener, listener::onFailure);
+        jobDataDeleter.deleteJobDocuments(
+            jobConfigProvider,
+            indexNameExpressionResolver,
+            clusterService.state(),
+            jobDocsDeletionListener,
+            listener::onFailure
+        );
     }
 
     private void finishSuccessfulReset(String jobId, ActionListener<AcknowledgedResponse> listener) {
-        jobConfigProvider.updateJobAfterReset(jobId, ActionListener.wrap(
-            blockReasonUpdatedResponse -> {
-                logger.info("[{}] Reset has successfully completed", jobId);
-                auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_RESET));
-                listener.onResponse(AcknowledgedResponse.of(true));
-            },
-            listener::onFailure
-        ));
+        jobConfigProvider.updateJobAfterReset(jobId, ActionListener.wrap(blockReasonUpdatedResponse -> {
+            logger.info("[{}] Reset has successfully completed", jobId);
+            auditor.info(jobId, Messages.getMessage(Messages.JOB_AUDIT_RESET));
+            listener.onResponse(AcknowledgedResponse.of(true));
+        }, listener::onFailure));
     }
 
     @Override

@@ -14,12 +14,19 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.MediaType;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -29,34 +36,43 @@ import static org.hamcrest.core.IsEqual.equalTo;
  */
 public class CompatibleNamedXContentRegistryTests extends ESTestCase {
     static class ParentObject {
-        private static final ConstructingObjectParser<ParentObject, String> PARSER =
-            new ConstructingObjectParser<>("parentParser", false,
-                (a, name) -> new ParentObject(name, (SubObject) a[0]));
+        private static final ConstructingObjectParser<ParentObject, String> PARSER = new ConstructingObjectParser<>(
+            "parentParser",
+            false,
+            (a, name) -> new ParentObject(name, (NewSubObject) a[0])
+        );
 
         String name;
-        SubObject subObject;
+        NewSubObject subObject;
 
         static {
-            PARSER.declareNamedObject(ConstructingObjectParser.constructorArg(),
-                (p, c, n) -> p.namedObject(SubObject.class, n, null),
-                new ParseField("subObject"));
+            PARSER.declareNamedObject(
+                ConstructingObjectParser.constructorArg(),
+                (p, c, n) -> p.namedObject(NewSubObject.class, n, null),
+                new ParseField("subObject")
+            );
         }
 
-        ParentObject(String name, SubObject subObject) {
+        ParentObject(String name, NewSubObject subObject) {
             this.name = name;
             this.subObject = subObject;
         }
-
 
         public static ParentObject parse(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
     }
 
-    static class SubObject {
-        private static final ConstructingObjectParser<SubObject, String> PARSER = new ConstructingObjectParser<>(
-            "parser1", false,
-            a -> new SubObject((String) a[0]));
+    static class NewSubObject {
+        public static final Function<RestApiVersion, Boolean> REST_API_VERSION = RestApiVersion.onOrAfter(RestApiVersion.current());
+        private static final ConstructingObjectParser<NewSubObject, String> PARSER = new ConstructingObjectParser<>(
+            "parser1",
+            false,
+            a -> new NewSubObject((String) a[0])
+        );
+        static final ParseField NAME = new ParseField("namedObjectName1").forRestApiVersion(
+            RestApiVersion.onOrAfter(RestApiVersion.current())
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("new_field"));
@@ -64,37 +80,47 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
 
         String field;
 
-        SubObject(String field) {
+        NewSubObject(String field) {
             this.field = field;
         }
 
-        public static SubObject parse(XContentParser parser) {
+        public static NewSubObject parse(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
     }
 
-    static class OldSubObject extends SubObject {
-        private static final ConstructingObjectParser<SubObject, String> PARSER = new ConstructingObjectParser<>(
-            "parser2", false,
-            a -> new SubObject((String) a[0]));
+    static class OldSubObject {
+        public static final Function<RestApiVersion, Boolean> REST_API_VERSION = RestApiVersion.equalTo(RestApiVersion.minimumSupported());
 
+        private static final ConstructingObjectParser<NewSubObject, String> PARSER = new ConstructingObjectParser<>(
+            "parser2",
+            false,
+            a -> new NewSubObject((String) a[0])
+        );
+        static final ParseField NAME = new ParseField("namedObjectName1").forRestApiVersion(
+            RestApiVersion.equalTo(RestApiVersion.minimumSupported())
+        );
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("old_field"));
         }
+        String field;
 
         OldSubObject(String field) {
-            super(field);
+            this.field = field;
         }
 
-        public static SubObject parse(XContentParser parser) {
+        public static NewSubObject parse(XContentParser parser) {
             return PARSER.apply(parser, null);
         }
     }
 
     public void testNotCompatibleRequest() throws IOException {
         NamedXContentRegistry registry = new NamedXContentRegistry(
-            Arrays.asList(new NamedXContentRegistry.Entry(SubObject.class, new ParseField("namedObjectName1"), SubObject::parse)),
-            Arrays.asList(new NamedXContentRegistry.Entry(SubObject.class, new ParseField("namedObjectName1"), OldSubObject::parse)));
+            List.of(
+                new NamedXContentRegistry.Entry(NewSubObject.class, NewSubObject.NAME, NewSubObject::parse, NewSubObject.REST_API_VERSION),
+                new NamedXContentRegistry.Entry(NewSubObject.class, OldSubObject.NAME, OldSubObject::parse, OldSubObject.REST_API_VERSION)
+            )
+        );
 
         XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());
         b.startObject();
@@ -106,27 +132,27 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
         b.endObject();
 
         String mediaType = XContentType.VND_JSON.toParsedMediaType()
-            .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME,
-                String.valueOf(Version.CURRENT.major)));
+            .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(Version.CURRENT.major)));
         List<String> mediaTypeList = Collections.singletonList(mediaType);
 
-        RestRequest restRequest = new FakeRestRequest.Builder(registry)
-            .withContent(BytesReference.bytes(b), RestRequest.parseContentType(mediaTypeList))
-            .withPath("/foo")
-            .withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList))
-            .build();
+        RestRequest restRequest = new FakeRestRequest.Builder(registry).withContent(
+            BytesReference.bytes(b),
+            RestRequest.parseContentType(mediaTypeList)
+        ).withPath("/foo").withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList)).build();
 
         try (XContentParser p = restRequest.contentParser()) {
             ParentObject parse = ParentObject.parse(p);
             assertThat(parse.subObject.field, equalTo("value1"));
         }
-
     }
 
     public void testCompatibleRequest() throws IOException {
-        NamedXContentRegistry compatibleRegistry = new NamedXContentRegistry(
-            Arrays.asList(new NamedXContentRegistry.Entry(SubObject.class, new ParseField("namedObjectName1"), SubObject::parse)),
-            Arrays.asList(new NamedXContentRegistry.Entry(SubObject.class, new ParseField("namedObjectName1"), OldSubObject::parse)));
+        NamedXContentRegistry registry = new NamedXContentRegistry(
+            List.of(
+                new NamedXContentRegistry.Entry(NewSubObject.class, NewSubObject.NAME, NewSubObject::parse, NewSubObject.REST_API_VERSION),
+                new NamedXContentRegistry.Entry(NewSubObject.class, OldSubObject.NAME, OldSubObject::parse, OldSubObject.REST_API_VERSION)
+            )
+        );
 
         XContentBuilder b = XContentBuilder.builder(XContentType.JSON.xContent());
         b.startObject();
@@ -137,15 +163,15 @@ public class CompatibleNamedXContentRegistryTests extends ESTestCase {
         b.endObject();
         b.endObject();
         String mediaType = XContentType.VND_JSON.toParsedMediaType()
-            .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME,
-                String.valueOf(RestApiVersion.minimumSupported().major)));
+            .responseContentTypeHeader(
+                Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(RestApiVersion.minimumSupported().major))
+            );
         List<String> mediaTypeList = Collections.singletonList(mediaType);
 
-        RestRequest restRequest2 = new FakeRestRequest.Builder(compatibleRegistry)
-            .withContent(BytesReference.bytes(b), RestRequest.parseContentType(mediaTypeList))
-            .withPath("/foo")
-            .withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList))
-            .build();
+        RestRequest restRequest2 = new FakeRestRequest.Builder(registry).withContent(
+            BytesReference.bytes(b),
+            RestRequest.parseContentType(mediaTypeList)
+        ).withPath("/foo").withHeaders(Map.of("Content-Type", mediaTypeList, "Accept", mediaTypeList)).build();
 
         try (XContentParser p = restRequest2.contentParser()) {
             ParentObject parse = ParentObject.parse(p);

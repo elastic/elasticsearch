@@ -8,15 +8,18 @@
 
 package org.elasticsearch.action.support.single.instance;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.core.TimeValue;
 
-public abstract class InstanceShardOperationRequestBuilder<Request extends InstanceShardOperationRequest<Request>,
-        Response extends ActionResponse, RequestBuilder extends InstanceShardOperationRequestBuilder<Request, Response, RequestBuilder>>
-        extends ActionRequestBuilder<Request, Response> {
+public abstract class InstanceShardOperationRequestBuilder<
+    Request extends InstanceShardOperationRequest<Request>,
+    Response extends ActionResponse,
+    RequestBuilder extends InstanceShardOperationRequestBuilder<Request, Response, RequestBuilder>> extends ActionRequestBuilder<
+        Request,
+        Response> {
 
     protected InstanceShardOperationRequestBuilder(ElasticsearchClient client, ActionType<Response> action, Request request) {
         super(client, action, request);

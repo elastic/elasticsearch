@@ -20,10 +20,10 @@ Analysis is not configurable: text is always analyzed with the
 <<text-field-type,`text`>> field type if you absolutely need span queries.
 
 Other than that, `match_only_text` supports the same queries as `text`. And
-like `text`, it does not support sorting and has only limited support for aggretations.
+like `text`, it does not support sorting and has only limited support for aggregations.
 
 [source,console]
---------------------------------
+----
 PUT logs
 {
   "mappings": {
@@ -37,7 +37,7 @@ PUT logs
     }
   }
 }
---------------------------------
+----
 
 [discrete]
 [[match-only-text-params]]

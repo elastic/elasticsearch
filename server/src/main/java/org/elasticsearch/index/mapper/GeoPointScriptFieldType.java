@@ -26,6 +26,7 @@ import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.GeoPointDocValuesField;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQuery;
@@ -98,11 +99,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
 
     @Override
     public GeoPointScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new GeoPointScriptFieldData.Builder(
-            name(),
-            leafFactory(searchLookup.get()),
-            (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.GeoPoints(new ScriptDocValues.GeoPointsSupplier(dv)), n)
-        );
+        return new GeoPointScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), GeoPointDocValuesField::new);
     }
 
     @Override

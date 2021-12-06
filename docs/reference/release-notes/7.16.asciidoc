@@ -65,7 +65,7 @@ EQL::
 * Refine repeatable queries {es-pull}78895[#78895] (issue: {es-issue}75082[#75082])
 
 Machine Learning::
-* [ML] Text/Log categorization multi-bucket aggregation {es-pull}71752[#71752]
+* Text/Log categorization multi-bucket aggregation {es-pull}71752[#71752]
 
 SQL::
 * Add ability to perform CCS through SQL querying {es-pull}78903[#78903]
@@ -207,9 +207,13 @@ License::
 Machine Learning::
 * Add new `normalize_above` parameter to `p_value` significant terms heuristic {es-pull}78833[#78833]
 * Add new default char filter `first_line_with_letters` for machine learning categorization {es-pull}77457[#77457]
-* Adding new `defer_definition_decompression` parameter to put trained model API {es-pull}77189[#77189] (issue: {es-issue}77132[#77132])
+* Add new `defer_definition_decompression` parameter to put trained model API {es-pull}77189[#77189] (issue: {es-issue}77132[#77132])
 * Enable ML on macOS on ARM {es-pull}78203[#78203]
 * Track feature usage for data frame analytics, inference, and anomaly jobs {es-pull}76789[#76789]
+* Speed up training of regression and classification models {ml-pull}2024[#2024]
+* Improve concurrency for training regression and classification models {ml-pull}2031[#2031]
+* Improve aspects of implementation of `skip_model_update` rule {ml-pull}2053[#2053]
+* Make sure instrumentation captures the best hyperparameters found for training classification and regression models{ml-pull}2057{#2057}
 
 Mapping::
 * Better error message for long keys in flattened fields {es-pull}80433[#80433] (issue: {es-issue}78248[#78248])
@@ -369,9 +373,9 @@ Java High Level REST Client::
 * Force typed keys in the HLRC get async search {es-pull}78992[#78992] (issue: {es-issue}77608[#77608])
 
 Machine Learning::
-* Address potential ml feature reset permissions bug {es-pull}79179[#79179]
+* Address potential ML feature reset permissions bug {es-pull}79179[#79179]
 * Adjust ML memory tracker to reduce logging impact {es-pull}78482[#78482]
-* Audit job open failures and stop any corresponding datafeed {es-pull}80665[#80665] (issues: {es-issue}48934[#48934], {es-issue}80621[#80621])
+* Audit job open failures and stop any corresponding datafeeds {es-pull}80665[#80665] (issues: {es-issue}48934[#48934], {es-issue}80621[#80621])
 * Fix acceptable model snapshot versions in ML deprecation checker {es-pull}81060[#81060] (issues: {es-issue}79387[#79387], {es-issue}81039[#81039], {es-issue}119745[#119745])
 * Fix autoscaling capacity consistency {es-pull}81181[#81181]
 * Fix bug in inference stats persister for when feature reset is called {es-pull}77213[#77213] (issue: {es-issue}77182[#77182])
@@ -382,6 +386,9 @@ Machine Learning::
 * Need to tolerate .ml-config being an alias {es-pull}80025[#80025]
 * Parent datafeed actions to the datafeed's persistent task {es-pull}81143[#81143]
 * Wait for .ml-state-write alias to be readable {es-pull}79731[#79731] (issue: {es-issue}79636[#79636])
+* Correct ANOVA for Gaussian Process that is fit to the loss surface, which affects early stopping. Also, improve the estimates of hyperparameter importance {ml-pull}2073[#2073]
+* Fix numerical instability in hyperparameter optimization for training regression and classification models {ml-pull}2078[#2078]
+* Fix numerical stability issues in time series modelling {ml-pull}2083[#[2083]]
 
 Mapping::
 * Disable request cache for non-deterministic runtime fields {es-pull}75054[#75054]
@@ -415,7 +422,7 @@ Snapshot/Restore::
 
 Transform::
 * Fix transform feature reset permissions bug {es-pull}79178[#79178]
-* Respect timeout parameters in all API's {es-pull}79468[#79468] (issue: {es-issue}79268[#79268])
+* Respect timeout parameters in all APIs {es-pull}79468[#79468] (issue: {es-issue}79268[#79268])
 
 Watcher::
 * Fix watcher check that determines when to serialize indices options {es-pull}78070[#78070] (issue: {es-issue}78035[#78035])

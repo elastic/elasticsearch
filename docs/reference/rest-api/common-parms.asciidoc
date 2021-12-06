@@ -617,7 +617,7 @@ end::require-alias[]
 tag::bulk-dynamic-templates[]
 `dynamic_templates`::
 (Optional, map)
-A map from the full name of fields to the name of <<dynamic-templates, dynamic templates>.
+A map from the full name of fields to the name of <<dynamic-templates,dynamic templates>>.
 Defaults to an empty map. If a name matches a dynamic template, then that template will be
 applied regardless of other match predicates defined in the template. And if a field is
 already defined in the mapping, then this parameter won't be used.
@@ -1107,9 +1107,7 @@ end::timeout[]
 end::timeoutparms[]
 
 tag::transform-id[]
-Identifier for the {transform}. This identifier can contain lowercase
-alphanumeric characters (a-z and 0-9), hyphens, and underscores. It has a 64
-character limit and must start and end with alphanumeric characters.
+Identifier for the {transform}.
 end::transform-id[]
 
 tag::transform-id-wildcard[]

@@ -2,8 +2,8 @@
 setup:
   # Create a local tsdb index with a tsid the doesn't overlap with the remote cluster.
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       indices.create:
@@ -13,6 +13,9 @@ setup:
             index:
               mode: time_series
               routing_path: [metricset, k8s.pod.uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
               number_of_replicas: 0
               number_of_shards: 2
           mappings:

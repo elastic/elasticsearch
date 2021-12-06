@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -123,7 +125,7 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         final List<?> sourceValue = fetchSourceValue(mapper, WellKnownText.toWKT(geometry), mvtString);
         List<byte[]> features;
         try {
-            features = featureFactory.getFeatures(geometry);
+            features = featureFactory.getFeatures(normalize(geometry));
         } catch (IllegalArgumentException iae) {
             // if parsing fails means that we must be ignoring malformed values. In case of mvt might
             // happen that the geometry is out of range (close to the poles).
@@ -132,6 +134,14 @@ public class GeoShapeWithDocValuesFieldTypeTests extends FieldTypeTestCase {
         assertThat(features.size(), Matchers.equalTo(sourceValue.size()));
         for (int i = 0; i < features.size(); i++) {
             assertThat(sourceValue.get(i), Matchers.equalTo(features.get(i)));
+        }
+    }
+
+    private Geometry normalize(Geometry geometry) {
+        if (GeometryNormalizer.needsNormalize(Orientation.CCW, geometry)) {
+            return GeometryNormalizer.apply(Orientation.CCW, geometry);
+        } else {
+            return geometry;
         }
     }
 

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -23,6 +21,7 @@ import org.elasticsearch.indices.SystemIndices;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A service responsible for updating the metadata used by system indices.
@@ -54,11 +53,11 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
             final ImmutableOpenMap<String, IndexMetadata> indexMetadataMap = event.state().metadata().indices();
 
             if (lastIndexMetadataMap != indexMetadataMap) {
-                for (ObjectObjectCursor<String, IndexMetadata> cursor : indexMetadataMap) {
-                    if (cursor.value != lastIndexMetadataMap.get(cursor.key)) {
-                        final boolean isSystem = systemIndices.isSystemIndex(cursor.value.getIndex())
-                            || systemIndices.isSystemIndexBackingDataStream(cursor.value.getIndex().getName());
-                        if (isSystem != cursor.value.isSystem()) {
+                for (Map.Entry<String, IndexMetadata> cursor : indexMetadataMap.entrySet()) {
+                    if (cursor.getValue() != lastIndexMetadataMap.get(cursor.getKey())) {
+                        final boolean isSystem = systemIndices.isSystemIndex(cursor.getValue().getIndex())
+                            || systemIndices.isSystemIndexBackingDataStream(cursor.getValue().getIndex().getName());
+                        if (isSystem != cursor.getValue().isSystem()) {
                             updateTaskPending = true;
                             clusterService.submitStateUpdateTask(
                                 "system_index_metadata_upgrade_service {system metadata change}",
@@ -83,23 +82,24 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         public ClusterState execute(ClusterState currentState) throws Exception {
             final ImmutableOpenMap<String, IndexMetadata> indexMetadataMap = currentState.metadata().indices();
             final List<IndexMetadata> updatedMetadata = new ArrayList<>();
-            for (ObjectObjectCursor<String, IndexMetadata> cursor : indexMetadataMap) {
-                if (cursor.value != lastIndexMetadataMap.get(cursor.key)) {
-                    final boolean isSystem = systemIndices.isSystemIndex(cursor.value.getIndex())
-                        || systemIndices.isSystemIndexBackingDataStream(cursor.value.getIndex().getName());
-                    IndexMetadata.Builder builder = IndexMetadata.builder(cursor.value);
+            for (Map.Entry<String, IndexMetadata> cursor : indexMetadataMap.entrySet()) {
+                final IndexMetadata indexMetadata = cursor.getValue();
+                if (indexMetadata != lastIndexMetadataMap.get(cursor.getKey())) {
+                    final boolean isSystem = systemIndices.isSystemIndex(indexMetadata.getIndex())
+                        || systemIndices.isSystemIndexBackingDataStream(indexMetadata.getIndex().getName());
+                    IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata);
                     boolean updated = false;
-                    if (isSystem != cursor.value.isSystem()) {
-                        builder.system(cursor.value.isSystem() == false);
+                    if (isSystem != indexMetadata.isSystem()) {
+                        builder.system(indexMetadata.isSystem() == false);
                         updated = true;
                     }
-                    boolean isHidden = cursor.value.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false);
+                    boolean isHidden = indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false);
                     if (isSystem && isHidden == false) {
-                        builder.settings(Settings.builder().put(cursor.value.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
+                        builder.settings(Settings.builder().put(indexMetadata.getSettings()).put(IndexMetadata.SETTING_INDEX_HIDDEN, true));
                         updated = true;
                     }
-                    if (isSystem && cursor.value.getAliases().values().stream().anyMatch(a -> a.isHidden() == false)) {
-                        for (AliasMetadata aliasMetadata : cursor.value.getAliases().values()) {
+                    if (isSystem && indexMetadata.getAliases().values().stream().anyMatch(a -> a.isHidden() == false)) {
+                        for (AliasMetadata aliasMetadata : indexMetadata.getAliases().values()) {
                             if (aliasMetadata.isHidden() == false) {
                                 builder.removeAlias(aliasMetadata.alias());
                                 builder.putAlias(

@@ -1995,6 +1995,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 .put(getIndexSettings())
                 .put(IndexSettings.MODE.getKey(), "time_series")
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dim.*")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2021-04-28T00:00:00Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2021-04-29T00:00:00Z")
                 .build(),
             mapping(b -> {
                 b.startObject("dim");

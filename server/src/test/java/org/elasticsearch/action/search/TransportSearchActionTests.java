@@ -717,7 +717,8 @@ public class TransportSearchActionTests extends ESTestCase {
 
                 }
             }
-            {
+            // put the following in assert busy as connections are lazily reestablished
+            assertBusy(() -> {
                 SearchRequest searchRequest = new SearchRequest();
                 final CountDownLatch latch = new CountDownLatch(1);
                 SetOnce<Tuple<SearchRequest, ActionListener<SearchResponse>>> setOnce = new SetOnce<>();
@@ -753,7 +754,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(totalClusters, searchResponse.getClusters().getTotal());
                 assertEquals(totalClusters, searchResponse.getClusters().getSuccessful());
                 assertEquals(totalClusters == 1 ? 1 : totalClusters + 1, searchResponse.getNumReducePhases());
-            }
+            });
             assertEquals(0, service.getConnectionManager().size());
         } finally {
             for (MockTransportService mockTransportService : mockTransportServices) {
@@ -913,7 +914,8 @@ public class TransportSearchActionTests extends ESTestCase {
 
                 }
             }
-            {
+            // run the following under assertBusy as connections are lazily reestablished
+            assertBusy(() -> {
                 final CountDownLatch latch = new CountDownLatch(1);
                 AtomicInteger skippedClusters = new AtomicInteger(0);
                 AtomicReference<Map<String, ClusterSearchShardsResponse>> response = new AtomicReference<>();
@@ -937,7 +939,7 @@ public class TransportSearchActionTests extends ESTestCase {
                     assertTrue(map.containsKey(clusterAlias));
                     assertNotNull(map.get(clusterAlias));
                 }
-            }
+            });
             assertEquals(0, service.getConnectionManager().size());
         } finally {
             for (MockTransportService mockTransportService : mockTransportServices) {

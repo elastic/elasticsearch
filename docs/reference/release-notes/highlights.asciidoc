@@ -56,6 +56,13 @@ node during the can-match phase. This request covers checks for all impacted
 shards on the node. This significantly reduces the number of requests and lowers
 related overhead.
 
+=== Field capabilities: Results gathered by node for scalability
+
+Previously, field caps were gathered by sending a request per index to the
+appropriate nodes in the cluster resulting in high overhead when many indices
+were targeted. Now requests that target indices on a single node are grouped
+together resulting in no more than a single request per node.
+
 === Frozen tier: Cached requests and queries
 
 Requests and queries against indices in the frozen tier are now cached,
@@ -86,13 +93,5 @@ succession. Rather than type the same event criteria multiple times, you can use
 a `with runs` statement to declare the criteria once and run it successively.
 For more details, check out the
 {ref}/eql-syntax.html#eql-with-runs-statement[EQL syntax documentation].
-
-
-=== Field capabilities: Results gathered by node rather than index
-
-Previously, field caps were gathered by sending a request per index to the
-appropriate nodes in the cluster resulting in high overhead when many indices
-were targeted. Now requests that target indices on a single node are grouped
-together resulting in no more than a single request per node.
 
 // end::notable-highlights[]

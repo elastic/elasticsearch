@@ -58,6 +58,7 @@ public class ECSJsonLayout {
         private KeyValuePair[] additionalFields() {
             return new KeyValuePair[] {
                 new KeyValuePair("trace.id", "%trace_id"),
+                new KeyValuePair("elasticsearch.elastic_product_origin", "%product_origin"),
                 new KeyValuePair("elasticsearch.cluster.uuid", "%cluster_id"),
                 new KeyValuePair("elasticsearch.node.id", "%node_id"),
                 new KeyValuePair("elasticsearch.node.name", "%ESnode_name"),

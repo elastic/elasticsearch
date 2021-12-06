@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Current task information
@@ -34,6 +35,9 @@ public class Task {
      */
     public static final String TRACE_PARENT = "traceparent";
 
+    public static final String PRODUCT_ORIGIN = "x-elastic-product-origin";
+
+    public static final Set<String> HEADERS_TO_COPY = Set.of(X_OPAQUE_ID, TRACE_PARENT, PRODUCT_ORIGIN);
     /**
      * Parsed part of traceparent. It is stored in thread context and emitted in logs.
      * Has to be declared as a header copied over for tasks.

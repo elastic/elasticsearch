@@ -14,19 +14,19 @@ import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.elasticsearch.tasks.Task;
 
 /**
- * Pattern converter to format the trace id provided in the traceparent header into JSON fields <code>trace.id</code>.
+ * Pattern converter to format the x-elastic-product-origin header into JSON fields <code>elasticsearch.elastic_product_origin</code>.
  */
-@Plugin(category = PatternConverter.CATEGORY, name = "TraceIdConverter")
-@ConverterKeys({ "trace_id" })
-public final class TraceIdConverter extends ThreadContextBasedConverter {
+@Plugin(category = PatternConverter.CATEGORY, name = "ProductOriginConverter")
+@ConverterKeys({ "product_origin" })
+public final class ProductOriginConverter extends ThreadContextBasedConverter {
     /**
      * Called by log4j2 to initialize this converter.
      */
-    public static TraceIdConverter newInstance(@SuppressWarnings("unused") final String[] options) {
-        return new TraceIdConverter();
+    public static ProductOriginConverter newInstance(@SuppressWarnings("unused") final String[] options) {
+        return new ProductOriginConverter();
     }
 
-    public TraceIdConverter() {
-        super("trace_id", Task.TRACE_ID);
+    public ProductOriginConverter() {
+        super("product_origin", Task.PRODUCT_ORIGIN);
     }
 }

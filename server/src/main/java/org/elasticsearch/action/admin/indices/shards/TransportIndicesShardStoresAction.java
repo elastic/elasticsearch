@@ -208,7 +208,7 @@ public class TransportIndicesShardStoresAction extends TransportMasterNodeReadAc
                 ImmutableOpenMap.Builder<
                     String,
                     ImmutableOpenIntMap<java.util.List<IndicesShardStoresResponse.StoreStatus>>> indicesStoreStatusesBuilder =
-                    ImmutableOpenMap.builder();
+                        ImmutableOpenMap.builder();
 
                 java.util.List<IndicesShardStoresResponse.Failure> failureBuilder = new ArrayList<>();
                 for (Response fetchResponse : fetchResponses) {

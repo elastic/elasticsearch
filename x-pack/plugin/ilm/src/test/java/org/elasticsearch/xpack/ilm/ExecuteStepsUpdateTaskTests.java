@@ -131,26 +131,26 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
 
         indexName = randomAlphaOfLength(5);
         lifecycleMetadata = new IndexLifecycleMetadata(policyMap, OperationMode.RUNNING);
-        indexMetadata = setupIndexPolicy(mixedPolicyName);
+        setupIndexPolicy(mixedPolicyName);
     }
 
-    private IndexMetadata setupIndexPolicy(String policyName) {
+    private void setupIndexPolicy(String policyName) {
         // Reset the index to use the "allClusterPolicyName"
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhase("new");
         lifecycleState.setAction("init");
         lifecycleState.setStep("init");
-        IndexMetadata _indexMetadata = IndexMetadata.builder(indexName)
+        indexMetadata = IndexMetadata.builder(indexName)
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
             .putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.build().asMap())
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        index = _indexMetadata.getIndex();
+        index = indexMetadata.getIndex();
         Metadata metadata = Metadata.builder()
             .persistentSettings(settings(Version.CURRENT).build())
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
-            .put(IndexMetadata.builder(_indexMetadata))
+            .put(IndexMetadata.builder(indexMetadata))
             .build();
         String nodeId = randomAlphaOfLength(10);
         DiscoveryNode masterNode = DiscoveryNode.createLocal(
@@ -163,7 +163,6 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
             .build();
         policyStepsRegistry.update(clusterState.metadata().custom(IndexLifecycleMetadata.TYPE));
-        return _indexMetadata;
     }
 
     public void testNeverExecuteNonClusterStateStep() throws Exception {

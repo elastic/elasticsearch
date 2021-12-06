@@ -43,7 +43,7 @@ enable <<deprecation-logging, deprecation logging>>.
 ==== Settings changes
 
 [[breaking_716_disk_threshold_enabled_operator_only]]
-.Disk threshold enabled setting is operator only
+.The `cluster.routing.allocation.disk.threshold_enabled` cluster setting is now operator only.
 [%collapsible]
 ====
 *Details* +
@@ -60,7 +60,7 @@ setting which cannot be changed by end-users.
 Discontinue use of this setting in orchestrated environments such as {ess} and
 Elastic Cloud Enterprise. Contact the environment administrator for help with
 disk space management if needed.
-+
+
 This change has no impact on users outside of orchestrated environments.
 ====
 // end::notable-breaking-changes[]

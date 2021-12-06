@@ -49,12 +49,16 @@ than one request per node is sent.
 Requests and queries against indices in the frozen tier are now cached,
 which improves performance for subsequent requests and queries.
 
-=== Enrich processor: Allow range types for enrich matching
+=== Enrich processor: New `range` enrich policy type
 
-The enrich processor has supported only the keyword data type for the match
-field on the enrich index. The enrich processor will now use a range type in
-the enrich index if the data type in all the source indices is a range type.
-This enables enrichment on range types such as `ip_range`.
+With 7.16, we added the `range` enrich policy type for the enrich processor.
+You can use a `range` policy to enrich incoming documents based on a number,
+date, or IP address that matches a range in the enrich index.
+
+For example, if an incoming documents contains an IP address, you can use a
+`range` policy to enrich the documents based on its IP range. For an in-depth
+example, see {ref}/range-enrich-policy-type.html[Example: Enrich your data by
+matching a value to a range].
 
 === Data streams: Segment sorter
 

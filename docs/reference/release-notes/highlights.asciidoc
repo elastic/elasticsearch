@@ -31,11 +31,11 @@ Other versions:
 // tag::notable-highlights[]
 [discrete]
 
-=== SQL: Support for cross-cluster search
+=== SQL: Support for {ccs}
 
-Cross-cluster search (CCS) is now supported in SQL using the CCS-specific
-`cluster:index` notation where `cluster` maps to a SQL catalog and
-`index` to a table.
+{es} SQL now supports {ccs} ({ccs-init}) using the `<remote_cluster>:<target>`
+syntax, where `<remote_cluster>` maps to a SQL catalog (cluster) and `<target>`
+to a table (index or data stream).
 
 === Search: Can-match action performed per-node rather than per-shard
 

@@ -441,6 +441,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     public static class Builder {
 
         public static final TimeValue DEFAULT_BUCKET_SPAN = TimeValue.timeValueMinutes(5);
+        public static final TimeValue DEFAULT_MODEL_PRUNE_WINDOW = TimeValue.timeValueDays(30);
 
         private List<Detector> detectors;
         private TimeValue bucketSpan = DEFAULT_BUCKET_SPAN;
@@ -452,7 +453,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         private String summaryCountFieldName;
         private List<String> influencers = new ArrayList<>();
         private Boolean multivariateByFields;
-        private TimeValue modelPruneWindow;
+        private TimeValue modelPruneWindow = DEFAULT_MODEL_PRUNE_WINDOW;
 
         public Builder(List<Detector> detectors) {
             setDetectors(detectors);

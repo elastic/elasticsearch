@@ -112,6 +112,22 @@
   - match: { analysis_config.model_prune_window: "14d" }
 
   - do:
+      ml.put_job:
+        job_id: job-default-model-prune-window
+        body: >
+          {
+            "analysis_config" : {
+                "bucket_span": "15m",
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+            }
+          }
+  - match: { job_id: "job-default-model-prune-window" }
+  - match: { analysis_config.bucket_span: "15m" }
+  - match: { analysis_config.model_prune_window: "30d" }
+
+  - do:
       catch: /model_prune_window \[29m\] must be a multiple of bucket_span \[15m\]/
       ml.put_job:
         job_id: job-invalid-model-prune-window

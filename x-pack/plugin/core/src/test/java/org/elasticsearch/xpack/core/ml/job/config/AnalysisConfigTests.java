@@ -438,6 +438,19 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertFalse(config2.equals(config1));
     }
 
+    public void testEquals_GivenDefaultModelPruneWindow() {
+        AnalysisConfig.Builder builder = createConfigBuilder();
+        AnalysisConfig config1 = builder.build();
+
+        builder = createConfigBuilder();
+        builder.setModelPruneWindow(AnalysisConfig.Builder.DEFAULT_MODEL_PRUNE_WINDOW);
+        AnalysisConfig config2 = builder.build();
+
+        assertTrue(config1.equals(config2));
+        assertTrue(config2.equals(config1));
+        assertEquals(config1.hashCode(), config2.hashCode());
+    }
+
     public void testEquals_GivenSummaryCountField() {
         AnalysisConfig.Builder builder = createConfigBuilder();
         builder.setSummaryCountFieldName("foo");

@@ -76,7 +76,7 @@ You can use a `range` policy to enrich incoming documents based on a number,
 date, or IP address that matches a range in the enrich index.
 
 For example, if incoming documents contain an IP address, you can use a
-`range` policy to enrich the documents based on its IP range. For an in-depth
+`range` policy to enrich the documents based on their IP range. For an in-depth
 example, see {ref}/range-enrich-policy-type.html[Example: Enrich your data by
 matching a value to a range].
 

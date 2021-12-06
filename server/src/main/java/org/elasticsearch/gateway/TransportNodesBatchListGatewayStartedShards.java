@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -37,7 +38,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -54,15 +54,17 @@ import java.util.concurrent.CountDownLatch;
  * We use this to find out which node holds the latest shard version and which of them used to be a primary in order to allocate
  * shards after node or cluster restarts.
  */
-public class TransportNodesBatchListGatewayStartedShards extends
-    TransportNodesAction<TransportNodesBatchListGatewayStartedShards.Request,
-            TransportNodesBatchListGatewayStartedShards.NodesGatewayBatchStartedShards,
-            TransportNodesBatchListGatewayStartedShards.NodeRequest,
-            TransportNodesBatchListGatewayStartedShards.NodeGatewayBatchStartedShards> {
+public class TransportNodesBatchListGatewayStartedShards extends TransportNodesAction<
+    TransportNodesBatchListGatewayStartedShards.Request,
+    TransportNodesBatchListGatewayStartedShards.NodesGatewayBatchStartedShards,
+    TransportNodesBatchListGatewayStartedShards.NodeRequest,
+    TransportNodesBatchListGatewayStartedShards.NodeGatewayBatchStartedShards> {
 
     public static final String ACTION_NAME = "internal:gateway/local/batch_started_shards";
-    public static final ActionType<NodesGatewayBatchStartedShards> TYPE = new ActionType<>(ACTION_NAME,
-        NodesGatewayBatchStartedShards::new);
+    public static final ActionType<NodesGatewayBatchStartedShards> TYPE = new ActionType<>(
+        ACTION_NAME,
+        NodesGatewayBatchStartedShards::new
+    );
 
     private final Settings settings;
     private final NodeEnvironment nodeEnv;
@@ -110,9 +112,11 @@ public class TransportNodesBatchListGatewayStartedShards extends
     }
 
     @Override
-    protected NodesGatewayBatchStartedShards newResponse(Request request,
-                                                         List<NodeGatewayBatchStartedShards> responses,
-                                                         List<FailedNodeException> failures) {
+    protected NodesGatewayBatchStartedShards newResponse(
+        Request request,
+        List<NodeGatewayBatchStartedShards> responses,
+        List<FailedNodeException> failures
+    ) {
         return new NodesGatewayBatchStartedShards(clusterService.getClusterName(), responses, failures);
     }
 
@@ -291,8 +295,11 @@ public class TransportNodesBatchListGatewayStartedShards extends
             super(in);
         }
 
-        public NodesGatewayBatchStartedShards(ClusterName clusterName, List<NodeGatewayBatchStartedShards> nodes,
-                                              List<FailedNodeException> failures) {
+        public NodesGatewayBatchStartedShards(
+            ClusterName clusterName,
+            List<NodeGatewayBatchStartedShards> nodes,
+            List<FailedNodeException> failures
+        ) {
             super(clusterName, nodes, failures);
         }
 
@@ -359,8 +366,13 @@ public class TransportNodesBatchListGatewayStartedShards extends
             this.shardId = shardId;
         }
 
-        public NodeGatewayBatchStartedShard(ShardId shardId, DiscoveryNode node, String allocationId, boolean primary,
-                                            Exception storeException) {
+        public NodeGatewayBatchStartedShard(
+            ShardId shardId,
+            DiscoveryNode node,
+            String allocationId,
+            boolean primary,
+            Exception storeException
+        ) {
             super(node, allocationId, primary, storeException);
             this.shardId = shardId;
         }

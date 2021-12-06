@@ -74,9 +74,12 @@ public class AllocationService {
     private SnapshotsInfoService snapshotsInfoService;
     private boolean batchFetchShardEnable;
 
-    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING =
-        Setting.boolSetting("cluster.routing.allocation.batch_fetch_shard.enable", false,
-            Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING = Setting.boolSetting(
+        "cluster.routing.allocation.batch_fetch_shard.enable",
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(
@@ -103,8 +106,8 @@ public class AllocationService {
         this.snapshotsInfoService = snapshotsInfoService;
         if (clusterService != null) {
             this.batchFetchShardEnable = CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING.get(clusterService.getSettings());
-            clusterService.getClusterSettings().addSettingsUpdateConsumer(
-                CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING, this::setBatchFetchShardEnable);
+            clusterService.getClusterSettings()
+                .addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING, this::setBatchFetchShardEnable);
         }
     }
 

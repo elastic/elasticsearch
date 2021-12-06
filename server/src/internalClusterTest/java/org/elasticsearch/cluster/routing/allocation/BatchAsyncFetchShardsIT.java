@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.TransportNodesBatchListGatewayStartedShards;
-import org.elasticsearch.gateway.TransportNodesBatchListGatewayStartedShards.NodesGatewayBatchStartedShards;
 import org.elasticsearch.gateway.TransportNodesBatchListGatewayStartedShards.NodeGatewayBatchStartedShard;
+import org.elasticsearch.gateway.TransportNodesBatchListGatewayStartedShards.NodesGatewayBatchStartedShards;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.store.TransportNodesBatchListShardStoreMetadata;
@@ -40,16 +40,17 @@ public class BatchAsyncFetchShardsIT extends ESIntegTestCase {
     }
 
     private Settings buildNullSettings() {
-        return Settings.builder()
-            .putNull(AllocationService.CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING.getKey())
-            .build();
+        return Settings.builder().putNull(AllocationService.CLUSTER_ROUTING_ALLOCATION_BATCH_FETCH_SHARD_ENABLE_SETTING.getKey()).build();
     }
 
     @After
     public void clearSettings() {
-        client().admin().cluster().prepareUpdateSettings()
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
             .setTransientSettings(buildNullSettings())
-            .setPersistentSettings(buildNullSettings()).get();
+            .setPersistentSettings(buildNullSettings())
+            .get();
     }
 
     /**
@@ -58,10 +59,8 @@ public class BatchAsyncFetchShardsIT extends ESIntegTestCase {
     public void testAsyncFetchShards() throws Exception {
         // random batch
         Settings settings = buildSettings(randomBoolean());
-        client().admin().cluster().prepareUpdateSettings()
-            .setTransientSettings(settings).setPersistentSettings(settings).get();
-        createIndex("test", Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, 10).put(SETTING_NUMBER_OF_REPLICAS, 2).build());
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).setPersistentSettings(settings).get();
+        createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 10).put(SETTING_NUMBER_OF_REPLICAS, 2).build());
 
         ensureGreen();
         internalCluster().fullRestart();
@@ -69,8 +68,7 @@ public class BatchAsyncFetchShardsIT extends ESIntegTestCase {
     }
 
     public void testAsyncBatchFetchPrimaries() {
-        createIndex("test", Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
+        createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 0).build());
         ensureGreen();
 
         final Index index = resolveIndex("test");
@@ -83,8 +81,10 @@ public class BatchAsyncFetchShardsIT extends ESIntegTestCase {
         DiscoveryNode node = state.getNodes().getDataNodes().iterator().next().value;
 
         NodesGatewayBatchStartedShards response;
-        response = ActionTestUtils.executeBlocking(internalCluster().getInstance(TransportNodesBatchListGatewayStartedShards.class),
-            new TransportNodesBatchListGatewayStartedShards.Request(shards, new DiscoveryNode[]{node}));
+        response = ActionTestUtils.executeBlocking(
+            internalCluster().getInstance(TransportNodesBatchListGatewayStartedShards.class),
+            new TransportNodesBatchListGatewayStartedShards.Request(shards, new DiscoveryNode[] { node })
+        );
 
         // each node contains 3 shard entry, only got one primary shard
         assertThat(response.getNodes(), hasSize(1));
@@ -99,8 +99,7 @@ public class BatchAsyncFetchShardsIT extends ESIntegTestCase {
     }
 
     public void testAsyncBatchListShardStore() {
-        createIndex("test", Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 1).build());
+        createIndex("test", Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 3).put(SETTING_NUMBER_OF_REPLICAS, 1).build());
         ensureGreen();
 
         final Index index = resolveIndex("test");
@@ -113,8 +112,10 @@ public class BatchAsyncFetchShardsIT extends ESIntegTestCase {
         DiscoveryNode node = state.getNodes().getDataNodes().iterator().next().value;
 
         NodesBatchStoreFilesMetadata response;
-        response = ActionTestUtils.executeBlocking(internalCluster().getInstance(TransportNodesBatchListShardStoreMetadata.class),
-            new TransportNodesBatchListShardStoreMetadata.Request(shards, new DiscoveryNode[]{node}));
+        response = ActionTestUtils.executeBlocking(
+            internalCluster().getInstance(TransportNodesBatchListShardStoreMetadata.class),
+            new TransportNodesBatchListShardStoreMetadata.Request(shards, new DiscoveryNode[] { node })
+        );
 
         // each node contains 3 shard entry, got two shards store
         assertThat(response.getNodes(), hasSize(1));

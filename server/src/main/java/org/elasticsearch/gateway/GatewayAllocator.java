@@ -30,20 +30,20 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.gateway.AsyncShardFetch.Lister;
-import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
-import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodesGatewayStartedShards;
-import org.elasticsearch.gateway.TransportNodesBatchListGatewayStartedShards.ShardRequestInfo;
 import org.elasticsearch.gateway.TransportNodesBatchListGatewayStartedShards.NodeGatewayBatchStartedShard;
 import org.elasticsearch.gateway.TransportNodesBatchListGatewayStartedShards.NodeGatewayBatchStartedShards;
 import org.elasticsearch.gateway.TransportNodesBatchListGatewayStartedShards.NodesGatewayBatchStartedShards;
+import org.elasticsearch.gateway.TransportNodesBatchListGatewayStartedShards.ShardRequestInfo;
+import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
+import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards.NodesGatewayStartedShards;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.StoreFilesMetadata;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
-import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodesStoreFilesMetadata;
 import org.elasticsearch.indices.store.TransportNodesBatchListShardStoreMetadata;
 import org.elasticsearch.indices.store.TransportNodesBatchListShardStoreMetadata.NodeBatchStoreFilesMetadata;
 import org.elasticsearch.indices.store.TransportNodesBatchListShardStoreMetadata.NodesBatchStoreFilesMetadata;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.NodesStoreFilesMetadata;
+import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata.StoreFilesMetadata;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -146,8 +146,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     ) {
         assert primaryShardAllocator != null;
         assert replicaShardAllocator != null;
-        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator,
-            shardRouting, unassignedAllocationHandler);
+        innerAllocatedUnassigned(allocation, primaryShardAllocator, replicaShardAllocator, shardRouting, unassignedAllocationHandler);
     }
 
     // allow for testing infra to change shard allocators implementation
@@ -266,8 +265,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         private final NodeClient client;
         private final Object listenerMutex = new Object();
         // node batched shard requests
-        private final Map<DiscoveryNode, List<ShardRequestInfo<NodeGatewayStartedShards>>> queuedRequests =
-            new ConcurrentHashMap<>();
+        private final Map<DiscoveryNode, List<ShardRequestInfo<NodeGatewayStartedShards>>> queuedRequests = new ConcurrentHashMap<>();
         // key: shardId + nodeId, value: listeners of this shard for specific node
         private final Map<String, List<ActionListener<BaseNodesResponse<NodeGatewayStartedShards>>>> queuedListeners =
             new ConcurrentHashMap<>();
@@ -277,25 +275,26 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         }
 
         @Override
-        protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard,
-                                                                                  RoutingAllocation allocation) {
+        protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
             // explicitely type lister, some IDEs (Eclipse) are not able to correctly infer the function type
 
             AsyncShardFetch<NodeGatewayStartedShards> fetch = asyncFetchStarted.computeIfAbsent(
                 shard.shardId(),
-                shardId -> allocation.isBatchShardFetchMode() ?
-                    new InternalAsyncFetch<>(
+                shardId -> allocation.isBatchShardFetchMode()
+                    ? new InternalAsyncFetch<>(
                         logger,
                         "batch_shard_started",
                         shardId,
                         IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
-                        batchLister) :
-                    new InternalAsyncFetch<>(
+                        batchLister
+                    )
+                    : new InternalAsyncFetch<>(
                         logger,
                         "shard_started",
                         shardId,
                         IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
-                        lister)
+                        lister
+                    )
             );
             AsyncShardFetch.FetchResult<NodeGatewayStartedShards> shardState = fetch.fetchData(
                 allocation.nodes(),
@@ -309,6 +308,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         }
 
         Lister<BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> lister = this::listStartedShards;
+
         private void listStartedShards(
             ShardId shardId,
             String customDataPath,
@@ -323,35 +323,43 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             );
         }
 
-        Lister<BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> batchLister =
-            (shardId, customDataPath, nodes, listener) -> {
-                // group shards by node
-                for (DiscoveryNode node : nodes) {
-                    List<ShardRequestInfo<NodeGatewayStartedShards>> nodeLevelRequests =
-                        queuedRequests.computeIfAbsent(node, n -> Collections.synchronizedList(new ArrayList<>()));
-                    nodeLevelRequests.add(
-                        new ShardRequestInfo<>(shardId, customDataPath, listener));
+        Lister<BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> batchLister = (
+            shardId,
+            customDataPath,
+            nodes,
+            listener) -> {
+            // group shards by node
+            for (DiscoveryNode node : nodes) {
+                List<ShardRequestInfo<NodeGatewayStartedShards>> nodeLevelRequests = queuedRequests.computeIfAbsent(
+                    node,
+                    n -> Collections.synchronizedList(new ArrayList<>())
+                );
+                nodeLevelRequests.add(new ShardRequestInfo<>(shardId, customDataPath, listener));
 
-                    synchronized (listenerMutex) {
-                        // queue child listeners
-                        List<ActionListener<BaseNodesResponse<NodeGatewayStartedShards>>> shardListeners =
-                            queuedListeners.computeIfAbsent(shardId.toString().concat(node.getId()),
-                                m -> Collections.synchronizedList(new ArrayList<>()));
-                        shardListeners.add(listener);
-                    }
+                synchronized (listenerMutex) {
+                    // queue child listeners
+                    List<ActionListener<BaseNodesResponse<NodeGatewayStartedShards>>> shardListeners = queuedListeners.computeIfAbsent(
+                        shardId.toString().concat(node.getId()),
+                        m -> Collections.synchronizedList(new ArrayList<>())
+                    );
+                    shardListeners.add(listener);
                 }
-                if (logger.isTraceEnabled()) {
-                    for (DiscoveryNode node : nodes) {
-                        logger.trace("Queued number of [{}] async fetch shard requests for node [{}]",
-                            queuedRequests.get(node).size(), node.getId());
-                    }
+            }
+            if (logger.isTraceEnabled()) {
+                for (DiscoveryNode node : nodes) {
+                    logger.trace(
+                        "Queued number of [{}] async fetch shard requests for node [{}]",
+                        queuedRequests.get(node).size(),
+                        node.getId()
+                    );
                 }
-            };
+            }
+        };
 
         @Override
         public void flushPendingFetchShardRequests() {
             Map<ShardId, String> shards = new HashMap<>();
-            for (DiscoveryNode node: queuedRequests.keySet()) {
+            for (DiscoveryNode node : queuedRequests.keySet()) {
                 for (var shardRequest : queuedRequests.get(node)) {
                     shards.put(shardRequest.shardId(), shardRequest.getCustomDataPath());
                 }
@@ -361,9 +369,9 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
                 // send shards fetch request per node
                 final var curNodeRequests = queuedRequests.get(node);
-                client.executeLocally(TransportNodesBatchListGatewayStartedShards.TYPE,
-                    new TransportNodesBatchListGatewayStartedShards.Request(
-                        shards, new DiscoveryNode[]{node}),
+                client.executeLocally(
+                    TransportNodesBatchListGatewayStartedShards.TYPE,
+                    new TransportNodesBatchListGatewayStartedShards.Request(shards, new DiscoveryNode[] { node }),
                     new ActionListener<>() {
                         @Override
                         public void onResponse(NodesGatewayBatchStartedShards nodesBatchStartedShards) {
@@ -372,12 +380,16 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                                 assert nodesBatchStartedShards.getNodes().size() == 0;
                                 for (var request : curNodeRequests) {
                                     String listenersKey = request.shardId().toString().concat(node.getId());
-                                    for (ActionListener<BaseNodesResponse<NodeGatewayStartedShards>> listener :
-                                        queuedListeners.get(listenersKey)) {
-                                        listener.onResponse(new NodesGatewayStartedShards(
-                                            nodesBatchStartedShards.getClusterName(),
-                                            new ArrayList<>(), // empty response
-                                            nodesBatchStartedShards.failures()));
+                                    for (ActionListener<BaseNodesResponse<NodeGatewayStartedShards>> listener : queuedListeners.get(
+                                        listenersKey
+                                    )) {
+                                        listener.onResponse(
+                                            new NodesGatewayStartedShards(
+                                                nodesBatchStartedShards.getClusterName(),
+                                                new ArrayList<>(), // empty response
+                                                nodesBatchStartedShards.failures()
+                                            )
+                                        );
                                     }
                                     queuedListeners.get(listenersKey).clear();
                                 }
@@ -390,22 +402,31 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                             for (NodeGatewayBatchStartedShard shard : startedShards) {
                                 // transfer to NodeGatewayStartedShards to bwc.
                                 List<NodeGatewayStartedShards> listSingleStartedShards = new ArrayList<>(1);
-                                listSingleStartedShards.add(new NodeGatewayStartedShards(shard.getNode(),
-                                    shard.allocationId(), shard.primary(), shard.storeException()));
+                                listSingleStartedShards.add(
+                                    new NodeGatewayStartedShards(
+                                        shard.getNode(),
+                                        shard.allocationId(),
+                                        shard.primary(),
+                                        shard.storeException()
+                                    )
+                                );
 
                                 NodesGatewayStartedShards newNodesResponse = new NodesGatewayStartedShards(
                                     nodesBatchStartedShards.getClusterName(),
                                     listSingleStartedShards,
-                                    nodesBatchStartedShards.failures());
+                                    nodesBatchStartedShards.failures()
+                                );
 
                                 // call child listener
                                 String listenersKey = shard.getShardId().toString().concat(node.getId());
-                                List<ActionListener<BaseNodesResponse<NodeGatewayStartedShards>>> listeners =
-                                    queuedListeners.get(listenersKey);
+                                List<ActionListener<BaseNodesResponse<NodeGatewayStartedShards>>> listeners = queuedListeners.get(
+                                    listenersKey
+                                );
                                 assert listeners.isEmpty() == false;
                                 // there is no differences for single shard->node multiple requests
-                                ActionListener<BaseNodesResponse<NodeGatewayStartedShards>> listener =
-                                    listeners.remove(listeners.size() - 1);
+                                ActionListener<BaseNodesResponse<NodeGatewayStartedShards>> listener = listeners.remove(
+                                    listeners.size() - 1
+                                );
                                 listener.onResponse(newNodesResponse);
 
                                 synchronized (listenerMutex) {
@@ -427,7 +448,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                                 }
                             }
                         }
-                    });
+                    }
+                );
                 // clean queued node requests after sending done
                 queuedRequests.remove(node);
             }
@@ -439,8 +461,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         private final NodeClient client;
         private final Object listenerMutex = new Object();
         // node batched shard requests
-        private final Map<DiscoveryNode, List<ShardRequestInfo<NodeStoreFilesMetadata>>> queuedRequests =
-            new ConcurrentHashMap<>();
+        private final Map<DiscoveryNode, List<ShardRequestInfo<NodeStoreFilesMetadata>>> queuedRequests = new ConcurrentHashMap<>();
         // key: shardId + nodeId, value: listeners of this shard for specific node
         private final Map<String, List<ActionListener<BaseNodesResponse<NodeStoreFilesMetadata>>>> queuedListeners =
             new ConcurrentHashMap<>();
@@ -454,19 +475,21 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             // explicitly type lister, some IDEs (Eclipse) are not able to correctly infer the function type
             AsyncShardFetch<NodeStoreFilesMetadata> fetch = asyncFetchStore.computeIfAbsent(
                 shard.shardId(),
-                shardId -> allocation.isBatchShardFetchMode() ?
-                    new InternalAsyncFetch<>(
+                shardId -> allocation.isBatchShardFetchMode()
+                    ? new InternalAsyncFetch<>(
                         logger,
                         "batch_shard_store",
                         shard.shardId(),
                         IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
-                        batchLister) :
-                    new InternalAsyncFetch<>(
+                        batchLister
+                    )
+                    : new InternalAsyncFetch<>(
                         logger,
                         "shard_store",
                         shard.shardId(),
                         IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
-                        lister)
+                        lister
+                    )
             );
             AsyncShardFetch.FetchResult<NodeStoreFilesMetadata> shardStores = fetch.fetchData(
                 allocation.nodes(),
@@ -499,27 +522,32 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             );
         }
 
-        Lister<BaseNodesResponse<NodeStoreFilesMetadata>, NodeStoreFilesMetadata> batchLister =
-            (shardId, customDataPath, nodes, listener) -> {
+        Lister<BaseNodesResponse<NodeStoreFilesMetadata>, NodeStoreFilesMetadata> batchLister = (
+            shardId,
+            customDataPath,
+            nodes,
+            listener) -> {
             // group shards by node
             for (DiscoveryNode node : nodes) {
-                var nodeLevelRequests =
-                    queuedRequests.computeIfAbsent(node, n -> Collections.synchronizedList(new ArrayList<>()));
-                nodeLevelRequests.add(
-                    new ShardRequestInfo<>(shardId, customDataPath, listener));
+                var nodeLevelRequests = queuedRequests.computeIfAbsent(node, n -> Collections.synchronizedList(new ArrayList<>()));
+                nodeLevelRequests.add(new ShardRequestInfo<>(shardId, customDataPath, listener));
 
                 synchronized (listenerMutex) {
                     // queue child listeners
-                    List<ActionListener<BaseNodesResponse<NodeStoreFilesMetadata>>> shardListeners =
-                        queuedListeners.computeIfAbsent(shardId.toString().concat(node.getId()),
-                            m -> Collections.synchronizedList(new ArrayList<>()));
+                    List<ActionListener<BaseNodesResponse<NodeStoreFilesMetadata>>> shardListeners = queuedListeners.computeIfAbsent(
+                        shardId.toString().concat(node.getId()),
+                        m -> Collections.synchronizedList(new ArrayList<>())
+                    );
                     shardListeners.add(listener);
                 }
             }
             if (logger.isTraceEnabled()) {
                 for (DiscoveryNode node : nodes) {
-                    logger.trace("Queued number of [{}] async list store metadata requests for node [{}]",
-                        queuedRequests.get(node).size(), node.getId());
+                    logger.trace(
+                        "Queued number of [{}] async list store metadata requests for node [{}]",
+                        queuedRequests.get(node).size(),
+                        node.getId()
+                    );
                 }
             }
         };
@@ -537,23 +565,27 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
                 // send shards fetch request per node
                 final var curNodeRequests = queuedRequests.get(node);
-                client.executeLocally(TransportNodesBatchListShardStoreMetadata.TYPE,
-                    new TransportNodesBatchListShardStoreMetadata.Request(shards, new DiscoveryNode[]{node}),
+                client.executeLocally(
+                    TransportNodesBatchListShardStoreMetadata.TYPE,
+                    new TransportNodesBatchListShardStoreMetadata.Request(shards, new DiscoveryNode[] { node }),
                     new ActionListener<>() {
                         @Override
-                        public void onResponse(NodesBatchStoreFilesMetadata
-                                                   nodesBatchStoreFilesMetadata) {
+                        public void onResponse(NodesBatchStoreFilesMetadata nodesBatchStoreFilesMetadata) {
                             if (nodesBatchStoreFilesMetadata.failures().size() > 0) {
                                 // single node, got failed node request then node response must be empty.
                                 assert nodesBatchStoreFilesMetadata.getNodes().size() == 0;
                                 for (var request : curNodeRequests) {
                                     String listenersKey = request.shardId().toString().concat(node.getId());
-                                    for (ActionListener<BaseNodesResponse<NodeStoreFilesMetadata>> listener :
-                                        queuedListeners.get(listenersKey)) {
-                                        listener.onResponse(new NodesStoreFilesMetadata(
-                                            nodesBatchStoreFilesMetadata.getClusterName(),
-                                            new ArrayList<>(), // empty response
-                                            nodesBatchStoreFilesMetadata.failures()));
+                                    for (ActionListener<BaseNodesResponse<NodeStoreFilesMetadata>> listener : queuedListeners.get(
+                                        listenersKey
+                                    )) {
+                                        listener.onResponse(
+                                            new NodesStoreFilesMetadata(
+                                                nodesBatchStoreFilesMetadata.getClusterName(),
+                                                new ArrayList<>(), // empty response
+                                                nodesBatchStoreFilesMetadata.failures()
+                                            )
+                                        );
                                     }
                                     synchronized (listenerMutex) {
                                         queuedListeners.get(listenersKey).clear();
@@ -573,16 +605,17 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                                 NodesStoreFilesMetadata newNodesResponse = new NodesStoreFilesMetadata(
                                     nodesBatchStoreFilesMetadata.getClusterName(),
                                     listStoreFiles,
-                                    nodesBatchStoreFilesMetadata.failures());
+                                    nodesBatchStoreFilesMetadata.failures()
+                                );
 
                                 // call child listener
                                 String listenersKey = shard.shardId().toString().concat(node.getId());
-                                List<ActionListener<BaseNodesResponse<NodeStoreFilesMetadata>>> listeners =
-                                    queuedListeners.get(listenersKey);
+                                List<ActionListener<BaseNodesResponse<NodeStoreFilesMetadata>>> listeners = queuedListeners.get(
+                                    listenersKey
+                                );
                                 assert listeners.isEmpty() == false;
                                 // there is no differences for single shard->node multiple requests
-                                ActionListener<BaseNodesResponse<NodeStoreFilesMetadata>> listener =
-                                    listeners.remove(listeners.size() - 1);
+                                ActionListener<BaseNodesResponse<NodeStoreFilesMetadata>> listener = listeners.remove(listeners.size() - 1);
                                 listener.onResponse(newNodesResponse);
 
                                 synchronized (listenerMutex) {
@@ -604,7 +637,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                                 }
                             }
                         }
-                    });
+                    }
+                );
                 // clean queued node requests after sending done
                 queuedRequests.remove(node);
             }

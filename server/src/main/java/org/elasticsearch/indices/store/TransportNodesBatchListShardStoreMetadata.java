@@ -49,7 +49,8 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-public class TransportNodesBatchListShardStoreMetadata extends TransportNodesAction<TransportNodesBatchListShardStoreMetadata.Request,
+public class TransportNodesBatchListShardStoreMetadata extends TransportNodesAction<
+    TransportNodesBatchListShardStoreMetadata.Request,
     TransportNodesBatchListShardStoreMetadata.NodesBatchStoreFilesMetadata,
     TransportNodesBatchListShardStoreMetadata.NodeRequest,
     TransportNodesBatchListShardStoreMetadata.NodeBatchStoreFilesMetadata> {
@@ -100,8 +101,11 @@ public class TransportNodesBatchListShardStoreMetadata extends TransportNodesAct
     }
 
     @Override
-    protected NodesBatchStoreFilesMetadata newResponse(Request request,
-                                                       List<NodeBatchStoreFilesMetadata> responses, List<FailedNodeException> failures) {
+    protected NodesBatchStoreFilesMetadata newResponse(
+        Request request,
+        List<NodeBatchStoreFilesMetadata> responses,
+        List<FailedNodeException> failures
+    ) {
         return new NodesBatchStoreFilesMetadata(clusterService.getClusterName(), responses, failures);
     }
 
@@ -266,8 +270,11 @@ public class TransportNodesBatchListShardStoreMetadata extends TransportNodesAct
             super(in);
         }
 
-        public NodesBatchStoreFilesMetadata(ClusterName clusterName, List<NodeBatchStoreFilesMetadata> nodes,
-                                            List<FailedNodeException> failures) {
+        public NodesBatchStoreFilesMetadata(
+            ClusterName clusterName,
+            List<NodeBatchStoreFilesMetadata> nodes,
+            List<FailedNodeException> failures
+        ) {
             super(clusterName, nodes, failures);
         }
 
@@ -284,8 +291,9 @@ public class TransportNodesBatchListShardStoreMetadata extends TransportNodesAct
 
     public static class NodeBatchStoreFilesMetadata extends BaseNodeResponse {
 
-        private final List<TransportNodesListShardStoreMetadata.StoreFilesMetadata> storeFilesMetadataList =
-            Collections.synchronizedList(new ArrayList<>());
+        private final List<TransportNodesListShardStoreMetadata.StoreFilesMetadata> storeFilesMetadataList = Collections.synchronizedList(
+            new ArrayList<>()
+        );
 
         public NodeBatchStoreFilesMetadata(DiscoveryNode node) {
             super(node);

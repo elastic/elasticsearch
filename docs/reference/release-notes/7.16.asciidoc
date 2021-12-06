@@ -388,7 +388,7 @@ Machine Learning::
 * Wait for .ml-state-write alias to be readable {es-pull}79731[#79731] (issue: {es-issue}79636[#79636])
 * Correct ANOVA for Gaussian Process that is fit to the loss surface, which affects early stopping. Also, improve the estimates of hyperparameter importance {ml-pull}2073[#2073]
 * Fix numerical instability in hyperparameter optimization for training regression and classification models {ml-pull}2078[#2078]
-* Fix numerical stability issues in time series modelling {ml-pull}2083[#[2083]]
+* Fix numerical stability issues in time series modeling {ml-pull}2083[#[2083]]
 
 Mapping::
 * Disable request cache for non-deterministic runtime fields {es-pull}75054[#75054]

@@ -37,12 +37,24 @@ Other versions:
 syntax, where `<remote_cluster>` maps to a SQL catalog (cluster) and `<target>`
 to a table (index or data stream).
 
-=== Search: Can-match action performed per-node rather than per-shard
+=== Search: Improved can-match phase for scalability
 
-Previously, the can-match phase issued individual requests for each shard
-in a search request resulting in high overhead when many shards were
-targeted. Now these requests are grouped by node so that no more
-than one request per node is sent.
+If a search would hit a large number of shards, the search process includes a
+pre-filter phase, also called the can-match phase. During this phase, {es}
+checks if an impacted shard actually contains data that could potentially match
+the search query. If not, {es} doesn't run the query on the shard. For example,
+if a query includes a `@timestamp` date range filter, {es} will use the
+can-match phase to exclude shards that have no data within the date range.
+
+Previously, the search's coordinating node sent an individual request to each
+shard checked during the can-match phase. However, if the search needed to check
+thousands of shards, the coordinating node would need to handle thousands of
+requests and responses, resulting in high overhead.
+
+With 7.16, the coordinating node instead sends a single request to each data
+node during the can-match phase. This request covers checks for all impacted
+shards on the node. This significantly reduces the number of requests and lowers
+related overhead.
 
 === Frozen tier: Cached requests and queries
 

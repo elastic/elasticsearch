@@ -215,7 +215,7 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public void validateTimestamp(long startTime, long endTime, IndexableField field, DocumentParserContext context) {
+    private void validateTimestamp(long startTime, long endTime, IndexableField field, DocumentParserContext context) {
         long originValue = field.numericValue().longValue();
         long value = originValue;
 

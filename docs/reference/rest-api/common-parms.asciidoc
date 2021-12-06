@@ -1107,9 +1107,7 @@ end::timeout[]
 end::timeoutparms[]
 
 tag::transform-id[]
-Identifier for the {transform}. This identifier can contain lowercase
-alphanumeric characters (a-z and 0-9), hyphens, and underscores. It has a 64
-character limit and must start and end with alphanumeric characters.
+Identifier for the {transform}.
 end::transform-id[]
 
 tag::transform-id-wildcard[]

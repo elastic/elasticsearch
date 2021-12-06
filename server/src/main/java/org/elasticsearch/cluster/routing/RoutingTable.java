@@ -8,9 +8,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.carrotsearch.hppc.IntSet;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -34,6 +31,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
@@ -540,7 +538,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             return this;
         }
 
-        public Builder addAsNewRestore(IndexMetadata indexMetadata, SnapshotRecoverySource recoverySource, IntSet ignoreShards) {
+        public Builder addAsNewRestore(IndexMetadata indexMetadata, SnapshotRecoverySource recoverySource, Set<Integer> ignoreShards) {
             IndexRoutingTable.Builder indexRoutingBuilder = new IndexRoutingTable.Builder(indexMetadata.getIndex()).initializeAsNewRestore(
                 indexMetadata,
                 recoverySource,
@@ -594,8 +592,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("routing_table (version ").append(version).append("):\n");
-        for (ObjectObjectCursor<String, IndexRoutingTable> entry : indicesRouting) {
-            sb.append(entry.value.prettyPrint()).append('\n');
+        for (IndexRoutingTable entry : indicesRouting.values()) {
+            sb.append(entry.prettyPrint()).append('\n');
         }
         return sb.toString();
     }

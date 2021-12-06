@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -216,6 +217,27 @@ public class KibanaSystemIndexIT extends ESRestTestCase {
         request.setJsonEntity("{ \"index.blocks.read_only\" : false }");
         response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), is(200));
+    }
+
+    public void testCannotCreateVisibleSystemIndex() {
+        Request request = request("PUT", "/" + indexName);
+        request.setJsonEntity("{\"settings\": {\"index.hidden\":\"false\"}}");
+        ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        assertThat(
+            exception.getMessage(),
+            containsString("Cannot create system index [" + indexName + "] with [index.hidden] set to 'false'")
+        );
+    }
+
+    public void testCannotSetVisible() throws IOException {
+        Request putIndexRequest = request("PUT", "/" + indexName);
+        Response response = client().performRequest(putIndexRequest);
+        assertThat(response.getStatusLine().getStatusCode(), is(200));
+
+        Request putSettingsRequest = request("PUT", "/" + indexName + "/_settings");
+        putSettingsRequest.setJsonEntity("{ \"index.hidden\" : false }");
+        ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(putSettingsRequest));
+        assertThat(exception.getMessage(), containsString("Cannot set [index.hidden] to 'false' on system indices: [" + indexName + "]"));
     }
 
     public void testGetIndex() throws IOException {

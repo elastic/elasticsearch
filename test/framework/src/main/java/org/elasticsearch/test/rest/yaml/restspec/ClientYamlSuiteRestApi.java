@@ -166,11 +166,11 @@ public class ClientYamlSuiteRestApi {
      * - /{index}/_alias/{name}, /{index}/_aliases/{name}
      * - /{index}/{type}/_mapping, /{index}/{type}/_mappings, /{index}/_mappings/{type}, /{index}/_mapping/{type}
      */
-    public List<ClientYamlSuiteRestApi.Path> getBestMatchingPaths(Set<String> params) {
+    public List<ClientYamlSuiteRestApi.Path> getBestMatchingPaths(Set<String> pathParams) {
         PriorityQueue<Tuple<Integer, Path>> queue = new PriorityQueue<>(Comparator.comparing(Tuple::v1, (a, b) -> Integer.compare(b, a)));
         for (ClientYamlSuiteRestApi.Path path : paths) {
             int matches = 0;
-            for (String actualParameter : params) {
+            for (String actualParameter : pathParams) {
                 if (path.getParts().contains(actualParameter)) {
                     matches++;
                 }
@@ -180,17 +180,17 @@ public class ClientYamlSuiteRestApi {
             }
         }
         if (queue.isEmpty()) {
-            throw new IllegalStateException("Unable to find a matching path for api [" + name + "]" + params);
+            throw new IllegalStateException("Unable to find a matching path for api [" + name + "]" + pathParams);
         }
-        List<Path> paths = new ArrayList<>();
+        List<Path> pathsByRelevance = new ArrayList<>();
         Tuple<Integer, Path> poll = queue.poll();
         int maxMatches = poll.v1();
         do {
-            paths.add(poll.v2());
+            pathsByRelevance.add(poll.v2());
             poll = queue.poll();
         } while (poll != null && poll.v1() == maxMatches);
 
-        return paths;
+        return pathsByRelevance;
     }
 
     public static class Path {
@@ -224,8 +224,8 @@ public class ClientYamlSuiteRestApi {
             if (o == null || getClass() != o.getClass()) {
                 return false;
             }
-            Path path = (Path) o;
-            return this.path.equals(path.path);
+            Path other = (Path) o;
+            return this.path.equals(other.path);
         }
 
         @Override

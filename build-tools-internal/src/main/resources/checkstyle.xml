@@ -111,10 +111,14 @@
     <!--
     <module name="org.elasticsearch.gradle.internal.checkstyle.HiddenFieldCheck">
         <property name="ignoreConstructorParameter" value="true" />
+        <property name="ignoreConstructorBody" value="true"/>
+        <property name="ignoreConstructorMethods" value="(?:ConstructingObjectParser)$"/>
         <property name="ignoreSetter" value="true" />
-        <property name="setterCanReturnItsClass" value="true"/>
-        <property name="ignoreFormat" value="^(threadPool)$"/>
+        <property name="minLineCount" value="5" />
+        <property name="ignoreFormat" value="^(?:threadPool)$"/>
         <property name="ignoreAbstractMethods" value="true"/>
+        <property name="ignoreMethodNames" value="^(?:createParser)$"/>
+        <property name="setterCanReturnItsClass" value="true"/>
         <message key="hidden.field" value="''{0}'' hides a field." />
     </module>
     -->

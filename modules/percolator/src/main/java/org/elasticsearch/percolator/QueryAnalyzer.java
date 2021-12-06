@@ -9,7 +9,6 @@ package org.elasticsearch.percolator;
 
 import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -30,6 +29,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
+import org.elasticsearch.lucene.queries.BlendedTermQuery;
 
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -23,7 +23,7 @@ import java.util.PrimitiveIterator;
 import static org.elasticsearch.search.DocValueFormat.MASK_2_63;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
 
-public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesField<Long> {
+public class UnsignedLongDocValuesField implements DocValuesField<Long>, ScriptDocValues.Supplier<Long> {
 
     private final SortedNumericDocValues input;
     private final String name;
@@ -76,6 +76,13 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
         return count == 0;
     }
 
+    // this method is required to support the Long return values
+    // for the old-style "doc" access in ScriptDocValues
+    @Override
+    public Long getInternal(int index) {
+        return toFormatted(index);
+    }
+
     @Override
     public int size() {
         return count;
@@ -89,7 +96,7 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
         return values[index] ^ MASK_2_63;
     }
 
-    @Override
+    /** Return all the values as a {@code List}. */
     public List<Long> getValues() {
         if (isEmpty()) {
             return Collections.emptyList();
@@ -104,18 +111,28 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
         return values;
     }
 
-    @Override
-    public long getValue(long defaultValue) {
-        return getValue(0, defaultValue);
+    /** Returns the 0th index value as an {@code long} if it exists, otherwise {@code defaultValue}. */
+    public long get(long defaultValue) {
+        return get(0, defaultValue);
     }
 
-    @Override
-    public long getValue(int index, long defaultValue) {
+    /** Returns the value at {@code index} as an {@code long} if it exists, otherwise {@code defaultValue}. */
+    public long get(int index, long defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
             return defaultValue;
         }
 
         return toFormatted(index);
+    }
+
+    /** Returns the 0th index value as an {@code long} if it exists, otherwise {@code defaultValue}. */
+    public long getValue(long defaultValue) {
+        return get(0, defaultValue);
+    }
+
+    /** Returns the value at {@code index} as an {@code long} if it exists, otherwise {@code defaultValue}. */
+    public long getValue(int index, long defaultValue) {
+        return get(index, defaultValue);
     }
 
     @Override
@@ -148,7 +165,7 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
         return BigInteger.valueOf(toFormatted(index)).and(BIGINTEGER_2_64_MINUS_ONE);
     }
 
-    @Override
+    /** Converts all the values to {@code BigInteger} and returns them as a {@code List}. */
     public List<BigInteger> asBigIntegers() {
         if (isEmpty()) {
             return Collections.emptyList();
@@ -163,12 +180,12 @@ public class UnsignedLongDocValuesField implements UnsignedLongField, DocValuesF
         return values;
     }
 
-    @Override
+    /** Returns the 0th index value as a {@code BigInteger} if it exists, otherwise {@code defaultValue}. */
     public BigInteger asBigInteger(BigInteger defaultValue) {
         return asBigInteger(0, defaultValue);
     }
 
-    @Override
+    /** Returns the value at {@code index} as a {@code BigInteger} if it exists, otherwise {@code defaultValue}. */
     public BigInteger asBigInteger(int index, BigInteger defaultValue) {
         if (isEmpty() || index < 0 || index >= count) {
             return defaultValue;

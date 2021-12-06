@@ -288,7 +288,6 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                     item.getErrorDetails(),
                     containsString("failed to create snapshot successfully, 1 out of 3 total shards failed")
                 );
-                assertThat(item.getErrorDetails(), containsString("forced failure"));
             });
 
             SnapshotLifecycleTask task = new SnapshotLifecycleTask(client, clusterService, historyStore);

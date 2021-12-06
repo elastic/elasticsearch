@@ -10,9 +10,9 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.cli.LoggingAwareCommand;
 import org.elasticsearch.xpack.sql.cli.command.ClearScreenCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.CliCommand;
 import org.elasticsearch.xpack.sql.cli.command.CliCommands;

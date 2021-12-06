@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.TimeValue;
@@ -190,9 +189,9 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             Collections.singletonList(doc),
             TimeValue.MAX_VALUE
         );
-        request.setParentTaskId(taskId);
+        request.setParentTask(taskId);
         executeAsyncWithOrigin(
-            new ParentTaskAssigningClient(client, taskId),
+            client,
             ML_ORIGIN,
             InferTrainedModelDeploymentAction.INSTANCE,
             request,

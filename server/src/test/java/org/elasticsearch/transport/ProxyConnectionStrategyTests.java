@@ -34,6 +34,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+
 public class ProxyConnectionStrategyTests extends ESTestCase {
 
     private final String clusterAlias = "cluster-alias";
@@ -202,7 +205,10 @@ public class ProxyConnectionStrategyTests extends ESTestCase {
 
                     PlainActionFuture<Void> connectFuture = PlainActionFuture.newFuture();
                     strategy.connect(connectFuture);
-                    expectThrows(Exception.class, connectFuture::actionGet);
+                    assertThat(
+                        expectThrows(NoSeedNodeLeftException.class, connectFuture::actionGet).getMessage(),
+                        allOf(containsString("Unable to open any proxy connections"), containsString('[' + clusterAlias + ']'))
+                    );
 
                     assertFalse(connectionManager.getAllConnectedNodes().stream().anyMatch(n -> n.getAddress().equals(address1)));
                     assertEquals(0, connectionManager.size());

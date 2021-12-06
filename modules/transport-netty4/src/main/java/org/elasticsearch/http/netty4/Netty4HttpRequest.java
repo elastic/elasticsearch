@@ -227,10 +227,6 @@ public class Netty4HttpRequest implements HttpRequest {
         return inboundException;
     }
 
-    public FullHttpRequest nettyRequest() {
-        return request;
-    }
-
     /**
      * A wrapper of {@link HttpHeaders} that implements a map to prevent copying unnecessarily. This class does not support modifications
      * and due to the underlying implementation, it performs case insensitive lookups of key to values.

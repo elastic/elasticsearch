@@ -72,15 +72,15 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
         CompensatedSum kahanSummation = new CompensatedSum(0, 0);
-        Double divisor = null;
+        Double firstDivisor = null;
         for (InternalAggregation aggregation : aggregations) {
             double value = ((InternalRate) aggregation).sum;
             kahanSummation.add(value);
-            if (divisor == null) {
-                divisor = ((InternalRate) aggregation).divisor;
+            if (firstDivisor == null) {
+                firstDivisor = ((InternalRate) aggregation).divisor;
             }
         }
-        return new InternalRate(name, kahanSummation.value(), divisor, format, getMetadata());
+        return new InternalRate(name, kahanSummation.value(), firstDivisor, format, getMetadata());
     }
 
     @Override

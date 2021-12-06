@@ -132,6 +132,9 @@ if (BuildParams.isSnapshotBuild() == false) {
     tasks.named("test").configure {
         systemProperty 'es.index_mode_feature_flag_registered', 'true'
     }
+    tasks.named("internalClusterTest").configure {
+        systemProperty 'es.index_mode_feature_flag_registered', 'true'
+    }
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -253,20 +256,7 @@ tasks.named("licenseHeaders").configure {
 
 tasks.named('splitPackagesAudit').configure {
     // Lucene packages should be owned by Lucene!
-  ignoreClasses 'org.apache.lucene.queries.BinaryDocValuesRangeQuery',
-    'org.apache.lucene.queries.BlendedTermQuery',
-    'org.apache.lucene.queries.SpanMatchNoDocsQuery',
-    'org.apache.lucene.search.vectorhighlight.CustomFieldQuery',
-
     // These are tricky because Lucene itself splits the index package,
     // but this should be fixed in Lucene 9
-    'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper',
-
-    // cli is owned by the libs/cli, so these should be moved to o.e.server.cli
-    'org.elasticsearch.cli.CommandLoggingConfigurator',
-    'org.elasticsearch.cli.EnvironmentAwareCommand',
-    'org.elasticsearch.cli.KeyStoreAwareCommand',
-    'org.elasticsearch.cli.LoggingAwareCommand',
-    'org.elasticsearch.cli.LoggingAwareMultiCommand'
-
+  ignoreClasses 'org.apache.lucene.index.LazySoftDeletesDirectoryReaderWrapper'
 }

@@ -83,4 +83,31 @@ public class Iterators {
             return iterators[index].next();
         }
     }
+
+    public static <T> Iterator<T> forArray(T[] array) {
+        return new ArrayIterator<>(array);
+    }
+
+    private static final class ArrayIterator<T> implements Iterator<T> {
+
+        private final T[] array;
+        private int index;
+
+        private ArrayIterator(T[] array) {
+            this.array = Objects.requireNonNull(array, "Unable to iterate over a null array");
+        }
+
+        @Override
+        public boolean hasNext() {
+            return index < array.length;
+        }
+
+        @Override
+        public T next() {
+            if (index >= array.length) {
+                throw new NoSuchElementException();
+            }
+            return array[index++];
+        }
+    }
 }

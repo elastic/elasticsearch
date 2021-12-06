@@ -26,6 +26,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
+import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -269,7 +270,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 return new ScaledFloatIndexFieldData(
                     scaledValues,
                     scalingFactor,
-                    (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
+                    (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
                 );
             };
         }

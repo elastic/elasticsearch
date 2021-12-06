@@ -43,7 +43,11 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
     public void waitForMlTemplates() throws Exception {
         // We shouldn't wait for ML templates during the upgrade - production won't
         if (isRunningAgainstOldCluster()) {
-            XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V7120_TEMPLATES, true);
+            XPackRestTestHelper.waitForTemplates(
+                client(),
+                XPackRestTestConstants.ML_POST_V7120_TEMPLATES,
+                getOldClusterVersion().onOrAfter(Version.V_7_8_0)
+            );
         }
     }
 

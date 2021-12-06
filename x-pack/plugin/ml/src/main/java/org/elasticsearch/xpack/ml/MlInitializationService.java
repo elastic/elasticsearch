@@ -65,6 +65,7 @@ public class MlInitializationService implements ClusterStateListener {
         ".ml-meta",
         ".ml-notifications",
         ".ml-notifications-000001",
+        ".ml-notifications-000002",
         ".ml-state",
         ".ml-stats"
     );

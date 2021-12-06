@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -32,6 +30,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -357,9 +356,9 @@ public class ClusterChangedEventTests extends ESTestCase {
         final ClusterState.Builder builder = ClusterState.builder(previousState);
         builder.stateUUID(UUIDs.randomBase64UUID());
         Metadata.Builder metadataBuilder = Metadata.builder(previousState.metadata());
-        for (ObjectObjectCursor<String, Metadata.Custom> customMetadata : previousState.metadata().customs()) {
-            if (customMetadata.value instanceof TestCustomMetadata) {
-                metadataBuilder.removeCustom(customMetadata.key);
+        for (Map.Entry<String, Metadata.Custom> customMetadata : previousState.metadata().customs().entrySet()) {
+            if (customMetadata.getValue() instanceof TestCustomMetadata) {
+                metadataBuilder.removeCustom(customMetadata.getKey());
             }
         }
         for (TestCustomMetadata testCustomMetadata : customMetadataList) {

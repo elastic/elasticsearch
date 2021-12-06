@@ -11,11 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.test.ESTestCase;
 
 public class SingleNodeShutdownMetadataTests extends ESTestCase {
-    public void testX(){
-        for (SingleNodeShutdownMetadata.Type value : SingleNodeShutdownMetadata.Type.values()) {
-            System.out.println(value+" "+value.ordinal());
-        }
-    }
+
     public void testStatusComination() {
         SingleNodeShutdownMetadata.Status status;
 

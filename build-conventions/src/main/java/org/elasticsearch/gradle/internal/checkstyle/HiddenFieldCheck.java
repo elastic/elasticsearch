@@ -30,6 +30,7 @@ import com.puppycrawl.tools.checkstyle.utils.ScopeUtil;
 import com.puppycrawl.tools.checkstyle.utils.TokenUtil;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
@@ -78,7 +79,13 @@ public class HiddenFieldCheck extends AbstractCheck {
     private boolean ignoreAbstractMethods;
 
     /** If set, specifies a regex of method names that should be ignored */
-    private String ignoredMethodNames;
+    private String ignoreMethodNames;
+
+    /** If set, specifies a regex of constructor names that should be ignored */
+    private String ignoreConstructorMethods;
+
+    /** Control the minimal amount of lines in method to allow shadowed variables .*/
+    private int minLineCount = -1;
 
     @Override
     public int[] getDefaultTokens() {
@@ -252,7 +259,8 @@ public class HiddenFieldCheck extends AbstractCheck {
     }
 
     private boolean isIgnoredVariable(DetailAST ast, String name) {
-        return isIgnoredVariableInConstructorBody(ast, name);
+        return isVariableInConstructorBody(ast, name) ||
+            isVariableInIgnoredConstructor(ast, name);
     }
 
     /**
@@ -342,24 +350,33 @@ public class HiddenFieldCheck extends AbstractCheck {
         boolean isSetterMethod = false;
 
         // ES also allows setters with the same name as a property, and builder-style settings that start with "with".
-        if (("set" + capitalize(aName)).equals(methodName) || ("with" + capitalize(aName)).equals(methodName) || aName.equals(methodName)) {
+        final List<String> possibleSetterNames = List.of(
+            "set" + capitalize(aName, true),
+            "set" + capitalize(aName, false),
+            "with" + capitalize(aName, true),
+            "with" + capitalize(aName, false),
+            aName
+        );
+
+        if (possibleSetterNames.contains(methodName)) {
             // method name did match set${Name}(${anyType} ${aName})
             // where ${Name} is capitalized version of ${aName}
             // therefore this method is potentially a setter
             final DetailAST typeAST = aMethodAST.findFirstToken(TokenTypes.TYPE);
             final String returnType = typeAST.getFirstChild().getText();
-            if (typeAST.findFirstToken(TokenTypes.LITERAL_VOID) != null || setterCanReturnItsClass && frame.isEmbeddedIn(returnType)) {
-                // this method has signature
-                //
-                // void set${Name}(${anyType} ${name})
-                //
-                // and therefore considered to be a setter
-                //
-                // or
-                //
-                // return type is not void, but it is the same as the class
-                // where method is declared and and mSetterCanReturnItsClass
-                // is set to true
+
+            // The method is named `setFoo`, `withFoo`, or just `foo` and returns void
+            final boolean returnsVoid = typeAST.findFirstToken(TokenTypes.LITERAL_VOID) != null;
+
+            // Or the method is named as above, and returns the class type or a builder type.
+            // It ought to be possible to see if we're in a `${returnType}.Builder`, but for some reason the parse
+            // tree has `returnType` as `.` when the current class is `Builder` so instead assume that a class called `Builder` is OK.
+            final boolean returnsSelf = setterCanReturnItsClass && frame.isEmbeddedIn(returnType);
+
+            final boolean returnsBuilder = setterCanReturnItsClass
+                && (frame.isEmbeddedIn(returnType + "Builder") || (frame.isEmbeddedIn("Builder")));
+
+            if (returnsVoid || returnsSelf || returnsBuilder) {
                 isSetterMethod = true;
             }
         }
@@ -374,13 +391,13 @@ public class HiddenFieldCheck extends AbstractCheck {
      * @param name a property name
      * @return capitalized property name
      */
-    private static String capitalize(final String name) {
+    private static String capitalize(final String name, boolean javaBeanCompliant) {
         String setterName = name;
         // we should not capitalize the first character if the second
         // one is a capital one, since according to JavaBeans spec
         // setXYzz() is a setter for XYzz property, not for xYzz one.
-        // @pugnascotia: unless the first char is 'x'.
-        if (name.length() == 1 || (Character.isUpperCase(name.charAt(1)) == false || name.charAt(0) == 'x')) {
+        // @pugnascotia: this is unhelpful in the Elasticsearch codebase. We have e.g. xContent -> setXContent, or nNeighbors -> nNeighbors.
+        if (name.length() == 1 || (javaBeanCompliant == false || Character.isUpperCase(name.charAt(1)) == false)) {
             setterName = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1);
         }
         return setterName;
@@ -425,28 +442,33 @@ public class HiddenFieldCheck extends AbstractCheck {
     }
 
     /**
-     * Decides whether to ignore an AST node that is the parameter of a method whose
-     * name matches the {@link #ignoredMethodNames} regex, if set.
+     * Decides whether to ignore an AST node that is witin a method that ought to be ignored.
+     * This is either because:
+     *
+     * <ul>
+     *   <li>The method name matches the {@link #ignoreMethodNames} regex, if set.</li>
+     *   <li>The method's line length is less that or equal to the {@link #minLineCount}</li>
+     * </ul>
+     *
      * @param ast the AST to check
-     * @return true is the ast should be ignored because the parameter belongs to a
-     *      method whose name matches the regex.
+     * @return true is the ast node should be ignored
      */
     private boolean isVariableInIgnoredMethod(DetailAST ast, String name) {
         boolean result = false;
-        if (ignoredMethodNames != null && (ast.getType() == TokenTypes.PARAMETER_DEF || ast.getType() == TokenTypes.VARIABLE_DEF)) {
+        if (ignoreMethodNames != null && (ast.getType() == TokenTypes.PARAMETER_DEF || ast.getType() == TokenTypes.VARIABLE_DEF)) {
             DetailAST method = ast.getParent();
             while (method != null && method.getType() != TokenTypes.METHOD_DEF) {
                 method = method.getParent();
             }
             if (method != null && method.getType() == TokenTypes.METHOD_DEF) {
                 final String methodName = method.findFirstToken(TokenTypes.IDENT).getText();
-                result = methodName.matches(ignoredMethodNames);
+                result = methodName.matches(ignoreMethodNames) || getMethodsNumberOfLine(method) <= this.minLineCount;
             }
         }
         return result;
     }
 
-    private boolean isIgnoredVariableInConstructorBody(DetailAST ast, String name) {
+    private boolean isVariableInConstructorBody(DetailAST ast, String name) {
         boolean result = false;
 
         if (ignoreConstructorBody && ast.getType() == TokenTypes.VARIABLE_DEF) {
@@ -455,6 +477,23 @@ public class HiddenFieldCheck extends AbstractCheck {
                 method = method.getParent();
             }
             result = method != null && method.getType() == TokenTypes.CTOR_DEF;
+        }
+
+        return result;
+    }
+
+    private boolean isVariableInIgnoredConstructor(DetailAST ast, String name) {
+        boolean result = false;
+
+        if (ignoreConstructorBody && ast.getType() == TokenTypes.VARIABLE_DEF) {
+            DetailAST method = ast.getParent();
+            while (method != null && method.getType() != TokenTypes.LITERAL_NEW) {
+                method = method.getParent();
+            }
+            if (method != null) {
+                final String ctorName = method.findFirstToken(TokenTypes.IDENT).getText();
+                result = ctorName.matches(this.ignoreConstructorMethods);
+            }
         }
 
         return result;
@@ -513,12 +552,20 @@ public class HiddenFieldCheck extends AbstractCheck {
         this.ignoreAbstractMethods = ignoreAbstractMethods;
     }
 
-    public void setIgnoredMethodNames(String ignoredMethodNames) {
-        this.ignoredMethodNames = ignoredMethodNames;
+    public void setIgnoreMethodNames(String ignoreMethodNames) {
+        this.ignoreMethodNames = ignoreMethodNames;
     }
 
     public void setIgnoreConstructorBody(boolean ignoreConstructorBody) {
         this.ignoreConstructorBody = ignoreConstructorBody;
+    }
+
+    public void setIgnoreConstructorMethods(String ignoreConstructorMethods) {
+        this.ignoreConstructorMethods = ignoreConstructorMethods;
+    }
+
+    public void setMinLineCount(int minLineCount) {
+        this.minLineCount = minLineCount;
     }
 
     /**
@@ -624,6 +671,20 @@ public class HiddenFieldCheck extends AbstractCheck {
             return isEmbeddedIn;
         }
 
+    }
+
+    private static int getMethodsNumberOfLine(DetailAST methodDef) {
+        final int numberOfLines;
+        final DetailAST lcurly = methodDef.getLastChild();
+        final DetailAST rcurly = lcurly.getLastChild();
+
+        if (lcurly.getFirstChild() == rcurly) {
+            numberOfLines = 1;
+        }
+        else {
+            numberOfLines = rcurly.getLineNo() - lcurly.getLineNo() - 1;
+        }
+        return numberOfLines;
     }
 
 }

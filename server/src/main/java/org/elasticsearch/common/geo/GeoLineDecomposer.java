@@ -27,6 +27,21 @@ class GeoLineDecomposer {
         // no instances
     }
 
+    /**
+     * Checks if the provided line needs to be split by the dateline.
+     */
+    public static boolean needsDecomposing(Line line) {
+        for (int i = 0; i < line.length(); i++) {
+            if (GeoUtils.needsNormalizeLat(line.getLat(i)) || GeoUtils.needsNormalizeLon(line.getLon(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Splits the specified lines in the Multiline by datelines and adds them to the supplied lines array
+     */
     public static void decomposeMultiLine(MultiLine multiLine, List<Line> collector) {
         for (Line line : multiLine) {
             decomposeLine(line, collector);

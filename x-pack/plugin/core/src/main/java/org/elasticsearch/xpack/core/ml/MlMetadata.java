@@ -220,13 +220,13 @@ public class MlMetadata implements Metadata.Custom {
             }
         }
 
-        public Builder isUpgradeMode(boolean upgradeMode) {
-            this.upgradeMode = upgradeMode;
+        public Builder isUpgradeMode(boolean isUpgradeMode) {
+            this.upgradeMode = isUpgradeMode;
             return this;
         }
 
-        public Builder isResetMode(boolean resetMode) {
-            this.resetMode = resetMode;
+        public Builder isResetMode(boolean isResetMode) {
+            this.resetMode = isResetMode;
             return this;
         }
 

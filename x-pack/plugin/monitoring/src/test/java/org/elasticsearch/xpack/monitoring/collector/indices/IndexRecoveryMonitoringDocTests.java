@@ -43,13 +43,13 @@ import static org.mockito.Mockito.mock;
 
 public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<IndexRecoveryMonitoringDoc> {
 
-    private RecoveryResponse recoveryResponse;
+    private RecoveryResponse mockRecoveryResponse;
 
     @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        recoveryResponse = mock(RecoveryResponse.class);
+        mockRecoveryResponse = mock(RecoveryResponse.class);
     }
 
     @Override
@@ -62,7 +62,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
         String type,
         String id
     ) {
-        return new IndexRecoveryMonitoringDoc(cluster, timestamp, interval, node, recoveryResponse);
+        return new IndexRecoveryMonitoringDoc(cluster, timestamp, interval, node, mockRecoveryResponse);
     }
 
     @Override
@@ -71,7 +71,7 @@ public class IndexRecoveryMonitoringDocTests extends BaseMonitoringDocTestCase<I
         assertThat(document.getType(), is(IndexRecoveryMonitoringDoc.TYPE));
         assertThat(document.getId(), nullValue());
 
-        assertThat(document.getRecoveryResponse(), is(recoveryResponse));
+        assertThat(document.getRecoveryResponse(), is(mockRecoveryResponse));
     }
 
     public void testConstructorRecoveryResponseMustNotBeNull() {

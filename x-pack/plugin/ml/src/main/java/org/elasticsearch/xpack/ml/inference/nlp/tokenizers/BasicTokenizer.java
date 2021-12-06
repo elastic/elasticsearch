@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 
 /**
  * Basic tokenization of text by whitespace with optional extras:
@@ -32,7 +31,7 @@ public class BasicTokenizer {
     private final boolean isLowerCase;
     private final boolean isTokenizeCjkChars;
     private final boolean isStripAccents;
-    private final Set<String> neverSplit;
+    private final TokenTrieNode neverSplitTokenTrieRoot;
 
     /**
      * Tokenizer behaviour is controlled by the options passed here.
@@ -46,14 +45,11 @@ public class BasicTokenizer {
         this.isLowerCase = isLowerCase;
         this.isTokenizeCjkChars = isTokenizeCjkChars;
         this.isStripAccents = isStripAccents;
-        this.neverSplit = neverSplit;
+        this.neverSplitTokenTrieRoot = TokenTrieNode.build(neverSplit, this::doTokenize);
     }
 
     public BasicTokenizer(boolean isLowerCase, boolean isTokenizeCjkChars, boolean isStripAccents) {
-        this.isLowerCase = isLowerCase;
-        this.isTokenizeCjkChars = isTokenizeCjkChars;
-        this.isStripAccents = isStripAccents;
-        this.neverSplit = Collections.emptySet();
+        this(isLowerCase, isTokenizeCjkChars, isStripAccents, Collections.emptySet());
     }
 
     /**
@@ -79,6 +75,10 @@ public class BasicTokenizer {
      * @return List of tokens
      */
     public List<String> tokenize(String text) {
+        return mergeNeverSplitTokens(doTokenize(text));
+    }
+
+    private List<String> doTokenize(String text) {
         text = cleanText(text);
         if (isTokenizeCjkChars) {
             text = tokenizeCjkChars(text);
@@ -93,31 +93,45 @@ public class BasicTokenizer {
                 continue;
             }
 
-            if (neverSplit.contains(token)) {
-                processedTokens.add(token);
-                continue;
+            if (isLowerCase) {
+                token = token.toLowerCase(Locale.ROOT);
             }
-
-            // At this point text has been tokenized by whitespace
-            // but one of the special never split tokens could be adjacent
-            // to one or more punctuation characters.
-            List<String> splitOnCommonTokens = splitOnPredicate(token, BasicTokenizer::isCommonPunctuation);
-            for (String splitOnCommon : splitOnCommonTokens) {
-                if (neverSplit.contains(splitOnCommon)) {
-                    processedTokens.add(splitOnCommon);
-                } else {
-                    if (isLowerCase) {
-                        splitOnCommon = splitOnCommon.toLowerCase(Locale.ROOT);
-                    }
-                    if (isStripAccents) {
-                        splitOnCommon = stripAccents(splitOnCommon);
-                    }
-                    processedTokens.addAll(splitOnPunctuation(splitOnCommon));
-                }
+            if (isStripAccents) {
+                token = stripAccents(token);
             }
+            processedTokens.addAll(splitOnPunctuation(token));
         }
 
         return processedTokens;
+    }
+
+    private List<String> mergeNeverSplitTokens(List<String> tokens) {
+        if (neverSplitTokenTrieRoot.isLeaf()) {
+            return tokens;
+        }
+        List<String> mergedTokens = new ArrayList<>(tokens.size());
+        List<String> matchingTokens = new ArrayList<>();
+        TokenTrieNode current = neverSplitTokenTrieRoot;
+        for (String token : tokens) {
+            TokenTrieNode childNode = current.getChild(token);
+            if (childNode == null) {
+                if (current != neverSplitTokenTrieRoot) {
+                    mergedTokens.addAll(matchingTokens);
+                    matchingTokens = new ArrayList<>();
+                    current = neverSplitTokenTrieRoot;
+                }
+                mergedTokens.add(token);
+            } else if (childNode.isLeaf()) {
+                matchingTokens.add(token);
+                mergedTokens.add(String.join("", matchingTokens));
+                matchingTokens = new ArrayList<>();
+                current = neverSplitTokenTrieRoot;
+            } else {
+                matchingTokens.add(token);
+                current = childNode;
+            }
+        }
+        return mergedTokens;
     }
 
     public boolean isLowerCase() {
@@ -159,16 +173,12 @@ public class BasicTokenizer {
     }
 
     static List<String> splitOnPunctuation(String word) {
-        return splitOnPredicate(word, BasicTokenizer::isPunctuationMark);
-    }
-
-    static List<String> splitOnPredicate(String word, Predicate<Integer> test) {
         List<String> split = new ArrayList<>();
         int[] codePoints = word.codePoints().toArray();
 
         int lastSplit = 0;
         for (int i = 0; i < codePoints.length; i++) {
-            if (test.test(codePoints[i])) {
+            if (isPunctuationMark(codePoints[i])) {
                 int charCount = i - lastSplit;
                 if (charCount > 0) {
                     // add a new string for what has gone before
@@ -291,15 +301,5 @@ public class BasicTokenizer {
         int category = Character.getType(codePoint);
         return (category >= Character.DASH_PUNCTUATION && category <= Character.OTHER_PUNCTUATION)
             || (category >= Character.INITIAL_QUOTE_PUNCTUATION && category <= Character.FINAL_QUOTE_PUNCTUATION);
-    }
-
-    /**
-     * True if the code point is for a common punctuation character
-     * {@code ! " # $ % & ' ( ) * + , - . /   and : ; < = > ?}
-     * @param codePoint codepoint
-     * @return true if codepoint is punctuation
-     */
-    static boolean isCommonPunctuation(int codePoint) {
-        return (codePoint >= 33 && codePoint <= 47) || (codePoint >= 58 && codePoint <= 64);
     }
 }

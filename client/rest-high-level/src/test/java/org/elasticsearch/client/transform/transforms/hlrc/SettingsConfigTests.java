@@ -37,6 +37,7 @@ public class SettingsConfigTests extends AbstractResponseTestCase<
         assertEquals(serverTestInstance.getDocsPerSecond(), clientInstance.getDocsPerSecond());
         assertEquals(serverTestInstance.getDatesAsEpochMillis(), clientInstance.getDatesAsEpochMillis());
         assertEquals(serverTestInstance.getAlignCheckpoints(), clientInstance.getAlignCheckpoints());
+        assertEquals(serverTestInstance.getUsePit(), clientInstance.getUsePit());
     }
 
     @Override

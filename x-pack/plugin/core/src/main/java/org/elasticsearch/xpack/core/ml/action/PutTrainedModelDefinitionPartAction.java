@@ -151,6 +151,10 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             return totalParts;
         }
 
+        public boolean isEos() {
+            return part == totalParts - 1;
+        }
+
         public static class Builder {
             private BytesReference definition;
             private long totalDefinitionLength;

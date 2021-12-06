@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.action.PutTrainedModelDefinitionPartActio
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 
@@ -85,12 +86,24 @@ public class TransportPutTrainedModelDefinitionPartAction extends HandledTranspo
                 );
                 return;
             }
-            final boolean isEos = request.getPart() == request.getTotalParts() - 1;
+            if (config.getModelSize() > 0 && config.getModelSize() != request.getTotalDefinitionLength()) {
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "cannot put definition for model [{}] as [{}][{}] is not the same as the model's [{}][{}]",
+                        request.getModelId(),
+                        TrainedModelDefinitionDoc.TOTAL_DEFINITION_LENGTH,
+                        request.getTotalDefinitionLength(),
+                        TrainedModelConfig.MODEL_SIZE_BYTES,
+                        config.getModelSize()
+                    )
+                );
+                return;
+            }
             final String indexName = ((IndexLocation) location).getIndexName();
             trainedModelProvider.storeTrainedModelDefinitionDoc(
                 new TrainedModelDefinitionDoc.Builder().setModelId(request.getModelId())
                     .setDocNum(request.getPart())
-                    .setEos(isEos)
+                    .setEos(request.isEos())
                     // XContentParser::binaryValue pulls out the raw, base64 decoded bytes automatically. So, we only need the length here
                     .setDefinitionLength(request.getDefinition().length())
                     .setTotalDefinitionLength(request.getTotalDefinitionLength())
@@ -98,25 +111,48 @@ public class TransportPutTrainedModelDefinitionPartAction extends HandledTranspo
                     .setBinaryData(request.getDefinition())
                     .build(),
                 indexName,
-                ActionListener.wrap(stored -> {
-                    if (isEos) {
-                        client.admin()
-                            .indices()
-                            .prepareRefresh(indexName)
-                            .execute(ActionListener.wrap(refreshed -> listener.onResponse(AcknowledgedResponse.TRUE), failure -> {
-                                logger.warn(
-                                    () -> new ParameterizedMessage("[{}] failed to refresh index [{}]", request.getModelId(), indexName),
-                                    failure
-                                );
-                                listener.onResponse(AcknowledgedResponse.TRUE);
-                            }));
-                        return;
-                    }
-                    listener.onResponse(AcknowledgedResponse.TRUE);
-                }, listener::onFailure)
+                ActionListener.wrap(stored -> handleDocStoredResponse(request, config, listener), listener::onFailure)
             );
         }, listener::onFailure);
 
         trainedModelProvider.getTrainedModel(request.getModelId(), GetTrainedModelsAction.Includes.empty(), configActionListener);
     }
+
+    private void handleDocStoredResponse(Request request, TrainedModelConfig modelConfig, ActionListener<AcknowledgedResponse> listener) {
+        if (modelConfig.getModelSize() == 0) {
+            trainedModelProvider.updateModelSize(
+                modelConfig.getModelId(),
+                request.getTotalDefinitionLength(),
+                ActionListener.wrap(
+                    updateResponse -> refreshModelLocationIndexIfLastPart(request, modelConfig.getLocation(), listener),
+                    listener::onFailure
+                )
+            );
+        } else {
+            refreshModelLocationIndexIfLastPart(request, modelConfig.getLocation(), listener);
+        }
+    }
+
+    private void refreshModelLocationIndexIfLastPart(
+        Request request,
+        TrainedModelLocation modelLocation,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        final String indexName = ((IndexLocation) modelLocation).getIndexName();
+        if (request.isEos()) {
+            client.admin()
+                .indices()
+                .prepareRefresh(indexName)
+                .execute(ActionListener.wrap(refreshed -> listener.onResponse(AcknowledgedResponse.TRUE), failure -> {
+                    logger.warn(
+                        () -> new ParameterizedMessage("[{}] failed to refresh index [{}]", request.getModelId(), indexName),
+                        failure
+                    );
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                }));
+            return;
+        }
+        listener.onResponse(AcknowledgedResponse.TRUE);
+    }
+
 }

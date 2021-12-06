@@ -31,6 +31,9 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
@@ -214,6 +217,28 @@ public class TrainedModelProvider {
                 }
             })
         );
+    }
+
+    /**
+     * Updates a model's {@link TrainedModelConfig#MODEL_SIZE_BYTES} to a new value
+     * @param modelId the model id for the document to update
+     * @param modelSize the new value for the model size
+     * @param listener the listener
+     */
+    public void updateModelSize(String modelId, long modelSize, ActionListener<UpdateResponse> listener) {
+        SearchRequest searchRequest = buildTrainedModelConfigSearch(modelId);
+        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, ActionListener.wrap(searchResponse -> {
+            if (searchResponse.getHits().getHits().length == 0) {
+                listener.onFailure(new ResourceNotFoundException(Messages.getMessage(Messages.INFERENCE_NOT_FOUND, modelId)));
+                return;
+            }
+            SearchHit modelConfigDoc = searchResponse.getHits().getHits()[0];
+            UpdateRequest updateRequest = new UpdateRequest(modelConfigDoc.getIndex(), modelConfigDoc.getId());
+            updateRequest.doc(Collections.singletonMap(TrainedModelConfig.MODEL_SIZE_BYTES.getPreferredName(), modelSize));
+            updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            updateRequest.setIfSeqNo(modelConfigDoc.getSeqNo());
+            executeAsyncWithOrigin(client, ML_ORIGIN, UpdateAction.INSTANCE, updateRequest, listener);
+        }, listener::onFailure));
     }
 
     public void storeTrainedModelDefinitionDoc(TrainedModelDefinitionDoc trainedModelDefinitionDoc, ActionListener<Void> listener) {
@@ -600,13 +625,7 @@ public class TrainedModelProvider {
 
         }, finalListener::onFailure);
 
-        QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(modelId));
-        SearchRequest trainedModelConfigSearch = client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
-            .setQuery(queryBuilder)
-            // use sort to get the last
-            .addSort("_index", SortOrder.DESC)
-            .setSize(1)
-            .request();
+        SearchRequest trainedModelConfigSearch = buildTrainedModelConfigSearch(modelId);
 
         ActionListener<SearchResponse> trainedModelSearchHandler = ActionListener.wrap(modelSearchResponse -> {
             TrainedModelConfig.Builder builder;
@@ -673,6 +692,16 @@ public class TrainedModelProvider {
             );
         }, getTrainedModelListener::onFailure);
         executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, trainedModelConfigSearch, trainedModelSearchHandler);
+    }
+
+    private SearchRequest buildTrainedModelConfigSearch(String modelId) {
+        QueryBuilder queryBuilder = QueryBuilders.constantScoreQuery(QueryBuilders.idsQuery().addIds(modelId));
+        return client.prepareSearch(InferenceIndexConstants.INDEX_PATTERN)
+            .setQuery(queryBuilder)
+            // use sort to get the last
+            .addSort("_index", SortOrder.DESC)
+            .setSize(1)
+            .request();
     }
 
     public void getTrainedModels(

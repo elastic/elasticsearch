@@ -622,6 +622,9 @@ public class PyTorchModelIT extends ESRestTestCase {
                 + "}"
         );
         client().performRequest(request);
+
+        Response getModelResponse = client().performRequest(new Request("GET", "_ml/trained_models/" + modelId));
+        assertThat(EntityUtils.toString(getModelResponse.getEntity()), containsString("\"model_size_bytes\":" + RAW_MODEL_SIZE));
     }
 
     private void putVocabulary(List<String> vocabulary, String modelId) throws IOException {

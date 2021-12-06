@@ -137,13 +137,6 @@ public final class Lucene60FieldInfosFormat extends FieldInfosFormat {
         }
     }
 
-    static {
-        // We "mirror" DocValues enum values with the constants below; let's try to ensure if we add a new DocValuesType while this format
-        // is
-        // still used for writing, we remember to fix this encoding:
-        assert DocValuesType.values().length == 6;
-    }
-
     private static DocValuesType getDocValuesType(IndexInput input, byte b) throws IOException {
         switch (b) {
             case 0:
@@ -161,13 +154,6 @@ public final class Lucene60FieldInfosFormat extends FieldInfosFormat {
             default:
                 throw new CorruptIndexException("invalid docvalues byte: " + b, input);
         }
-    }
-
-    static {
-        // We "mirror" IndexOptions enum values with the constants below; let's try to ensure if we add a new IndexOption while this format
-        // is
-        // still used for writing, we remember to fix this encoding:
-        assert IndexOptions.values().length == 5;
     }
 
     private static IndexOptions getIndexOptions(IndexInput input, byte b) throws IOException {

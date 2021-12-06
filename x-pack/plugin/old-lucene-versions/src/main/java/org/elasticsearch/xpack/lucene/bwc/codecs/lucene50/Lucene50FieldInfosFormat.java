@@ -144,13 +144,6 @@ public final class Lucene50FieldInfosFormat extends FieldInfosFormat {
         }
     }
 
-    static {
-        // We "mirror" IndexOptions enum values with the constants below; let's try to ensure if we add a new IndexOption while this format
-        // is
-        // still used for writing, we remember to fix this encoding:
-        assert IndexOptions.values().length == 5;
-    }
-
     private static IndexOptions getIndexOptions(IndexInput input, byte b) throws IOException {
         switch (b) {
             case 0:

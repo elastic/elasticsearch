@@ -425,7 +425,7 @@ as outlined in the following matrix.
 IMPORTANT: For the <<eql-search-api,EQL search API>>, the local and remote
 clusters must use the same {es} version.
 
-[%collapsible]
+[%collapsible%open]
 [[ccs-version-compatibility]]
 .Version compatibility matrix
 ====

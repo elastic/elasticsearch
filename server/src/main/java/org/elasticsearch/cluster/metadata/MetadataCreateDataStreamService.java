@@ -171,8 +171,9 @@ public class MetadataCreateDataStreamService {
         SystemDataStreamDescriptor systemDataStreamDescriptor = request.getSystemDataStreamDescriptor();
         boolean isSystemDataStreamName = metadataCreateIndexService.getSystemIndices().isSystemDataStream(request.name);
         assert (isSystemDataStreamName && systemDataStreamDescriptor != null)
-            || (isSystemDataStreamName == false && systemDataStreamDescriptor == null)
-            : "dataStream [" + request.name + "] is system but no system descriptor was provided!";
+            || (isSystemDataStreamName == false && systemDataStreamDescriptor == null) : "dataStream ["
+                + request.name
+                + "] is system but no system descriptor was provided!";
 
         Objects.requireNonNull(metadataCreateIndexService);
         Objects.requireNonNull(currentState);
@@ -209,7 +210,9 @@ public class MetadataCreateDataStreamService {
             ).dataStreamName(dataStreamName).systemDataStreamDescriptor(systemDataStreamDescriptor);
 
             // Get the index mode from template and based on that set tsdb start and end time settings correctly:
-            IndexMode indexMode = IndexSettings.MODE.get(template.template().settings());
+            IndexMode indexMode = template.template() != null && template.template().settings() != null
+                ? IndexSettings.MODE.get(template.template().settings())
+                : IndexMode.STANDARD;
             if (indexMode == IndexMode.TIME_SERIES) {
                 Instant start = Instant.ofEpochMilli(0);
                 Instant end = Instant.ofEpochMilli(request.startTime).plus(DataStream.DEFAULT_LOOK_AHEAD_TIME);

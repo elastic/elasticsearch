@@ -146,8 +146,8 @@ public class DatafeedTimingStats implements ToXContentObject, Writeable {
         this.exponentialAvgCalculationContext.increment(searchTimeMs);
     }
 
-    public void incrementBucketCount(long bucketCount) {
-        this.bucketCount += bucketCount;
+    public void incrementBucketCount(long count) {
+        this.bucketCount += count;
     }
 
     public void setLatestRecordTimestamp(Instant latestRecordTimestamp) {

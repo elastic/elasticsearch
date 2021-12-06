@@ -77,7 +77,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
             );
 
         IndexMetadata meta = buildIndexMetadata("my-policy", exState);
-        String index = meta.getIndex().getName();
+        String indexName = meta.getIndex().getName();
 
         Map<String, LifecycleAction> actions = new HashMap<>();
         actions.put("rollover", new RolloverAction(null, null, null, 1L));
@@ -91,9 +91,9 @@ public class PhaseCacheManagementTests extends ESTestCase {
             .metadata(Metadata.builder(Metadata.EMPTY_METADATA).put(meta, false).build())
             .build();
 
-        ClusterState changedState = refreshPhaseDefinition(existingState, index, policyMetadata);
+        ClusterState changedState = refreshPhaseDefinition(existingState, indexName, policyMetadata);
 
-        IndexMetadata newIdxMeta = changedState.metadata().index(index);
+        IndexMetadata newIdxMeta = changedState.metadata().index(indexName);
         LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);
         Map<String, String> beforeState = new HashMap<>(exState.build().asMap());
         beforeState.remove("phase_definition");

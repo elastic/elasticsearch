@@ -63,8 +63,8 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
         try {
             // If a document does not have the enrich key, return the unchanged document
-            String field = ingestDocument.renderTemplate(this.field);
-            final Object value = ingestDocument.getFieldValue(field, Object.class, ignoreMissing);
+            String renderedField = ingestDocument.renderTemplate(this.field);
+            final Object value = ingestDocument.getFieldValue(renderedField, Object.class, ignoreMissing);
             if (value == null) {
                 handler.accept(ingestDocument, null);
                 return;
@@ -98,18 +98,18 @@ public abstract class AbstractEnrichProcessor extends AbstractProcessor {
                     return;
                 }
 
-                String targetField = ingestDocument.renderTemplate(this.targetField);
-                if (overrideEnabled || ingestDocument.hasField(targetField) == false) {
+                String renderedTargetField = ingestDocument.renderTemplate(this.targetField);
+                if (overrideEnabled || ingestDocument.hasField(renderedTargetField) == false) {
                     if (maxMatches == 1) {
                         Map<String, Object> firstDocument = searchHits[0].getSourceAsMap();
-                        ingestDocument.setFieldValue(targetField, firstDocument);
+                        ingestDocument.setFieldValue(renderedTargetField, firstDocument);
                     } else {
                         List<Map<String, Object>> enrichDocuments = new ArrayList<>(searchHits.length);
                         for (SearchHit searchHit : searchHits) {
                             Map<String, Object> enrichDocument = searchHit.getSourceAsMap();
                             enrichDocuments.add(enrichDocument);
                         }
-                        ingestDocument.setFieldValue(targetField, enrichDocuments);
+                        ingestDocument.setFieldValue(renderedTargetField, enrichDocuments);
                     }
                 }
                 handler.accept(ingestDocument, null);

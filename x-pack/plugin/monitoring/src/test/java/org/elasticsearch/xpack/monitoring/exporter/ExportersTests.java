@@ -318,10 +318,10 @@ public class ExportersTests extends ESTestCase {
         final Settings.Builder settings = Settings.builder();
 
         for (int i = 0; i < nbExporters; i++) {
-            settings.put("xpack.monitoring.exporters._name" + String.valueOf(i) + ".type", "record");
+            settings.put("xpack.monitoring.exporters._name" + i + ".type", "record");
         }
 
-        final Exporters exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext, sslService);
+        exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext, sslService);
 
         // synchronously checks the cluster state
         exporters.wrapExportBulk(ActionListener.wrap(bulk -> assertThat(bulk, is(nullValue())), e -> fail(e.getMessage())));
@@ -337,7 +337,7 @@ public class ExportersTests extends ESTestCase {
             .put("xpack.monitoring.exporters.explicitly_disabled.type", "local")
             .put("xpack.monitoring.exporters.explicitly_disabled.enabled", false);
 
-        Exporters exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext, sslService);
+        exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext, sslService);
         exporters.start();
 
         assertThat(exporters.getEnabledExporters(), empty());
@@ -361,12 +361,12 @@ public class ExportersTests extends ESTestCase {
 
         Settings.Builder settings = Settings.builder();
         for (int i = 0; i < nbExporters; i++) {
-            settings.put("xpack.monitoring.exporters._name" + String.valueOf(i) + ".type", "record");
+            settings.put("xpack.monitoring.exporters._name" + i + ".type", "record");
         }
 
         factories.put("record", (s) -> new CountingExporter(s, threadContext));
 
-        Exporters exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext, sslService);
+        exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext, sslService);
         exporters.start();
 
         assertThat(exporters.getEnabledExporters(), hasSize(nbExporters));
@@ -434,10 +434,10 @@ public class ExportersTests extends ESTestCase {
     /**
      * Attempt to export a random number of documents via {@code exporters} from multiple threads.
      *
-     * @param exporters The setup / started exporters instance to use.
+     * @param exportersToUse The setup / started exporters instance to use.
      * @return The total number of documents sent to the {@code exporters}.
      */
-    private int assertExporters(final Exporters exporters) throws InterruptedException {
+    private int assertExporters(final Exporters exportersToUse) throws InterruptedException {
         final Thread[] threads = new Thread[3 + randomInt(7)];
         final CyclicBarrier barrier = new CyclicBarrier(threads.length);
         final List<Throwable> exceptions = new CopyOnWriteArrayList<>();
@@ -474,7 +474,7 @@ public class ExportersTests extends ESTestCase {
                             )
                         );
                     }
-                    exporters.export(docs, ActionListener.wrap(r -> {
+                    exportersToUse.export(docs, ActionListener.wrap(r -> {
                         counter.decrementAndGet();
                         logger.debug("--> thread [{}] successfully exported {} documents", threadNum, threadDocs);
                     }, e -> {

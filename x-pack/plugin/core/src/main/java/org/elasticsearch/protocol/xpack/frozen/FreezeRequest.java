@@ -97,6 +97,7 @@ public class FreezeRequest extends AcknowledgedRequest<FreezeRequest> implements
     }
 
     @Override
+    @SuppressWarnings("HiddenField")
     public IndicesRequest indices(String... indices) {
         this.indices = indices;
         return this;

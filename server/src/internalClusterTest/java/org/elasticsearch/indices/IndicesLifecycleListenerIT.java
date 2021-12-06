@@ -272,12 +272,12 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
             IndexShardState newState,
             @Nullable String reason
         ) {
-            List<IndexShardState> shardStates = this.shardStates.putIfAbsent(
+            List<IndexShardState> shardStateList = this.shardStates.putIfAbsent(
                 indexShard.shardId(),
                 new CopyOnWriteArrayList<>(new IndexShardState[] { newState })
             );
-            if (shardStates != null) {
-                shardStates.add(newState);
+            if (shardStateList != null) {
+                shardStateList.add(newState);
             }
         }
 

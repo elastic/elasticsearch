@@ -7,9 +7,6 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
@@ -147,8 +144,8 @@ public class MetadataIndexTemplateService {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     Set<String> templateNames = new HashSet<>();
-                    for (ObjectCursor<String> cursor : currentState.metadata().templates().keys()) {
-                        String templateName = cursor.value;
+                    for (Map.Entry<String, IndexTemplateMetadata> cursor : currentState.metadata().templates().entrySet()) {
+                        String templateName = cursor.getKey();
                         if (Regex.simpleMatch(request.name, templateName)) {
                             templateNames.add(templateName);
                         }
@@ -696,9 +693,9 @@ public class MetadataIndexTemplateService {
     ) {
         Automaton v2automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
-        for (ObjectObjectCursor<String, IndexTemplateMetadata> cursor : state.metadata().templates()) {
-            String name = cursor.key;
-            IndexTemplateMetadata template = cursor.value;
+        for (Map.Entry<String, IndexTemplateMetadata> cursor : state.metadata().templates().entrySet()) {
+            String name = cursor.getKey();
+            IndexTemplateMetadata template = cursor.getValue();
             Automaton v1automaton = Regex.simpleMatchToAutomaton(template.patterns().toArray(Strings.EMPTY_ARRAY));
             if (Operations.isEmpty(Operations.intersection(v2automaton, v1automaton)) == false) {
                 logger.debug(
@@ -1244,8 +1241,8 @@ public class MetadataIndexTemplateService {
         templates.forEach(template -> {
             if (template.aliases() != null) {
                 Map<String, AliasMetadata> aliasMeta = new HashMap<>();
-                for (ObjectObjectCursor<String, AliasMetadata> cursor : template.aliases()) {
-                    aliasMeta.put(cursor.key, cursor.value);
+                for (Map.Entry<String, AliasMetadata> cursor : template.aliases().entrySet()) {
+                    aliasMeta.put(cursor.getKey(), cursor.getValue());
                 }
                 resolvedAliases.add(aliasMeta);
             }

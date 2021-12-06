@@ -260,7 +260,7 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
     Status getStatus(String typeValue) {
         // if no condition, or condition passed
-        if (conditionalWithResult == null || (conditionalWithResult != null && conditionalWithResult.v2())) {
+        if (conditionalWithResult == null || conditionalWithResult.v2()) {
             if (failure != null) {
                 if (ingestDocument == null) {
                     return Status.ERROR;

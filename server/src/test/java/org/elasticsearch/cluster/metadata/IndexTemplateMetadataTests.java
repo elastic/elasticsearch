@@ -24,8 +24,8 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IndexTemplateMetadataTests extends ESTestCase {
 

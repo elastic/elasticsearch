@@ -91,11 +91,11 @@ public class InboundAggregatorTests extends ESTestCase {
         assertThat(aggregated.getHeader().getRequestId(), equalTo(requestId));
         assertThat(aggregated.getHeader().getVersion(), equalTo(Version.CURRENT));
         for (ReleasableBytesReference reference : references) {
-            assertEquals(1, reference.refCount());
+            assertTrue(reference.hasReferences());
         }
         aggregated.close();
         for (ReleasableBytesReference reference : references) {
-            assertEquals(0, reference.refCount());
+            assertFalse(reference.hasReferences());
         }
     }
 
@@ -111,7 +111,7 @@ public class InboundAggregatorTests extends ESTestCase {
         final ReleasableBytesReference content = ReleasableBytesReference.wrap(bytes);
         aggregator.aggregate(content);
         content.close();
-        assertEquals(0, content.refCount());
+        assertFalse(content.hasReferences());
 
         // Signal EOS
         InboundMessage aggregated = aggregator.finishAggregation();
@@ -139,7 +139,7 @@ public class InboundAggregatorTests extends ESTestCase {
         // Signal EOS
         InboundMessage aggregated1 = aggregator.finishAggregation();
 
-        assertEquals(0, content1.refCount());
+        assertFalse(content1.hasReferences());
         assertThat(aggregated1, notNullValue());
         assertTrue(aggregated1.isShortCircuit());
         assertThat(aggregated1.getException(), instanceOf(CircuitBreakingException.class));
@@ -158,7 +158,7 @@ public class InboundAggregatorTests extends ESTestCase {
         // Signal EOS
         InboundMessage aggregated2 = aggregator.finishAggregation();
 
-        assertEquals(1, content2.refCount());
+        assertTrue(content2.hasReferences());
         assertThat(aggregated2, notNullValue());
         assertFalse(aggregated2.isShortCircuit());
 
@@ -177,7 +177,7 @@ public class InboundAggregatorTests extends ESTestCase {
         // Signal EOS
         InboundMessage aggregated3 = aggregator.finishAggregation();
 
-        assertEquals(1, content3.refCount());
+        assertTrue(content3.hasReferences());
         assertThat(aggregated3, notNullValue());
         assertFalse(aggregated3.isShortCircuit());
     }
@@ -211,7 +211,7 @@ public class InboundAggregatorTests extends ESTestCase {
         aggregator.close();
 
         for (ReleasableBytesReference reference : references) {
-            assertEquals(0, reference.refCount());
+            assertFalse(reference.hasReferences());
         }
     }
 
@@ -244,10 +244,10 @@ public class InboundAggregatorTests extends ESTestCase {
             assertFalse(header.needsToReadVariableHeader());
             assertEquals(actionName, header.getActionName());
             if (unknownAction) {
-                assertEquals(0, content.refCount());
+                assertFalse(content.hasReferences());
                 assertTrue(aggregated.isShortCircuit());
             } else {
-                assertEquals(1, content.refCount());
+                assertTrue(content.hasReferences());
                 assertFalse(aggregated.isShortCircuit());
             }
         }

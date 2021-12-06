@@ -445,23 +445,23 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
      * If the node is not the elected master node, then it should never check Watcher or send Watches (Cluster Alerts).
      */
     public void testSuccessfulChecksIfNotElectedMasterNode() {
-        final ClusterState state = mockClusterState(false);
-        final ClusterService clusterService = mockClusterService(state);
+        final ClusterState mockState = mockClusterState(false);
+        final ClusterService mockClusterService = mockClusterService(mockState);
 
-        final MultiHttpResource resources = HttpExporter.createResources(
-            new Exporter.Config("_http", "http", exporterSettings, clusterService, licenseState)
+        final MultiHttpResource allResources = HttpExporter.createResources(
+            new Exporter.Config("_http", "http", exporterSettings, mockClusterService, licenseState)
         ).allResources;
 
         whenValidVersionResponse();
         whenGetTemplates(EXPECTED_TEMPLATES);
 
-        assertTrue(resources.isDirty());
+        assertTrue(allResources.isDirty());
 
         // it should be able to proceed! (note: we are not using the instance "resources" here)
-        resources.checkAndPublish(client, wrapMockListener(publishListener));
+        allResources.checkAndPublish(client, wrapMockListener(publishListener));
 
         verifyPublishListener(ResourcePublishResult.ready());
-        assertFalse(resources.isDirty());
+        assertFalse(allResources.isDirty());
 
         verifyVersionCheck();
         verifyGetTemplates(EXPECTED_TEMPLATES);
@@ -628,13 +628,13 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         whenPerformRequestAsyncWith(client, new RequestMatcher(is("GET"), startsWith("/_template/")), gets);
     }
 
-    private void whenWatcherCanBeUsed(final boolean validLicense) {
+    private void whenWatcherCanBeUsed(final boolean validLicenseToReturn) {
         final Metadata metadata = mock(Metadata.class);
 
         when(state.metadata()).thenReturn(metadata);
         when(metadata.clusterUUID()).thenReturn("the_clusters_uuid");
 
-        when(licenseState.isAllowed(Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE)).thenReturn(validLicense);
+        when(licenseState.isAllowed(Monitoring.MONITORING_CLUSTER_ALERTS_FEATURE)).thenReturn(validLicenseToReturn);
 
         final HttpEntity entity = new StringEntity(
             "{\"features\":{\"watcher\":{\"enabled\":true,\"available\":true}}}",
@@ -725,22 +725,22 @@ public class HttpExporterResourceTests extends AbstractPublishableHttpResourceTe
         );
     }
 
-    private ClusterService mockClusterService(final ClusterState state) {
-        final ClusterService clusterService = mock(ClusterService.class);
+    private ClusterService mockClusterService(final ClusterState clusterState) {
+        final ClusterService mockClusterService = mock(ClusterService.class);
 
-        when(clusterService.state()).thenReturn(state);
+        when(mockClusterService.state()).thenReturn(clusterState);
 
-        return clusterService;
+        return mockClusterService;
     }
 
     private ClusterState mockClusterState(final boolean electedMaster) {
-        final ClusterState state = mock(ClusterState.class);
+        final ClusterState mockState = mock(ClusterState.class);
         final DiscoveryNodes nodes = mock(DiscoveryNodes.class);
 
-        when(state.nodes()).thenReturn(nodes);
+        when(mockState.nodes()).thenReturn(nodes);
         when(nodes.isLocalNodeElectedMaster()).thenReturn(electedMaster);
 
-        return state;
+        return mockState;
     }
 
     private static class RequestMatcher extends TypeSafeMatcher<Request> {

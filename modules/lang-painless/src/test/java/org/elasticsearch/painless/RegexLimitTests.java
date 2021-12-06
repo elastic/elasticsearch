@@ -308,13 +308,13 @@ public class RegexLimitTests extends ScriptTestCase {
     }
 
     public void testSnippetRegex() {
-        String charSequence = "abcdef123456".repeat(100);
-        String script = "if ('" + charSequence + "' ==~ " + pattern + ") { return 100; } return 200";
+        String longCharSequence = "abcdef123456".repeat(100);
+        String script = "if ('" + longCharSequence + "' ==~ " + pattern + ") { return 100; } return 200";
 
         setRegexLimitFactor(1);
         CircuitBreakingException cbe = expectScriptThrows(CircuitBreakingException.class, () -> exec(script));
         assertTrue(cbe.getMessage().contains(regexCircuitMessage));
-        assertTrue(cbe.getMessage().contains(charSequence.subSequence(0, 61) + "..."));
+        assertTrue(cbe.getMessage().contains(longCharSequence.subSequence(0, 61) + "..."));
     }
 
     private void setRegexLimitFactor(int factor) {

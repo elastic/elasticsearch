@@ -492,7 +492,7 @@ public final class IndexSettings {
      */
     public static final Setting<Instant> TIME_SERIES_END_TIME = Setting.dateSetting(
         "index.time_series.end_time",
-        DateUtils.MAX_NANOSECOND_INSTANT,
+        Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999),
         new Setting.Validator<>() {
             @Override
             public void validate(Instant value) {}
@@ -813,7 +813,9 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING, this::setMappingDimensionFieldsLimit);
-        scopedSettings.addSettingsUpdateConsumer(TIME_SERIES_END_TIME, this::updateTimeSeriesEndTime);
+        if (IndexSettings.isTimeSeriesModeEnabled()) {
+            scopedSettings.addSettingsUpdateConsumer(TIME_SERIES_END_TIME, this::updateTimeSeriesEndTime);
+        }
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {

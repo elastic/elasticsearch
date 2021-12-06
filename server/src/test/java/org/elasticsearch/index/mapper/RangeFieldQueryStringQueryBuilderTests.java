@@ -15,7 +15,6 @@ import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.LongRange;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;

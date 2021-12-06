@@ -38,6 +38,7 @@ public class MlScalingReasonTests extends AbstractWireSerializingTestCase<MlScal
             randomBoolean() ? null : Stream.generate(() -> randomAlphaOfLength(10)).limit(5).collect(Collectors.toList()),
             randomBoolean() ? null : Stream.generate(() -> randomAlphaOfLength(10)).limit(5).collect(Collectors.toList()),
             randomBoolean() ? null : Stream.generate(() -> randomAlphaOfLength(10)).limit(5).collect(Collectors.toList()),
+            randomBoolean() ? null : Stream.generate(() -> randomAlphaOfLength(10)).limit(5).collect(Collectors.toList()),
             randomConfiguration(),
             randomBoolean() ? null : randomLongBetween(10, ByteSizeValue.ofGb(1).getBytes()),
             randomBoolean() ? null : randomLongBetween(10, ByteSizeValue.ofGb(1).getBytes()),

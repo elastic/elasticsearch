@@ -480,6 +480,15 @@ public class Docker {
         } else {
             assertThat("Cloud image should not have any plugins in " + pluginArchive, plugins, empty());
         }
+
+        // Cloud uses `wget` to install plugins / bundles.
+        Stream.of("wget")
+            .forEach(
+                cliBinary -> assertTrue(
+                    cliBinary + " ought to be available.",
+                    dockerShell.runIgnoreExitCode("bash -c  'hash " + cliBinary + "'").isSuccess()
+                )
+            );
     }
 
     public static void waitForElasticsearch(Installation installation) throws Exception {

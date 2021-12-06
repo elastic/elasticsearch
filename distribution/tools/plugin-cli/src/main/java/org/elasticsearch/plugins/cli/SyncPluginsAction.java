@@ -113,7 +113,7 @@ public class SyncPluginsAction implements PluginsSynchronizer {
 
     // @VisibleForTesting
     PluginChanges getPluginChanges(PluginsConfig pluginsConfig, Optional<PluginsConfig> cachedPluginsConfig) throws PluginSyncException {
-        final List<PluginInfo> existingPlugins = getExistingPlugins(this.env);
+        final List<PluginInfo> existingPlugins = getExistingPlugins();
 
         final List<PluginDescriptor> pluginsThatShouldExist = pluginsConfig.getPlugins();
         final List<PluginDescriptor> pluginsThatActuallyExist = existingPlugins.stream()
@@ -228,7 +228,7 @@ public class SyncPluginsAction implements PluginsSynchronizer {
         }).collect(Collectors.toList());
     }
 
-    private List<PluginInfo> getExistingPlugins(Environment env) throws PluginSyncException {
+    private List<PluginInfo> getExistingPlugins() throws PluginSyncException {
         final List<PluginInfo> plugins = new ArrayList<>();
 
         try {

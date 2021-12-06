@@ -51,6 +51,7 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.upgrades.FullClusterRestartIT.assertNumHits;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -387,6 +388,83 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertThat(clusterHealthResponse.get("timed_out"), equalTo(Boolean.FALSE));
 
             assertRollUpJob("rollup-job-test");
+        }
+    }
+
+    public void testTransformLegacyTemplateCleanup() throws Exception {
+        assumeTrue("Before 7.2 transforms didn't exist", getOldClusterVersion().onOrAfter(Version.V_7_2_0));
+        if (isRunningAgainstOldCluster()) {
+
+            // create the source index
+            final Request createIndexRequest = new Request("PUT", "customers");
+            createIndexRequest.setJsonEntity(
+                "{"
+                    + "\"mappings\": {"
+                    + "  \"properties\": {"
+                    + "    \"customer_id\": { \"type\": \"keyword\" },"
+                    + "    \"price\": { \"type\": \"double\" }"
+                    + "  }"
+                    + "}"
+                    + "}"
+            );
+
+            Map<String, Object> createIndexResponse = entityAsMap(client().performRequest(createIndexRequest));
+            assertThat(createIndexResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+
+            // create a transform
+            String endpoint = getOldClusterVersion().onOrAfter(Version.V_7_5_0)
+                ? "_transform/transform-full-cluster-restart-test"
+                : "_data_frame/transforms/transform-full-cluster-restart-test";
+            final Request createTransformRequest = new Request("PUT", endpoint);
+
+            createTransformRequest.setJsonEntity(
+                "{"
+                    + "\"source\":{"
+                    + "  \"index\":\"customers\""
+                    + "},"
+                    + "\"description\":\"testing\","
+                    + "\"dest\":{"
+                    + "  \"index\":\"max_price\""
+                    + "},"
+                    + "\"pivot\": {"
+                    + "  \"group_by\":{"
+                    + "    \"customer_id\":{"
+                    + "      \"terms\":{"
+                    + "        \"field\":\"customer_id\""
+                    + "      }"
+                    + "    }"
+                    + "  },"
+                    + "  \"aggregations\":{"
+                    + "    \"max_price\":{"
+                    + "      \"max\":{"
+                    + "        \"field\":\"price\""
+                    + "      }"
+                    + "    }"
+                    + "  }"
+                    + "}"
+                    + "}"
+            );
+
+            Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
+            assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        } else {
+            // legacy index templates created in previous releases should not be present anymore
+            assertBusy(() -> {
+                Request request = new Request("GET", "/_template/.transform-*,.data-frame-*");
+                try {
+                    Response response = client().performRequest(request);
+                    Map<String, Object> responseLevel = entityAsMap(response);
+                    assertNotNull(responseLevel);
+                    assertThat(responseLevel.keySet(), empty());
+                } catch (ResponseException e) {
+                    // not found is fine
+                    assertThat(
+                        "Unexpected failure getting templates: " + e.getResponse().getStatusLine(),
+                        e.getResponse().getStatusLine().getStatusCode(),
+                        is(404)
+                    );
+                }
+            });
         }
     }
 

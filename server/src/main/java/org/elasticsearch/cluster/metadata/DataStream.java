@@ -229,7 +229,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         long currentTimeMillis = timeProvider.getAsLong();
         do {
             newWriteIndexName = DataStream.getDefaultBackingIndexName(getName(), ++generation, currentTimeMillis);
-        } while (clusterMetadata.getIndicesLookup().containsKey(newWriteIndexName));
+        } while (clusterMetadata.hasIndexAbstraction(newWriteIndexName));
         return Tuple.tuple(newWriteIndexName, generation);
     }
 

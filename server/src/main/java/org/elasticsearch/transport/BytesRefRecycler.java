@@ -14,6 +14,8 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 
 public class BytesRefRecycler implements Recycler<BytesRef> {
 
+    public static final BytesRefRecycler NON_RECYCLING_INSTANCE = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+
     private final PageCacheRecycler recycler;
 
     public BytesRefRecycler(PageCacheRecycler recycler) {

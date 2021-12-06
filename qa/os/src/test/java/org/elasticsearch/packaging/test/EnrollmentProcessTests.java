@@ -9,7 +9,6 @@
 package org.elasticsearch.packaging.test;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.packaging.test.PackagingTestCase.AwaitsFix;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Shell;
@@ -27,7 +26,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assume.assumeTrue;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/79810")
 public class EnrollmentProcessTests extends PackagingTestCase {
 
     @BeforeClass
@@ -54,6 +52,21 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         final String enrollmentToken = createTokenResult.stdout;
         // installation now points to the second node
         installation = installArchive(sh, distribution(), getRootTempDir().resolve("elasticsearch-node2"), getCurrentVersion(), true);
+
+        // Try to start the node with an invalid enrollment token and verify it fails to start
+        Shell.Result startSecondNodeWithInvalidToken = Archives.startElasticsearchWithTty(
+            installation,
+            sh,
+            null,
+            List.of("--enrollment-token", "some-invalid-token-here"),
+            false
+        );
+        assertThat(
+            startSecondNodeWithInvalidToken.stdout,
+            containsString("Failed to parse enrollment token : some-invalid-token-here . Error was: Illegal base64 character 2d")
+        );
+        verifySecurityNotAutoConfigured(installation);
+
         // auto-configure security using the enrollment token
         Shell.Result startSecondNode = awaitElasticsearchStartupWithResult(
             Archives.startElasticsearchWithTty(installation, sh, null, List.of("--enrollment-token", enrollmentToken), false)

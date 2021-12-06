@@ -44,8 +44,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState state) {
-                return state == null ? Double.NEGATIVE_INFINITY : state.getMin();
+            double value(TDigestState digestState) {
+                return digestState == null ? Double.NEGATIVE_INFINITY : digestState.getMin();
             }
         },
         MAX {
@@ -55,8 +55,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState state) {
-                return state == null ? Double.POSITIVE_INFINITY : state.getMax();
+            double value(TDigestState digestState) {
+                return digestState == null ? Double.POSITIVE_INFINITY : digestState.getMax();
             }
         },
         Q1 {
@@ -66,8 +66,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState state) {
-                return state == null ? Double.NaN : state.quantile(0.25);
+            double value(TDigestState digestState) {
+                return digestState == null ? Double.NaN : digestState.quantile(0.25);
             }
         },
         Q2 {
@@ -77,8 +77,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState state) {
-                return state == null ? Double.NaN : state.quantile(0.5);
+            double value(TDigestState digestState) {
+                return digestState == null ? Double.NaN : digestState.quantile(0.5);
             }
         },
         Q3 {
@@ -88,8 +88,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState state) {
-                return state == null ? Double.NaN : state.quantile(0.75);
+            double value(TDigestState digestState) {
+                return digestState == null ? Double.NaN : digestState.quantile(0.75);
             }
         },
         LOWER {
@@ -99,8 +99,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState state) {
-                return whiskers(state)[0];
+            double value(TDigestState digestState) {
+                return whiskers(digestState)[0];
             }
         },
         UPPER {
@@ -110,8 +110,8 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
             }
 
             @Override
-            double value(TDigestState state) {
-                return whiskers(state)[1];
+            double value(TDigestState digestState) {
+                return whiskers(digestState)[1];
             }
         };
 

@@ -600,16 +600,17 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
     public void testIndexTemplateWithAliasesSource() {
         client().admin().indices().preparePutTemplate("template_1").setPatterns(Collections.singletonList("te*")).setAliases("""
-                {
-                    "alias1" : {},
-                    "alias2" : {
-                        "filter" : {
-                            "term" : {
-                                "field" : "value2"
-                            }
+            {
+                "alias1" : {},
+                "alias2" : {
+                    "filter" : {
+                        "term" : {
+                            "field" : "value2"
                         }
-                     },
-                    "alias3" : { "routing" : "1" }    }
+                    }
+                 },
+                "alias3" : { "routing" : "1" }
+            }
             """).get();
 
         assertAcked(prepareCreate("test_index"));

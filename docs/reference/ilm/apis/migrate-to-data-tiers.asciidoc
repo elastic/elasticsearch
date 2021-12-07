@@ -20,6 +20,7 @@ in the <<migrate-index-allocation-filters, migration guide>>:
 
 . <<stop-setting-custom-hot-attribute, Stop setting the custom hot attribute on new indices>>
 . <<remove-custom-allocation-settings, Remove custom allocation settings from existing {ilm-init} policies>>
+. <<enforce-default-tier-preference, Enforce a default tier preference on new indices>>
 . <<set-tier-preference, Replace custom allocation settings from existing indices>> with the corresponding <<tier-preference-allocation-filter,tier preference>>
 
 [[ilm-migrate-to-data-tiers-request]]

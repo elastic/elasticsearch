@@ -420,9 +420,7 @@ assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper)); // origin
         String fine = """
             {"type":"test_mapper","variable":null,"required":"value"}""";
         TestMapper mapper = fromMapping(fine);
-        assertEquals("""
-            {"field":%s}\
-            """.formatted(fine), Strings.toString(mapper));
+assertEquals("{\"field\":" + fine + "}", Strings.toString(mapper));
     }
 
     public void testObjectSerialization() throws IOException {

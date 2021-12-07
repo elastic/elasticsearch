@@ -53,7 +53,7 @@ class IngestMetric {
      */
     void postIngest(long ingestTimeInNanos) {
         long current = ingestCurrent.decrementAndGet();
-        assert current >= 0: "ingest metric current count double-decremented";
+        assert current >= 0 : "ingest metric current count double-decremented";
         this.ingestTimeInNanos.inc(ingestTimeInNanos);
         ingestCount.inc();
     }

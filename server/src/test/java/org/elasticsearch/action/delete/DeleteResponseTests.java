@@ -52,17 +52,18 @@ public class DeleteResponseTests extends ESTestCase {
             String output = Strings.toString(response);
             assertEquals(XContentHelper.stripWhitespace("""
                 {
-                          "_index": "index",
-                          "_id": "id",
-                          "_version": 7,
-                          "result": "deleted",
-                          "forced_refresh": true,
-                          "_shards": {
-                            "total": 10,
-                            "successful": 5,
-                            "failed": 0
-                          }
-                        }"""), output);
+                  "_index": "index",
+                  "_id": "id",
+                  "_version": 7,
+                  "result": "deleted",
+                  "forced_refresh": true,
+                  "_shards": {
+                    "total": 10,
+                    "successful": 5,
+                    "failed": 0
+                  }
+                }
+                """), output);
         }
     }
 

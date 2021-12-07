@@ -40,9 +40,9 @@ public class IngestMetricTests extends ESTestCase {
         metric.postIngest(500000L);
         assertThat(0L, equalTo(metric.createStats().getIngestCurrent()));
 
-        // the second postIngest triggers an assert (at dev-time), but does not cause the 'current' counter to go negative (at run-time)
+        // the second postIngest triggers an assertion error
         expectThrows(AssertionError.class, () -> metric.postIngest(500000L));
-        assertThat(0L, equalTo(metric.createStats().getIngestCurrent()));
+        assertThat(-1L, equalTo(metric.createStats().getIngestCurrent()));
     }
 
 }

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.metrics.CounterMetric;
 
 import java.util.concurrent.TimeUnit;
@@ -23,8 +21,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * This class does not make assumptions about it's given scope.
  */
 class IngestMetric {
-
-    private static final Logger logger = LogManager.getLogger(IngestMetric.class);
 
     /**
      * The time it takes to complete the measured item.
@@ -51,30 +47,13 @@ class IngestMetric {
         ingestCurrent.incrementAndGet();
     }
 
-    private static long doubleDecrementLogMillis = -1;
-
     /**
      * Call this after the performing the ingest action, even if the action failed.
      * @param ingestTimeInNanos The time it took to perform the action.
      */
     void postIngest(long ingestTimeInNanos) {
-        // this is decrementAndGet with a zero floor, logging, and an assert
-        ingestCurrent.updateAndGet(current -> {
-            if (current > 0) {
-                current--;
-            } else {
-                // then we've double decremented!
-                long now = System.currentTimeMillis();
-                if (now - doubleDecrementLogMillis > TimeUnit.HOURS.toMillis(1)) {
-                    logger.warn("ingest metric current count double-decremented", new Throwable());
-                    doubleDecrementLogMillis = now;
-                }
-                // fail at dev-time so we fix this
-                assert false;
-            }
-            return current;
-        });
-
+        long current = ingestCurrent.decrementAndGet();
+        assert current >= 0: "ingest metric current count double-decremented";
         this.ingestTimeInNanos.inc(ingestTimeInNanos);
         ingestCount.inc();
     }

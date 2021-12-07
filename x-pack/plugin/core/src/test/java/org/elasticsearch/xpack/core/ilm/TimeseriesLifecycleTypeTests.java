@@ -175,6 +175,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/81477")
     public void testValidateFrozenPhase() {
         LifecycleAction invalidAction = null;
         Map<String, LifecycleAction> actions = randomSubsetOf(VALID_FROZEN_ACTIONS).stream()

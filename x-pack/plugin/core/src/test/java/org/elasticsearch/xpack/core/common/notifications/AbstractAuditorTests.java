@@ -96,7 +96,7 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     public void testInfo() throws IOException {
-        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled(client);
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
         auditor.info("foo", "Here is my info");
 
         verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
@@ -115,7 +115,7 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     public void testWarning() throws IOException {
-        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled(client);
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
         auditor.warning("bar", "Here is my warning");
 
         verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
@@ -134,7 +134,7 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     public void testError() throws IOException {
-        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled(client);
+        AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithTemplateInstalled();
         auditor.error("foobar", "Here is my error");
 
         verify(client).execute(eq(IndexAction.INSTANCE), indexRequestCaptor.capture(), any());
@@ -155,7 +155,6 @@ public class AbstractAuditorTests extends ESTestCase {
     public void testAuditingBeforeTemplateInstalled() throws Exception {
         CountDownLatch writeSomeDocsBeforeTemplateLatch = new CountDownLatch(1);
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithoutTemplate(
-            client,
             writeSomeDocsBeforeTemplateLatch
         );
 
@@ -181,7 +180,6 @@ public class AbstractAuditorTests extends ESTestCase {
     public void testMaxBufferSize() throws Exception {
         CountDownLatch writeSomeDocsBeforeTemplateLatch = new CountDownLatch(1);
         AbstractAuditor<AbstractAuditMessageTests.TestAuditMessage> auditor = createTestAuditorWithoutTemplate(
-            client,
             writeSomeDocsBeforeTemplateLatch
         );
 
@@ -207,7 +205,7 @@ public class AbstractAuditorTests extends ESTestCase {
         return AbstractAuditMessageTests.TestAuditMessage.PARSER.apply(parser, null);
     }
 
-    private TestAuditor createTestAuditorWithTemplateInstalled(Client client) {
+    private TestAuditor createTestAuditorWithTemplateInstalled() {
         ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates = ImmutableOpenMap.builder(1);
         templates.put(TEST_INDEX, mock(IndexTemplateMetadata.class));
         Map<String, ComposableIndexTemplate> templatesV2 = Collections.singletonMap(TEST_INDEX, mock(ComposableIndexTemplate.class));
@@ -226,7 +224,7 @@ public class AbstractAuditorTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private TestAuditor createTestAuditorWithoutTemplate(Client client, CountDownLatch latch) {
+    private TestAuditor createTestAuditorWithoutTemplate(CountDownLatch latch) {
         if (Mockito.mockingDetails(client).isMock() == false) {
             throw new AssertionError("client should be a mock");
         }

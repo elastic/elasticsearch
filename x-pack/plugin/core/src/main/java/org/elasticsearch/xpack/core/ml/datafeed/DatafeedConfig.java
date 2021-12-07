@@ -1045,7 +1045,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
 
             setDefaultQueryDelay();
             if (indicesOptions == null) {
-                indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
+                indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED;
             }
             return new DatafeedConfig(
                 id,

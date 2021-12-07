@@ -127,13 +127,13 @@ public class MonitoringService extends AbstractLifecycleComponent {
         HttpExporter.loadSettings(settings);
     }
 
-    void setElasticsearchCollectionEnabled(final boolean enabled) {
-        this.elasticsearchCollectionEnabled = enabled;
+    void setElasticsearchCollectionEnabled(final boolean collectionEnabled) {
+        this.elasticsearchCollectionEnabled = collectionEnabled;
         scheduleExecution();
     }
 
-    void setMonitoringActive(final boolean enabled) {
-        this.enabled = enabled;
+    void setMonitoringActive(final boolean monitoringActive) {
+        this.enabled = monitoringActive;
         scheduleExecution();
     }
 

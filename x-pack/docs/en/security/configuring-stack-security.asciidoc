@@ -61,13 +61,12 @@ user when prompted:
 [source,shell]
 ----
 curl --cacert config/tls_auto_config_<timestamp>/http_ca.crt \
--u elastic https://localhost:9200 <1>
+-u elastic https://localhost:9200
 ----
 // NOTCONSOLE
-<1> Ensure that you use `https` in your call, or the request will fail.
 +
-`--cacert`::
-Path to the generated `http_ca.crt` certificate for the HTTP layer.
+`<timestamp>`:: The timestamp of when the auto-configuration process created
+the security files directory in your Docker container.
 
 . From the directory where you installed {kib}, start {kib}.
 +

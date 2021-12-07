@@ -13,10 +13,8 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -27,14 +25,12 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.mapper.IpFieldMapper.IpFieldType.IpScriptDocValues.IpSupplier;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
-import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.IpDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
@@ -44,7 +40,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -351,79 +346,10 @@ public class IpFieldMapper extends FieldMapper {
             return builder.apply(lower, upper);
         }
 
-        public static final class IpScriptDocValues extends ScriptDocValues<String> {
-
-            public static final class IpSupplier implements ScriptDocValues.Supplier<String> {
-
-                private final SortedSetDocValues in;
-                private long[] ords = new long[0];
-                private int count;
-
-                public IpSupplier(SortedSetDocValues in) {
-                    this.in = in;
-                }
-
-                @Override
-                public void setNextDocId(int docId) throws IOException {
-                    count = 0;
-                    if (in.advanceExact(docId)) {
-                        for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
-                            ords = ArrayUtil.grow(ords, count + 1);
-                            ords[count++] = ord;
-                        }
-                    }
-                }
-
-                @Override
-                public String getInternal(int index) {
-                    try {
-                        BytesRef encoded = in.lookupOrd(ords[index]);
-                        InetAddress address = InetAddressPoint.decode(
-                            Arrays.copyOfRange(encoded.bytes, encoded.offset, encoded.offset + encoded.length)
-                        );
-                        return InetAddresses.toAddrString(address);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-
-                @Override
-                public int size() {
-                    return count;
-                }
-            }
-
-            public IpScriptDocValues(IpSupplier supplier) {
-                super(supplier);
-            }
-
-            public String getValue() {
-                if (supplier.size() == 0) {
-                    return null;
-                } else {
-                    return get(0);
-                }
-            }
-
-            @Override
-            public String get(int index) {
-                return supplier.getInternal(index);
-            }
-
-            @Override
-            public int size() {
-                return supplier.size();
-            }
-        }
-
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldData.Builder(
-                name(),
-                CoreValuesSourceType.IP,
-                (dv, n) -> new DelegateDocValuesField(new IpScriptDocValues(new IpSupplier(dv)), n)
-            );
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), CoreValuesSourceType.IP, IpDocValuesField::new);
         }
 
         @Override

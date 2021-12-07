@@ -638,7 +638,8 @@ public final class KeywordFieldMapper extends FieldMapper {
             if (ts.incrementToken() == false) {
                 throw new IllegalStateException("""
                     The normalization token stream is expected to produce exactly 1 token, \
-                    but got 0 for analyzer %s and input "%s\"""".formatted(normalizer, value));
+                    but got 0 for analyzer %s and input "%s"
+                    """.formatted(normalizer, value));
             }
             final String newValue = termAtt.toString();
             if (ts.incrementToken()) {

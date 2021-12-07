@@ -114,17 +114,15 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         Map<String, RangeQueryBuilder> alternateVersions = new HashMap<>();
         RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(INT_FIELD_NAME);
 
-        int lower = randomIntBetween(1, 100);
+        rangeQueryBuilder.includeLower(randomBoolean());
+        rangeQueryBuilder.includeUpper(randomBoolean());
+
         if (randomBoolean()) {
-            rangeQueryBuilder.gte(lower);
-        } else {
-            rangeQueryBuilder.gt(lower);
+            rangeQueryBuilder.from(randomIntBetween(1, 100));
         }
-        int upper = randomIntBetween(101, 200);
+
         if (randomBoolean()) {
-            rangeQueryBuilder.lte(upper);
-        } else {
-            rangeQueryBuilder.lt(upper);
+            rangeQueryBuilder.to(randomIntBetween(101, 200));
         }
 
         String query = "{\n"
@@ -132,14 +130,16 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "        \""
             + INT_FIELD_NAME
             + "\": {\n"
-            + "            \""
-            + (rangeQueryBuilder.includeLower() ? "gte" : "gt")
-            + "\": "
+            + "            \"include_lower\":"
+            + rangeQueryBuilder.includeLower()
+            + ",\n"
+            + "            \"include_upper\":"
+            + rangeQueryBuilder.includeUpper()
+            + ",\n"
+            + "            \"from\":"
             + rangeQueryBuilder.from()
             + ",\n"
-            + "            \""
-            + (rangeQueryBuilder.includeUpper() ? "lte" : "lt")
-            + "\": "
+            + "            \"to\":"
             + rangeQueryBuilder.to()
             + "\n"
             + "        }\n"

@@ -90,9 +90,7 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
                 return;
             }
             TimeBasedExtractedFields fields = TimeBasedExtractedFields.build(job, datafeed, fieldCapabilitiesResponse);
-            listener.onResponse(
-                new ScrollDataExtractorFactory(client, datafeed, job, fields, xContentRegistry, timingStatsReporter)
-            );
+            listener.onResponse(new ScrollDataExtractorFactory(client, datafeed, job, fields, xContentRegistry, timingStatsReporter));
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof IndexNotFoundException) {

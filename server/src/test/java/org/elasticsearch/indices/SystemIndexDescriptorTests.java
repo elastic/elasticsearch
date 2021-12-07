@@ -249,7 +249,7 @@ public class SystemIndexDescriptorTests extends ESTestCase {
         assertSame(prior, compat);
     }
 
-    public void testSystemIndicesCannotAlsoBeHidden() {
+    public void testSystemIndicesMustBeHidden() {
         SystemIndexDescriptor.Builder builder = SystemIndexDescriptor.builder()
             .setIndexPattern(".system*")
             .setDescription("system stuff")
@@ -260,11 +260,11 @@ public class SystemIndexDescriptorTests extends ESTestCase {
             .setVersionMetaKey("version")
             .setOrigin("system");
 
-        builder.setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build());
+        builder.setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, builder::build);
 
-        assertThat(e.getMessage(), equalTo("System indices cannot have index.hidden set to true."));
+        assertThat(e.getMessage(), equalTo("System indices must have index.hidden set to true."));
     }
 
     public void testSpecialCharactersAreReplacedWhenConvertingToAutomaton() {

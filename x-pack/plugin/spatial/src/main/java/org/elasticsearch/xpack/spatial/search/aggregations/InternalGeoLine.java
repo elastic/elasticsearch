@@ -10,6 +10,7 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -92,7 +93,7 @@ public class InternalGeoLine extends InternalAggregation implements GeoShapeMetr
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         int mergedSize = 0;
         boolean reducedComplete = true;
         boolean reducedIncludeSorts = true;

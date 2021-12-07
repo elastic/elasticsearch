@@ -52,7 +52,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -507,7 +507,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         OriginalIndices localIndices,
         Map<String, OriginalIndices> remoteIndices,
         SearchTimeProvider timeProvider,
-        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
+        AggregationReduceContext.Builder aggReduceContextBuilder,
         RemoteClusterService remoteClusterService,
         ThreadPool threadPool,
         ActionListener<SearchResponse> listener,
@@ -632,7 +632,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     static SearchResponseMerger createSearchResponseMerger(
         SearchSourceBuilder source,
         SearchTimeProvider timeProvider,
-        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder
+        AggregationReduceContext.Builder aggReduceContextBuilder
     ) {
         final int from;
         final int size;

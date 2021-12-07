@@ -59,7 +59,6 @@ single_project_branch {
     title = "single project (@testGitCommit@)"
     cleanup-tasks = [":server:clean"]
     tasks = [":server:check"]
-    apply-abi-change-to = "server/src/main/java/org/elasticsearch/Build.java"
     gradle-args = ["--no-scan"]
     run-using = cli // value can be "cli" or "tooling-api"
     daemon = warm // value can be "warm", "cold", or "none"
@@ -75,7 +74,6 @@ single_project_master {
     cleanup-tasks = [":server:clean"]
     tasks = [":server:check"]
     gradle-args = ["--no-scan"]
-    apply-abi-change-to = "server/src/main/java/org/elasticsearch/Build.java"
     run-using = cli // value can be "cli" or "tooling-api"
     daemon = warm // value can be "warm", "cold", or "none"
     warm-ups = 5

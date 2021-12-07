@@ -38,8 +38,8 @@ This setting will not affect writing deprecation logs to file.
 It is emitted also in search slow logs as an `id` field and in audit logs as `opaque_id`.
 The value is also present in <<_identifying_running_tasks, `task api`>>.
 
-This header can contain any value, but should be from a fine set.
-If there is a lot of different x-opaque-id values, it will prevent deduplication from working
+This header can contain any value, but should be from a finite set.
+If there is a lot of different `x-opaque-id` values, it will prevent deduplication from working
 
 [discrete]
 === traceparent requirements
@@ -50,8 +50,11 @@ ES uses the `trace-id field from that header.
 https://www.w3.org/TR/trace-context/#traceparent-header
 
 Example:
+[source,txt]
+------------------------------
 `transparent`: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
 `trace.id`: 0af7651916cd43dd8448eb211c80319c
+------------------------------
 
 `trace-id` is emitted as `trace.id` in  ES’s JSON logs - server.json,
 search slow log, indexing slow log, deprecation logs

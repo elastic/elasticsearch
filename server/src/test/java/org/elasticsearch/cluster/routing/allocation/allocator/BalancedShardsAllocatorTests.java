@@ -34,7 +34,14 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", false, ShardRoutingState.STARTED);
         assertEquals(clusterState.nodes().getSize(), 3);
-        clusterState = allocateNew(clusterState);
+
+        // add new index
+        String index = "idx_new";
+        Metadata metadata = Metadata.builder(clusterState.metadata())
+                .put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+                .build();
+        RoutingTable initialRoutingTable = RoutingTable.builder(clusterState.routingTable()).addAsNew(metadata.index(index)).build();
+        clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(initialRoutingTable).build();
 
         ShardRouting shard = clusterState.routingTable().index("idx_new").shard(0).primaryShard();
         RoutingAllocation allocation = new RoutingAllocation(
@@ -60,15 +67,4 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         assertNotNull(allocateDecision.getTargetNode().getId(), assignedShards.get(0).currentNodeId());
     }
 
-    private ClusterState allocateNew(ClusterState state) {
-        String index = "idx_new";
-        Metadata metadata = Metadata.builder(state.metadata())
-            .put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
-            .build();
-
-        RoutingTable initialRoutingTable = RoutingTable.builder(state.routingTable()).addAsNew(metadata.index(index)).build();
-
-        ClusterState clusterState = ClusterState.builder(state).metadata(metadata).routingTable(initialRoutingTable).build();
-        return clusterState;
-    }
 }

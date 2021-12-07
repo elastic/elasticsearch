@@ -166,6 +166,10 @@ public class AutoscalingMetadata implements XPackPlugin.XPackMetadataCustom, Met
             return AbstractDiffable.readDiffFrom(AutoscalingPolicyMetadata::new, in);
         }
 
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_8_0;
+        }
     }
 
 }

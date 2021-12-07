@@ -215,5 +215,10 @@ public class DataStreamMetadata implements Metadata.Custom {
         public String getWriteableName() {
             return TYPE;
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_7_0;
+        }
     }
 }

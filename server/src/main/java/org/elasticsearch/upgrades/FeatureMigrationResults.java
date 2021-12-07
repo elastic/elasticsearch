@@ -189,6 +189,12 @@ public class FeatureMigrationResults implements Metadata.Custom {
         static Diff<SingleFeatureMigrationResult> readDiffFrom(StreamInput in) throws IOException {
             return AbstractDiffable.readDiffFrom(SingleFeatureMigrationResult::new, in);
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return MIGRATION_ADDED_VERSION;
+        }
+
     }
 
 }

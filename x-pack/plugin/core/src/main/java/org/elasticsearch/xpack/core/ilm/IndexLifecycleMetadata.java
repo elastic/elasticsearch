@@ -109,7 +109,7 @@ public class IndexLifecycleMetadata implements XPackMetadataCustom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_6_6_0;
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override
@@ -181,6 +181,11 @@ public class IndexLifecycleMetadata implements XPackMetadataCustom {
         @Override
         public String getWriteableName() {
             return TYPE;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
         }
 
         static Diff<LifecyclePolicyMetadata> readLifecyclePolicyDiffFrom(StreamInput in) throws IOException {

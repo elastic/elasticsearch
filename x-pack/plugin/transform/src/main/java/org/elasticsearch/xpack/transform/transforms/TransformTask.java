@@ -599,7 +599,6 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
 
     public static Collection<PersistentTask<?>> findTransformTasks(Set<String> transformIds, ClusterState clusterState) {
         return findTransformTasks(task -> transformIds.contains(task.getId()), clusterState);
-
     }
 
     public static Collection<PersistentTask<?>> findTransformTasks(String transformIdPattern, ClusterState clusterState) {

@@ -39,6 +39,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertThat;
 
 public abstract class TransformRestTestCase extends ESRestTestCase {
 
@@ -420,10 +422,11 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected static List<Map<String, Object>> getTransforms() throws IOException {
+    protected static List<Map<String, Object>> getTransforms(List<String> expectedWarnings) throws IOException {
         Request request = new Request("GET", getTransformEndpoint() + "_all");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
         Response response = adminClient().performRequest(request);
+        assertThat(response.getWarnings(), is(equalTo(expectedWarnings)));
         Map<String, Object> transforms = entityAsMap(response);
         List<Map<String, Object>> transformConfigs = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", transforms);
 

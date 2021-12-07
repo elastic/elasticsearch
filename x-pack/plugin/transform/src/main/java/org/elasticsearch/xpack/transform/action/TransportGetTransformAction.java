@@ -67,6 +67,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
         final ClusterState state = clusterService.state();
         TransformNodes.warnIfNoTransformNodes(state);
 
+        // Step 2: Search for all the transform tasks (matching the request) that *do not* have corresponding transform config.
         ActionListener<QueryPage<TransformConfig>> searchTransformConfigsListener = ActionListener.wrap(r -> {
             Set<String> transformConfigIds = r.results().stream().map(TransformConfig::getId).collect(toSet());
             Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = TransformTask.findTransformTasks(
@@ -80,6 +81,7 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
             listener.onResponse(new Response(r.results(), r.count(), transformWithoutConfigIds));
         }, listener::onFailure);
 
+        // Step 1: Search for all the transform configs matching the request.
         searchResources(request, searchTransformConfigsListener);
     }
 

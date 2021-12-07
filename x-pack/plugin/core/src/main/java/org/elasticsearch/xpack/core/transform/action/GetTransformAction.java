@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.ParseField;
@@ -80,7 +80,7 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         }
     }
 
-    public static class Response extends AbstractGetResourcesResponse<TransformConfig> implements Writeable, ToXContentObject {
+    public static class Response extends AbstractGetResourcesResponse<TransformConfig> implements ToXContentObject {
 
         public static final String INVALID_TRANSFORMS_DEPRECATION_WARNING = "Found [{}] invalid transforms";
         private static final ParseField INVALID_TRANSFORMS = new ParseField("invalid_transforms");
@@ -94,7 +94,11 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            this.transformsWithoutConfig = in.readOptionalStringList();
+            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+                this.transformsWithoutConfig = in.readOptionalStringList();
+            } else {
+                this.transformsWithoutConfig = null;
+            }
         }
 
         public List<TransformConfig> getTransformConfigurations() {
@@ -147,7 +151,9 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeOptionalStringCollection(transformsWithoutConfig);
+            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                out.writeOptionalStringCollection(transformsWithoutConfig);
+            }
         }
 
         @Override

@@ -16,6 +16,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -51,7 +53,7 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        assertEquals(1, getTransforms().size());
+        assertEquals(1, getTransforms(emptyList()).size());
         // there shouldn't be a task yet
         assertEquals(0, getNumberOfTransformTasks());
         startAndWaitForContinuousTransform(transformId, transformIndex, null);
@@ -64,12 +66,12 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_5", 3.72);
         assertNotNull(getTransformState(transformId));
 
-        assertEquals(1, getTransforms().size());
+        assertEquals(1, getTransforms(emptyList()).size());
 
         // delete the transform index
         beEvilAndDeleteTheTransformIndex();
         // transform is gone
-        assertEquals(0, getTransforms().size());
+        assertEquals(0, getTransforms(singletonList("Found [1] invalid transforms")).size());
         // but the task is still there
         assertEquals(1, getNumberOfTransformTasks());
 

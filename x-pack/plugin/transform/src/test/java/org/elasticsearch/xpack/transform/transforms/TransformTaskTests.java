@@ -120,7 +120,7 @@ public class TransformTaskTests extends ESTestCase {
             "some_action",
             TaskId.EMPTY_TASK_ID,
             client,
-            newTransformTaskParams(transformConfig.getId()),
+            createTransformTaskParams(transformConfig.getId()),
             transformState,
             mock(SchedulerEngine.class),
             auditor,
@@ -198,7 +198,7 @@ public class TransformTaskTests extends ESTestCase {
             "some_action",
             TaskId.EMPTY_TASK_ID,
             client,
-            newTransformTaskParams(transformConfig.getId()),
+            createTransformTaskParams(transformConfig.getId()),
             transformState,
             mock(SchedulerEngine.class),
             auditor,
@@ -278,7 +278,7 @@ public class TransformTaskTests extends ESTestCase {
             assertThat(TransformTask.getTransformTask("other-1", clusterState), is(nullValue()));
         }
         {
-            TransformTaskParams transformTaskParams = newTransformTaskParams("transform-1");
+            TransformTaskParams transformTaskParams = createTransformTaskParams("transform-1");
             PersistentTaskParams otherTaskParams = mock(PersistentTaskParams.class);
             when(otherTaskParams.getWriteableName()).thenReturn(TransformTaskParams.NAME);
             ClusterState clusterState = ClusterState.builder(new ClusterName("some-cluster"))
@@ -363,11 +363,11 @@ public class TransformTaskTests extends ESTestCase {
                     .putCustom(
                         PersistentTasksCustomMetadata.TYPE,
                         PersistentTasksCustomMetadata.builder()
-                            .addTask("transform-1", TransformTaskParams.NAME, newTransformTaskParams("transform-1"), null)
+                            .addTask("transform-1", TransformTaskParams.NAME, createTransformTaskParams("transform-1"), null)
                             .addTask("other-1", "other", null, null)
-                            .addTask("transform-2", TransformTaskParams.NAME, newTransformTaskParams("transform-2"), null)
+                            .addTask("transform-2", TransformTaskParams.NAME, createTransformTaskParams("transform-2"), null)
                             .addTask("other-2", "other", null, null)
-                            .addTask("transform-3", TransformTaskParams.NAME, newTransformTaskParams("transform-3"), null)
+                            .addTask("transform-3", TransformTaskParams.NAME, createTransformTaskParams("transform-3"), null)
                             .addTask("other-3", "other", null, null)
                             .build()
                     )
@@ -399,7 +399,7 @@ public class TransformTaskTests extends ESTestCase {
         assertThat(TransformTask.findTransformTasks(Set.of("transform-4", "transform-5"), clusterState), is(empty()));
     }
 
-    private static TransformTaskParams newTransformTaskParams(String transformId) {
+    private static TransformTaskParams createTransformTaskParams(String transformId) {
         return new TransformTaskParams(transformId, Version.CURRENT, TimeValue.timeValueSeconds(10), false);
     }
 }

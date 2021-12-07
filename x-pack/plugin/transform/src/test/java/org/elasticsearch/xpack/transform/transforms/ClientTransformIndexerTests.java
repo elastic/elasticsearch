@@ -290,15 +290,28 @@ public class ClientTransformIndexerTests extends ESTestCase {
     }
 
     public void testHandlePitIndexNotFound() throws InterruptedException {
+        // simulate a deleted index due to ILM
         try (PitMockClient client = new PitMockClient(getTestName(), true)) {
             ClientTransformIndexer indexer = createTestIndexer(client);
             SearchRequest searchRequest = new SearchRequest("deleted-index");
             searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder("the_pit_id"));
             Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test-handle-pit-index-not-found", searchRequest);
-            this.<SearchResponse>assertAsync(
-                listener -> indexer.doSearch(namedSearchRequest, listener),
-                response -> { assertNull(response.pointInTimeId()); }
-            );
+            this.<SearchResponse>assertAsync(listener -> indexer.doSearch(namedSearchRequest, listener), response -> {
+                // if the pit got deleted, we know it retried
+                assertNull(response.pointInTimeId());
+            });
+        }
+
+        // simulate a deleted index that is essential, search must fail(after a retry without pit)
+        try (PitMockClient client = new PitMockClient(getTestName(), true)) {
+            ClientTransformIndexer indexer = createTestIndexer(client);
+            SearchRequest searchRequest = new SearchRequest("essential-deleted-index");
+            searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder("the_pit_id"));
+            Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test-handle-pit-index-not-found", searchRequest);
+            indexer.doSearch(namedSearchRequest, ActionListener.wrap(r -> fail("expected a failure, got response"), e -> {
+                assertTrue(e instanceof IndexNotFoundException);
+                assertEquals("no such index [essential-deleted-index]", e.getMessage());
+            }));
         }
     }
 
@@ -384,7 +397,12 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
                 // if pit is used and deleted-index is given throw index not found
                 if (searchRequest.pointInTimeBuilder() != null && Arrays.binarySearch(searchRequest.indices(), "deleted-index") >= 0) {
-                    listener.onFailure(new IndexNotFoundException("no such index [deleted-index]"));
+                    listener.onFailure(new IndexNotFoundException("deleted-index"));
+                    return;
+                }
+
+                if (Arrays.binarySearch(searchRequest.indices(), "essential-deleted-index") >= 0) {
+                    listener.onFailure(new IndexNotFoundException("essential-deleted-index"));
                     return;
                 }
 

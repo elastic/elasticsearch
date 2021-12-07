@@ -43,6 +43,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
@@ -112,6 +113,19 @@ class ClientTransformIndexer extends TransformIndexer {
 
         // TODO: move into context constructor
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
+
+        if (transformConfig.getSettings().getUsePit() != null) {
+            disablePit = transformConfig.getSettings().getUsePit() == false;
+        }
+    }
+
+    @Override
+    public void applyNewSettings(SettingsConfig newSettings) {
+        if (newSettings.getUsePit() != null) {
+            disablePit = newSettings.getUsePit() == false;
+        }
+
+        super.applyNewSettings(newSettings);
     }
 
     @Override

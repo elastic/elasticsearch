@@ -125,7 +125,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         } else {
             this.alignCheckpoints = DEFAULT_ALIGN_CHECKPOINTS;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_16_1
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) { // todo: V_7_16_1
             this.usePit = in.readOptionalInt();
         } else {
             this.usePit = DEFAULT_USE_PIT;

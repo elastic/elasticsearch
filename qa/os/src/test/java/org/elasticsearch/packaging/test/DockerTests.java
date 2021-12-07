@@ -542,6 +542,9 @@ public class DockerTests extends PackagingTestCase {
 
         try {
             // Restart the container
+            // We need to set discovery to single-node as autoconfiguration has already run when the node started the first time
+            // cluster.initial_master_nodes is set to the name of the original docker container
+            ServerUtils.removeSettingFromExistingConfiguration(tempDir, "cluster.initial_master_nodes");
             runContainer(
                 distribution(),
                 builder().envVar("ELASTIC_PASSWORD", PASSWORD)
@@ -549,6 +552,7 @@ public class DockerTests extends PackagingTestCase {
                     .volume(tempEsDataDir.toAbsolutePath(), installation.data)
                     .volume(tempEsConfigDir.toAbsolutePath(), installation.config)
                     .volume(tempEsLogsDir.toAbsolutePath(), installation.logs)
+                    .envVar("discovery.type", "single-node")
             );
 
             waitForElasticsearch(installation, "elastic", PASSWORD);

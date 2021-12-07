@@ -213,7 +213,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
     }
 
     // Visible for testing
-    void persistProgress(Client client, String jobId, Runnable runnable) {
+    void persistProgress(Client clientToUse, String jobId, Runnable runnable) {
         LOGGER.debug("[{}] Persisting progress", jobId);
 
         SetOnce<StoredProgress> storedProgress = new SetOnce<>();
@@ -266,7 +266,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
                 storedProgress.get().toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
                 indexRequest.source(jsonBuilder);
             }
-            executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, indexProgressDocListener);
+            executeAsyncWithOrigin(clientToUse, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, indexProgressDocListener);
         }, e -> {
             LOGGER.error(
                 new ParameterizedMessage(
@@ -283,7 +283,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
             SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).source(
                 new SearchSourceBuilder().size(1).query(new IdsQueryBuilder().addIds(progressDocId))
             );
-            executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, searchFormerProgressDocListener);
+            executeAsyncWithOrigin(clientToUse, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, searchFormerProgressDocListener);
         }, e -> {
             LOGGER.error(
                 new ParameterizedMessage(

@@ -151,7 +151,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public List<RestHandler> getRestHandlers(
-        final Settings settings,
+        final Settings unused,
         final RestController restController,
         final ClusterSettings clusterSettings,
         final IndexScopedSettings indexScopedSettings,
@@ -197,9 +197,9 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
         FixedExecutorBuilder indexing = new FixedExecutorBuilder(
-            settings,
+            settingsToUse,
             TASK_THREAD_POOL_NAME,
             4,
             4,

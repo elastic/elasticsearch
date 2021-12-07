@@ -335,7 +335,7 @@ POST sessions/_update/dh3sgudg8gsrgl
 {
   "scripted_upsert": true,
   "script": {
-    "id": "my_web_session_summariser",
+    "source": "ctx._source.page_view_event = params.pageViewEvent",
     "params": {
       "pageViewEvent": {
         "url": "foo.com/bar",
@@ -347,7 +347,6 @@ POST sessions/_update/dh3sgudg8gsrgl
   "upsert": {}
 }
 ----
-// TEST[s/"id": "my_web_session_summariser"/"source": "ctx._source.page_view_event = params.pageViewEvent"/]
 
 [discrete]
 [[doc_as_upsert]]

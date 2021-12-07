@@ -78,6 +78,12 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
         return PARSER.parse(parser, null);
     }
 
+    public static final AutoFollowMetadata EMPTY = new AutoFollowMetadata(
+        org.elasticsearch.core.Map.of(),
+        org.elasticsearch.core.Map.of(),
+        org.elasticsearch.core.Map.of()
+    );
+
     private final Map<String, AutoFollowPattern> patterns;
     private final Map<String, List<String>> followedLeaderIndexUUIDs;
     private final Map<String, Map<String, String>> headers;

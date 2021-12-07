@@ -27,6 +27,6 @@ public final class ProductOriginConverter extends ThreadContextBasedConverter {
     }
 
     public ProductOriginConverter() {
-        super("product_origin", Task.ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+        super("product_origin", Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
     }
 }

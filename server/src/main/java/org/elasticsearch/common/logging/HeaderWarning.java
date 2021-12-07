@@ -302,11 +302,19 @@ public class HeaderWarning {
         }
     }
 
+    public static String getProductOrigin() {
+        return getSingleValue(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+    }
+
     public static String getXOpaqueId() {
+        return getSingleValue(Task.X_OPAQUE_ID_HTTP_HEADER);
+    }
+
+    private static String getSingleValue(String productOrigin) {
         return THREAD_CONTEXT.stream()
-            .filter(t -> t.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER) != null)
+            .filter(t -> t.getHeader(productOrigin) != null)
             .findFirst()
-            .map(t -> t.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER))
+            .map(t -> t.getHeader(productOrigin))
             .orElse("");
     }
 

@@ -371,7 +371,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product and
                 // therefore we should allow a subset of external system index access.
                 // This header is intended for internal use only.
-                final String prodOriginValue = request.header(Task.ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+                final String prodOriginValue = request.header(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
                 if (prodOriginValue != null) {
                     threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
                     threadContext.putHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, prodOriginValue);

@@ -624,8 +624,8 @@ setup:
 ---
 "Get data stream api check existence of replicated and allow_custom_routing fields":
   - skip:
-      version: " - 7.16.0"
-      reason: "replicated and allow_custom_routing fields only supported in 7.16+"
+      version: all
+      reason: "https://github.com/elastic/elasticsearch/issues/81462"
 
   - do:
       indices.create_data_stream:

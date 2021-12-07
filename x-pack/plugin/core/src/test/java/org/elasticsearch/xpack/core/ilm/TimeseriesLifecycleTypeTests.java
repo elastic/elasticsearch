@@ -187,8 +187,10 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Map<String, Phase> frozenPhase = Collections.singletonMap("frozen", new Phase("frozen", TimeValue.ZERO, actions));
 
         if (invalidAction != null) {
-            Exception e = expectThrows(IllegalArgumentException.class,
-                () -> TimeseriesLifecycleType.INSTANCE.validate(frozenPhase.values()));
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.INSTANCE.validate(frozenPhase.values())
+            );
             assertThat(e.getMessage(), equalTo("invalid action [" + invalidAction.getWriteableName() + "] defined in phase [frozen]"));
         } else {
             TimeseriesLifecycleType.INSTANCE.validate(frozenPhase.values());

@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -85,18 +86,14 @@ public class Subject {
         return metadata;
     }
 
-    /**
-     * Return a List of RoleReferences that represents role definitions associated to the subject.
-     * The final role of this subject should be the intersection of all role references in the list.
-     */
-    public List<RoleReference> getRoleReferences(@Nullable AnonymousUser anonymousUser) {
+    public RoleReferenceIntersection getRoleReferenceIntersection(@Nullable AnonymousUser anonymousUser) {
         switch (type) {
             case USER:
-                return buildRoleReferencesForUser(anonymousUser);
+                return new RoleReferenceIntersection(buildRoleReferencesForUser(anonymousUser));
             case API_KEY:
-                return buildRoleReferencesForApiKey();
+                return new RoleReferenceIntersection(buildRoleReferencesForApiKey());
             case SERVICE_ACCOUNT:
-                return List.of(new RoleReference.ServiceAccountRoleReference(user.principal()));
+                return new RoleReferenceIntersection(List.of(new RoleReference.ServiceAccountRoleReference(user.principal())));
             default:
                 assert false : "unknown subject type: [" + type + "]";
                 throw new IllegalStateException("unknown subject type: [" + type + "]");

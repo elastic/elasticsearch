@@ -1090,7 +1090,7 @@ public class MachineLearning extends Plugin
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
+        Settings unused,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -1264,7 +1264,7 @@ public class MachineLearning extends Plugin
     }
 
     @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings unused) {
         if (false == enabled || transportClientMode) {
             return emptyList();
         }
@@ -1414,7 +1414,7 @@ public class MachineLearning extends Plugin
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings unused) {
         return Collections.unmodifiableList(
             Arrays.asList(
                 SystemIndexDescriptor.builder()
@@ -1695,7 +1695,7 @@ public class MachineLearning extends Plugin
     }
 
     @Override
-    public BreakerSettings getCircuitBreaker(Settings settings) {
+    public BreakerSettings getCircuitBreaker(Settings settingsToUse) {
         return BreakerSettings.updateFromSettings(
             new BreakerSettings(
                 TRAINED_MODEL_CIRCUIT_BREAKER_NAME,
@@ -1704,7 +1704,7 @@ public class MachineLearning extends Plugin
                 CircuitBreaker.Type.MEMORY,
                 CircuitBreaker.Durability.TRANSIENT
             ),
-            settings
+            settingsToUse
         );
     }
 

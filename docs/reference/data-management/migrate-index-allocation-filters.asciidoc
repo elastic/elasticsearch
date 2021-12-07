@@ -56,6 +56,8 @@ To switch to using node roles:
 settings>> from your {ilm} policy.
 . <<stop-setting-custom-hot-attribute, Stop setting the custom hot attribute>>
 on new indices.
+. <<enforce-default-tier-preference, Enforce a default tier preference>>
+on new indices.
 . Update existing indices to <<set-tier-preference, set a tier preference>>.
 
 
@@ -137,8 +139,28 @@ DELETE _template/.cloud-hot-warm-allocation-0
 If you're using a custom index template, update it to remove the <<shard-allocation-filtering, attribute-based allocation filters>> you used to assign new indices to the hot tier.
 
 [discrete]
+[[enforce-default-tier-preference]]
+==== Enforce a default tier preference on new indices
+
+Setting <<enforcing-a-default-tier-preference,`cluster.routing.allocation.enforce_default_tier_preference`>> to `true`
+ensures that newly created indices will have a <<tier-preference-allocation-filter,_tier_preference>>, overriding the
+<<indices-create-index,create index>> API or an associated <<index-templates,index template>>, if either of those
+specifies `null` for the setting.
+
+[source,console]
+----
+PUT _cluster/_settings
+{
+  "persistent": {
+    "cluster.routing.allocation.enforce_default_tier_preference": true
+  }
+}
+----
+// TEST[continued]
+
+[discrete]
 [[set-tier-preference]]
-==== Set a tier preference for existing indices.
+==== Set a tier preference for existing indices
 
 {ilm-init} automatically transitions managed indices through the available
 data tiers by automatically injecting a <<ilm-migrate,migrate action>>
@@ -148,7 +170,7 @@ To enable {ilm-init} to move an _existing_ managed index
 through the data tiers, update the index settings to:
 
 . Remove the custom allocation filter by setting it to `null`.
-. Set the <<data-tier-shard-filtering,tier preference>>.
+. Set the <<tier-preference-allocation-filter,tier preference>>.
 
 For example, if your old template set the `data` attribute to `hot`
 to allocate shards to the hot tier, set the `data` attribute to `null`

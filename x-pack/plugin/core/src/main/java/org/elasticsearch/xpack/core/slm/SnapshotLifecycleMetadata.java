@@ -226,5 +226,11 @@ public class SnapshotLifecycleMetadata implements XPackMetadataCustom {
         static Diff<SnapshotLifecyclePolicyMetadata> readLifecyclePolicyDiffFrom(StreamInput in) throws IOException {
             return AbstractDiffable.readDiffFrom(SnapshotLifecyclePolicyMetadata::new, in);
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_4_0;
+        }
+
     }
 }

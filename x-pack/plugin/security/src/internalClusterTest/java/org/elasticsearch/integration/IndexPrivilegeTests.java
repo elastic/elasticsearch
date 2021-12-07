@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.is;
 
 public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
-    private String jsonDoc = "{ \"name\" : \"elasticsearch\", \"body\": \"foo bar\" }";
+    private final String jsonDoc = "{ \"name\" : \"elasticsearch\", \"body\": \"foo bar\" }";
 
     private static final String ROLES = "all_cluster_role:\n"
         + "  cluster: [ all ]\n"
@@ -749,9 +749,9 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 break;
 
             case "delete":
-                String jsonDoc = "{ \"name\" : \"docToDelete\"}";
-                assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete", jsonDoc);
-                assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete2", jsonDoc);
+                String jsonDocToDelete = "{ \"name\" : \"docToDelete\"}";
+                assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete", jsonDocToDelete);
+                assertAccessIsAllowed("admin", "PUT", "/" + index + "/foo/docToDelete2", jsonDocToDelete);
                 if (userIsAllowed) {
                     assertAccessIsAllowed(user, "DELETE", "/" + index + "/foo/docToDelete");
                 } else {

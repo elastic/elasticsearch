@@ -130,7 +130,7 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_6_0_0_alpha1;
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override
@@ -285,6 +285,11 @@ public class MlMetadata implements XPackPlugin.XPackMetadataCustom {
         @Override
         public String getWriteableName() {
             return TYPE;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
         }
 
         static Diff<Job> readJobDiffFrom(StreamInput in) throws IOException {

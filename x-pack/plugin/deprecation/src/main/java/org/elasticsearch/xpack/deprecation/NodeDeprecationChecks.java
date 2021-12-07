@@ -11,8 +11,10 @@ import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.coordination.DiscoveryUpgradeService;
 import org.elasticsearch.cluster.coordination.JoinHelper;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
@@ -27,8 +29,13 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.SeedHostsResolver;
+import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.FaultDetection;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.DanglingIndicesState;
@@ -1882,7 +1889,7 @@ class NodeDeprecationChecks {
         return checkSettingNoReplacement(settings, deprecatedSetting, url);
     }
 
-    static DeprecationIssue checkZenPingTimeoutSetting(
+    static DeprecationIssue checkZenFDPingTimeoutSetting(
         final Settings settings,
         final PluginsAndModules pluginsAndModules,
         final ClusterState clusterState,
@@ -1911,6 +1918,182 @@ class NodeDeprecationChecks {
         final XPackLicenseState licenseState
     ) {
         Setting<Boolean> deprecatedSetting = FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenMinimumMasterNodesSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Integer> deprecatedSetting = ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenHostsProviderSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<List<String>> deprecatedSetting = DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenJoinRetryAttemptsSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Integer> deprecatedSetting = ZenDiscovery.JOIN_RETRY_ATTEMPTS_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenJoinRetryDelaySetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = ZenDiscovery.JOIN_RETRY_DELAY_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenJoinTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = ZenDiscovery.JOIN_TIMEOUT_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenMasterElectionIgnoreNonMasterPingsSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = ZenDiscovery.MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenMasterElectionWaitForJoinsTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenMaxPingsFromAnotherMasterSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Integer> deprecatedSetting = ZenDiscovery.MAX_PINGS_FROM_ANOTHER_MASTER_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenNoMasterBlockSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<ClusterBlock> deprecatedSetting = NoMasterBlockService.LEGACY_NO_MASTER_BLOCK_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenPintUnicastConcurrentConnectssSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Integer> deprecatedSetting = SeedHostsResolver.LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenPingUnicastHostsSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<List<String>> deprecatedSetting = SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenPingUnicastHostsResolveTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = SeedHostsResolver.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenPingTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = ZenDiscovery.PING_TIMEOUT_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenPublishMaxPendingClusterStatesSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Integer> deprecatedSetting = ZenDiscovery.MAX_PENDING_CLUSTER_STATES_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenPublishTimeoutSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<TimeValue> deprecatedSetting = DiscoverySettings.PUBLISH_TIMEOUT_SETTING;
+        String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
+        return checkSettingNoReplacement(settings, deprecatedSetting, url);
+    }
+
+    static DeprecationIssue checkZenPingSendLeaveRequestSetting(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        final ClusterState clusterState,
+        final XPackLicenseState licenseState
+    ) {
+        Setting<Boolean> deprecatedSetting = ZenDiscovery.SEND_LEAVE_REQUEST_SETTING;
         String url = "https://ela.st/es-deprecation-7-unused_zen_settings";
         return checkSettingNoReplacement(settings, deprecatedSetting, url);
     }

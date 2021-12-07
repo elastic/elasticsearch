@@ -675,7 +675,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public Aggregator subAggregator(String name) {
+        public Aggregator subAggregator(String aggregatorName) {
             return null;
         }
 

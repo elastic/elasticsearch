@@ -15,6 +15,7 @@ import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.DiscoveryUpgradeService;
+import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -30,8 +31,13 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Set;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.SeedHostsResolver;
+import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
+import org.elasticsearch.discovery.zen.ElectMasterService;
 import org.elasticsearch.discovery.zen.FaultDetection;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.DanglingIndicesState;
@@ -2080,6 +2086,27 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(FaultDetection.PING_TIMEOUT_SETTING.getKey(), randomTimeValue())
             .put(FaultDetection.PING_RETRIES_SETTING.getKey(), randomInt())
             .put(FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING.getKey(), randomBoolean())
+            .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), randomInt())
+            .putList(
+                DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING.getKey(),
+                Arrays.asList(generateRandomStringArray(10, 20, false))
+            )
+            .put(ZenDiscovery.JOIN_RETRY_ATTEMPTS_SETTING.getKey(), randomInt())
+            .put(ZenDiscovery.JOIN_RETRY_DELAY_SETTING.getKey(), randomTimeValue())
+            .put(ZenDiscovery.JOIN_TIMEOUT_SETTING.getKey(), randomTimeValue())
+            .put(ZenDiscovery.MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING.getKey(), randomBoolean())
+            .put(ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING.getKey(), randomTimeValue())
+            .put(ZenDiscovery.MAX_PINGS_FROM_ANOTHER_MASTER_SETTING.getKey(), randomInt())
+            .put(NoMasterBlockService.LEGACY_NO_MASTER_BLOCK_SETTING.getKey(), "metadata_write")
+            .put(SeedHostsResolver.LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING.getKey(), randomInt())
+            .putList(
+                SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING.getKey(),
+                Arrays.asList(generateRandomStringArray(10, 20, false))
+            )
+            .put(SeedHostsResolver.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT.getKey(), randomPositiveTimeValue())
+            .put(ZenDiscovery.PING_TIMEOUT_SETTING.getKey(), randomPositiveTimeValue())
+            .put(ZenDiscovery.MAX_PENDING_CLUSTER_STATES_SETTING.getKey(), randomInt())
+            .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), randomPositiveTimeValue())
             .build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
@@ -2093,7 +2120,22 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             FaultDetection.PING_INTERVAL_SETTING,
             FaultDetection.PING_TIMEOUT_SETTING,
             FaultDetection.PING_RETRIES_SETTING,
-            FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING
+            FaultDetection.REGISTER_CONNECTION_LISTENER_SETTING,
+            ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING,
+            DiscoveryModule.LEGACY_DISCOVERY_HOSTS_PROVIDER_SETTING,
+            ZenDiscovery.JOIN_RETRY_ATTEMPTS_SETTING,
+            ZenDiscovery.JOIN_RETRY_DELAY_SETTING,
+            ZenDiscovery.JOIN_TIMEOUT_SETTING,
+            ZenDiscovery.MASTER_ELECTION_IGNORE_NON_MASTER_PINGS_SETTING,
+            ZenDiscovery.MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT_SETTING,
+            ZenDiscovery.MAX_PINGS_FROM_ANOTHER_MASTER_SETTING,
+            NoMasterBlockService.LEGACY_NO_MASTER_BLOCK_SETTING,
+            SeedHostsResolver.LEGACY_DISCOVERY_ZEN_PING_UNICAST_CONCURRENT_CONNECTS_SETTING,
+            SettingsBasedSeedHostsProvider.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_SETTING,
+            SeedHostsResolver.LEGACY_DISCOVERY_ZEN_PING_UNICAST_HOSTS_RESOLVE_TIMEOUT,
+            ZenDiscovery.PING_TIMEOUT_SETTING,
+            ZenDiscovery.MAX_PENDING_CLUSTER_STATES_SETTING,
+            DiscoverySettings.PUBLISH_TIMEOUT_SETTING
         );
         for (Setting<?> deprecatedSetting : deprecatedSettings) {
             final DeprecationIssue expected = new DeprecationIssue(

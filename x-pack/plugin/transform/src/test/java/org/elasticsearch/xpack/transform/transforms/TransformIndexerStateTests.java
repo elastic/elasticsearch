@@ -614,7 +614,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         AtomicReference<IndexerState> state,
         Consumer<String> failureConsumer,
         ThreadPool threadPool,
-        TransformAuditor auditor,
+        TransformAuditor transformAuditor,
         TransformIndexerPosition initialPosition,
         TransformIndexerStats jobStats,
         TransformContext context
@@ -624,7 +624,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         TransformServices transformServices = new TransformServices(
             transformConfigManager,
             mock(TransformCheckpointService.class),
-            auditor,
+            transformAuditor,
             mock(SchedulerEngine.class)
         );
 

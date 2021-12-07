@@ -165,6 +165,10 @@ public class AutoscalingMetadata implements Metadata.NonRestorableCustom {
             return AbstractDiffable.readDiffFrom(AutoscalingPolicyMetadata::new, in);
         }
 
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_8_0;
+        }
     }
 
 }

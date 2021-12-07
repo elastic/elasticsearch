@@ -199,7 +199,7 @@ public class RemoveCorruptedShardDataCommand extends ElasticsearchNodeCommand {
         if (clean) {
             confirm("""
                 This shard has been marked as corrupted but no corruption can now be detected.
-                This may indicate an intermittent hardware problem. The corruption marker can be\s
+                This may indicate an intermittent hardware problem. The corruption marker can be
                 removed, but there is a risk that data has been undetectably lost.
 
                 Are you taking a risk of losing documents and proceed with removing a corrupted marker ?""", terminal);

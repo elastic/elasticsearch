@@ -7,16 +7,30 @@
 package org.elasticsearch.xpack.security.user;
 
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.action.get.GetAction;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
+import java.io.IOException;
+import java.util.Map;
+
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -60,5 +74,45 @@ public class AnonymousUserIntegTests extends SecurityIntegTestCase {
                 assertThat(EntityUtils.toString(response.getEntity()), containsString("security_exception"));
             }
         }
+    }
+
+    public void testAnonymousRoleShouldBeCaptureWhenCreatingApiKey() throws IOException {
+        final CreateApiKeyResponse createApiKeyResponse = client().execute(
+            CreateApiKeyAction.INSTANCE,
+            new CreateApiKeyRequest(randomAlphaOfLength(8), null, null)
+        ).actionGet();
+
+        final Map<String, Object> apiKeyDocument = getApiKeyDocument(createApiKeyResponse.getId());
+
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> limitedByRoleDescriptors = (Map<String, Object>) apiKeyDocument.get("limited_by_role_descriptors");
+        assertThat(limitedByRoleDescriptors, hasKey("anonymous"));
+    }
+
+    public void testAnonymousRoleShouldNotBeCapturedWhenCreatingApiKeyWithServiceAccount() {
+        final CreateServiceAccountTokenRequest createServiceAccountTokenRequest = new CreateServiceAccountTokenRequest(
+            "elastic",
+            "fleet-server",
+            randomAlphaOfLength(8)
+        );
+        final CreateServiceAccountTokenResponse createServiceAccountTokenResponse = client().execute(
+            CreateServiceAccountTokenAction.INSTANCE,
+            createServiceAccountTokenRequest
+        ).actionGet();
+
+        final CreateApiKeyResponse createApiKeyResponse = client().filterWithHeader(
+            Map.of("Authorization", "Bearer " + createServiceAccountTokenResponse.getValue())
+        ).execute(CreateApiKeyAction.INSTANCE, new CreateApiKeyRequest(randomAlphaOfLength(8), null, null)).actionGet();
+
+        final Map<String, Object> apiKeyDocument = getApiKeyDocument(createApiKeyResponse.getId());
+
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> limitedByRoleDescriptors = (Map<String, Object>) apiKeyDocument.get("limited_by_role_descriptors");
+        assertThat(limitedByRoleDescriptors, not(hasKey("anonymous")));
+    }
+
+    private Map<String, Object> getApiKeyDocument(String apiKeyId) {
+        final GetResponse getResponse = client().execute(GetAction.INSTANCE, new GetRequest(".security-7", apiKeyId)).actionGet();
+        return getResponse.getSource();
     }
 }

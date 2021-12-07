@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -328,9 +330,22 @@ public class CompositeRolesStore {
         );
     }
 
-    // TODO: Temporary to fill the gap
-    public void getRoleDescriptors(Set<String> roleNames, ActionListener<Set<RoleDescriptor>> listener) {
-        roleReferenceResolver.getRoleDescriptors(roleNames, listener);
+    public void getRoleDescriptorsList(Subject subject, ActionListener<Collection<Set<RoleDescriptor>>> listener) {
+        final List<RoleReference> roleReferences = subject.getRoleReferences(anonymousUser);
+        final GroupedActionListener<Set<RoleDescriptor>> groupedActionListener = new GroupedActionListener<>(
+            listener,
+            roleReferences.size()
+        );
+
+        roleReferences.forEach(roleReference -> {
+            roleReference.resolve(roleReferenceResolver, ActionListener.wrap(rolesRetrievalResult -> {
+                if (rolesRetrievalResult.isSuccess()) {
+                    groupedActionListener.onResponse(rolesRetrievalResult.getRoleDescriptors());
+                } else {
+                    groupedActionListener.onFailure(new ElasticsearchException("role retrieval had one or more failures"));
+                }
+            }, groupedActionListener::onFailure));
+        });
     }
 
     public static void buildRoleFromDescriptors(

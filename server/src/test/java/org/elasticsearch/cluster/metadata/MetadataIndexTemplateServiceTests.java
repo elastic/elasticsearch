@@ -1698,12 +1698,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         ComponentTemplate changedCt2 = new ComponentTemplate(new Template(null, new CompressedXContent("""
             {
-                  "properties": {
-                    "field2": {
-                      "type": "text"
-                    }
-                  }
-                }"""), null), null, null);
+              "properties": {
+                "field2": {
+                  "type": "text"
+                }
+              }
+            }
+            """), null), null, null);
 
         final ClusterState finalState = state;
         IllegalArgumentException e = expectThrows(

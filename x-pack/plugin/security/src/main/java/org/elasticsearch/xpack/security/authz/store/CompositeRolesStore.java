@@ -100,6 +100,7 @@ public class CompositeRolesStore {
     private final AtomicLong numInvalidation = new AtomicLong();
     private final RoleDescriptorStore roleReferenceResolver;
     private final Role superuserRole;
+    private final Role xpackSecurityRole;
     private final Role xpackUserRole;
     private final Role asyncSearchUserRole;
     private final Automaton restrictedIndicesAutomaton;
@@ -149,6 +150,7 @@ public class CompositeRolesStore {
         this.restrictedIndicesAutomaton = resolver.getSystemNameAutomaton();
         this.superuserRole = Role.builder(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton)
             .build();
+        xpackSecurityRole = Role.builder(XPackSecurityUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
         xpackUserRole = Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
         asyncSearchUserRole = Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, restrictedIndicesAutomaton).build();
 
@@ -211,11 +213,14 @@ public class CompositeRolesStore {
         }, roleActionListener::onFailure));
     }
 
-    private Role tryGetRoleForInternalUser(Subject subject) {
+    // Accessible by tests
+    Role tryGetRoleForInternalUser(Subject subject) {
         // we need to special case the internal users in this method, if we apply the anonymous roles to every user including these system
         // user accounts then we run into the chance of a deadlock because then we need to get a role that we may be trying to get as the
-        // internal user. The SystemUser is special cased as it has special privileges to execute internal actions and should never be
-        // passed into this method. The XPackSecurityUser has the Superuser role and we can simply return that
+        // internal user.
+        // The SystemUser is special cased as it has special privileges to execute internal actions and should never be passed into this
+        // method.
+        // The other internal users have directly assigned roles that are handled with special cases here
         final User user = subject.getUser();
         if (SystemUser.is(user)) {
             throw new IllegalArgumentException(
@@ -227,7 +232,7 @@ public class CompositeRolesStore {
             return xpackUserRole;
         }
         if (XPackSecurityUser.is(user)) {
-            return superuserRole;
+            return xpackSecurityRole;
         }
         if (AsyncSearchUser.is(user)) {
             return asyncSearchUserRole;

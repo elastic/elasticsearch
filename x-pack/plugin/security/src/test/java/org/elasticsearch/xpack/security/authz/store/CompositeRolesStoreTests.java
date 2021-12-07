@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
 import org.elasticsearch.xpack.security.Security;
@@ -127,6 +128,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
@@ -1697,6 +1699,21 @@ public class CompositeRolesStoreTests extends ESTestCase {
         );
     }
 
+    public void testXPackSecurityUserCanAccessAnyIndex() {
+        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
+            Predicate<IndexAbstraction> predicate = getXPackSecurityRole().indices().allowedIndicesMatcher(action);
+
+            IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
+            assertThat(predicate.test(index), Matchers.is(true));
+
+            index = mockIndexAbstraction("." + randomAlphaOfLengthBetween(3, 12));
+            assertThat(predicate.test(index), Matchers.is(true));
+
+            index = mockIndexAbstraction(".security-" + randomIntBetween(1, 16));
+            assertThat(predicate.test(index), Matchers.is(true));
+        }
+    }
+
     public void testXPackUserCanAccessNonRestrictedIndices() {
         CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON);
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
@@ -1802,23 +1819,19 @@ public class CompositeRolesStoreTests extends ESTestCase {
         rolesStore.getRole(subject, listener);
     }
 
+    private Role getXPackSecurityRole() {
+        return getInternalUserRole(XPackSecurityUser.INSTANCE);
+    }
+
     private Role getXPackUserRole() {
-        CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
-            SECURITY_ENABLED_SETTINGS,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-        return compositeRolesStore.getXpackUserRole();
+        return getInternalUserRole(XPackUser.INSTANCE);
     }
 
     private Role getAsyncSearchUserRole() {
+        return getInternalUserRole(AsyncSearchUser.INSTANCE);
+    }
+
+    private Role getInternalUserRole(User internalUser) {
         CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
             SECURITY_ENABLED_SETTINGS,
             null,
@@ -1831,7 +1844,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null
         );
-        return compositeRolesStore.getAsyncSearchUserRole();
+        final Subject subject = new Subject(internalUser, new RealmRef("__attach", "__attach", randomAlphaOfLength(8)));
+        final Role role = compositeRolesStore.tryGetRoleForInternalUser(subject);
+        assertThat("Role for " + subject, role, notNullValue());
+        return role;
     }
 
     private CompositeRolesStore buildCompositeRolesStore(

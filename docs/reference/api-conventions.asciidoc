@@ -179,7 +179,7 @@ expression, you must specify the `expand_wildcards` query parameter.
 
 Alternatively, querying an index pattern starting with a dot, such as
 `.watcher_hist*`, will match hidden indices by default. This is intended to
-Unix file-globbing behavior and provide a smoother transition path to
+mirror Unix file-globbing behavior and provide a smoother transition path to
 hidden indices.
 
 You can create hidden data streams by setting `data_stream.hidden` to `true` in

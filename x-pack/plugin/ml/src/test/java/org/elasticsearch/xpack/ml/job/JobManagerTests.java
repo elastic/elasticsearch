@@ -186,6 +186,7 @@ public class JobManagerTests extends ESTestCase {
 
     // Check that for new jobs, a default value is set for the model_prune_window field,
     // if one is not present in the configuration.
+    @SuppressWarnings("unchecked")
     public void testPutJob_AddsModelPruneWindow() throws IOException {
         MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
         JobManager jobManager = createJobManager(mockClientBuilder.build());

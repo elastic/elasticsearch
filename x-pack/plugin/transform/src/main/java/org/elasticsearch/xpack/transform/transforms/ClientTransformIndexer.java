@@ -31,6 +31,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -508,6 +509,26 @@ class ClientTransformIndexer extends TransformIndexer {
                     );
                     return;
                 }
+                if (unwrappedException instanceof IndexNotFoundException && pit != null) {
+                    /*
+                     * gh#81252 pit API search request can fail if indices get deleted (by ILM)
+                     * fall-back to normal search, the pit gets re-created (with an updated set of indices) on the next run
+                     *
+                     * Note: Due to BWC this needs to be kept until CCS support for < 8.1 is dropped
+                     */
+                    namedPits.remove(name);
+                    searchRequest.source().pointInTimeBuilder(null);
+                    ClientHelper.executeWithHeadersAsync(
+                        transformConfig.getHeaders(),
+                        ClientHelper.TRANSFORM_ORIGIN,
+                        client,
+                        SearchAction.INSTANCE,
+                        searchRequest,
+                        listener
+                    );
+                    return;
+                }
+
                 listener.onFailure(e);
             })
         );

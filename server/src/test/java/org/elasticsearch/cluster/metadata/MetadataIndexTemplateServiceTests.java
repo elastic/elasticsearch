@@ -1673,12 +1673,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 }"""), null), null, null);
         ComponentTemplate ct2 = new ComponentTemplate(new Template(null, new CompressedXContent("""
             {
-                  "properties": {
-                    "field1": {
-                      "type": "text"
-                    }
-                  }
-                }"""), null), null, null);
+              "properties": {
+                "field1": {
+                  "type": "text"
+                }
+              }
+            }
+            """), null), null, null);
         state = service.addComponentTemplate(state, true, "c1", ct1);
         state = service.addComponentTemplate(state, true, "c2", ct2);
         ComposableIndexTemplate it = new ComposableIndexTemplate(

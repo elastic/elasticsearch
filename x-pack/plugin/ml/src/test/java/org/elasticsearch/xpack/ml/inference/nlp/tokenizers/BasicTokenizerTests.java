@@ -72,11 +72,6 @@ public class BasicTokenizerTests extends ESTestCase {
 
         tokens = tokenizer.tokenize("Hello [UNK]!!");
         assertThat(tokens, contains("Hello", "[UNK]", "!", "!"));
-
-        tokens = tokenizer.tokenize("Hello-[UNK]");
-        assertThat(tokens, contains("Hello", "-", "[UNK]"));
-        tokens = tokenizer.tokenize("Hello-[UNK][UNK]");
-        assertThat(tokens, contains("Hello", "-", "[UNK]", "[UNK]"));
     }
 
     public void testSplitOnPunctuation() {
@@ -159,12 +154,21 @@ public class BasicTokenizerTests extends ESTestCase {
     }
 
     public void testIsPunctuation() {
+        assertTrue(BasicTokenizer.isCommonPunctuation('-'));
+        assertTrue(BasicTokenizer.isCommonPunctuation('$'));
+        assertTrue(BasicTokenizer.isCommonPunctuation('.'));
+        assertFalse(BasicTokenizer.isCommonPunctuation(' '));
+        assertFalse(BasicTokenizer.isCommonPunctuation('A'));
+        assertFalse(BasicTokenizer.isCommonPunctuation('`'));
+
         assertTrue(BasicTokenizer.isPunctuationMark('-'));
         assertTrue(BasicTokenizer.isPunctuationMark('$'));
         assertTrue(BasicTokenizer.isPunctuationMark('`'));
         assertTrue(BasicTokenizer.isPunctuationMark('.'));
         assertFalse(BasicTokenizer.isPunctuationMark(' '));
         assertFalse(BasicTokenizer.isPunctuationMark('A'));
+
+        assertFalse(BasicTokenizer.isCommonPunctuation('['));
         assertTrue(BasicTokenizer.isPunctuationMark('['));
     }
 

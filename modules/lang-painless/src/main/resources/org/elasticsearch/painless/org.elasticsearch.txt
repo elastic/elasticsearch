@@ -122,11 +122,6 @@ class org.apache.lucene.util.BytesRef {
   String utf8ToString()
 }
 
-class org.elasticsearch.index.mapper.IpFieldMapper$IpFieldType$IpScriptDocValues {
-  String get(int)
-  String getValue()
-}
-
 class org.elasticsearch.search.lookup.FieldLookup {
   def getValue()
   List getValues()

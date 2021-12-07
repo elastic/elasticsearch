@@ -610,7 +610,9 @@ public class MetadataIndexTemplateService {
         // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
         ComposableIndexTemplate templateToValidate = finalIndexTemplate;
         if (finalIndexTemplate.getDataStreamTemplate() != null) {
-            String indexModeAsString = Optional.ofNullable(finalIndexTemplate.template()).map(Template::settings).orElse(Settings.EMPTY)
+            String indexModeAsString = Optional.ofNullable(finalIndexTemplate.template())
+                .map(Template::settings)
+                .orElse(Settings.EMPTY)
                 .get(IndexSettings.MODE.getKey());
             if (indexModeAsString != null && IndexMode.valueOf(indexModeAsString.toUpperCase(Locale.ROOT)) == IndexMode.TIME_SERIES) {
                 Template finalTemplate = finalIndexTemplate.template();

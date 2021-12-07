@@ -211,9 +211,13 @@ public class MetadataCreateDataStreamService {
             ).dataStreamName(dataStreamName).systemDataStreamDescriptor(systemDataStreamDescriptor);
 
             // Get the index mode from template and based on that set tsdb start and end time settings correctly:
-            String indexModeAsString = Optional.ofNullable(template.template()).map(Template::settings).orElse(Settings.EMPTY)
+            String indexModeAsString = Optional.ofNullable(template.template())
+                .map(Template::settings)
+                .orElse(Settings.EMPTY)
                 .get(IndexSettings.MODE.getKey());
-            IndexMode indexMode = indexModeAsString != null ? IndexMode.valueOf(indexModeAsString.toUpperCase(Locale.ROOT)) : IndexMode.STANDARD;
+            IndexMode indexMode = indexModeAsString != null
+                ? IndexMode.valueOf(indexModeAsString.toUpperCase(Locale.ROOT))
+                : IndexMode.STANDARD;
             if (indexMode == IndexMode.TIME_SERIES) {
                 Instant start = Instant.ofEpochMilli(1); // 0 is the default and b/c this is a required setting another value should be used
                 Instant end = Instant.ofEpochMilli(request.startTime).plus(DataStream.DEFAULT_LOOK_AHEAD_TIME);

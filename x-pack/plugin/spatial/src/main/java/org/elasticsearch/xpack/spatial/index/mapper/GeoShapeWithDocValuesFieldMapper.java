@@ -39,7 +39,9 @@ import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.mapper.LegacyGeoShapeFieldMapper;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractAtomicGeoShapeShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractLatLonShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
@@ -173,7 +175,16 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new AbstractLatLonShapeIndexFieldData.Builder(name(), GeoShapeValuesSourceType.instance());
+            return new AbstractLatLonShapeIndexFieldData.Builder(
+                name(),
+                GeoShapeValuesSourceType.instance(),
+                (dv, n) -> new DelegateDocValuesField(
+                    new AbstractAtomicGeoShapeShapeFieldData.GeoShapeScriptValues(
+                        new AbstractAtomicGeoShapeShapeFieldData.GeoShapeSupplier(dv)
+                    ),
+                    n
+                )
+            );
         }
 
         @Override

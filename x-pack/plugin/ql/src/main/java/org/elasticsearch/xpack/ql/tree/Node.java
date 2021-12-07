@@ -342,6 +342,7 @@ public abstract class Node<T extends Node<T>> {
 
         sb.append(nodeString());
 
+        @SuppressWarnings("HiddenField")
         List<T> children = children();
         if (children.isEmpty() == false) {
             sb.append("\n");
@@ -365,6 +366,7 @@ public abstract class Node<T extends Node<T>> {
     public String propertiesToString(boolean skipIfChild) {
         StringBuilder sb = new StringBuilder();
 
+        @SuppressWarnings("HiddenField")
         List<?> children = children();
         // eliminate children (they are rendered as part of the tree)
         int remainingProperties = TO_STRING_MAX_PROP;

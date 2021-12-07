@@ -120,7 +120,7 @@ public abstract class TransportBroadcastByNodeAction<
     private Response newResponse(
         Request request,
         AtomicReferenceArray<?> responses,
-        List<NoShardAvailableActionException> unavailableShardExceptions,
+        int unavailableShardCount,
         Map<String, List<ShardRouting>> nodes,
         ClusterState clusterState
     ) {
@@ -154,7 +154,7 @@ public abstract class TransportBroadcastByNodeAction<
                 }
             }
         }
-        totalShards += unavailableShardExceptions.size();
+        totalShards += unavailableShardCount;
         int failedShards = exceptions.size();
         return newResponse(request, totalShards, successfulShards, failedShards, broadcastByNodeResponses, exceptions, clusterState);
     }
@@ -267,7 +267,7 @@ public abstract class TransportBroadcastByNodeAction<
         private final Map<String, List<ShardRouting>> nodeIds;
         private final AtomicReferenceArray<Object> responses;
         private final AtomicInteger counter = new AtomicInteger();
-        private List<NoShardAvailableActionException> unavailableShardExceptions = new ArrayList<>();
+        private int unavailableShardCount = 0;
 
         protected AsyncAction(Task task, Request request, ActionListener<Response> listener) {
             this.task = task;
@@ -308,12 +308,7 @@ public abstract class TransportBroadcastByNodeAction<
                     }
                     nodeIds.get(nodeId).add(shard);
                 } else {
-                    unavailableShardExceptions.add(
-                        new NoShardAvailableActionException(
-                            shard.shardId(),
-                            " no shards available for shard " + shard.toString() + " while executing " + actionName
-                        )
-                    );
+                    unavailableShardCount++;
                 }
             }
 
@@ -409,7 +404,7 @@ public abstract class TransportBroadcastByNodeAction<
 
             Response response = null;
             try {
-                response = newResponse(request, responses, unavailableShardExceptions, nodeIds, clusterState);
+                response = newResponse(request, responses, unavailableShardCount, nodeIds, clusterState);
             } catch (Exception e) {
                 logger.debug("failed to combine responses from nodes", e);
                 listener.onFailure(e);

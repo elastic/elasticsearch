@@ -643,9 +643,12 @@ public class SystemIndices {
      */
     public static void validateFeatureName(String name, String plugin) {
         if (SnapshotsService.NO_FEATURE_STATES_VALUE.equalsIgnoreCase(name)) {
-            throw new IllegalArgumentException("""
-                feature name cannot be reserved name ["%s"], but was for plugin [%s]\
-                """.formatted(SnapshotsService.NO_FEATURE_STATES_VALUE, plugin));
+            throw new IllegalArgumentException(
+                "feature name cannot be reserved name [\"%s\"], but was for plugin [%s]".formatted(
+                    SnapshotsService.NO_FEATURE_STATES_VALUE,
+                    plugin
+                )
+            );
         }
     }
 

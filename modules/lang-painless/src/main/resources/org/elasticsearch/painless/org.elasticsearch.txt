@@ -49,6 +49,8 @@ class org.elasticsearch.painless.api.Debug {
 #### ES Scripting API
 
 class org.elasticsearch.common.geo.GeoPoint {
+  ()
+  (double, double)
   double getLat()
   double getLon()
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -74,7 +75,7 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalAvg reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAvg reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         long count = 0;
         // Compute the sum of double values with Kahan summation algorithm which is more

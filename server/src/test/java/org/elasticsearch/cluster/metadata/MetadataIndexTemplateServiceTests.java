@@ -1660,17 +1660,18 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         ComponentTemplate ct1 = new ComponentTemplate(new Template(null, new CompressedXContent("""
             {
+              "properties": {
+                "field2": {
+                  "type": "object",
                   "properties": {
-                    "field2": {
-                      "type": "object",
-                      "properties": {
-                        "foo": {
-                          "type": "integer"
-                        }
-                      }
+                    "foo": {
+                      "type": "integer"
                     }
                   }
-                }"""), null), null, null);
+                }
+              }
+            }
+            """), null), null, null);
         ComponentTemplate ct2 = new ComponentTemplate(new Template(null, new CompressedXContent("""
             {
               "properties": {

@@ -1207,6 +1207,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 && modelSnapshotRetentionDays > DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS) {
                 dailyModelSnapshotRetentionAfterDays = DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS;
             }
+            analysisConfig.setDefaultModelPruneWindowIfNoneProvided();
         }
 
         /**

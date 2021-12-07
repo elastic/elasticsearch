@@ -76,6 +76,8 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     // The minimum number of buckets considered acceptable for the model_prune_window field
     public static final long MINIMUM_MODEL_PRUNE_WINDOW_BUCKETS = 2;
 
+    public static final TimeValue DEFAULT_MODEL_PRUNE_WINDOW = TimeValue.timeValueDays(30);
+
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<AnalysisConfig.Builder, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<AnalysisConfig.Builder, Void> parser = new ConstructingObjectParser<>(
@@ -133,7 +135,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     private final List<Detector> detectors;
     private final List<String> influencers;
     private final Boolean multivariateByFields;
-    private final TimeValue modelPruneWindow;
+    private TimeValue modelPruneWindow;
 
     private AnalysisConfig(
         TimeValue bucketSpan,
@@ -298,6 +300,12 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         return modelPruneWindow;
     }
 
+    public void setDefaultModelPruneWindowIfNoneProvided() {
+        if (modelPruneWindow == null) {
+            modelPruneWindow = AnalysisConfig.DEFAULT_MODEL_PRUNE_WINDOW;
+        }
+    }
+
     /**
      * Return the set of fields required by the analysis.
      * These are the influencer fields, metric field, partition field,
@@ -441,7 +449,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     public static class Builder {
 
         public static final TimeValue DEFAULT_BUCKET_SPAN = TimeValue.timeValueMinutes(5);
-        public static final TimeValue DEFAULT_MODEL_PRUNE_WINDOW = TimeValue.timeValueDays(30);
 
         private List<Detector> detectors;
         private TimeValue bucketSpan = DEFAULT_BUCKET_SPAN;
@@ -453,7 +460,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
         private String summaryCountFieldName;
         private List<String> influencers = new ArrayList<>();
         private Boolean multivariateByFields;
-        private TimeValue modelPruneWindow = DEFAULT_MODEL_PRUNE_WINDOW;
+        private TimeValue modelPruneWindow;
 
         public Builder(List<Detector> detectors) {
             setDetectors(detectors);

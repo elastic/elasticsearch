@@ -21,6 +21,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -175,6 +176,43 @@ public class JobManagerTests extends ESTestCase {
                 // job create time should be within the last second
                 assertThat(now.getTime(), greaterThanOrEqualTo(job.getCreateTime().getTime()));
                 assertThat(now.getTime() - 1000, lessThanOrEqualTo(job.getCreateTime().getTime()));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail(e.toString());
+            }
+        });
+    }
+
+    // Check that for new jobs, a default value is set for the model_prune_window field,
+    // if one is not present in the configuration.
+    public void testPutJob_AddsModelPruneWindow() throws IOException {
+        MockClientBuilder mockClientBuilder = new MockClientBuilder("cluster-test");
+        JobManager jobManager = createJobManager(mockClientBuilder.build());
+
+        PutJobAction.Request putJobRequest = new PutJobAction.Request(createJob());
+
+        doAnswer(invocation -> {
+            ((AckedClusterStateUpdateTask) invocation.getArguments()[1]).onAllNodesAcked(null);
+            return null;
+        }).when(clusterService).submitStateUpdateTask(ArgumentMatchers.eq("put-job-foo"), any(AckedClusterStateUpdateTask.class));
+
+        ArgumentCaptor<Job> requestCaptor = ArgumentCaptor.forClass(Job.class);
+        doAnswer(invocation -> {
+            ActionListener<Boolean> listener = (ActionListener<Boolean>) invocation.getArguments()[2];
+            listener.onResponse(true);
+            return null;
+        }).when(jobResultsProvider).createJobResultIndex(requestCaptor.capture(), any(ClusterState.class), any(ActionListener.class));
+
+        ClusterState clusterState = createClusterState();
+
+        jobManager.putJob(putJobRequest, analysisRegistry, clusterState, new ActionListener<>() {
+            @Override
+            public void onResponse(PutJobAction.Response response) {
+                Job job = requestCaptor.getValue();
+                AnalysisConfig analysisConfig = job.getAnalysisConfig();
+                assertEquals(AnalysisConfig.DEFAULT_MODEL_PRUNE_WINDOW, analysisConfig.getModelPruneWindow());
             }
 
             @Override

@@ -438,17 +438,13 @@ public class AnalysisConfigTests extends AbstractSerializingTestCase<AnalysisCon
         assertFalse(config2.equals(config1));
     }
 
-    public void testEquals_GivenDefaultModelPruneWindow() {
+    public void testNoDefaultModelPruneWindow() {
         AnalysisConfig.Builder builder = createConfigBuilder();
         AnalysisConfig config1 = builder.build();
 
-        builder = createConfigBuilder();
-        builder.setModelPruneWindow(AnalysisConfig.Builder.DEFAULT_MODEL_PRUNE_WINDOW);
-        AnalysisConfig config2 = builder.build();
-
-        assertTrue(config1.equals(config2));
-        assertTrue(config2.equals(config1));
-        assertEquals(config1.hashCode(), config2.hashCode());
+        // Explicitly check that a default value for model_prune_window
+        // is NOT set when parsing config documents
+        assertEquals(null, config1.getModelPruneWindow());
     }
 
     public void testEquals_GivenSummaryCountField() {

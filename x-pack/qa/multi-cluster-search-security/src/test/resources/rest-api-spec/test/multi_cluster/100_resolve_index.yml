@@ -22,7 +22,7 @@
   - match: {indices.2.attributes.1: open}
   - match: {indices.2.data_stream: simple-data-stream2}
   - match: {indices.3.name: my_remote_cluster:.security-7}
-  - match: {indices.3.attributes.0: open}
+  - match: {indices.3.attributes.0: hidden}
   - match: {indices.4.name: my_remote_cluster:closed_index}
   - match: {indices.4.aliases.0: aliased_closed_index}
   - match: {indices.4.attributes.0: closed}

@@ -1,9 +1,14 @@
 ---
 - job:
-    name: "elastic+elasticsearch+pull-request+build-performance"
-    display-name: "elastic / elasticsearch - pull request build performance"
-    description: "Testing of Elasticsearch pull requests - build performance"
-    workspace: "/dev/shm/elastic+elasticsearch+pull-request+build-perf"
+    name: "elastic+elasticsearch+pull-request+build-benchmark"
+    display-name: "elastic / elasticsearch - pull request build benchmark"
+    description: "Testing of Elasticsearch pull requests - build benchmark"
+    workspace: "/dev/shm/elastic+elasticsearch+pull-request+build-bench"
+    scm:
+      - git:
+          refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
+          branches:
+            - "${ghprbActualCommit}"
     properties:
       - inject:
           properties-content: |
@@ -13,6 +18,21 @@
             HOME=$JENKINS_HOME
             GRADLEW=./gradlew --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
             GRADLEW_BAT=./gradlew.bat --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+      triggers:
+        - github-pull-request:
+            org-list:
+              - elastic
+            allow-whitelist-orgs-as-admins: true
+            trigger-phrase: '.*run\W+elasticsearch-ci/build-bench.*'
+            github-hooks: true
+            status-context: elasticsearch-ci/build-benchmark
+            cancel-builds-on-update: true
+            black-list-target-branches:
+              - 6.8
+            excluded-regions:
+              - ^docs/.*
+            black-list-labels:
+              - '>test-mute'
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

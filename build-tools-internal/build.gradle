@@ -9,7 +9,6 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo
 import org.gradle.util.GradleVersion
-import org.elasticsearch.gradle.internal.conventions.info.GradleVersionInfo
 
 plugins {
   id 'java-gradle-plugin'

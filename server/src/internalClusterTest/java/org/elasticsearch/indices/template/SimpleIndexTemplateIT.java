@@ -817,17 +817,17 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // Now, a complete mapping with two separated templates is error
         // base template
         client().admin().indices().preparePutTemplate("template_1").setPatterns(Collections.singletonList("*")).setSettings("""
-                {
-                    "index" : {
-                        "analysis" : {
-                            "analyzer" : {
-                                "custom_1" : {
-                                    "tokenizer" : "standard"
-                                }
+            {
+                "index" : {
+                    "analysis" : {
+                        "analyzer" : {
+                            "custom_1" : {
+                                "tokenizer" : "standard"
                             }
                         }
-                     }
-                }
+                    }
+                 }
+            }
             """, XContentType.JSON).get();
 
         // put template using custom_1 analyzer

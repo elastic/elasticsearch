@@ -14,18 +14,22 @@ import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BasicTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.DelimitedToken;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.OptionalInt;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class FillMaskProcessorTests extends ESTestCase {
 
@@ -45,17 +49,23 @@ public class FillMaskProcessorTests extends ESTestCase {
         String input = "The capital of " + BertTokenizer.MASK_TOKEN + " is Paris";
 
         List<String> vocab = Arrays.asList("The", "capital", "of", BertTokenizer.MASK_TOKEN, "is", "Paris", "France");
-        String[] tokens = input.split(" ");
+        List<DelimitedToken> tokens = new BasicTokenizer(randomBoolean(), randomBoolean(), randomBoolean()).tokenize(input);
+
         int[] tokenMap = new int[] { 0, 1, 2, 3, 4, 5 };
         int[] tokenIds = new int[] { 0, 1, 2, 3, 4, 5 };
 
         TokenizationResult tokenization = new TokenizationResult(vocab);
         tokenization.addTokenization(input, false, tokens, tokenIds, tokenMap);
 
+        BertTokenizer tokenizer = mock(BertTokenizer.class);
+        when(tokenizer.getMaskToken()).thenReturn(BertTokenizer.MASK_TOKEN);
+        when(tokenizer.getMaskTokenId()).thenReturn(OptionalInt.of(3));
+
         String resultsField = randomAlphaOfLength(10);
         FillMaskResults result = (FillMaskResults) FillMaskProcessor.processResult(
             tokenization,
             new PyTorchResult("1", scores, 0L, null),
+            tokenizer,
             4,
             resultsField
         );
@@ -72,12 +82,15 @@ public class FillMaskProcessorTests extends ESTestCase {
     }
 
     public void testProcessResults_GivenMissingTokens() {
+        BertTokenizer tokenizer = mock(BertTokenizer.class);
+        when(tokenizer.getMaskToken()).thenReturn("[MASK]");
+
         TokenizationResult tokenization = new TokenizationResult(Collections.emptyList());
-        tokenization.addTokenization("", false, new String[] {}, new int[] {}, new int[] {});
+        tokenization.addTokenization("", false, Collections.emptyList(), new int[] {}, new int[] {});
 
         PyTorchResult pyTorchResult = new PyTorchResult("1", new double[][][] { { {} } }, 0L, null);
         assertThat(
-            FillMaskProcessor.processResult(tokenization, pyTorchResult, 5, randomAlphaOfLength(10)),
+            FillMaskProcessor.processResult(tokenization, pyTorchResult, tokenizer, 5, randomAlphaOfLength(10)),
             instanceOf(WarningInferenceResults.class)
         );
     }
@@ -85,8 +98,10 @@ public class FillMaskProcessorTests extends ESTestCase {
     public void testValidate_GivenMissingMaskToken() {
         List<String> input = List.of("The capital of France is Paris");
 
+        BertTokenizer tokenizer = mock(BertTokenizer.class);
+        when(tokenizer.getMaskToken()).thenReturn("[MASK]");
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null, null, null);
-        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
+        FillMaskProcessor processor = new FillMaskProcessor(tokenizer, config);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.validateInputs(input));
         assertThat(e.getMessage(), containsString("no [MASK] token could be found"));
@@ -95,8 +110,11 @@ public class FillMaskProcessorTests extends ESTestCase {
     public void testProcessResults_GivenMultipleMaskTokens() {
         List<String> input = List.of("The capital of [MASK] is [MASK]");
 
+        BertTokenizer tokenizer = mock(BertTokenizer.class);
+        when(tokenizer.getMaskToken()).thenReturn("[MASK]");
+
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null, null, null);
-        FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
+        FillMaskProcessor processor = new FillMaskProcessor(tokenizer, config);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.validateInputs(input));
         assertThat(e.getMessage(), containsString("only one [MASK] token should exist in the input"));

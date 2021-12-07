@@ -12,7 +12,6 @@ import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
-import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.junit.Before;
@@ -33,7 +32,7 @@ public class PermissionTests extends ESTestCase {
 
     @Before
     public void init() {
-        SimpleRole.Builder builder = Role.builder(Automatons.EMPTY, "test");
+        Role.Builder builder = Role.builder(Automatons.EMPTY, "test");
         builder.add(MONITOR, "test_*", "/foo.*/");
         builder.add(READ, "baz_*foo", "/fool.*bar/");
         builder.add(MONITOR, "/bar.*/");
@@ -71,7 +70,7 @@ public class PermissionTests extends ESTestCase {
     }
 
     public void testBuildEmptyRole() {
-        SimpleRole.Builder permission = Role.builder(Automatons.EMPTY, "some_role");
+        Role.Builder permission = Role.builder(Automatons.EMPTY, "some_role");
         Role role = permission.build();
         assertThat(role, notNullValue());
         assertThat(role.cluster(), notNullValue());

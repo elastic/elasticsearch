@@ -19,7 +19,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
-import org.elasticsearch.xpack.core.security.authz.permission.SimpleRole;
+import org.elasticsearch.xpack.core.security.authz.permission.Role;
 
 import java.util.Collection;
 import java.util.Locale;
@@ -29,7 +29,7 @@ import java.util.function.Predicate;
 
 /**
  * Where a realm users an authentication method that does not have in-built support for X-Pack
- * {@link SimpleRole roles}, it may delegate to an implementation of this class the
+ * {@link Role roles}, it may delegate to an implementation of this class the
  * responsibility for determining the set roles that an authenticated user should have.
  */
 public interface UserRoleMapper {

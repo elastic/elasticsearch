@@ -68,9 +68,6 @@ BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
             delete("${buildDir}/cluster/shared/repo/${baseName}")
         }
         systemProperty 'tests.is_old_cluster', 'true'
-        exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
-        exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
-        exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
     }
 
     tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
@@ -84,9 +81,6 @@ BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
             testClusters.named(baseName).get().goToNextVersion()
         }
         systemProperty 'tests.is_old_cluster', 'false'
-        exclude 'org/elasticsearch/upgrades/FullClusterRestartIT.class'
-        exclude 'org/elasticsearch/upgrades/FullClusterRestartSettingsUpgradeIT.class'
-        exclude 'org/elasticsearch/upgrades/QueryBuilderBWCIT.class'
     }
 
     String oldVersion = bwcVersion.toString().minus("-SNAPSHOT")

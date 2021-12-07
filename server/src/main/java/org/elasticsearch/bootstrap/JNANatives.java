@@ -93,7 +93,7 @@ class JNANatives {
                     // give specific instructions for the linux case to make it easy
                     String user = System.getProperty("user.name");
                     logger.warn("""
-                        These can be adjusted by modifying /etc/security/limits.conf, for example:\s
+                        These can be adjusted by modifying /etc/security/limits.conf, for example:
                         \t# allow user '{}' mlockall
                         \t{} soft memlock unlimited
                         \t{} hard memlock unlimited""", user, user, user);

@@ -316,7 +316,8 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
                       "type": "geo_point"
                     },
                     "area_visible": {
-                      "type": "geo_shape"            }
+                      "type": "geo_shape"
+                    }
                   }
                 },
                 "properties": {

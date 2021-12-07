@@ -61,7 +61,7 @@ public class BasicTokenizerTests extends ESTestCase {
         assertThat(tokenStrings(tokens), contains("HaLLo", "!", "how", "Are", "yoU", "?"));
     }
 
-    public void testNeverSplit() {
+    public void testNeverSplit_GivenNoLowerCase() {
         BasicTokenizer tokenizer = new BasicTokenizer(false, false, false, Collections.singleton("[UNK]"));
         var tokens = tokenizer.tokenize(" \tHeLLo!how  \n Are yoU? [UNK]");
         assertThat(tokenStrings(tokens), contains("HeLLo", "!", "how", "Are", "yoU", "?", "[UNK]"));
@@ -77,8 +77,32 @@ public class BasicTokenizerTests extends ESTestCase {
 
         tokens = tokenizer.tokenize("Hello-[UNK]");
         assertThat(tokenStrings(tokens), contains("Hello", "-", "[UNK]"));
-        tokens = tokenizer.tokenize("Hello-[UNK][UNK]");
-        assertThat(tokenStrings(tokens), contains("Hello", "-", "[UNK]", "[UNK]"));
+        tokens = tokenizer.tokenize("Hello~[UNK][UNK]");
+        assertThat(tokenStrings(tokens), contains("Hello", "~", "[UNK]", "[UNK]"));
+        tokens = tokenizer.tokenize("Hello-[unk]");
+        assertThat(tokenStrings(tokens), contains("Hello", "-", "[", "unk", "]"));
+    }
+
+    public void testNeverSplit_GivenLowerCase() {
+        BasicTokenizer tokenizer = new BasicTokenizer(true, false, false, Collections.singleton("[UNK]"));
+        var tokens = tokenizer.tokenize(" \tHeLLo!how  \n Are yoU? [UNK]");
+        assertThat(tokenStrings(tokens), contains("hello", "!", "how", "are", "you", "?", "[UNK]"));
+
+        tokens = tokenizer.tokenize("Hello [UNK].");
+        assertThat(tokenStrings(tokens), contains("hello", "[UNK]", "."));
+
+        tokens = tokenizer.tokenize("Hello [UNK]?");
+        assertThat(tokenStrings(tokens), contains("hello", "[UNK]", "?"));
+
+        tokens = tokenizer.tokenize("Hello [UNK]!!");
+        assertThat(tokenStrings(tokens), contains("hello", "[UNK]", "!", "!"));
+
+        tokens = tokenizer.tokenize("Hello-[UNK]");
+        assertThat(tokenStrings(tokens), contains("hello", "-", "[UNK]"));
+        tokens = tokenizer.tokenize("Hello~[UNK][UNK]");
+        assertThat(tokenStrings(tokens), contains("hello", "~", "[UNK]", "[UNK]"));
+        tokens = tokenizer.tokenize("Hello-[unk]");
+        assertThat(tokenStrings(tokens), contains("hello", "-", "[", "unk", "]"));
     }
 
     public void testSplitOnPunctuation() {

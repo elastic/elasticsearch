@@ -32,6 +32,7 @@ public class BasicTokenizer {
     private final boolean isLowerCase;
     private final boolean isTokenizeCjkChars;
     private final boolean isStripAccents;
+    private final Set<String> neverSplitTokens;
     private final TokenTrieNode neverSplitTokenTrieRoot;
 
     /**
@@ -46,6 +47,7 @@ public class BasicTokenizer {
         this.isLowerCase = isLowerCase;
         this.isTokenizeCjkChars = isTokenizeCjkChars;
         this.isStripAccents = isStripAccents;
+        this.neverSplitTokens = neverSplit;
         this.neverSplitTokenTrieRoot = TokenTrieNode.build(neverSplit, this::doTokenizeString);
     }
 
@@ -76,7 +78,7 @@ public class BasicTokenizer {
      * @return List of tokens
      */
     public List<DelimitedToken> tokenize(String text) {
-        return mergeNeverSplitTokens(doTokenize(text));
+        return mergeNeverSplitTokens(text, doTokenize(text));
     }
 
     private List<String> doTokenizeString(String text) {
@@ -111,7 +113,7 @@ public class BasicTokenizer {
         return processedTokens;
     }
 
-    private List<DelimitedToken> mergeNeverSplitTokens(List<DelimitedToken> tokens) {
+    private List<DelimitedToken> mergeNeverSplitTokens(String originalText, List<DelimitedToken> tokens) {
         if (neverSplitTokenTrieRoot.isLeaf()) {
             return tokens;
         }
@@ -129,7 +131,13 @@ public class BasicTokenizer {
                 mergedTokens.add(token);
             } else if (childNode.isLeaf()) {
                 matchingTokens.add(token);
-                mergedTokens.add(DelimitedToken.mergeTokens(matchingTokens));
+                DelimitedToken mergedToken = DelimitedToken.mergeTokens(matchingTokens);
+                String originalTokenText = originalText.substring(mergedToken.getStartPos(), mergedToken.getEndPos());
+                if (neverSplitTokens.contains(originalTokenText)) {
+                    mergedTokens.add(new DelimitedToken(mergedToken.getStartPos(), mergedToken.getEndPos(), originalTokenText));
+                } else {
+                    mergedTokens.addAll(matchingTokens);
+                }
                 matchingTokens = new ArrayList<>();
                 current = neverSplitTokenTrieRoot;
             } else {

@@ -738,10 +738,6 @@ public class SecuritySystemIndices {
                     builder.field("type", "keyword");
                     builder.endObject();
 
-                    builder.startObject("redirect_uid");
-                    builder.field("type", "keyword");
-                    builder.endObject();
-
                     builder.startObject("enabled");
                     builder.field("type", "boolean");
                     builder.endObject();

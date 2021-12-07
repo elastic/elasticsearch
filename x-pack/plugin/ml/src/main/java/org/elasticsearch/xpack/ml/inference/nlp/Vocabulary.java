@@ -26,7 +26,7 @@ import java.util.Objects;
 public class Vocabulary implements Writeable, ToXContentObject {
 
     private static final String NAME = "vocabulary";
-    private static final ParseField VOCAB = new ParseField("vocab");
+    public static final ParseField VOCABULARY = new ParseField(NAME);
 
     @SuppressWarnings({ "unchecked" })
     public static ConstructingObjectParser<Vocabulary, Void> createParser(boolean ignoreUnkownFields) {
@@ -35,7 +35,7 @@ public class Vocabulary implements Writeable, ToXContentObject {
             ignoreUnkownFields,
             a -> new Vocabulary((List<String>) a[0], (String) a[1])
         );
-        parser.declareStringArray(ConstructingObjectParser.constructorArg(), VOCAB);
+        parser.declareStringArray(ConstructingObjectParser.constructorArg(), VOCABULARY);
         parser.declareString(ConstructingObjectParser.constructorArg(), TrainedModelConfig.MODEL_ID);
         return parser;
     }
@@ -44,7 +44,7 @@ public class Vocabulary implements Writeable, ToXContentObject {
     private final String modelId;
 
     public Vocabulary(List<String> vocab, String modelId) {
-        this.vocab = ExceptionsHelper.requireNonNull(vocab, VOCAB);
+        this.vocab = ExceptionsHelper.requireNonNull(vocab, VOCABULARY);
         this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
     }
 
@@ -80,7 +80,7 @@ public class Vocabulary implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(VOCAB.getPreferredName(), vocab);
+        builder.field(VOCABULARY.getPreferredName(), vocab);
         builder.field(TrainedModelConfig.MODEL_ID.getPreferredName(), modelId);
         if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
             builder.field(InferenceIndexConstants.DOC_TYPE.getPreferredName(), NAME);

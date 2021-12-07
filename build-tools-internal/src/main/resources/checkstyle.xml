@@ -107,6 +107,13 @@
 
     <!-- Checks that a local variable or a parameter does not shadow a field that is defined in the same class. -->
     <!-- Use a forked version that understands setters that don't start with "set". -->
+    <!-- Notes on `ignoredMethodNames`:
+
+        * `createParser` creates objects so should be considered a sort-of constructor
+        * `createComponents` by its nature ends up referring to fields
+          a lot, and there's no benefit to flagging shadowed variables in
+          those methods.
+    -->
     <!-- Disabled until existing violations are fixed -->
     <!--
     <module name="org.elasticsearch.gradle.internal.checkstyle.HiddenFieldCheck">
@@ -117,7 +124,7 @@
         <property name="minLineCount" value="5" />
         <property name="ignoreFormat" value="^(?:threadPool)$"/>
         <property name="ignoreAbstractMethods" value="true"/>
-        <property name="ignoreMethodNames" value="^(?:createParser)$"/>
+        <property name="ignoreMethodNames" value="^(?:createParser|createComponents)$"/>
         <property name="setterCanReturnItsClass" value="true"/>
         <message key="hidden.field" value="''{0}'' hides a field." />
     </module>

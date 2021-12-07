@@ -212,7 +212,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query fuzzyQuery(
-            Object value,
+            Object term,
             Fuzziness fuzziness,
             int prefixLength,
             int maxExpansions,
@@ -223,7 +223,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 return new MatchNoDocsQuery();
             }
 
-            final String termAsString = BytesRefs.toString(value);
+            final String termAsString = BytesRefs.toString(term);
             final int maxEdits = fuzziness.asDistance(termAsString);
 
             final int[] termText = new int[termAsString.codePointCount(0, termAsString.length())];
@@ -248,7 +248,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query regexpQuery(
-            String value,
+            String regexp,
             int syntaxFlags,
             int matchFlags,
             int maxDeterminizedStates,
@@ -259,7 +259,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 return new MatchNoDocsQuery();
             }
 
-            final Automaton automaton = new RegExp(value, syntaxFlags, matchFlags).toAutomaton(maxDeterminizedStates);
+            final Automaton automaton = new RegExp(regexp, syntaxFlags, matchFlags).toAutomaton(maxDeterminizedStates);
             final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
             if (runAutomaton.run(this.value)) {
                 return new MatchAllDocsQuery();

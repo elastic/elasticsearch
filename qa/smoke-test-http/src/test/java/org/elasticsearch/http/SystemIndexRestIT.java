@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -45,6 +46,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -92,6 +94,17 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
         // And with a total wildcard
         assertDeprecationWarningOnAccess(randomFrom("*", "_all"), SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
+        // If we're not expanding wildcards, we don't get anything
+        {
+            Request searchRequest = new Request("GET", "/" + randomFrom("*", "_all") + randomFrom("/_count", "/_search"));
+            searchRequest.setJsonEntity("{\"query\": {\"match\":  {\"some_field\":  \"some_value\"}}}");
+            searchRequest.addParameter("allow_no_indices", "false");
+
+            ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(searchRequest));
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(404));
+            assertThat(exception.getMessage(), containsString("no such index"));
+        }
+
         // Try to index a doc directly
         {
             String expectedWarning = "this request accesses system indices: ["
@@ -115,6 +128,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
         searchRequest.setJsonEntity("{\"query\": {\"match\":  {\"some_field\":  \"some_value\"}}}");
         // Disallow no indices to cause an exception if this resolves to zero indices, so that we're sure it resolved the index
         searchRequest.addParameter("allow_no_indices", "false");
+        searchRequest.addParameter("expand_wildcards", "open,hidden");
         searchRequest.setOptions(expectWarnings(expectedWarning));
 
         Response response = getRestClient().performRequest(searchRequest);

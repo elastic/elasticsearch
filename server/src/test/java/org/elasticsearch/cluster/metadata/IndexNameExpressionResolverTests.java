@@ -2267,9 +2267,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
     }
 
-    public void testFullWildcardSystemIndexResolutionAllowed() {
+    public void testFullWildcardSystemIndexResolutionWithExpandHiddenAllowed() {
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
+        request.indicesOptions(IndicesOptions.strictExpandHidden());
 
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
         assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta", ".watches"));
@@ -2299,10 +2300,19 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(indexNames, containsInAnyOrder(".ml-meta"));
     }
 
+    public void testFullWildcardSystemIndicesAreHidden() {
+        ClusterState state = systemIndexTestClusterState();
+        SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
+
+        List<String> indexNames = resolveConcreteIndexNameList(state, request);
+        assertThat(indexNames, containsInAnyOrder("some-other-index"));
+    }
+
     public void testFullWildcardSystemIndexResolutionDeprecated() {
         threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(randomFrom("*", "_all"));
+        request.indicesOptions(IndicesOptions.strictExpandHidden());
 
         List<String> indexNames = resolveConcreteIndexNameList(state, request);
         assertThat(indexNames, containsInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta", ".watches"));
@@ -2334,7 +2344,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         );
     }
 
-    public void testWildcardSystemIndexReslutionSingleMatchDeprecated() {
+    public void testWildcardSystemIndexResolutionSingleMatchDeprecated() {
         threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.FALSE.toString());
         ClusterState state = systemIndexTestClusterState();
         SearchRequest request = new SearchRequest(".w*");
@@ -2952,11 +2962,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
     }
 
     private ClusterState systemIndexTestClusterState() {
-        Settings settings = Settings.builder().build();
         Metadata.Builder mdBuilder = Metadata.builder()
-            .put(indexBuilder(".ml-meta", settings).state(State.OPEN).system(true))
-            .put(indexBuilder(".watches", settings).state(State.OPEN).system(true))
-            .put(indexBuilder(".ml-stuff", settings).state(State.OPEN).system(true))
+            .put(indexBuilder(".ml-meta", SystemIndexDescriptor.DEFAULT_SETTINGS).state(State.OPEN).system(true))
+            .put(indexBuilder(".watches", SystemIndexDescriptor.DEFAULT_SETTINGS).state(State.OPEN).system(true))
+            .put(indexBuilder(".ml-stuff", SystemIndexDescriptor.DEFAULT_SETTINGS).state(State.OPEN).system(true))
             .put(indexBuilder("some-other-index").state(State.OPEN));
         SystemIndices systemIndices = new SystemIndices(
             Map.of(

@@ -965,7 +965,7 @@ public class SimpleNestedIT extends ESIntegTestCase {
                       "sortVal": 2
                     }
                   ]
-                }\s
+                }
               ]
             }""", XContentType.JSON).get();
 

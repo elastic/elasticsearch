@@ -53,14 +53,14 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             return docCount;
         }
 
-        public Bucket reduce(BucketKey key, ReduceContext reduceContext) {
+        public Bucket reduce(BucketKey bucketKey, ReduceContext reduceContext) {
             List<InternalAggregations> innerAggs = new ArrayList<>(toReduce.size());
-            long docCount = 0;
+            long totalDocCount = 0;
             for (Bucket bucket : toReduce) {
                 innerAggs.add(bucket.aggregations);
-                docCount += bucket.docCount;
+                totalDocCount += bucket.docCount;
             }
-            return new Bucket(key, docCount, InternalAggregations.reduce(innerAggs, reduceContext));
+            return new Bucket(bucketKey, totalDocCount, InternalAggregations.reduce(innerAggs, reduceContext));
         }
 
         public DelayedCategorizationBucket add(Bucket bucket) {
@@ -316,7 +316,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     @Override
-    public InternalCategorizationAggregation create(List<Bucket> buckets) {
+    public InternalCategorizationAggregation create(List<Bucket> bucketList) {
         return new InternalCategorizationAggregation(
             name,
             requiredSize,
@@ -325,7 +325,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             maxMatchTokens,
             similarityThreshold,
             super.metadata,
-            buckets
+            bucketList
         );
     }
 

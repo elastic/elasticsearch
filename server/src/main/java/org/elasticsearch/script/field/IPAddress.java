@@ -46,7 +46,7 @@ public class IPAddress implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(this.toString());
+        return builder.value(toString());
     }
 
     @Override

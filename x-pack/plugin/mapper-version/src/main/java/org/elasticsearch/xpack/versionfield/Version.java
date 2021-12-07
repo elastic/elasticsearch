@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.versionfield;
 
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+
 /**
  * Script value class.
  * TODO(stu): implement {@code Comparable<Version>} based on {@code VersionEncoder#prefixDigitGroupsWithLength(String, BytesRefBuilder)}
  */
-public class Version {
+public class Version implements ToXContent {
     protected String version;
 
     public Version(String version) {
@@ -21,5 +26,15 @@ public class Version {
     @Override
     public String toString() {
         return version;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.value(toString());
+    }
+
+    @Override
+    public boolean isFragment() {
+        return false;
     }
 }

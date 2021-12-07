@@ -393,17 +393,9 @@ public class CacheFileTests extends ESTestCase {
 
     private static void assumeLinux64bitsOrWindows() {
         assumeTrue(
-            "This test uses native methods implemented only for Windows & Linux 64bits non-aarch64",
+            "This test uses native methods implemented only for Windows & Linux 64bits",
             Constants.WINDOWS || Constants.LINUX && Constants.JRE_IS_64BIT
-            // see testCacheFileCreatedAsSparseFileOnAarch64() comment
-                && "aarch64".equals(Constants.OS_ARCH.toLowerCase(Locale.ROOT)) == false
         );
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/81362")
-    public void testCacheFileCreatedAsSparseFileOnAarch64() {
-        // testCacheFileCreatedAsSparseFile() should also be executed on aarch64 architectures but this is disabled in
-        // assumeLinux64bitsOrWindows() until https://github.com/elastic/elasticsearch/issues/81362 is resolved.
     }
 
     public void testCacheFileCreatedAsSparseFile() throws Exception {

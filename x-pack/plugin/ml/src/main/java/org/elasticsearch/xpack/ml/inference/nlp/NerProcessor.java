@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NerConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.DelimitedToken;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
@@ -193,7 +194,7 @@ public class NerProcessor implements NlpTask.Processor {
 
         @Override
         public InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
-            if (tokenization.getTokenizations().isEmpty() || tokenization.getTokenizations().get(0).getTokens().length == 0) {
+            if (tokenization.getTokenizations().isEmpty() || tokenization.getTokenizations().get(0).getTokenIds().length == 0) {
                 return new WarningInferenceResults("no valid tokens to build result");
             }
             // TODO - process all results in the batch
@@ -213,6 +214,7 @@ public class NerProcessor implements NlpTask.Processor {
                     ? tokenization.getTokenizations().get(0).getInput().toLowerCase(Locale.ROOT)
                     : tokenization.getTokenizations().get(0).getInput()
             );
+
             return new NerResults(
                 resultsField,
                 buildAnnotatedText(tokenization.getTokenizations().get(0).getInput(), entities),
@@ -230,7 +232,7 @@ public class NerProcessor implements NlpTask.Processor {
         static List<TaggedToken> tagTokens(TokenizationResult.Tokenization tokenization, double[][] scores, IobTag[] iobMap) {
             List<TaggedToken> taggedTokens = new ArrayList<>();
             int startTokenIndex = 0;
-            while (startTokenIndex < tokenization.getTokens().length) {
+            while (startTokenIndex < tokenization.getTokenIds().length) {
                 int inputMapping = tokenization.getTokenMap()[startTokenIndex];
                 if (inputMapping < 0) {
                     // This token does not map to a token in the input (special tokens)
@@ -238,15 +240,9 @@ public class NerProcessor implements NlpTask.Processor {
                     continue;
                 }
                 int endTokenIndex = startTokenIndex;
-                StringBuilder word = new StringBuilder(tokenization.getTokens()[startTokenIndex]);
-                while (endTokenIndex < tokenization.getTokens().length - 1
+                while (endTokenIndex < tokenization.getTokenMap().length - 1
                     && tokenization.getTokenMap()[endTokenIndex + 1] == inputMapping) {
                     endTokenIndex++;
-                    // TODO Here we try to get rid of the continuation hashes at the beginning of sub-tokens.
-                    // It is probably more correct to implement detokenization on the tokenizer
-                    // that does reverse lookup based on token IDs.
-                    String endTokenWord = tokenization.getTokens()[endTokenIndex].substring(2);
-                    word.append(endTokenWord);
                 }
                 double[] avgScores = Arrays.copyOf(scores[startTokenIndex], iobMap.length);
                 for (int i = startTokenIndex + 1; i <= endTokenIndex; i++) {
@@ -262,7 +258,7 @@ public class NerProcessor implements NlpTask.Processor {
                 }
                 int maxScoreIndex = NlpHelpers.argmax(avgScores);
                 double score = avgScores[maxScoreIndex];
-                taggedTokens.add(new TaggedToken(word.toString(), iobMap[maxScoreIndex], score));
+                taggedTokens.add(new TaggedToken(tokenization.getTokens().get(inputMapping), iobMap[maxScoreIndex], score));
                 startTokenIndex = endTokenIndex + 1;
             }
             return taggedTokens;
@@ -283,14 +279,12 @@ public class NerProcessor implements NlpTask.Processor {
             }
             List<NerResults.EntityGroup> entities = new ArrayList<>();
             int startTokenIndex = 0;
-            int startFindInSeq = 0;
             while (startTokenIndex < tokens.size()) {
                 TaggedToken token = tokens.get(startTokenIndex);
                 if (token.tag.getEntity() == Entity.NONE) {
                     startTokenIndex++;
                     continue;
                 }
-                StringBuilder entityWord = new StringBuilder(token.word);
                 int endTokenIndex = startTokenIndex + 1;
                 double scoreSum = token.score;
                 while (endTokenIndex < tokens.size()) {
@@ -298,42 +292,49 @@ public class NerProcessor implements NlpTask.Processor {
                     if (endToken.tag.isBeginning() || endToken.tag.getEntity() != token.tag.getEntity()) {
                         break;
                     }
-                    // TODO Here we add a space between tokens.
-                    // It is probably more correct to implement detokenization on the tokenizer
-                    // that does reverse lookup based on token IDs.
-                    entityWord.append(" ").append(endToken.word);
                     scoreSum += endToken.score;
                     endTokenIndex++;
                 }
-                String entity = entityWord.toString();
-                int i = inputSeq.indexOf(entity, startFindInSeq);
+
+                int startPos = token.token.getStartPos();
+                int endPos = tokens.get(endTokenIndex - 1).token.getEndPos();
+                String entity = inputSeq.substring(startPos, endPos);
                 entities.add(
                     new NerResults.EntityGroup(
                         entity,
                         token.tag.getEntity().toString(),
                         scoreSum / (endTokenIndex - startTokenIndex),
-                        i,
-                        i == -1 ? -1 : i + entity.length()
+                        startPos,
+                        endPos
                     )
                 );
                 startTokenIndex = endTokenIndex;
-                if (i != -1) {
-                    startFindInSeq = i + entity.length();
-                }
             }
 
             return entities;
         }
 
         static class TaggedToken {
-            private final String word;
+            private final DelimitedToken token;
             private final IobTag tag;
             private final double score;
 
-            TaggedToken(String word, IobTag tag, double score) {
-                this.word = word;
+            TaggedToken(DelimitedToken token, IobTag tag, double score) {
+                this.token = token;
                 this.tag = tag;
                 this.score = score;
+            }
+
+            @Override
+            public String toString() {
+                return new StringBuilder("{").append("token:")
+                    .append(token)
+                    .append(", ")
+                    .append(tag)
+                    .append(", ")
+                    .append(score)
+                    .append("}")
+                    .toString();
             }
         }
     }

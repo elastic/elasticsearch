@@ -228,9 +228,12 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().totalShards());
         assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(ClusterHealthStatus.GREEN, client.cluster().health(new ClusterHealthRequest().waitForGreenStatus()
-                .waitForNoRelocatingShards(true),
-            RequestOptions.DEFAULT).getStatus());
+        assertEquals(
+            ClusterHealthStatus.GREEN,
+            client.cluster()
+                .health(new ClusterHealthRequest().waitForGreenStatus().waitForNoRelocatingShards(true), RequestOptions.DEFAULT)
+                .getStatus()
+        );
 
         // run a search against the index
         assertDocs("mounted_full_copy_test", numDocs, expectedIds, client);

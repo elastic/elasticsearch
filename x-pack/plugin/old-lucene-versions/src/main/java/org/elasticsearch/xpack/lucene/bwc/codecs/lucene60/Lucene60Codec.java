@@ -20,14 +20,15 @@
 package org.elasticsearch.xpack.lucene.bwc.codecs.lucene60;
 
 import org.apache.lucene.backward_codecs.lucene50.Lucene50CompoundFormat;
+import org.apache.lucene.backward_codecs.lucene50.Lucene50LiveDocsFormat;
 import org.apache.lucene.backward_codecs.lucene50.Lucene50StoredFieldsFormat;
+import org.apache.lucene.backward_codecs.lucene60.Lucene60FieldInfosFormat;
 import org.apache.lucene.codecs.CompoundFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.LiveDocsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
-import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.Lucene50LiveDocsFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.Lucene50SegmentInfoFormat;
 
 import java.util.Objects;

@@ -47,25 +47,23 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin {
      * segments file that the newer Lucene version can open, using codecs that allow reading everything from the old files, making it
      * available under the newer interfaces. The way this works is to read in the old segments file using a special class
      * {@link OldSegmentInfos} that supports reading older Lucene {@link SegmentInfos}, and then write out an updated segments file that
-     * newer Lucene versions can understand.s
+     * newer Lucene versions can understand.
      */
     private static void convertToNewFormat(IndexShard indexShard) {
         indexShard.store().incRef();
         try {
-            try {
-                final OldSegmentInfos oldSegmentInfos = OldSegmentInfos.readLatestCommit(indexShard.store().directory(), 0);
-                final SegmentInfos segmentInfos = convertToNewerLuceneVersion(oldSegmentInfos);
-                // write upgraded segments file
-                segmentInfos.commit(indexShard.store().directory());
+            final OldSegmentInfos oldSegmentInfos = OldSegmentInfos.readLatestCommit(indexShard.store().directory(), 0);
+            final SegmentInfos segmentInfos = convertToNewerLuceneVersion(oldSegmentInfos);
+            // write upgraded segments file
+            segmentInfos.commit(indexShard.store().directory());
 
-                // what we have written can be read using standard path
-                assert SegmentInfos.readLatestCommit(indexShard.store().directory()) != null;
+            // what we have written can be read using standard path
+            assert SegmentInfos.readLatestCommit(indexShard.store().directory()) != null;
 
-                // clean older segments file
-                Lucene.pruneUnreferencedFiles(segmentInfos.getSegmentsFileName(), indexShard.store().directory());
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            // clean older segments file
+            Lucene.pruneUnreferencedFiles(segmentInfos.getSegmentsFileName(), indexShard.store().directory());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         } finally {
             indexShard.store().decRef();
         }

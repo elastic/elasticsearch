@@ -917,27 +917,29 @@ public class SimpleNestedIT extends ESIntegTestCase {
     // https://github.com/elastic/elasticsearch/issues/31554
     public void testLeakingSortValues() throws Exception {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("number_of_shards", 1)).setMapping("""
-            {"_doc":{
-                    "dynamic": "strict",
+            {
+              "_doc": {
+                "dynamic": "strict",
+                "properties": {
+                  "nested1": {
+                    "type": "nested",
                     "properties": {
-                      "nested1": {
+                      "nested2": {
                         "type": "nested",
                         "properties": {
-                          "nested2": {
-                            "type": "nested",
-                            "properties": {
-                              "nested2_keyword": {
-                                "type": "keyword"
-                              },
-                              "sortVal": {
-                                "type": "integer"
-                              }
-                            }
+                          "nested2_keyword": {
+                            "type": "keyword"
+                          },
+                          "sortVal": {
+                            "type": "integer"
                           }
                         }
                       }
                     }
-                  }}
+                  }
+                }
+              }
+            }
             """));
         ensureGreen();
 

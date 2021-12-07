@@ -57,13 +57,9 @@ public abstract class GeoShapeQueryTestCase extends GeoPointShapeQueryTestCase {
         String geo = """
             "geo" : {"type":"polygon", "coordinates":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}""";
 
-        client().prepareIndex("shapes")
-            .setId("1")
-            .setSource("""
-                { %s, "1" : { %s, "2" : { %s, "3" : { %s } }} }
-                """.formatted(geo, geo, geo, geo), XContentType.JSON)
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
+        client().prepareIndex("shapes").setId("1").setSource("""
+            { %s, "1" : { %s, "2" : { %s, "3" : { %s } }} }
+            """.formatted(geo, geo, geo, geo), XContentType.JSON).setRefreshPolicy(IMMEDIATE).get();
         client().prepareIndex(defaultIndexName)
             .setId("1")
             .setSource(

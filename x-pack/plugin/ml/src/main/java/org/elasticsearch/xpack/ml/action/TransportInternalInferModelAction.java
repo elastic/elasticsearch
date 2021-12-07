@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -41,11 +41,20 @@ import org.elasticsearch.xpack.ml.utils.TypedChainTaskExecutor;
 
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportInternalInferModelAction extends HandledTransportAction<Request, Response> {
+
+    private static final Set<RestStatus> FAILURE_STATUSES = Set.of(
+        RestStatus.TOO_MANY_REQUESTS,
+        RestStatus.NOT_FOUND,
+        RestStatus.CONFLICT,
+        RestStatus.FORBIDDEN,
+        RestStatus.INTERNAL_SERVER_ERROR
+    );
 
     private final ModelLoadingService modelLoadingService;
     private final Client client;
@@ -197,9 +206,8 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             request,
             ActionListener.wrap(r -> listener.onResponse(r.getResults()), e -> {
                 Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
-                if (unwrapped instanceof ElasticsearchStatusException) {
-                    ElasticsearchStatusException ex = (ElasticsearchStatusException) unwrapped;
-                    if (ex.status().equals(RestStatus.TOO_MANY_REQUESTS)) {
+                if (unwrapped instanceof ElasticsearchException ex) {
+                    if (FAILURE_STATUSES.contains(ex.status())) {
                         listener.onFailure(ex);
                     } else {
                         listener.onResponse(new WarningInferenceResults(ex.getMessage()));

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -227,8 +228,10 @@ public class DeploymentManager {
     ) {
         if (task.isStopped()) {
             listener.onFailure(
-                new IllegalStateException(
-                    "[" + task.getModelId() + "] is stopping or stopped due to [" + task.stoppedReason().orElse("") + "]"
+                ExceptionsHelper.conflictStatusException(
+                    "[{}] is stopping or stopped due to [{}]",
+                    task.getModelId(),
+                    task.stoppedReason().orElse("")
                 )
             );
             return;
@@ -236,7 +239,7 @@ public class DeploymentManager {
 
         ProcessContext processContext = processContextByAllocation.get(task.getId());
         if (processContext == null) {
-            listener.onFailure(new IllegalStateException("[" + task.getModelId() + "] process context missing"));
+            listener.onFailure(ExceptionsHelper.conflictStatusException("[{}] process context missing", task.getModelId()));
             return;
         }
 
@@ -371,8 +374,10 @@ public class DeploymentManager {
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.task.getModelId()), e);
                 onFailure(ExceptionsHelper.serverError("error writing to process", e));
-            } catch (Exception e) {
+            } catch (IllegalArgumentException | ElasticsearchException e) {
                 onFailure(e);
+            } catch (Exception e) {
+                onFailure(new ElasticsearchException(e));
             }
         }
 

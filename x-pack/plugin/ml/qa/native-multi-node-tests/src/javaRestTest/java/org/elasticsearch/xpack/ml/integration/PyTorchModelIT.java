@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.putPipeline;
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateRequest;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -465,7 +466,11 @@ public class PyTorchModelIT extends ESRestTestCase {
         String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
         assertThat(
             response,
-            containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API.")
+            allOf(
+                containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API."),
+                containsString("error"),
+                not(containsString("warning"))
+            )
         );
 
         client().performRequest(
@@ -576,6 +581,61 @@ public class PyTorchModelIT extends ESRestTestCase {
         );
 
         stopDeployment(modelId, true);
+    }
+
+    public void testPipelineWithBadProcessor() throws IOException {
+        String model = "deployed";
+        createTrainedModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        putModelDefinition(model);
+        startDeployment(model);
+        String source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "deployed",
+                      "inference_config": {
+                        "ner": {}
+                      }
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"input": "my words"}}]
+            }
+            """;
+
+        String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(
+            response,
+            allOf(
+                containsString("inference not possible. Task is configured with [pass_through] but received update of type [ner]"),
+                containsString("error"),
+                not(containsString("warning"))
+            )
+        );
+
+        source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "deployed"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"input": "my words"}}]
+            }
+            """;
+
+        response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(response, allOf(containsString("error"), not(containsString("warning"))));
     }
 
     public void testDeleteModelWithDeploymentUsedByIngestProcessor() throws IOException {

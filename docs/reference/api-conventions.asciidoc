@@ -25,15 +25,19 @@ sent with a request. Responses are also UTF-8 encoded.
 the origin of the request with the {es} logs. It is emitted in deprecation
 logs as `elasticsearch.x-opaque-id` (both JSON log file and indexed logs)
 and is used together with `key` of the deprecation to deduplicate deprecation logs.
+
 See link:./server/src/main/java/org/elasticsearch/common/logging/RateLimitingFilter.java[RateLimitingFilter]
 which is used for both indexing deprecation logs and writing to a file.
 
 The use of `x-opaque-id` in deduplication can be turned off for indexed
 deprecation logs with the use of `cluster.deprecation_indexing.x_opaque_id_used.enabled`.
 This is intended to be used for small clusters which are limited in resources.
+
 This setting will not affect writing deprecation logs to file.
+
 It is emitted also in search slow logs as an `id` field and in audit logs as `opaque_id`.
 The value is also present in <<_identifying_running_tasks, `task api`>>.
+
 This header can contain any value, but should be from a fine set.
 If there is a lot of different x-opaque-id values, it will prevent deduplication from working
 
@@ -41,8 +45,10 @@ If there is a lot of different x-opaque-id values, it will prevent deduplication
 === traceparent requirements
 `traceparent` - a header used by ES to allow tracing capabilities across the stack.
 This field has a structure that has to be followed.
+
 ES uses the `trace-id field from that header.
 https://www.w3.org/TR/trace-context/#traceparent-header
+
 Example:
 `transparent`: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
 `trace.id`: 0af7651916cd43dd8448eb211c80319c
@@ -50,6 +56,7 @@ Example:
 `trace-id` is emitted as `trace.id` in  ES’s JSON logs - server.json,
 search slow log, indexing slow log, deprecation logs
 and indexed deprecation logs.
+
 It is not used for deduplicating deprecation logs and can be a generated
 value per each request.
 

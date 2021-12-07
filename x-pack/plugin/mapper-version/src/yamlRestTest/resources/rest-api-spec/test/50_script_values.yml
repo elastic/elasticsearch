@@ -1,8 +1,8 @@
 setup:
 
-  # - skip:
-  #     version: " - 8.0.99"
-  #     reason: "version script field support was added in 8.1.0"
+  - skip:
+      version: " - 8.0.99"
+      reason: "version script field support was added in 8.1.0"
 
   - do:
       indices.create:
@@ -39,7 +39,7 @@ setup:
               script:
                 source: "field('ver').get(new Version(''))"
 
-  - match: { hits.hits.0.fields.field.0: "1.0.0" }
-  - match: { hits.hits.1.fields.field.0: "1.2.3-abc+def" }
-  - match: { hits.hits.2.fields.field.0: "1.2.3.4.5" }
-  - match: { hits.hits.3.fields.field.0: "5.4.3" }
+  - match: { hits.hits.0.fields.field.0: "5.4.3" }
+  - match: { hits.hits.1.fields.field.0: "1.2.3.4.5" }
+  - match: { hits.hits.2.fields.field.0: "1.2.3-abc+def" }
+  - match: { hits.hits.3.fields.field.0: "1.0.0" }

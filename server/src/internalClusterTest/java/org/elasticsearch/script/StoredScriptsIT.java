@@ -64,7 +64,7 @@ public class StoredScriptsIT extends ESIntegTestCase {
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> client().admin().cluster().preparePutStoredScript().setId("foobar").setContent(new BytesArray("""
-                {"script": { "lang": "%s", "source":"0123456789abcdef"} }
+                {"script": { "lang": "%s", "source":"0123456789abcdef"} }\
                 """.formatted(LANG)), XContentType.JSON).get()
         );
         assertEquals("exceeded max allowed stored script size in bytes [64] with size [65] for script [foobar]", e.getMessage());

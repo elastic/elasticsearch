@@ -214,7 +214,7 @@ public final class DocumentParser {
         return new MapperParsingException("failed to parse", e);
     }
 
-    private static String[] splitAndValidatePath(String fullFieldPath) {
+    private static void validatePath(String fullFieldPath) {
         if (fullFieldPath.contains(".")) {
             String[] parts = fullFieldPath.split("\\.");
             if (parts.length == 0) {
@@ -231,12 +231,10 @@ public final class DocumentParser {
                     );
                 }
             }
-            return parts;
         } else {
             if (Strings.isEmpty(fullFieldPath)) {
                 throw new IllegalArgumentException("field name cannot be an empty string");
             }
-            return new String[] { fullFieldPath };
         }
     }
 
@@ -246,7 +244,7 @@ public final class DocumentParser {
         }
         RootObjectMapper.Builder rootBuilder = context.updateRoot();
         for (Mapper mapper : context.getDynamicMappers()) {
-            splitAndValidatePath(mapper.name());
+            validatePath(mapper.name());
             rootBuilder.addDynamic(mapper.name(), null, mapper, context);
         }
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
@@ -309,7 +307,7 @@ public final class DocumentParser {
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = context.parser().currentName();
-                splitAndValidatePath(currentFieldName);
+                validatePath(currentFieldName);
             } else if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, mapper, currentFieldName);
             } else if (token == XContentParser.Token.START_ARRAY) {
@@ -498,7 +496,7 @@ public final class DocumentParser {
     ) throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
-        splitAndValidatePath(lastFieldName);
+        validatePath(lastFieldName);
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
                 parseObject(context, mapper, lastFieldName);
@@ -744,13 +742,7 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(
-                name,
-                fullPath,
-                new Explicit<>(true, false),
-                Dynamic.RUNTIME,
-                Collections.emptyMap()
-            );
+            super(name, fullPath, new Explicit<>(true, false), Dynamic.RUNTIME, Collections.emptyMap());
         }
     }
 

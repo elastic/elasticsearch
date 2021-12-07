@@ -108,7 +108,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
             // otherwise we strip off the first object path of the mapper name, load or create
             // the relevant object mapper, and then recurse down into it, passing the remainder
-            // of the mapper name.  So for a mapper 'foo.bar.baz', we locate 'foo' and then
+            // of the mapper name. So for a mapper 'foo.bar.baz', we locate 'foo' and then
             // call addDynamic on it with the name 'bar.baz'.
             else {
                 int firstDotIndex = name.indexOf(".");
@@ -289,13 +289,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     protected volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
-    ObjectMapper(
-        String name,
-        String fullPath,
-        Explicit<Boolean> enabled,
-        Dynamic dynamic,
-        Map<String, Mapper> mappers
-    ) {
+    ObjectMapper(String name, String fullPath, Explicit<Boolean> enabled, Dynamic dynamic, Map<String, Mapper> mappers) {
         super(name);
         if (name.isEmpty()) {
             throw new IllegalArgumentException("name cannot be empty string");

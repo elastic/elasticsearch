@@ -297,8 +297,10 @@ public class DynamicMappingTests extends MapperServiceTestCase {
 
         assertNotNull(doc.dynamicMappingsUpdate());
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-        assertThat(Strings.toString(mapperService.documentMapper().mapping()),
-            containsString("{\"foo\":{\"properties\":{\"bar\":{\"properties\":{\"baz\":{\"type\":\"text\""));
+        assertThat(
+            Strings.toString(mapperService.documentMapper().mapping()),
+            containsString("{\"foo\":{\"properties\":{\"bar\":{\"properties\":{\"baz\":{\"type\":\"text\"")
+        );
     }
 
     public void testDynamicRuntimeFieldWithinObject() throws Exception {

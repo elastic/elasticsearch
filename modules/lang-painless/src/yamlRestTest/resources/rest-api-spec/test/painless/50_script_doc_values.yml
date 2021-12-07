@@ -510,6 +510,18 @@ setup:
 
     - do:
         search:
+          rest_total_hits_as_int: true
+          body:
+            query: { term: { _id: 2 } }
+            script_fields:
+              field:
+                script:
+                  source: "/* avoid yaml stash */ $('geo_point', new GeoPoint(1.0, 2.0))"
+    - match: { hits.hits.0.fields.field.0.lat: 1.0 }
+    - match: { hits.hits.0.fields.field.0.lon: 2.0 }
+
+    - do:
+        search:
             rest_total_hits_as_int: true
             body:
                 query: { term: { _id: 1 } }

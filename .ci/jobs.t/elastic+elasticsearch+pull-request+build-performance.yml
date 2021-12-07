@@ -4,6 +4,15 @@
     display-name: "elastic / elasticsearch - pull request build performance"
     description: "Testing of Elasticsearch pull requests - build performance"
     workspace: "/dev/shm/elastic+elasticsearch+pull-request+build-perf"
+    properties:
+      - inject:
+          properties-content: |
+            BUILD_PERFORMANCE_TEST=true
+            COMPOSE_HTTP_TIMEOUT=120
+            JOB_BRANCH=%BRANCH%
+            HOME=$JENKINS_HOME
+            GRADLEW=./gradlew --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
+            GRADLEW_BAT=./gradlew.bat --parallel --scan --build-cache -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'

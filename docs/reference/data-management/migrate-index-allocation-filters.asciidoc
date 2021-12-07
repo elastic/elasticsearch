@@ -138,7 +138,7 @@ If you're using a custom index template, update it to remove the <<shard-allocat
 
 [discrete]
 [[set-tier-preference]]
-==== Set a tier preference for existing indices.
+==== Set a tier preference for existing indices
 
 {ilm-init} automatically transitions managed indices through the available
 data tiers by automatically injecting a <<ilm-migrate,migrate action>>

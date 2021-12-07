@@ -97,27 +97,30 @@ public class ExplainResponseTests extends AbstractSerializingTestCase<ExplainRes
 
         String expectedResponse = ("""
             {
-                "_index":"index",
-                "_id":"1",
-                "matched":true,
-                "explanation":{
-                    "value":1.0,
-                    "description":"description",
-                    "details":[]
+                "_index": "index",
+                "_id": "1",
+                "matched": true,
+                "explanation": {
+                    "value": 1.0,
+                    "description": "description",
+                    "details": []
                 },
-                "get":{
-                    "_seq_no":0,        "_primary_term":1,        "found":true,
-                    "_source":{
-                        "field1":"value1",
-                        "field2":"value2"
+                "get": {
+                    "_seq_no": 0,
+                    "_primary_term": 1,
+                    "found": true,
+                    "_source": {
+                        "field1": "value1",
+                        "field2": "value2"
                     },
-                    "fields":{
-                        "field1":[
-                            "value1"
+                    "fields": {
+                        "field1": [
+                          "value1"
                         ]
                     }
                 }
-            }""").replaceAll("\\s+", "");
+            }
+            """).replaceAll("\\s+", "");
         assertThat(expectedResponse, equalTo(generatedResponse));
     }
 

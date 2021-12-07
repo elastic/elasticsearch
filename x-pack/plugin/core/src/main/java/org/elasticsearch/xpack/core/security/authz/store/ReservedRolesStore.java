@@ -538,7 +538,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .privileges("read", "view_index_metadata")
                     .build(),
                 // Security
-                RoleDescriptor.IndicesPrivileges.builder().indices(".siem-signals-*").privileges("read", "view_index_metadata").build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".siem-signals-*").privileges("read", "view_index_metadata").build(),
+                // Alerts-as-data
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(ReservedRolesStore.ALERTS_INDEX_ALIAS, ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS)
+                    .privileges("read", "view_index_metadata")
+                    .build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
                     .application("kibana-.kibana")
@@ -571,6 +576,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".siem-signals-*", ".lists-*", ".items-*")
                     .privileges("read", "view_index_metadata", "write", "maintenance")
+                    .build(),
+                // Alerts-as-data
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(
+                        ReservedRolesStore.ALERTS_BACKING_INDEX,
+                        ReservedRolesStore.ALERTS_INDEX_ALIAS,
+                        ReservedRolesStore.PREVIEW_ALERTS_BACKING_INDEX_ALIAS,
+                        ReservedRolesStore.PREVIEW_ALERTS_INDEX_ALIAS
+                    )
+                    .privileges("read", "view_index_metadata", "write")
                     .build() },
             new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()

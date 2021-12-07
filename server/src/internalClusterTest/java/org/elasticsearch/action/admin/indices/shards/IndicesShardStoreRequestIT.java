@@ -232,11 +232,11 @@ public class IndicesShardStoreRequestIT extends ESIntegTestCase {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
             IndexRoutingTable indexRoutingTable = state.routingTable().index(index);
             List<ShardRouting> startedShards = indexRoutingTable.shardsWithState(ShardRoutingState.STARTED);
-            Set<String> nodesWithShard = new HashSet<>();
+            Set<String> nodesNamesWithShard = new HashSet<>();
             for (ShardRouting startedShard : startedShards) {
-                nodesWithShard.add(state.nodes().get(startedShard.currentNodeId()).getName());
+                nodesNamesWithShard.add(state.nodes().get(startedShard.currentNodeId()).getName());
             }
-            return nodesWithShard;
+            return nodesNamesWithShard;
         }
     }
 }

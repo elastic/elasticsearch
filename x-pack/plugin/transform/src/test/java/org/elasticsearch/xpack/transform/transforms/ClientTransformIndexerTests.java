@@ -22,9 +22,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
@@ -51,6 +53,7 @@ import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigMa
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -286,6 +289,19 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
     }
 
+    public void testHandlePitIndexNotFound() throws InterruptedException {
+        try (PitMockClient client = new PitMockClient(getTestName(), true)) {
+            ClientTransformIndexer indexer = createTestIndexer(client);
+            SearchRequest searchRequest = new SearchRequest("deleted-index");
+            searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder("the_pit_id"));
+            Tuple<String, SearchRequest> namedSearchRequest = new Tuple<>("test-handle-pit-index-not-found", searchRequest);
+            this.<SearchResponse>assertAsync(
+                listener -> indexer.doSearch(namedSearchRequest, listener),
+                response -> { assertNull(response.pointInTimeId()); }
+            );
+        }
+    }
+
     private static class MockClientTransformIndexer extends ClientTransformIndexer {
 
         MockClientTransformIndexer(
@@ -366,6 +382,12 @@ public class ClientTransformIndexerTests extends ESTestCase {
             } else if (request instanceof SearchRequest) {
                 SearchRequest searchRequest = (SearchRequest) request;
 
+                // if pit is used and deleted-index is given throw index not found
+                if (searchRequest.pointInTimeBuilder() != null && Arrays.binarySearch(searchRequest.indices(), "deleted-index") >= 0) {
+                    listener.onFailure(new IndexNotFoundException("no such index [deleted-index]"));
+                    return;
+                }
+
                 // throw search context missing for the 4th run
                 if (searchRequest.pointInTimeBuilder() != null
                     && "the_pit_id+++".equals(searchRequest.pointInTimeBuilder().getEncodedId())) {
@@ -419,6 +441,10 @@ public class ClientTransformIndexerTests extends ESTestCase {
     }
 
     private ClientTransformIndexer createTestIndexer() {
+        return createTestIndexer(null);
+    }
+
+    private ClientTransformIndexer createTestIndexer(Client client) {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
@@ -433,7 +459,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),
             null,
-            mock(Client.class),
+            client == null ? mock(Client.class) : client,
             mock(TransformIndexerStats.class),
             mock(TransformConfig.class),
             null,

@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -84,6 +83,16 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         public Builder add(Mapper.Builder builder) {
             mappersBuilders.add(builder);
+            return this;
+        }
+
+        public Builder addMappers(Map<String, Mapper> mappers) {
+            mappers.forEach((name, mapper) -> mappersBuilders.add(new Mapper.Builder(name) {
+                @Override
+                public Mapper build(MapperBuilderContext context) {
+                    return mapper;
+                }
+            }));
             return this;
         }
 
@@ -287,7 +296,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     protected Explicit<Boolean> enabled;
     protected volatile Dynamic dynamic;
 
-    protected volatile CopyOnWriteHashMap<String, Mapper> mappers;
+    protected final Map<String, Mapper> mappers;
 
     ObjectMapper(String name, String fullPath, Explicit<Boolean> enabled, Dynamic dynamic, Map<String, Mapper> mappers) {
         super(name);
@@ -298,9 +307,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
         this.enabled = enabled;
         this.dynamic = dynamic;
         if (mappers == null) {
-            this.mappers = new CopyOnWriteHashMap<>();
+            this.mappers = new HashMap<>();
         } else {
-            this.mappers = CopyOnWriteHashMap.copyOf(mappers);
+            this.mappers = new HashMap<>(mappers);
         }
     }
 
@@ -345,10 +354,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public Mapper getMapper(String field) {
         return mappers.get(field);
-    }
-
-    protected void putMapper(Mapper mapper) {
-        mappers = mappers.copyAndPut(mapper.simpleName(), mapper);
     }
 
     @Override
@@ -429,7 +434,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     merged = mergeIntoMapper.merge(mergeWithMapper);
                 }
             }
-            putMapper(merged);
+            mappers.put(merged.simpleName(), merged);
         }
     }
 

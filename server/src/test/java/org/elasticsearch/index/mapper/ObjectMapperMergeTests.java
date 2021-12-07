@@ -133,20 +133,14 @@ public class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private static RootObjectMapper createRootObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
-        final RootObjectMapper rootObjectMapper = (RootObjectMapper) new RootObjectMapper.Builder(name).enabled(enabled)
+        return (RootObjectMapper) new RootObjectMapper.Builder(name).enabled(enabled)
+            .addMappers(mappers)
             .build(MapperBuilderContext.ROOT);
-
-        mappers.values().forEach(rootObjectMapper::putMapper);
-
-        return rootObjectMapper;
     }
 
     private static ObjectMapper createObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
-        final ObjectMapper mapper = new ObjectMapper.Builder(name).enabled(enabled).build(MapperBuilderContext.ROOT);
-
-        mappers.values().forEach(mapper::putMapper);
-
-        return mapper;
+        return new ObjectMapper.Builder(name).enabled(enabled)
+            .addMappers(mappers).build(MapperBuilderContext.ROOT);
     }
 
     private TextFieldMapper createTextFieldMapper(String name) {

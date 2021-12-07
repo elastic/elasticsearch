@@ -35,7 +35,9 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -604,13 +606,40 @@ public class MetadataIndexTemplateService {
             return currentState;
         }
 
-        validate(name, finalIndexTemplate);
-        validateDataStreamsStillReferenced(currentState, name, finalIndexTemplate);
+        // Workaround for the fact that start_time and end_time are injected by the MetadataCreateDataStreamService upon creation,
+        // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
+        ComposableIndexTemplate templateToValidate = finalIndexTemplate;
+        if (finalIndexTemplate.getDataStreamTemplate() != null) {
+            String indexModeAsString = Optional.ofNullable(finalIndexTemplate.template()).map(Template::settings).orElse(Settings.EMPTY)
+                .get(IndexSettings.MODE.getKey());
+            if (indexModeAsString != null && IndexMode.valueOf(indexModeAsString.toUpperCase(Locale.ROOT)) == IndexMode.TIME_SERIES) {
+                Template finalTemplate = finalIndexTemplate.template();
+                Settings settings = Settings.builder()
+                    .put(finalTemplate.settings())
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), 1)
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), 2)
+                    .build();
+
+                templateToValidate = new ComposableIndexTemplate(
+                    template.indexPatterns(),
+                    new Template(settings, finalTemplate.mappings(), finalTemplate.aliases()),
+                    template.composedOf(),
+                    template.priority(),
+                    template.version(),
+                    template.metadata(),
+                    template.getDataStreamTemplate(),
+                    template.getAllowAutoCreate()
+                );
+            }
+        }
+
+        validate(name, templateToValidate);
+        validateDataStreamsStillReferenced(currentState, name, templateToValidate);
 
         // Finally, right before adding the template, we need to ensure that the composite settings,
         // mappings, and aliases are valid after it's been composed with the component templates
         try {
-            validateCompositeTemplate(currentState, name, finalIndexTemplate, indicesService, xContentRegistry, systemIndices);
+            validateCompositeTemplate(currentState, name, templateToValidate, indicesService, xContentRegistry, systemIndices);
         } catch (Exception e) {
             throw new IllegalArgumentException(
                 "composable template ["

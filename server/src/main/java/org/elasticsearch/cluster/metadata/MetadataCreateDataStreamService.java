@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -210,11 +211,11 @@ public class MetadataCreateDataStreamService {
             ).dataStreamName(dataStreamName).systemDataStreamDescriptor(systemDataStreamDescriptor);
 
             // Get the index mode from template and based on that set tsdb start and end time settings correctly:
-            IndexMode indexMode = template.template() != null && template.template().settings() != null
-                ? IndexSettings.MODE.get(template.template().settings())
-                : IndexMode.STANDARD;
+            String indexModeAsString = Optional.ofNullable(template.template()).map(Template::settings).orElse(Settings.EMPTY)
+                .get(IndexSettings.MODE.getKey());
+            IndexMode indexMode = indexModeAsString != null ? IndexMode.valueOf(indexModeAsString.toUpperCase(Locale.ROOT)) : IndexMode.STANDARD;
             if (indexMode == IndexMode.TIME_SERIES) {
-                Instant start = Instant.ofEpochMilli(0);
+                Instant start = Instant.ofEpochMilli(1); // 0 is the default and b/c this is a required setting another value should be used
                 Instant end = Instant.ofEpochMilli(request.startTime).plus(DataStream.DEFAULT_LOOK_AHEAD_TIME);
 
                 Settings.Builder indexSettingsBuilder = Settings.builder();

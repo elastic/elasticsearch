@@ -404,7 +404,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings unused) {
         return org.elasticsearch.core.List.of(
             SystemIndexDescriptor.builder()
                 .setIndexPattern(SNAPSHOT_BLOB_CACHE_INDEX_PATTERN)
@@ -519,7 +519,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     public List<RestHandler> getRestHandlers(
-        Settings settings,
+        Settings unused,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -547,11 +547,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     @Override
-    public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
+    public Collection<AllocationDecider> createAllocationDeciders(Settings settingsToUse, ClusterSettings clusterSettings) {
         return org.elasticsearch.core.List.of(
             new SearchableSnapshotAllocationDecider(() -> SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(getLicenseState())),
             new SearchableSnapshotRepositoryExistsAllocationDecider(),
-            new SearchableSnapshotEnableAllocationDecider(settings, clusterSettings),
+            new SearchableSnapshotEnableAllocationDecider(settingsToUse, clusterSettings),
             new HasFrozenCacheAllocationDecider(frozenCacheInfoService),
             new DedicatedFrozenNodeAllocationDecider()
         );

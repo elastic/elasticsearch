@@ -471,7 +471,7 @@ public class JobManager {
 
     public void deleteJob(
         DeleteJobAction.Request request,
-        Client client,
+        Client clientToUse,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
@@ -505,7 +505,7 @@ public class JobManager {
         );
 
         // Step 1. Delete the physical storage
-        new JobDataDeleter(client, jobId).deleteJobDocuments(
+        new JobDataDeleter(clientToUse, jobId).deleteJobDocuments(
             jobConfigProvider,
             indexNameExpressionResolver,
             state,

@@ -72,7 +72,7 @@ class ClientTransformIndexer extends TransformIndexer {
     private final Client client;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
-    private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex;
+    private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndexHolder;
     private final ConcurrentHashMap<String, PointInTimeBuilder> namedPits = new ConcurrentHashMap<>();
     private volatile long pitCheckpoint;
     private volatile boolean disablePit = false;
@@ -107,7 +107,7 @@ class ClientTransformIndexer extends TransformIndexer {
             context
         );
         this.client = ExceptionsHelper.requireNonNull(client, "client");
-        this.seqNoPrimaryTermAndIndex = new AtomicReference<>(seqNoPrimaryTermAndIndex);
+        this.seqNoPrimaryTermAndIndexHolder = new AtomicReference<>(seqNoPrimaryTermAndIndex);
 
         // TODO: move into context constructor
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
@@ -329,7 +329,7 @@ class ClientTransformIndexer extends TransformIndexer {
                 newValue
             )
         );
-        boolean updated = seqNoPrimaryTermAndIndex.compareAndSet(expectedValue, newValue);
+        boolean updated = seqNoPrimaryTermAndIndexHolder.compareAndSet(expectedValue, newValue);
         // This should never happen. We ONLY ever update this value if at initialization or we just finished updating the document
         // famous last words...
         if (updated == false) {
@@ -337,7 +337,7 @@ class ClientTransformIndexer extends TransformIndexer {
                 "[{}] Unexpected change to internal state detected, expected [{}], got [{}]",
                 transformConfig.getId(),
                 expectedValue,
-                seqNoPrimaryTermAndIndex.get()
+                seqNoPrimaryTermAndIndexHolder.get()
             );
             assert updated : "[" + getJobId() + "] unexpected change to seqNoPrimaryTermAndIndex.";
         }
@@ -345,7 +345,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
     @Nullable
     SeqNoPrimaryTermAndIndex getSeqNoPrimaryTermAndIndex() {
-        return seqNoPrimaryTermAndIndex.get();
+        return seqNoPrimaryTermAndIndexHolder.get();
     }
 
     @Override

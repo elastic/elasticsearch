@@ -56,9 +56,7 @@ public class CreateIndexRequestBuilderTests extends ESTestCase {
         );
         assertEquals(String.format(Locale.ROOT, "unknown key [%s] for create index", KEY), e.getMessage());
 
-        builder.setSource("""
-            {"settings" : {"%s" : "%s"}}
-            """.formatted(KEY, VALUE), XContentType.JSON);
+        builder.setSource("{ \"settings\": { \"%s\": \"%s\" }}".formatted(KEY, VALUE), XContentType.JSON);
         assertEquals(VALUE, builder.request().settings().get(KEY));
 
         XContentBuilder xContent = XContentFactory.jsonBuilder()

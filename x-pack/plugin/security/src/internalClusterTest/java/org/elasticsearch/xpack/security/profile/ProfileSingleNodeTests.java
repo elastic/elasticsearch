@@ -70,6 +70,6 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
 
         @SuppressWarnings("unchecked")
         final Set<String> topLevelFields = ((Map<String, Object>) mappings.get("properties")).keySet();
-        assertThat(topLevelFields, hasItems("uid", "enabled", "last_synchronized", "redirect_uid", "user", "access", "application_data"));
+        assertThat(topLevelFields, hasItems("uid", "enabled", "last_synchronized", "user", "access", "application_data"));
     }
 }

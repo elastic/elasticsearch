@@ -454,11 +454,15 @@ public class DockerTests extends PackagingTestCase {
         Files.setPosixFilePermissions(tempDir.resolve(autoConfigurationDirName), p750);
 
         // Restart the container
+        // We need to set discovery to single-node as autoconfiguration has already run when the node started the first time
+        // cluster.initial_master_nodes is set to the name of the original docker container
+        ServerUtils.removeSettingFromExistingConfiguration(tempDir, "cluster.initial_master_nodes");
         runContainer(
             distribution(),
             builder().volume(tempDir, "/usr/share/elasticsearch/config")
                 .envVar("ES_JAVA_OPTS", "-XX:-UseCompressedOops")
                 .envVar("ELASTIC_PASSWORD", PASSWORD)
+                .envVar("discovery.type", "single-node")
         );
 
         waitForElasticsearch(installation, "elastic", PASSWORD);

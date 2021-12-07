@@ -96,6 +96,10 @@ class org.elasticsearch.script.field.AbstractLongDocValuesField @dynamic_type {
   long get(int, long)
 }
 
-class org.elasticsearch.script.field.SeqNoDocValuesField @dynamic_type {}
+# subclass of AbstractLongDocValuesField
+class org.elasticsearch.script.field.SeqNoDocValuesField @dynamic_type {
+}
 
-class org.elasticsearch.script.field.VersionDocValuesField @dynamic_type {}
+# subclass of AbstractLongDocValuesField
+class org.elasticsearch.script.field.VersionDocValuesField @dynamic_type {
+}

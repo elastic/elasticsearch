@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.unsignedlong;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.script.field.AbstractLongFieldDocValues;
+import org.elasticsearch.script.field.AbstractLongDocValuesField;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -19,7 +19,7 @@ import java.util.List;
 import static org.elasticsearch.search.DocValueFormat.MASK_2_63;
 import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGINTEGER_2_64_MINUS_ONE;
 
-public class UnsignedLongDocValuesField extends AbstractLongFieldDocValues {
+public class UnsignedLongDocValuesField extends AbstractLongDocValuesField {
 
     public UnsignedLongDocValuesField(SortedNumericDocValues input, String name) {
         super(input, name);

@@ -6,18 +6,6 @@
 # Side Public License, v 1.
 #
 
-class org.elasticsearch.xpack.unsignedlong.UnsignedLongScriptDocValues {
-  Long get(int)
-  long getValue()
-}
-
-class org.elasticsearch.xpack.unsignedlong.UnsignedLongDocValuesField @dynamic_type {
-  long get(long)
-  long get(int, long)
-  long getValue(long)
-  long getValue(int, long)
-  List getValues()
-  BigInteger asBigInteger(BigInteger)
-  BigInteger asBigInteger(int, BigInteger)
-  List asBigIntegers()
+# subclass of AbstractLongDocValuesField
+class org.elasticsearch.script.field.mumur3.Murmur3DocValueField @dynamic_type {
 }

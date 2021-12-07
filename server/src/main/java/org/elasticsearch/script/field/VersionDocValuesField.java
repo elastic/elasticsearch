@@ -10,7 +10,7 @@ package org.elasticsearch.script.field;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 
-public class VersionDocValuesField extends AbstractLongFieldDocValues {
+public class VersionDocValuesField extends AbstractLongDocValuesField {
     public VersionDocValuesField(SortedNumericDocValues input, String name) {
         super(input, name);
     }

@@ -113,7 +113,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
         String authHeader = randomFrom(BASIC_AUTH_VALUE_TRANSFORM_USER, BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
 
-        // check all the different ways to retrieve all stats
+        // Check all the different ways to retrieve transform stats
         Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "_stats", authHeader);
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
         assertEquals(3, XContentMapValues.extractValue("count", stats));
@@ -167,21 +167,14 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         assertThat(XContentMapValues.extractValue("state", transformsStats.get(0)), oneOf("started", "indexing"));
         assertEquals(1, XContentMapValues.extractValue("checkpointing.last.checkpoint", transformsStats.get(0)));
 
-        // check all the different ways to retrieve all transforms
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint(), authHeader);
-        Map<String, Object> transforms = entityAsMap(client().performRequest(getRequest));
-        assertEquals(3, XContentMapValues.extractValue("count", transforms));
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "_all", authHeader);
-        transforms = entityAsMap(client().performRequest(getRequest));
-        assertEquals(3, XContentMapValues.extractValue("count", transforms));
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "*", authHeader);
-        transforms = entityAsMap(client().performRequest(getRequest));
-        assertEquals(3, XContentMapValues.extractValue("count", transforms));
-
-        // only pivot_1
-        getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_1", authHeader);
-        transforms = entityAsMap(client().performRequest(getRequest));
-        assertEquals(1, XContentMapValues.extractValue("count", transforms));
+        // Check all the different ways to retrieve transforms
+        verifyGetResponse(getTransformEndpoint(), 3, null);
+        verifyGetResponse(getTransformEndpoint() + "_all", 3, null);
+        verifyGetResponse(getTransformEndpoint() + "*", 3, null);
+        verifyGetResponse(getTransformEndpoint() + "pivot_*", 3, null);
+        verifyGetResponse(getTransformEndpoint() + "pivot_1,pivot_2", 2, null);
+        verifyGetResponse(getTransformEndpoint() + "pivot_1", 1, null);
+        verifyGetResponse(getTransformEndpoint() + "pivot_2", 1, null);
 
         stopTransform("pivot_continuous", false);
     }
@@ -379,17 +372,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         createPivotReviewsTransform("pivot_stats_2", "pivot_reviews_stats_2", null);
         startAndWaitForTransform("pivot_stats_2", "pivot_reviews_stats_2");
 
-        Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "_stats", BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
-        Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
-        assertEquals(2, XContentMapValues.extractValue("count", stats));
-        List<Map<String, Object>> transformsStats = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats);
-        // Verify that both transforms, the one with the task and the one without have statistics
-        for (Map<String, Object> transformStats : transformsStats) {
-            Map<String, Object> stat = (Map<String, Object>) transformStats.get("stats");
-            assertThat(((Integer) stat.get("documents_processed")), greaterThan(0));
-            assertThat(((Integer) stat.get("search_total")), greaterThan(0));
-            assertThat(((Integer) stat.get("pages_processed")), greaterThan(0));
-        }
+        verifyGetStatsResponse(getTransformEndpoint() + "_stats", 2);
     }
 
     @SuppressWarnings("unchecked")

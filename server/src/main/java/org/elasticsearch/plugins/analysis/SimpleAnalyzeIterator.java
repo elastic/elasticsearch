@@ -13,5 +13,7 @@ import java.io.Closeable;
 public interface SimpleAnalyzeIterator extends Closeable {
     void start();
     AnalyzeToken next();
+    void end();
     void close();
+    AnalyzeState state();
 }

@@ -1,0 +1,196 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.plugins.analysis;
+
+import org.elasticsearch.index.mapper.TextFieldMapper;
+
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
+
+public class StableLuceneAnalyzeIterator implements SimpleAnalyzeIterator {
+    private final Object stream;
+    private final Object analyzer;
+    private final Object term;
+    private final Object posIncr;
+    private final Object offset;
+    private final Object type;
+    private final Object posLen;
+
+    private final MethodHandle mhEnd;
+    private final MethodHandle mhReset;
+    private final MethodHandle mhClose;
+    private final MethodHandle mhIncrementToken;
+    private final MethodHandle mhAddAttribute;
+    private final MethodHandle mhAttrGetPositionIncrement;
+    private final MethodHandle mhAttrStartOffset;
+    private final MethodHandle mhAttrEndOffset;
+    private final MethodHandle mhAttrGetPositionLength;
+    private final MethodHandle mhAttrType;
+    private final MethodHandle mhGetPositionIncrementGap;
+    private final MethodHandle mhGetOffsetGap;
+
+    int lastPosition;
+    int lastOffset;
+
+    public StableLuceneAnalyzeIterator(Object analyzer, Object stream, AnalyzeState prevState) {
+        StablePluginAPIUtil.ensureClassCompatibility(stream.getClass(), "org.apache.lucene.analysis.TokenStream");
+        this.analyzer = analyzer;
+        this.stream = stream;
+        this.lastPosition = prevState.getLastPosition();
+        this.lastOffset = prevState.getLastOffset();
+        MethodHandles.Lookup lookup = MethodHandles.lookup();
+
+        try {
+            // TokenStream method handles
+            Class<?> tokenStreamClass = StablePluginAPIUtil.lookupClass(stream, "org.apache.lucene.analysis.TokenStream");
+
+            mhEnd = lookup.findVirtual(tokenStreamClass, "end", MethodType.methodType(void.class));
+            mhReset = lookup.findVirtual(tokenStreamClass, "reset", MethodType.methodType(void.class));
+            mhClose = lookup.findVirtual(tokenStreamClass, "close", MethodType.methodType(void.class));
+            mhIncrementToken = lookup.findVirtual(
+                tokenStreamClass,
+                "incrementToken",
+                MethodType.methodType(boolean.class)
+            );
+            mhAddAttribute = lookup.findVirtual(
+                tokenStreamClass,
+                "addAttribute",
+                MethodType.methodType(
+                    StablePluginAPIUtil.lookupClass(stream, "org.apache.lucene.util.Attribute"),
+                    Class.class
+                )
+            );
+
+            // Analyzer method handles
+            Class<?> analyzerClass = StablePluginAPIUtil.lookupClass(stream, "org.apache.lucene.analysis.Analyzer");
+
+            mhGetPositionIncrementGap = lookup.findVirtual(
+                analyzerClass,
+                "getPositionIncrementGap",
+                MethodType.methodType(int.class, String.class)
+            );
+            mhGetOffsetGap = lookup.findVirtual(
+                analyzerClass,
+                "getOffsetGap",
+                MethodType.methodType(int.class, String.class)
+            );
+
+            // Lucene analysis Attribute method handles and object creation
+            term = mhAddAttribute.invoke(
+                stream,
+                StablePluginAPIUtil.lookupClass(stream, "org.apache.lucene.analysis.tokenattributes.CharTermAttribute")
+            );
+
+            posIncr = mhAddAttribute.invoke(
+                stream,
+                StablePluginAPIUtil.lookupClass(stream, "org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute")
+            );
+            mhAttrGetPositionIncrement = lookup.findVirtual(
+                posIncr.getClass(), "getPositionIncrement", MethodType.methodType(int.class));
+
+            offset = mhAddAttribute.invoke(
+                stream,
+                StablePluginAPIUtil.lookupClass(stream, "org.apache.lucene.analysis.tokenattributes.OffsetAttribute")
+            );
+
+            mhAttrStartOffset = lookup.findVirtual(
+                offset.getClass(), "startOffset", MethodType.methodType(int.class));
+            mhAttrEndOffset = lookup.findVirtual(
+                offset.getClass(), "endOffset", MethodType.methodType(int.class));
+
+            type = mhAddAttribute.invoke(
+                stream,
+                StablePluginAPIUtil.lookupClass(stream, "org.apache.lucene.analysis.tokenattributes.TypeAttribute")
+            );
+
+            mhAttrType = lookup.findVirtual(
+                type.getClass(), "type", MethodType.methodType(String.class));
+
+            posLen = mhAddAttribute.invoke(
+                stream,
+                StablePluginAPIUtil.lookupClass(stream, "org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute")
+            );
+
+            mhAttrGetPositionLength = lookup.findVirtual(
+                posLen.getClass(), "getPositionLength", MethodType.methodType(int.class));
+
+        } catch (Throwable x) {
+            throw new IllegalArgumentException("Incompatible Lucene library provided", x);
+        }
+
+    }
+
+    @Override
+    public void start() {
+        try {
+            mhReset.invoke(stream);
+        } catch (Throwable t) {
+            throw new IllegalArgumentException("Unsupported token stream operation", t);
+        }
+    }
+
+    @Override
+    public AnalyzeToken next() {
+        try {
+            if ((boolean)mhIncrementToken.invoke(stream)) {
+                int increment = (int)mhAttrGetPositionIncrement.invoke(posIncr);
+                if (increment > 0) {
+                    lastPosition = lastPosition + increment;
+                }
+                return new AnalyzeToken(
+                    term.toString(),
+                    lastPosition,
+                    lastOffset + (int)mhAttrStartOffset.invoke(offset),
+                    lastOffset + (int)mhAttrEndOffset.invoke(offset),
+                    (int)mhAttrGetPositionLength.invoke(posLen),
+                    (String)mhAttrType.invoke(type)
+                );
+            }
+            return null;
+        } catch (Throwable t) {
+            throw new IllegalArgumentException("Unsupported token stream operation", t);
+        }
+    }
+
+    @Override
+    public void end() {
+        try {
+            mhEnd.invoke(stream);
+            lastOffset += (int)mhAttrEndOffset.invoke(offset);
+            lastPosition += (int)mhAttrGetPositionIncrement.invoke(posIncr);
+
+            int incrementGap = (int)mhGetPositionIncrementGap.invoke(analyzer, null);
+            if (incrementGap <= 0) {
+                // Match what's done in Analysis registry
+                incrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
+            }
+            lastPosition += incrementGap;
+            lastOffset += (int)mhGetOffsetGap.invoke(analyzer, null);
+
+        } catch (Throwable t) {
+            throw new IllegalArgumentException("Unsupported token stream operation", t);
+        }
+    }
+
+    @Override
+    public void close() {
+        try {
+            mhClose.invoke(stream);
+        } catch (Throwable t) {
+            throw new IllegalArgumentException("Unsupported token stream operation", t);
+        }
+    }
+
+    @Override
+    public AnalyzeState state() {
+        return new AnalyzeState(lastPosition, lastOffset);
+    }
+
+}

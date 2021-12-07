@@ -16,9 +16,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 
-public class NikolaTokenFilterFactory extends AbstractTokenFilterFactory {
+public class DemoTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    public NikolaTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+    public DemoTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
     }
 

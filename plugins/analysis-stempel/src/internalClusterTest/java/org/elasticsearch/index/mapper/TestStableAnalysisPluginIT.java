@@ -11,11 +11,15 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.hamcrest.Matchers;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TestStableAnalysisPluginIT extends ESIntegTestCase {
@@ -32,37 +36,78 @@ public class TestStableAnalysisPluginIT extends ESIntegTestCase {
         String index = "foo";
 
         class AnalysisTestcases {
-            private final String phrase;
-            private final String token;
-            private final int startOffset;
+            private final String[] phrases;
+            private final AnalyzeAction.AnalyzeToken[] tokens;
 
-            AnalysisTestcases(String phrase, String token, int startOffset) {
-                this.phrase = phrase;
-                this.token = token;
-                this.startOffset = startOffset;
+            AnalysisTestcases(
+                String[] phrases,
+                AnalyzeAction.AnalyzeToken[] tokens) {
+                this.phrases = phrases;
+                this.tokens = tokens;
             }
         }
 
-        AnalysisTestcases[] testCases = new AnalysisTestcases[] {
-            new AnalysisTestcases("I like to use elastic products", "elastic", 14),
-            new AnalysisTestcases("I like using Elastic products", "Elastic", 13) };
+        AnalysisTestcases[] testCases = new AnalysisTestcases[]{
+            new AnalysisTestcases(
+                new String[]{"I like to use elastic products", "I like to use elastic products"},
+                new AnalyzeAction.AnalyzeToken[] {
+                    new AnalyzeAction.AnalyzeToken(
+                        "elastic",
+                        4,
+                        14,
+                        14 + "elastic".length(),
+                        1,
+                        "<ALPHANUM>",
+                        null),
+                    new AnalyzeAction.AnalyzeToken(
+                        "elastic",
+                        110,
+                        45,
+                        45 + "elastic".length(),
+                        1,
+                        "<ALPHANUM>",
+                        null)
+                }
+            ),
+            new AnalysisTestcases(
+                new String[]{"I like using Elastic products", "I like using Elastic products"},
+                new AnalyzeAction.AnalyzeToken[] {
+                    new AnalyzeAction.AnalyzeToken(
+                        "Elastic",
+                        3,
+                        13,
+                        13 + "Elastic".length(),
+                        1,
+                        "<ALPHANUM>",
+                        null),
+                    new AnalyzeAction.AnalyzeToken(
+                        "Elastic",
+                        108,
+                        43,
+                        43 + "elastic".length(),
+                        1,
+                        "<ALPHANUM>",
+                        null)
+                }
+            )};
 
         assertAcked(client().admin().indices().prepareCreate(index));
 
-        for (AnalysisTestcases testcase : testCases) {
-            AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index).tokenizer("standard")
-                .addTokenFilter("nikola")
-                .text(testcase.phrase);
+        for (String filter : List.of("demo_old", "demo")) {
+            for (AnalysisTestcases testcase : testCases) {
+                AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index).tokenizer("standard")
+                    .addTokenFilter(filter)
+                    .text(testcase.phrases);
 
-            AnalyzeAction.Response result = client().admin().indices().analyze(analyzeRequest).actionGet();
+                AnalyzeAction.Response result = client().admin().indices().analyze(analyzeRequest).actionGet();
 
-            assertFalse(result.getTokens().isEmpty());
-            assertThat(1, equalTo(result.getTokens().size()));
-            AnalyzeAction.AnalyzeToken token = result.getTokens().get(0);
+                assertFalse(result.getTokens().isEmpty());
+                assertEquals(2, result.getTokens().size());
 
-            assertEquals(testcase.token, token.getTerm());
-            assertEquals(testcase.startOffset, token.getStartOffset());
+                for (int i = 0; i < result.getTokens().size(); i++) {
+                    assertThat(testcase.tokens[i], equalTo(result.getTokens().get(i)));
+                }
+            }
         }
-
     }
 }

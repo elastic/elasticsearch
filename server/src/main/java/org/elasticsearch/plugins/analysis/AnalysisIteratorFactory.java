@@ -11,5 +11,5 @@ package org.elasticsearch.plugins.analysis;
 public interface AnalysisIteratorFactory {
     String name();
 
-    SimpleAnalyzeIterator newInstance(String text);
+    SimpleAnalyzeIterator newInstance(String text, AnalyzeState prevState);
 }

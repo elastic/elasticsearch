@@ -11,8 +11,8 @@ package org.elasticsearch.plugin.analysis.stempel;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.pl.NikolaIteratorFactory;
-import org.elasticsearch.index.analysis.pl.NikolaTokenFilterFactory;
+import org.elasticsearch.index.analysis.pl.DemoIteratorFactory;
+import org.elasticsearch.index.analysis.pl.DemoTokenFilterFactory;
 import org.elasticsearch.index.analysis.pl.PolishAnalyzerProvider;
 import org.elasticsearch.index.analysis.pl.PolishStemTokenFilterFactory;
 import org.elasticsearch.index.analysis.pl.PolishStopTokenFilterFactory;
@@ -31,7 +31,7 @@ public class AnalysisStempelPlugin extends Plugin implements AnalysisPlugin {
         return Map.of(
             "polish_stem", PolishStemTokenFilterFactory::new,
             "polish_stop", PolishStopTokenFilterFactory::new,
-            "nikola", NikolaTokenFilterFactory::new);
+            "demo_old", DemoTokenFilterFactory::new);
     }
 
     @Override
@@ -41,6 +41,6 @@ public class AnalysisStempelPlugin extends Plugin implements AnalysisPlugin {
 
     @Override
     public Map<String, AnalysisProvider<AnalysisIteratorFactory>> getIterators() {
-        return singletonMap("nikola", NikolaIteratorFactory::new);
+        return singletonMap("demo", DemoIteratorFactory::new);
     }
 }

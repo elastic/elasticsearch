@@ -43,6 +43,7 @@ import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.analysis.AnalysisIteratorFactory;
+import org.elasticsearch.plugins.analysis.AnalyzeState;
 import org.elasticsearch.plugins.analysis.AnalyzeToken;
 import org.elasticsearch.plugins.analysis.SimpleAnalyzeIterator;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -140,30 +141,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         AnalysisIteratorFactory iteratorFactory = analysisRegistry.getSimpleAnalyzeIterator(request.tokenFilters());
 
         if (iteratorFactory != null) {
-            TokenCounter tc = new TokenCounter(maxTokenCount);
-            List<AnalyzeAction.AnalyzeToken> tokens = new ArrayList<>();
-
-            for (String text : request.text()) {
-                try (SimpleAnalyzeIterator iterator = iteratorFactory.newInstance(text)) {
-                    AnalyzeToken token;
-                    iterator.start();
-                    while ((token = iterator.next()) != null) {
-                        tokens.add(new AnalyzeAction.AnalyzeToken(
-                            token.getTerm(),
-                            token.getPosition(),
-                            token.getStartOffset(),
-                            token.getEndOffset(),
-                            token.getPositionLength(),
-                            token.getType(),
-                            null
-                        ));
-
-                        tc.increment();
-                    }
-                }
-            }
-
-            return new AnalyzeAction.Response(tokens, null);
+            return new AnalyzeAction.Response(simpleIteratorAnalyze(request, iteratorFactory, maxTokenCount), null);
         }
 
         // First, we check to see if the request requires a custom analyzer. If so, then we
@@ -435,6 +413,39 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             );
         }
         return detailResponse;
+    }
+
+    private static List<AnalyzeAction.AnalyzeToken> simpleIteratorAnalyze(
+        AnalyzeAction.Request request,
+        AnalysisIteratorFactory iteratorFactory,
+        int maxTokenCount) {
+        TokenCounter tc = new TokenCounter(maxTokenCount);
+        List<AnalyzeAction.AnalyzeToken> tokens = new ArrayList<>();
+        AnalyzeState state = new AnalyzeState(-1, 0);
+
+        for (String text : request.text()) {
+            try (SimpleAnalyzeIterator iterator = iteratorFactory.newInstance(text, state)) {
+                AnalyzeToken token;
+                iterator.start();
+                while ((token = iterator.next()) != null) {
+                    tokens.add(new AnalyzeAction.AnalyzeToken(
+                        token.getTerm(),
+                        token.getPosition(),
+                        token.getStartOffset(),
+                        token.getEndOffset(),
+                        token.getPositionLength(),
+                        token.getType(),
+                        null
+                    ));
+
+                    tc.increment();
+                }
+                iterator.end();
+                state = iterator.state();
+            }
+        }
+
+        return tokens;
     }
 
     private static TokenStream createStackedTokenStream(

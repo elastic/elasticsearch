@@ -473,6 +473,19 @@ public class AnalyzeAction extends ActionType<AnalyzeAction.Response> {
         }
 
         @Override
+        public String toString() {
+            return new StringBuilder()
+                .append('[')
+                .append(TOKEN).append(':').append(term).append(',')
+                .append(START_OFFSET).append(':').append(startOffset).append(',')
+                .append(END_OFFSET).append(':').append(endOffset).append(',')
+                .append(TYPE).append(':').append(type).append(',')
+                .append(POSITION).append(':').append(position).append(',')
+                .append(POSITION_LENGTH).append(':').append(positionLength).append(',')
+                .toString();
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(TOKEN, term);

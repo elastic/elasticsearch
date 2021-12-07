@@ -363,7 +363,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             });
         }
 
-        // simulate a deleted index that is essential, search must fail(after a retry without pit)
+        // simulate a deleted index that is essential, search must fail (after a retry without pit)
         try (PitMockClient client = new PitMockClient(getTestName(), true)) {
             ClientTransformIndexer indexer = createTestIndexer(client);
             SearchRequest searchRequest = new SearchRequest("essential-deleted-index");

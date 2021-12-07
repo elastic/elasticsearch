@@ -243,7 +243,7 @@ public class SettingsConfig implements ToXContentObject {
 
         /**
          * Whether the point in time API should be used for search.
-         * Point in time is a more resource friendly way to query. It is used per default. In case of problems
+         * Point in time is a more resource friendly way to query. It is used by default. In case of problems
          * you can disable the point in time API usage with this setting.
          *
          * An explicit `null` resets to default.

@@ -285,16 +285,21 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             HttpResponse enrollResponse = null;
             URL enrollNodeUrl = null;
             for (String address : enrollmentToken.getBoundAddress()) {
-                enrollNodeUrl = createURL(new URL("https://" + address), "/_security/enroll/node", "");
-                enrollResponse = client.execute(
-                    "GET",
-                    enrollNodeUrl,
-                    new SecureString(enrollmentToken.getApiKey().toCharArray()),
-                    () -> null,
-                    CommandLineHttpClient::responseBuilder
-                );
-                if (enrollResponse.getHttpStatus() == 200) {
-                    break;
+                try {
+                    enrollNodeUrl = createURL(new URL("https://" + address), "/_security/enroll/node", "");
+                    enrollResponse = client.execute(
+                        "GET",
+                        enrollNodeUrl,
+                        new SecureString(enrollmentToken.getApiKey().toCharArray()),
+                        () -> null,
+                        CommandLineHttpClient::responseBuilder
+                    );
+		    break;
+                } catch (Exception e) {
+                    terminal.errorPrint(
+                        Terminal.Verbosity.NORMAL,
+                        "Unable to communicate with the node on " + enrollNodeUrl + ". Error was " + e.getMessage()
+                    );
                 }
             }
             if (enrollResponse == null || enrollResponse.getHttpStatus() != 200) {

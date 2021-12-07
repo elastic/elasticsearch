@@ -6,13 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.script.field;
+package org.elasticsearch.script.field.mumur3;
 
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.script.field.AbstractLongFieldDocValues;
 
-public class LongDocValuesField extends AbstractLongFieldDocValues {
+public class Murmur3DocValueField extends AbstractLongFieldDocValues {
 
-    public LongDocValuesField(SortedNumericDocValues input, String name) {
+    public Murmur3DocValueField(SortedNumericDocValues input, String name) {
         super(input, name);
     }
 }

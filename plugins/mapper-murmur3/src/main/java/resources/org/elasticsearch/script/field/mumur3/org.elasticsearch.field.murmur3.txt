@@ -1,0 +1,23 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+class org.elasticsearch.xpack.unsignedlong.UnsignedLongScriptDocValues {
+  Long get(int)
+  long getValue()
+}
+
+class org.elasticsearch.xpack.unsignedlong.UnsignedLongDocValuesField @dynamic_type {
+  long get(long)
+  long get(int, long)
+  long getValue(long)
+  long getValue(int, long)
+  List getValues()
+  BigInteger asBigInteger(BigInteger)
+  BigInteger asBigInteger(int, BigInteger)
+  List asBigIntegers()
+}

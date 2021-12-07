@@ -1,6 +1,9 @@
 evaluationDependsOn(xpackModule('core'))
 
+
 apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -10,6 +13,10 @@ esplugin {
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
 archivesBaseName = 'x-pack-mapper-version'
+
+dependencies {
+  compileOnly project(':modules:lang-painless:spi')
+}
 
 dependencies {
   compileOnly project(path: xpackModule('core'))

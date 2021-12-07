@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -91,48 +90,6 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             throw new IllegalStateException(
                 "A document doesn't have a value for a field! " + "Use doc[<field>].size()==0 to check if a document is missing a field!"
             );
-        }
-    }
-
-    public static class LongsSupplier implements Supplier<Long> {
-
-        private final SortedNumericDocValues in;
-        private long[] values = new long[0];
-        private int count;
-
-        public LongsSupplier(SortedNumericDocValues in) {
-            this.in = in;
-        }
-
-        @Override
-        public void setNextDocId(int docId) throws IOException {
-            if (in.advanceExact(docId)) {
-                resize(in.docValueCount());
-                for (int i = 0; i < count; i++) {
-                    values[i] = in.nextValue();
-                }
-            } else {
-                resize(0);
-            }
-        }
-
-        /**
-         * Set the {@link #size()} and ensure that the {@link #values} array can
-         * store at least that many entries.
-         */
-        private void resize(int newSize) {
-            count = newSize;
-            values = ArrayUtil.grow(values, count);
-        }
-
-        @Override
-        public Long getInternal(int index) {
-            return values[index];
-        }
-
-        @Override
-        public int size() {
-            return count;
         }
     }
 

@@ -13,6 +13,10 @@ esplugin {
   classname 'org.elasticsearch.plugin.mapper.MapperMurmur3Plugin'
 }
 
+dependencies {
+  compileOnly project(':modules:lang-painless:spi')
+}
+
 restResources {
   restApi {
     include '_common', 'indices', 'index', 'search'

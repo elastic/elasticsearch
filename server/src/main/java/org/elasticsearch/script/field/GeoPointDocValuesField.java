@@ -45,6 +45,8 @@ public class GeoPointDocValuesField implements DocValuesField<GeoPoint>, ScriptD
             } else {
                 setMultiValue();
             }
+        } else {
+            resize(0);
         }
     }
 

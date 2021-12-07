@@ -20,7 +20,9 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.LeafGeoPointFieldData;
+import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -31,10 +33,16 @@ public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPoint
 
     protected final String fieldName;
     protected final ValuesSourceType valuesSourceType;
+    protected final ToScriptField<MultiGeoPointValues> toScriptField;
 
-    AbstractLatLonPointIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
+    AbstractLatLonPointIndexFieldData(
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        ToScriptField<MultiGeoPointValues> toScriptField
+    ) {
         this.fieldName = fieldName;
         this.valuesSourceType = valuesSourceType;
+        this.toScriptField = toScriptField;
     }
 
     @Override
@@ -72,8 +80,12 @@ public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPoint
     }
 
     public static class LatLonPointIndexFieldData extends AbstractLatLonPointIndexFieldData {
-        public LatLonPointIndexFieldData(String fieldName, ValuesSourceType valuesSourceType) {
-            super(fieldName, valuesSourceType);
+        public LatLonPointIndexFieldData(
+            String fieldName,
+            ValuesSourceType valuesSourceType,
+            ToScriptField<MultiGeoPointValues> toScriptField
+        ) {
+            super(fieldName, valuesSourceType, toScriptField);
         }
 
         @Override
@@ -83,7 +95,7 @@ public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPoint
             if (info != null) {
                 checkCompatible(info);
             }
-            return new LatLonPointDVLeafFieldData(reader, fieldName);
+            return new LatLonPointDVLeafFieldData(reader, fieldName, toScriptField);
         }
 
         @Override
@@ -112,16 +124,18 @@ public abstract class AbstractLatLonPointIndexFieldData implements IndexGeoPoint
     public static class Builder implements IndexFieldData.Builder {
         private final String name;
         private final ValuesSourceType valuesSourceType;
+        private final ToScriptField<MultiGeoPointValues> toScriptField;
 
-        public Builder(String name, ValuesSourceType valuesSourceType) {
+        public Builder(String name, ValuesSourceType valuesSourceType, ToScriptField<MultiGeoPointValues> toScriptField) {
             this.name = name;
             this.valuesSourceType = valuesSourceType;
+            this.toScriptField = toScriptField;
         }
 
         @Override
         public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
             // ignore breaker
-            return new LatLonPointIndexFieldData(name, valuesSourceType);
+            return new LatLonPointIndexFieldData(name, valuesSourceType, toScriptField);
         }
     }
 }

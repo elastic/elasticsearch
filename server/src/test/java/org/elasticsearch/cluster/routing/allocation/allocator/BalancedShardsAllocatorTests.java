@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.cluster.routing.allocation;
+package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
@@ -19,14 +19,17 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Collections;
+import java.util.List;
 
 public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
+
     public void testDecideShardAllocation() {
         BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", false, ShardRoutingState.STARTED);
@@ -42,22 +45,19 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             SnapshotShardSizeInfo.EMPTY,
             System.nanoTime()
         );
-        allocation.debugDecision(true);
 
-        BalancedShardsAllocator.WeightFunction weightFunction = new BalancedShardsAllocator.WeightFunction(0.45f, 0.55f);
-        BalancedShardsAllocator.Balancer balancer = new BalancedShardsAllocator.Balancer(logger, allocation, weightFunction, 1.0f);
-        float minWeight = Float.POSITIVE_INFINITY;
-        String minWeightNode = null;
-        for (BalancedShardsAllocator.ModelNode node : balancer.nodesArray()) {
-            float weight = weightFunction.weight(balancer, node, shard.getIndexName());
-            if (weight < minWeight) {
-                minWeight = weight;
-                minWeightNode = node.getNodeId();
-            }
-        }
+        allocation.debugDecision(false);
         AllocateUnassignedDecision allocateDecision = allocator.decideShardAllocation(shard, allocation).getAllocateDecision();
+        allocation.debugDecision(true);
+        AllocateUnassignedDecision allocateDecisionWithExplain = allocator.decideShardAllocation(shard, allocation).getAllocateDecision();
+        // the allocation decision should have same target node no matter the debug is on or off
+        assertEquals(allocateDecision.getTargetNode().getId(), allocateDecisionWithExplain.getTargetNode().getId());
 
-        assertEquals(minWeightNode, allocateDecision.getTargetNode().getId());
+        allocator.allocate(allocation);
+        List<ShardRouting> assignedShards = allocation.routingNodes().assignedShards(shard.shardId());
+        assertEquals(1, assignedShards.size());
+        // the allocation result be consistent with allocation decision
+        assertNotNull(allocateDecision.getTargetNode().getId(), assignedShards.get(0).currentNodeId());
     }
 
     private ClusterState allocateNew(ClusterState state) {

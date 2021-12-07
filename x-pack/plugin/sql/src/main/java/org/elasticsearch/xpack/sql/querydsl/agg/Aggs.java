@@ -140,12 +140,12 @@ public class Aggs {
     }
 
     public Aggs updateGroup(GroupByKey group) {
-        List<GroupByKey> groups = new ArrayList<>(this.groups);
-        for (int i = 0; i < groups.size(); i++) {
-            GroupByKey g = groups.get(i);
+        List<GroupByKey> groupsCopy = new ArrayList<>(this.groups);
+        for (int i = 0; i < groupsCopy.size(); i++) {
+            GroupByKey g = groupsCopy.get(i);
             if (group.id().equals(g.id())) {
-                groups.set(i, group);
-                return with(groups);
+                groupsCopy.set(i, group);
+                return with(groupsCopy);
             }
         }
         throw new SqlIllegalArgumentException("Could not find group named {}", group.id());

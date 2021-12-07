@@ -260,6 +260,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     /**
      * Sets an artificial document from which term vectors are requested for.
      */
+    @SuppressWarnings("HiddenField")
     public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId, XContentType xContentType) {
         // assign a random id to this artificial document, for routing
         if (generateRandomId) {

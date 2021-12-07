@@ -135,7 +135,7 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
     private final List<Detector> detectors;
     private final List<String> influencers;
     private final Boolean multivariateByFields;
-    private TimeValue modelPruneWindow;
+    private final TimeValue modelPruneWindow;
 
     private AnalysisConfig(
         TimeValue bucketSpan,
@@ -298,12 +298,6 @@ public class AnalysisConfig implements ToXContentObject, Writeable {
 
     public TimeValue getModelPruneWindow() {
         return modelPruneWindow;
-    }
-
-    public void setDefaultModelPruneWindowIfNoneProvided() {
-        if (modelPruneWindow == null) {
-            modelPruneWindow = AnalysisConfig.DEFAULT_MODEL_PRUNE_WINDOW;
-        }
     }
 
     /**

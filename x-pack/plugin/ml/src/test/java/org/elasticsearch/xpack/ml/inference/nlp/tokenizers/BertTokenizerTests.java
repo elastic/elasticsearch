@@ -157,21 +157,12 @@ public class BertTokenizerTests extends ESTestCase {
 
     public void testPunctuationWithMask() {
         BertTokenizer tokenizer = BertTokenizer.builder(
-            List.of("[CLS]", "This", "is", "[MASK]", "-", "~", "ta", "##stic", "!", "[SEP]", "sub", ",", "."),
+            List.of("[CLS]", "This", "is", "[MASK]", "-", "ta", "##stic", "!", "[SEP]"),
             Tokenization.createDefault()
         ).setWithSpecialTokens(true).setNeverSplit(Set.of("[MASK]")).build();
 
         TokenizationResult.Tokenization tokenization = tokenizer.tokenize("This is [MASK]-tastic!");
         assertThat(tokenization.getTokens(), arrayContaining("[CLS]", "This", "is", "[MASK]", "-", "ta", "##stic", "!", "[SEP]"));
-
-        tokenization = tokenizer.tokenize("This is sub~[MASK]!");
-        assertThat(tokenization.getTokens(), arrayContaining("[CLS]", "This", "is", "sub", "~", "[MASK]", "!", "[SEP]"));
-
-        tokenization = tokenizer.tokenize("This is sub,[MASK].tastic!");
-        assertThat(
-            tokenization.getTokens(),
-            arrayContaining("[CLS]", "This", "is", "sub", ",", "[MASK]", ".", "ta", "##stic", "!", "[SEP]")
-        );
     }
 
     public void testBatchInput() {

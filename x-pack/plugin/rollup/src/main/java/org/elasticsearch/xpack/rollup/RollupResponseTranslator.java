@@ -16,6 +16,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -73,10 +74,8 @@ public class RollupResponseTranslator {
      * See {@link #combineResponses(MultiSearchResponse.Item[], InternalAggregation.ReduceContext)} for more details
      * on the translation conventions
      */
-    public static SearchResponse translateResponse(
-        MultiSearchResponse.Item[] rolledMsearch,
-        InternalAggregation.ReduceContext reduceContext
-    ) throws Exception {
+    public static SearchResponse translateResponse(MultiSearchResponse.Item[] rolledMsearch, AggregationReduceContext reduceContext)
+        throws Exception {
 
         assert rolledMsearch.length > 0;
         List<SearchResponse> responses = new ArrayList<>();
@@ -202,10 +201,8 @@ public class RollupResponseTranslator {
      *
      * @param msearchResponses The responses from the msearch, where the first response is the live-index response
      */
-    public static SearchResponse combineResponses(
-        MultiSearchResponse.Item[] msearchResponses,
-        InternalAggregation.ReduceContext reduceContext
-    ) throws Exception {
+    public static SearchResponse combineResponses(MultiSearchResponse.Item[] msearchResponses, AggregationReduceContext reduceContext)
+        throws Exception {
 
         assert msearchResponses.length >= 2;
 
@@ -254,7 +251,7 @@ public class RollupResponseTranslator {
     private static SearchResponse doCombineResponse(
         SearchResponse liveResponse,
         List<SearchResponse> rolledResponses,
-        InternalAggregation.ReduceContext reduceContext
+        AggregationReduceContext reduceContext
     ) {
 
         final InternalAggregations liveAggs = liveResponse != null
@@ -283,7 +280,7 @@ public class RollupResponseTranslator {
         // which means we can use aggregation's reduce method to combine, just as if
         // it was a result from another shard
         InternalAggregations currentTree = InternalAggregations.EMPTY;
-        InternalAggregation.ReduceContext finalReduceContext = InternalAggregation.ReduceContext.forFinalReduction(
+        AggregationReduceContext finalReduceContext = new AggregationReduceContext.ForFinal(
             reduceContext.bigArrays(),
             reduceContext.scriptService(),
             b -> {},
@@ -373,7 +370,6 @@ public class RollupResponseTranslator {
     /**
      * Takes an aggregation with rollup conventions and unrolls into a "normal" agg tree
      *
-
      * @param rolled   The rollup aggregation that we wish to unroll
      * @param original The unrolled, "live" aggregation (if it exists) that matches the current rolled aggregation
      *

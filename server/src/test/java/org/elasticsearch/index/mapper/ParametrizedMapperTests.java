@@ -348,7 +348,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             {"type":"test_mapper","fixed":false,"variable":"updated","required":"value"}""");
         TestMapper merged = (TestMapper) mapper.merge(goodMerge);
 
-assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper)); // original mapping is unaffected
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper)); // original mapping is unaffected
         assertEquals("""
             {"field":{"type":"test_mapper","fixed":false,"variable":"updated","required":"value"}}\
             """, Strings.toString(merged));
@@ -420,7 +420,7 @@ assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper)); // origin
         String fine = """
             {"type":"test_mapper","variable":null,"required":"value"}""";
         TestMapper mapper = fromMapping(fine);
-assertEquals("{\"field\":" + fine + "}", Strings.toString(mapper));
+        assertEquals("{\"field\":" + fine + "}", Strings.toString(mapper));
     }
 
     public void testObjectSerialization() throws IOException {

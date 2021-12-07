@@ -24,5 +24,8 @@ public final class AuthenticationField {
     public static final String API_KEY_ROLE_DESCRIPTORS_KEY = "_security_api_key_role_descriptors";
     public static final String API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY = "_security_api_key_limited_by_role_descriptors";
 
+    public static final String ANONYMOUS_REALM_NAME = "__anonymous";
+    public static final String ANONYMOUS_REALM_TYPE = "__anonymous";
+
     private AuthenticationField() {}
 }

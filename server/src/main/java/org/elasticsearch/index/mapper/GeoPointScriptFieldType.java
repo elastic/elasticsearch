@@ -20,10 +20,12 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQuery;
@@ -96,7 +98,11 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
 
     @Override
     public GeoPointScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new GeoPointScriptFieldData.Builder(name(), leafFactory(searchLookup.get()));
+        return new GeoPointScriptFieldData.Builder(
+            name(),
+            leafFactory(searchLookup.get()),
+            (dv, n) -> new DelegateDocValuesField(new ScriptDocValues.GeoPoints(new ScriptDocValues.GeoPointsSupplier(dv)), n)
+        );
     }
 
     @Override

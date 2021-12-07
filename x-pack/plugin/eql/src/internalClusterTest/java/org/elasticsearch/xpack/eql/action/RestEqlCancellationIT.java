@@ -117,7 +117,7 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
         Request request = new Request("GET", "/test/_eql/search");
         request.setJsonEntity(Strings.toString(eqlSearchRequest));
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID, id));
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID_HTTP_HEADER, id));
         logger.trace("Preparing search");
 
         final PlainActionFuture<Response> future = PlainActionFuture.newFuture();

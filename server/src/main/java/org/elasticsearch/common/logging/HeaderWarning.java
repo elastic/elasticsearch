@@ -304,9 +304,9 @@ public class HeaderWarning {
 
     public static String getXOpaqueId() {
         return THREAD_CONTEXT.stream()
-            .filter(t -> t.getHeader(Task.X_OPAQUE_ID) != null)
+            .filter(t -> t.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER) != null)
             .findFirst()
-            .map(t -> t.getHeader(Task.X_OPAQUE_ID))
+            .map(t -> t.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER))
             .orElse("");
     }
 

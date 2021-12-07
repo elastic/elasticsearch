@@ -147,9 +147,9 @@ public class JsonLoggerTests extends ESTestCase {
 
     public void testCompatibleLog() throws Exception {
         withThreadContext(threadContext -> {
-            threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
+            threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, "someId");
             threadContext.putHeader(Task.TRACE_ID, "someTraceId");
-            threadContext.putHeader(Task.PRODUCT_ORIGIN, "kibana");
+            threadContext.putHeader(Task.ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana");
             final DeprecationLogger testLogger = DeprecationLogger.getLogger("org.elasticsearch.test");
             testLogger.critical(DeprecationCategory.OTHER, "someKey", "deprecated message1")
                 .compatibleCritical("compatibleKey", "compatible API message");
@@ -210,9 +210,9 @@ public class JsonLoggerTests extends ESTestCase {
 
     public void testParseFieldEmittingDeprecatedLogs() throws Exception {
         withThreadContext(threadContext -> {
-            threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
+            threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, "someId");
             threadContext.putHeader(Task.TRACE_ID, "someTraceId");
-            threadContext.putHeader(Task.PRODUCT_ORIGIN, "kibana");
+            threadContext.putHeader(Task.ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana");
 
             ParseField deprecatedField = new ParseField("new_name", "deprecated_name");
             assertTrue(deprecatedField.match("deprecated_name", LoggingDeprecationHandler.INSTANCE));
@@ -308,9 +308,9 @@ public class JsonLoggerTests extends ESTestCase {
 
     public void testDeprecatedMessage() throws Exception {
         withThreadContext(threadContext -> {
-            threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
+            threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, "someId");
             threadContext.putHeader(Task.TRACE_ID, "someTraceId");
-            threadContext.putHeader(Task.PRODUCT_ORIGIN, "kibana");
+            threadContext.putHeader(Task.ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana");
             final DeprecationLogger testLogger = DeprecationLogger.getLogger("org.elasticsearch.test");
             testLogger.warn(DeprecationCategory.OTHER, "someKey", "deprecated message1");
 
@@ -562,7 +562,7 @@ public class JsonLoggerTests extends ESTestCase {
 
         // For the same key and X-Opaque-ID deprecation should be once
         withThreadContext(threadContext -> {
-            threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
+            threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, "ID1");
             deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message1");
             deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message2");
             assertCriticalWarnings("message1", "message2");
@@ -595,7 +595,7 @@ public class JsonLoggerTests extends ESTestCase {
         // For the same key and different X-Opaque-ID should be multiple times per key/x-opaque-id
         // continuing with message1-ID1 in logs already, adding a new deprecation log line with message2-ID2
         withThreadContext(threadContext -> {
-            threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
+            threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, "ID2");
             deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message1");
             deprecationLogger.critical(DeprecationCategory.OTHER, "key", "message2");
             assertCriticalWarnings("message1", "message2");

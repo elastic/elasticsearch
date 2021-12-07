@@ -135,7 +135,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
          * @return true if this custom could be restored from snapshot
          */
         default boolean isRestorable() {
-            return true;
+            return context().contains(XContentContext.SNAPSHOT);
         }
     }
 

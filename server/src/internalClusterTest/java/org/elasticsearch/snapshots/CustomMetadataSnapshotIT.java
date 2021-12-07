@@ -111,14 +111,14 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
         ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         logger.info("Cluster state: {}", clusterState);
         Metadata metadata = clusterState.getMetadata();
-        assertThat(((SnapshottableMetadata) metadata.custom(SnapshottableMetadata.TYPE)).getData(), equalTo("before_snapshot_s"));
-        assertThat(((NonSnapshottableMetadata) metadata.custom(NonSnapshottableMetadata.TYPE)).getData(), equalTo("after_snapshot_ns"));
+        assertThat(metadata.<SnapshottableMetadata>custom(SnapshottableMetadata.TYPE).getData(), equalTo("before_snapshot_s"));
+        assertThat(metadata.<NonSnapshottableMetadata>custom(NonSnapshottableMetadata.TYPE).getData(), equalTo("after_snapshot_ns"));
         assertThat(
-            ((SnapshottableGatewayMetadata) metadata.custom(SnapshottableGatewayMetadata.TYPE)).getData(),
+            metadata.<SnapshottableGatewayMetadata>custom(SnapshottableGatewayMetadata.TYPE).getData(),
             equalTo("before_snapshot_s_gw")
         );
         assertThat(
-            ((NonSnapshottableGatewayMetadata) metadata.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(),
+            metadata.<NonSnapshottableGatewayMetadata>custom(NonSnapshottableGatewayMetadata.TYPE).getData(),
             equalTo("after_snapshot_ns_gw")
         );
 
@@ -133,11 +133,11 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(metadata.custom(SnapshottableMetadata.TYPE), nullValue());
         assertThat(metadata.custom(NonSnapshottableMetadata.TYPE), nullValue());
         assertThat(
-            ((SnapshottableGatewayMetadata) metadata.custom(SnapshottableGatewayMetadata.TYPE)).getData(),
+            metadata.<SnapshottableGatewayMetadata>custom(SnapshottableGatewayMetadata.TYPE).getData(),
             equalTo("before_snapshot_s_gw")
         );
         assertThat(
-            ((NonSnapshottableGatewayMetadata) metadata.custom(NonSnapshottableGatewayMetadata.TYPE)).getData(),
+            metadata.<NonSnapshottableGatewayMetadata>custom(NonSnapshottableGatewayMetadata.TYPE).getData(),
             equalTo("after_snapshot_ns_gw")
         );
         // Shouldn't be returned as part of API response
@@ -145,7 +145,7 @@ public class CustomMetadataSnapshotIT extends AbstractSnapshotIntegTestCase {
         // But should still be in state
         metadata = internalCluster().getInstance(ClusterService.class).state().metadata();
         assertThat(
-            ((SnapshotableGatewayNoApiMetadata) metadata.custom(SnapshotableGatewayNoApiMetadata.TYPE)).getData(),
+            metadata.<SnapshotableGatewayNoApiMetadata>custom(SnapshotableGatewayNoApiMetadata.TYPE).getData(),
             equalTo("before_snapshot_s_gw_noapi")
         );
     }

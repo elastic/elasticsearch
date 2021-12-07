@@ -266,11 +266,6 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
         return Metadata.API_AND_GATEWAY;
     }
 
-    @Override
-    public boolean isRestorable() {
-        return false;
-    }
-
     /**
      * Serializes information about a single repository
      *

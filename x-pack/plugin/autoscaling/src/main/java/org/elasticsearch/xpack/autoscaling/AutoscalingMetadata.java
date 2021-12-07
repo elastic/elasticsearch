@@ -97,6 +97,8 @@ public class AutoscalingMetadata implements Metadata.Custom {
 
     @Override
     public boolean isRestorable() {
+        // currently, this is written to the snapshots, in future we might restore it
+        // if request.skipOperatorOnly for Autoscaling policies is enabled
         return false;
     }
 

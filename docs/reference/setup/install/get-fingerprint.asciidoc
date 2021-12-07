@@ -9,9 +9,14 @@ https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} Clients],
 by the CA certificate that matches the fingerprint
 
 If the auto-configuration process already completed, you can still obtain the 
-fingerprint of the security certificate. Run the following command on any
-node in the {es} cluster that you want to connect to. The path is to the
-auto-generated certificate for the HTTP layer.
+fingerprint of the security certificate. You can also copy the CA certificate
+to your machine and configure your client to use it.
+
+[discrete]
+===== Use the CA fingerprint
+
+Run the following command to obtain the CA fingerprint. The path is to the
+auto-generated CA certificate for the HTTP layer.
 
 [source,sh]
 ----
@@ -28,6 +33,9 @@ The `issuer` should be `Elasticsearch security auto-configuration HTTP CA`.
 issuer= /CN=Elasticsearch security auto-configuration HTTP CA
 SHA256 Fingerprint=<fingerprint>
 ----
+
+[discrete]
+===== Use the CA certificate
 
 If your library doesn't support a method of validating the fingerprint, the 
 auto-generated CA certificate is created in the

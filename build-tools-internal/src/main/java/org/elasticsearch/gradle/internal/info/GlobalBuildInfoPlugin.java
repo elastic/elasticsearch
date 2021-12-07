@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -85,6 +86,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"));
 
         File runtimeJavaHome = findRuntimeJavaHome();
+        boolean isRuntimeJavaHomeSet = Jvm.current().getJavaHome().equals(runtimeJavaHome) == false;
 
         File rootDir = project.getRootDir();
         GitInfo gitInfo = GitInfo.gitInfo(rootDir);
@@ -92,8 +94,15 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         BuildParams.init(params -> {
             params.reset();
             params.setRuntimeJavaHome(runtimeJavaHome);
-            params.setRuntimeJavaVersion(determineJavaVersion("runtime java.home", runtimeJavaHome, minimumRuntimeVersion));
-            params.setIsRuntimeJavaHomeSet(Jvm.current().getJavaHome().equals(runtimeJavaHome) == false);
+            // TODO: Temporarily hard-code this to 17 until we upgrade to Gradle 7.3 and bump minimumRuntimeVersion
+            params.setRuntimeJavaVersion(
+                determineJavaVersion(
+                    "runtime java.home",
+                    runtimeJavaHome,
+                    isRuntimeJavaHomeSet ? JavaVersion.VERSION_17 : Jvm.current().getJavaVersion()
+                )
+            );
+            params.setIsRuntimeJavaHomeSet(isRuntimeJavaHomeSet);
             JvmInstallationMetadata runtimeJdkMetaData = metadataDetector.getMetadata(getJavaInstallation(runtimeJavaHome).getLocation());
             params.setRuntimeJavaDetails(formatJavaVendorDetails(runtimeJdkMetaData));
             params.setJavaVersions(getAvailableJavaVersions());
@@ -108,7 +117,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
             params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
             params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
-            params.setBwcVersions(providers.provider(() -> resolveBwcVersions(rootDir)));
+            AtomicReference<BwcVersions> cache = new AtomicReference<>();
+            params.setBwcVersions(providers.provider(() -> cache.updateAndGet(val -> val == null ? resolveBwcVersions(rootDir) : val)));
         });
 
         // Enforce the minimum compiler version

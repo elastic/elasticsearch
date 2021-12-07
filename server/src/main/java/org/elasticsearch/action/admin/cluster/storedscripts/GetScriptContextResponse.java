@@ -9,15 +9,15 @@
 package org.elasticsearch.action.admin.cluster.storedscripts;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptContextInfo;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -33,22 +33,25 @@ import java.util.stream.Collectors;
 public class GetScriptContextResponse extends ActionResponse implements StatusToXContentObject {
 
     private static final ParseField CONTEXTS = new ParseField("contexts");
-    final Map<String,ScriptContextInfo> contexts;
+    final Map<String, ScriptContextInfo> contexts;
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<GetScriptContextResponse,Void> PARSER =
-        new ConstructingObjectParser<>("get_script_context", true,
-            (a) -> {
-                Map<String,ScriptContextInfo> contexts = ((List<ScriptContextInfo>)a[0]).stream().collect(
-                    Collectors.toMap(ScriptContextInfo::getName, c -> c)
-                );
-                return new GetScriptContextResponse(contexts);
-            }
-        );
+    public static final ConstructingObjectParser<GetScriptContextResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_script_context",
+        true,
+        (a) -> {
+            Map<String, ScriptContextInfo> contexts = ((List<ScriptContextInfo>) a[0]).stream()
+                .collect(Collectors.toMap(ScriptContextInfo::getName, c -> c));
+            return new GetScriptContextResponse(contexts);
+        }
+    );
 
     static {
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-            (parser, ctx) -> ScriptContextInfo.PARSER.apply(parser, ctx), CONTEXTS);
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (parser, ctx) -> ScriptContextInfo.PARSER.apply(parser, ctx),
+            CONTEXTS
+        );
     }
 
     GetScriptContextResponse(StreamInput in) throws IOException {
@@ -64,13 +67,11 @@ public class GetScriptContextResponse extends ActionResponse implements StatusTo
 
     // TransportAction constructor
     GetScriptContextResponse(Set<ScriptContextInfo> contexts) {
-        this.contexts = Map.copyOf(contexts.stream().collect(
-            Collectors.toMap(ScriptContextInfo::getName, Function.identity())
-        ));
+        this.contexts = Map.copyOf(contexts.stream().collect(Collectors.toMap(ScriptContextInfo::getName, Function.identity())));
     }
 
     // Parser constructor
-    private GetScriptContextResponse(Map<String,ScriptContextInfo> contexts) {
+    private GetScriptContextResponse(Map<String, ScriptContextInfo> contexts) {
         this.contexts = Map.copyOf(contexts);
     }
 
@@ -81,7 +82,7 @@ public class GetScriptContextResponse extends ActionResponse implements StatusTo
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(contexts.size());
-        for (ScriptContextInfo context: contexts.values()) {
+        for (ScriptContextInfo context : contexts.values()) {
             context.writeTo(out);
         }
     }
@@ -94,7 +95,7 @@ public class GetScriptContextResponse extends ActionResponse implements StatusTo
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().startArray(CONTEXTS.getPreferredName());
-        for (ScriptContextInfo context: byName()) {
+        for (ScriptContextInfo context : byName()) {
             context.toXContent(builder, params);
         }
         builder.endArray().endObject(); // CONTEXTS

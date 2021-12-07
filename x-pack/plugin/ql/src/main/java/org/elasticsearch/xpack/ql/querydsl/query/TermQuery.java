@@ -67,8 +67,8 @@ public class TermQuery extends LeafQuery {
 
         TermQuery other = (TermQuery) obj;
         return Objects.equals(term, other.term)
-                && Objects.equals(value, other.value)
-                && Objects.equals(caseInsensitive, other.caseInsensitive);
+            && Objects.equals(value, other.value)
+            && Objects.equals(caseInsensitive, other.caseInsensitive);
     }
 
     @Override

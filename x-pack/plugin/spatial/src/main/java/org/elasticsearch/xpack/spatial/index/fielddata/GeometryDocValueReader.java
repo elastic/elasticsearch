@@ -104,7 +104,7 @@ public class GeometryDocValueReader {
         int thisMinX = extent.minX();
         int thisMaxY = extent.maxY();
         int thisMinY = extent.minY();
-        if(visitor.push(thisMinX, thisMinY, thisMaxX, thisMaxY)) {
+        if (visitor.push(thisMinX, thisMinY, thisMaxX, thisMaxY)) {
             TriangleTreeReader.visit(input, visitor, thisMaxX, thisMaxY);
         }
     }

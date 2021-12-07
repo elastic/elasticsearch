@@ -11,8 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.concurrent.CountDown;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,17 +23,20 @@ import java.util.function.LongSupplier;
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version.
  */
 public class QueryRewriteContext {
-    private final NamedXContentRegistry xContentRegistry;
+    private final XContentParserConfiguration parserConfiguration;
     private final NamedWriteableRegistry writeableRegistry;
     protected final Client client;
     protected final LongSupplier nowInMillis;
     private final List<BiConsumer<Client, ActionListener<?>>> asyncActions = new ArrayList<>();
 
     public QueryRewriteContext(
-            NamedXContentRegistry xContentRegistry, NamedWriteableRegistry writeableRegistry,Client client,
-            LongSupplier nowInMillis) {
+        XContentParserConfiguration parserConfiguration,
+        NamedWriteableRegistry writeableRegistry,
+        Client client,
+        LongSupplier nowInMillis
+    ) {
 
-        this.xContentRegistry = xContentRegistry;
+        this.parserConfiguration = parserConfiguration;
         this.writeableRegistry = writeableRegistry;
         this.client = client;
         this.nowInMillis = nowInMillis;
@@ -42,8 +45,8 @@ public class QueryRewriteContext {
     /**
      * The registry used to build new {@link XContentParser}s. Contains registered named parsers needed to parse the query.
      */
-    public NamedXContentRegistry getXContentRegistry() {
-        return xContentRegistry;
+    public XContentParserConfiguration getParserConfig() {
+        return parserConfiguration;
     }
 
     /**
@@ -88,7 +91,7 @@ public class QueryRewriteContext {
      * Executes all registered async actions and notifies the listener once it's done. The value that is passed to the listener is always
      * <code>null</code>. The list of registered actions is cleared once this method returns.
      */
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void executeAsyncActions(ActionListener listener) {
         if (asyncActions.isEmpty()) {
             listener.onResponse(null);

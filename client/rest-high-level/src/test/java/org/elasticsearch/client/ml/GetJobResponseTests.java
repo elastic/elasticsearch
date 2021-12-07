@@ -9,8 +9,8 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.client.ml.job.config.JobTests;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,7 +24,7 @@ public class GetJobResponseTests extends AbstractXContentTestCase<GetJobResponse
 
         int count = randomIntBetween(1, 5);
         List<Job.Builder> results = new ArrayList<>(count);
-        for(int i = 0; i < count; i++) {
+        for (int i = 0; i < count; i++) {
             results.add(JobTests.createRandomizedJobBuilder());
         }
 

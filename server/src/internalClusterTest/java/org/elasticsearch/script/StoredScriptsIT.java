@@ -9,9 +9,9 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -28,9 +28,10 @@ public class StoredScriptsIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), SCRIPT_MAX_SIZE_IN_BYTES)
-                .build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), SCRIPT_MAX_SIZE_IN_BYTES)
+            .build();
     }
 
     @Override
@@ -39,32 +40,44 @@ public class StoredScriptsIT extends ESIntegTestCase {
     }
 
     public void testBasics() {
-        assertAcked(client().admin().cluster().preparePutStoredScript()
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutStoredScript()
                 .setId("foobar")
-                .setContent(new BytesArray("{\"script\": {\"lang\": \"" + LANG + "\", \"source\": \"1\"} }"), XContentType.JSON));
-        String script = client().admin().cluster().prepareGetStoredScript("foobar")
-                .get().getSource().getSource();
+                .setContent(new BytesArray("{\"script\": {\"lang\": \"" + LANG + "\", \"source\": \"1\"} }"), XContentType.JSON)
+        );
+        String script = client().admin().cluster().prepareGetStoredScript("foobar").get().getSource().getSource();
         assertNotNull(script);
         assertEquals("1", script);
 
-        assertAcked(client().admin().cluster().prepareDeleteStoredScript()
-                .setId("foobar"));
-        StoredScriptSource source = client().admin().cluster().prepareGetStoredScript("foobar")
-                .get().getSource();
+        assertAcked(client().admin().cluster().prepareDeleteStoredScript().setId("foobar"));
+        StoredScriptSource source = client().admin().cluster().prepareGetStoredScript("foobar").get().getSource();
         assertNull(source);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .cluster()
+                .preparePutStoredScript()
                 .setId("id#")
                 .setContent(new BytesArray("{\"script\": {\"lang\": \"" + LANG + "\", \"source\": \"1\"} }"), XContentType.JSON)
-                .get());
+                .get()
+        );
         assertEquals("Validation Failed: 1: id cannot contain '#' for stored script;", e.getMessage());
     }
 
     public void testMaxScriptSize() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> client().admin().cluster().preparePutStoredScript()
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .cluster()
+                .preparePutStoredScript()
                 .setId("foobar")
-                .setContent(new BytesArray("{\"script\": { \"lang\": \"" + LANG + "\"," +
-                        " \"source\":\"0123456789abcdef\"} }"), XContentType.JSON)
+                .setContent(
+                    new BytesArray("{\"script\": { \"lang\": \"" + LANG + "\"," + " \"source\":\"0123456789abcdef\"} }"),
+                    XContentType.JSON
+                )
                 .get()
         );
         assertEquals("exceeded max allowed stored script size in bytes [64] with size [65] for script [foobar]", e.getMessage());

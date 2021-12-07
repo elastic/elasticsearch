@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.watcher.test.bench;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.xpack.watcher.Watcher;
@@ -46,22 +46,21 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 public class WatcherExecutorServiceBenchmark {
 
     private static final Settings SETTINGS = Settings.builder()
-            .put("xpack.security.enabled", false)
-            .put("cluster.name", "bench")
-            .put("network.host", "localhost")
-            .put("script.disable_dynamic", false)
-            .put(DISCOVERY_SEED_HOSTS_SETTING.getKey(), "localhost")
-            .put("http.cors.enabled", true)
-            .put("cluster.routing.allocation.disk.threshold_enabled", false)
-//                .put("recycler.page.limit.heap", "60%")
-            .build();
+        .put("xpack.security.enabled", false)
+        .put("cluster.name", "bench")
+        .put("network.host", "localhost")
+        .put("script.disable_dynamic", false)
+        .put(DISCOVERY_SEED_HOSTS_SETTING.getKey(), "localhost")
+        .put("http.cors.enabled", true)
+        .put("cluster.routing.allocation.disk.threshold_enabled", false)
+        // .put("recycler.page.limit.heap", "60%")
+        .build();
 
     private static Client client;
     private static ScheduleTriggerEngineMock scheduler;
 
     protected static void start() throws Exception {
-        Node node = new MockNode(Settings.builder().put(SETTINGS).put("node.data", false).build(),
-                Arrays.asList(BenchmarkWatcher.class));
+        Node node = new MockNode(Settings.builder().put(SETTINGS).put("node.data", false).build(), Arrays.asList(BenchmarkWatcher.class));
         client = node.client();
         client.admin().cluster().prepareHealth("*").setWaitForGreenStatus().get();
         Thread.sleep(5000);
@@ -78,14 +77,18 @@ public class WatcherExecutorServiceBenchmark {
             int numAlerts = 1000;
             for (int i = 0; i < numAlerts; i++) {
                 final String name = "_name" + i;
-                PutWatchRequest putAlertRequest = new PutWatchRequest(name, new WatchSourceBuilder()
-                        .trigger(schedule(interval("5s")))
+                PutWatchRequest putAlertRequest = new PutWatchRequest(
+                    name,
+                    new WatchSourceBuilder().trigger(schedule(interval("5s")))
                         .input(searchInput(templateRequest(new SearchSourceBuilder(), "test")))
-                        .condition(new ScriptCondition(new Script(
-                                ScriptType.INLINE,
-                                Script.DEFAULT_SCRIPT_LANG,
-                                "ctx.payload.hits.total.value > 0",
-                                emptyMap()))).buildAsBytes(XContentType.JSON), XContentType.JSON);
+                        .condition(
+                            new ScriptCondition(
+                                new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "ctx.payload.hits.total.value > 0", emptyMap())
+                            )
+                        )
+                        .buildAsBytes(XContentType.JSON),
+                    XContentType.JSON
+                );
                 putAlertRequest.setId(name);
                 client.execute(PutWatchAction.INSTANCE, putAlertRequest).actionGet();
             }
@@ -123,12 +126,15 @@ public class WatcherExecutorServiceBenchmark {
             int numAlerts = 1000;
             for (int i = 0; i < numAlerts; i++) {
                 final String name = "_name" + i;
-                PutWatchRequest putAlertRequest = new PutWatchRequest(name, new WatchSourceBuilder()
-                        .trigger(schedule(interval("5s")))
-                        .input(searchInput(templateRequest(new SearchSourceBuilder(), "test"))
-                                .extractKeys("hits.total.value"))
+                PutWatchRequest putAlertRequest = new PutWatchRequest(
+                    name,
+                    new WatchSourceBuilder().trigger(schedule(interval("5s")))
+                        .input(searchInput(templateRequest(new SearchSourceBuilder(), "test")).extractKeys("hits.total.value"))
                         .condition(new ScriptCondition(new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "1 == 1", emptyMap())))
-                        .addAction("_id", indexAction("index")).buildAsBytes(XContentType.JSON), XContentType.JSON);
+                        .addAction("_id", indexAction("index"))
+                        .buildAsBytes(XContentType.JSON),
+                    XContentType.JSON
+                );
                 putAlertRequest.setId(name);
                 client.execute(PutWatchAction.INSTANCE, putAlertRequest).actionGet();
             }
@@ -153,7 +159,6 @@ public class WatcherExecutorServiceBenchmark {
                 threads[i].start();
             }
 
-
             for (Thread thread : threads) {
                 thread.join();
             }
@@ -168,14 +173,23 @@ public class WatcherExecutorServiceBenchmark {
             int numAlerts = 1000;
             for (int i = 0; i < numAlerts; i++) {
                 final String name = "_name" + i;
-                PutWatchRequest putAlertRequest = new PutWatchRequest(name, new WatchSourceBuilder()
-                        .trigger(schedule(interval("5s")))
+                PutWatchRequest putAlertRequest = new PutWatchRequest(
+                    name,
+                    new WatchSourceBuilder().trigger(schedule(interval("5s")))
                         .input(httpInput(HttpRequestTemplate.builder("localhost", 9200)))
-                        .condition(new ScriptCondition(new Script(
-                                ScriptType.INLINE,
-                                Script.DEFAULT_SCRIPT_LANG,
-                                "ctx.payload.tagline == \"You Know, for Search\"",
-                                emptyMap()))).buildAsBytes(XContentType.JSON), XContentType.JSON);
+                        .condition(
+                            new ScriptCondition(
+                                new Script(
+                                    ScriptType.INLINE,
+                                    Script.DEFAULT_SCRIPT_LANG,
+                                    "ctx.payload.tagline == \"You Know, for Search\"",
+                                    emptyMap()
+                                )
+                            )
+                        )
+                        .buildAsBytes(XContentType.JSON),
+                    XContentType.JSON
+                );
                 putAlertRequest.setId(name);
                 client.execute(PutWatchAction.INSTANCE, putAlertRequest).actionGet();
             }

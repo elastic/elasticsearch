@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;

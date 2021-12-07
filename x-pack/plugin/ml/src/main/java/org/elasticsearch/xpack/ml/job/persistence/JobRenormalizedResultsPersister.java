@@ -27,7 +27,6 @@ import java.util.List;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
-
 /**
  * Interface for classes that update {@linkplain Bucket Buckets}
  * for a particular job with new normalized anomaly scores and
@@ -115,4 +114,3 @@ public class JobRenormalizedResultsPersister {
         return bulkRequest;
     }
 }
-

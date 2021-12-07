@@ -1,0 +1,39 @@
+[discrete]
+[[breaking_${majorMinor}_${breakingAreaAnchor}]]
+==== ${breakingArea}
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+TIP: {ess-setting-change}
+
+<%
+[true, false].each { isNotable ->
+    def breakingChanges = breakingEntriesByNotability.getOrDefault(isNotable, [])
+
+    if (breakingChanges.isEmpty() == false) {
+        if (isNotable) {
+            /* No newline here, one will be added below */
+            print "// tag::notable-breaking-changes[]"
+        }
+
+        for (breaking in breakingChanges) { %>
+[[${ breaking.anchor }]]
+. ${breaking.title}${ breaking.essSettingChange ? ' {ess-icon}' : '' }
+[%collapsible]
+====
+*Details* +
+${breaking.details.trim()}
+
+*Impact* +
+${breaking.impact.trim()}
+====
+<%
+        }
+
+        if (isNotable) {
+            print "// end::notable-breaking-changes[]\n"
+        }
+    }
+}
+%>

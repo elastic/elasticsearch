@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Objects;
 
-
 public class PutTrainedModelResponse implements ToXContentObject {
 
     private final TrainedModelConfig trainedModelConfig;

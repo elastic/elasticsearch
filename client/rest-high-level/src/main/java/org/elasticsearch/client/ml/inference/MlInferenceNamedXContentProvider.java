@@ -8,8 +8,12 @@
 package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.client.ml.inference.preprocessing.CustomWordEmbedding;
+import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.Multi;
 import org.elasticsearch.client.ml.inference.preprocessing.NGram;
+import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
+import org.elasticsearch.client.ml.inference.preprocessing.PreProcessor;
+import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
 import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig;
@@ -24,13 +28,9 @@ import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedMode;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.WeightedSum;
 import org.elasticsearch.client.ml.inference.trainedmodel.langident.LangIdentNeuralNetwork;
 import org.elasticsearch.client.ml.inference.trainedmodel.tree.Tree;
-import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
-import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
-import org.elasticsearch.client.ml.inference.preprocessing.PreProcessor;
-import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,52 +42,58 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
 
         // PreProcessing
-        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(OneHotEncoding.NAME),
-            OneHotEncoding::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(TargetMeanEncoding.NAME),
-            TargetMeanEncoding::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(FrequencyEncoding.NAME),
-            FrequencyEncoding::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(CustomWordEmbedding.NAME),
-            CustomWordEmbedding::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(NGram.NAME),
-            NGram::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(Multi.NAME),
-            Multi::fromXContent));
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(OneHotEncoding.NAME), OneHotEncoding::fromXContent)
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(TargetMeanEncoding.NAME), TargetMeanEncoding::fromXContent)
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(FrequencyEncoding.NAME), FrequencyEncoding::fromXContent)
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(CustomWordEmbedding.NAME), CustomWordEmbedding::fromXContent)
+        );
+        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(NGram.NAME), NGram::fromXContent));
+        namedXContent.add(new NamedXContentRegistry.Entry(PreProcessor.class, new ParseField(Multi.NAME), Multi::fromXContent));
 
         // Model
         namedXContent.add(new NamedXContentRegistry.Entry(TrainedModel.class, new ParseField(Tree.NAME), Tree::fromXContent));
         namedXContent.add(new NamedXContentRegistry.Entry(TrainedModel.class, new ParseField(Ensemble.NAME), Ensemble::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(TrainedModel.class,
-            new ParseField(LangIdentNeuralNetwork.NAME),
-            LangIdentNeuralNetwork::fromXContent));
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                TrainedModel.class,
+                new ParseField(LangIdentNeuralNetwork.NAME),
+                LangIdentNeuralNetwork::fromXContent
+            )
+        );
 
         // Inference Config
-        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfig.class,
-            ClassificationConfig.NAME,
-            ClassificationConfig::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfig.class,
-            RegressionConfig.NAME,
-            RegressionConfig::fromXContent));
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(InferenceConfig.class, ClassificationConfig.NAME, ClassificationConfig::fromXContent)
+        );
+        namedXContent.add(new NamedXContentRegistry.Entry(InferenceConfig.class, RegressionConfig.NAME, RegressionConfig::fromXContent));
 
         // Aggregating output
-        namedXContent.add(new NamedXContentRegistry.Entry(OutputAggregator.class,
-            new ParseField(WeightedMode.NAME),
-            WeightedMode::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(OutputAggregator.class,
-            new ParseField(WeightedSum.NAME),
-            WeightedSum::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(OutputAggregator.class,
-            new ParseField(LogisticRegression.NAME),
-            LogisticRegression::fromXContent));
-        namedXContent.add(new NamedXContentRegistry.Entry(OutputAggregator.class,
-            new ParseField(Exponent.NAME),
-            Exponent::fromXContent));
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(OutputAggregator.class, new ParseField(WeightedMode.NAME), WeightedMode::fromXContent)
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(OutputAggregator.class, new ParseField(WeightedSum.NAME), WeightedSum::fromXContent)
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                OutputAggregator.class,
+                new ParseField(LogisticRegression.NAME),
+                LogisticRegression::fromXContent
+            )
+        );
+        namedXContent.add(new NamedXContentRegistry.Entry(OutputAggregator.class, new ParseField(Exponent.NAME), Exponent::fromXContent));
 
         // location
-        namedXContent.add(new NamedXContentRegistry.Entry(TrainedModelLocation.class,
-            new ParseField(IndexLocation.INDEX),
-            IndexLocation::fromXContent));
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(TrainedModelLocation.class, new ParseField(IndexLocation.INDEX), IndexLocation::fromXContent)
+        );
 
         return namedXContent;
     }

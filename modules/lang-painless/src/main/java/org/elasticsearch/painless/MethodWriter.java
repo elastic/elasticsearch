@@ -90,12 +90,16 @@ public final class MethodWriter extends GeneratorAdapter {
     private final BitSet statements;
     private final CompilerSettings settings;
 
-    private final Deque<List<Type>> stringConcatArgs =
-        (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ?  null : new ArrayDeque<>();
+    private final Deque<List<Type>> stringConcatArgs = (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE == null) ? null : new ArrayDeque<>();
 
     public MethodWriter(int access, Method method, ClassVisitor cw, BitSet statements, CompilerSettings settings) {
-        super(Opcodes.ASM5, cw.visitMethod(access, method.getName(), method.getDescriptor(), null, null),
-                access, method.getName(), method.getDescriptor());
+        super(
+            Opcodes.ASM5,
+            cw.visitMethod(access, method.getName(), method.getDescriptor(), null, null),
+            access,
+            method.getName(),
+            method.getDescriptor()
+        );
 
         this.statements = statements;
         this.settings = settings;
@@ -112,7 +116,7 @@ public final class MethodWriter extends GeneratorAdapter {
         // (e.g. nodes get assigned wrong offsets by antlr walker)
         // TODO: introduce a way to ignore internal statements so this assert is not triggered
         // TODO: https://github.com/elastic/elasticsearch/issues/51836
-        //assert statements.get(offset) == false;
+        // assert statements.get(offset) == false;
         statements.set(offset);
     }
 
@@ -167,44 +171,44 @@ public final class MethodWriter extends GeneratorAdapter {
             box(getType(cast.boxTargetType));
         } else if (cast.originalType == def.class) {
             if (cast.explicitCast) {
-                if      (cast.targetType == boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BOOLEAN);
-                else if (cast.targetType == byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BYTE_EXPLICIT);
-                else if (cast.targetType == short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_SHORT_EXPLICIT);
-                else if (cast.targetType == char.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_CHAR_EXPLICIT);
-                else if (cast.targetType == int.class)       invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_INT_EXPLICIT);
-                else if (cast.targetType == long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_LONG_EXPLICIT);
-                else if (cast.targetType == float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_FLOAT_EXPLICIT);
-                else if (cast.targetType == double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_DOUBLE_EXPLICIT);
-                else if (cast.targetType == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BOOLEAN);
-                else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BYTE_EXPLICIT);
-                else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_SHORT_EXPLICIT);
+                if (cast.targetType == boolean.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BOOLEAN);
+                else if (cast.targetType == byte.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BYTE_EXPLICIT);
+                else if (cast.targetType == short.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_SHORT_EXPLICIT);
+                else if (cast.targetType == char.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_CHAR_EXPLICIT);
+                else if (cast.targetType == int.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_INT_EXPLICIT);
+                else if (cast.targetType == long.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_LONG_EXPLICIT);
+                else if (cast.targetType == float.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_FLOAT_EXPLICIT);
+                else if (cast.targetType == double.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_DOUBLE_EXPLICIT);
+                else if (cast.targetType == Boolean.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BOOLEAN);
+                else if (cast.targetType == Byte.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BYTE_EXPLICIT);
+                else if (cast.targetType == Short.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_SHORT_EXPLICIT);
                 else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_CHARACTER_EXPLICIT);
-                else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_INTEGER_EXPLICIT);
-                else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_LONG_EXPLICIT);
-                else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_EXPLICIT);
-                else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_EXPLICIT);
-                else if (cast.targetType == String.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_STRING_EXPLICIT);
+                else if (cast.targetType == Integer.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_INTEGER_EXPLICIT);
+                else if (cast.targetType == Long.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_LONG_EXPLICIT);
+                else if (cast.targetType == Float.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_EXPLICIT);
+                else if (cast.targetType == Double.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_EXPLICIT);
+                else if (cast.targetType == String.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_STRING_EXPLICIT);
                 else {
                     writeCast(cast.originalType, cast.targetType);
                 }
             } else {
-                if      (cast.targetType == boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BOOLEAN);
-                else if (cast.targetType == byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BYTE_IMPLICIT);
-                else if (cast.targetType == short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_SHORT_IMPLICIT);
-                else if (cast.targetType == char.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_CHAR_IMPLICIT);
-                else if (cast.targetType == int.class)       invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_INT_IMPLICIT);
-                else if (cast.targetType == long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_LONG_IMPLICIT);
-                else if (cast.targetType == float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_FLOAT_IMPLICIT);
-                else if (cast.targetType == double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_DOUBLE_IMPLICIT);
-                else if (cast.targetType == Boolean.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BOOLEAN);
-                else if (cast.targetType == Byte.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BYTE_IMPLICIT);
-                else if (cast.targetType == Short.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_SHORT_IMPLICIT);
+                if (cast.targetType == boolean.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BOOLEAN);
+                else if (cast.targetType == byte.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_BYTE_IMPLICIT);
+                else if (cast.targetType == short.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_SHORT_IMPLICIT);
+                else if (cast.targetType == char.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_CHAR_IMPLICIT);
+                else if (cast.targetType == int.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_INT_IMPLICIT);
+                else if (cast.targetType == long.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_LONG_IMPLICIT);
+                else if (cast.targetType == float.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_FLOAT_IMPLICIT);
+                else if (cast.targetType == double.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_P_DOUBLE_IMPLICIT);
+                else if (cast.targetType == Boolean.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BOOLEAN);
+                else if (cast.targetType == Byte.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BYTE_IMPLICIT);
+                else if (cast.targetType == Short.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_SHORT_IMPLICIT);
                 else if (cast.targetType == Character.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_CHARACTER_IMPLICIT);
-                else if (cast.targetType == Integer.class)   invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_INTEGER_IMPLICIT);
-                else if (cast.targetType == Long.class)      invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_LONG_IMPLICIT);
-                else if (cast.targetType == Float.class)     invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_IMPLICIT);
-                else if (cast.targetType == Double.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_IMPLICIT);
-                else if (cast.targetType == String.class)    invokeStatic(DEF_UTIL_TYPE, DEF_TO_STRING_IMPLICIT);
+                else if (cast.targetType == Integer.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_INTEGER_IMPLICIT);
+                else if (cast.targetType == Long.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_LONG_IMPLICIT);
+                else if (cast.targetType == Float.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_FLOAT_IMPLICIT);
+                else if (cast.targetType == Double.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_DOUBLE_IMPLICIT);
+                else if (cast.targetType == String.class) invokeStatic(DEF_UTIL_TYPE, DEF_TO_STRING_IMPLICIT);
                 else {
                     writeCast(cast.originalType, cast.targetType);
                 }
@@ -290,24 +294,24 @@ public final class MethodWriter extends GeneratorAdapter {
             }
         } else {
             // Java 8: push a StringBuilder append
-            if      (clazz == boolean.class) invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_BOOLEAN);
-            else if (clazz == char.class)    invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_CHAR);
-            else if (clazz == byte.class  ||
-                     clazz == short.class ||
-                     clazz == int.class)     invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_INT);
-            else if (clazz == long.class)    invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_LONG);
-            else if (clazz == float.class)   invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_FLOAT);
-            else if (clazz == double.class)  invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_DOUBLE);
-            else if (clazz == String.class)  invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_STRING);
-            else                             invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_OBJECT);
+            if (clazz == boolean.class) invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_BOOLEAN);
+            else if (clazz == char.class) invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_CHAR);
+            else if (clazz == byte.class || clazz == short.class || clazz == int.class) invokeVirtual(
+                STRINGBUILDER_TYPE,
+                STRINGBUILDER_APPEND_INT
+            );
+            else if (clazz == long.class) invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_LONG);
+            else if (clazz == float.class) invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_FLOAT);
+            else if (clazz == double.class) invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_DOUBLE);
+            else if (clazz == String.class) invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_STRING);
+            else invokeVirtual(STRINGBUILDER_TYPE, STRINGBUILDER_APPEND_OBJECT);
         }
     }
 
     public void writeToStrings() {
         if (INDY_STRING_CONCAT_BOOTSTRAP_HANDLE != null) {
             // Java 9+: use type information and push invokeDynamic
-            final String desc = Type.getMethodDescriptor(STRING_TYPE,
-                    stringConcatArgs.pop().stream().toArray(Type[]::new));
+            final String desc = Type.getMethodDescriptor(STRING_TYPE, stringConcatArgs.pop().stream().toArray(Type[]::new));
             invokeDynamic("concat", desc, INDY_STRING_CONCAT_BOOTSTRAP_HANDLE);
         } else {
             // Java 8: call toString() on StringBuilder
@@ -316,8 +320,14 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     /** Writes a dynamic binary instruction: returnType, lhs, and rhs can be different */
-    public void writeDynamicBinaryInstruction(Location location, Class<?> returnType, Class<?> lhs, Class<?> rhs,
-                                              Operation operation, int flags) {
+    public void writeDynamicBinaryInstruction(
+        Location location,
+        Class<?> returnType,
+        Class<?> lhs,
+        Class<?> rhs,
+        Operation operation,
+        int flags
+    ) {
         Type methodType = Type.getMethodType(getType(returnType), getType(lhs), getType(rhs));
 
         switch (operation) {
@@ -368,10 +378,13 @@ public final class MethodWriter extends GeneratorAdapter {
 
     /** Writes a static binary instruction */
     public void writeBinaryInstruction(Location location, Class<?> clazz, Operation operation) {
-        if (    (clazz == float.class || clazz == double.class) &&
-                (operation == Operation.LSH || operation == Operation.USH ||
-                operation == Operation.RSH || operation == Operation.BWAND ||
-                operation == Operation.XOR || operation == Operation.BWOR)) {
+        if ((clazz == float.class || clazz == double.class)
+            && (operation == Operation.LSH
+                || operation == Operation.USH
+                || operation == Operation.RSH
+                || operation == Operation.BWAND
+                || operation == Operation.XOR
+                || operation == Operation.BWOR)) {
             throw location.createError(new IllegalStateException("Illegal tree structure."));
         }
 
@@ -480,8 +493,13 @@ public final class MethodWriter extends GeneratorAdapter {
             // true to reference the appropriate class constant when calling a static interface
             // method since java 8 did not check, but java 9 and 10 do
             if (painlessMethod.javaMethod.getDeclaringClass().isInterface()) {
-                visitMethodInsn(Opcodes.INVOKESTATIC, type.getInternalName(),
-                        painlessMethod.javaMethod.getName(), method.getDescriptor(), true);
+                visitMethodInsn(
+                    Opcodes.INVOKESTATIC,
+                    type.getInternalName(),
+                    painlessMethod.javaMethod.getName(),
+                    method.getDescriptor(),
+                    true
+                );
             } else {
                 invokeStatic(type, method);
             }

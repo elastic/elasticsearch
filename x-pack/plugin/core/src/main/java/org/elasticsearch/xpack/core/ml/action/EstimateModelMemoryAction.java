@@ -10,11 +10,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -43,17 +43,20 @@ public class EstimateModelMemoryAction extends ActionType<EstimateModelMemoryAct
         public static final ParseField OVERALL_CARDINALITY = new ParseField("overall_cardinality");
         public static final ParseField MAX_BUCKET_CARDINALITY = new ParseField("max_bucket_cardinality");
 
-        public static final ObjectParser<Request, Void> PARSER =
-            new ObjectParser<>(NAME, EstimateModelMemoryAction.Request::new);
+        public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, EstimateModelMemoryAction.Request::new);
 
         static {
             PARSER.declareObject(Request::setAnalysisConfig, (p, c) -> AnalysisConfig.STRICT_PARSER.apply(p, c).build(), ANALYSIS_CONFIG);
-            PARSER.declareObject(Request::setOverallCardinality,
+            PARSER.declareObject(
+                Request::setOverallCardinality,
                 (p, c) -> p.map(HashMap::new, parser -> Request.parseNonNegativeLong(parser, OVERALL_CARDINALITY)),
-                OVERALL_CARDINALITY);
-            PARSER.declareObject(Request::setMaxBucketCardinality,
+                OVERALL_CARDINALITY
+            );
+            PARSER.declareObject(
+                Request::setMaxBucketCardinality,
                 (p, c) -> p.map(HashMap::new, parser -> Request.parseNonNegativeLong(parser, MAX_BUCKET_CARDINALITY)),
-                MAX_BUCKET_CARDINALITY);
+                MAX_BUCKET_CARDINALITY
+            );
         }
 
         public static Request parseRequest(XContentParser parser) {
@@ -111,8 +114,7 @@ public class EstimateModelMemoryAction extends ActionType<EstimateModelMemoryAct
         }
 
         public void setOverallCardinality(Map<String, Long> overallCardinality) {
-            this.overallCardinality =
-                Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(overallCardinality, OVERALL_CARDINALITY));
+            this.overallCardinality = Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(overallCardinality, OVERALL_CARDINALITY));
         }
 
         public Map<String, Long> getMaxBucketCardinality() {
@@ -120,15 +122,19 @@ public class EstimateModelMemoryAction extends ActionType<EstimateModelMemoryAct
         }
 
         public void setMaxBucketCardinality(Map<String, Long> maxBucketCardinality) {
-            this.maxBucketCardinality =
-                Collections.unmodifiableMap(ExceptionsHelper.requireNonNull(maxBucketCardinality, MAX_BUCKET_CARDINALITY));
+            this.maxBucketCardinality = Collections.unmodifiableMap(
+                ExceptionsHelper.requireNonNull(maxBucketCardinality, MAX_BUCKET_CARDINALITY)
+            );
         }
 
         private static long parseNonNegativeLong(XContentParser parser, ParseField enclosingField) throws IOException {
             long value = parser.longValue();
             if (value < 0) {
-                throw ExceptionsHelper.badRequestException("[{}] contained negative cardinality [{}]",
-                    enclosingField.getPreferredName(), value);
+                throw ExceptionsHelper.badRequestException(
+                    "[{}] contained negative cardinality [{}]",
+                    enclosingField.getPreferredName(),
+                    value
+                );
             }
             return value;
         }

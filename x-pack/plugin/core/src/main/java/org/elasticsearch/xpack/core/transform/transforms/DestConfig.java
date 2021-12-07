@@ -38,9 +38,11 @@ public class DestConfig implements Writeable, ToXContentObject {
     public static final ConstructingObjectParser<DestConfig, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<DestConfig, Void> createParser(boolean lenient) {
-        ConstructingObjectParser<DestConfig, Void> parser = new ConstructingObjectParser<>("data_frame_config_dest",
+        ConstructingObjectParser<DestConfig, Void> parser = new ConstructingObjectParser<>(
+            "data_frame_config_dest",
             lenient,
-            args -> new DestConfig((String)args[0], (String) args[1]));
+            args -> new DestConfig((String) args[0], (String) args[1])
+        );
         parser.declareString(constructorArg(), INDEX);
         parser.declareString(optionalConstructorArg(), PIPELINE);
         return parser;
@@ -78,8 +80,7 @@ public class DestConfig implements Writeable, ToXContentObject {
         return validationException;
     }
 
-    public void checkForDeprecations(String id, NamedXContentRegistry namedXContentRegistry, Consumer<DeprecationIssue> onDeprecation) {
-    }
+    public void checkForDeprecations(String id, NamedXContentRegistry namedXContentRegistry, Consumer<DeprecationIssue> onDeprecation) {}
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -110,12 +111,11 @@ public class DestConfig implements Writeable, ToXContentObject {
         }
 
         DestConfig that = (DestConfig) other;
-        return Objects.equals(index, that.index) &&
-            Objects.equals(pipeline, that.pipeline);
+        return Objects.equals(index, that.index) && Objects.equals(pipeline, that.pipeline);
     }
 
     @Override
-    public int hashCode(){
+    public int hashCode() {
         return Objects.hash(index, pipeline);
     }
 

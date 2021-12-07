@@ -14,12 +14,12 @@ import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -31,9 +31,13 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
     public static final String NAME = "_score";
     private static final SortFieldAndFormat SORT_SCORE = new SortFieldAndFormat(
-            new SortField(null, SortField.Type.SCORE), DocValueFormat.RAW);
+        new SortField(null, SortField.Type.SCORE),
+        DocValueFormat.RAW
+    );
     private static final SortFieldAndFormat SORT_SCORE_REVERSE = new SortFieldAndFormat(
-            new SortField(null, SortField.Type.SCORE, true), DocValueFormat.RAW);
+        new SortField(null, SortField.Type.SCORE, true),
+        DocValueFormat.RAW
+    );
 
     /**
      * Build a ScoreSortBuilder default to descending sort order.
@@ -98,7 +102,9 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
         throws IOException {
         return new BucketedSort.ForFloats(bigArrays, order, DocValueFormat.RAW, bucketSize, extra) {
             @Override
-            public boolean needsScores() { return true; }
+            public boolean needsScores() {
+                return true;
+            }
 
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {

@@ -33,20 +33,14 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
     public void testAsyncSearch() throws IOException {
         String index = "test-index";
         createIndex(index, Settings.EMPTY);
-        BulkRequest bulkRequest = new BulkRequest()
-            .add(new IndexRequest(index).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON))
+        BulkRequest bulkRequest = new BulkRequest().add(
+            new IndexRequest(index).id("1").source(Collections.singletonMap("foo", "bar"), XContentType.JSON)
+        )
             .add(new IndexRequest(index).id("2").source(Collections.singletonMap("foo", "bar2"), XContentType.JSON))
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        assertEquals(
-            RestStatus.OK,
-            highLevelClient().bulk(
-                bulkRequest,
-                RequestOptions.DEFAULT
-            ).status()
-        );
+        assertEquals(RestStatus.OK, highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT).status());
 
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
-            .query(QueryBuilders.matchAllQuery())
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery())
             .aggregation(AggregationBuilders.terms("1").field("foo.keyword"));
         SubmitAsyncSearchRequest submitRequest = new SubmitAsyncSearchRequest(sourceBuilder, index);
         submitRequest.setKeepOnCompletion(true);
@@ -81,8 +75,7 @@ public class AsyncSearchIT extends ESRestHighLevelClientTestCase {
         assertThat(terms.getBuckets().get(1).getDocCount(), equalTo(1L));
 
         DeleteAsyncSearchRequest deleteRequest = new DeleteAsyncSearchRequest(submitResponse.getId());
-        AcknowledgedResponse deleteAsyncSearchResponse = highLevelClient().asyncSearch().delete(deleteRequest,
-                RequestOptions.DEFAULT);
+        AcknowledgedResponse deleteAsyncSearchResponse = highLevelClient().asyncSearch().delete(deleteRequest, RequestOptions.DEFAULT);
         assertNotNull(deleteAsyncSearchResponse);
         assertNotNull(deleteAsyncSearchResponse.isAcknowledged());
     }

@@ -9,8 +9,8 @@ package org.elasticsearch.client.rollup.job.config;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -47,7 +47,8 @@ public class MetricConfig implements Validatable, ToXContentObject {
     private static final ConstructingObjectParser<MetricConfig, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, true, args -> {
-            @SuppressWarnings("unchecked") List<String> metrics = (List<String>) args[1];
+            @SuppressWarnings("unchecked")
+            List<String> metrics = (List<String>) args[1];
             return new MetricConfig((String) args[0], metrics);
         });
         PARSER.declareString(constructorArg(), new ParseField(FIELD));

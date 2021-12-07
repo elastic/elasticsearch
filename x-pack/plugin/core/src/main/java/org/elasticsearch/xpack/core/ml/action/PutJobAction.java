@@ -41,8 +41,9 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
                 jobBuilder.setId(jobId);
             } else if (Strings.isNullOrEmpty(jobId) == false && jobId.equals(jobBuilder.getId()) == false) {
                 // If we have both URI and body jobBuilder ID, they must be identical
-                throw new IllegalArgumentException(Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(),
-                        jobBuilder.getId(), jobId));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.INCONSISTENT_ID, Job.ID.getPreferredName(), jobBuilder.getId(), jobId)
+                );
             }
             jobBuilder.setDatafeedIndicesOptionsIfRequired(indicesOptions);
             return new Request(jobBuilder);
@@ -61,8 +62,9 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
             // Some fields cannot be set at create time
             List<String> invalidJobCreationSettings = jobBuilder.invalidCreateTimeSettings();
             if (invalidJobCreationSettings.isEmpty() == false) {
-                throw new IllegalArgumentException(Messages.getMessage(Messages.JOB_CONFIG_INVALID_CREATE_SETTINGS,
-                        String.join(",", invalidJobCreationSettings)));
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.JOB_CONFIG_INVALID_CREATE_SETTINGS, String.join(",", invalidJobCreationSettings))
+                );
             }
 
             this.jobBuilder = jobBuilder;

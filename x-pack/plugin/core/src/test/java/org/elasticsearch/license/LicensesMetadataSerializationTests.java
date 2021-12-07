@@ -13,13 +13,13 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContent.Params;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.UUID;
@@ -90,12 +90,12 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
     public void testXContentSerializationOneTrial() throws Exception {
         long issueDate = System.currentTimeMillis();
         License.Builder specBuilder = License.builder()
-                .uid(UUID.randomUUID().toString())
-                .issuedTo("customer")
-                .maxNodes(5)
-                .issueDate(issueDate)
-                .type(randomBoolean() ? "trial" : "basic")
-                .expiryDate(issueDate + TimeValue.timeValueHours(2).getMillis());
+            .uid(UUID.randomUUID().toString())
+            .issuedTo("customer")
+            .maxNodes(5)
+            .issueDate(issueDate)
+            .type(randomBoolean() ? "trial" : "basic")
+            .expiryDate(issueDate + TimeValue.timeValueHours(2).getMillis());
         final License trialLicense = SelfGeneratedLicense.create(specBuilder, License.VERSION_CURRENT);
         LicensesMetadata licensesMetadata = new LicensesMetadata(trialLicense, Version.CURRENT);
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -144,9 +144,9 @@ public class LicensesMetadataSerializationTests extends ESTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(Stream.concat(
-                new Licensing(Settings.EMPTY).getNamedXContent().stream(),
-                ClusterModule.getNamedXWriteables().stream()
-        ).collect(Collectors.toList()));
+        return new NamedXContentRegistry(
+            Stream.concat(new Licensing(Settings.EMPTY).getNamedXContent().stream(), ClusterModule.getNamedXWriteables().stream())
+                .collect(Collectors.toList())
+        );
     }
 }

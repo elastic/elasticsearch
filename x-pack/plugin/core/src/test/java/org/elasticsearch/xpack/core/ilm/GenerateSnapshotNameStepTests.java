@@ -80,10 +80,13 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         RepositoryMetadata repo = new RepositoryMetadata(generateSnapshotNameStep.getSnapshotRepository(), "fs", Settings.EMPTY);
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder()
-                .put(indexMetadata, false)
-                .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
-                .build()).build();
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, false)
+                    .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
+                    .build()
+            )
+            .build();
 
         ClusterState newClusterState;
 
@@ -91,8 +94,11 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
         LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(indexName));
         assertThat(executionState.getSnapshotIndexName(), is(indexName));
-        assertThat("the " + GenerateSnapshotNameStep.NAME + " step must generate a snapshot name", executionState.getSnapshotName(),
-            notNullValue());
+        assertThat(
+            "the " + GenerateSnapshotNameStep.NAME + " step must generate a snapshot name",
+            executionState.getSnapshotName(),
+            notNullValue()
+        );
         assertThat(executionState.getSnapshotRepository(), is(generateSnapshotNameStep.getSnapshotRepository()));
         assertThat(executionState.getSnapshotName(), containsString(indexName.toLowerCase(Locale.ROOT)));
         assertThat(executionState.getSnapshotName(), containsString(policyName.toLowerCase(Locale.ROOT)));
@@ -117,16 +123,25 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         GenerateSnapshotNameStep generateSnapshotNameStep = createRandomInstance();
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder()
-                .put(indexMetadata, false)
-                .putCustom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY)
-                .build()).build();
+            .metadata(Metadata.builder().put(indexMetadata, false).putCustom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).build())
+            .build();
 
-        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-            () -> generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState));
-        assertThat(illegalStateException.getMessage(), is("repository [" + generateSnapshotNameStep.getSnapshotRepository() + "] " +
-            "is missing. [test-ilm-policy] policy for index [" + indexName + "] cannot continue until the repository " +
-            "is created or the policy is changed"));
+        IllegalStateException illegalStateException = expectThrows(
+            IllegalStateException.class,
+            () -> generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState)
+        );
+        assertThat(
+            illegalStateException.getMessage(),
+            is(
+                "repository ["
+                    + generateSnapshotNameStep.getSnapshotRepository()
+                    + "] "
+                    + "is missing. [test-ilm-policy] policy for index ["
+                    + indexName
+                    + "] cannot continue until the repository "
+                    + "is created or the policy is changed"
+            )
+        );
     }
 
     public void testPerformActionWillOverwriteCachedRepository() {
@@ -150,10 +165,13 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         RepositoryMetadata repo = new RepositoryMetadata(generateSnapshotNameStep.getSnapshotRepository(), "fs", Settings.EMPTY);
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder()
-                .put(indexMetadata, false)
-                .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
-                .build()).build();
+            .metadata(
+                Metadata.builder()
+                    .put(indexMetadata, false)
+                    .putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(Collections.singletonList(repo)))
+                    .build()
+            )
+            .build();
 
         ClusterState newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
 
@@ -193,8 +211,10 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         {
             ActionRequestValidationException validationException = validateGeneratedSnapshotName("_start", generateSnapshotName("_start"));
             assertThat(validationException, notNullValue());
-            assertThat(validationException.validationErrors(), containsInAnyOrder("invalid snapshot name [_start]: must not start with " +
-                "'_'"));
+            assertThat(
+                validationException.validationErrors(),
+                containsInAnyOrder("invalid snapshot name [_start]: must not start with " + "'_'")
+            );
         }
         {
             ActionRequestValidationException validationException = validateGeneratedSnapshotName("aBcD", generateSnapshotName("aBcD"));
@@ -204,8 +224,14 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
         {
             ActionRequestValidationException validationException = validateGeneratedSnapshotName("na>me", generateSnapshotName("na>me"));
             assertThat(validationException, notNullValue());
-            assertThat(validationException.validationErrors(), containsInAnyOrder("invalid snapshot name [na>me]: must not contain " +
-                "contain the following characters " + Strings.INVALID_FILENAME_CHARS));
+            assertThat(
+                validationException.validationErrors(),
+                containsInAnyOrder(
+                    "invalid snapshot name [na>me]: must not contain "
+                        + "contain the following characters "
+                        + Strings.INVALID_FILENAME_CHARS
+                )
+            );
         }
     }
 }

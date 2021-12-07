@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class EvilOsProbeTests extends ESTestCase {
 
-    public void testOsPrettyName() throws IOException  {
+    public void testOsPrettyName() throws IOException {
         final OsInfo osInfo = OsProbe.getInstance().osInfo(randomLongBetween(1, 100), randomIntBetween(1, 8));
         if (Constants.LINUX) {
             final List<String> lines;
@@ -33,7 +33,8 @@ public class EvilOsProbeTests extends ESTestCase {
                 lines = Files.readAllLines(PathUtils.get("/usr/lib/os-release"));
             } else {
                 lines = Collections.singletonList(
-                        "PRETTY_NAME=\"" + Files.readAllLines(PathUtils.get("/etc/system-release")).get(0) + "\"");
+                    "PRETTY_NAME=\"" + Files.readAllLines(PathUtils.get("/etc/system-release")).get(0) + "\""
+                );
             }
             for (final String line : lines) {
                 if (line != null && line.startsWith("PRETTY_NAME=")) {

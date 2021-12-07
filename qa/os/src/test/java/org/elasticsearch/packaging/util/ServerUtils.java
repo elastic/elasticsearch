@@ -155,6 +155,7 @@ public class ServerUtils {
             } catch (IOException e) {
                 // ignore, only want to establish a connection
             }
+
             try {
                 Thread.sleep(2000);
             } catch (InterruptedException interrupted) {
@@ -172,7 +173,7 @@ public class ServerUtils {
     public static Path getCaCert(Installation installation) throws IOException {
         if (installation.distribution.isDocker()) {
             final Path tempDir = PackagingTestCase.createTempDir("docker-ssl");
-            final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_initial_node_*\"");
+            final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"tls_auto_config_*\"");
             if (autoConfigurationDir != null) {
                 final Path hostHttpCaCert = tempDir.resolve("http_ca.crt");
                 copyFromContainer(autoConfigurationDir.resolve("http_ca.crt"), hostHttpCaCert);
@@ -198,7 +199,7 @@ public class ServerUtils {
         }
         if (enrollmentEnabled && httpSslEnabled) {
             assert Files.exists(caCert) == false;
-            List<Path> allAutoconfTLS = FileUtils.lsGlob(configPath, "tls_auto_config_initial_node_*");
+            List<Path> allAutoconfTLS = FileUtils.lsGlob(configPath, "tls_auto_config_*");
             assertThat(allAutoconfTLS.size(), is(1));
             Path autoconfTLSDir = allAutoconfTLS.get(0);
             caCert = autoconfTLSDir.resolve("http_ca.crt");
@@ -418,6 +419,25 @@ public class ServerUtils {
 
     public static void removeSettingFromExistingConfiguration(Installation installation, String setting) throws IOException {
         Path yml = installation.config("elasticsearch.yml");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith(setting) == false).collect(Collectors.toList());
+        }
+        Files.write(yml, lines, TRUNCATE_EXISTING);
+    }
+
+    public static void addSettingToExistingConfiguration(Path customConf, String setting, String value) throws IOException {
+        Path yml = customConf.resolve("elasticsearch.yml");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.filter(s -> s.startsWith(setting) == false).collect(Collectors.toList());
+        }
+        lines.add(setting + ": " + value);
+        Files.write(yml, lines, TRUNCATE_EXISTING);
+    }
+
+    public static void removeSettingFromExistingConfiguration(Path customConf, String setting) throws IOException {
+        Path yml = customConf.resolve("elasticsearch.yml");
         List<String> lines;
         try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
             lines = allLines.filter(s -> s.startsWith(setting) == false).collect(Collectors.toList());

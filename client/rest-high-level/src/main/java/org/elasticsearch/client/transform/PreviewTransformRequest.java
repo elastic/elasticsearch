@@ -47,10 +47,7 @@ public class PreviewTransformRequest implements ToXContentObject, Validatable {
         if (this.config != null) {
             return this.config.toXContent(builder, params);
         } else {
-            return builder
-                .startObject()
-                .field(TransformConfig.ID.getPreferredName(), this.transformId)
-                .endObject();
+            return builder.startObject().field(TransformConfig.ID.getPreferredName(), this.transformId).endObject();
         }
     }
 
@@ -84,7 +81,6 @@ public class PreviewTransformRequest implements ToXContentObject, Validatable {
             return false;
         }
         PreviewTransformRequest other = (PreviewTransformRequest) obj;
-        return Objects.equals(transformId, other.transformId)
-            && Objects.equals(config, other.config);
+        return Objects.equals(transformId, other.transformId) && Objects.equals(config, other.config);
     }
 }

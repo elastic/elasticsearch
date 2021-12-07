@@ -18,7 +18,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 
-
 /**
  * Uses the {@link org.apache.lucene.analysis.icu.ICUFoldingFilter}.
  * Applies foldings from UTR#30 Character Foldings.
@@ -35,7 +34,10 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 public class IcuFoldingTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
     /** Store here the same Normalizer used by the lucene ICUFoldingFilter */
     private static final Normalizer2 ICU_FOLDING_NORMALIZER = Normalizer2.getInstance(
-            ICUFoldingFilter.class.getResourceAsStream("utr30.nrm"), "utr30", Normalizer2.Mode.COMPOSE);
+        ICUFoldingFilter.class.getResourceAsStream("utr30.nrm"),
+        "utr30",
+        Normalizer2.Mode.COMPOSE
+    );
 
     private final Normalizer2 normalizer;
 

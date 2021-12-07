@@ -65,8 +65,8 @@ public class FrozenIndicesFeatureSetUsage extends XPackFeatureSet.Usage {
             return false;
         }
         FrozenIndicesFeatureSetUsage other = (FrozenIndicesFeatureSetUsage) obj;
-        return Objects.equals(available, other.available) &&
-            Objects.equals(enabled, other.enabled) &&
-            Objects.equals(numberOfFrozenIndices, other.numberOfFrozenIndices);
+        return Objects.equals(available, other.available)
+            && Objects.equals(enabled, other.enabled)
+            && Objects.equals(numberOfFrozenIndices, other.numberOfFrozenIndices);
     }
 }

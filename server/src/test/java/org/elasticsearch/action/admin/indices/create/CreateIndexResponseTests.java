@@ -10,9 +10,9 @@ package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 
@@ -44,8 +44,11 @@ public class CreateIndexResponseTests extends AbstractSerializingTestCase<Create
                 return new CreateIndexResponse(acknowledged, shardsAcknowledged, response.index());
             }
         } else {
-            return new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(),
-                        response.index() + randomAlphaOfLengthBetween(2, 5));
+            return new CreateIndexResponse(
+                response.isAcknowledged(),
+                response.isShardsAcknowledged(),
+                response.index() + randomAlphaOfLengthBetween(2, 5)
+            );
         }
     }
 

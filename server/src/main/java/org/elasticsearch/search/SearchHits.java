@@ -11,15 +11,16 @@ package org.elasticsearch.search;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,8 +57,14 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         this(hits, totalHits, maxScore, null, null, null);
     }
 
-    public SearchHits(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore, @Nullable SortField[] sortFields,
-                      @Nullable String collapseField, @Nullable Object[] collapseValues) {
+    public SearchHits(
+        SearchHit[] hits,
+        @Nullable TotalHits totalHits,
+        float maxScore,
+        @Nullable SortField[] sortFields,
+        @Nullable String collapseField,
+        @Nullable Object[] collapseValues
+    ) {
         this.hits = hits;
         this.totalHits = totalHits;
         this.maxScore = maxScore;
@@ -164,7 +171,7 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
 
     @Override
     public Iterator<SearchHit> iterator() {
-        return Arrays.stream(getHits()).iterator();
+        return Iterators.forArray(getHits());
     }
 
     public static final class Fields {
@@ -252,17 +259,23 @@ public final class SearchHits implements Writeable, ToXContentFragment, Iterable
         }
         SearchHits other = (SearchHits) obj;
         return Objects.equals(totalHits, other.totalHits)
-                && Objects.equals(maxScore, other.maxScore)
-                && Arrays.equals(hits, other.hits)
-                && Arrays.equals(sortFields, other.sortFields)
-                && Objects.equals(collapseField, other.collapseField)
-                && Arrays.equals(collapseValues, other.collapseValues);
+            && Objects.equals(maxScore, other.maxScore)
+            && Arrays.equals(hits, other.hits)
+            && Arrays.equals(sortFields, other.sortFields)
+            && Objects.equals(collapseField, other.collapseField)
+            && Arrays.equals(collapseValues, other.collapseValues);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalHits, maxScore, Arrays.hashCode(hits),
-            Arrays.hashCode(sortFields), collapseField, Arrays.hashCode(collapseValues));
+        return Objects.hash(
+            totalHits,
+            maxScore,
+            Arrays.hashCode(hits),
+            Arrays.hashCode(sortFields),
+            collapseField,
+            Arrays.hashCode(collapseValues)
+        );
     }
 
     public static TotalHits parseTotalHitsFragment(XContentParser parser) throws IOException {

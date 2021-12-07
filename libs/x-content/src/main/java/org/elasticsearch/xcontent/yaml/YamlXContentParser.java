@@ -9,37 +9,16 @@
 package org.elasticsearch.xcontent.yaml;
 
 import com.fasterxml.jackson.core.JsonParser;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContentParser;
-import org.elasticsearch.xcontent.support.filtering.FilterPath;
 
 public class YamlXContentParser extends JsonXContentParser {
 
-    public YamlXContentParser(NamedXContentRegistry xContentRegistry,
-            DeprecationHandler deprecationHandler, JsonParser parser) {
-        super(xContentRegistry, deprecationHandler, parser);
+    public YamlXContentParser(XContentParserConfiguration config, JsonParser parser) {
+        super(config, parser);
     }
-
-    public YamlXContentParser(NamedXContentRegistry xContentRegistry,
-                              DeprecationHandler deprecationHandler, JsonParser parser,
-                              RestApiVersion restApiVersion) {
-        super(xContentRegistry, deprecationHandler, parser, restApiVersion);
-    }
-
-    public YamlXContentParser(
-        NamedXContentRegistry xContentRegistry,
-        DeprecationHandler deprecationHandler,
-        JsonParser parser,
-        RestApiVersion restApiVersion,
-        FilterPath[] includes,
-        FilterPath[] excludes
-    ) {
-        super(xContentRegistry, deprecationHandler, parser, restApiVersion, includes, excludes);
-    }
-
 
     @Override
     public XContentType contentType() {

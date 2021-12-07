@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -29,16 +29,18 @@ public class DetailAnalyzeResponse {
     private final AnalyzeTokenList tokenizer;
     private final AnalyzeTokenList[] tokenfilters;
 
-    private DetailAnalyzeResponse(boolean customAnalyzer,
-                                 AnalyzeTokenList analyzer,
-                                 List<CharFilteredText> charfilters,
-                                 AnalyzeTokenList tokenizer,
-                                 List<AnalyzeTokenList> tokenfilters) {
+    private DetailAnalyzeResponse(
+        boolean customAnalyzer,
+        AnalyzeTokenList analyzer,
+        List<CharFilteredText> charfilters,
+        AnalyzeTokenList tokenizer,
+        List<AnalyzeTokenList> tokenfilters
+    ) {
         this.customAnalyzer = customAnalyzer;
         this.analyzer = analyzer;
-        this.charfilters = charfilters == null ? null : charfilters.toArray(new CharFilteredText[]{});
+        this.charfilters = charfilters == null ? null : charfilters.toArray(new CharFilteredText[] {});
         this.tokenizer = tokenizer;
-        this.tokenfilters = tokenfilters == null ? null : tokenfilters.toArray(new AnalyzeTokenList[]{});
+        this.tokenfilters = tokenfilters == null ? null : tokenfilters.toArray(new AnalyzeTokenList[] {});
     }
 
     public AnalyzeTokenList analyzer() {
@@ -62,11 +64,11 @@ public class DetailAnalyzeResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DetailAnalyzeResponse that = (DetailAnalyzeResponse) o;
-        return customAnalyzer == that.customAnalyzer &&
-            Objects.equals(analyzer, that.analyzer) &&
-            Arrays.equals(charfilters, that.charfilters) &&
-            Objects.equals(tokenizer, that.tokenizer) &&
-            Arrays.equals(tokenfilters, that.tokenfilters);
+        return customAnalyzer == that.customAnalyzer
+            && Objects.equals(analyzer, that.analyzer)
+            && Arrays.equals(charfilters, that.charfilters)
+            && Objects.equals(tokenizer, that.tokenizer)
+            && Arrays.equals(tokenfilters, that.tokenfilters);
     }
 
     @Override
@@ -78,13 +80,17 @@ public class DetailAnalyzeResponse {
     }
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<DetailAnalyzeResponse, Void> PARSER = new ConstructingObjectParser<>("detail",
-        true, args -> new DetailAnalyzeResponse(
-        (boolean) args[0],
-        (AnalyzeTokenList) args[1],
-        (List<CharFilteredText>)args[2],
-        (AnalyzeTokenList) args[3],
-        (List<AnalyzeTokenList>)args[4]));
+    static final ConstructingObjectParser<DetailAnalyzeResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "detail",
+        true,
+        args -> new DetailAnalyzeResponse(
+            (boolean) args[0],
+            (AnalyzeTokenList) args[1],
+            (List<CharFilteredText>) args[2],
+            (AnalyzeTokenList) args[3],
+            (List<AnalyzeTokenList>) args[4]
+        )
+    );
 
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("custom_analyzer"));
@@ -107,8 +113,7 @@ public class DetailAnalyzeResponse {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             AnalyzeTokenList that = (AnalyzeTokenList) o;
-            return Objects.equals(name, that.name) &&
-                Arrays.equals(tokens, that.tokens);
+            return Objects.equals(name, that.name) && Arrays.equals(tokens, that.tokens);
         }
 
         @Override
@@ -120,7 +125,7 @@ public class DetailAnalyzeResponse {
 
         public AnalyzeTokenList(String name, List<AnalyzeResponse.AnalyzeToken> tokens) {
             this.name = name;
-            this.tokens = tokens.toArray(new AnalyzeResponse.AnalyzeToken[]{});
+            this.tokens = tokens.toArray(new AnalyzeResponse.AnalyzeToken[] {});
         }
 
         public String getName() {
@@ -132,14 +137,15 @@ public class DetailAnalyzeResponse {
         }
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<AnalyzeTokenList, Void> PARSER = new ConstructingObjectParser<>("token_list",
-            true, args -> new AnalyzeTokenList((String) args[0],
-            (List<AnalyzeResponse.AnalyzeToken>)args[1]));
+        private static final ConstructingObjectParser<AnalyzeTokenList, Void> PARSER = new ConstructingObjectParser<>(
+            "token_list",
+            true,
+            args -> new AnalyzeTokenList((String) args[0], (List<AnalyzeResponse.AnalyzeToken>) args[1])
+        );
 
         static {
             PARSER.declareString(constructorArg(), new ParseField("name"));
-            PARSER.declareObjectArray(constructorArg(), (p, c) -> AnalyzeResponse.AnalyzeToken.fromXContent(p),
-                new ParseField("tokens"));
+            PARSER.declareObjectArray(constructorArg(), (p, c) -> AnalyzeResponse.AnalyzeToken.fromXContent(p), new ParseField("tokens"));
         }
 
         public static AnalyzeTokenList fromXContent(XContentParser parser) throws IOException {
@@ -170,8 +176,11 @@ public class DetailAnalyzeResponse {
         }
 
         @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<CharFilteredText, Void> PARSER = new ConstructingObjectParser<>("char_filtered_text",
-            true, args -> new CharFilteredText((String) args[0], ((List<String>) args[1]).toArray(new String[0])));
+        private static final ConstructingObjectParser<CharFilteredText, Void> PARSER = new ConstructingObjectParser<>(
+            "char_filtered_text",
+            true,
+            args -> new CharFilteredText((String) args[0], ((List<String>) args[1]).toArray(new String[0]))
+        );
 
         static {
             PARSER.declareString(constructorArg(), new ParseField("name"));
@@ -187,8 +196,7 @@ public class DetailAnalyzeResponse {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             CharFilteredText that = (CharFilteredText) o;
-            return Objects.equals(name, that.name) &&
-                Arrays.equals(texts, that.texts);
+            return Objects.equals(name, that.name) && Arrays.equals(texts, that.texts);
         }
 
         @Override

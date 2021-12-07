@@ -8,14 +8,14 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -30,8 +30,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public class TemplateRoleName implements ToXContentObject {
 
-    private static final ConstructingObjectParser<TemplateRoleName, Void> PARSER = new ConstructingObjectParser<>("template-role-name",
-        true, args -> new TemplateRoleName((String) args[0], (Format) args[1]));
+    private static final ConstructingObjectParser<TemplateRoleName, Void> PARSER = new ConstructingObjectParser<>(
+        "template-role-name",
+        true,
+        args -> new TemplateRoleName((String) args[0], (Format) args[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Fields.TEMPLATE);
@@ -66,8 +69,7 @@ public class TemplateRoleName implements ToXContentObject {
             return false;
         }
         final TemplateRoleName that = (TemplateRoleName) o;
-        return Objects.equals(this.template, that.template) &&
-            this.format == that.format;
+        return Objects.equals(this.template, that.template) && this.format == that.format;
     }
 
     @Override
@@ -88,9 +90,9 @@ public class TemplateRoleName implements ToXContentObject {
         return PARSER.parse(parser, null);
     }
 
-
     public enum Format {
-        STRING, JSON;
+        STRING,
+        JSON;
 
         private static Format fromXContent(XContentParser parser) throws IOException {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);

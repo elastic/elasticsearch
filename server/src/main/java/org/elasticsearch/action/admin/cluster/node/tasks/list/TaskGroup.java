@@ -8,9 +8,9 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.list;
 
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,7 +25,6 @@ public class TaskGroup implements ToXContentObject {
     private final TaskInfo task;
 
     private final List<TaskGroup> childTasks;
-
 
     public TaskGroup(TaskInfo task, List<TaskGroup> childTasks) {
         this.task = task;

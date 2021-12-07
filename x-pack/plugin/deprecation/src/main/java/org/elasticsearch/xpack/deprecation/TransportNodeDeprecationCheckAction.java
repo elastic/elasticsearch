@@ -28,7 +28,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.BiFunction;
 
-public class TransportNodeDeprecationCheckAction extends TransportNodesAction<NodesDeprecationCheckRequest,
+public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
+    NodesDeprecationCheckRequest,
     NodesDeprecationCheckResponse,
     NodesDeprecationCheckAction.NodeRequest,
     NodesDeprecationCheckAction.NodeResponse> {
@@ -38,20 +39,31 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     private volatile List<String> skipTheseDeprecations;
 
     @Inject
-    public TransportNodeDeprecationCheckAction(Settings settings, ThreadPool threadPool,
-                                               ClusterService clusterService, TransportService transportService,
-                                               PluginsService pluginsService, ActionFilters actionFilters) {
-        super(NodesDeprecationCheckAction.NAME, threadPool, clusterService, transportService, actionFilters,
+    public TransportNodeDeprecationCheckAction(
+        Settings settings,
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        TransportService transportService,
+        PluginsService pluginsService,
+        ActionFilters actionFilters
+    ) {
+        super(
+            NodesDeprecationCheckAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
             NodesDeprecationCheckRequest::new,
             NodesDeprecationCheckAction.NodeRequest::new,
             ThreadPool.Names.GENERIC,
-            NodesDeprecationCheckAction.NodeResponse.class);
+            NodesDeprecationCheckAction.NodeResponse.class
+        );
         this.settings = settings;
         this.pluginsService = pluginsService;
         skipTheseDeprecations = DeprecationChecks.SKIP_DEPRECATIONS_SETTING.get(settings);
         // Safe to register this here because it happens synchronously before the cluster service is started:
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DeprecationChecks.SKIP_DEPRECATIONS_SETTING,
-            this::setSkipDeprecations);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DeprecationChecks.SKIP_DEPRECATIONS_SETTING, this::setSkipDeprecations);
     }
 
     private <T> void setSkipDeprecations(List<String> skipDeprecations) {
@@ -59,9 +71,11 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     }
 
     @Override
-    protected NodesDeprecationCheckResponse newResponse(NodesDeprecationCheckRequest request,
-                                                        List<NodesDeprecationCheckAction.NodeResponse> nodeResponses,
-                                                        List<FailedNodeException> failures) {
+    protected NodesDeprecationCheckResponse newResponse(
+        NodesDeprecationCheckRequest request,
+        List<NodesDeprecationCheckAction.NodeResponse> nodeResponses,
+        List<FailedNodeException> failures
+    ) {
         return new NodesDeprecationCheckResponse(clusterService.getClusterName(), nodeResponses, failures);
     }
 
@@ -80,12 +94,15 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
         return nodeOperation(request, DeprecationChecks.NODE_SETTINGS_CHECKS);
     }
 
-    NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request,
-                                                           List<BiFunction<Settings, PluginsAndModules,
-                                                               DeprecationIssue>> nodeSettingsChecks) {
+    NodesDeprecationCheckAction.NodeResponse nodeOperation(
+        NodesDeprecationCheckAction.NodeRequest request,
+        List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> nodeSettingsChecks
+    ) {
         Settings filteredSettings = settings.filter(setting -> Regex.simpleMatch(skipTheseDeprecations, setting) == false);
-        List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(nodeSettingsChecks,
-            (c) -> c.apply(filteredSettings, pluginsService.info()));
+        List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(
+            nodeSettingsChecks,
+            (c) -> c.apply(filteredSettings, pluginsService.info())
+        );
 
         return new NodesDeprecationCheckAction.NodeResponse(transportService.getLocalNode(), issues);
     }

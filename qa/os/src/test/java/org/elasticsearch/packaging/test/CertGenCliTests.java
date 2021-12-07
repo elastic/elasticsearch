@@ -132,7 +132,7 @@ public class CertGenCliTests extends PackagingTestCase {
     }
 
     private String setElasticPassword() {
-        Shell.Result result = installation.executables().resetElasticPasswordTool.run("--auto --batch --silent", null);
+        Shell.Result result = installation.executables().resetPasswordTool.run("--auto --batch --silent --username elastic", null);
         return result.stdout;
     }
 

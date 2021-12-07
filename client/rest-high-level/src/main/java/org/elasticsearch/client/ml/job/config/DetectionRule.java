@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -26,8 +26,11 @@ public class DetectionRule implements ToXContentObject {
     public static final ParseField SCOPE_FIELD = new ParseField("scope");
     public static final ParseField CONDITIONS_FIELD = new ParseField("conditions");
 
-    public static final ObjectParser<Builder, Void> PARSER =
-        new ObjectParser<>(DETECTION_RULE_FIELD.getPreferredName(), true, Builder::new);
+    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(
+        DETECTION_RULE_FIELD.getPreferredName(),
+        true,
+        Builder::new
+    );
 
     static {
         PARSER.declareStringArray(Builder::setActions, ACTIONS_FIELD);
@@ -82,9 +85,7 @@ public class DetectionRule implements ToXContentObject {
         }
 
         DetectionRule other = (DetectionRule) obj;
-        return Objects.equals(actions, other.actions)
-                && Objects.equals(scope, other.scope)
-                && Objects.equals(conditions, other.conditions);
+        return Objects.equals(actions, other.actions) && Objects.equals(scope, other.scope) && Objects.equals(conditions, other.conditions);
     }
 
     @Override
@@ -105,8 +106,7 @@ public class DetectionRule implements ToXContentObject {
             this.conditions = Objects.requireNonNull(conditions);
         }
 
-        Builder() {
-        }
+        Builder() {}
 
         public Builder setActions(List<String> actions) {
             this.actions.clear();

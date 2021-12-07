@@ -11,9 +11,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
@@ -269,8 +269,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             // use the SQL format for intervals when sending back the response for CLI
             // all other clients will receive ISO 8601 formatted intervals
             builder.value(value.toString());
-        }
-        else {
+        } else {
             builder.value(value);
         }
         return builder;
@@ -320,9 +319,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             return false;
         }
         SqlQueryResponse that = (SqlQueryResponse) o;
-        return Objects.equals(cursor, that.cursor) &&
-                Objects.equals(columns, that.columns) &&
-                Objects.equals(rows, that.rows);
+        return Objects.equals(cursor, that.cursor) && Objects.equals(columns, that.columns) && Objects.equals(rows, that.rows);
     }
 
     @Override

@@ -10,8 +10,10 @@ import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBui
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 
-public class GetLicenseRequestBuilder extends MasterNodeReadOperationRequestBuilder<GetLicenseRequest, GetLicenseResponse,
-        GetLicenseRequestBuilder> {
+public class GetLicenseRequestBuilder extends MasterNodeReadOperationRequestBuilder<
+    GetLicenseRequest,
+    GetLicenseResponse,
+    GetLicenseRequestBuilder> {
 
     public GetLicenseRequestBuilder(ElasticsearchClient client) {
         this(client, GetLicenseAction.INSTANCE);

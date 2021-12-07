@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.tasks;
 
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -18,11 +18,7 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class TaskSubmissionResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(
-            this::createParser,
-            this::createTestInstance,
-            this::toXContent,
-            TaskSubmissionResponse::fromXContent)
+        xContentTester(this::createParser, this::createTestInstance, this::toXContent, TaskSubmissionResponse::fromXContent)
             .supportsUnknownFields(true)
             .test();
     }

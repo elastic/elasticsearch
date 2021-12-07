@@ -8,9 +8,9 @@
 
 package org.elasticsearch.common.compress;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -26,13 +26,13 @@ public class CompressorFactory {
 
     @Nullable
     public static Compressor compressor(BytesReference bytes) {
-            if (COMPRESSOR.isCompressed(bytes)) {
-                // bytes should be either detected as compressed or as xcontent,
-                // if we have bytes that can be either detected as compressed or
-                // as a xcontent, we have a problem
-                assert XContentHelper.xContentType(bytes) == null;
-                return COMPRESSOR;
-            }
+        if (COMPRESSOR.isCompressed(bytes)) {
+            // bytes should be either detected as compressed or as xcontent,
+            // if we have bytes that can be either detected as compressed or
+            // as a xcontent, we have a problem
+            assert XContentHelper.xContentType(bytes) == null;
+            return COMPRESSOR;
+        }
 
         XContentType contentType = XContentHelper.xContentType(bytes);
         if (contentType == null) {
@@ -47,10 +47,7 @@ public class CompressorFactory {
 
     /** true if the bytes were compressed with LZF: only used before elasticsearch 2.0 */
     private static boolean isAncient(BytesReference bytes) {
-        return bytes.length() >= 3 &&
-               bytes.get(0) == 'Z' &&
-               bytes.get(1) == 'V' &&
-               (bytes.get(2) == 0 || bytes.get(2) == 1);
+        return bytes.length() >= 3 && bytes.get(0) == 'Z' && bytes.get(1) == 'V' && (bytes.get(2) == 0 || bytes.get(2) == 1);
     }
 
     /**

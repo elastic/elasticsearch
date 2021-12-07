@@ -76,13 +76,13 @@ public class BranchingStep extends ClusterStateActionStep {
      *
      * @return next step to execute
      */
-   @Override
-   public final StepKey getNextStepKey() {
+    @Override
+    public final StepKey getNextStepKey() {
         if (predicateValue.get() == null) {
             throw new IllegalStateException("Cannot call getNextStepKey before performAction");
         }
         return predicateValue.get() ? nextStepKeyOnTrue : nextStepKeyOnFalse;
-   }
+    }
 
     /**
      * @return the next step if {@code predicate} is false

@@ -10,7 +10,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,7 +37,9 @@ public final class UnfollowAction implements LifecycleAction {
     static final String OPEN_FOLLOWER_INDEX_STEP_NAME = "open-follower-index";
     static final String CONDITIONAL_UNFOLLOW_STEP = BranchingStep.NAME + "-check-unfollow-prerequisites";
 
-    public UnfollowAction() {}
+    public static final UnfollowAction INSTANCE = new UnfollowAction();
+
+    private UnfollowAction() {}
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
@@ -53,13 +54,17 @@ public final class UnfollowAction implements LifecycleAction {
         StepKey openFollowerIndex = new StepKey(phase, NAME, OPEN_FOLLOWER_INDEX_STEP_NAME);
         StepKey waitForYellowStep = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
 
-        BranchingStep conditionalSkipUnfollowStep = new BranchingStep(preUnfollowKey, indexingComplete, nextStepKey,
+        BranchingStep conditionalSkipUnfollowStep = new BranchingStep(
+            preUnfollowKey,
+            indexingComplete,
+            nextStepKey,
             (index, clusterState) -> {
                 IndexMetadata followerIndex = clusterState.metadata().index(index);
                 Map<String, String> customIndexMetadata = followerIndex.getCustomData(CCR_METADATA_KEY);
                 // if the index has no CCR metadata we'll skip the unfollow action completely
                 return customIndexMetadata == null;
-            });
+            }
+        );
         WaitForIndexingCompleteStep step1 = new WaitForIndexingCompleteStep(indexingComplete, waitForFollowShardTasks);
         WaitForFollowShardTasksStep step2 = new WaitForFollowShardTasksStep(waitForFollowShardTasks, pauseFollowerIndex, client);
         PauseFollowerIndexStep step3 = new PauseFollowerIndexStep(pauseFollowerIndex, closeFollowerIndex, client);
@@ -81,12 +86,10 @@ public final class UnfollowAction implements LifecycleAction {
         return NAME;
     }
 
-    public UnfollowAction(StreamInput in) throws IOException {}
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {}
 
-    private static final ObjectParser<UnfollowAction, Void> PARSER = new ObjectParser<>(NAME, UnfollowAction::new);
+    private static final ObjectParser<UnfollowAction, Void> PARSER = new ObjectParser<>(NAME, () -> INSTANCE);
 
     public static UnfollowAction parse(XContentParser parser) {
         return PARSER.apply(parser, null);

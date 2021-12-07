@@ -18,13 +18,17 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.Security;
 
 public class OperatorPrivileges {
 
     private static final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
 
-    public static final Setting<Boolean> OPERATOR_PRIVILEGES_ENABLED =
-        Setting.boolSetting("xpack.security.operator_privileges.enabled", false, Setting.Property.NodeScope);
+    public static final Setting<Boolean> OPERATOR_PRIVILEGES_ENABLED = Setting.boolSetting(
+        "xpack.security.operator_privileges.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
 
     public interface OperatorPrivilegesService {
         /**
@@ -38,7 +42,11 @@ public class OperatorPrivileges {
          * @return An exception if user is an non-operator and the request is operator-only. Otherwise returns null.
          */
         ElasticsearchSecurityException check(
-            Authentication authentication, String action, TransportRequest request, ThreadContext threadContext);
+            Authentication authentication,
+            String action,
+            TransportRequest request,
+            ThreadContext threadContext
+        );
 
         /**
          * When operator privileges are enabled, certain requests needs to be configured in a specific way
@@ -58,29 +66,39 @@ public class OperatorPrivileges {
         public DefaultOperatorPrivilegesService(
             XPackLicenseState licenseState,
             FileOperatorUsersStore fileOperatorUsersStore,
-            OperatorOnlyRegistry operatorOnlyRegistry) {
+            OperatorOnlyRegistry operatorOnlyRegistry
+        ) {
             this.fileOperatorUsersStore = fileOperatorUsersStore;
             this.operatorOnlyRegistry = operatorOnlyRegistry;
             this.licenseState = licenseState;
         }
 
         public void maybeMarkOperatorUser(Authentication authentication, ThreadContext threadContext) {
-            if (false == shouldProcess()) {
+            // Always mark the thread context for operator users regardless of license state which is enforced at check time
+            final User user = authentication.getUser();
+            // Let internal users pass, they are exempt from marking and checking
+            // Also check run_as, it is impossible to run_as internal users, but just to be extra safe
+            if (User.isInternal(user) && false == user.isRunAs()) {
                 return;
             }
-            // Let internal users pass, they are exempt from marking and checking
-            if (User.isInternal(authentication.getUser())) {
+            // The header is already set by previous authentication either on this node or a remote node
+            if (threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY) != null) {
                 return;
             }
             // An operator user must not be a run_as user, it also must be recognised by the operatorUserStore
-            if (false == authentication.getUser().isRunAs() && fileOperatorUsersStore.isOperatorUser(authentication)) {
-                logger.debug("Marking user [{}] as an operator", authentication.getUser());
+            if (false == user.isRunAs() && fileOperatorUsersStore.isOperatorUser(authentication)) {
+                logger.debug("Marking user [{}] as an operator", user);
                 threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR);
+            } else {
+                threadContext.putHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY, AuthenticationField.PRIVILEGE_CATEGORY_VALUE_EMPTY);
             }
         }
 
         public ElasticsearchSecurityException check(
-            Authentication authentication, String action, TransportRequest request, ThreadContext threadContext
+            Authentication authentication,
+            String action,
+            TransportRequest request,
+            ThreadContext threadContext
         ) {
             if (false == shouldProcess()) {
                 return null;
@@ -91,7 +109,8 @@ public class OperatorPrivileges {
                 return null;
             }
             if (false == AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
-                threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY))) {
+                threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
+            )) {
                 // Only check whether request is operator-only when user is NOT an operator
                 logger.trace("Checking operator-only violation for user [{}] and action [{}]", user, action);
                 final OperatorOnlyRegistry.OperatorPrivilegesViolation violation = operatorOnlyRegistry.check(action, request);
@@ -110,18 +129,20 @@ public class OperatorPrivileges {
         }
 
         private boolean shouldProcess() {
-            return licenseState.checkFeature(XPackLicenseState.Feature.OPERATOR_PRIVILEGES);
+            return Security.OPERATOR_PRIVILEGES_FEATURE.check(licenseState);
         }
     }
 
     public static final OperatorPrivilegesService NOOP_OPERATOR_PRIVILEGES_SERVICE = new OperatorPrivilegesService() {
         @Override
-        public void maybeMarkOperatorUser(Authentication authentication, ThreadContext threadContext) {
-        }
+        public void maybeMarkOperatorUser(Authentication authentication, ThreadContext threadContext) {}
 
         @Override
         public ElasticsearchSecurityException check(
-            Authentication authentication, String action, TransportRequest request, ThreadContext threadContext
+            Authentication authentication,
+            String action,
+            TransportRequest request,
+            ThreadContext threadContext
         ) {
             return null;
         }

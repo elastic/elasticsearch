@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[info-api]]
 == Info API
 

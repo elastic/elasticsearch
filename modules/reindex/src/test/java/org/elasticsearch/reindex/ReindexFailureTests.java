@@ -35,8 +35,7 @@ public class ReindexFailureTests extends ReindexTestCase {
          * Create the destination index such that the copy will cause a mapping
          * conflict on every request.
          */
-        indexRandom(true,
-                client().prepareIndex("dest").setId("test").setSource("test", 10) /* Its a string in the source! */);
+        indexRandom(true, client().prepareIndex("dest").setId("test").setSource("test", 10) /* Its a string in the source! */);
 
         indexDocs(100);
 
@@ -49,10 +48,8 @@ public class ReindexFailureTests extends ReindexTestCase {
         copy.source().setSize(1);
 
         BulkByScrollResponse response = copy.get();
-        assertThat(response, matcher()
-                .batches(1)
-                .failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
-        for (Failure failure: response.getBulkFailures()) {
+        assertThat(response, matcher().batches(1).failures(both(greaterThan(0)).and(lessThanOrEqualTo(maximumNumberOfShards()))));
+        for (Failure failure : response.getBulkFailures()) {
             assertThat(failure.getCause().getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(failure.getCause().getCause().getMessage(), containsString("For input string: \"words words\""));
         }
@@ -60,8 +57,7 @@ public class ReindexFailureTests extends ReindexTestCase {
 
     public void testAbortOnVersionConflict() throws Exception {
         // Just put something in the way of the copy.
-        indexRandom(true,
-                client().prepareIndex("dest").setId("1").setSource("test", "test"));
+        indexRandom(true, client().prepareIndex("dest").setId("1").setSource("test", "test"));
 
         indexDocs(100);
 
@@ -71,7 +67,7 @@ public class ReindexFailureTests extends ReindexTestCase {
 
         BulkByScrollResponse response = copy.get();
         assertThat(response, matcher().batches(1).versionConflicts(1).failures(1).created(99));
-        for (Failure failure: response.getBulkFailures()) {
+        for (Failure failure : response.getBulkFailures()) {
             assertThat(failure.getMessage(), containsString("VersionConflictEngineException: ["));
         }
     }
@@ -108,9 +104,9 @@ public class ReindexFailureTests extends ReindexTestCase {
                 assertBusy(() -> assertFalse(indexExists("source")));
             } catch (ExecutionException e) {
                 logger.info("Triggered a reindex failure on the {} attempt: {}", attempt, e.getMessage());
-                assertThat(e.getMessage(),
-                        either(containsString("all shards failed"))
-                        .or(containsString("No search context found"))
+                assertThat(
+                    e.getMessage(),
+                    either(containsString("all shards failed")).or(containsString("No search context found"))
                         .or(containsString("no such index [source]"))
                         .or(containsString("Partial shards failure"))
                 );

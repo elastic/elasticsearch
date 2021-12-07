@@ -24,8 +24,14 @@ public class EAssignment extends AExpression {
     private final boolean postIfRead;
     private final Operation operation;
 
-    public EAssignment(int identifier, Location location,
-            AExpression leftNode, AExpression rightNode, boolean postIfRead, Operation operation) {
+    public EAssignment(
+        int identifier,
+        Location location,
+        AExpression leftNode,
+        AExpression rightNode,
+        boolean postIfRead,
+        Operation operation
+    ) {
 
         super(identifier, location);
 

@@ -25,10 +25,10 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
@@ -79,7 +79,8 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
  * Abstract base for scrolling across a search and executing bulk actions on all results. All package private methods are package private so
  * their tests can use them. Most methods run in the listener thread pool because they are meant to be fast and don't expect to block.
  */
-public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBulkByScrollRequest<Request>,
+public abstract class AbstractAsyncBulkByScrollAction<
+    Request extends AbstractBulkByScrollRequest<Request>,
     Action extends TransportAction<Request, ?>> {
 
     protected final Logger logger;
@@ -120,18 +121,46 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      */
     private final AtomicInteger totalBatchSizeInSingleScrollResponse = new AtomicInteger();
 
-    AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
-                                    boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient client,
-                                    ThreadPool threadPool, Request mainRequest, ActionListener<BulkByScrollResponse> listener,
-                                    @Nullable ScriptService scriptService, @Nullable ReindexSslConfig sslConfig) {
-        this(task, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm, logger, client, client, threadPool, mainRequest,
-            listener, scriptService, sslConfig);
+    AbstractAsyncBulkByScrollAction(
+        BulkByScrollTask task,
+        boolean needsSourceDocumentVersions,
+        boolean needsSourceDocumentSeqNoAndPrimaryTerm,
+        Logger logger,
+        ParentTaskAssigningClient client,
+        ThreadPool threadPool,
+        Request mainRequest,
+        ActionListener<BulkByScrollResponse> listener,
+        @Nullable ScriptService scriptService,
+        @Nullable ReindexSslConfig sslConfig
+    ) {
+        this(
+            task,
+            needsSourceDocumentVersions,
+            needsSourceDocumentSeqNoAndPrimaryTerm,
+            logger,
+            client,
+            client,
+            threadPool,
+            mainRequest,
+            listener,
+            scriptService,
+            sslConfig
+        );
     }
-    AbstractAsyncBulkByScrollAction(BulkByScrollTask task, boolean needsSourceDocumentVersions,
-                                    boolean needsSourceDocumentSeqNoAndPrimaryTerm, Logger logger, ParentTaskAssigningClient searchClient,
-                                    ParentTaskAssigningClient bulkClient, ThreadPool threadPool, Request mainRequest,
-                                    ActionListener<BulkByScrollResponse> listener, @Nullable ScriptService scriptService,
-                                    @Nullable ReindexSslConfig sslConfig) {
+
+    AbstractAsyncBulkByScrollAction(
+        BulkByScrollTask task,
+        boolean needsSourceDocumentVersions,
+        boolean needsSourceDocumentSeqNoAndPrimaryTerm,
+        Logger logger,
+        ParentTaskAssigningClient searchClient,
+        ParentTaskAssigningClient bulkClient,
+        ThreadPool threadPool,
+        Request mainRequest,
+        ActionListener<BulkByScrollResponse> listener,
+        @Nullable ScriptService scriptService,
+        @Nullable ReindexSslConfig sslConfig
+    ) {
         this.task = task;
         this.scriptService = scriptService;
         this.sslConfig = sslConfig;
@@ -227,16 +256,27 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     }
 
     protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
-        return new ClientScrollableHitSource(logger, backoffPolicy, threadPool, worker::countSearchRetry,
-            this::onScrollResponse, this::finishHim, searchClient,
-                mainRequest.getSearchRequest());
+        return new ClientScrollableHitSource(
+            logger,
+            backoffPolicy,
+            threadPool,
+            worker::countSearchRetry,
+            this::onScrollResponse,
+            this::finishHim,
+            searchClient,
+            mainRequest.getSearchRequest()
+        );
     }
 
     /**
      * Build the response for reindex actions.
      */
-    protected BulkByScrollResponse buildResponse(TimeValue took, List<BulkItemResponse.Failure> indexingFailures,
-                                                      List<SearchFailure> searchFailures, boolean timedOut) {
+    protected BulkByScrollResponse buildResponse(
+        TimeValue took,
+        List<BulkItemResponse.Failure> indexingFailures,
+        List<SearchFailure> searchFailures,
+        boolean timedOut
+    ) {
         return new BulkByScrollResponse(took, task.getStatus(), indexingFailures, searchFailures, timedOut);
     }
 
@@ -271,10 +311,10 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     /**
      * Process a scroll response.
      * @param lastBatchStartTimeNS the time when the last batch started. Used to calculate the throttling delay.
-     * @param lastBatchSize the size of the last batch. Used to calculate the throttling delay.
+     * @param lastBatchSizeToUse the size of the last batch. Used to calculate the throttling delay.
      * @param asyncResponse the response to process from ScrollableHitSource
      */
-    void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSize, ScrollConsumableHitsResponse asyncResponse) {
+    void onScrollResponse(long lastBatchStartTimeNS, int lastBatchSizeToUse, ScrollConsumableHitsResponse asyncResponse) {
         ScrollableHitSource.Response response = asyncResponse.response();
         logger.debug("[{}]: got scroll response with [{}] hits", task.getId(), asyncResponse.remainingHits());
         if (task.isCancelled()) {
@@ -283,10 +323,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             return;
         }
         if (    // If any of the shards failed that should abort the request.
-                (response.getFailures().size() > 0)
-                // Timeouts aren't shard failures but we still need to pass them back to the user.
-                || response.isTimedOut()
-                ) {
+        (response.getFailures().size() > 0)
+            // Timeouts aren't shard failures but we still need to pass them back to the user.
+            || response.isTimedOut()) {
             refreshAndFinish(emptyList(), response.getFailures(), response.isTimedOut());
             return;
         }
@@ -311,7 +350,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
             }
         };
         prepareBulkRequestRunnable = (AbstractRunnable) threadPool.getThreadContext().preserveContext(prepareBulkRequestRunnable);
-        worker.delayPrepareBulkRequest(threadPool, lastBatchStartTimeNS, lastBatchSize, prepareBulkRequestRunnable);
+        worker.delayPrepareBulkRequest(threadPool, lastBatchStartTimeNS, lastBatchSizeToUse, prepareBulkRequestRunnable);
     }
 
     /**
@@ -336,8 +375,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         if (mainRequest.getMaxDocs() != MAX_DOCS_ALL_MATCHES) {
             // Truncate the hits if we have more than the request max docs
             long remainingDocsToProcess = max(0, mainRequest.getMaxDocs() - worker.getSuccessfullyProcessed());
-            hits = remainingDocsToProcess < asyncResponse.remainingHits() ? asyncResponse.consumeHits((int) remainingDocsToProcess)
-                                                                          : asyncResponse.consumeRemainingHits();
+            hits = remainingDocsToProcess < asyncResponse.remainingHits()
+                ? asyncResponse.consumeHits((int) remainingDocsToProcess)
+                : asyncResponse.consumeRemainingHits();
         } else {
             hits = asyncResponse.consumeRemainingHits();
         }
@@ -361,8 +401,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
     void sendBulkRequest(BulkRequest request, Runnable onSuccess) {
         final int requestSize = request.requests().size();
         if (logger.isDebugEnabled()) {
-            logger.debug("[{}]: sending [{}] entry, [{}] bulk request", task.getId(), requestSize,
-                    new ByteSizeValue(request.estimatedSizeInBytes()));
+            logger.debug(
+                "[{}]: sending [{}] entry, [{}] bulk request",
+                task.getId(),
+                requestSize,
+                new ByteSizeValue(request.estimatedSizeInBytes())
+            );
         }
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
@@ -440,9 +484,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         }
     }
 
-    void notifyDone(long thisBatchStartTimeNS,
-                    ScrollConsumableHitsResponse asyncResponse,
-                    int batchSize) {
+    void notifyDone(long thisBatchStartTimeNS, ScrollConsumableHitsResponse asyncResponse, int batchSize) {
         if (task.isCancelled()) {
             logger.debug("[{}]: finishing early because the task was cancelled", task.getId());
             finishHim(null);
@@ -512,14 +554,16 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
      * @param searchFailures any search failures accumulated during the request
      * @param timedOut have any of the sub-requests timed out?
      */
-    protected void finishHim(Exception failure, List<Failure> indexingFailures,
-            List<SearchFailure> searchFailures, boolean timedOut) {
+    protected void finishHim(Exception failure, List<Failure> indexingFailures, List<SearchFailure> searchFailures, boolean timedOut) {
         logger.debug("[{}]: finishing without any catastrophic failures", task.getId());
         scrollSource.close(() -> {
             if (failure == null) {
                 BulkByScrollResponse response = buildResponse(
-                        timeValueNanos(System.nanoTime() - startTime.get()),
-                        indexingFailures, searchFailures, timedOut);
+                    timeValueNanos(System.nanoTime() - startTime.get()),
+                    indexingFailures,
+                    searchFailures,
+                    timedOut
+                );
                 listener.onResponse(response);
             } else {
                 listener.onFailure(failure);
@@ -747,10 +791,12 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         private final Script script;
         private final Map<String, Object> params;
 
-        public ScriptApplier(WorkerBulkByScrollTaskState taskWorker,
-                             ScriptService scriptService,
-                             Script script,
-                             Map<String, Object> params) {
+        public ScriptApplier(
+            WorkerBulkByScrollTaskState taskWorker,
+            ScriptService scriptService,
+            Script script,
+            Map<String, Object> params
+        ) {
             this.taskWorker = taskWorker;
             this.scriptService = scriptService;
             this.script = script;
@@ -825,17 +871,17 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
 
         protected RequestWrapper<?> scriptChangedOpType(RequestWrapper<?> request, OpType oldOpType, OpType newOpType) {
             switch (newOpType) {
-            case NOOP:
-                taskWorker.countNoop();
-                return null;
-            case DELETE:
-                RequestWrapper<DeleteRequest> delete = wrap(new DeleteRequest(request.getIndex(), request.getId()));
-                delete.setVersion(request.getVersion());
-                delete.setVersionType(VersionType.INTERNAL);
-                delete.setRouting(request.getRouting());
-                return delete;
-            default:
-                throw new IllegalArgumentException("Unsupported operation type change from [" + oldOpType + "] to [" + newOpType + "]");
+                case NOOP:
+                    taskWorker.countNoop();
+                    return null;
+                case DELETE:
+                    RequestWrapper<DeleteRequest> delete = wrap(new DeleteRequest(request.getIndex(), request.getId()));
+                    delete.setVersion(request.getVersion());
+                    delete.setVersionType(VersionType.INTERNAL);
+                    delete.setRouting(request.getRouting());
+                    return delete;
+                default:
+                    throw new IllegalArgumentException("Unsupported operation type change from [" + oldOpType + "] to [" + newOpType + "]");
             }
         }
 
@@ -871,8 +917,9 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
                 case "delete":
                     return OpType.DELETE;
                 default:
-                    throw new IllegalArgumentException("Operation type [" + lowerOpType + "] not allowed, only " +
-                            Arrays.toString(values()) + " are allowed");
+                    throw new IllegalArgumentException(
+                        "Operation type [" + lowerOpType + "] not allowed, only " + Arrays.toString(values()) + " are allowed"
+                    );
             }
         }
 

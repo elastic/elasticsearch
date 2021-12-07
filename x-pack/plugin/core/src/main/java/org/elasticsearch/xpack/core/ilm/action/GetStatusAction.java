@@ -89,8 +89,7 @@ public class GetStatusAction extends ActionType<GetStatusAction.Response> {
             super(in);
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         @Override
         public ActionRequestValidationException validate() {

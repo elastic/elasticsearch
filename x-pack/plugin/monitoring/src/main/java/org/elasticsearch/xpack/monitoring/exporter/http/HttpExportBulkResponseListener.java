@@ -53,8 +53,13 @@ class HttpExportBulkResponseListener implements ResponseListener {
     @Override
     public void onSuccess(final Response response) {
         // EMPTY is safe here because we never call namedObject
-        try (XContentParser parser = xContent
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, response.getEntity().getContent())) {
+        try (
+            XContentParser parser = xContent.createParser(
+                NamedXContentRegistry.EMPTY,
+                LoggingDeprecationHandler.INSTANCE,
+                response.getEntity().getContent()
+            )
+        ) {
             // avoid parsing the entire payload if we don't need too
             XContentParser.Token token = parser.nextToken();
 

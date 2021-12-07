@@ -30,17 +30,17 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DelegatePkiAuthenticationRequestTests extends AbstractRequestTestCase<DelegatePkiAuthenticationRequest,
-        org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest> {
+public class DelegatePkiAuthenticationRequestTests extends AbstractRequestTestCase<
+    DelegatePkiAuthenticationRequest,
+    org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest> {
 
     public void testEmptyOrNullCertificateChain() throws Exception {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
-            new DelegatePkiAuthenticationRequest((List<X509Certificate>)null);
-        });
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> { new DelegatePkiAuthenticationRequest((List<X509Certificate>) null); }
+        );
         assertThat(e.getMessage(), is("certificate chain must not be empty or null"));
-        e = expectThrows(IllegalArgumentException.class, () -> {
-            new DelegatePkiAuthenticationRequest(Collections.emptyList());
-        });
+        e = expectThrows(IllegalArgumentException.class, () -> { new DelegatePkiAuthenticationRequest(Collections.emptyList()); });
         assertThat(e.getMessage(), is("certificate chain must not be empty or null"));
     }
 
@@ -65,13 +65,15 @@ public class DelegatePkiAuthenticationRequestTests extends AbstractRequestTestCa
 
     @Override
     protected org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest doParseToServerInstance(XContentParser parser)
-            throws IOException {
+        throws IOException {
         return org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest.fromXContent(parser);
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest serverInstance,
-            DelegatePkiAuthenticationRequest clientTestInstance) {
+    protected void assertInstances(
+        org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest serverInstance,
+        DelegatePkiAuthenticationRequest clientTestInstance
+    ) {
         assertThat(serverInstance.getCertificateChain(), is(clientTestInstance.getCertificateChain()));
     }
 

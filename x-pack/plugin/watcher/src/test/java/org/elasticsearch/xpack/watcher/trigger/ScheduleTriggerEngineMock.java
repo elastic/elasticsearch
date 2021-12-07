@@ -47,8 +47,8 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     }
 
     @Override
-    public ScheduleTriggerEvent parseTriggerEvent(TriggerService service, String watchId, String context,
-                                                  XContentParser parser) throws IOException {
+    public ScheduleTriggerEvent parseTriggerEvent(TriggerService service, String watchId, String context, XContentParser parser)
+        throws IOException {
         return ScheduleTriggerEvent.parse(parser, watchId, context, clock);
     }
 

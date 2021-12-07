@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.license;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -47,8 +47,7 @@ public class StartTrialResponse {
                 acknowledgeMessages = null;
             }
 
-            return new StartTrialResponse(acknowledged, trialWasStarted, licenseType, errorMessage, acknowledgeHeader,
-                acknowledgeMessages);
+            return new StartTrialResponse(acknowledged, trialWasStarted, licenseType, errorMessage, acknowledgeHeader, acknowledgeMessages);
         }
     );
 
@@ -110,12 +109,14 @@ public class StartTrialResponse {
     private final String acknowledgeHeader;
     private final Map<String, String[]> acknowledgeMessages;
 
-    public StartTrialResponse(boolean acknowledged,
-                              boolean trialWasStarted,
-                              String licenseType,
-                              String errorMessage,
-                              String acknowledgeHeader,
-                              Map<String, String[]> acknowledgeMessages) {
+    public StartTrialResponse(
+        boolean acknowledged,
+        boolean trialWasStarted,
+        String licenseType,
+        String errorMessage,
+        String acknowledgeHeader,
+        Map<String, String[]> acknowledgeMessages
+    ) {
 
         this.acknowledged = acknowledged;
         this.trialWasStarted = trialWasStarted;

@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.MediaType;
 import org.elasticsearch.xcontent.MediaTypeRegistry;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.Mode;
 
@@ -20,9 +20,9 @@ import java.util.Locale;
 import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_FORMAT;
 
 public class SqlMediaTypeParser {
-    public static final MediaTypeRegistry<? extends MediaType> MEDIA_TYPE_REGISTRY = new MediaTypeRegistry<>()
-        .register(XContentType.values())
-        .register(TextFormat.values());
+    public static final MediaTypeRegistry<? extends MediaType> MEDIA_TYPE_REGISTRY = new MediaTypeRegistry<>().register(
+        XContentType.values()
+    ).register(TextFormat.values());
 
     /*
      * Since we support {@link TextFormat} <strong>and</strong>
@@ -66,16 +66,22 @@ public class SqlMediaTypeParser {
 
     private static MediaType validateColumnarRequest(boolean requestIsColumnar, MediaType fromMediaType, RestRequest request) {
         if (requestIsColumnar && fromMediaType instanceof TextFormat) {
-            throw new IllegalArgumentException("Invalid use of [columnar] argument: cannot be used in combination with "
-                + "txt, csv or tsv formats");
+            throw new IllegalArgumentException(
+                "Invalid use of [columnar] argument: cannot be used in combination with " + "txt, csv or tsv formats"
+            );
         }
         return checkNonNullMediaType(fromMediaType, request);
     }
 
     private static MediaType checkNonNullMediaType(MediaType mediaType, RestRequest request) {
         if (mediaType == null) {
-            String msg = String.format(Locale.ROOT, "Invalid request content type: Accept=[%s], Content-Type=[%s], format=[%s]",
-                request.header("Accept"), request.header("Content-Type"), request.param("format"));
+            String msg = String.format(
+                Locale.ROOT,
+                "Invalid request content type: Accept=[%s], Content-Type=[%s], format=[%s]",
+                request.header("Accept"),
+                request.header("Content-Type"),
+                request.param("format")
+            );
             throw new IllegalArgumentException(msg);
         }
 

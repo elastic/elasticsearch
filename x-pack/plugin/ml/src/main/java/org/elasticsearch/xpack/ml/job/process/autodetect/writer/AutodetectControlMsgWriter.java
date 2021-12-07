@@ -195,8 +195,7 @@ public class AutodetectControlMsgWriter extends AbstractControlMsgWriter {
         writeControlCodeFollowedByTimeRange(RESET_BUCKETS_MESSAGE_CODE, params.getStart(), params.getEnd());
     }
 
-    private void writeControlCodeFollowedByTimeRange(String code, String start, String end)
-            throws IOException {
+    private void writeControlCodeFollowedByTimeRange(String code, String start, String end) throws IOException {
         StringBuilder message = new StringBuilder(code);
         if (start.isEmpty() == false) {
             message.append(start);

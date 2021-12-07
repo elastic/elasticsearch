@@ -43,41 +43,47 @@ public class DataTierTests extends ESTestCase {
     public void testNodeSelection() {
         DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
 
-        final String[] dataNodes =
-            discoveryNodes.getNodes().values().stream()
-                .filter(DiscoveryNode::canContainData)
-                .map(DiscoveryNode::getId)
-                .toArray(String[]::new);
+        final String[] dataNodes = discoveryNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DiscoveryNode::canContainData)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
 
-        final String[] contentNodes =
-            discoveryNodes.getNodes().values().stream()
-                .filter(DataTier::isContentNode)
-                .map(DiscoveryNode::getId)
-                .toArray(String[]::new);
+        final String[] contentNodes = discoveryNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DataTier::isContentNode)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
 
-        final String[] hotNodes =
-            discoveryNodes.getNodes().values().stream()
-                .filter(DataTier::isHotNode)
-                .map(DiscoveryNode::getId)
-                .toArray(String[]::new);
+        final String[] hotNodes = discoveryNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DataTier::isHotNode)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
 
-        final String[] warmNodes =
-            discoveryNodes.getNodes().values().stream()
-                .filter(DataTier::isWarmNode)
-                .map(DiscoveryNode::getId)
-                .toArray(String[]::new);
+        final String[] warmNodes = discoveryNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DataTier::isWarmNode)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
 
-        final String[] coldNodes =
-            discoveryNodes.getNodes().values().stream()
-                .filter(DataTier::isColdNode)
-                .map(DiscoveryNode::getId)
-                .toArray(String[]::new);
+        final String[] coldNodes = discoveryNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DataTier::isColdNode)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
 
-        final String[] frozenNodes =
-            discoveryNodes.getNodes().values().stream()
-                .filter(DataTier::isFrozenNode)
-                .map(DiscoveryNode::getId)
-                .toArray(String[]::new);
+        final String[] frozenNodes = discoveryNodes.getNodes()
+            .values()
+            .stream()
+            .filter(DataTier::isFrozenNode)
+            .map(DiscoveryNode::getId)
+            .toArray(String[]::new);
 
         assertThat(discoveryNodes.resolveNodes("data:true"), arrayContainingInAnyOrder(dataNodes));
         assertThat(discoveryNodes.resolveNodes("data_content:true"), arrayContainingInAnyOrder(contentNodes));
@@ -131,8 +137,7 @@ public class DataTierTests extends ESTestCase {
     }
 
     private static DiscoveryNode newNode(int nodeId, Map<String, String> attributes, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles,
-            Version.CURRENT);
+        return new DiscoveryNode("name_" + nodeId, "node_" + nodeId, buildNewFakeTransportAddress(), attributes, roles, Version.CURRENT);
     }
 
     private static List<DiscoveryNode> randomNodes(final int numNodes) {
@@ -146,7 +151,8 @@ public class DataTierTests extends ESTestCase {
             }
             final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(allRoles));
             if (frequently()) {
-                roles.add(new DiscoveryNodeRole("custom_role", "cr") {});
+                roles.add(new DiscoveryNodeRole("custom_role", "cr") {
+                });
             }
             final DiscoveryNode node = newNode(idGenerator.getAndIncrement(), attributes, roles);
             nodesList.add(node);

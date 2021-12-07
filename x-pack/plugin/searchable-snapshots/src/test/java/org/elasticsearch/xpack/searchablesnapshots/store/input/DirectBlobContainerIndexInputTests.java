@@ -37,10 +37,9 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyLong;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -80,7 +79,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
         );
 
         final BlobContainer blobContainer = mock(BlobContainer.class);
-        when(blobContainer.readBlob(anyString(), anyLong(), anyInt())).thenAnswer(invocationOnMock -> {
+        when(blobContainer.readBlob(anyString(), anyLong(), anyLong())).thenAnswer(invocationOnMock -> {
             String name = (String) invocationOnMock.getArguments()[0];
             long position = (long) invocationOnMock.getArguments()[1];
             long length = (long) invocationOnMock.getArguments()[2];

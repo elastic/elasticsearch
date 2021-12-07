@@ -41,29 +41,50 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     private static final Pattern WILDCARD_PATTERN = Pattern.compile("(\\\\.)|([?*]+)");
 
-    public StringFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
-                           TextSearchInfo textSearchInfo, Map<String, String> meta) {
+    public StringFieldType(
+        String name,
+        boolean isSearchable,
+        boolean isStored,
+        boolean hasDocValues,
+        TextSearchInfo textSearchInfo,
+        Map<String, String> meta
+    ) {
         super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     @Override
-    public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-            boolean transpositions, SearchExecutionContext context) {
+    public Query fuzzyQuery(
+        Object value,
+        Fuzziness fuzziness,
+        int prefixLength,
+        int maxExpansions,
+        boolean transpositions,
+        SearchExecutionContext context
+    ) {
         if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException("[fuzzy] queries cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+            throw new ElasticsearchException(
+                "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+            );
         }
         failIfNotIndexed();
-        return new FuzzyQuery(new Term(name(), indexedValueForSearch(value)),
-                fuzziness.asDistance(BytesRefs.toString(value)), prefixLength, maxExpansions, transpositions);
+        return new FuzzyQuery(
+            new Term(name(), indexedValueForSearch(value)),
+            fuzziness.asDistance(BytesRefs.toString(value)),
+            prefixLength,
+            maxExpansions,
+            transpositions
+        );
     }
 
     @Override
     public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
         if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException("[prefix] queries cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false. For optimised prefix queries on text " +
-                    "fields please enable [index_prefixes].");
+            throw new ElasticsearchException(
+                "[prefix] queries cannot be executed when '"
+                    + ALLOW_EXPENSIVE_QUERIES.getKey()
+                    + "' is set to false. For optimised prefix queries on text "
+                    + "fields please enable [index_prefixes]."
+            );
         }
         failIfNotIndexed();
         if (caseInsensitive) {
@@ -81,7 +102,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         return query;
     }
 
-    public static final String normalizeWildcardPattern(String fieldname, String value, Analyzer normalizer)  {
+    public static final String normalizeWildcardPattern(String fieldname, String value, Analyzer normalizer) {
         if (normalizer == null) {
             return value;
         }
@@ -116,7 +137,6 @@ public abstract class StringFieldType extends TermBasedFieldType {
         return wildcardQuery(value, method, caseInsensitive, false, context);
     }
 
-
     @Override
     public Query normalizedWildcardQuery(String value, MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
         return wildcardQuery(value, method, false, true, context);
@@ -131,8 +151,9 @@ public abstract class StringFieldType extends TermBasedFieldType {
     ) {
         failIfNotIndexed();
         if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException("[wildcard] queries cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+            throw new ElasticsearchException(
+                "[wildcard] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+            );
         }
 
         Term term;
@@ -153,15 +174,21 @@ public abstract class StringFieldType extends TermBasedFieldType {
     }
 
     @Override
-    public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
-            MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
+    public Query regexpQuery(
+        String value,
+        int syntaxFlags,
+        int matchFlags,
+        int maxDeterminizedStates,
+        MultiTermQuery.RewriteMethod method,
+        SearchExecutionContext context
+    ) {
         if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException("[regexp] queries cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+            throw new ElasticsearchException(
+                "[regexp] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+            );
         }
         failIfNotIndexed();
-        RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags,
-            matchFlags, maxDeterminizedStates);
+        RegexpQuery query = new RegexpQuery(new Term(name(), indexedValueForSearch(value)), syntaxFlags, matchFlags, maxDeterminizedStates);
         if (method != null) {
             query.setRewriteMethod(method);
         }
@@ -169,16 +196,27 @@ public abstract class StringFieldType extends TermBasedFieldType {
     }
 
     @Override
-    public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                            SearchExecutionContext context) {
+    public Query rangeQuery(
+        Object lowerTerm,
+        Object upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        SearchExecutionContext context
+    ) {
         if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException("[range] queries on [text] or [keyword] fields cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+            throw new ElasticsearchException(
+                "[range] queries on [text] or [keyword] fields cannot be executed when '"
+                    + ALLOW_EXPENSIVE_QUERIES.getKey()
+                    + "' is set to false."
+            );
         }
         failIfNotIndexed();
-        return new TermRangeQuery(name(),
+        return new TermRangeQuery(
+            name(),
             lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
             upperTerm == null ? null : indexedValueForSearch(upperTerm),
-            includeLower, includeUpper);
+            includeLower,
+            includeUpper
+        );
     }
 }

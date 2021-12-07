@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.core.PageParams;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 public class GetCalendarsRequestTests extends AbstractXContentTestCase<GetCalendarsRequest> {
 

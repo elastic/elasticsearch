@@ -12,8 +12,7 @@ import java.io.IOException;
 
 public final class XContentUtils {
 
-    private XContentUtils() {
-    }
+    private XContentUtils() {}
 
     /**
      * Convert a {@link XContentParser.Token} to a value

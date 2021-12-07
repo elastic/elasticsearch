@@ -30,7 +30,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -42,8 +41,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.TextFieldMapper;
-import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
-import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper;
 import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.PrefixFieldMapper;
 import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.PrefixFieldType;
 import org.elasticsearch.index.mapper.extras.SearchAsYouTypeFieldMapper.SearchAsYouTypeAnalyzer;
@@ -56,6 +53,7 @@ import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,38 +87,30 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("term_vector", b -> b.field("term_vector", "yes"));
 
         // norms can be set from true to false, but not vice versa
-        checker.registerConflictCheck("norms",
-            fieldMapping(b -> {
-                b.field("type", "text");
-                b.field("norms", false);
-            }),
-            fieldMapping(b -> {
-                b.field("type", "text");
-                b.field("norms", true);
-            }));
-        checker.registerUpdateCheck(
-            b -> {
-                b.field("type", "search_as_you_type");
-                b.field("norms", true);
-            },
-            b -> {
-                b.field("type", "search_as_you_type");
-                b.field("norms", false);
-            },
-            m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
-        );
+        checker.registerConflictCheck("norms", fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("norms", false);
+        }), fieldMapping(b -> {
+            b.field("type", "text");
+            b.field("norms", true);
+        }));
+        checker.registerUpdateCheck(b -> {
+            b.field("type", "search_as_you_type");
+            b.field("norms", true);
+        }, b -> {
+            b.field("type", "search_as_you_type");
+            b.field("norms", false);
+        }, m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms()));
 
         checker.registerUpdateCheck(b -> {
-                b.field("analyzer", "default");
-                b.field("search_analyzer", "keyword");
-            },
-            m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
+            b.field("analyzer", "default");
+            b.field("search_analyzer", "keyword");
+        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchAnalyzer().name()));
         checker.registerUpdateCheck(b -> {
-                b.field("analyzer", "default");
-                b.field("search_analyzer", "keyword");
-                b.field("search_quote_analyzer", "keyword");
-            },
-            m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name()));
+            b.field("analyzer", "default");
+            b.field("search_analyzer", "keyword");
+            b.field("search_quote_analyzer", "keyword");
+        }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name()));
 
     }
 
@@ -167,14 +157,14 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     public void testIndexing() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "new york city")));
-        for (String field : new String[] { "field", "field._index_prefix", "field._2gram", "field._3gram"}) {
+        for (String field : new String[] { "field", "field._index_prefix", "field._2gram", "field._3gram" }) {
             IndexableField[] fields = doc.rootDoc().getFields(field);
             assertEquals(1, fields.length);
             assertEquals("new york city", fields[0].stringValue());
         }
     }
 
-   public void testDefaultConfiguration() throws IOException {
+    public void testDefaultConfiguration() throws IOException {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         SearchAsYouTypeFieldMapper rootMapper = getRootFieldMapper(defaultMapper, "field");
         assertRootFieldMapper(rootMapper, 3, "default");
@@ -182,11 +172,21 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(defaultMapper, "field._index_prefix");
         assertPrefixFieldType(prefixFieldMapper, rootMapper.indexAnalyzers(), 3, "default");
 
-        assertShingleFieldType(getShingleFieldMapper(defaultMapper, "field._2gram"),
-            rootMapper.indexAnalyzers(), 2, "default", prefixFieldMapper.fieldType());
-        assertShingleFieldType(getShingleFieldMapper(defaultMapper, "field._3gram"),
-            rootMapper.indexAnalyzers(), 3, "default", prefixFieldMapper.fieldType());
-   }
+        assertShingleFieldType(
+            getShingleFieldMapper(defaultMapper, "field._2gram"),
+            rootMapper.indexAnalyzers(),
+            2,
+            "default",
+            prefixFieldMapper.fieldType()
+        );
+        assertShingleFieldType(
+            getShingleFieldMapper(defaultMapper, "field._3gram"),
+            rootMapper.indexAnalyzers(),
+            3,
+            "default",
+            prefixFieldMapper.fieldType()
+        );
+    }
 
     public void testConfiguration() throws IOException {
         int maxShingleSize = 4;
@@ -203,12 +203,27 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(defaultMapper, "field._index_prefix");
         assertPrefixFieldType(prefixFieldMapper, rootMapper.indexAnalyzers(), maxShingleSize, analyzerName);
 
-        assertShingleFieldType(getShingleFieldMapper(defaultMapper, "field._2gram"),
-            rootMapper.indexAnalyzers(), 2, analyzerName, prefixFieldMapper.fieldType());
-        assertShingleFieldType(getShingleFieldMapper(defaultMapper, "field._3gram"),
-            rootMapper.indexAnalyzers(), 3, analyzerName, prefixFieldMapper.fieldType());
-        assertShingleFieldType(getShingleFieldMapper(defaultMapper, "field._4gram"),
-            rootMapper.indexAnalyzers(), 4, analyzerName, prefixFieldMapper.fieldType());
+        assertShingleFieldType(
+            getShingleFieldMapper(defaultMapper, "field._2gram"),
+            rootMapper.indexAnalyzers(),
+            2,
+            analyzerName,
+            prefixFieldMapper.fieldType()
+        );
+        assertShingleFieldType(
+            getShingleFieldMapper(defaultMapper, "field._3gram"),
+            rootMapper.indexAnalyzers(),
+            3,
+            analyzerName,
+            prefixFieldMapper.fieldType()
+        );
+        assertShingleFieldType(
+            getShingleFieldMapper(defaultMapper, "field._4gram"),
+            rootMapper.indexAnalyzers(),
+            4,
+            analyzerName,
+            prefixFieldMapper.fieldType()
+        );
     }
 
     public void testSimpleMerge() throws IOException {
@@ -283,14 +298,10 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "some text")));
 
-        assertThat(fieldType(doc, "field").indexOptions(),
-            equalTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS));
+        assertThat(fieldType(doc, "field").indexOptions(), equalTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS));
 
-        Stream.of(
-            fieldType(doc, "field._index_prefix"),
-            fieldType(doc, "field._2gram"),
-            fieldType(doc, "field._3gram")
-        ).forEach(ft -> assertThat(ft.indexOptions(), equalTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS)));
+        Stream.of(fieldType(doc, "field._index_prefix"), fieldType(doc, "field._2gram"), fieldType(doc, "field._3gram"))
+            .forEach(ft -> assertThat(ft.indexOptions(), equalTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS)));
     }
 
     public void testStore() throws IOException {
@@ -298,11 +309,8 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "some text")));
 
         assertTrue(fieldType(doc, "field").stored());
-        Stream.of(
-            fieldType(doc, "field._index_prefix"),
-            fieldType(doc, "field._2gram"),
-            fieldType(doc, "field._3gram")
-        ).forEach(ft -> assertFalse(ft.stored()));
+        Stream.of(fieldType(doc, "field._index_prefix"), fieldType(doc, "field._2gram"), fieldType(doc, "field._3gram"))
+            .forEach(ft -> assertFalse(ft.stored()));
     }
 
     public void testIndex() throws IOException {
@@ -326,10 +334,16 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     }
 
     public void testTermVectors() throws IOException {
-        for (String termVector :  new String[] { "yes", "with_positions", "with_offsets", "with_positions_offsets",
-                "with_positions_payloads", "with_positions_offsets_payloads"}) {
-            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "search_as_you_type")
-                .field("term_vector", termVector)));
+        for (String termVector : new String[] {
+            "yes",
+            "with_positions",
+            "with_offsets",
+            "with_positions_offsets",
+            "with_positions_payloads",
+            "with_positions_offsets_payloads" }) {
+            DocumentMapper mapper = createDocumentMapper(
+                fieldMapping(b -> b.field("type", "search_as_you_type").field("term_vector", termVector))
+            );
             ParsedDocument doc = mapper.parse(source(b -> b.field("field", "some text")));
 
             IndexableFieldType rootField = fieldType(doc, "field");
@@ -346,10 +360,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
                 assertThat(rootField.storeTermVectorPayloads(), equalTo(termVector.contains("payloads")));
             }
 
-            Stream.of(
-                fieldType(doc, "field._2gram"),
-                fieldType(doc, "field._3gram")
-            ).forEach(ft -> {
+            Stream.of(fieldType(doc, "field._2gram"), fieldType(doc, "field._3gram")).forEach(ft -> {
                 assertTrue(ft.storeTermVectors());
                 if (termVector.contains("positions")) {
                     assertThat(ft.storeTermVectorPositions(), equalTo(termVector.contains("positions")));
@@ -376,11 +387,8 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
             ParsedDocument doc = mapper.parse(source(b -> b.field("field", "some text")));
 
-            Stream.of(
-                fieldType(doc, "field"),
-                fieldType(doc, "field._2gram"),
-                fieldType(doc, "field._3gram")
-            ).forEach(ft -> assertFalse(ft.omitNorms()));
+            Stream.of(fieldType(doc, "field"), fieldType(doc, "field._2gram"), fieldType(doc, "field._3gram"))
+                .forEach(ft -> assertFalse(ft.omitNorms()));
 
             PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(mapper, "field._index_prefix");
             assertTrue(prefixFieldMapper.fieldType.omitNorms());
@@ -393,11 +401,8 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
             assertTrue(fieldType(doc, "field").omitNorms());
 
-            Stream.of(
-                fieldType(doc, "field._index_prefix"),
-                fieldType(doc, "field._2gram"),
-                fieldType(doc, "field._3gram")
-            ).forEach(ft -> assertTrue(ft.omitNorms()));
+            Stream.of(fieldType(doc, "field._index_prefix"), fieldType(doc, "field._2gram"), fieldType(doc, "field._3gram"))
+                .forEach(ft -> assertTrue(ft.omitNorms()));
         }
     }
 
@@ -411,7 +416,8 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
     public void testMatchPhrasePrefix() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
-            createMapperService(fieldMapping(this::minimalMapping)));
+            createMapperService(fieldMapping(this::minimalMapping))
+        );
         {
             Query q = new MatchPhrasePrefixQueryBuilder("field", "two words").toQuery(searchExecutionContext);
             Query expected = new SynonymQuery.Builder("field._index_prefix").addTerm(new Term("field._index_prefix", "two words")).build();
@@ -436,10 +442,11 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         {
             Query q = new MatchPhrasePrefixQueryBuilder("field", "more than three words").toQuery(searchExecutionContext);
-            Query expected = new SpanNearQuery.Builder("field._3gram", true)
-                .addClause(new SpanTermQuery(new Term("field._3gram", "more than three")))
-                .addClause(new FieldMaskingSpanQuery(
-                    new SpanTermQuery(new Term("field._index_prefix", "than three words")), "field._3gram")
+            Query expected = new SpanNearQuery.Builder("field._3gram", true).addClause(
+                new SpanTermQuery(new Term("field._3gram", "more than three"))
+            )
+                .addClause(
+                    new FieldMaskingSpanQuery(new SpanTermQuery(new Term("field._index_prefix", "than three words")), "field._3gram")
                 )
                 .build();
             assertThat(q, equalTo(expected));
@@ -447,10 +454,11 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
         {
             Query q = new MatchPhrasePrefixQueryBuilder("field._3gram", "more than three words").toQuery(searchExecutionContext);
-            Query expected = new SpanNearQuery.Builder("field._3gram", true)
-                .addClause(new SpanTermQuery(new Term("field._3gram", "more than three")))
-                .addClause(new FieldMaskingSpanQuery(
-                    new SpanTermQuery(new Term("field._index_prefix", "than three words")), "field._3gram")
+            Query expected = new SpanNearQuery.Builder("field._3gram", true).addClause(
+                new SpanTermQuery(new Term("field._3gram", "more than three"))
+            )
+                .addClause(
+                    new FieldMaskingSpanQuery(new SpanTermQuery(new Term("field._index_prefix", "than three words")), "field._3gram")
                 )
                 .build();
             assertThat(q, equalTo(expected));
@@ -463,9 +471,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         }
 
         {
-            Query actual = new MatchPhrasePrefixQueryBuilder("field._3gram", "one two three four")
-                .slop(1)
-                .toQuery(searchExecutionContext);
+            Query actual = new MatchPhrasePrefixQueryBuilder("field._3gram", "one two three four").slop(1).toQuery(searchExecutionContext);
             MultiPhrasePrefixQuery expected = new MultiPhrasePrefixQuery("field._3gram");
             expected.setSlop(1);
             expected.add(new Term("field._3gram", "one two three"));
@@ -477,91 +483,73 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
     public void testMatchPhrase() throws IOException {
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
-            createMapperService(fieldMapping(this::minimalMapping)));
+            createMapperService(fieldMapping(this::minimalMapping))
+        );
         {
-            Query actual = new MatchPhraseQueryBuilder("field", "one")
-                .toQuery(searchExecutionContext);
+            Query actual = new MatchPhraseQueryBuilder("field", "one").toQuery(searchExecutionContext);
             Query expected = new TermQuery(new Term("field", "one"));
             assertThat(actual, equalTo(expected));
         }
 
         {
-            Query actual = new MatchPhraseQueryBuilder("field", "one two")
-                .toQuery(searchExecutionContext);
-            Query expected = new MultiPhraseQuery.Builder()
-                .add(new Term("field._2gram", "one two"))
-                .build();
+            Query actual = new MatchPhraseQueryBuilder("field", "one two").toQuery(searchExecutionContext);
+            Query expected = new MultiPhraseQuery.Builder().add(new Term("field._2gram", "one two")).build();
             assertThat(actual, equalTo(expected));
         }
 
         {
-            Query actual = new MatchPhraseQueryBuilder("field", "one two three")
-                .toQuery(searchExecutionContext);
-            Query expected = new MultiPhraseQuery.Builder()
-                .add(new Term("field._3gram", "one two three"))
-                .build();
+            Query actual = new MatchPhraseQueryBuilder("field", "one two three").toQuery(searchExecutionContext);
+            Query expected = new MultiPhraseQuery.Builder().add(new Term("field._3gram", "one two three")).build();
             assertThat(actual, equalTo(expected));
         }
 
         {
-            Query actual = new MatchPhraseQueryBuilder("field", "one two three four")
-                .toQuery(searchExecutionContext);
-            Query expected = new MultiPhraseQuery.Builder()
-                .add(new Term("field._3gram", "one two three"))
+            Query actual = new MatchPhraseQueryBuilder("field", "one two three four").toQuery(searchExecutionContext);
+            Query expected = new MultiPhraseQuery.Builder().add(new Term("field._3gram", "one two three"))
                 .add(new Term("field._3gram", "two three four"))
                 .build();
             assertThat(actual, equalTo(expected));
         }
 
         {
-            Query actual = new MatchPhraseQueryBuilder("field", "one two")
-                .slop(1)
-                .toQuery(searchExecutionContext);
-            Query expected = new MultiPhraseQuery.Builder()
-                .add(new Term("field", "one"))
-                .add(new Term("field", "two"))
-                .setSlop(1)
-                .build();
+            Query actual = new MatchPhraseQueryBuilder("field", "one two").slop(1).toQuery(searchExecutionContext);
+            Query expected = new MultiPhraseQuery.Builder().add(new Term("field", "one")).add(new Term("field", "two")).setSlop(1).build();
             assertThat(actual, equalTo(expected));
         }
 
         {
-            Query actual = new MatchPhraseQueryBuilder("field._2gram", "one two")
-                .toQuery(searchExecutionContext);
+            Query actual = new MatchPhraseQueryBuilder("field._2gram", "one two").toQuery(searchExecutionContext);
             Query expected = new TermQuery(new Term("field._2gram", "one two"));
             assertThat(actual, equalTo(expected));
         }
 
         {
-            Query actual = new MatchPhraseQueryBuilder("field._2gram", "one two three")
-                .toQuery(searchExecutionContext);
-            Query expected = new MultiPhraseQuery.Builder()
-                .add(new Term("field._2gram", "one two"))
+            Query actual = new MatchPhraseQueryBuilder("field._2gram", "one two three").toQuery(searchExecutionContext);
+            Query expected = new MultiPhraseQuery.Builder().add(new Term("field._2gram", "one two"))
                 .add(new Term("field._2gram", "two three"))
                 .build();
             assertThat(actual, equalTo(expected));
         }
 
         {
-            Query actual = new MatchPhraseQueryBuilder("field._3gram", "one two three")
-                .toQuery(searchExecutionContext);
+            Query actual = new MatchPhraseQueryBuilder("field._3gram", "one two three").toQuery(searchExecutionContext);
             Query expected = new TermQuery(new Term("field._3gram", "one two three"));
             assertThat(actual, equalTo(expected));
         }
 
         {
-            Query actual = new MatchPhraseQueryBuilder("field._3gram", "one two three four")
-                .toQuery(searchExecutionContext);
-            Query expected = new MultiPhraseQuery.Builder()
-                .add(new Term("field._3gram", "one two three"))
+            Query actual = new MatchPhraseQueryBuilder("field._3gram", "one two three four").toQuery(searchExecutionContext);
+            Query expected = new MultiPhraseQuery.Builder().add(new Term("field._3gram", "one two three"))
                 .add(new Term("field._3gram", "two three four"))
                 .build();
             assertThat(actual, equalTo(expected));
         }
 
         {
-            expectThrows(IllegalArgumentException.class,
-                () -> new MatchPhraseQueryBuilder("field._index_prefix", "one two three four").toQuery(searchExecutionContext));
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> new MatchPhraseQueryBuilder("field._index_prefix", "one two three four").toQuery(searchExecutionContext)
+            );
         }
     }
 
@@ -585,12 +573,16 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         SearchExecutionContext context = createSearchExecutionContext(ms);
         QueryStringQueryParser parser = new QueryStringQueryParser(context, "f");
         Query q = parser.parse("foo:*");
-        assertEquals(new ConstantScoreQuery(new BooleanQuery.Builder()
-            .add(new NormsFieldExistsQuery("foo.bar"), BooleanClause.Occur.SHOULD)
-            .add(new NormsFieldExistsQuery("foo.bar._3gram"), BooleanClause.Occur.SHOULD)
-            .add(new NormsFieldExistsQuery("foo.bar._2gram"), BooleanClause.Occur.SHOULD)
-            .add(new TermQuery(new Term("_field_names", "foo.bar._index_prefix")), BooleanClause.Occur.SHOULD)
-            .build()), q);
+        assertEquals(
+            new ConstantScoreQuery(
+                new BooleanQuery.Builder().add(new NormsFieldExistsQuery("foo.bar"), BooleanClause.Occur.SHOULD)
+                    .add(new NormsFieldExistsQuery("foo.bar._3gram"), BooleanClause.Occur.SHOULD)
+                    .add(new NormsFieldExistsQuery("foo.bar._2gram"), BooleanClause.Occur.SHOULD)
+                    .add(new TermQuery(new Term("_field_names", "foo.bar._index_prefix")), BooleanClause.Occur.SHOULD)
+                    .build()
+            ),
+            q
+        );
     }
 
     private static BooleanQuery buildBoolPrefixQuery(String shingleFieldName, String prefixFieldName, List<String> terms) {
@@ -600,8 +592,9 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             builder.add(new BooleanClause(new TermQuery(new Term(shingleFieldName, term)), BooleanClause.Occur.SHOULD));
         }
         final String finalTerm = terms.get(terms.size() - 1);
-        builder.add(new BooleanClause(
-            new ConstantScoreQuery(new TermQuery(new Term(prefixFieldName, finalTerm))), BooleanClause.Occur.SHOULD));
+        builder.add(
+            new BooleanClause(new ConstantScoreQuery(new TermQuery(new Term(prefixFieldName, finalTerm))), BooleanClause.Occur.SHOULD)
+        );
         return builder.build();
     }
 
@@ -623,15 +616,27 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         assertThat(actual, instanceOf(DisjunctionMaxQuery.class));
         final DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) actual;
         assertThat(disMaxQuery.getDisjuncts(), hasSize(4));
-        assertThat(disMaxQuery.getDisjuncts(), containsInAnyOrder(
-            buildBoolPrefixQuery(
-                "field", "field._index_prefix", asList("quick", "brown", "fox", "jump", "lazy", "dog")),
-            buildBoolPrefixQuery("field._2gram", "field._index_prefix",
-                asList("quick brown", "brown fox", "fox jump", "jump lazy", "lazy dog")),
-            buildBoolPrefixQuery("field._3gram", "field._index_prefix",
-                asList("quick brown fox", "brown fox jump", "fox jump lazy", "jump lazy dog")),
-            buildBoolPrefixQuery("field._4gram", "field._index_prefix",
-                asList("quick brown fox jump", "brown fox jump lazy", "fox jump lazy dog"))));
+        assertThat(
+            disMaxQuery.getDisjuncts(),
+            containsInAnyOrder(
+                buildBoolPrefixQuery("field", "field._index_prefix", asList("quick", "brown", "fox", "jump", "lazy", "dog")),
+                buildBoolPrefixQuery(
+                    "field._2gram",
+                    "field._index_prefix",
+                    asList("quick brown", "brown fox", "fox jump", "jump lazy", "lazy dog")
+                ),
+                buildBoolPrefixQuery(
+                    "field._3gram",
+                    "field._index_prefix",
+                    asList("quick brown fox", "brown fox jump", "fox jump lazy", "jump lazy dog")
+                ),
+                buildBoolPrefixQuery(
+                    "field._4gram",
+                    "field._index_prefix",
+                    asList("quick brown fox jump", "brown fox jump lazy", "fox jump lazy dog")
+                )
+            )
+        );
     }
 
     private void documentParsingTestCase(Collection<String> values) throws IOException {
@@ -648,15 +653,13 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         IndexableField[] prefixFields = parsedDocument.rootDoc().getFields("field._index_prefix");
         IndexableField[] shingle2Fields = parsedDocument.rootDoc().getFields("field._2gram");
         IndexableField[] shingle3Fields = parsedDocument.rootDoc().getFields("field._3gram");
-        for (IndexableField[] fields : new IndexableField[][]{rootFields, prefixFields, shingle2Fields, shingle3Fields}) {
+        for (IndexableField[] fields : new IndexableField[][] { rootFields, prefixFields, shingle2Fields, shingle3Fields }) {
             Set<String> expectedValues = Arrays.stream(fields).map(IndexableField::stringValue).collect(Collectors.toSet());
             assertThat(values, equalTo(expectedValues));
         }
     }
 
-    private static void assertRootFieldMapper(SearchAsYouTypeFieldMapper mapper,
-                                              int maxShingleSize,
-                                              String analyzerName) {
+    private static void assertRootFieldMapper(SearchAsYouTypeFieldMapper mapper, int maxShingleSize, String analyzerName) {
 
         assertThat(mapper.maxShingleSize(), equalTo(maxShingleSize));
         assertThat(mapper.fieldType(), notNullValue());
@@ -666,23 +669,29 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         assertThat(mapper.prefixField().fieldType().parentField, equalTo(mapper.name()));
         assertPrefixFieldType(mapper.prefixField(), mapper.indexAnalyzers(), maxShingleSize, analyzerName);
 
-
         for (int shingleSize = 2; shingleSize <= maxShingleSize; shingleSize++) {
             final ShingleFieldMapper shingleFieldMapper = mapper.shingleFields()[shingleSize - 2];
             assertThat(shingleFieldMapper, notNullValue());
-            assertShingleFieldType(shingleFieldMapper, mapper.indexAnalyzers(), shingleSize,
-                analyzerName, mapper.prefixField().fieldType());
+            assertShingleFieldType(
+                shingleFieldMapper,
+                mapper.indexAnalyzers(),
+                shingleSize,
+                analyzerName,
+                mapper.prefixField().fieldType()
+            );
         }
 
         final int numberOfShingleSubfields = (maxShingleSize - 2) + 1;
         assertThat(mapper.shingleFields().length, equalTo(numberOfShingleSubfields));
     }
 
-    private static void assertSearchAsYouTypeFieldType(SearchAsYouTypeFieldMapper mapper,
-                                                       SearchAsYouTypeFieldType fieldType,
-                                                       int maxShingleSize,
-                                                       String analyzerName,
-                                                       PrefixFieldType prefixFieldType) {
+    private static void assertSearchAsYouTypeFieldType(
+        SearchAsYouTypeFieldMapper mapper,
+        SearchAsYouTypeFieldType fieldType,
+        int maxShingleSize,
+        String analyzerName,
+        PrefixFieldType prefixFieldType
+    ) {
 
         assertThat(fieldType.shingleFields.length, equalTo(maxShingleSize - 1));
         NamedAnalyzer indexAnalyzer = mapper.indexAnalyzers().get(fieldType.name());
@@ -697,11 +706,13 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.prefixField, equalTo(prefixFieldType));
     }
 
-    private static void assertShingleFieldType(ShingleFieldMapper mapper,
-                                               Map<String, NamedAnalyzer> indexAnalyzers,
-                                               int shingleSize,
-                                               String analyzerName,
-                                               PrefixFieldType prefixFieldType) {
+    private static void assertShingleFieldType(
+        ShingleFieldMapper mapper,
+        Map<String, NamedAnalyzer> indexAnalyzers,
+        int shingleSize,
+        String analyzerName,
+        PrefixFieldType prefixFieldType
+    ) {
 
         ShingleFieldType fieldType = mapper.fieldType();
         assertThat(fieldType.shingleSize, equalTo(shingleSize));
@@ -719,8 +730,12 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
     }
 
-    private static void assertPrefixFieldType(PrefixFieldMapper mapper, Map<String, NamedAnalyzer> indexAnalyzers,
-                                              int shingleSize, String analyzerName) {
+    private static void assertPrefixFieldType(
+        PrefixFieldMapper mapper,
+        Map<String, NamedAnalyzer> indexAnalyzers,
+        int shingleSize,
+        String analyzerName
+    ) {
         PrefixFieldType fieldType = mapper.fieldType();
         NamedAnalyzer indexAnalyzer = indexAnalyzers.get(fieldType.name());
         for (NamedAnalyzer analyzer : asList(indexAnalyzer, fieldType.getTextSearchInfo().getSearchAnalyzer())) {
@@ -728,8 +743,9 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         }
 
         final SearchAsYouTypeAnalyzer wrappedIndexAnalyzer = (SearchAsYouTypeAnalyzer) indexAnalyzer.analyzer();
-        final SearchAsYouTypeAnalyzer wrappedSearchAnalyzer
-            = (SearchAsYouTypeAnalyzer) fieldType.getTextSearchInfo().getSearchAnalyzer().analyzer();
+        final SearchAsYouTypeAnalyzer wrappedSearchAnalyzer = (SearchAsYouTypeAnalyzer) fieldType.getTextSearchInfo()
+            .getSearchAnalyzer()
+            .analyzer();
         for (SearchAsYouTypeAnalyzer analyzer : asList(wrappedIndexAnalyzer, wrappedSearchAnalyzer)) {
             assertThat(analyzer.shingleSize(), equalTo(shingleSize));
         }

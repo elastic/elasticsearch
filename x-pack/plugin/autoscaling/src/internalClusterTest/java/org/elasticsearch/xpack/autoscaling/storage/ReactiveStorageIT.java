@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -152,10 +151,6 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
             )
         );
 
-        // if we inject a default tier preference, then this test wouldn't be valid anymore,
-        // so let's turn that off
-        enforceDefaultTierPreference(false);
-
         putAutoscalingPolicy("hot", DataTier.DATA_HOT);
         putAutoscalingPolicy("warm", DataTier.DATA_WARM);
         putAutoscalingPolicy("cold", DataTier.DATA_COLD);
@@ -185,6 +180,10 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     .build()
             )
         );
+
+        // the tier preference will have defaulted to data_content, set it back to null
+        updateIndexSettings(indexName, Settings.builder().putNull(DataTier.TIER_PREFERENCE));
+
         refresh(indexName);
         assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), Matchers.equalTo(0L));
         assertThat(capacity().results().get("cold").requiredCapacity().total().storage().getBytes(), Matchers.equalTo(0L));
@@ -248,11 +247,5 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
             new TreeMap<>(Map.of("reactive_storage", Settings.EMPTY))
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());
-    }
-
-    public void enforceDefaultTierPreference(boolean enforceDefaultTierPreference) {
-        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
-        request.transientSettings(Settings.builder().put(DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE, enforceDefaultTierPreference).build());
-        assertAcked(client().admin().cluster().updateSettings(request).actionGet());
     }
 }

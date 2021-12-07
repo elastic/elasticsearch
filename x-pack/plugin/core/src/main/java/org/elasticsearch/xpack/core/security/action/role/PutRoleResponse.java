@@ -46,4 +46,4 @@ public class PutRoleResponse extends ActionResponse implements ToXContentObject 
         out.writeBoolean(created);
     }
 
-    }
+}

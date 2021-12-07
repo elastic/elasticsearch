@@ -14,8 +14,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.StringFieldScript;
 
 import java.util.List;
 import java.util.Objects;

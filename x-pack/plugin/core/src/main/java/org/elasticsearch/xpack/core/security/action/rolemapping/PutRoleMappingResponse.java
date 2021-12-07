@@ -47,4 +47,4 @@ public class PutRoleMappingResponse extends ActionResponse implements ToXContent
         out.writeBoolean(created);
     }
 
-    }
+}

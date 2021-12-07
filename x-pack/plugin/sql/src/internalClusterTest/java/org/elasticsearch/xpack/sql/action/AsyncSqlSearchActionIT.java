@@ -52,9 +52,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -66,8 +66,9 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
     private final ExecutorService executorService = Executors.newFixedThreadPool(1);
 
-    NamedWriteableRegistry registry = new NamedWriteableRegistry(new SearchModule(Settings.EMPTY,
-        Collections.emptyList()).getNamedWriteables());
+    NamedWriteableRegistry registry = new NamedWriteableRegistry(
+        new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedWriteables()
+    );
 
     /**
      * Shutdown the executor so we don't leak threads into other test runs.
@@ -78,9 +79,13 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
     }
 
     private void prepareIndex() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-            .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date", "i", "type=integer")
-            .get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("test")
+                .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date", "i", "type=integer")
+                .get()
+        );
         createIndex("idx_unmapped");
 
         int numDocs = randomIntBetween(6, 20);
@@ -89,13 +94,17 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         for (int i = 0; i < numDocs; i++) {
             int fieldValue = randomIntBetween(0, 10);
-            builders.add(client().prepareIndex("test").setSource(
-                jsonBuilder().startObject()
-                    .field("val", fieldValue)
-                    .field("event_type", "my_event")
-                    .field("@timestamp", "2020-04-09T12:35:48Z")
-                    .field("i", i)
-                    .endObject()));
+            builders.add(
+                client().prepareIndex("test")
+                    .setSource(
+                        jsonBuilder().startObject()
+                            .field("val", fieldValue)
+                            .field("event_type", "my_event")
+                            .field("@timestamp", "2020-04-09T12:35:48Z")
+                            .field("i", i)
+                            .endObject()
+                    )
+            );
         }
         indexRandom(true, builders);
     }
@@ -105,8 +114,8 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         boolean success = randomBoolean();
         String query = "SELECT event_type FROM test WHERE " + (success ? "i=1" : "10/i=1");
-        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
-            .query(query).waitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(query)
+            .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
         List<SearchBlockPlugin> plugins = initBlockFactory(true, false);
 
@@ -122,8 +131,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         if (randomBoolean()) {
             // let's timeout first
-            GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id())
-                .setKeepAlive(TimeValue.timeValueMinutes(10))
+            GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id()).setKeepAlive(TimeValue.timeValueMinutes(10))
                 .setWaitForCompletionTimeout(TimeValue.timeValueMillis(10));
             SqlQueryResponse responseWithTimeout = client().execute(SqlAsyncGetResultsAction.INSTANCE, getResultsRequest).get();
             assertThat(responseWithTimeout.isRunning(), is(true));
@@ -132,8 +140,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
         }
 
         // Now we wait
-        GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id())
-            .setKeepAlive(TimeValue.timeValueMinutes(10))
+        GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id()).setKeepAlive(TimeValue.timeValueMinutes(10))
             .setWaitForCompletionTimeout(TimeValue.timeValueSeconds(10));
         ActionFuture<SqlQueryResponse> future = client().execute(SqlAsyncGetResultsAction.INSTANCE, getResultsRequest);
         disableBlocks(plugins);
@@ -145,8 +152,10 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
             Exception ex = expectThrows(Exception.class, future::actionGet);
             assertThat(ex.getCause().getMessage(), containsString("by zero"));
         }
-        AcknowledgedResponse deleteResponse =
-            client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(response.id())).actionGet();
+        AcknowledgedResponse deleteResponse = client().execute(
+            DeleteAsyncResultAction.INSTANCE,
+            new DeleteAsyncResultRequest(response.id())
+        ).actionGet();
         assertThat(deleteResponse.isAcknowledged(), equalTo(true));
     }
 
@@ -155,8 +164,8 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         boolean success = randomBoolean();
         String query = "SELECT event_type FROM test WHERE " + (success ? "i=1" : "10/i=1");
-        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
-            .query(query).waitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(query)
+            .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
         boolean customKeepAlive = randomBoolean();
         TimeValue keepAliveValue;
@@ -172,7 +181,8 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
         String opaqueId = randomAlphaOfLength(10);
         logger.trace("Starting async search");
         SqlQueryResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
-            .execute(SqlQueryAction.INSTANCE, builder.request()).get();
+            .execute(SqlQueryAction.INSTANCE, builder.request())
+            .get();
         assertThat(response.isRunning(), is(true));
         assertThat(response.isPartial(), is(true));
         assertThat(response.id(), notNullValue());
@@ -190,8 +200,10 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
         assertBusy(() -> assertThat(findTaskWithXOpaqueId(opaqueId, SqlQueryAction.NAME + "[a]"), nullValue()));
         StoredAsyncResponse<SqlQueryResponse> doc = getStoredRecord(id);
         // Make sure that the expiration time is not more than 1 min different from the current time + keep alive
-        assertThat(System.currentTimeMillis() + keepAliveValue.getMillis() - doc.getExpirationTime(),
-            lessThan(doc.getExpirationTime() + TimeValue.timeValueMinutes(1).getMillis()));
+        assertThat(
+            System.currentTimeMillis() + keepAliveValue.getMillis() - doc.getExpirationTime(),
+            lessThan(doc.getExpirationTime() + TimeValue.timeValueMinutes(1).getMillis())
+        );
         if (success) {
             assertThat(doc.getException(), nullValue());
             assertThat(doc.getResponse(), notNullValue());
@@ -208,8 +220,8 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         boolean success = randomBoolean();
         String query = "SELECT event_type FROM test WHERE " + (success ? "i=1" : "10/i=1");
-        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
-            .query(query).waitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(query)
+            .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
         boolean customKeepAlive = randomBoolean();
         final TimeValue keepAliveValue;
@@ -223,7 +235,8 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
         String opaqueId = randomAlphaOfLength(10);
         logger.trace("Starting async search");
         SqlQueryResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
-            .execute(SqlQueryAction.INSTANCE, builder.request()).get();
+            .execute(SqlQueryAction.INSTANCE, builder.request())
+            .get();
         assertThat(response.isRunning(), is(true));
         assertThat(response.isPartial(), is(true));
         assertThat(response.id(), notNullValue());
@@ -232,8 +245,10 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
         awaitForBlockedSearches(plugins, "test");
         logger.trace("Block is established");
 
-        ActionFuture<AcknowledgedResponse> deleteResponse =
-            client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(response.id()));
+        ActionFuture<AcknowledgedResponse> deleteResponse = client().execute(
+            DeleteAsyncResultAction.INSTANCE,
+            new DeleteAsyncResultRequest(response.id())
+        );
         disableBlocks(plugins);
         assertThat(deleteResponse.actionGet().isAcknowledged(), equalTo(true));
 
@@ -247,8 +262,8 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
         boolean success = randomBoolean();
         boolean keepOnCompletion = randomBoolean();
         String query = "SELECT event_type FROM test WHERE " + (success ? "i=1" : "10/i=1");
-        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
-            .query(query).waitForCompletionTimeout(TimeValue.timeValueSeconds(10));
+        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE).query(query)
+            .waitForCompletionTimeout(TimeValue.timeValueSeconds(10));
         if (keepOnCompletion || randomBoolean()) {
             builder.keepOnCompletion(keepOnCompletion);
         }
@@ -266,21 +281,23 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
                 assertThat(doc.getException(), nullValue());
                 assertThat(doc.getResponse(), notNullValue());
                 assertThat(doc.getResponse().rows().size(), equalTo(1));
-                SqlQueryResponse storedResponse = client().execute(SqlAsyncGetResultsAction.INSTANCE,
-                    new GetAsyncResultRequest(response.id())).actionGet();
+                SqlQueryResponse storedResponse = client().execute(
+                    SqlAsyncGetResultsAction.INSTANCE,
+                    new GetAsyncResultRequest(response.id())
+                ).actionGet();
                 assertThat(storedResponse, equalTo(response));
 
-                AcknowledgedResponse deleteResponse =
-                    client().execute(DeleteAsyncResultAction.INSTANCE, new DeleteAsyncResultRequest(response.id())).actionGet();
+                AcknowledgedResponse deleteResponse = client().execute(
+                    DeleteAsyncResultAction.INSTANCE,
+                    new DeleteAsyncResultRequest(response.id())
+                ).actionGet();
                 assertThat(deleteResponse.isAcknowledged(), equalTo(true));
             }
         } else {
-            Exception ex = expectThrows(Exception.class,
-                () -> client().execute(SqlQueryAction.INSTANCE, request).get());
+            Exception ex = expectThrows(Exception.class, () -> client().execute(SqlQueryAction.INSTANCE, request).get());
             assertThat(ex.getMessage(), containsString("by zero"));
         }
     }
-
 
     public StoredAsyncResponse<SqlQueryResponse> getStoredRecord(String id) throws Exception {
         try {
@@ -307,8 +324,11 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-            scripts.put("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.div(" +
-                "params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))", FakePainlessScriptPlugin::fail);
+            scripts.put(
+                "InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.div("
+                    + "params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))",
+                FakePainlessScriptPlugin::fail
+            );
             return scripts;
         }
 

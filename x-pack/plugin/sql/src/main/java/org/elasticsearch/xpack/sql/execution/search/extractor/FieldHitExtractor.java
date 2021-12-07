@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.util.DateUtils;
+
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
@@ -49,8 +50,7 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         super(name, dataType, zoneId);
     }
 
-    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, String hitName,
-            boolean arrayLeniency) {
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, String hitName, boolean arrayLeniency) {
         super(name, dataType, zoneId, hitName, arrayLeniency);
     }
 

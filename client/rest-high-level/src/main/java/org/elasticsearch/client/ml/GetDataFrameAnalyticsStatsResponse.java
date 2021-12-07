@@ -13,8 +13,8 @@ import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.client.ml.dataframe.DataFrameAnalyticsStats;
 import org.elasticsearch.client.transform.AcknowledgedTasksResponse;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Collections;
@@ -33,29 +33,39 @@ public class GetDataFrameAnalyticsStatsResponse {
     private static final ParseField DATA_FRAME_ANALYTICS = new ParseField("data_frame_analytics");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<GetDataFrameAnalyticsStatsResponse, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "get_data_frame_analytics_stats_response", true,
-            args -> new GetDataFrameAnalyticsStatsResponse(
-                (List<DataFrameAnalyticsStats>) args[0],
-                (List<TaskOperationFailure>) args[1],
-                (List<ElasticsearchException>) args[2]));
+    private static final ConstructingObjectParser<GetDataFrameAnalyticsStatsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_data_frame_analytics_stats_response",
+        true,
+        args -> new GetDataFrameAnalyticsStatsResponse(
+            (List<DataFrameAnalyticsStats>) args[0],
+            (List<TaskOperationFailure>) args[1],
+            (List<ElasticsearchException>) args[2]
+        )
+    );
 
     static {
         PARSER.declareObjectArray(constructorArg(), (p, c) -> DataFrameAnalyticsStats.fromXContent(p), DATA_FRAME_ANALYTICS);
         PARSER.declareObjectArray(
-            optionalConstructorArg(), (p, c) -> TaskOperationFailure.fromXContent(p), AcknowledgedTasksResponse.TASK_FAILURES);
+            optionalConstructorArg(),
+            (p, c) -> TaskOperationFailure.fromXContent(p),
+            AcknowledgedTasksResponse.TASK_FAILURES
+        );
         PARSER.declareObjectArray(
-            optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p), AcknowledgedTasksResponse.NODE_FAILURES);
+            optionalConstructorArg(),
+            (p, c) -> ElasticsearchException.fromXContent(p),
+            AcknowledgedTasksResponse.NODE_FAILURES
+        );
     }
 
     private final List<DataFrameAnalyticsStats> analyticsStats;
     private final List<TaskOperationFailure> taskFailures;
     private final List<ElasticsearchException> nodeFailures;
 
-    public GetDataFrameAnalyticsStatsResponse(List<DataFrameAnalyticsStats> analyticsStats,
-                                              @Nullable List<TaskOperationFailure> taskFailures,
-                                              @Nullable List<? extends ElasticsearchException> nodeFailures) {
+    public GetDataFrameAnalyticsStatsResponse(
+        List<DataFrameAnalyticsStats> analyticsStats,
+        @Nullable List<TaskOperationFailure> taskFailures,
+        @Nullable List<? extends ElasticsearchException> nodeFailures
+    ) {
         this.analyticsStats = analyticsStats;
         this.taskFailures = taskFailures == null ? Collections.emptyList() : Collections.unmodifiableList(taskFailures);
         this.nodeFailures = nodeFailures == null ? Collections.emptyList() : Collections.unmodifiableList(nodeFailures);

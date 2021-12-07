@@ -11,7 +11,6 @@ package org.elasticsearch.search.suggest.completion;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.CompletionFieldMapper.CompletionFieldType;
@@ -24,6 +23,7 @@ import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping.InternalQueryContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -156,9 +156,11 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
 
     @Override
     protected MappedFieldType mockFieldType(String fieldName) {
-        CompletionFieldType completionFieldType = new CompletionFieldType(fieldName,
+        CompletionFieldType completionFieldType = new CompletionFieldType(
+            fieldName,
             new NamedAnalyzer("fieldSearchAnalyzer", AnalyzerScope.INDEX, new SimpleAnalyzer()),
-            Collections.emptyMap());
+            Collections.emptyMap()
+        );
         completionFieldType.setContextMappings(new ContextMappings(contextMappings));
         return completionFieldType;
     }
@@ -168,11 +170,14 @@ public class CompletionSuggesterBuilderTests extends AbstractSuggestionBuilderTe
         assertThat(context, instanceOf(CompletionSuggestionContext.class));
         assertThat(context.getSuggester(), instanceOf(CompletionSuggester.class));
         CompletionSuggestionContext completionSuggestionCtx = (CompletionSuggestionContext) context;
-        assertThat(completionSuggestionCtx.getFieldType(), instanceOf(CompletionFieldType.class) );
+        assertThat(completionSuggestionCtx.getFieldType(), instanceOf(CompletionFieldType.class));
         assertEquals(builder.fuzzyOptions, completionSuggestionCtx.getFuzzyOptions());
         Map<String, List<InternalQueryContext>> parsedContextBytes;
-        parsedContextBytes = CompletionSuggestionBuilder.parseContextBytes(builder.contextBytes, xContentRegistry(),
-                new ContextMappings(contextMappings));
+        parsedContextBytes = CompletionSuggestionBuilder.parseContextBytes(
+            builder.contextBytes,
+            parserConfig(),
+            new ContextMappings(contextMappings)
+        );
         Map<String, List<InternalQueryContext>> queryContexts = completionSuggestionCtx.getQueryContexts();
         assertEquals(parsedContextBytes.keySet(), queryContexts.keySet());
         for (String contextName : queryContexts.keySet()) {

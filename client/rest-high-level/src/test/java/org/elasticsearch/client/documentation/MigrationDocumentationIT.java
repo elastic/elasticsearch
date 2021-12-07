@@ -21,8 +21,8 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,6 +44,7 @@ import java.util.Map;
  * include-tagged::{doc-tests}/MigrationDocumentationIT.java[example]
  * --------------------------------------------------
  */
+@SuppressWarnings("removal")
 public class MigrationDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testClusterHealth() throws IOException {
         RestHighLevelClient client = highLevelClient();

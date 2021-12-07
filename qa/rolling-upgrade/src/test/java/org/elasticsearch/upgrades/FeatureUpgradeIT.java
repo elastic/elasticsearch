@@ -25,8 +25,8 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
     @SuppressWarnings("unchecked")
     public void testGetFeatureUpgradeStatus() throws Exception {
 
-        final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct " +
-            "access to system indices will be prevented by default";
+        final String systemIndexWarning = "this request accesses system indices: [.tasks], but in a future major version, direct "
+            + "access to system indices will be prevented by default";
         if (CLUSTER_TYPE == ClusterType.OLD) {
             // setup - put something in the tasks index
             // create index
@@ -36,21 +36,21 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
 
             Request bulk = new Request("POST", "/_bulk");
             bulk.addParameter("refresh", "true");
-            bulk.setJsonEntity("{\"index\": {\"_index\": \"feature_test_index_old\"}}\n" +
-                "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
+            bulk.setJsonEntity("{\"index\": {\"_index\": \"feature_test_index_old\"}}\n" + "{\"f1\": \"v1\", \"f2\": \"v2\"}\n");
             client().performRequest(bulk);
 
             // start a async reindex job
             Request reindex = new Request("POST", "/_reindex");
             reindex.setJsonEntity(
-                "{\n" +
-                    "  \"source\":{\n" +
-                    "    \"index\":\"feature_test_index_old\"\n" +
-                    "  },\n" +
-                    "  \"dest\":{\n" +
-                    "    \"index\":\"feature_test_index_reindex\"\n" +
-                    "  }\n" +
-                    "}");
+                "{\n"
+                    + "  \"source\":{\n"
+                    + "    \"index\":\"feature_test_index_old\"\n"
+                    + "  },\n"
+                    + "  \"dest\":{\n"
+                    + "    \"index\":\"feature_test_index_reindex\"\n"
+                    + "  }\n"
+                    + "}"
+            );
             reindex.addParameter("wait_for_completion", "false");
             Map<String, Object> response = entityAsMap(client().performRequest(reindex));
             String taskId = (String) response.get("task");
@@ -81,7 +81,8 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
             assertBusy(() -> {
                 Request clusterStateRequest = new Request("GET", "/_migration/system_features");
                 XContentTestUtils.JsonMapView view = new XContentTestUtils.JsonMapView(
-                    entityAsMap(client().performRequest(clusterStateRequest)));
+                    entityAsMap(client().performRequest(clusterStateRequest))
+                );
 
                 List<Map<String, Object>> features = view.get("features");
                 Map<String, Object> feature = features.stream()
@@ -91,10 +92,10 @@ public class FeatureUpgradeIT extends AbstractRollingTestCase {
 
                 assertThat(feature.size(), equalTo(4));
                 assertThat(feature.get("minimum_index_version"), equalTo(UPGRADE_FROM_VERSION.toString()));
-                if (UPGRADE_FROM_VERSION.before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
-                    assertThat(feature.get("upgrade_status"), equalTo("UPGRADE_NEEDED"));
+                if (UPGRADE_FROM_VERSION.before(Version.V_8_0_0)) {
+                    assertThat(feature.get("migration_status"), equalTo("MIGRATION_NEEDED"));
                 } else {
-                    assertThat(feature.get("upgrade_status"), equalTo("NO_UPGRADE_NEEDED"));
+                    assertThat(feature.get("migration_status"), equalTo("NO_MIGRATION_NEEDED"));
                 }
             });
         }

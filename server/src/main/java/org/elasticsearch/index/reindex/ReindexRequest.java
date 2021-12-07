@@ -12,24 +12,24 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,8 +50,7 @@ import static org.elasticsearch.index.VersionType.INTERNAL;
  * of reasons, not least of which that scripts are allowed to change the destination request in drastic ways, including changing the index
  * to which documents are written.
  */
-public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest>
-                            implements CompositeIndicesRequest, ToXContentObject {
+public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequest> implements CompositeIndicesRequest, ToXContentObject {
     /**
      * Prototype for index requests.
      */
@@ -125,11 +124,11 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             return true;
         }
         switch (destination.routing()) {
-        case "keep":
-        case "discard":
-            return true;
-        default:
-            return false;
+            case "keep":
+            case "discard":
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -331,9 +330,12 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             request.setRemoteInfo(buildRemoteInfo(source));
             XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
             builder.map(source);
-            try (InputStream stream = BytesReference.bytes(builder).streamInput();
-                 XContentParser innerParser = parser.contentType().xContent()
-                     .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), stream)) {
+            try (
+                InputStream stream = BytesReference.bytes(builder).streamInput();
+                XContentParser innerParser = parser.contentType()
+                    .xContent()
+                    .createParser(parser.getXContentRegistry(), parser.getDeprecationHandler(), stream)
+            ) {
                 request.getSearchRequest().source().parseXContent(innerParser, false);
             }
         };
@@ -348,20 +350,22 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         PARSER.declareField(sourceParser::parse, new ParseField("source"), ObjectParser.ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> destParser.parse(p, v.getDestination(), c), new ParseField("dest"), ObjectParser.ValueType.OBJECT);
 
-        PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical,
-            new ParseField("max_docs", "size")
-                .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)));
+        PARSER.declareInt(
+            ReindexRequest::setMaxDocsValidateIdentical,
+            new ParseField("max_docs", "size").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7))
+        );
 
-        PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical,
-            new ParseField("max_docs")
-                .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8)));
+        PARSER.declareInt(
+            ReindexRequest::setMaxDocsValidateIdentical,
+            new ParseField("max_docs").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8))
+        );
         // avoid silently accepting an ignored size.
-        PARSER.declareInt((r,s) -> failOnSizeSpecified(),
-            new ParseField("size")
-                .forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8)));
+        PARSER.declareInt(
+            (r, s) -> failOnSizeSpecified(),
+            new ParseField("size").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8))
+        );
 
-        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"),
-            ObjectParser.ValueType.OBJECT);
+        PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"), ObjectParser.ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
     }
 
@@ -408,8 +412,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
                 throw new URISyntaxException(hostInRequest, "The port was not defined in the [host]");
             }
         } catch (URISyntaxException ex) {
-            throw new IllegalArgumentException("[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was ["
-                + hostInRequest + "]", ex);
+            throw new IllegalArgumentException(
+                "[host] must be of the form [scheme]://[host]:[port](/[pathPrefix])? but was [" + hostInRequest + "]",
+                ex
+            );
         }
 
         String scheme = uri.getScheme();
@@ -426,10 +432,21 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         TimeValue connectTimeout = extractTimeValue(remote, "connect_timeout", RemoteInfo.DEFAULT_CONNECT_TIMEOUT);
         if (false == remote.isEmpty()) {
             throw new IllegalArgumentException(
-                "Unsupported fields in [remote]: [" + Strings.collectionToCommaDelimitedString(remote.keySet()) + "]");
+                "Unsupported fields in [remote]: [" + Strings.collectionToCommaDelimitedString(remote.keySet()) + "]"
+            );
         }
-        return new RemoteInfo(scheme, host, port, pathPrefix, RemoteInfo.queryForRemote(source),
-            username, password, headers, socketTimeout, connectTimeout);
+        return new RemoteInfo(
+            scheme,
+            host,
+            port,
+            pathPrefix,
+            RemoteInfo.queryForRemote(source),
+            username,
+            password,
+            headers,
+            socketTimeout,
+            connectTimeout
+        );
     }
 
     private static String extractString(Map<String, Object> source, String name) {
@@ -458,7 +475,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             }
         }
         @SuppressWarnings("unchecked") // We just checked....
-            Map<String, String> safe = (Map<String, String>) map;
+        Map<String, String> safe = (Map<String, String>) map;
         return safe;
     }
 
@@ -469,8 +486,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
 
     static void setMaxDocsValidateIdentical(AbstractBulkByScrollRequest<?> request, int maxDocs) {
         if (request.getMaxDocs() != AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() != maxDocs) {
-            throw new IllegalArgumentException("[max_docs] set to two different values [" + request.getMaxDocs() + "]" +
-                " and [" + maxDocs + "]");
+            throw new IllegalArgumentException(
+                "[max_docs] set to two different values [" + request.getMaxDocs() + "]" + " and [" + maxDocs + "]"
+            );
         } else {
             request.setMaxDocs(maxDocs);
         }

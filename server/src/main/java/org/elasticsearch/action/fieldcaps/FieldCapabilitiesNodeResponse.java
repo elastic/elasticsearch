@@ -25,9 +25,11 @@ class FieldCapabilitiesNodeResponse extends ActionResponse implements Writeable 
     private final Map<ShardId, Exception> failures;
     private final Set<ShardId> unmatchedShardIds;
 
-    FieldCapabilitiesNodeResponse(List<FieldCapabilitiesIndexResponse> indexResponses,
-                                  Map<ShardId, Exception> failures,
-                                  Set<ShardId> unmatchedShardIds) {
+    FieldCapabilitiesNodeResponse(
+        List<FieldCapabilitiesIndexResponse> indexResponses,
+        Map<ShardId, Exception> failures,
+        Set<ShardId> unmatchedShardIds
+    ) {
         this.indexResponses = Objects.requireNonNull(indexResponses);
         this.failures = Objects.requireNonNull(failures);
         this.unmatchedShardIds = Objects.requireNonNull(unmatchedShardIds);
@@ -64,7 +66,8 @@ class FieldCapabilitiesNodeResponse extends ActionResponse implements Writeable 
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesNodeResponse that = (FieldCapabilitiesNodeResponse) o;
-        return Objects.equals(indexResponses, that.indexResponses) && Objects.equals(failures, that.failures)
+        return Objects.equals(indexResponses, that.indexResponses)
+            && Objects.equals(failures, that.failures)
             && unmatchedShardIds.equals(that.unmatchedShardIds);
     }
 

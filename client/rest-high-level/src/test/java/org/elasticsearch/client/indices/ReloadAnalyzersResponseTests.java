@@ -10,9 +10,9 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse.ReloadDetails;
 
 import java.io.IOException;
@@ -30,8 +30,9 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 
-public class ReloadAnalyzersResponseTests
-        extends AbstractResponseTestCase<org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse, ReloadAnalyzersResponse> {
+public class ReloadAnalyzersResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse,
+    ReloadAnalyzersResponse> {
 
     private String index;
     private String id;
@@ -50,7 +51,8 @@ public class ReloadAnalyzersResponseTests
             final DefaultShardOperationFailedException failure = new DefaultShardOperationFailedException(
                 index,
                 randomValueOtherThanMany(shardIds::contains, () -> randomIntBetween(0, total - 1)),
-                new RetentionLeaseNotFoundException(id));
+                new RetentionLeaseNotFoundException(id)
+            );
             failures.add(failure);
             shardIds.add(failure.shardId());
         }
@@ -73,8 +75,10 @@ public class ReloadAnalyzersResponseTests
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse serverTestInstance,
-            ReloadAnalyzersResponse clientInstance) {
+    protected void assertInstances(
+        org.elasticsearch.xpack.core.action.ReloadAnalyzersResponse serverTestInstance,
+        ReloadAnalyzersResponse clientInstance
+    ) {
         assertThat(clientInstance.shards().total(), equalTo(serverTestInstance.getTotalShards()));
         assertThat(clientInstance.shards().successful(), equalTo(serverTestInstance.getSuccessfulShards()));
         assertThat(clientInstance.shards().skipped(), equalTo(0));
@@ -89,7 +93,8 @@ public class ReloadAnalyzersResponseTests
         Map<String, ReloadDetails> serverDetails = serverTestInstance.getReloadDetails();
         assertThat(clientInstance.getReloadedDetails().size(), equalTo(serverDetails.size()));
         for (Entry<String, org.elasticsearch.client.indices.ReloadAnalyzersResponse.ReloadDetails> entry : clientInstance
-                .getReloadedDetails().entrySet()) {
+            .getReloadedDetails()
+            .entrySet()) {
             String indexName = entry.getKey();
             assertTrue(serverDetails.keySet().contains(indexName));
             assertEquals(serverDetails.get(indexName).getIndexName(), entry.getValue().getIndexName());

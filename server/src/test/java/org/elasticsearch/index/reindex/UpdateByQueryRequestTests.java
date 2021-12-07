@@ -91,6 +91,5 @@ public class UpdateByQueryRequestTests extends AbstractBulkByScrollRequestTestCa
     }
 
     @Override
-    protected void assertEqualInstances(UpdateByQueryRequest expectedInstance, UpdateByQueryRequest newInstance) {
-    }
+    protected void assertEqualInstances(UpdateByQueryRequest expectedInstance, UpdateByQueryRequest newInstance) {}
 }

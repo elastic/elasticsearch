@@ -53,7 +53,8 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s")
             // This just generates less churn and makes it easier to read the log file if needed
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
@@ -63,7 +64,7 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
     @After
     public void cleanup() {
         try {
-            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[]{index})).get();
+            client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { index })).get();
         } catch (Exception e) {
             // Okay to ignore this
             logger.info("failed to clean up data stream", e);
@@ -85,11 +86,15 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-policy", phases);
         client().execute(PutLifecycleAction.INSTANCE, new PutLifecycleAction.Request(lifecyclePolicy)).get();
 
-        Template t = new Template(Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(LifecycleSettings.LIFECYCLE_NAME, "shrink-policy")
-            .build(), null, null);
+        Template t = new Template(
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(LifecycleSettings.LIFECYCLE_NAME, "shrink-policy")
+                .build(),
+            null,
+            null
+        );
 
         ComposableIndexTemplate template = new ComposableIndexTemplate(
             Collections.singletonList(index),
@@ -108,15 +113,14 @@ public class ILMMultiNodeIT extends ESIntegTestCase {
         client().prepareIndex(index).setCreate(true).setId("1").setSource("@timestamp", "2020-09-09").get();
 
         assertBusy(() -> {
-            ExplainLifecycleResponse explain =
-                client().execute(ExplainLifecycleAction.INSTANCE, new ExplainLifecycleRequest().indices("*")).get();
+            ExplainLifecycleResponse explain = client().execute(ExplainLifecycleAction.INSTANCE, new ExplainLifecycleRequest().indices("*"))
+                .get();
             logger.info("--> explain: {}", Strings.toString(explain));
 
             String backingIndexName = DataStream.getDefaultBackingIndexName(index, 1);
             IndexLifecycleExplainResponse indexResp = null;
             for (Map.Entry<String, IndexLifecycleExplainResponse> indexNameAndResp : explain.getIndexResponses().entrySet()) {
-                if (indexNameAndResp.getKey().startsWith(SHRUNKEN_INDEX_PREFIX) &&
-                    indexNameAndResp.getKey().contains(backingIndexName)) {
+                if (indexNameAndResp.getKey().startsWith(SHRUNKEN_INDEX_PREFIX) && indexNameAndResp.getKey().contains(backingIndexName)) {
                     indexResp = indexNameAndResp.getValue();
                     assertNotNull(indexResp);
                     assertThat(indexResp.getPhase(), equalTo("warm"));

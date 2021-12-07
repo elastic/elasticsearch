@@ -8,17 +8,17 @@
 
 package org.elasticsearch.painless.action;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.painless.lookup.PainlessLookupUtility;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.PainlessMethod;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -35,14 +35,8 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<PainlessContextMethodInfo, Void> PARSER = new ConstructingObjectParser<>(
-            PainlessContextMethodInfo.class.getCanonicalName(),
-            (v) ->
-                    new PainlessContextMethodInfo(
-                            (String)v[0],
-                            (String)v[1],
-                            (String)v[2],
-                            (List<String>)v[3]
-                    )
+        PainlessContextMethodInfo.class.getCanonicalName(),
+        (v) -> new PainlessContextMethodInfo((String) v[0], (String) v[1], (String) v[2], (List<String>) v[3])
     );
 
     static {
@@ -59,10 +53,10 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
 
     public PainlessContextMethodInfo(PainlessMethod painlessMethod) {
         this(
-                painlessMethod.javaMethod.getDeclaringClass().getName(),
-                painlessMethod.javaMethod.getName(),
-                PainlessContextTypeInfo.getType(painlessMethod.returnType.getName()),
-                painlessMethod.typeParameters.stream().map(c -> PainlessContextTypeInfo.getType(c.getName())).collect(Collectors.toList())
+            painlessMethod.javaMethod.getDeclaringClass().getName(),
+            painlessMethod.javaMethod.getName(),
+            PainlessContextTypeInfo.getType(painlessMethod.returnType.getName()),
+            painlessMethod.typeParameters.stream().map(c -> PainlessContextTypeInfo.getType(c.getName())).collect(Collectors.toList())
         );
     }
 
@@ -113,10 +107,10 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PainlessContextMethodInfo that = (PainlessContextMethodInfo) o;
-        return Objects.equals(declaring, that.declaring) &&
-                Objects.equals(name, that.name) &&
-                Objects.equals(rtn, that.rtn) &&
-                Objects.equals(parameters, that.parameters);
+        return Objects.equals(declaring, that.declaring)
+            && Objects.equals(name, that.name)
+            && Objects.equals(rtn, that.rtn)
+            && Objects.equals(parameters, that.parameters);
     }
 
     @Override
@@ -126,12 +120,19 @@ public class PainlessContextMethodInfo implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return "PainlessContextMethodInfo{" +
-                "declaring='" + declaring + '\'' +
-                ", name='" + name + '\'' +
-                ", rtn='" + rtn + '\'' +
-                ", parameters=" + parameters +
-                '}';
+        return "PainlessContextMethodInfo{"
+            + "declaring='"
+            + declaring
+            + '\''
+            + ", name='"
+            + name
+            + '\''
+            + ", rtn='"
+            + rtn
+            + '\''
+            + ", parameters="
+            + parameters
+            + '}';
     }
 
     public String getDeclaring() {

@@ -8,11 +8,10 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.core.PageParams;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-
 
 public class GetModelSnapshotsRequestTests extends AbstractXContentTestCase<GetModelSnapshotsRequest> {
 
@@ -21,8 +20,7 @@ public class GetModelSnapshotsRequestTests extends AbstractXContentTestCase<GetM
         GetModelSnapshotsRequest request = new GetModelSnapshotsRequest(randomAlphaOfLengthBetween(1, 20));
         if (randomBoolean()) {
             request.setSnapshotId(String.valueOf(randomNonNegativeLong()));
-        }
-        else {
+        } else {
             if (randomBoolean()) {
                 request.setStart(String.valueOf(randomLong()));
             }

@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.core.security.action.token;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -60,7 +60,8 @@ public final class CreateTokenRequest extends ActionRequest {
     }
 
     private static final Set<GrantType> SUPPORTED_GRANT_TYPES = Collections.unmodifiableSet(
-        EnumSet.of(GrantType.PASSWORD, GrantType.KERBEROS, GrantType.REFRESH_TOKEN, GrantType.CLIENT_CREDENTIALS));
+        EnumSet.of(GrantType.PASSWORD, GrantType.KERBEROS, GrantType.REFRESH_TOKEN, GrantType.CLIENT_CREDENTIALS)
+    );
 
     private String grantType;
     private String username;
@@ -81,8 +82,14 @@ public final class CreateTokenRequest extends ActionRequest {
 
     public CreateTokenRequest() {}
 
-    public CreateTokenRequest(String grantType, @Nullable String username, @Nullable SecureString password,
-                              @Nullable SecureString kerberosTicket, @Nullable String scope, @Nullable String refreshToken) {
+    public CreateTokenRequest(
+        String grantType,
+        @Nullable String username,
+        @Nullable SecureString password,
+        @Nullable SecureString kerberosTicket,
+        @Nullable String scope,
+        @Nullable String refreshToken
+    ) {
         this.grantType = grantType;
         this.username = username;
         this.password = password;
@@ -122,40 +129,57 @@ public final class CreateTokenRequest extends ActionRequest {
                     validationException = validateUnsupportedField(type, "refresh_token", refreshToken, validationException);
                     break;
                 default:
-                    validationException = addValidationError("grant_type only supports the values: [" +
-                            SUPPORTED_GRANT_TYPES.stream().map(GrantType::getValue).collect(Collectors.joining(", ")) + "]",
-                        validationException);
+                    validationException = addValidationError(
+                        "grant_type only supports the values: ["
+                            + SUPPORTED_GRANT_TYPES.stream().map(GrantType::getValue).collect(Collectors.joining(", "))
+                            + "]",
+                        validationException
+                    );
             }
         } else {
-            validationException = addValidationError("grant_type only supports the values: [" +
-                    SUPPORTED_GRANT_TYPES.stream().map(GrantType::getValue).collect(Collectors.joining(", ")) + "]",
-                validationException);
+            validationException = addValidationError(
+                "grant_type only supports the values: ["
+                    + SUPPORTED_GRANT_TYPES.stream().map(GrantType::getValue).collect(Collectors.joining(", "))
+                    + "]",
+                validationException
+            );
         }
         return validationException;
     }
 
-    private static ActionRequestValidationException validateRequiredField(String field, String fieldValue,
-                                                                          ActionRequestValidationException validationException) {
+    private static ActionRequestValidationException validateRequiredField(
+        String field,
+        String fieldValue,
+        ActionRequestValidationException validationException
+    ) {
         if (Strings.isNullOrEmpty(fieldValue)) {
             validationException = addValidationError(String.format(Locale.ROOT, "%s is missing", field), validationException);
         }
         return validationException;
     }
 
-    private static ActionRequestValidationException validateRequiredField(String field, SecureString fieldValue,
-                                                                          ActionRequestValidationException validationException) {
+    private static ActionRequestValidationException validateRequiredField(
+        String field,
+        SecureString fieldValue,
+        ActionRequestValidationException validationException
+    ) {
         if (fieldValue == null || fieldValue.getChars() == null || fieldValue.length() == 0) {
             validationException = addValidationError(String.format(Locale.ROOT, "%s is missing", field), validationException);
         }
         return validationException;
     }
 
-    private static ActionRequestValidationException validateUnsupportedField(GrantType grantType, String field, Object fieldValue,
-                                                                               ActionRequestValidationException validationException) {
+    private static ActionRequestValidationException validateUnsupportedField(
+        GrantType grantType,
+        String field,
+        Object fieldValue,
+        ActionRequestValidationException validationException
+    ) {
         if (fieldValue != null) {
             validationException = addValidationError(
-                    String.format(Locale.ROOT, "%s is not supported with the %s grant_type", field, grantType.getValue()),
-                    validationException);
+                String.format(Locale.ROOT, "%s is not supported with the %s grant_type", field, grantType.getValue()),
+                validationException
+            );
         }
         return validationException;
     }

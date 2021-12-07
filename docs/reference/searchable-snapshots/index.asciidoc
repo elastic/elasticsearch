@@ -84,7 +84,7 @@ Use any of the following repository types with searchable snapshots:
 
 You can also use alternative implementations of these repository types, for
 instance
-{plugins}/repository-s3-client.html#repository-s3-compatible-services[Minio],
+{plugins}/repository-s3-client.html#repository-s3-compatible-services[MinIO],
 as long as they are fully compatible. Use the <<repo-analysis-api>> API
 to analyze your repository's suitability for use with searchable snapshots.
 // end::searchable-snapshot-repo-types[]
@@ -279,7 +279,7 @@ multiple clusters and use <<modules-cross-cluster-search,{ccs}>> or
 [[back-up-restore-searchable-snapshots]]
 === Back up and restore {search-snaps}
 
-You can use <<snapshot-lifecycle-management,regular snapshots>> to back up a
+You can use <<snapshots-take-snapshot,regular snapshots>> to back up a
 cluster containing {search-snap} indices. When you restore a snapshot
 containing {search-snap} indices, these indices are restored as {search-snap}
 indices again.

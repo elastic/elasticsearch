@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -40,15 +40,23 @@ public final class ApiKey implements ToXContentObject, Writeable {
     private final String realm;
     private final Map<String, Object> metadata;
 
-    public ApiKey(String name, String id, Instant creation, Instant expiration, boolean invalidated, String username, String realm,
-                  @Nullable Map<String, Object> metadata) {
+    public ApiKey(
+        String name,
+        String id,
+        Instant creation,
+        Instant expiration,
+        boolean invalidated,
+        String username,
+        String realm,
+        @Nullable Map<String, Object> metadata
+    ) {
         this.name = name;
         this.id = id;
         // As we do not yet support the nanosecond precision when we serialize to JSON,
         // here creating the 'Instant' of milliseconds precision.
         // This Instant can then be used for date comparison.
         this.creation = Instant.ofEpochMilli(creation.toEpochMilli());
-        this.expiration = (expiration != null) ? Instant.ofEpochMilli(expiration.toEpochMilli()): null;
+        this.expiration = (expiration != null) ? Instant.ofEpochMilli(expiration.toEpochMilli()) : null;
         this.invalidated = invalidated;
         this.username = username;
         this.realm = realm;
@@ -114,21 +122,16 @@ public final class ApiKey implements ToXContentObject, Writeable {
     }
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
-        builder
-            .field("id", id)
-            .field("name", name)
-            .field("creation", creation.toEpochMilli());
+        builder.field("id", id).field("name", name).field("creation", creation.toEpochMilli());
         if (expiration != null) {
             builder.field("expiration", expiration.toEpochMilli());
         }
-        builder
-            .field("invalidated", invalidated)
+        builder.field("invalidated", invalidated)
             .field("username", username)
             .field("realm", realm)
             .field("metadata", (metadata == null ? Map.of() : metadata));
         return builder;
     }
-
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -166,20 +169,27 @@ public final class ApiKey implements ToXContentObject, Writeable {
         }
         ApiKey other = (ApiKey) obj;
         return Objects.equals(name, other.name)
-                && Objects.equals(id, other.id)
-                && Objects.equals(creation, other.creation)
-                && Objects.equals(expiration, other.expiration)
-                && Objects.equals(invalidated, other.invalidated)
-                && Objects.equals(username, other.username)
-                && Objects.equals(realm, other.realm)
-                && Objects.equals(metadata, other.metadata);
+            && Objects.equals(id, other.id)
+            && Objects.equals(creation, other.creation)
+            && Objects.equals(expiration, other.expiration)
+            && Objects.equals(invalidated, other.invalidated)
+            && Objects.equals(username, other.username)
+            && Objects.equals(realm, other.realm)
+            && Objects.equals(metadata, other.metadata);
     }
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<ApiKey, Void> PARSER = new ConstructingObjectParser<>("api_key", args -> {
-        return new ApiKey((String) args[0], (String) args[1], Instant.ofEpochMilli((Long) args[2]),
-                (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3]), (Boolean) args[4], (String) args[5], (String) args[6],
-            (args[7] == null) ? null : (Map<String, Object>) args[7]);
+        return new ApiKey(
+            (String) args[0],
+            (String) args[1],
+            Instant.ofEpochMilli((Long) args[2]),
+            (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3]),
+            (Boolean) args[4],
+            (String) args[5],
+            (String) args[6],
+            (args[7] == null) ? null : (Map<String, Object>) args[7]
+        );
     });
     static {
         PARSER.declareString(constructorArg(), new ParseField("name"));
@@ -198,8 +208,23 @@ public final class ApiKey implements ToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return "ApiKey [name=" + name + ", id=" + id + ", creation=" + creation + ", expiration=" + expiration + ", invalidated="
-                + invalidated + ", username=" + username + ", realm=" + realm + ", metadata=" + metadata + "]";
+        return "ApiKey [name="
+            + name
+            + ", id="
+            + id
+            + ", creation="
+            + creation
+            + ", expiration="
+            + expiration
+            + ", invalidated="
+            + invalidated
+            + ", username="
+            + username
+            + ", realm="
+            + realm
+            + ", metadata="
+            + metadata
+            + "]";
     }
 
 }

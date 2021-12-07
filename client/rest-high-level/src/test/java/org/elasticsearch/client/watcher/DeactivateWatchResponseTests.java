@@ -7,14 +7,13 @@
  */
 package org.elasticsearch.client.watcher;
 
-
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -24,7 +23,8 @@ public class DeactivateWatchResponseTests extends ESTestCase {
         XContentType contentType = randomFrom(XContentType.values());
         int version = randomInt();
         ExecutionState executionState = randomFrom(ExecutionState.values());
-        XContentBuilder builder = XContentFactory.contentBuilder(contentType).startObject()
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType)
+            .startObject()
             .startObject("status")
             .field("version", version)
             .field("execution_state", executionState)
@@ -39,8 +39,7 @@ public class DeactivateWatchResponseTests extends ESTestCase {
     }
 
     private DeactivateWatchResponse parse(XContentType contentType, BytesReference bytes) throws IOException {
-        XContentParser parser = XContentFactory.xContent(contentType)
-            .createParser(NamedXContentRegistry.EMPTY, null, bytes.streamInput());
+        XContentParser parser = XContentFactory.xContent(contentType).createParser(NamedXContentRegistry.EMPTY, null, bytes.streamInput());
         parser.nextToken();
         return DeactivateWatchResponse.fromXContent(parser);
     }

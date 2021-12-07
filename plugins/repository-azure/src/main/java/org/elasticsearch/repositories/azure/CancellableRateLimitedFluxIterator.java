@@ -77,7 +77,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
         // This method acts as a barrier between producers and consumers
         // and it's possible that the consumer thread is blocked
         // waiting until the producer emits an element.
-        for (; ; ) {
+        for (;;) {
             boolean isDone = done;
             boolean isQueueEmpty = queue.isEmpty();
 
@@ -129,8 +129,7 @@ class CancellableRateLimitedFluxIterator<T> implements Subscriber<T>, Iterator<T
         if (totalEmittedElements == elementsPerBatch) {
             emittedElements = 0;
             subscription.get().request(totalEmittedElements);
-        }
-        else {
+        } else {
             emittedElements = totalEmittedElements;
         }
 

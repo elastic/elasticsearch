@@ -9,8 +9,8 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.support.ApiKey;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;

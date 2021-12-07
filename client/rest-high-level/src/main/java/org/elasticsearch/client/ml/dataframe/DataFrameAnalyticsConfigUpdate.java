@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.dataframe;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,7 +38,8 @@ public class DataFrameAnalyticsConfigUpdate implements ToXContentObject {
             Builder::setModelMemoryLimit,
             (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), DataFrameAnalyticsConfig.MODEL_MEMORY_LIMIT.getPreferredName()),
             DataFrameAnalyticsConfig.MODEL_MEMORY_LIMIT,
-            VALUE);
+            VALUE
+        );
         PARSER.declareBoolean(Builder::setAllowLazyStart, DataFrameAnalyticsConfig.ALLOW_LAZY_START);
         PARSER.declareInt(Builder::setMaxNumThreads, DataFrameAnalyticsConfig.MAX_NUM_THREADS);
     }
@@ -49,11 +50,13 @@ public class DataFrameAnalyticsConfigUpdate implements ToXContentObject {
     private final Boolean allowLazyStart;
     private final Integer maxNumThreads;
 
-    private DataFrameAnalyticsConfigUpdate(String id,
-                                           @Nullable String description,
-                                           @Nullable ByteSizeValue modelMemoryLimit,
-                                           @Nullable Boolean allowLazyStart,
-                                           @Nullable Integer maxNumThreads) {
+    private DataFrameAnalyticsConfigUpdate(
+        String id,
+        @Nullable String description,
+        @Nullable ByteSizeValue modelMemoryLimit,
+        @Nullable Boolean allowLazyStart,
+        @Nullable Integer maxNumThreads
+    ) {
         this.id = id;
         this.description = description;
         this.modelMemoryLimit = modelMemoryLimit;

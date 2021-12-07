@@ -55,9 +55,7 @@ public final class ChangePasswordRequest implements Validatable, ToXContentObjec
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         byte[] charBytes = CharArrays.toUtf8Bytes(password);
         try {
-            return builder.startObject()
-                .field("password").utf8Value(charBytes, 0, charBytes.length)
-                .endObject();
+            return builder.startObject().field("password").utf8Value(charBytes, 0, charBytes.length).endObject();
         } finally {
             Arrays.fill(charBytes, (byte) 0);
         }

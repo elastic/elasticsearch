@@ -10,6 +10,7 @@ package org.elasticsearch.common;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,7 +24,7 @@ import java.util.Objects;
 /**
  * A reusable class to encode {@code field -&gt; memory size} mappings
  */
-public final class FieldMemoryStats implements Writeable, Iterable<ObjectLongCursor<String>>{
+public final class FieldMemoryStats implements Writeable, Iterable<ObjectLongCursor<String>> {
 
     private final ObjectLongHashMap<String> stats;
 

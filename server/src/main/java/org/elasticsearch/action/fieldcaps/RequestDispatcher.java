@@ -66,26 +66,34 @@ final class RequestDispatcher {
     private final AtomicInteger executionRound = new AtomicInteger();
     private final Map<String, IndexSelector> indexSelectors;
 
-    RequestDispatcher(ClusterService clusterService, TransportService transportService, Task parentTask,
-                      FieldCapabilitiesRequest fieldCapsRequest, OriginalIndices originalIndices, long nowInMillis,
-                      String[] indices, Executor executor, Consumer<FieldCapabilitiesIndexResponse> onIndexResponse,
-                      BiConsumer<String, Exception> onIndexFailure, Runnable onComplete) {
+    RequestDispatcher(
+        ClusterService clusterService,
+        TransportService transportService,
+        Task parentTask,
+        FieldCapabilitiesRequest fieldCapsRequest,
+        OriginalIndices originalIndices,
+        long nowInMillis,
+        String[] indices,
+        Executor executor,
+        Consumer<FieldCapabilitiesIndexResponse> onIndexResponse,
+        BiConsumer<String, Exception> onIndexFailure,
+        Runnable onComplete
+    ) {
         this.transportService = transportService;
         this.fieldCapsRequest = fieldCapsRequest;
         this.parentTask = parentTask;
         this.originalIndices = originalIndices;
         this.nowInMillis = nowInMillis;
         this.clusterState = clusterService.state();
-        this.hasFilter =
-            fieldCapsRequest.indexFilter() != null && fieldCapsRequest.indexFilter() instanceof MatchAllQueryBuilder == false;
+        this.hasFilter = fieldCapsRequest.indexFilter() != null && fieldCapsRequest.indexFilter() instanceof MatchAllQueryBuilder == false;
         this.executor = executor;
         this.onIndexResponse = onIndexResponse;
         this.onIndexFailure = onIndexFailure;
         this.onComplete = new RunOnce(onComplete);
         this.indexSelectors = ConcurrentCollections.newConcurrentMap();
         for (String index : indices) {
-            final GroupShardsIterator<ShardIterator> shardIts =
-                clusterService.operationRouting().searchShards(clusterState, new String[]{index}, null, null, null, null);
+            final GroupShardsIterator<ShardIterator> shardIts = clusterService.operationRouting()
+                .searchShards(clusterState, new String[] { index }, null, null, null, null);
             final IndexSelector indexResult = new IndexSelector(shardIts);
             if (indexResult.nodeToShards.isEmpty()) {
                 onIndexFailure.accept(index, new NoShardAvailableActionException(null, "index [" + index + "] has no active shard copy"));
@@ -159,17 +167,26 @@ final class RequestDispatcher {
         final DiscoveryNode node = clusterState.nodes().get(nodeId);
         assert node != null;
         LOGGER.debug("round {} sends field caps node request to node {} for shardIds {}", executionRound, node, shardIds);
-        final ActionListener<FieldCapabilitiesNodeResponse> listener =
-            ActionListener.wrap(r -> onRequestResponse(shardIds, r), failure -> onRequestFailure(shardIds, failure));
+        final ActionListener<FieldCapabilitiesNodeResponse> listener = ActionListener.wrap(
+            r -> onRequestResponse(shardIds, r),
+            failure -> onRequestFailure(shardIds, failure)
+        );
         final FieldCapabilitiesNodeRequest nodeRequest = new FieldCapabilitiesNodeRequest(
             shardIds,
             fieldCapsRequest.fields(),
             originalIndices,
             fieldCapsRequest.indexFilter(),
             nowInMillis,
-            fieldCapsRequest.runtimeFields());
-        transportService.sendChildRequest(node, TransportFieldCapabilitiesAction.ACTION_NODE_NAME, nodeRequest, parentTask,
-            TransportRequestOptions.EMPTY, new ActionListenerResponseHandler<>(listener, FieldCapabilitiesNodeResponse::new));
+            fieldCapsRequest.runtimeFields()
+        );
+        transportService.sendChildRequest(
+            node,
+            TransportFieldCapabilitiesAction.ACTION_NODE_NAME,
+            nodeRequest,
+            parentTask,
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(listener, FieldCapabilitiesNodeResponse::new)
+        );
     }
 
     private void afterRequestsCompleted(int numRequests) {

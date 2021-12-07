@@ -16,14 +16,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
-
 
 /**
  * A request to gather terms for a given field matching a string prefix
@@ -118,8 +117,7 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
             validationException = ValidateActions.addValidationError("Timeout cannot be null", validationException);
         } else {
             if (timeout().getSeconds() > 60) {
-                validationException = ValidateActions.addValidationError("Timeout cannot be > 1 minute",
-                    validationException);
+                validationException = ValidateActions.addValidationError("Timeout cannot be > 1 minute", validationException);
             }
         }
         return validationException;
@@ -226,10 +224,24 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
 
     @Override
     public String toString() {
-        return "[" + Arrays.toString(indices) + "] field[" + field + "], string[" + string + "] "  + " size=" + size + " timeout="
-            + timeout().getMillis() + " case_insensitive="
-            + caseInsensitive + " indexFilter = "+ indexFilter +
-            " searchAfter[" + searchAfter + "]" ;
+        return "["
+            + Arrays.toString(indices)
+            + "] field["
+            + field
+            + "], string["
+            + string
+            + "] "
+            + " size="
+            + size
+            + " timeout="
+            + timeout().getMillis()
+            + " case_insensitive="
+            + caseInsensitive
+            + " indexFilter = "
+            + indexFilter
+            + " searchAfter["
+            + searchAfter
+            + "]";
     }
 
     @Override
@@ -250,8 +262,7 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(field, string, searchAfter, size, caseInsensitive,
-            indexFilter, indicesOptions(), timeout());
+        int result = Objects.hash(field, string, searchAfter, size, caseInsensitive, indexFilter, indicesOptions(), timeout());
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

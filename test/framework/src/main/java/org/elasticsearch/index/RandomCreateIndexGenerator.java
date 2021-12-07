@@ -11,10 +11,10 @@ package org.elasticsearch.index;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
@@ -73,7 +73,7 @@ public final class RandomCreateIndexGenerator {
      * Creates a random mapping, with the mapping definition nested
      * under the given type name.
      */
-    public static XContentBuilder randomMapping(String type)  {
+    public static XContentBuilder randomMapping(String type) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             builder.startObject().startObject(type);

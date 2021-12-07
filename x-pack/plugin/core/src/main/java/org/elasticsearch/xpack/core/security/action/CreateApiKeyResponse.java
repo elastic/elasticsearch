@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.core.CharArrays;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -34,9 +34,15 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public final class CreateApiKeyResponse extends ActionResponse implements ToXContentObject {
 
-    static final ConstructingObjectParser<CreateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("create_api_key_response",
-            args -> new CreateApiKeyResponse((String) args[0], (String) args[1], new SecureString((String) args[2]),
-                    (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3])));
+    static final ConstructingObjectParser<CreateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "create_api_key_response",
+        args -> new CreateApiKeyResponse(
+            (String) args[0],
+            (String) args[1],
+            new SecureString((String) args[2]),
+            (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3])
+        )
+    );
     static {
         PARSER.declareString(constructorArg(), new ParseField("name"));
         PARSER.declareString(constructorArg(), new ParseField("id"));
@@ -57,7 +63,7 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
         // As we do not yet support the nanosecond precision when we serialize to JSON,
         // here creating the 'Instant' of milliseconds precision.
         // This Instant can then be used for date comparison.
-        this.expiration = (expiration != null) ? Instant.ofEpochMilli(expiration.toEpochMilli()): null;
+        this.expiration = (expiration != null) ? Instant.ofEpochMilli(expiration.toEpochMilli()) : null;
     }
 
     public CreateApiKeyResponse(StreamInput in) throws IOException {
@@ -142,9 +148,7 @@ public final class CreateApiKeyResponse extends ActionResponse implements ToXCon
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject()
-            .field("id", id)
-            .field("name", name);
+        builder.startObject().field("id", id).field("name", name);
         if (expiration != null) {
             builder.field("expiration", expiration.toEpochMilli());
         }

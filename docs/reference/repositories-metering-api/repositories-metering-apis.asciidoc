@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[repositories-metering-apis]]
 == Repositories metering APIs
 

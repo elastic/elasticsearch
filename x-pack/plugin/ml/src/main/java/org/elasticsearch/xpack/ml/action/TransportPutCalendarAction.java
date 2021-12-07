@@ -16,12 +16,12 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
@@ -50,8 +50,12 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
 
         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(calendar.documentId());
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            indexRequest.source(calendar.toXContent(builder,
-                    new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))));
+            indexRequest.source(
+                calendar.toXContent(
+                    builder,
+                    new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))
+                )
+            );
         } catch (IOException e) {
             throw new IllegalStateException("Failed to serialise calendar with id [" + calendar.getId() + "]", e);
         }
@@ -60,23 +64,24 @@ public class TransportPutCalendarAction extends HandledTransportAction<PutCalend
         indexRequest.opType(DocWriteRequest.OpType.CREATE);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest,
-                new ActionListener<IndexResponse>() {
-                    @Override
-                    public void onResponse(IndexResponse indexResponse) {
-                        listener.onResponse(new PutCalendarAction.Response(calendar));
-                    }
+        executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, new ActionListener<IndexResponse>() {
+            @Override
+            public void onResponse(IndexResponse indexResponse) {
+                listener.onResponse(new PutCalendarAction.Response(calendar));
+            }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                            listener.onFailure(ExceptionsHelper.badRequestException("Cannot create calendar with id [" +
-                                    calendar.getId() + "] as it already exists"));
-                        } else {
-                            listener.onFailure(
-                                    ExceptionsHelper.serverError("Error putting calendar with id [" + calendar.getId() + "]", e));
-                        }
-                    }
-                });
+            @Override
+            public void onFailure(Exception e) {
+                if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
+                    listener.onFailure(
+                        ExceptionsHelper.badRequestException(
+                            "Cannot create calendar with id [" + calendar.getId() + "] as it already exists"
+                        )
+                    );
+                } else {
+                    listener.onFailure(ExceptionsHelper.serverError("Error putting calendar with id [" + calendar.getId() + "]", e));
+                }
+            }
+        });
     }
 }

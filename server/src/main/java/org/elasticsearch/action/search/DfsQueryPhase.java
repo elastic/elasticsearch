@@ -36,11 +36,13 @@ final class DfsQueryPhase extends SearchPhase {
     private final SearchTransportService searchTransportService;
     private final SearchProgressListener progressListener;
 
-    DfsQueryPhase(List<DfsSearchResult> searchResults,
-                  AggregatedDfs dfs,
-                  QueryPhaseResultConsumer queryResult,
-                  Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
-                  SearchPhaseContext context) {
+    DfsQueryPhase(
+        List<DfsSearchResult> searchResults,
+        AggregatedDfs dfs,
+        QueryPhaseResultConsumer queryResult,
+        Function<ArraySearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
+        SearchPhaseContext context
+    ) {
         super("dfs_query");
         this.progressListener = context.getTask().getProgressListener();
         this.queryResult = queryResult;
@@ -62,14 +64,23 @@ final class DfsQueryPhase extends SearchPhase {
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(
             queryResult,
             searchResults.size(),
-            () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)), context);
+            () -> context.executeNextPhase(this, nextPhaseFactory.apply(queryResult)),
+            context
+        );
         for (final DfsSearchResult dfsResult : searchResults) {
             final SearchShardTarget shardTarget = dfsResult.getSearchShardTarget();
             Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
-            QuerySearchRequest querySearchRequest = new QuerySearchRequest(context.getOriginalIndices(dfsResult.getShardIndex()),
-                    dfsResult.getContextId(), dfsResult.getShardSearchRequest(), dfs);
+            QuerySearchRequest querySearchRequest = new QuerySearchRequest(
+                context.getOriginalIndices(dfsResult.getShardIndex()),
+                dfsResult.getContextId(),
+                dfsResult.getShardSearchRequest(),
+                dfs
+            );
             final int shardIndex = dfsResult.getShardIndex();
-            searchTransportService.sendExecuteQuery(connection, querySearchRequest, context.getTask(),
+            searchTransportService.sendExecuteQuery(
+                connection,
+                querySearchRequest,
+                context.getTask(),
                 new SearchActionListener<QuerySearchResult>(shardTarget, shardIndex) {
 
                     @Override
@@ -84,8 +95,11 @@ final class DfsQueryPhase extends SearchPhase {
                     @Override
                     public void onFailure(Exception exception) {
                         try {
-                            context.getLogger().debug(() -> new ParameterizedMessage("[{}] Failed to execute query phase",
-                                querySearchRequest.contextId()), exception);
+                            context.getLogger()
+                                .debug(
+                                    () -> new ParameterizedMessage("[{}] Failed to execute query phase", querySearchRequest.contextId()),
+                                    exception
+                                );
                             progressListener.notifyQueryFailure(shardIndex, shardTarget, exception);
                             counter.onFailure(shardIndex, shardTarget, exception);
                         } finally {
@@ -94,11 +108,15 @@ final class DfsQueryPhase extends SearchPhase {
                                 // execution) and the search context that was created in dfs phase might not be released.
                                 // release it again to be in the safe side
                                 context.sendReleaseSearchContext(
-                                    querySearchRequest.contextId(), connection, context.getOriginalIndices(shardIndex));
+                                    querySearchRequest.contextId(),
+                                    connection,
+                                    context.getOriginalIndices(shardIndex)
+                                );
                             }
                         }
                     }
-                });
+                }
+            );
         }
     }
 }

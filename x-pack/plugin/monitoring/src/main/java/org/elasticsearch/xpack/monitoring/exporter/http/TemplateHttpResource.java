@@ -64,10 +64,18 @@ public class TemplateHttpResource extends PublishableHttpResource {
      */
     @Override
     protected void doCheck(final RestClient client, final ActionListener<Boolean> listener) {
-        versionCheckForResource(client, listener, logger,
-                                "/_template", templateName, "monitoring template",
-                                resourceOwnerName, "monitoring cluster",
-                                XContentType.JSON.xContent(), MonitoringTemplateUtils.LAST_UPDATED_VERSION);
+        versionCheckForResource(
+            client,
+            listener,
+            logger,
+            "/_template",
+            templateName,
+            "monitoring template",
+            resourceOwnerName,
+            "monitoring cluster",
+            XContentType.JSON.xContent(),
+            MonitoringTemplateUtils.LAST_UPDATED_VERSION
+        );
     }
 
     /**
@@ -76,7 +84,13 @@ public class TemplateHttpResource extends PublishableHttpResource {
      */
     @Override
     protected void doPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
-        listener.onResponse(ResourcePublishResult.notReady("waiting for remote monitoring cluster to install appropriate template " +
-            "[" + templateName + "] (version mismatch or missing)"));
+        listener.onResponse(
+            ResourcePublishResult.notReady(
+                "waiting for remote monitoring cluster to install appropriate template "
+                    + "["
+                    + templateName
+                    + "] (version mismatch or missing)"
+            )
+        );
     }
 }

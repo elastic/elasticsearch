@@ -79,9 +79,7 @@ public class PermissionTests extends ESTestCase {
     }
 
     public void testRunAs() {
-        Role permission = Role.builder(Automatons.EMPTY, "some_role")
-                .runAs(new Privilege("name", "user1", "run*"))
-                .build();
+        Role permission = Role.builder(Automatons.EMPTY, "some_role").runAs(new Privilege("name", "user1", "run*")).build();
         assertThat(permission.runAs().check("user1"), is(true));
         assertThat(permission.runAs().check("user"), is(false));
         assertThat(permission.runAs().check("run" + randomAlphaOfLengthBetween(1, 10)), is(true));
@@ -99,8 +97,9 @@ public class PermissionTests extends ESTestCase {
     private IndexAbstraction mockIndexAbstraction(String name) {
         IndexAbstraction mock = mock(IndexAbstraction.class);
         when(mock.getName()).thenReturn(name);
-        when(mock.getType()).thenReturn(randomFrom(IndexAbstraction.Type.CONCRETE_INDEX,
-                IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM));
+        when(mock.getType()).thenReturn(
+            randomFrom(IndexAbstraction.Type.CONCRETE_INDEX, IndexAbstraction.Type.ALIAS, IndexAbstraction.Type.DATA_STREAM)
+        );
         return mock;
     }
 }

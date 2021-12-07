@@ -9,10 +9,10 @@
 package org.elasticsearch.client.transform.transforms;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -22,14 +22,14 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toMap;
 
-
 public class SourceConfigTests extends AbstractXContentTestCase<SourceConfig> {
 
     public static SourceConfig randomSourceConfig() {
         return new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
             QueryConfigTests.randomQueryConfig(),
-            randomRuntimeMappings());
+            randomRuntimeMappings()
+        );
     }
 
     private static Map<String, Object> randomRuntimeMappings() {

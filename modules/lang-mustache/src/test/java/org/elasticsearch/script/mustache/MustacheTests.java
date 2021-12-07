@@ -8,12 +8,12 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matcher;
 
 import java.net.URLEncoder;
@@ -41,7 +41,8 @@ public class MustacheTests extends ESTestCase {
     private ScriptEngine engine = new MustacheScriptEngine();
 
     public void testBasics() {
-        String template = "GET _search {\"query\": " + "{\"boosting\": {"
+        String template = "GET _search {\"query\": "
+            + "{\"boosting\": {"
             + "\"positive\": {\"match\": {\"body\": \"gift\"}},"
             + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}"
             + "}}, \"negative_boost\": {{boost_val}} } }}";
@@ -50,20 +51,18 @@ public class MustacheTests extends ESTestCase {
         TemplateScript.Factory factory = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());
         TemplateScript result = factory.newInstance(params);
         assertEquals(
-                "Mustache templating broken",
-                "GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
-                        + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.2 } }}",
-                result.execute()
+            "Mustache templating broken",
+            "GET _search {\"query\": {\"boosting\": {\"positive\": {\"match\": {\"body\": \"gift\"}},"
+                + "\"negative\": {\"term\": {\"body\": {\"value\": \"solr\"}}}, \"negative_boost\": 0.2 } }}",
+            result.execute()
         );
     }
 
     public void testArrayAccess() throws Exception {
         String template = "{{data.0}} {{data.1}}";
-        TemplateScript.Factory factory  = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());
+        TemplateScript.Factory factory = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());
         Map<String, Object> vars = new HashMap<>();
-        Object data = randomFrom(
-            new String[] { "foo", "bar" },
-            Arrays.asList("foo", "bar"));
+        Object data = randomFrom(new String[] { "foo", "bar" }, Arrays.asList("foo", "bar"));
         vars.put("data", data);
         assertThat(factory.newInstance(vars).execute(), equalTo("foo bar"));
 
@@ -81,7 +80,7 @@ public class MustacheTests extends ESTestCase {
         TemplateScript.Factory factory = engine.compile(null, template, TemplateScript.CONTEXT, Collections.emptyMap());
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
-            new String[][] { new String[] { "foo", "bar" }},
+            new String[][] { new String[] { "foo", "bar" } },
             Collections.singletonList(new String[] { "foo", "bar" }),
             singleton(new String[] { "foo", "bar" })
         );
@@ -95,7 +94,8 @@ public class MustacheTests extends ESTestCase {
         Map<String, Object> vars = new HashMap<>();
         Object data = randomFrom(
             new Object[] { singletonMap("key", "foo"), singletonMap("key", "bar") },
-            Arrays.asList(singletonMap("key", "foo"), singletonMap("key", "bar")));
+            Arrays.asList(singletonMap("key", "foo"), singletonMap("key", "bar"))
+        );
         vars.put("data", data);
         assertThat(factory.newInstance(vars).execute(), equalTo("foo bar"));
 
@@ -107,7 +107,6 @@ public class MustacheTests extends ESTestCase {
         String output = factory.newInstance(vars).execute();
         assertThat(output, both(containsString("foo")).and(containsString("bar")));
     }
-
 
     public void testSizeAccessForCollectionsAndArrays() throws Exception {
         String[] randomArrayValues = generateRandomStringArray(10, 20, false);
@@ -174,23 +173,31 @@ public class MustacheTests extends ESTestCase {
 
         Map<String, Object> ctx = singletonMap("ctx", humans);
 
-        assertScript("{{#toJson}}.{{/toJson}}", ctx,
-                equalTo("{\"ctx\":{\"first\":{\"name\":\"John Smith\",\"age\":42,\"height\":1.84},\"second\":" +
-                        "{\"name\":\"Dave Smith\",\"age\":27,\"height\":1.71}}}"));
+        assertScript(
+            "{{#toJson}}.{{/toJson}}",
+            ctx,
+            equalTo(
+                "{\"ctx\":{\"first\":{\"name\":\"John Smith\",\"age\":42,\"height\":1.84},\"second\":"
+                    + "{\"name\":\"Dave Smith\",\"age\":27,\"height\":1.71}}}"
+            )
+        );
 
-        assertScript("{{#toJson}}ctx{{/toJson}}", ctx,
-                equalTo("{\"first\":{\"name\":\"John Smith\",\"age\":42,\"height\":1.84},\"second\":" +
-                        "{\"name\":\"Dave Smith\",\"age\":27,\"height\":1.71}}"));
+        assertScript(
+            "{{#toJson}}ctx{{/toJson}}",
+            ctx,
+            equalTo(
+                "{\"first\":{\"name\":\"John Smith\",\"age\":42,\"height\":1.84},\"second\":"
+                    + "{\"name\":\"Dave Smith\",\"age\":27,\"height\":1.71}}"
+            )
+        );
 
-        assertScript("{{#toJson}}ctx.first{{/toJson}}", ctx,
-                equalTo("{\"name\":\"John Smith\",\"age\":42,\"height\":1.84}"));
+        assertScript("{{#toJson}}ctx.first{{/toJson}}", ctx, equalTo("{\"name\":\"John Smith\",\"age\":42,\"height\":1.84}"));
 
-        assertScript("{{#toJson}}ctx.second{{/toJson}}", ctx,
-                equalTo("{\"name\":\"Dave Smith\",\"age\":27,\"height\":1.71}"));
+        assertScript("{{#toJson}}ctx.second{{/toJson}}", ctx, equalTo("{\"name\":\"Dave Smith\",\"age\":27,\"height\":1.71}"));
     }
 
     public void testSimpleArrayToJSON() throws Exception {
-        String[] array = new String[]{"one", "two", "three"};
+        String[] array = new String[] { "one", "two", "three" };
         Map<String, Object> ctx = singletonMap("array", array);
 
         assertScript("{{#toJson}}.{{/toJson}}", ctx, equalTo("{\"array\":[\"one\",\"two\",\"three\"]}"));
@@ -229,81 +236,86 @@ public class MustacheTests extends ESTestCase {
 
     public void testEmbeddedToJSON() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
-                        .startArray("bulks")
-                            .startObject()
-                                .field("index", "index-1")
-                                .field("type", "type-1")
-                                .field("id", 1)
-                            .endObject()
-                            .startObject()
-                                .field("index", "index-2")
-                                .field("type", "type-2")
-                                .field("id", 2)
-                            .endObject()
-                        .endArray()
-                    .endObject();
+            .startArray("bulks")
+            .startObject()
+            .field("index", "index-1")
+            .field("type", "type-1")
+            .field("id", 1)
+            .endObject()
+            .startObject()
+            .field("index", "index-2")
+            .field("type", "type-2")
+            .field("id", 2)
+            .endObject()
+            .endArray()
+            .endObject();
 
-        Map<String, Object> ctx =
-            singletonMap("ctx", XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2());
+        Map<String, Object> ctx = singletonMap(
+            "ctx",
+            XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2()
+        );
 
-        assertScript("{{#ctx.bulks}}{{#toJson}}.{{/toJson}}{{/ctx.bulks}}", ctx,
-                equalTo("{\"index\":\"index-1\",\"id\":1,\"type\":\"type-1\"}{\"index\":\"index-2\",\"id\":2,\"type\":\"type-2\"}"));
+        assertScript(
+            "{{#ctx.bulks}}{{#toJson}}.{{/toJson}}{{/ctx.bulks}}",
+            ctx,
+            equalTo("{\"index\":\"index-1\",\"id\":1,\"type\":\"type-1\"}{\"index\":\"index-2\",\"id\":2,\"type\":\"type-2\"}")
+        );
 
-        assertScript("{{#ctx.bulks}}<{{#toJson}}id{{/toJson}}>{{/ctx.bulks}}", ctx,
-                equalTo("<1><2>"));
+        assertScript("{{#ctx.bulks}}<{{#toJson}}id{{/toJson}}>{{/ctx.bulks}}", ctx, equalTo("<1><2>"));
     }
 
     public void testSimpleArrayJoin() throws Exception {
         String template = "{{#join}}array{{/join}}";
-        assertScript(template, singletonMap("array", new String[]{"one", "two", "three"}), equalTo("one,two,three"));
-        assertScript(template, singletonMap("array", new int[]{1, 2, 3}), equalTo("1,2,3"));
-        assertScript(template, singletonMap("array", new long[]{1L, 2L, 3L}), equalTo("1,2,3"));
-        assertScript(template, singletonMap("array", new double[]{1.5, 2.5, 3.5}), equalTo("1.5,2.5,3.5"));
-        assertScript(template, singletonMap("array", new boolean[]{true, false, true}), equalTo("true,false,true"));
-        assertScript(template, singletonMap("array", new boolean[]{true, false, true}), equalTo("true,false,true"));
+        assertScript(template, singletonMap("array", new String[] { "one", "two", "three" }), equalTo("one,two,three"));
+        assertScript(template, singletonMap("array", new int[] { 1, 2, 3 }), equalTo("1,2,3"));
+        assertScript(template, singletonMap("array", new long[] { 1L, 2L, 3L }), equalTo("1,2,3"));
+        assertScript(template, singletonMap("array", new double[] { 1.5, 2.5, 3.5 }), equalTo("1.5,2.5,3.5"));
+        assertScript(template, singletonMap("array", new boolean[] { true, false, true }), equalTo("true,false,true"));
+        assertScript(template, singletonMap("array", new boolean[] { true, false, true }), equalTo("true,false,true"));
     }
 
     public void testEmbeddedArrayJoin() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
-                                                    .startArray("people")
-                                                        .startObject()
-                                                            .field("name", "John Smith")
-                                                            .startArray("emails")
-                                                                .value("john@smith.com")
-                                                                .value("john.smith@email.com")
-                                                                .value("jsmith@email.com")
-                                                            .endArray()
-                                                        .endObject()
-                                                        .startObject()
-                                                            .field("name", "John Doe")
-                                                            .startArray("emails")
-                                                                .value("john@doe.com")
-                                                                .value("john.doe@email.com")
-                                                                .value("jdoe@email.com")
-                                                            .endArray()
-                                                        .endObject()
-                                                    .endArray()
-                                                .endObject();
+            .startArray("people")
+            .startObject()
+            .field("name", "John Smith")
+            .startArray("emails")
+            .value("john@smith.com")
+            .value("john.smith@email.com")
+            .value("jsmith@email.com")
+            .endArray()
+            .endObject()
+            .startObject()
+            .field("name", "John Doe")
+            .startArray("emails")
+            .value("john@doe.com")
+            .value("john.doe@email.com")
+            .value("jdoe@email.com")
+            .endArray()
+            .endObject()
+            .endArray()
+            .endObject();
 
-        Map<String, Object> ctx =
-            singletonMap("ctx", XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2());
+        Map<String, Object> ctx = singletonMap(
+            "ctx",
+            XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2()
+        );
 
-        assertScript("{{#join}}ctx.people.0.emails{{/join}}", ctx,
-                equalTo("john@smith.com,john.smith@email.com,jsmith@email.com"));
+        assertScript("{{#join}}ctx.people.0.emails{{/join}}", ctx, equalTo("john@smith.com,john.smith@email.com,jsmith@email.com"));
 
-        assertScript("{{#join}}ctx.people.1.emails{{/join}}", ctx,
-                equalTo("john@doe.com,john.doe@email.com,jdoe@email.com"));
+        assertScript("{{#join}}ctx.people.1.emails{{/join}}", ctx, equalTo("john@doe.com,john.doe@email.com,jdoe@email.com"));
 
-        assertScript("{{#ctx.people}}to: {{#join}}emails{{/join}};{{/ctx.people}}", ctx,
-                equalTo("to: john@smith.com,john.smith@email.com,jsmith@email.com;to: john@doe.com,john.doe@email.com,jdoe@email.com;"));
+        assertScript(
+            "{{#ctx.people}}to: {{#join}}emails{{/join}};{{/ctx.people}}",
+            ctx,
+            equalTo("to: john@smith.com,john.smith@email.com,jsmith@email.com;to: john@doe.com,john.doe@email.com,jdoe@email.com;")
+        );
     }
 
     public void testJoinWithToJson() {
-        Map<String, Object> params = singletonMap("terms",
-                Arrays.asList(singletonMap("term", "foo"), singletonMap("term", "bar")));
+        Map<String, Object> params = singletonMap("terms", Arrays.asList(singletonMap("term", "foo"), singletonMap("term", "bar")));
 
-        assertScript("{{#join}}{{#toJson}}terms{{/toJson}}{{/join}}", params,
-                equalTo("[{\"term\":\"foo\"},{\"term\":\"bar\"}]"));
+        assertScript("{{#join}}{{#toJson}}terms{{/toJson}}{{/join}}", params, equalTo("[{\"term\":\"foo\"},{\"term\":\"bar\"}]"));
     }
 
     public void testsUnsupportedTagsJoin() {
@@ -331,12 +343,12 @@ public class MustacheTests extends ESTestCase {
 
     public void testUrlEncoder() {
         Map<String, String> urls = new HashMap<>();
-        urls.put("https://www.elastic.co",
-                "https%3A%2F%2Fwww.elastic.co");
-        urls.put("<logstash-{now/d}>",
-                "%3Clogstash-%7Bnow%2Fd%7D%3E");
-        urls.put("?query=(foo:A OR baz:B) AND title:/joh?n(ath[oa]n)/ AND date:{* TO 2012-01}",
-                "%3Fquery%3D%28foo%3AA+OR+baz%3AB%29+AND+title%3A%2Fjoh%3Fn%28ath%5Boa%5Dn%29%2F+AND+date%3A%7B*+TO+2012-01%7D");
+        urls.put("https://www.elastic.co", "https%3A%2F%2Fwww.elastic.co");
+        urls.put("<logstash-{now/d}>", "%3Clogstash-%7Bnow%2Fd%7D%3E");
+        urls.put(
+            "?query=(foo:A OR baz:B) AND title:/joh?n(ath[oa]n)/ AND date:{* TO 2012-01}",
+            "%3Fquery%3D%28foo%3AA+OR+baz%3AB%29+AND+title%3A%2Fjoh%3Fn%28ath%5Boa%5Dn%29%2F+AND+date%3A%7B*+TO+2012-01%7D"
+        );
 
         for (Map.Entry<String, String> url : urls.entrySet()) {
             assertScript("{{#url}}{{params}}{{/url}}", singletonMap("params", url.getKey()), equalTo(url.getValue()));
@@ -344,27 +356,44 @@ public class MustacheTests extends ESTestCase {
     }
 
     public void testUrlEncoderWithParam() throws Exception {
-        assertScript("{{#url}}{{index}}{{/url}}", singletonMap("index", "<logstash-{now/d{YYYY.MM.dd|+12:00}}>"),
-                equalTo("%3Clogstash-%7Bnow%2Fd%7BYYYY.MM.dd%7C%2B12%3A00%7D%7D%3E"));
+        assertScript(
+            "{{#url}}{{index}}{{/url}}",
+            singletonMap("index", "<logstash-{now/d{YYYY.MM.dd|+12:00}}>"),
+            equalTo("%3Clogstash-%7Bnow%2Fd%7BYYYY.MM.dd%7C%2B12%3A00%7D%7D%3E")
+        );
 
         final String random = randomAlphaOfLength(10);
-        assertScript("{{#url}}prefix_{{s}}{{/url}}", singletonMap("s", random),
-                equalTo("prefix_" + URLEncoder.encode(random, StandardCharsets.UTF_8.name())));
+        assertScript(
+            "{{#url}}prefix_{{s}}{{/url}}",
+            singletonMap("s", random),
+            equalTo("prefix_" + URLEncoder.encode(random, StandardCharsets.UTF_8.name()))
+        );
     }
 
     public void testUrlEncoderWithJoin() {
         Map<String, Object> params = singletonMap("emails", Arrays.asList("john@smith.com", "john.smith@email.com", "jsmith@email.com"));
-        assertScript("?query={{#url}}{{#join}}emails{{/join}}{{/url}}", params,
-                equalTo("?query=john%40smith.com%2Cjohn.smith%40email.com%2Cjsmith%40email.com"));
+        assertScript(
+            "?query={{#url}}{{#join}}emails{{/join}}{{/url}}",
+            params,
+            equalTo("?query=john%40smith.com%2Cjohn.smith%40email.com%2Cjsmith%40email.com")
+        );
 
-        params = singletonMap("indices", new String[]{"<logstash-{now/d-2d}>", "<logstash-{now/d-1d}>", "<logstash-{now/d}>"});
-        assertScript("{{#url}}https://localhost:9200/{{#join}}indices{{/join}}/_stats{{/url}}", params,
-                equalTo("https%3A%2F%2Flocalhost%3A9200%2F%3Clogstash-%7Bnow%2Fd-2d%7D" +
-                        "%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogstash-%7Bnow%2Fd%7D%3E%2F_stats"));
+        params = singletonMap("indices", new String[] { "<logstash-{now/d-2d}>", "<logstash-{now/d-1d}>", "<logstash-{now/d}>" });
+        assertScript(
+            "{{#url}}https://localhost:9200/{{#join}}indices{{/join}}/_stats{{/url}}",
+            params,
+            equalTo(
+                "https%3A%2F%2Flocalhost%3A9200%2F%3Clogstash-%7Bnow%2Fd-2d%7D"
+                    + "%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogstash-%7Bnow%2Fd%7D%3E%2F_stats"
+            )
+        );
 
-        params = singletonMap("fibonacci", new int[]{1, 1, 2, 3, 5, 8, 13, 21, 34, 55});
-        assertScript("{{#url}}{{#join delimiter='+'}}fibonacci{{/join delimiter='+'}}{{/url}}", params,
-                equalTo("1%2B1%2B2%2B3%2B5%2B8%2B13%2B21%2B34%2B55"));
+        params = singletonMap("fibonacci", new int[] { 1, 1, 2, 3, 5, 8, 13, 21, 34, 55 });
+        assertScript(
+            "{{#url}}{{#join delimiter='+'}}fibonacci{{/join delimiter='+'}}{{/url}}",
+            params,
+            equalTo("1%2B1%2B2%2B3%2B5%2B8%2B13%2B21%2B34%2B55")
+        );
     }
 
     private void assertScript(String script, Map<String, Object> vars, Matcher<String> matcher) {

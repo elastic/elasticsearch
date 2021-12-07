@@ -39,16 +39,18 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         fields = in.readStringArray();
         originalIndices = OriginalIndices.readOriginalIndices(in);
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        nowInMillis =  in.readLong();
+        nowInMillis = in.readLong();
         runtimeFields = in.readMap();
     }
 
-    FieldCapabilitiesNodeRequest(List<ShardId> shardIds,
-                                 String[] fields,
-                                 OriginalIndices originalIndices,
-                                 QueryBuilder indexFilter,
-                                 long nowInMillis,
-                                 Map<String, Object> runtimeFields) {
+    FieldCapabilitiesNodeRequest(
+        List<ShardId> shardIds,
+        String[] fields,
+        OriginalIndices originalIndices,
+        QueryBuilder indexFilter,
+        long nowInMillis,
+        Map<String, Object> runtimeFields
+    ) {
         this.shardIds = Objects.requireNonNull(shardIds);
         this.fields = fields;
         this.originalIndices = originalIndices;
@@ -112,9 +114,12 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesNodeRequest that = (FieldCapabilitiesNodeRequest) o;
-        return nowInMillis == that.nowInMillis && shardIds.equals(that.shardIds)
-            && Arrays.equals(fields, that.fields) && Objects.equals(originalIndices, that.originalIndices)
-            && Objects.equals(indexFilter, that.indexFilter) && Objects.equals(runtimeFields, that.runtimeFields);
+        return nowInMillis == that.nowInMillis
+            && shardIds.equals(that.shardIds)
+            && Arrays.equals(fields, that.fields)
+            && Objects.equals(originalIndices, that.originalIndices)
+            && Objects.equals(indexFilter, that.indexFilter)
+            && Objects.equals(runtimeFields, that.runtimeFields);
     }
 
     @Override

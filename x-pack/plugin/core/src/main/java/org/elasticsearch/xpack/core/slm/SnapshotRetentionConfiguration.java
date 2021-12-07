@@ -10,19 +10,19 @@ package org.elasticsearch.xpack.core.slm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.snapshots.SnapshotState;
 
 import java.io.IOException;
 import java.util.Comparator;
@@ -45,13 +45,16 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
 
     private static final Set<SnapshotState> UNSUCCESSFUL_STATES = EnumSet.of(SnapshotState.FAILED, SnapshotState.PARTIAL);
 
-    private static final ConstructingObjectParser<SnapshotRetentionConfiguration, Void> PARSER =
-        new ConstructingObjectParser<>("snapshot_retention", true, a -> {
+    private static final ConstructingObjectParser<SnapshotRetentionConfiguration, Void> PARSER = new ConstructingObjectParser<>(
+        "snapshot_retention",
+        true,
+        a -> {
             TimeValue expireAfter = a[0] == null ? null : TimeValue.parseTimeValue((String) a[0], EXPIRE_AFTER.getPreferredName());
             Integer minCount = (Integer) a[1];
             Integer maxCount = (Integer) a[2];
             return new SnapshotRetentionConfiguration(expireAfter, minCount, maxCount);
-        });
+        }
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), EXPIRE_AFTER);
@@ -71,16 +74,20 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
         this.maximumSnapshotCount = in.readOptionalVInt();
     }
 
-    public SnapshotRetentionConfiguration(@Nullable TimeValue expireAfter,
-                                          @Nullable Integer minimumSnapshotCount,
-                                          @Nullable Integer maximumSnapshotCount) {
+    public SnapshotRetentionConfiguration(
+        @Nullable TimeValue expireAfter,
+        @Nullable Integer minimumSnapshotCount,
+        @Nullable Integer maximumSnapshotCount
+    ) {
         this(System::currentTimeMillis, expireAfter, minimumSnapshotCount, maximumSnapshotCount);
     }
 
-    public SnapshotRetentionConfiguration(LongSupplier nowSupplier,
-                                          @Nullable TimeValue expireAfter,
-                                          @Nullable Integer minimumSnapshotCount,
-                                          @Nullable Integer maximumSnapshotCount) {
+    public SnapshotRetentionConfiguration(
+        LongSupplier nowSupplier,
+        @Nullable TimeValue expireAfter,
+        @Nullable Integer minimumSnapshotCount,
+        @Nullable Integer maximumSnapshotCount
+    ) {
         this.nowSupplier = nowSupplier;
         this.expireAfter = expireAfter;
         this.minimumSnapshotCount = minimumSnapshotCount;
@@ -92,8 +99,12 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
             throw new IllegalArgumentException("maximum snapshot count must be at least 1, but was: " + this.maximumSnapshotCount);
         }
         if ((maximumSnapshotCount != null && minimumSnapshotCount != null) && this.minimumSnapshotCount > this.maximumSnapshotCount) {
-            throw new IllegalArgumentException("minimum snapshot count " + this.minimumSnapshotCount +
-                " cannot be larger than maximum snapshot count " + this.maximumSnapshotCount);
+            throw new IllegalArgumentException(
+                "minimum snapshot count "
+                    + this.minimumSnapshotCount
+                    + " cannot be larger than maximum snapshot count "
+                    + this.maximumSnapshotCount
+            );
         }
     }
 
@@ -163,15 +174,25 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                     }
                 }
                 if (found) {
-                    logger.trace("[{}]: ELIGIBLE as it is one of the {} oldest snapshots with " +
-                        "{} non-failed snapshots ({} total), over the limit of {} maximum snapshots",
-                        snapName, successfulSnapsToDelete, successfulSnapshotCount, totalSnapshotCount, this.maximumSnapshotCount
+                    logger.trace(
+                        "[{}]: ELIGIBLE as it is one of the {} oldest snapshots with "
+                            + "{} non-failed snapshots ({} total), over the limit of {} maximum snapshots",
+                        snapName,
+                        successfulSnapsToDelete,
+                        successfulSnapshotCount,
+                        totalSnapshotCount,
+                        this.maximumSnapshotCount
                     );
                     return true;
                 } else {
-                    logger.trace("[{}]: SKIPPING as it is not one of the {} oldest snapshots with " +
-                        "{} non-failed snapshots ({} total), over the limit of {} maximum snapshots",
-                        snapName, successfulSnapsToDelete, successfulSnapshotCount, totalSnapshotCount, this.maximumSnapshotCount
+                    logger.trace(
+                        "[{}]: SKIPPING as it is not one of the {} oldest snapshots with "
+                            + "{} non-failed snapshots ({} total), over the limit of {} maximum snapshots",
+                        snapName,
+                        successfulSnapsToDelete,
+                        successfulSnapshotCount,
+                        totalSnapshotCount,
+                        this.maximumSnapshotCount
                     );
                 }
             }
@@ -181,12 +202,21 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
             // expiration time
             if (this.minimumSnapshotCount != null && successfulSnapshotCount <= this.minimumSnapshotCount) {
                 if (UNSUCCESSFUL_STATES.contains(si.state()) == false) {
-                    logger.trace("[{}]: INELIGIBLE as there are {} non-failed snapshots ({} total) and {} minimum snapshots needed",
-                            snapName, successfulSnapshotCount, totalSnapshotCount, this.minimumSnapshotCount);
+                    logger.trace(
+                        "[{}]: INELIGIBLE as there are {} non-failed snapshots ({} total) and {} minimum snapshots needed",
+                        snapName,
+                        successfulSnapshotCount,
+                        totalSnapshotCount,
+                        this.minimumSnapshotCount
+                    );
                     return false;
                 } else {
-                    logger.trace("[{}]: SKIPPING minimum snapshot count check as this snapshot is {} and not counted " +
-                            "towards the minimum snapshot count.", snapName, si.state());
+                    logger.trace(
+                        "[{}]: SKIPPING minimum snapshot count check as this snapshot is {} and not counted "
+                            + "towards the minimum snapshot count.",
+                        snapName,
+                        si.state()
+                    );
                 }
             }
 
@@ -211,20 +241,35 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
                     if (maybeEligible == false) {
                         // This snapshot is *not* one of the N oldest snapshots, so even if it were
                         // old enough, the other snapshots would be deleted before it
-                        logger.trace("[{}]: INELIGIBLE as snapshot expiration would pass the " +
-                                "minimum number of configured snapshots ({}) to keep, regardless of age",
-                            snapName, this.minimumSnapshotCount);
+                        logger.trace(
+                            "[{}]: INELIGIBLE as snapshot expiration would pass the "
+                                + "minimum number of configured snapshots ({}) to keep, regardless of age",
+                            snapName,
+                            this.minimumSnapshotCount
+                        );
                         return false;
                     }
                 }
                 final long snapshotAge = nowSupplier.getAsLong() - si.startTime();
                 if (snapshotAge > this.expireAfter.getMillis()) {
-                    logger.trace(() -> new ParameterizedMessage("[{}]: ELIGIBLE as snapshot age of {} is older than {}",
-                        snapName, new TimeValue(snapshotAge).toHumanReadableString(3), this.expireAfter.toHumanReadableString(3)));
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "[{}]: ELIGIBLE as snapshot age of {} is older than {}",
+                            snapName,
+                            new TimeValue(snapshotAge).toHumanReadableString(3),
+                            this.expireAfter.toHumanReadableString(3)
+                        )
+                    );
                     return true;
                 } else {
-                    logger.trace(() -> new ParameterizedMessage("[{}]: INELIGIBLE as snapshot age of [{}ms] is newer than {}",
-                        snapName, new TimeValue(snapshotAge).toHumanReadableString(3), this.expireAfter.toHumanReadableString(3)));
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "[{}]: INELIGIBLE as snapshot age of [{}ms] is newer than {}",
+                            snapName,
+                            new TimeValue(snapshotAge).toHumanReadableString(3),
+                            this.expireAfter.toHumanReadableString(3)
+                        )
+                    );
                     return false;
                 }
             }
@@ -271,9 +316,9 @@ public class SnapshotRetentionConfiguration implements ToXContentObject, Writeab
             return false;
         }
         SnapshotRetentionConfiguration other = (SnapshotRetentionConfiguration) obj;
-        return Objects.equals(this.expireAfter, other.expireAfter) &&
-            Objects.equals(minimumSnapshotCount, other.minimumSnapshotCount) &&
-            Objects.equals(maximumSnapshotCount, other.maximumSnapshotCount);
+        return Objects.equals(this.expireAfter, other.expireAfter)
+            && Objects.equals(minimumSnapshotCount, other.minimumSnapshotCount)
+            && Objects.equals(maximumSnapshotCount, other.maximumSnapshotCount);
     }
 
     @Override

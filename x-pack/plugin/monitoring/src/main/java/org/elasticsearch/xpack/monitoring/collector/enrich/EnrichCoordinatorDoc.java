@@ -20,11 +20,13 @@ public final class EnrichCoordinatorDoc extends MonitoringDoc {
 
     private final CoordinatorStats coordinatorStats;
 
-    public EnrichCoordinatorDoc(String cluster,
-                                long timestamp,
-                                long intervalMillis,
-                                MonitoringDoc.Node node,
-                                CoordinatorStats coordinatorStats) {
+    public EnrichCoordinatorDoc(
+        String cluster,
+        long timestamp,
+        long intervalMillis,
+        MonitoringDoc.Node node,
+        CoordinatorStats coordinatorStats
+    ) {
         super(cluster, timestamp, intervalMillis, node, MonitoredSystem.ES, TYPE, null);
         this.coordinatorStats = Objects.requireNonNull(coordinatorStats, "stats");
     }

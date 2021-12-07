@@ -103,7 +103,7 @@ if [ "$REMOVE_DIRS" = "true" ]; then
 
     # delete the security auto config directory if we are purging
     if [ "$REMOVE_SECURITY_AUTO_CONFIG_DIRECTORY" = "true" ]; then
-      for dir in "${ES_PATH_CONF}"/tls_auto_config_initial_node_*
+      for dir in "${ES_PATH_CONF}"/tls_auto_config_*
       do
         echo -n "Deleting security auto-configuration directory..."
         rm -rf "${dir}"

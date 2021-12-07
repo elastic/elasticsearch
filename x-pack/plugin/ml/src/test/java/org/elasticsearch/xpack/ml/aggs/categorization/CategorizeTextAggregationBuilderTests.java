@@ -17,6 +17,9 @@ import java.util.Collections;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder.MAX_MAX_MATCHED_TOKENS;
+import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder.MAX_MAX_UNIQUE_TOKENS;
+
 public class CategorizeTextAggregationBuilderTests extends BaseAggregationTestCase<CategorizeTextAggregationBuilder> {
 
     @Override
@@ -35,10 +38,10 @@ public class CategorizeTextAggregationBuilderTests extends BaseAggregationTestCa
             builder.setCategorizationAnalyzerConfig(CategorizationAnalyzerConfigTests.createRandomized().build());
         }
         if (randomBoolean()) {
-            builder.setMaxUniqueTokens(randomIntBetween(1, 500));
+            builder.setMaxUniqueTokens(randomIntBetween(1, MAX_MAX_UNIQUE_TOKENS));
         }
         if (randomBoolean()) {
-            builder.setMaxMatchedTokens(randomIntBetween(1, 10));
+            builder.setMaxMatchedTokens(randomIntBetween(1, MAX_MAX_MATCHED_TOKENS));
         }
         if (randomBoolean()) {
             builder.setSimilarityThreshold(randomIntBetween(1, 100));

@@ -17,11 +17,11 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -40,6 +40,9 @@ import java.util.stream.Collectors;
  * creating the system index, upgrading its mappings, and creating an alias.
  */
 public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<SystemIndexDescriptor> {
+
+    public static final Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build();
+
     /**
      * A pattern, either with a wildcard or simple regex. Indices that match one of these patterns are considered system indices.
      * Note that this pattern must not overlap with any other {@link SystemIndexDescriptor}s and must allow an alphanumeric suffix
@@ -118,8 +121,23 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      * @param description The name of the plugin responsible for this system index.
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
-        this(indexPattern, null, description, null, null, null, 0, null, null, Version.CURRENT.minimumCompatibilityVersion(),
-            Type.INTERNAL_UNMANAGED, List.of(), List.of(), null, false);
+        this(
+            indexPattern,
+            null,
+            description,
+            null,
+            null,
+            null,
+            0,
+            null,
+            null,
+            Version.CURRENT.minimumCompatibilityVersion(),
+            Type.INTERNAL_UNMANAGED,
+            List.of(),
+            List.of(),
+            null,
+            false
+        );
     }
 
     /**
@@ -134,8 +152,23 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      *                                     indices
      */
     public SystemIndexDescriptor(String indexPattern, String description, Type type, List<String> allowedElasticProductOrigins) {
-        this(indexPattern, null, description, null, null, null, 0, null, null, Version.CURRENT.minimumCompatibilityVersion(), type,
-            allowedElasticProductOrigins, List.of(), null, false);
+        this(
+            indexPattern,
+            null,
+            description,
+            null,
+            null,
+            null,
+            0,
+            null,
+            null,
+            Version.CURRENT.minimumCompatibilityVersion(),
+            type,
+            allowedElasticProductOrigins,
+            List.of(),
+            null,
+            false
+        );
     }
 
     /**
@@ -223,7 +256,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             Strings.requireNonEmpty(primaryIndex, "Must supply primaryIndex for a managed system index");
             Strings.requireNonEmpty(versionMetaKey, "Must supply versionMetaKey for a managed system index");
             Strings.requireNonEmpty(origin, "Must supply origin for a managed system index");
-            this.mappingVersion = extractVersionFromMappings(mappings, versionMetaKey);;
+            this.mappingVersion = extractVersionFromMappings(mappings, versionMetaKey);
+            ;
         } else {
             this.mappingVersion = null;
         }
@@ -242,7 +276,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             // 1. No values with the same minimum node version
             // 2. All prior system index descriptors must have a minimumNodeVersion before this one
             // 3. Prior system index descriptors may not have other prior system index descriptors
-            //    to avoid multiple branches that need followed
+            // to avoid multiple branches that need followed
             // 4. Must have same indexPattern, primaryIndex, and alias
             Set<Version> versions = new HashSet<>(priorSystemIndexDescriptors.size() + 1);
             versions.add(minimumNodeVersion);
@@ -251,8 +285,9 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
                     throw new IllegalArgumentException(prior + " has the same minimum node version as another descriptor");
                 }
                 if (prior.minimumNodeVersion.after(minimumNodeVersion)) {
-                    throw new IllegalArgumentException(prior + " has minimum node version [" + prior.minimumNodeVersion +
-                        "] which is after [" + minimumNodeVersion + "]");
+                    throw new IllegalArgumentException(
+                        prior + " has minimum node version [" + prior.minimumNodeVersion + "] which is after [" + minimumNodeVersion + "]"
+                    );
                 }
                 if (prior.priorSystemIndexDescriptors.isEmpty() == false) {
                     throw new IllegalArgumentException(prior + " has its own prior descriptors but only a depth of 1 is allowed");
@@ -294,11 +329,17 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         this.description = description;
         this.mappings = mappings;
 
-        if (Objects.nonNull(settings) && settings.getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
-            throw new IllegalArgumentException("System indices cannot have " + IndexMetadata.SETTING_INDEX_HIDDEN +
-                " set to true.");
+        settings = Objects.isNull(settings) ? Settings.EMPTY : settings;
+
+        if (settings.hasValue(IndexMetadata.SETTING_INDEX_HIDDEN) == false) {
+            settings = Settings.builder().put(settings).put(DEFAULT_SETTINGS).build();
         }
-        this.settings = settings;
+
+        if (settings.getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false)) {
+            this.settings = settings;
+        } else {
+            throw new IllegalArgumentException("System indices must have " + IndexMetadata.SETTING_INDEX_HIDDEN + " set to true.");
+        }
         this.indexFormat = indexFormat;
         this.versionMetaKey = versionMetaKey;
         this.origin = origin;
@@ -317,12 +358,9 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             sortedPriorSystemIndexDescriptors = List.copyOf(copy);
         }
         this.priorSystemIndexDescriptors = sortedPriorSystemIndexDescriptors;
-        this.executorNames = Objects.nonNull(executorNames)
-            ? executorNames
-            : ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS;
+        this.executorNames = Objects.nonNull(executorNames) ? executorNames : ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS;
         this.isNetNew = isNetNew;
     }
-
 
     /**
      * @return The pattern of index names that this descriptor will be used for. Must start with a '.' character, must not
@@ -362,10 +400,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      */
     @Override
     public List<String> getMatchingIndices(Metadata metadata) {
-        return metadata.indices().keySet()
-            .stream()
-            .filter(this::matchesIndexPattern)
-            .collect(Collectors.toUnmodifiableList());
+        return metadata.indices().keySet().stream().filter(this::matchesIndexPattern).collect(Collectors.toUnmodifiableList());
     }
 
     /**
@@ -448,8 +483,9 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      */
     public String getMinimumNodeVersionMessage(String cause) {
         Objects.requireNonNull(cause);
-        final Version actualMinimumVersion = priorSystemIndexDescriptors.isEmpty() ? minimumNodeVersion :
-            priorSystemIndexDescriptors.get(priorSystemIndexDescriptors.size() - 1).minimumNodeVersion;
+        final Version actualMinimumVersion = priorSystemIndexDescriptors.isEmpty()
+            ? minimumNodeVersion
+            : priorSystemIndexDescriptors.get(priorSystemIndexDescriptors.size() - 1).minimumNodeVersion;
         return String.format(
             Locale.ROOT,
             "[%s] failed - system index [%s] requires all data and master nodes to be at least version [%s]",
@@ -629,8 +665,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             return this;
         }
 
-        public Builder setThreadPools(ExecutorNames executorNames) {
-            this.executorNames = executorNames;
+        public Builder setThreadPools(ExecutorNames threadPoolExecutorNames) {
+            this.executorNames = threadPoolExecutorNames;
             return this;
         }
 

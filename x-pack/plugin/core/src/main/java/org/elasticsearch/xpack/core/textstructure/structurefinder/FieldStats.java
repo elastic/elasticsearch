@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.textstructure.structurefinder;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -34,9 +34,21 @@ public class FieldStats implements ToXContentObject, Writeable {
     static final ParseField TOP_HITS = new ParseField("top_hits");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<FieldStats, Void> PARSER = new ConstructingObjectParser<>("field_stats", false,
-        a -> new FieldStats((long) a[0], (int) a[1], (Double) a[2], (Double) a[3], (Double) a[4], (Double) a[5],
-            (String) a[6], (String) a[7], (List<Map<String, Object>>) a[8]));
+    public static final ConstructingObjectParser<FieldStats, Void> PARSER = new ConstructingObjectParser<>(
+        "field_stats",
+        false,
+        a -> new FieldStats(
+            (long) a[0],
+            (int) a[1],
+            (Double) a[2],
+            (Double) a[3],
+            (Double) a[4],
+            (Double) a[5],
+            (String) a[6],
+            (String) a[7],
+            (List<Map<String, Object>>) a[8]
+        )
+    );
 
     static {
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), COUNT);
@@ -68,13 +80,29 @@ public class FieldStats implements ToXContentObject, Writeable {
         this(count, cardinality, null, null, null, null, earliestTimestamp, latestTimestamp, topHits);
     }
 
-    public FieldStats(long count, int cardinality, Double minValue, Double maxValue, Double meanValue, Double medianValue,
-                      List<Map<String, Object>> topHits) {
+    public FieldStats(
+        long count,
+        int cardinality,
+        Double minValue,
+        Double maxValue,
+        Double meanValue,
+        Double medianValue,
+        List<Map<String, Object>> topHits
+    ) {
         this(count, cardinality, minValue, maxValue, meanValue, medianValue, null, null, topHits);
     }
 
-    FieldStats(long count, int cardinality, Double minValue, Double maxValue, Double meanValue, Double medianValue,
-               String earliestTimestamp, String latestTimestamp, List<Map<String, Object>> topHits) {
+    FieldStats(
+        long count,
+        int cardinality,
+        Double minValue,
+        Double maxValue,
+        Double meanValue,
+        Double medianValue,
+        String earliestTimestamp,
+        String latestTimestamp,
+        List<Map<String, Object>> topHits
+    ) {
         this.count = count;
         this.cardinality = cardinality;
         this.minValue = minValue;
@@ -206,15 +234,15 @@ public class FieldStats implements ToXContentObject, Writeable {
         }
 
         FieldStats that = (FieldStats) other;
-        return this.count == that.count &&
-            this.cardinality == that.cardinality &&
-            Objects.equals(this.minValue, that.minValue) &&
-            Objects.equals(this.maxValue, that.maxValue) &&
-            Objects.equals(this.meanValue, that.meanValue) &&
-            Objects.equals(this.medianValue, that.medianValue) &&
-            Objects.equals(this.earliestTimestamp, that.earliestTimestamp) &&
-            Objects.equals(this.latestTimestamp, that.latestTimestamp) &&
-            Objects.equals(this.topHits, that.topHits);
+        return this.count == that.count
+            && this.cardinality == that.cardinality
+            && Objects.equals(this.minValue, that.minValue)
+            && Objects.equals(this.maxValue, that.maxValue)
+            && Objects.equals(this.meanValue, that.meanValue)
+            && Objects.equals(this.medianValue, that.medianValue)
+            && Objects.equals(this.earliestTimestamp, that.earliestTimestamp)
+            && Objects.equals(this.latestTimestamp, that.latestTimestamp)
+            && Objects.equals(this.topHits, that.topHits);
     }
 
     @Override

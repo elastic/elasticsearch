@@ -81,15 +81,11 @@ class Parameter {
      * Returns the Guice {@link Key} for this parameter.
      */
     public Object getValue(Injector injector) {
-        return isProvider
-                ? injector.getProvider(getBindingForType(getProvidedType(type)))
-                : injector.getInstance(getPrimaryBindingKey());
+        return isProvider ? injector.getProvider(getBindingForType(getProvidedType(type))) : injector.getInstance(getPrimaryBindingKey());
     }
 
     Key<?> getPrimaryBindingKey() {
-        return isProvider
-                ? getBindingForType(getProvidedType(type))
-                : getBindingForType(type);
+        return isProvider ? getBindingForType(getProvidedType(type)) : getBindingForType(type);
     }
 
     private Type getProvidedType(Type type) {
@@ -97,14 +93,11 @@ class Parameter {
     }
 
     private boolean isProvider(Type type) {
-        return type instanceof ParameterizedType
-                && ((ParameterizedType) type).getRawType() == Provider.class;
+        return type instanceof ParameterizedType && ((ParameterizedType) type).getRawType() == Provider.class;
     }
 
     private Key<?> getBindingForType(Type type) {
-        return bindingAnnotation != null
-                ? Key.get(type, bindingAnnotation)
-                : Key.get(type);
+        return bindingAnnotation != null ? Key.get(type, bindingAnnotation) : Key.get(type);
     }
 
     /**

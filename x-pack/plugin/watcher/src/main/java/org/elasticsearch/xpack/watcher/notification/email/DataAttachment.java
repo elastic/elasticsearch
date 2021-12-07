@@ -64,8 +64,10 @@ public enum DataAttachment implements ToXContentObject {
 
     public static DataAttachment resolve(String format) {
         switch (format.toLowerCase(Locale.ROOT)) {
-            case "yaml": return YAML;
-            case "json": return JSON;
+            case "yaml":
+                return YAML;
+            case "json":
+                return JSON;
             default:
                 throw illegalArgument("unknown data attachment format [{}]", format);
         }
@@ -80,8 +82,10 @@ public enum DataAttachment implements ToXContentObject {
             return parser.booleanValue() ? DEFAULT : null;
         }
         if (token != XContentParser.Token.START_OBJECT) {
-            throw new ElasticsearchParseException("could not parse data attachment. expected either a boolean value or an object but " +
-                    "found [{}] instead", token);
+            throw new ElasticsearchParseException(
+                "could not parse data attachment. expected either a boolean value or an object but " + "found [{}] instead",
+                token
+            );
         }
 
         DataAttachment dataAttachment = DEFAULT;
@@ -91,14 +95,20 @@ public enum DataAttachment implements ToXContentObject {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (currentFieldName == null) {
-                throw new ElasticsearchParseException("could not parse data attachment. expected [{}] field but found [{}] instead",
-                        Field.FORMAT.getPreferredName(), token);
+                throw new ElasticsearchParseException(
+                    "could not parse data attachment. expected [{}] field but found [{}] instead",
+                    Field.FORMAT.getPreferredName(),
+                    token
+                );
             } else if (Field.FORMAT.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     dataAttachment = resolve(parser.text());
                 } else {
-                    throw new ElasticsearchParseException("could not parse data attachment. expected string value for [{}] field but " +
-                            "found [{}] instead", currentFieldName, token);
+                    throw new ElasticsearchParseException(
+                        "could not parse data attachment. expected string value for [{}] field but " + "found [{}] instead",
+                        currentFieldName,
+                        token
+                    );
                 }
             } else {
                 throw new ElasticsearchParseException("could not parse data attachment. unexpected field [{}]", currentFieldName);

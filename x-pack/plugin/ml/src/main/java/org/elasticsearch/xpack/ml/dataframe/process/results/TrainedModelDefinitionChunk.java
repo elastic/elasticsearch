@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.ml.dataframe.process.results;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
@@ -28,7 +28,8 @@ public class TrainedModelDefinitionChunk implements ToXContentObject {
 
     public static final ConstructingObjectParser<TrainedModelDefinitionChunk, Void> PARSER = new ConstructingObjectParser<>(
         "chunked_trained_model_definition",
-        a -> new TrainedModelDefinitionChunk((String) a[0], (Integer) a[1], (Boolean) a[2]));
+        a -> new TrainedModelDefinitionChunk((String) a[0], (Integer) a[1], (Boolean) a[2])
+    );
 
     static {
         PARSER.declareString(constructorArg(), DEFINITION);
@@ -47,8 +48,7 @@ public class TrainedModelDefinitionChunk implements ToXContentObject {
     }
 
     public TrainedModelDefinitionDoc createTrainedModelDoc(String modelId) {
-        return new TrainedModelDefinitionDoc.Builder()
-            .setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
+        return new TrainedModelDefinitionDoc.Builder().setCompressionVersion(TrainedModelConfig.CURRENT_DEFINITION_COMPRESSION_VERSION)
             .setModelId(modelId)
             .setDefinitionLength(definition.length())
             .setDocNum(docNum)
@@ -78,9 +78,7 @@ public class TrainedModelDefinitionChunk implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TrainedModelDefinitionChunk that = (TrainedModelDefinitionChunk) o;
-        return docNum == that.docNum
-            && Objects.equals(definition, that.definition)
-            && Objects.equals(eos, that.eos);
+        return docNum == that.docNum && Objects.equals(definition, that.definition) && Objects.equals(eos, that.eos);
     }
 
     @Override

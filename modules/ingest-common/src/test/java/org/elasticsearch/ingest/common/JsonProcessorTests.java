@@ -9,13 +9,13 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -55,8 +55,12 @@ public class JsonProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
         Exception exception = expectThrows(IllegalArgumentException.class, () -> jsonProcessor.execute(ingestDocument));
-        assertThat(exception.getCause().getMessage(), containsString("Unrecognized token 'blah': " +
-            "was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')"));
+        assertThat(
+            exception.getCause().getMessage(),
+            containsString(
+                "Unrecognized token 'blah': " + "was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')"
+            )
+        );
     }
 
     public void testByteArray() {
@@ -68,9 +72,7 @@ public class JsonProcessorTests extends ESTestCase {
         Exception exception = expectThrows(IllegalArgumentException.class, () -> jsonProcessor.execute(ingestDocument));
         assertThat(
             exception.getCause().getMessage(),
-            containsString(
-                "Unrecognized token 'B': was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')"
-            )
+            containsString("Unrecognized token 'B': was expecting (JSON String, Number, Array, Object or token 'null', 'true' or 'false')")
         );
     }
 
@@ -178,8 +180,10 @@ public class JsonProcessorTests extends ESTestCase {
         assertEquals("see", sourceAndMetadata.get("c"));
 
         JsonProcessor strictJsonProcessor = new JsonProcessor(processorTag, null, "a", null, true, REPLACE, false);
-        Exception exception = expectThrows(IllegalArgumentException.class, () ->
-            strictJsonProcessor.execute(RandomDocumentPicks.randomIngestDocument(random(), document)));
+        Exception exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> strictJsonProcessor.execute(RandomDocumentPicks.randomIngestDocument(random(), document))
+        );
         assertThat(exception.getMessage(), containsString("Duplicate field 'a'"));
     }
 

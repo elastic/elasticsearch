@@ -519,7 +519,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
-
     /**
      * Sets if this request should allow partial results.  (If method is not called,
      * will default to the cluster level setting).

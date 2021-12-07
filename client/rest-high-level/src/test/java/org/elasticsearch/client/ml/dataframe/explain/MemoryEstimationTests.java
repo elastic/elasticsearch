@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml.dataframe.explain;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -18,7 +18,8 @@ public class MemoryEstimationTests extends AbstractXContentTestCase<MemoryEstima
     public static MemoryEstimation createRandom() {
         return new MemoryEstimation(
             randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null,
-            randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null);
+            randomBoolean() ? new ByteSizeValue(randomNonNegativeLong()) : null
+        );
     }
 
     @Override

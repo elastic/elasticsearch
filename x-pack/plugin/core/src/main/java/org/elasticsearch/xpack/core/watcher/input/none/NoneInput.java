@@ -19,8 +19,7 @@ public class NoneInput implements Input {
     public static final String TYPE = "none";
     public static final NoneInput INSTANCE = new NoneInput();
 
-    private NoneInput() {
-    }
+    private NoneInput() {}
 
     @Override
     public String type() {
@@ -66,8 +65,7 @@ public class NoneInput implements Input {
 
         private static final Builder INSTANCE = new Builder();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         @Override
         public NoneInput build() {

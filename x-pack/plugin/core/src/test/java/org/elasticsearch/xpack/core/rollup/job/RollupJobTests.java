@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 
 import java.io.IOException;

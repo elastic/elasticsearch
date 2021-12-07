@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.core.action.util;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -107,7 +107,6 @@ public final class QueryPage<T extends ToXContent & Writeable> implements ToXCon
 
         @SuppressWarnings("unchecked")
         QueryPage<T> other = (QueryPage<T>) obj;
-        return Objects.equals(results, other.results) &&
-                Objects.equals(count, other.count);
+        return Objects.equals(results, other.results) && Objects.equals(count, other.count);
     }
 }

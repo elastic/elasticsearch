@@ -14,19 +14,19 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 
 public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder> {
-    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(TypeQueryV7Builder.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Type queries are deprecated, " +
-        "prefer to filter on a field instead.";
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeQueryV7Builder.class);
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Type queries are deprecated, "
+        + "prefer to filter on a field instead.";
 
     private static final String NAME = "type";
     public static final ParseField NAME_V7 = new ParseField(NAME).forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
@@ -34,18 +34,20 @@ public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder>
     private static final ObjectParser<TypeQueryV7Builder, Void> PARSER = new ObjectParser<>(NAME, TypeQueryV7Builder::new);
 
     static {
-        PARSER.declareString(QueryBuilder::queryName,
-            AbstractQueryBuilder.NAME_FIELD.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)));
-        PARSER.declareFloat(QueryBuilder::boost,
-            AbstractQueryBuilder.BOOST_FIELD.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)));
-        PARSER.declareString(TypeQueryV7Builder::setValue,
-            VALUE_FIELD.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)));
+        PARSER.declareString(
+            QueryBuilder::queryName,
+            AbstractQueryBuilder.NAME_FIELD.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7))
+        );
+        PARSER.declareFloat(
+            QueryBuilder::boost,
+            AbstractQueryBuilder.BOOST_FIELD.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7))
+        );
+        PARSER.declareString(TypeQueryV7Builder::setValue, VALUE_FIELD.forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7)));
     }
 
     private String value;
 
-    public TypeQueryV7Builder() {
-    }
+    public TypeQueryV7Builder() {}
 
     /**
      * Read from a stream.
@@ -55,8 +57,7 @@ public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder>
     }
 
     @Override
-    protected void doWriteTo(StreamOutput out) throws IOException {
-    }
+    protected void doWriteTo(StreamOutput out) throws IOException {}
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
@@ -91,7 +92,7 @@ public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder>
         return NAME;
     }
 
-    public void setValue(String value){
+    public void setValue(String value) {
         this.value = value;
     }
 }

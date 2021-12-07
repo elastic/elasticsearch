@@ -20,11 +20,12 @@ public class Json {
     /**
      * Load a string as the Java version of a JSON type, either List (JSON array), Map (JSON object), Number, Boolean or String
      */
-    public static Object load(String json) throws IOException{
+    public static Object load(String json) throws IOException {
         XContentParser parser = JsonXContent.jsonXContent.createParser(
             NamedXContentRegistry.EMPTY,
             DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-            json);
+            json
+        );
 
         switch (parser.nextToken()) {
             case START_ARRAY:
@@ -46,7 +47,7 @@ public class Json {
      * Write a JSON representable type as a string
      */
     public static String dump(Object data) throws IOException {
-      return dump(data, false);
+        return dump(data, false);
     }
 
     /**

@@ -10,12 +10,12 @@ package org.elasticsearch.search.profile.aggregation;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileResultTests;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,29 +72,35 @@ public class AggregationProfileShardResultTests extends AbstractSerializingTestC
         Map<String, Object> debug = new LinkedHashMap<>();
         debug.put("stuff", "stuff");
         debug.put("other_stuff", List.of("foo", "bar"));
-        ProfileResult profileResult = new ProfileResult("someType", "someDescription", breakdown, debug,6000L, Collections.emptyList());
+        ProfileResult profileResult = new ProfileResult("someType", "someDescription", breakdown, debug, 6000L, Collections.emptyList());
         profileResults.add(profileResult);
         AggregationProfileShardResult aggProfileResults = new AggregationProfileShardResult(profileResults);
         BytesReference xContent = toXContent(aggProfileResults, XContentType.JSON, false);
-        assertEquals("{\"aggregations\":["
-                        + "{\"type\":\"someType\","
-                            + "\"description\":\"someDescription\","
-                            + "\"time_in_nanos\":6000,"
-                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000},"
-                            + "\"debug\":{\"stuff\":\"stuff\",\"other_stuff\":[\"foo\",\"bar\"]}"
-                        + "}"
-                   + "]}", xContent.utf8ToString());
+        assertEquals(
+            "{\"aggregations\":["
+                + "{\"type\":\"someType\","
+                + "\"description\":\"someDescription\","
+                + "\"time_in_nanos\":6000,"
+                + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000},"
+                + "\"debug\":{\"stuff\":\"stuff\",\"other_stuff\":[\"foo\",\"bar\"]}"
+                + "}"
+                + "]}",
+            xContent.utf8ToString()
+        );
 
         xContent = toXContent(aggProfileResults, XContentType.JSON, true);
-        assertEquals("{\"aggregations\":["
-                        + "{\"type\":\"someType\","
-                            + "\"description\":\"someDescription\","
-                            + "\"time\":\"6micros\","
-                            + "\"time_in_nanos\":6000,"
-                            + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000},"
-                            + "\"debug\":{\"stuff\":\"stuff\",\"other_stuff\":[\"foo\",\"bar\"]}"
-                        + "}"
-                   + "]}", xContent.utf8ToString());
+        assertEquals(
+            "{\"aggregations\":["
+                + "{\"type\":\"someType\","
+                + "\"description\":\"someDescription\","
+                + "\"time\":\"6micros\","
+                + "\"time_in_nanos\":6000,"
+                + "\"breakdown\":{\"timing1\":2000,\"timing2\":4000},"
+                + "\"debug\":{\"stuff\":\"stuff\",\"other_stuff\":[\"foo\",\"bar\"]}"
+                + "}"
+                + "]}",
+            xContent.utf8ToString()
+        );
     }
 
 }

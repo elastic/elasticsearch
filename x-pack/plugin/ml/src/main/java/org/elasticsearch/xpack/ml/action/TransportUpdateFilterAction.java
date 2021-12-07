@@ -22,15 +22,15 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
@@ -55,8 +55,13 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
     private final JobManager jobManager;
 
     @Inject
-    public TransportUpdateFilterAction(TransportService transportService, ActionFilters actionFilters, Client client,
-                                       JobManager jobManager, ClusterService clusterService) {
+    public TransportUpdateFilterAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Client client,
+        JobManager jobManager,
+        ClusterService clusterService
+    ) {
         super(UpdateFilterAction.NAME, transportService, actionFilters, UpdateFilterAction.Request::new);
         this.client = client;
         this.jobManager = jobManager;
@@ -64,15 +69,19 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
 
     @Override
     protected void doExecute(Task task, UpdateFilterAction.Request request, ActionListener<PutFilterAction.Response> listener) {
-        ActionListener<FilterWithSeqNo> filterListener = ActionListener.wrap(filterWithVersion -> {
-            updateFilter(filterWithVersion, request, listener);
-        }, listener::onFailure);
+        ActionListener<FilterWithSeqNo> filterListener = ActionListener.wrap(
+            filterWithVersion -> { updateFilter(filterWithVersion, request, listener); },
+            listener::onFailure
+        );
 
         getFilterWithVersion(request.getFilterId(), filterListener);
     }
 
-    private void updateFilter(FilterWithSeqNo filterWithVersion, UpdateFilterAction.Request request,
-                              ActionListener<PutFilterAction.Response> listener) {
+    private void updateFilter(
+        FilterWithSeqNo filterWithVersion,
+        UpdateFilterAction.Request request,
+        ActionListener<PutFilterAction.Response> listener
+    ) {
         MlFilter filter = filterWithVersion.filter;
 
         if (request.isNoop()) {
@@ -88,20 +97,26 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         for (String toRemove : request.getRemoveItems()) {
             boolean wasPresent = items.remove(toRemove);
             if (wasPresent == false) {
-                listener.onFailure(ExceptionsHelper.badRequestException("Cannot remove item [" + toRemove
-                        + "] as it is not present in filter [" + filter.getId() + "]"));
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "Cannot remove item [" + toRemove + "] as it is not present in filter [" + filter.getId() + "]"
+                    )
+                );
                 return;
             }
         }
 
         MlFilter updatedFilter = MlFilter.builder(filter.getId()).setDescription(description).setItems(items).build();
-        indexUpdatedFilter(
-            updatedFilter, filterWithVersion.seqNo, filterWithVersion.primaryTerm, request, listener);
+        indexUpdatedFilter(updatedFilter, filterWithVersion.seqNo, filterWithVersion.primaryTerm, request, listener);
     }
 
-    private void indexUpdatedFilter(MlFilter filter, final long seqNo, final long primaryTerm,
-                                    UpdateFilterAction.Request request,
-                                    ActionListener<PutFilterAction.Response> listener) {
+    private void indexUpdatedFilter(
+        MlFilter filter,
+        final long seqNo,
+        final long primaryTerm,
+        UpdateFilterAction.Request request,
+        ActionListener<PutFilterAction.Response> listener
+    ) {
         IndexRequest indexRequest = new IndexRequest(MlMetaIndex.indexName()).id(filter.documentId());
         indexRequest.setIfSeqNo(seqNo);
         indexRequest.setIfPrimaryTerm(primaryTerm);
@@ -117,18 +132,22 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
         executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, new ActionListener<IndexResponse>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
-                jobManager.notifyFilterChanged(filter, request.getAddItems(), request.getRemoveItems(), ActionListener.wrap(
-                        response -> listener.onResponse(new PutFilterAction.Response(filter)),
-                        listener::onFailure
-                ));
+                jobManager.notifyFilterChanged(
+                    filter,
+                    request.getAddItems(),
+                    request.getRemoveItems(),
+                    ActionListener.wrap(response -> listener.onResponse(new PutFilterAction.Response(filter)), listener::onFailure)
+                );
             }
 
             @Override
             public void onFailure(Exception e) {
                 Exception reportedException;
                 if (ExceptionsHelper.unwrapCause(e) instanceof VersionConflictEngineException) {
-                    reportedException = ExceptionsHelper.conflictStatusException("Error updating filter with id [" + filter.getId()
-                            + "] because it was modified while the update was in progress", e);
+                    reportedException = ExceptionsHelper.conflictStatusException(
+                        "Error updating filter with id [" + filter.getId() + "] because it was modified while the update was in progress",
+                        e
+                    );
                 } else {
                     reportedException = ExceptionsHelper.serverError("Error updating filter with id [" + filter.getId() + "]", e);
                 }
@@ -143,9 +162,11 @@ public class TransportUpdateFilterAction extends HandledTransportAction<UpdateFi
             try {
                 if (getDocResponse.isExists()) {
                     BytesReference docSource = getDocResponse.getSourceAsBytesRef();
-                    try (InputStream stream = docSource.streamInput();
-                         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+                    try (
+                        InputStream stream = docSource.streamInput();
+                        XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                    ) {
                         MlFilter filter = MlFilter.LENIENT_PARSER.apply(parser, null).build();
                         l.onResponse(new FilterWithSeqNo(filter, getDocResponse));
                     }

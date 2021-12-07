@@ -42,9 +42,9 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * Documentation for Cluster APIs in the high level java client.
  * Code wrapped in {@code tag} and {@code end} tags is included in the docs.
  */
+@SuppressWarnings("removal")
 public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testClusterPutSettings() throws IOException {
@@ -139,8 +140,7 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         Settings persistentSettingsResponse = response.getPersistentSettings(); // <3>
         // end::put-settings-response
         assertTrue(acknowledged);
-        assertThat(transientSettingsResponse.get(transientSettingKey),
-            equalTo(transientSettingValue + ByteSizeUnit.BYTES.getSuffix()));
+        assertThat(transientSettingsResponse.get(transientSettingKey), equalTo(transientSettingValue + ByteSizeUnit.BYTES.getSuffix()));
         assertThat(persistentSettingsResponse.get(persistentSettingKey), equalTo(persistentSettingValue));
 
         // tag::put-settings-request-reset-transient
@@ -451,7 +451,6 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         RemoteInfoRequest request = new RemoteInfoRequest();
         // end::remote-info-request
 
-
         // tag::remote-info-execute-listener
             ActionListener<RemoteInfoResponse> listener =
                 new ActionListener<>() {
@@ -483,8 +482,8 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             Template template = new Template(Settings.builder().put("index.number_of_replicas", 3).build(), null, null);
             ComponentTemplate componentTemplate = new ComponentTemplate(template, null, null);
-            PutComponentTemplateRequest putComponentTemplateRequest =
-                new PutComponentTemplateRequest().name("ct1").componentTemplate(componentTemplate);
+            PutComponentTemplateRequest putComponentTemplateRequest = new PutComponentTemplateRequest().name("ct1")
+                .componentTemplate(componentTemplate);
             client.cluster().putComponentTemplate(putComponentTemplateRequest, RequestOptions.DEFAULT);
 
             assertTrue(client.cluster().putComponentTemplate(putComponentTemplateRequest, RequestOptions.DEFAULT).isAcknowledged());
@@ -624,20 +623,16 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
     public void testDeleteComponentTemplate() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            PutComponentTemplateRequest request = new PutComponentTemplateRequest()
-                .name("ct1");
+            PutComponentTemplateRequest request = new PutComponentTemplateRequest().name("ct1");
 
-            Settings settings = Settings.builder()
-                .put("index.number_of_shards", 3)
-                .put("index.number_of_replicas", 1)
-                .build();
-            String mappingJson = "{\n" +
-                "  \"properties\": {\n" +
-                "    \"message\": {\n" +
-                "      \"type\": \"text\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+            Settings settings = Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1).build();
+            String mappingJson = "{\n"
+                + "  \"properties\": {\n"
+                + "    \"message\": {\n"
+                + "      \"type\": \"text\"\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
             AliasMetadata twitterAlias = AliasMetadata.builder("twitter_alias").build();
             Template template = new Template(settings, new CompressedXContent(mappingJson), Map.of("twitter_alias", twitterAlias));
 
@@ -663,13 +658,9 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
         assertThat(acknowledged, equalTo(true));
 
         {
-            PutComponentTemplateRequest request = new PutComponentTemplateRequest()
-                .name("ct1");
+            PutComponentTemplateRequest request = new PutComponentTemplateRequest().name("ct1");
 
-            Settings settings = Settings.builder()
-                .put("index.number_of_shards", 3)
-                .put("index.number_of_replicas", 1)
-                .build();
+            Settings settings = Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1).build();
             Template template = new Template(settings, null, null);
             request.componentTemplate(new ComponentTemplate(template, null, null));
             assertTrue(client.cluster().putComponentTemplate(request, RequestOptions.DEFAULT).isAcknowledged());

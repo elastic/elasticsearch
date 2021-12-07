@@ -45,7 +45,7 @@ public class ExecuteSnapshotLifecycleAction extends ActionType<ExecuteSnapshotLi
             lifecycleId = in.readString();
         }
 
-        public Request() { }
+        public Request() {}
 
         public String getLifecycleId() {
             return this.lifecycleId;

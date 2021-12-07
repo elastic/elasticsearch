@@ -8,20 +8,19 @@
 
 package org.elasticsearch.client.core;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Objects;
 
 public class MainResponse {
 
-    private static final ConstructingObjectParser<MainResponse, Void> PARSER =
-        new ConstructingObjectParser<>(MainResponse.class.getName(), true,
-            args -> {
-                 return new MainResponse((String) args[0], (Version) args[1], (String) args[2], (String) args[3], (String) args[4]);
-            }
-        );
+    private static final ConstructingObjectParser<MainResponse, Void> PARSER = new ConstructingObjectParser<>(
+        MainResponse.class.getName(),
+        true,
+        args -> { return new MainResponse((String) args[0], (Version) args[1], (String) args[2], (String) args[3], (String) args[4]); }
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("name"));
@@ -75,11 +74,11 @@ public class MainResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MainResponse that = (MainResponse) o;
-        return nodeName.equals(that.nodeName) &&
-            version.equals(that.version) &&
-            clusterName.equals(that.clusterName) &&
-            clusterUuid.equals(that.clusterUuid) &&
-            tagline.equals(that.tagline);
+        return nodeName.equals(that.nodeName)
+            && version.equals(that.version)
+            && clusterName.equals(that.clusterName)
+            && clusterUuid.equals(that.clusterUuid)
+            && tagline.equals(that.tagline);
     }
 
     @Override
@@ -88,13 +87,23 @@ public class MainResponse {
     }
 
     public static class Version {
-        private static final ConstructingObjectParser<Version, Void> PARSER =
-            new ConstructingObjectParser<>(Version.class.getName(), true,
-                args -> {
-                    return new Version((String) args[0], (String) args[1], (String) args[2], (String) args[3], (String) args[4],
-                        (Boolean) args[5], (String) args[6], (String) args[7], (String) args[8]);
-                }
-            );
+        private static final ConstructingObjectParser<Version, Void> PARSER = new ConstructingObjectParser<>(
+            Version.class.getName(),
+            true,
+            args -> {
+                return new Version(
+                    (String) args[0],
+                    (String) args[1],
+                    (String) args[2],
+                    (String) args[3],
+                    (String) args[4],
+                    (Boolean) args[5],
+                    (String) args[6],
+                    (String) args[7],
+                    (String) args[8]
+                );
+            }
+        );
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("number"));
@@ -117,8 +126,17 @@ public class MainResponse {
         private final String minimumWireCompatibilityVersion;
         private final String minimumIndexCompatibilityVersion;
 
-        public Version(String number, String buildFlavor, String buildType, String buildHash, String buildDate, boolean isSnapshot,
-            String luceneVersion, String minimumWireCompatibilityVersion, String minimumIndexCompatibilityVersion) {
+        public Version(
+            String number,
+            String buildFlavor,
+            String buildType,
+            String buildHash,
+            String buildDate,
+            boolean isSnapshot,
+            String luceneVersion,
+            String minimumWireCompatibilityVersion,
+            String minimumIndexCompatibilityVersion
+        ) {
             this.number = number;
             this.buildFlavor = buildFlavor;
             this.buildType = buildType;
@@ -171,21 +189,30 @@ public class MainResponse {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Version version = (Version) o;
-            return isSnapshot == version.isSnapshot &&
-                number.equals(version.number) &&
-                Objects.equals(buildFlavor, version.buildFlavor) &&
-                Objects.equals(buildType, version.buildType) &&
-                buildHash.equals(version.buildHash) &&
-                buildDate.equals(version.buildDate) &&
-                luceneVersion.equals(version.luceneVersion) &&
-                minimumWireCompatibilityVersion.equals(version.minimumWireCompatibilityVersion) &&
-                minimumIndexCompatibilityVersion.equals(version.minimumIndexCompatibilityVersion);
+            return isSnapshot == version.isSnapshot
+                && number.equals(version.number)
+                && Objects.equals(buildFlavor, version.buildFlavor)
+                && Objects.equals(buildType, version.buildType)
+                && buildHash.equals(version.buildHash)
+                && buildDate.equals(version.buildDate)
+                && luceneVersion.equals(version.luceneVersion)
+                && minimumWireCompatibilityVersion.equals(version.minimumWireCompatibilityVersion)
+                && minimumIndexCompatibilityVersion.equals(version.minimumIndexCompatibilityVersion);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(number, buildFlavor, buildType, buildHash, buildDate, isSnapshot, luceneVersion,
-                minimumWireCompatibilityVersion, minimumIndexCompatibilityVersion);
+            return Objects.hash(
+                number,
+                buildFlavor,
+                buildType,
+                buildHash,
+                buildDate,
+                isSnapshot,
+                luceneVersion,
+                minimumWireCompatibilityVersion,
+                minimumIndexCompatibilityVersion
+            );
         }
     }
 }

@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.dataframe.stats.regression;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -28,14 +28,16 @@ public class Hyperparameters implements ToXContentObject {
     public static final ParseField LAMBDA = new ParseField("lambda");
     public static final ParseField MAX_ATTEMPTS_TO_ADD_TREE = new ParseField("max_attempts_to_add_tree");
     public static final ParseField MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER = new ParseField(
-        "max_optimization_rounds_per_hyperparameter");
+        "max_optimization_rounds_per_hyperparameter"
+    );
     public static final ParseField MAX_TREES = new ParseField("max_trees");
     public static final ParseField NUM_FOLDS = new ParseField("num_folds");
     public static final ParseField NUM_SPLITS_PER_FEATURE = new ParseField("num_splits_per_feature");
     public static final ParseField SOFT_TREE_DEPTH_LIMIT = new ParseField("soft_tree_depth_limit");
     public static final ParseField SOFT_TREE_DEPTH_TOLERANCE = new ParseField("soft_tree_depth_tolerance");
 
-    public static ConstructingObjectParser<Hyperparameters, Void> PARSER = new ConstructingObjectParser<>("regression_hyperparameters",
+    public static ConstructingObjectParser<Hyperparameters, Void> PARSER = new ConstructingObjectParser<>(
+        "regression_hyperparameters",
         true,
         a -> new Hyperparameters(
             (Double) a[0],
@@ -52,7 +54,8 @@ public class Hyperparameters implements ToXContentObject {
             (Integer) a[11],
             (Double) a[12],
             (Double) a[13]
-        ));
+        )
+    );
 
     static {
         PARSER.declareDouble(optionalConstructorArg(), ALPHA);
@@ -86,20 +89,22 @@ public class Hyperparameters implements ToXContentObject {
     private final Double softTreeDepthLimit;
     private final Double softTreeDepthTolerance;
 
-    public Hyperparameters(Double alpha,
-                           Double downsampleFactor,
-                           Double eta,
-                           Double etaGrowthRatePerTree,
-                           Double featureBagFraction,
-                           Double gamma,
-                           Double lambda,
-                           Integer maxAttemptsToAddTree,
-                           Integer maxOptimizationRoundsPerHyperparameter,
-                           Integer maxTrees,
-                           Integer numFolds,
-                           Integer numSplitsPerFeature,
-                           Double softTreeDepthLimit,
-                           Double softTreeDepthTolerance) {
+    public Hyperparameters(
+        Double alpha,
+        Double downsampleFactor,
+        Double eta,
+        Double etaGrowthRatePerTree,
+        Double featureBagFraction,
+        Double gamma,
+        Double lambda,
+        Integer maxAttemptsToAddTree,
+        Integer maxOptimizationRoundsPerHyperparameter,
+        Integer maxTrees,
+        Integer numFolds,
+        Integer numSplitsPerFeature,
+        Double softTreeDepthLimit,
+        Double softTreeDepthTolerance
+    ) {
         this.alpha = alpha;
         this.downsampleFactor = downsampleFactor;
         this.eta = eta;

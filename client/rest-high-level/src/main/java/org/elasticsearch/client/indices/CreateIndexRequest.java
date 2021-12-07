@@ -14,17 +14,17 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -157,7 +157,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
      * @param source The mapping source
      */
     public CreateIndexRequest mapping(Map<String, ?> source) {
-       try {
+        try {
             XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
             builder.map(source);
             return mapping(BytesReference.bytes(builder), builder.contentType());
@@ -217,15 +217,21 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
      */
     public CreateIndexRequest aliases(BytesReference source, XContentType contentType) {
         // EMPTY is safe here because we never call namedObject
-        try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source, contentType)) {
-            //move to the first alias
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                source,
+                contentType
+            )
+        ) {
+            // move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 alias(Alias.fromXContent(parser));
             }
             return this;
-        } catch(IOException e) {
+        } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse aliases", e);
         }
     }

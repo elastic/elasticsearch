@@ -46,7 +46,8 @@ public class OperatorOnlyRegistryTests extends ESTestCase {
         PROFILE_FILTER_DENY_SETTING,
         PROFILE_FILTER_ALLOW_SETTING,
         HTTP_FILTER_ALLOW_SETTING,
-        HTTP_FILTER_DENY_SETTING);
+        HTTP_FILTER_DENY_SETTING
+    );
 
     private OperatorOnlyRegistry operatorOnlyRegistry;
 
@@ -67,7 +68,9 @@ public class OperatorOnlyRegistryTests extends ESTestCase {
 
     public void testNonOperatorOnlyApi() {
         final String actionName = randomValueOtherThanMany(
-            OperatorOnlyRegistry.SIMPLE_ACTIONS::contains, () -> randomAlphaOfLengthBetween(10, 40));
+            OperatorOnlyRegistry.SIMPLE_ACTIONS::contains,
+            () -> randomAlphaOfLengthBetween(10, 40)
+        );
         assertNull(operatorOnlyRegistry.check(actionName, null));
     }
 
@@ -81,27 +84,28 @@ public class OperatorOnlyRegistryTests extends ESTestCase {
             case 0:
                 transientSetting = convertToConcreteSettingIfNecessary(randomFrom(IP_FILTER_SETTINGS));
                 persistentSetting = convertToConcreteSettingIfNecessary(
-                    randomValueOtherThan(transientSetting, () -> randomFrom(IP_FILTER_SETTINGS)));
+                    randomValueOtherThan(transientSetting, () -> randomFrom(IP_FILTER_SETTINGS))
+                );
                 request = prepareClusterUpdateSettingsRequest(transientSetting, persistentSetting);
                 violation = operatorOnlyRegistry.check(ClusterUpdateSettingsAction.NAME, request);
-                assertThat(violation.message(), containsString(String.format(Locale.ROOT, "settings [%s,%s]",
-                    transientSetting.getKey(), persistentSetting.getKey())));
+                assertThat(
+                    violation.message(),
+                    containsString(String.format(Locale.ROOT, "settings [%s,%s]", transientSetting.getKey(), persistentSetting.getKey()))
+                );
                 break;
             case 1:
                 transientSetting = convertToConcreteSettingIfNecessary(randomFrom(IP_FILTER_SETTINGS));
                 persistentSetting = convertToConcreteSettingIfNecessary(randomFrom(DYNAMIC_SETTINGS));
                 request = prepareClusterUpdateSettingsRequest(transientSetting, persistentSetting);
                 violation = operatorOnlyRegistry.check(ClusterUpdateSettingsAction.NAME, request);
-                assertThat(violation.message(), containsString(String.format(Locale.ROOT, "setting [%s]",
-                    transientSetting.getKey())));
+                assertThat(violation.message(), containsString(String.format(Locale.ROOT, "setting [%s]", transientSetting.getKey())));
                 break;
             case 2:
                 transientSetting = convertToConcreteSettingIfNecessary(randomFrom(DYNAMIC_SETTINGS));
                 persistentSetting = convertToConcreteSettingIfNecessary(randomFrom(IP_FILTER_SETTINGS));
                 request = prepareClusterUpdateSettingsRequest(transientSetting, persistentSetting);
                 violation = operatorOnlyRegistry.check(ClusterUpdateSettingsAction.NAME, request);
-                assertThat(violation.message(), containsString(String.format(Locale.ROOT, "setting [%s]",
-                    persistentSetting.getKey())));
+                assertThat(violation.message(), containsString(String.format(Locale.ROOT, "setting [%s]", persistentSetting.getKey())));
                 break;
             case 3:
                 transientSetting = convertToConcreteSettingIfNecessary(randomFrom(DYNAMIC_SETTINGS));

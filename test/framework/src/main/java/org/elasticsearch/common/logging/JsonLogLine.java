@@ -8,11 +8,10 @@
 
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.util.List;
-
 
 /**
  * Represents a single log line in a json format.
@@ -21,7 +20,6 @@ import java.util.List;
 public class JsonLogLine {
     public static final ObjectParser<JsonLogLine, Void> ECS_LOG_LINE = createECSParser(true);
     public static final ObjectParser<JsonLogLine, Void> ES_LOG_LINE = createESParser(true);
-
 
     private String dataset;
     private String timestamp;

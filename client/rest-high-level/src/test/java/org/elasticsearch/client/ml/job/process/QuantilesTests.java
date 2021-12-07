@@ -8,11 +8,10 @@
 package org.elasticsearch.client.ml.job.process;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Date;
-
 
 public class QuantilesTests extends AbstractXContentTestCase<Quantiles> {
 
@@ -21,12 +20,10 @@ public class QuantilesTests extends AbstractXContentTestCase<Quantiles> {
         assertTrue(quantiles.equals(quantiles));
     }
 
-
     public void testEquals_GivenDifferentClassObject() {
         Quantiles quantiles = new Quantiles("foo", new Date(0L), "foo");
         assertFalse(quantiles.equals("not a quantiles object"));
     }
-
 
     public void testEquals_GivenEqualQuantilesObject() {
         Quantiles quantiles1 = new Quantiles("foo", new Date(0L), "foo");
@@ -37,7 +34,6 @@ public class QuantilesTests extends AbstractXContentTestCase<Quantiles> {
         assertTrue(quantiles2.equals(quantiles1));
     }
 
-
     public void testEquals_GivenDifferentState() {
         Quantiles quantiles1 = new Quantiles("foo", new Date(0L), "bar1");
 
@@ -47,7 +43,6 @@ public class QuantilesTests extends AbstractXContentTestCase<Quantiles> {
         assertFalse(quantiles2.equals(quantiles1));
     }
 
-
     public void testHashCode_GivenEqualObject() {
         Quantiles quantiles1 = new Quantiles("foo", new Date(0L), "foo");
 
@@ -56,16 +51,17 @@ public class QuantilesTests extends AbstractXContentTestCase<Quantiles> {
         assertEquals(quantiles1.hashCode(), quantiles2.hashCode());
     }
 
-
     @Override
     protected Quantiles createTestInstance() {
         return createRandomized();
     }
 
     public static Quantiles createRandomized() {
-        return new Quantiles(randomAlphaOfLengthBetween(1, 20),
-                new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()),
-                randomAlphaOfLengthBetween(0, 1000));
+        return new Quantiles(
+            randomAlphaOfLengthBetween(1, 20),
+            new Date(TimeValue.parseTimeValue(randomTimeValue(), "test").millis()),
+            randomAlphaOfLengthBetween(0, 1000)
+        );
     }
 
     @Override

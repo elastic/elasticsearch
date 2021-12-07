@@ -35,8 +35,7 @@ public class QueryApiKeyResponseTests extends AbstractWireSerializingTestCase<Qu
 
     @Override
     protected QueryApiKeyResponse mutateInstance(QueryApiKeyResponse instance) throws IOException {
-        final List<QueryApiKeyResponse.Item> items =
-            Arrays.stream(instance.getItems()).collect(Collectors.toCollection(ArrayList::new));
+        final List<QueryApiKeyResponse.Item> items = Arrays.stream(instance.getItems()).collect(Collectors.toCollection(ArrayList::new));
         switch (randomIntBetween(0, 3)) {
             case 0:
                 items.add(randomItem());

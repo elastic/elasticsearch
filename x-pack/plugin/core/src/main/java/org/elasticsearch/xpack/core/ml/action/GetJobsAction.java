@@ -31,8 +31,6 @@ public class GetJobsAction extends ActionType<GetJobsAction.Response> {
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        @Deprecated
-        public static final String ALLOW_NO_JOBS = "allow_no_jobs";
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
         private String jobId;
@@ -114,6 +112,5 @@ public class GetJobsAction extends ActionType<GetJobsAction.Response> {
             return Job::new;
         }
     }
-
 
 }

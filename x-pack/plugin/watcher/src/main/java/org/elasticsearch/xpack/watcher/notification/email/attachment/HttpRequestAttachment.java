@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequestTemplate;
 
@@ -49,8 +49,8 @@ public class HttpRequestAttachment implements EmailAttachmentParser.EmailAttachm
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(id)
-                .startObject(HttpEmailAttachementParser.TYPE)
-                .field(HttpEmailAttachementParser.Fields.REQUEST.getPreferredName(), requestTemplate, params);
+            .startObject(HttpEmailAttachementParser.TYPE)
+            .field(HttpEmailAttachementParser.Fields.REQUEST.getPreferredName(), requestTemplate, params);
         if (Strings.hasLength(contentType)) {
             builder.field(HttpEmailAttachementParser.Fields.CONTENT_TYPE.getPreferredName(), contentType);
         }
@@ -75,8 +75,10 @@ public class HttpRequestAttachment implements EmailAttachmentParser.EmailAttachm
         if (o == null || getClass() != o.getClass()) return false;
 
         HttpRequestAttachment otherDataAttachment = (HttpRequestAttachment) o;
-        return Objects.equals(id, otherDataAttachment.id) && Objects.equals(requestTemplate, otherDataAttachment.requestTemplate)
-                && Objects.equals(contentType, otherDataAttachment.contentType) && Objects.equals(inline, otherDataAttachment.inline);
+        return Objects.equals(id, otherDataAttachment.id)
+            && Objects.equals(requestTemplate, otherDataAttachment.requestTemplate)
+            && Objects.equals(contentType, otherDataAttachment.contentType)
+            && Objects.equals(inline, otherDataAttachment.inline);
     }
 
     @Override

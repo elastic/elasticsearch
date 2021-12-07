@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.client.ml.job.results;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Arrays;
 import java.util.stream.Collectors;
@@ -35,9 +35,9 @@ public class CategoryDefinitionTests extends AbstractXContentTestCase<CategoryDe
             categoryDefinition.setNumMatches(randomNonNegativeLong());
         }
         if (randomBoolean()) {
-            categoryDefinition.setPreferredToCategories(Stream.generate(ESTestCase::randomNonNegativeLong)
-                .limit(10)
-                .collect(Collectors.toList()));
+            categoryDefinition.setPreferredToCategories(
+                Stream.generate(ESTestCase::randomNonNegativeLong).limit(10).collect(Collectors.toList())
+            );
         }
         return categoryDefinition;
     }

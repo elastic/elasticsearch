@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.ml.rest.filter;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.PutFilterAction;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 
@@ -28,7 +28,8 @@ public class RestPutFilterAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(PUT, BASE_PATH + "filters/{" + MlFilter.ID + "}")
-                .replaces(PUT, PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID + "}", RestApiVersion.V_7).build()
+                .replaces(PUT, PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID + "}", RestApiVersion.V_7)
+                .build()
         );
     }
 

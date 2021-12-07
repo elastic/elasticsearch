@@ -20,11 +20,7 @@ public final class ExecutingPolicyDoc extends MonitoringDoc {
 
     private final ExecutingPolicy executingPolicy;
 
-    public ExecutingPolicyDoc(String cluster,
-                              long timestamp,
-                              long intervalMillis,
-                              Node node,
-                              ExecutingPolicy coordinatorStats) {
+    public ExecutingPolicyDoc(String cluster, long timestamp, long intervalMillis, Node node, ExecutingPolicy coordinatorStats) {
         super(cluster, timestamp, intervalMillis, node, MonitoredSystem.ES, TYPE, null);
         this.executingPolicy = Objects.requireNonNull(coordinatorStats, "stats");
     }

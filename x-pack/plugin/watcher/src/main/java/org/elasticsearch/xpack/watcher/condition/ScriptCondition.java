@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 
@@ -46,8 +46,12 @@ public final class ScriptCondition implements ExecutableCondition {
             Script script = Script.parse(parser);
             return new ScriptCondition(script, scriptService);
         } catch (ElasticsearchParseException pe) {
-            throw new ElasticsearchParseException("could not parse [{}] condition for watch [{}]. failed to parse script", pe, TYPE,
-                    watchId);
+            throw new ElasticsearchParseException(
+                "could not parse [{}] condition for watch [{}]. failed to parse script",
+                pe,
+                TYPE,
+                watchId
+            );
         }
     }
 

@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.client.license;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -21,58 +21,62 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class StartBasicResponse {
 
     private static final ConstructingObjectParser<StartBasicResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "start_basic_response", true, (a, v) -> {
-        boolean basicWasStarted = (Boolean) a[0];
-        String errorMessage = (String) a[1];
+        "start_basic_response",
+        true,
+        (a, v) -> {
+            boolean basicWasStarted = (Boolean) a[0];
+            String errorMessage = (String) a[1];
 
-        if (basicWasStarted) {
-            return new StartBasicResponse(StartBasicResponse.Status.GENERATED_BASIC);
+            if (basicWasStarted) {
+                return new StartBasicResponse(StartBasicResponse.Status.GENERATED_BASIC);
+            }
+            StartBasicResponse.Status status = StartBasicResponse.Status.fromErrorMessage(errorMessage);
+            @SuppressWarnings("unchecked")
+            Tuple<String, Map<String, String[]>> acknowledgements = (Tuple<String, Map<String, String[]>>) a[2];
+            return new StartBasicResponse(status, acknowledgements.v2(), acknowledgements.v1());
         }
-        StartBasicResponse.Status status = StartBasicResponse.Status.fromErrorMessage(errorMessage);
-        @SuppressWarnings("unchecked") Tuple<String, Map<String, String[]>> acknowledgements = (Tuple<String, Map<String, String[]>>) a[2];
-        return new StartBasicResponse(status, acknowledgements.v2(), acknowledgements.v1());
-    });
+    );
 
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("basic_was_started"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("error_message"));
         PARSER.declareObject(optionalConstructorArg(), (parser, v) -> {
-                Map<String, String[]> acknowledgeMessages = new HashMap<>();
-                String message = null;
-                XContentParser.Token token;
-                String currentFieldName = null;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
+            Map<String, String[]> acknowledgeMessages = new HashMap<>();
+            String message = null;
+            XContentParser.Token token;
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else {
+                    if (currentFieldName == null) {
+                        throw new XContentParseException(parser.getTokenLocation(), "expected message header or acknowledgement");
+                    }
+                    if (new ParseField("message").getPreferredName().equals(currentFieldName)) {
+                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
+                        message = parser.text();
                     } else {
-                        if (currentFieldName == null) {
-                            throw new XContentParseException(parser.getTokenLocation(), "expected message header or acknowledgement");
+                        if (token != XContentParser.Token.START_ARRAY) {
+                            throw new XContentParseException(parser.getTokenLocation(), "unexpected acknowledgement type");
                         }
-                        if (new ParseField("message").getPreferredName().equals(currentFieldName)) {
+                        List<String> acknowledgeMessagesList = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
-                            message = parser.text();
-                        } else {
-                            if (token != XContentParser.Token.START_ARRAY) {
-                                throw new XContentParseException(parser.getTokenLocation(), "unexpected acknowledgement type");
-                            }
-                            List<String> acknowledgeMessagesList = new ArrayList<>();
-                            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                                ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
-                                acknowledgeMessagesList.add(parser.text());
-                            }
-                            acknowledgeMessages.put(currentFieldName, acknowledgeMessagesList.toArray(new String[0]));
+                            acknowledgeMessagesList.add(parser.text());
                         }
+                        acknowledgeMessages.put(currentFieldName, acknowledgeMessagesList.toArray(new String[0]));
                     }
                 }
-                return new Tuple<>(message, acknowledgeMessages);
-            }, new ParseField("acknowledge"));
+            }
+            return new Tuple<>(message, acknowledgeMessages);
+        }, new ParseField("acknowledge"));
     }
 
     private Map<String, String[]> acknowledgeMessages;
@@ -108,8 +112,7 @@ public class StartBasicResponse {
         this(status, Collections.emptyMap(), null);
     }
 
-    private StartBasicResponse(StartBasicResponse.Status status,
-                              Map<String, String[]> acknowledgeMessages, String acknowledgeMessage) {
+    private StartBasicResponse(StartBasicResponse.Status status, Map<String, String[]> acknowledgeMessages, String acknowledgeMessage) {
         this.status = status;
         this.acknowledgeMessages = acknowledgeMessages;
         this.acknowledgeMessage = acknowledgeMessage;

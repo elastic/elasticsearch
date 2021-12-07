@@ -37,5 +37,4 @@ public class KuromojiAnalyzerProvider extends AbstractIndexAnalyzerProvider<Japa
         return this.analyzer;
     }
 
-
 }

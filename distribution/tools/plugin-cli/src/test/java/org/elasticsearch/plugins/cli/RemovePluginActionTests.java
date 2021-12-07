@@ -28,7 +28,6 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -36,26 +35,12 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasToString;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class RemovePluginActionTests extends ESTestCase {
 
     private Path home;
     private Environment env;
-
-    static class MockRemovePluginCommand extends RemovePluginCommand {
-        final Environment env;
-
-        private MockRemovePluginCommand(final Environment env) {
-            this.env = env;
-        }
-
-        @Override
-        protected Environment createEnv(Map<String, String> settings) throws UserException {
-            return env;
-        }
-    }
 
     @Override
     @Before
@@ -121,7 +106,7 @@ public class RemovePluginActionTests extends ESTestCase {
 
     public void testMissing() throws Exception {
         UserException e = expectThrows(UserException.class, () -> removePlugin("dne", home, randomBoolean()));
-        assertTrue(e.getMessage(), e.getMessage().contains("plugin [dne] not found"));
+        assertThat(e.getMessage(), containsString("plugin [dne] not found"));
         assertRemoveCleaned(env);
     }
 
@@ -182,7 +167,7 @@ public class RemovePluginActionTests extends ESTestCase {
         createPlugin("fake");
         Files.createFile(env.binFile().resolve("fake"));
         UserException e = expectThrows(UserException.class, () -> removePlugin("fake", home, randomBoolean()));
-        assertTrue(e.getMessage(), e.getMessage().contains("not a directory"));
+        assertThat(e.getMessage(), containsString("not a directory"));
         assertTrue(Files.exists(env.pluginsFile().resolve("fake"))); // did not remove
         assertTrue(Files.exists(env.binFile().resolve("fake")));
         assertRemoveCleaned(env);
@@ -224,7 +209,7 @@ public class RemovePluginActionTests extends ESTestCase {
 
     public void testPurgeNothingExists() throws Exception {
         final UserException e = expectThrows(UserException.class, () -> removePlugin("fake", home, true));
-        assertThat(e, hasToString(containsString("plugin [fake] not found")));
+        assertThat(e.getMessage(), containsString("plugin [fake] not found"));
     }
 
     public void testPurgeOnlyMarkerFileExists() throws Exception {
@@ -276,7 +261,7 @@ public class RemovePluginActionTests extends ESTestCase {
 
         e = expectThrows(UserException.class, () -> removePlugin(emptyList(), home, randomBoolean()));
         assertEquals(ExitCodes.USAGE, e.exitCode);
-        assertEquals("At least one plugin ID is required", e.getMessage());
+        assertThat(e.getMessage(), equalTo("At least one plugin ID is required"));
     }
 
     public void testRemoveWhenRemovingMarker() throws Exception {

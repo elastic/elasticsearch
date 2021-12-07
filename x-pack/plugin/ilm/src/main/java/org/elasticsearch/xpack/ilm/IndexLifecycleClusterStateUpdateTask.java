@@ -71,8 +71,8 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
      * {@link #onClusterStateProcessed(String, ClusterState, ClusterState)} or the {@link #handleFailure(String, Exception)} hooks are
      * executed.
      */
-    public final void addListener(ActionListener<Void> listener) {
-        this.listener.addListener(listener);
+    public final void addListener(ActionListener<Void> actionListener) {
+        this.listener.addListener(actionListener);
     }
 
     /**
@@ -82,8 +82,7 @@ public abstract class IndexLifecycleClusterStateUpdateTask implements ClusterSta
      * implementation was a noop and returned the input cluster state, then this method will not be invoked. It is therefore guaranteed
      * that {@code oldState} is always different from {@code newState}.
      */
-    protected void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-    }
+    protected void onClusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
 
     @Override
     public abstract boolean equals(Object other);

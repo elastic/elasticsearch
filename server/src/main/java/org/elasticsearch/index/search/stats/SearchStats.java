@@ -8,11 +8,11 @@
 
 package org.elasticsearch.index.search.stats;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -48,10 +48,18 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
 
         public Stats(
-                long queryCount, long queryTimeInMillis, long queryCurrent,
-                long fetchCount, long fetchTimeInMillis, long fetchCurrent,
-                long scrollCount, long scrollTimeInMillis, long scrollCurrent,
-                long suggestCount, long suggestTimeInMillis, long suggestCurrent
+            long queryCount,
+            long queryTimeInMillis,
+            long queryCurrent,
+            long fetchCount,
+            long fetchTimeInMillis,
+            long fetchCurrent,
+            long scrollCount,
+            long scrollTimeInMillis,
+            long scrollCurrent,
+            long suggestCount,
+            long suggestTimeInMillis,
+            long suggestCurrent
         ) {
             this.queryCount = queryCount;
             this.queryTimeInMillis = queryTimeInMillis;

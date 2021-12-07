@@ -7,12 +7,12 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 

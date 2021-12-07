@@ -11,11 +11,11 @@ package org.elasticsearch.script.mustache;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -49,7 +49,8 @@ public class RestSearchTemplateAction extends BaseRestHandler {
                 .build(),
             Route.builder(POST, "/{index}/{type}/_search/template")
                 .deprecated(RestSearchAction.TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build());
+                .build()
+        );
     }
 
     @Override
@@ -62,7 +63,12 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         // Creates the search request with all required params
         SearchRequest searchRequest = new SearchRequest();
         RestSearchAction.parseSearchRequest(
-            searchRequest, request, null, client.getNamedWriteableRegistry(), size -> searchRequest.source().size(size));
+            searchRequest,
+            request,
+            null,
+            client.getNamedWriteableRegistry(),
+            size -> searchRequest.source().size(size)
+        );
 
         // Creates the search template request
         SearchTemplateRequest searchTemplateRequest;

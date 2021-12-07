@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -35,10 +35,9 @@ public class RollableIndexCaps implements Writeable, ToXContentObject {
 
     public RollableIndexCaps(String indexName, List<RollupJobCaps> caps) {
         this.indexName = indexName;
-        this.jobCaps = Collections.unmodifiableList(Objects.requireNonNull(caps)
-            .stream()
-            .sorted(Comparator.comparing(RollupJobCaps::getJobID))
-            .collect(Collectors.toList()));
+        this.jobCaps = Collections.unmodifiableList(
+            Objects.requireNonNull(caps).stream().sorted(Comparator.comparing(RollupJobCaps::getJobID)).collect(Collectors.toList())
+        );
     }
 
     public RollableIndexCaps(StreamInput in) throws IOException {
@@ -82,8 +81,7 @@ public class RollableIndexCaps implements Writeable, ToXContentObject {
 
         RollableIndexCaps that = (RollableIndexCaps) other;
 
-        return Objects.equals(this.jobCaps, that.jobCaps)
-            && Objects.equals(this.indexName, that.indexName);
+        return Objects.equals(this.jobCaps, that.jobCaps) && Objects.equals(this.indexName, that.indexName);
     }
 
     @Override

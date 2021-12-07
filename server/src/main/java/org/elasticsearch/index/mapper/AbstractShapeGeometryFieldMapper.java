@@ -20,53 +20,85 @@ import java.util.function.Function;
  */
 public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
 
-    public static Parameter<Explicit<Boolean>> coerceParam(Function<FieldMapper, Explicit<Boolean>> initializer,
-                                                           boolean coerceByDefault) {
+    public static Parameter<Explicit<Boolean>> coerceParam(Function<FieldMapper, Explicit<Boolean>> initializer, boolean coerceByDefault) {
         return Parameter.explicitBoolParam("coerce", true, initializer, coerceByDefault);
     }
 
     public static Parameter<Explicit<Orientation>> orientationParam(Function<FieldMapper, Explicit<Orientation>> initializer) {
-        return new Parameter<>("orientation", true,
+        return new Parameter<>(
+            "orientation",
+            true,
             () -> new Explicit<>(Orientation.RIGHT, false),
             (n, c, o) -> new Explicit<>(Orientation.fromString(o.toString()), true),
-            initializer)
-            .setSerializer((b, f, v) -> b.field(f, v.value()), v -> v.value().toString());
+            initializer
+        ).setSerializer((b, f, v) -> b.field(f, v.value()), v -> v.value().toString());
     }
 
     public abstract static class AbstractShapeGeometryFieldType<T> extends AbstractGeometryFieldType<T> {
 
         private final Orientation orientation;
 
-        protected AbstractShapeGeometryFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
-                                                 Parser<T> parser, Orientation orientation, Map<String, String> meta) {
+        protected AbstractShapeGeometryFieldType(
+            String name,
+            boolean isSearchable,
+            boolean isStored,
+            boolean hasDocValues,
+            Parser<T> parser,
+            Orientation orientation,
+            Map<String, String> meta
+        ) {
             super(name, isSearchable, isStored, hasDocValues, parser, meta);
             this.orientation = orientation;
         }
 
-        public Orientation orientation() { return this.orientation; }
+        public Orientation orientation() {
+            return this.orientation;
+        }
     }
 
     protected Explicit<Boolean> coerce;
     protected Explicit<Orientation> orientation;
 
-    protected AbstractShapeGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                                               Map<String, NamedAnalyzer> indexAnalyzers,
-                                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                                               Explicit<Boolean> ignoreZValue, Explicit<Orientation> orientation,
-                                               MultiFields multiFields, CopyTo copyTo,
-                                               Parser<T> parser) {
+    protected AbstractShapeGeometryFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        Map<String, NamedAnalyzer> indexAnalyzers,
+        Explicit<Boolean> ignoreMalformed,
+        Explicit<Boolean> coerce,
+        Explicit<Boolean> ignoreZValue,
+        Explicit<Orientation> orientation,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Parser<T> parser
+    ) {
         super(simpleName, mappedFieldType, indexAnalyzers, ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
         this.coerce = coerce;
         this.orientation = orientation;
     }
 
-    protected AbstractShapeGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                                               Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-                                               Explicit<Boolean> ignoreZValue, Explicit<Orientation> orientation,
-                                               MultiFields multiFields, CopyTo copyTo,
-                                               Parser<T> parser) {
-        this(simpleName, mappedFieldType, Collections.emptyMap(),
-            ignoreMalformed, coerce, ignoreZValue, orientation, multiFields, copyTo, parser);
+    protected AbstractShapeGeometryFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        Explicit<Boolean> ignoreMalformed,
+        Explicit<Boolean> coerce,
+        Explicit<Boolean> ignoreZValue,
+        Explicit<Orientation> orientation,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Parser<T> parser
+    ) {
+        this(
+            simpleName,
+            mappedFieldType,
+            Collections.emptyMap(),
+            ignoreMalformed,
+            coerce,
+            ignoreZValue,
+            orientation,
+            multiFields,
+            copyTo,
+            parser
+        );
     }
 
     public boolean coerce() {

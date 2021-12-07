@@ -38,8 +38,10 @@ public class RuleScope implements ToXContentObject {
                     @SuppressWarnings("unchecked")
                     Map<String, ?> value = (Map<String, ?>) entry.getValue();
                     builder.map(value);
-                    try (XContentParser scopeParser = XContentFactory.xContent(builder.contentType()).createParser(
-                            NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, Strings.toString(builder))) {
+                    try (
+                        XContentParser scopeParser = XContentFactory.xContent(builder.contentType())
+                            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, Strings.toString(builder))
+                    ) {
                         scope.put(entry.getKey(), FilterRef.PARSER.parse(scopeParser, null));
                     }
                 }
@@ -98,8 +100,7 @@ public class RuleScope implements ToXContentObject {
 
         private Map<String, FilterRef> scope = new HashMap<>();
 
-        public Builder() {
-        }
+        public Builder() {}
 
         public Builder(RuleScope otherScope) {
             scope = new HashMap<>(otherScope.scope);

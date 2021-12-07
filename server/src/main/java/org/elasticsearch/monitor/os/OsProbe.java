@@ -11,8 +11,8 @@ package org.elasticsearch.monitor.os;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.monitor.Probes;
 
 import java.io.IOException;
@@ -146,8 +146,9 @@ public class OsProbe {
         try {
             long memoryOverride = Long.parseLong(memoryOverrideProperty);
             if (memoryOverride < 0) {
-                throw new IllegalArgumentException("Negative memory size specified in [es.total_memory_bytes]: ["
-                    + memoryOverrideProperty + "]");
+                throw new IllegalArgumentException(
+                    "Negative memory size specified in [es.total_memory_bytes]: [" + memoryOverrideProperty + "]"
+                );
             }
             return memoryOverride;
         } catch (NumberFormatException e) {

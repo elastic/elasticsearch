@@ -49,7 +49,7 @@ public class ShardLongFieldRange implements Writeable {
      * @return the (inclusive) minimum of this range.
      */
     public long getMin() {
-        assert this != EMPTY && this != UNKNOWN && min <= max: "must not use actual min of sentinel values";
+        assert this != EMPTY && this != UNKNOWN && min <= max : "must not use actual min of sentinel values";
         return min;
     }
 
@@ -72,9 +72,9 @@ public class ShardLongFieldRange implements Writeable {
         }
     }
 
-    private static final byte WIRE_TYPE_OTHER = (byte)0;
-    private static final byte WIRE_TYPE_UNKNOWN = (byte)1;
-    private static final byte WIRE_TYPE_EMPTY = (byte)2;
+    private static final byte WIRE_TYPE_OTHER = (byte) 0;
+    private static final byte WIRE_TYPE_UNKNOWN = (byte) 1;
+    private static final byte WIRE_TYPE_EMPTY = (byte) 2;
 
     public static ShardLongFieldRange readFrom(StreamInput in) throws IOException {
         final byte type = in.readByte();
@@ -117,4 +117,3 @@ public class ShardLongFieldRange implements Writeable {
         return Objects.hash(min, max);
     }
 }
-

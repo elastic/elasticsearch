@@ -9,13 +9,13 @@
 package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 

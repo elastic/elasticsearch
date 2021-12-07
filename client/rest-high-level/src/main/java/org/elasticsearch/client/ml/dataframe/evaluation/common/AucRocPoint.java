@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.client.ml.dataframe.evaluation.common;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -29,11 +29,11 @@ public class AucRocPoint implements ToXContentObject {
     private static final ParseField FPR = new ParseField("fpr");
     private static final ParseField THRESHOLD = new ParseField("threshold");
 
-    private static final ConstructingObjectParser<AucRocPoint, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "auc_roc_point",
-            true,
-            args -> new AucRocPoint((double) args[0], (double) args[1], (double) args[2]));
+    private static final ConstructingObjectParser<AucRocPoint, Void> PARSER = new ConstructingObjectParser<>(
+        "auc_roc_point",
+        true,
+        args -> new AucRocPoint((double) args[0], (double) args[1], (double) args[2])
+    );
 
     static {
         PARSER.declareDouble(constructorArg(), TPR);
@@ -65,8 +65,7 @@ public class AucRocPoint implements ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder
-            .startObject()
+        return builder.startObject()
             .field(TPR.getPreferredName(), tpr)
             .field(FPR.getPreferredName(), fpr)
             .field(THRESHOLD.getPreferredName(), threshold)

@@ -11,11 +11,11 @@ package org.elasticsearch.client;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.util.Collections;

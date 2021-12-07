@@ -10,12 +10,12 @@ package org.elasticsearch.client.enrich;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -69,8 +69,8 @@ public final class PutPolicyRequest implements Validatable, ToXContentObject {
 
     // package private for testing only
     void setQuery(BytesReference query) {
-        assert query == null || XContentHelper.xContentType(query).canonical() == XContentType.JSON :
-                "Only accepts JSON encoded query but received [" + Strings.toString(query) + "]";
+        assert query == null || XContentHelper.xContentType(query).canonical() == XContentType.JSON
+            : "Only accepts JSON encoded query but received [" + Strings.toString(query) + "]";
         this.query = query;
     }
 
@@ -114,12 +114,12 @@ public final class PutPolicyRequest implements Validatable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PutPolicyRequest that = (PutPolicyRequest) o;
-        return Objects.equals(name, that.name) &&
-            Objects.equals(type, that.type) &&
-            Objects.equals(query, that.query) &&
-            Objects.equals(indices, that.indices) &&
-            Objects.equals(matchField, that.matchField) &&
-            Objects.equals(enrichFields, that.enrichFields);
+        return Objects.equals(name, that.name)
+            && Objects.equals(type, that.type)
+            && Objects.equals(query, that.query)
+            && Objects.equals(indices, that.indices)
+            && Objects.equals(matchField, that.matchField)
+            && Objects.equals(enrichFields, that.enrichFields);
     }
 
     @Override

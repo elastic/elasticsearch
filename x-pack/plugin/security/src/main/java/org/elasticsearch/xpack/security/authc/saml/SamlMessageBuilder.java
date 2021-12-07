@@ -37,20 +37,27 @@ public abstract class SamlMessageBuilder {
         this.clock = clock;
     }
 
-    protected String getIdentityProviderEndpoint(String binding,
-                                                 Function<IDPSSODescriptor, ? extends Collection<? extends Endpoint>> selector) {
-        final List<String> locations = identityProvider.getRoleDescriptors(IDPSSODescriptor.DEFAULT_ELEMENT_NAME).stream()
-                .map(rd -> (IDPSSODescriptor) rd)
-                .flatMap(idp -> selector.apply(idp).stream())
-                .filter(endp -> binding.equals(endp.getBinding()))
-                .map(sso -> sso.getLocation())
-                .collect(Collectors.toList());
+    protected String getIdentityProviderEndpoint(
+        String binding,
+        Function<IDPSSODescriptor, ? extends Collection<? extends Endpoint>> selector
+    ) {
+        final List<String> locations = identityProvider.getRoleDescriptors(IDPSSODescriptor.DEFAULT_ELEMENT_NAME)
+            .stream()
+            .map(rd -> (IDPSSODescriptor) rd)
+            .flatMap(idp -> selector.apply(idp).stream())
+            .filter(endp -> binding.equals(endp.getBinding()))
+            .map(sso -> sso.getLocation())
+            .collect(Collectors.toList());
         if (locations.isEmpty()) {
             return null;
         }
         if (locations.size() > 1) {
-            throw new ElasticsearchException("Found multiple locations for binding [{}] in descriptor [{}] - [{}]",
-                    binding, identityProvider.getID(), locations);
+            throw new ElasticsearchException(
+                "Found multiple locations for binding [{}] in descriptor [{}] - [{}]",
+                binding,
+                identityProvider.getID(),
+                locations
+            );
         }
         return locations.get(0);
     }

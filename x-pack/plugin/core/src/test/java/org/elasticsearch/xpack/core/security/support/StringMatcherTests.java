@@ -76,7 +76,8 @@ public class StringMatcherTests extends ESTestCase {
         // Lucene automatons don't work correctly on strings with high surrogates
         final String prefix = randomValueOtherThanMany(
             s -> StringMatcherTests.hasHighSurrogate(s) || s.contains("\\") || s.startsWith("/"),
-            () -> randomRealisticUnicodeOfLengthBetween(3, 5));
+            () -> randomRealisticUnicodeOfLengthBetween(3, 5)
+        );
         final StringMatcher matcher = StringMatcher.of(prefix + "*");
         for (int i = 0; i < 10; i++) {
             assertMatch(matcher, prefix + randomRealisticUnicodeOfLengthBetween(i, 20));
@@ -116,17 +117,20 @@ public class StringMatcherTests extends ESTestCase {
         final String suffix2 = randomAlphaOfLengthBetween(8, 12);
         final String exact1 = randomValueOtherThanMany(
             s -> s.startsWith(prefix1) || s.startsWith(prefix2) || s.startsWith(prefix3) || s.endsWith(suffix1) || s.endsWith(suffix2),
-            () -> randomAlphaOfLengthBetween(5, 9));
+            () -> randomAlphaOfLengthBetween(5, 9)
+        );
         final String exact2 = randomValueOtherThanMany(
             s -> s.startsWith(prefix1) || s.startsWith(prefix2) || s.startsWith(prefix3) || s.endsWith(suffix1) || s.endsWith(suffix2),
-            () -> randomAlphaOfLengthBetween(10, 12));
+            () -> randomAlphaOfLengthBetween(10, 12)
+        );
         final String exact3 = randomValueOtherThanMany(
             s -> s.startsWith(prefix1) || s.startsWith(prefix2) || s.startsWith(prefix3) || s.endsWith(suffix1) || s.endsWith(suffix2),
-            () -> randomAlphaOfLengthBetween(15, 20));
+            () -> randomAlphaOfLengthBetween(15, 20)
+        );
 
-        final StringMatcher matcher = StringMatcher.of(List.of(
-            prefix1 + "*", prefix2 + "?", "/" + prefix3 + "@/", "*" + suffix1, "/@" + suffix2 + "/", exact1, exact2, exact3
-        ));
+        final StringMatcher matcher = StringMatcher.of(
+            List.of(prefix1 + "*", prefix2 + "?", "/" + prefix3 + "@/", "*" + suffix1, "/@" + suffix2 + "/", exact1, exact2, exact3)
+        );
 
         assertMatch(matcher, exact1);
         assertMatch(matcher, exact2);
@@ -186,6 +190,5 @@ public class StringMatcherTests extends ESTestCase {
         }
         return false;
     }
-
 
 }

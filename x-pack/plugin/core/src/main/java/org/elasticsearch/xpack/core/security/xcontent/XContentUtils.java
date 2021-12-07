@@ -15,8 +15,7 @@ import java.util.List;
 
 public class XContentUtils {
 
-    private XContentUtils() {
-    }
+    private XContentUtils() {}
 
     /**
      * Ensures that we're currently on the start of an object, or that the next token is a start of an object.
@@ -38,12 +37,17 @@ public class XContentUtils {
             if (allowNull) {
                 return null;
             }
-            throw new ElasticsearchParseException("could not parse [{}] field. expected a string array but found null value instead",
-                    parser.currentName());
+            throw new ElasticsearchParseException(
+                "could not parse [{}] field. expected a string array but found null value instead",
+                parser.currentName()
+            );
         }
         if (parser.currentToken() != XContentParser.Token.START_ARRAY) {
-            throw new ElasticsearchParseException("could not parse [{}] field. expected a string array but found [{}] value instead",
-                    parser.currentName(), parser.currentToken());
+            throw new ElasticsearchParseException(
+                "could not parse [{}] field. expected a string array but found [{}] value instead",
+                parser.currentName(),
+                parser.currentToken()
+            );
         }
 
         List<String> list = new ArrayList<>();
@@ -52,8 +56,11 @@ public class XContentUtils {
             if (token == XContentParser.Token.VALUE_STRING) {
                 list.add(parser.text());
             } else {
-                throw new ElasticsearchParseException("could not parse [{}] field. expected a string array but one of the value in the " +
-                        "array is [{}]", parser.currentName(), token);
+                throw new ElasticsearchParseException(
+                    "could not parse [{}] field. expected a string array but one of the value in the " + "array is [{}]",
+                    parser.currentName(),
+                    token
+                );
             }
         }
         return list.toArray(new String[list.size()]);

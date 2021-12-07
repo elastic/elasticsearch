@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 
 import java.io.IOException;

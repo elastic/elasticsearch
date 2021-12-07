@@ -16,10 +16,10 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,8 +33,13 @@ public class TransportMultiSearchTemplateAction extends HandledTransportAction<M
     private final NodeClient client;
 
     @Inject
-    public TransportMultiSearchTemplateAction(TransportService transportService, ActionFilters actionFilters, ScriptService scriptService,
-                                              NamedXContentRegistry xContentRegistry, NodeClient client) {
+    public TransportMultiSearchTemplateAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        NodeClient client
+    ) {
         super(MultiSearchTemplateAction.NAME, transportService, actionFilters, MultiSearchTemplateRequest::new);
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;

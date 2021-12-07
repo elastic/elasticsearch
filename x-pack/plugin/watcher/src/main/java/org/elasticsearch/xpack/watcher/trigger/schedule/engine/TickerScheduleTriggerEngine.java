@@ -38,8 +38,11 @@ import static org.elasticsearch.common.settings.Setting.positiveTimeSetting;
 
 public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
 
-    public static final Setting<TimeValue> TICKER_INTERVAL_SETTING =
-        positiveTimeSetting("xpack.watcher.trigger.schedule.ticker.tick_interval", TimeValue.timeValueMillis(500), Property.NodeScope);
+    public static final Setting<TimeValue> TICKER_INTERVAL_SETTING = positiveTimeSetting(
+        "xpack.watcher.trigger.schedule.ticker.tick_interval",
+        TimeValue.timeValueMillis(500),
+        Property.NodeScope
+    );
 
     private static final Logger logger = LogManager.getLogger(TickerScheduleTriggerEngine.class);
 
@@ -113,8 +116,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
             if (scheduledTime > 0) {
                 ZonedDateTime triggeredDateTime = utcDateTimeAtEpochMillis(triggeredTime);
                 ZonedDateTime scheduledDateTime = utcDateTimeAtEpochMillis(scheduledTime);
-                logger.debug("triggered job [{}] at [{}] (scheduled time was [{}])", schedule.name,
-                    triggeredDateTime, scheduledDateTime);
+                logger.debug("triggered job [{}] at [{}] (scheduled time was [{}])", schedule.name, triggeredDateTime, scheduledDateTime);
                 events.add(new ScheduleTriggerEvent(schedule.name, triggeredDateTime, scheduledDateTime));
                 if (events.size() >= 1000) {
                     notifyListeners(events);

@@ -79,8 +79,7 @@ public enum LuceneFilesExtensions {
      * In the future, we would like to add a proper plugin extension point for this.
      */
     private static boolean allowUnknownLuceneFileExtensions() {
-        return Boolean.parseBoolean(
-            System.getProperty("es.allow_unknown_lucene_file_extensions", "false"));
+        return Boolean.parseBoolean(System.getProperty("es.allow_unknown_lucene_file_extensions", "false"));
     }
 
     /**
@@ -140,7 +139,7 @@ public enum LuceneFilesExtensions {
     public static LuceneFilesExtensions fromExtension(String ext) {
         if (ext != null && ext.isEmpty() == false) {
             final LuceneFilesExtensions extension = extensions.get(ext);
-            assert allowUnknownLuceneFileExtensions() || extension != null: "unknown Lucene file extension [" + ext + ']';
+            assert allowUnknownLuceneFileExtensions() || extension != null : "unknown Lucene file extension [" + ext + ']';
             return extension;
         }
         return null;

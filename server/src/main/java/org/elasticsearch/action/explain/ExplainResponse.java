@@ -11,17 +11,17 @@ package org.elasticsearch.action.explain;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -137,9 +137,11 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
         }
     }
 
-    private static final ConstructingObjectParser<ExplainResponse, Boolean> PARSER = new ConstructingObjectParser<>("explain", true,
-        (arg, exists) -> new ExplainResponse((String) arg[0], (String) arg[1], exists, (Explanation) arg[2],
-            (GetResult) arg[3]));
+    private static final ConstructingObjectParser<ExplainResponse, Boolean> PARSER = new ConstructingObjectParser<>(
+        "explain",
+        true,
+        (arg, exists) -> new ExplainResponse((String) arg[0], (String) arg[1], exists, (Explanation) arg[2], (GetResult) arg[3])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), _INDEX);
@@ -151,14 +153,17 @@ public class ExplainResponse extends ActionResponse implements StatusToXContentO
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<Explanation, Boolean> getExplanationsParser() {
-        final ConstructingObjectParser<Explanation, Boolean> explanationParser = new ConstructingObjectParser<>("explanation", true,
+        final ConstructingObjectParser<Explanation, Boolean> explanationParser = new ConstructingObjectParser<>(
+            "explanation",
+            true,
             arg -> {
                 if ((float) arg[0] > 0) {
                     return Explanation.match((float) arg[0], (String) arg[1], (Collection<Explanation>) arg[2]);
                 } else {
                     return Explanation.noMatch((String) arg[1], (Collection<Explanation>) arg[2]);
                 }
-            });
+            }
+        );
         explanationParser.declareFloat(ConstructingObjectParser.constructorArg(), VALUE);
         explanationParser.declareString(ConstructingObjectParser.constructorArg(), DESCRIPTION);
         explanationParser.declareObjectArray(ConstructingObjectParser.constructorArg(), explanationParser, DETAILS);

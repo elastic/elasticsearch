@@ -9,9 +9,9 @@ package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.client.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -28,17 +28,19 @@ public class TrainedModelDefinition implements ToXContentObject {
     public static final ParseField TRAINED_MODEL = new ParseField("trained_model");
     public static final ParseField PREPROCESSORS = new ParseField("preprocessors");
 
-    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME,
-            true,
-            TrainedModelDefinition.Builder::new);
+    public static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, true, TrainedModelDefinition.Builder::new);
     static {
-        PARSER.declareNamedObject(TrainedModelDefinition.Builder::setTrainedModel,
+        PARSER.declareNamedObject(
+            TrainedModelDefinition.Builder::setTrainedModel,
             (p, c, n) -> p.namedObject(TrainedModel.class, n, null),
-            TRAINED_MODEL);
-        PARSER.declareNamedObjects(TrainedModelDefinition.Builder::setPreProcessors,
+            TRAINED_MODEL
+        );
+        PARSER.declareNamedObjects(
+            TrainedModelDefinition.Builder::setPreProcessors,
             (p, c, n) -> p.namedObject(PreProcessor.class, n, null),
             (trainedModelDefBuilder) -> {/* Does not matter client side*/ },
-            PREPROCESSORS);
+            PREPROCESSORS
+        );
     }
 
     public static TrainedModelDefinition.Builder fromXContent(XContentParser parser) throws IOException {
@@ -56,16 +58,14 @@ public class TrainedModelDefinition implements ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        NamedXContentObjectHelper.writeNamedObjects(builder,
+        NamedXContentObjectHelper.writeNamedObjects(
+            builder,
             params,
             false,
             TRAINED_MODEL.getPreferredName(),
-            Collections.singletonList(trainedModel));
-        NamedXContentObjectHelper.writeNamedObjects(builder,
-            params,
-            true,
-            PREPROCESSORS.getPreferredName(),
-            preProcessors);
+            Collections.singletonList(trainedModel)
+        );
+        NamedXContentObjectHelper.writeNamedObjects(builder, params, true, PREPROCESSORS.getPreferredName(), preProcessors);
         builder.endObject();
         return builder;
     }
@@ -88,8 +88,7 @@ public class TrainedModelDefinition implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TrainedModelDefinition that = (TrainedModelDefinition) o;
-        return Objects.equals(trainedModel, that.trainedModel) &&
-            Objects.equals(preProcessors, that.preProcessors);
+        return Objects.equals(trainedModel, that.trainedModel) && Objects.equals(preProcessors, that.preProcessors);
     }
 
     @Override

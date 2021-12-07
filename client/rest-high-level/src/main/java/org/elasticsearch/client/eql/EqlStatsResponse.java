@@ -8,8 +8,8 @@
 package org.elasticsearch.client.eql;
 
 import org.elasticsearch.client.NodesResponseHeader;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -29,21 +29,26 @@ public class EqlStatsResponse {
     }
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<EqlStatsResponse, Void>
-        PARSER = new ConstructingObjectParser<>("eql/stats_response", true, args -> {
+    private static final ConstructingObjectParser<EqlStatsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "eql/stats_response",
+        true,
+        args -> {
             int i = 0;
             NodesResponseHeader header = (NodesResponseHeader) args[i++];
             String clusterName = (String) args[i++];
             List<Node> nodes = (List<Node>) args[i];
             return new EqlStatsResponse(header, clusterName, nodes);
-        });
+        }
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), NodesResponseHeader::fromXContent, new ParseField("_nodes"));
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("cluster_name"));
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
             (p, c) -> EqlStatsResponse.Node.PARSER.apply(p, null),
-            new ParseField("stats"));
+            new ParseField("stats")
+        );
     }
 
     public static EqlStatsResponse fromXContent(XContentParser parser) throws IOException {
@@ -77,8 +82,11 @@ public class EqlStatsResponse {
 
     public static class Node {
         @SuppressWarnings("unchecked")
-        public static final ConstructingObjectParser<Node, Void>
-            PARSER = new ConstructingObjectParser<>("eql/stats_response_node", true, (args, c) -> new Node((Map<String, Object>) args[0]));
+        public static final ConstructingObjectParser<Node, Void> PARSER = new ConstructingObjectParser<>(
+            "eql/stats_response_node",
+            true,
+            (args, c) -> new Node((Map<String, Object>) args[0])
+        );
 
         static {
             PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), new ParseField("stats"));

@@ -76,10 +76,11 @@ public class FinalStep extends AbstractDataFrameAnalyticsStep {
     private void indexDataCounts(ActionListener<IndexResponse> listener) {
         DataCounts dataCounts = task.getStatsHolder().getDataCountsTracker().report();
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-            dataCounts.toXContent(builder, new ToXContent.MapParams(
-                Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")));
-            IndexRequest indexRequest = new IndexRequest(MlStatsIndex.writeAlias())
-                .id(DataCounts.documentId(config.getId()))
+            dataCounts.toXContent(
+                builder,
+                new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))
+            );
+            IndexRequest indexRequest = new IndexRequest(MlStatsIndex.writeAlias()).id(DataCounts.documentId(config.getId()))
                 .setRequireAlias(true)
                 .source(builder);
             executeAsyncWithOrigin(parentTaskClient(), ML_ORIGIN, IndexAction.INSTANCE, indexRequest, listener);
@@ -96,8 +97,9 @@ public class FinalStep extends AbstractDataFrameAnalyticsStep {
         );
         refreshRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
 
-        LOGGER.debug(() -> new ParameterizedMessage("[{}] Refreshing indices {}", config.getId(),
-            Arrays.toString(refreshRequest.indices())));
+        LOGGER.debug(
+            () -> new ParameterizedMessage("[{}] Refreshing indices {}", config.getId(), Arrays.toString(refreshRequest.indices()))
+        );
 
         executeAsyncWithOrigin(parentTaskClient(), ML_ORIGIN, RefreshAction.INSTANCE, refreshRequest, listener);
     }

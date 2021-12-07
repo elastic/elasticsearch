@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -35,9 +35,11 @@ public class TransformIndexerPosition implements Writeable, ToXContentObject {
     private final Map<String, Object> bucketPosition;
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<TransformIndexerPosition, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            true,
-            args -> new TransformIndexerPosition((Map<String, Object>) args[0],(Map<String, Object>) args[1]));
+    public static final ConstructingObjectParser<TransformIndexerPosition, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        args -> new TransformIndexerPosition((Map<String, Object>) args[0], (Map<String, Object>) args[1])
+    );
 
     static {
         PARSER.declareField(optionalConstructorArg(), XContentParser::mapOrdered, INDEXER_POSITION, ValueType.OBJECT);
@@ -95,8 +97,7 @@ public class TransformIndexerPosition implements Writeable, ToXContentObject {
 
         TransformIndexerPosition that = (TransformIndexerPosition) other;
 
-        return Objects.equals(this.indexerPosition, that.indexerPosition) &&
-            Objects.equals(this.bucketPosition, that.bucketPosition);
+        return Objects.equals(this.indexerPosition, that.indexerPosition) && Objects.equals(this.bucketPosition, that.bucketPosition);
     }
 
     @Override

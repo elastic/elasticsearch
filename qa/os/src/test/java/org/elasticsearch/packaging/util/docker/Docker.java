@@ -68,7 +68,7 @@ public class Docker {
     public static final Shell sh = new Shell();
     public static final DockerShell dockerShell = new DockerShell();
     public static final int STARTUP_SLEEP_INTERVAL_MILLISECONDS = 1000;
-    public static final int STARTUP_ATTEMPTS_MAX = 20;
+    public static final int STARTUP_ATTEMPTS_MAX = 30;
 
     /**
      * Tracks the currently running Docker image. An earlier implementation used a fixed container name,
@@ -195,7 +195,7 @@ public class Docker {
         do {
             try {
                 // Give the container a chance to exit out
-                Thread.sleep(1000);
+                Thread.sleep(2000);
 
                 if (sh.run("docker ps --quiet --no-trunc").stdout.contains(containerId) == false) {
                     isElasticsearchRunning = false;
@@ -204,7 +204,7 @@ public class Docker {
             } catch (Exception e) {
                 logger.warn("Caught exception while waiting for ES to exit", e);
             }
-        } while (attempt++ < 8);
+        } while (attempt++ < 60);
 
         if (isElasticsearchRunning) {
             final Shell.Result dockerLogs = getContainerLogs();
@@ -437,7 +437,7 @@ public class Docker {
 
         Stream.of("jvm.options", "log4j2.properties", "role_mapping.yml", "roles.yml", "users", "users_roles")
             .forEach(configFile -> assertThat(es.config(configFile), file("root", "root", p664)));
-        // We write to the elasticsearch.yml and elasticsearch.keystore in ConfigInitialNode so it gets owned by elasticsearch.
+        // We write to the elasticsearch.yml and elasticsearch.keystore in AutoConfigureNode so it gets owned by elasticsearch.
         assertThat(es.config("elasticsearch.yml"), file("elasticsearch", "root", p664));
         assertThat(es.config("elasticsearch.keystore"), file("elasticsearch", "root", p660));
 
@@ -462,8 +462,6 @@ public class Docker {
     }
 
     private static void verifyCloudContainerInstallation(Installation es) {
-        assertThat(Path.of("/opt/plugins/plugin-wrapper.sh"), file("root", "root", p555));
-
         final String pluginArchive = "/opt/plugins/archive";
         final List<String> plugins = listContents(pluginArchive);
 
@@ -482,6 +480,15 @@ public class Docker {
         } else {
             assertThat("Cloud image should not have any plugins in " + pluginArchive, plugins, empty());
         }
+
+        // Cloud uses `wget` to install plugins / bundles.
+        Stream.of("wget")
+            .forEach(
+                cliBinary -> assertTrue(
+                    cliBinary + " ought to be available.",
+                    dockerShell.runIgnoreExitCode("bash -c  'hash " + cliBinary + "'").isSuccess()
+                )
+            );
     }
 
     public static void waitForElasticsearch(Installation installation) throws Exception {

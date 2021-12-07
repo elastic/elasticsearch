@@ -39,12 +39,12 @@ public final class DelegatePkiAuthenticationRequest implements Validatable, ToXC
         builder.startObject().startArray("x509_certificate_chain");
         try {
             for (X509Certificate cert : x509CertificateChain) {
-                 builder.value(Base64.getEncoder().encodeToString(cert.getEncoded()));
-             }
-         } catch (CertificateEncodingException e) {
-             throw new IOException(e);
-         }
-         return builder.endArray().endObject();
+                builder.value(Base64.getEncoder().encodeToString(cert.getEncoded()));
+            }
+        } catch (CertificateEncodingException e) {
+            throw new IOException(e);
+        }
+        return builder.endArray().endObject();
     }
 
     public List<X509Certificate> getCertificateChain() {

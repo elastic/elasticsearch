@@ -8,10 +8,10 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource.Hit;
-import org.elasticsearch.action.index.IndexRequest;
 
 /**
  * Index-by-search test for ttl, timestamp, and routing.
@@ -67,8 +67,17 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
 
     private class TestAction extends Reindexer.AsyncIndexBySearchAction {
         TestAction() {
-            super(ReindexMetadataTests.this.task, ReindexMetadataTests.this.logger, null, null, ReindexMetadataTests.this.threadPool,
-                null, null, request(), listener());
+            super(
+                ReindexMetadataTests.this.task,
+                ReindexMetadataTests.this.logger,
+                null,
+                null,
+                ReindexMetadataTests.this.threadPool,
+                null,
+                null,
+                request(),
+                listener()
+            );
         }
 
         public ReindexRequest mainRequest() {
@@ -76,8 +85,10 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
         }
 
         @Override
-        public AbstractAsyncBulkByScrollAction.RequestWrapper<?> copyMetadata(AbstractAsyncBulkByScrollAction.RequestWrapper<?> request,
-                Hit doc) {
+        public AbstractAsyncBulkByScrollAction.RequestWrapper<?> copyMetadata(
+            AbstractAsyncBulkByScrollAction.RequestWrapper<?> request,
+            Hit doc
+        ) {
             return super.copyMetadata(request, doc);
         }
     }

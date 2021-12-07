@@ -39,6 +39,5 @@ public interface ClusterStateTaskListener {
      * level and otherwise ignored, except in tests where it raises an {@link AssertionError}. If log-and-ignore is the right behaviour then
      * implementations must do so themselves, typically using a more specific logger and at a less dramatic log level.
      */
-    default void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-    }
+    default void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {}
 }

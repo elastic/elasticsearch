@@ -101,7 +101,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), counts.hashCode(0));
+        return Objects.hash(super.hashCode(), counts == null ? 0 : counts.hashCode(0));
     }
 
     @Override
@@ -111,6 +111,9 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
         if (super.equals(obj) == false) return false;
 
         InternalCardinality other = (InternalCardinality) obj;
+        if (counts == null) {
+            return other.counts == null;
+        }
         return counts.equals(0, other.counts, 0);
     }
 

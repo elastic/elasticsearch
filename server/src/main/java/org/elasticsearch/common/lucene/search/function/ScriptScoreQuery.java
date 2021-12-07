@@ -47,8 +47,16 @@ public class ScriptScoreQuery extends Query {
     private final int shardId;
     private final Version indexVersion;
 
-    public ScriptScoreQuery(Query subQuery, Script script, ScoreScript.LeafFactory scriptBuilder, SearchLookup lookup,
-                            Float minScore, String indexName, int shardId, Version indexVersion) {
+    public ScriptScoreQuery(
+        Query subQuery,
+        Script script,
+        ScoreScript.LeafFactory scriptBuilder,
+        SearchLookup lookup,
+        Float minScore,
+        String indexName,
+        int shardId,
+        Version indexVersion
+    ) {
         this.subQuery = subQuery;
         this.script = script;
         this.scriptBuilder = scriptBuilder;
@@ -77,7 +85,7 @@ public class ScriptScoreQuery extends Query {
         ScoreMode subQueryScoreMode = needsScore ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, 1.0f);
 
-        return new Weight(this){
+        return new Weight(this) {
             @Override
             public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
                 if (minScore == null) {
@@ -111,8 +119,14 @@ public class ScriptScoreQuery extends Query {
                     return subQueryExplanation;
                 }
                 ExplanationHolder explanationHolder = new ExplanationHolder();
-                Scorer scorer = new ScriptScorer(this, makeScoreScript(context),
-                    subQueryWeight.scorer(context), subQueryScoreMode, 1f, explanationHolder);
+                Scorer scorer = new ScriptScorer(
+                    this,
+                    makeScoreScript(context),
+                    subQueryWeight.scorer(context),
+                    subQueryScoreMode,
+                    1f,
+                    explanationHolder
+                );
                 int newDoc = scorer.iterator().advance(doc);
                 assert doc == newDoc; // subquery should have already matched above
                 float score = scorer.score(); // score without boost
@@ -129,12 +143,18 @@ public class ScriptScoreQuery extends Query {
                     }
                 }
                 if (boost != 1f) {
-                    explanation = Explanation.match(boost * explanation.getValue().floatValue(), "Boosted score, product of:",
-                        Explanation.match(boost, "boost"), explanation);
+                    explanation = Explanation.match(
+                        boost * explanation.getValue().floatValue(),
+                        "Boosted score, product of:",
+                        Explanation.match(boost, "boost"),
+                        explanation
+                    );
                 }
                 if (minScore != null && minScore > explanation.getValue().floatValue()) {
-                    explanation = Explanation.noMatch("Score value is too low, expected at least " + minScore +
-                        " but got " + explanation.getValue(), explanation);
+                    explanation = Explanation.noMatch(
+                        "Score value is too low, expected at least " + minScore + " but got " + explanation.getValue(),
+                        explanation
+                    );
                 }
                 return explanation;
             }
@@ -173,12 +193,12 @@ public class ScriptScoreQuery extends Query {
         if (this == o) return true;
         if (sameClassAs(o) == false) return false;
         ScriptScoreQuery that = (ScriptScoreQuery) o;
-        return shardId == that.shardId &&
-            subQuery.equals(that.subQuery) &&
-            script.equals(that.script) &&
-            Objects.equals(minScore, that.minScore) &&
-            indexName.equals(that.indexName) &&
-            indexVersion.equals(that.indexVersion);
+        return shardId == that.shardId
+            && subQuery.equals(that.subQuery)
+            && script.equals(that.script)
+            && Objects.equals(minScore, that.minScore)
+            && indexName.equals(that.indexName)
+            && indexVersion.equals(that.indexVersion);
     }
 
     @Override
@@ -186,15 +206,20 @@ public class ScriptScoreQuery extends Query {
         return Objects.hash(classHash(), subQuery, script, minScore, indexName, shardId, indexVersion);
     }
 
-
     private static class ScriptScorer extends Scorer {
         private final ScoreScript scoreScript;
         private final Scorer subQueryScorer;
         private final float boost;
         private final ExplanationHolder explanation;
 
-        ScriptScorer(Weight weight, ScoreScript scoreScript, Scorer subQueryScorer,
-                ScoreMode subQueryScoreMode, float boost, ExplanationHolder explanation) {
+        ScriptScorer(
+            Weight weight,
+            ScoreScript scoreScript,
+            Scorer subQueryScorer,
+            ScoreMode subQueryScoreMode,
+            float boost,
+            ExplanationHolder explanation
+        ) {
             super(weight);
             this.scoreScript = scoreScript;
             if (subQueryScoreMode == ScoreMode.COMPLETE) {
@@ -211,8 +236,14 @@ public class ScriptScoreQuery extends Query {
             scoreScript.setDocument(docId);
             float score = (float) scoreScript.execute(explanation);
             if (score < 0f || Float.isNaN(score)) {
-                throw new IllegalArgumentException("script_score script returned an invalid score [" + score + "] " +
-                    "for doc [" + docId + "]. Must be a non-negative score!");
+                throw new IllegalArgumentException(
+                    "script_score script returned an invalid score ["
+                        + score
+                        + "] "
+                        + "for doc ["
+                        + docId
+                        + "]. Must be a non-negative score!"
+                );
             }
             return score * boost;
         }
@@ -240,8 +271,13 @@ public class ScriptScoreQuery extends Query {
         private final float boost;
         private final ExplanationHolder explanation;
 
-        ScriptScorable(ScoreScript scoreScript, Scorable subQueryScorer,
-                ScoreMode subQueryScoreMode, float boost, ExplanationHolder explanation) {
+        ScriptScorable(
+            ScoreScript scoreScript,
+            Scorable subQueryScorer,
+            ScoreMode subQueryScoreMode,
+            float boost,
+            ExplanationHolder explanation
+        ) {
             this.scoreScript = scoreScript;
             if (subQueryScoreMode == ScoreMode.COMPLETE) {
                 scoreScript.setScorer(subQueryScorer);
@@ -257,11 +293,18 @@ public class ScriptScoreQuery extends Query {
             scoreScript.setDocument(docId);
             float score = (float) scoreScript.execute(explanation);
             if (score < 0f || Float.isNaN(score)) {
-                throw new IllegalArgumentException("script_score script returned an invalid score [" + score + "] " +
-                    "for doc [" + docId + "]. Must be a non-negative score!");
+                throw new IllegalArgumentException(
+                    "script_score script returned an invalid score ["
+                        + score
+                        + "] "
+                        + "for doc ["
+                        + docId
+                        + "]. Must be a non-negative score!"
+                );
             }
             return score * boost;
         }
+
         @Override
         public int docID() {
             return subQueryScorer.docID();

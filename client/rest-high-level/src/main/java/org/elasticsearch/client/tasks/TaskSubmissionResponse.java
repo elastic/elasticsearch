@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.tasks;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -21,7 +21,9 @@ public class TaskSubmissionResponse {
 
     public static final ConstructingObjectParser<TaskSubmissionResponse, Void> PARSER = new ConstructingObjectParser<>(
         "task_submission_response",
-        true, a -> new TaskSubmissionResponse((String) a[0]));
+        true,
+        a -> new TaskSubmissionResponse((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TASK);

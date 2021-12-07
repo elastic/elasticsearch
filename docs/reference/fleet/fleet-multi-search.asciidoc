@@ -17,9 +17,9 @@ without prior notice.
 [[fleet-multi-search-api-request]]
 ==== {api-request-title}
 
-`GET /_fleet/_msearch`
+`GET /_fleet/_fleet_msearch`
 
-`GET /<index>/_fleet/_msearch`
+`GET /<index>/_fleet/_fleet_msearch`
 
 [[fleet-multi-search-api-path-params]]
 ==== {api-path-parms-title}

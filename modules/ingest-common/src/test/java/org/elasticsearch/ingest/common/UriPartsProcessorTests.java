@@ -148,7 +148,7 @@ public class UriPartsProcessorTests extends ESTestCase {
         );
     }
 
-    public void testUrlWithCharactersNotToleratedByUri()  throws Exception {
+    public void testUrlWithCharactersNotToleratedByUri() throws Exception {
         testUriParsing(
             "http://www.google.com/path with spaces",
             Map.of("scheme", "http", "domain", "www.google.com", "path", "/path with spaces")

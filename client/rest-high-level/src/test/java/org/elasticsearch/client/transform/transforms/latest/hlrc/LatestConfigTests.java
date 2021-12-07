@@ -19,8 +19,9 @@ import java.util.ArrayList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class LatestConfigTests
-        extends AbstractResponseTestCase<LatestConfig, org.elasticsearch.client.transform.transforms.latest.LatestConfig> {
+public class LatestConfigTests extends AbstractResponseTestCase<
+    LatestConfig,
+    org.elasticsearch.client.transform.transforms.latest.LatestConfig> {
 
     public static LatestConfig randomLatestConfig() {
         return new LatestConfig(

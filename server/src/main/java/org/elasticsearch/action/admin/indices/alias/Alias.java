@@ -9,20 +9,20 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -81,7 +81,7 @@ public class Alias implements Writeable, ToXContentFragment {
     /**
       Modify the alias name only
      */
-    public Alias name(String name){
+    public Alias name(String name) {
         this.name = name;
         return this;
     }

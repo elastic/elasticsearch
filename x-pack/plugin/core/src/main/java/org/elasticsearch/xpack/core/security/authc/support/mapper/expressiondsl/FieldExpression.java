@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.support.Automatons;

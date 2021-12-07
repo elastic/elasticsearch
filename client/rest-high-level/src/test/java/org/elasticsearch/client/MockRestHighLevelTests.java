@@ -22,11 +22,12 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings("removal")
 public class MockRestHighLevelTests extends ESTestCase {
     private RestHighLevelClient client;
     private static final List<String> WARNINGS = Collections.singletonList("Some Warning");
@@ -53,10 +54,11 @@ public class MockRestHighLevelTests extends ESTestCase {
     }
 
     public void testWarningFailure() {
-        WarningFailureException exception = expectThrows(WarningFailureException.class,
-            () -> client.info(RequestOptions.DEFAULT));
-        assertThat(exception.getMessage(), equalTo("method [GET], host [http://localhost:9200], URI [/_blah], " +
-            "status line [HTTP/1.1 200 OK]"));
+        WarningFailureException exception = expectThrows(WarningFailureException.class, () -> client.info(RequestOptions.DEFAULT));
+        assertThat(
+            exception.getMessage(),
+            equalTo("method [GET], host [http://localhost:9200], URI [/_blah], " + "status line [HTTP/1.1 200 OK]")
+        );
         assertNull(exception.getCause());
         assertThat(exception.getResponse().getWarnings(), equalTo(WARNINGS));
     }

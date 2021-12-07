@@ -19,9 +19,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase {
     public void testParseIsTrue() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "get.fields._timestamp"
-        );
+        parser = createParser(YamlXContent.yamlXContent, "get.fields._timestamp");
 
         IsTrueAssertion trueAssertion = IsTrueAssertion.parse(parser);
 
@@ -30,9 +28,7 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
     }
 
     public void testParseIsFalse() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "docs.1._source"
-        );
+        parser = createParser(YamlXContent.yamlXContent, "docs.1._source");
 
         IsFalseAssertion falseAssertion = IsFalseAssertion.parse(parser);
 
@@ -41,9 +37,7 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
     }
 
     public void testParseGreaterThan() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "{ field: 3}"
-        );
+        parser = createParser(YamlXContent.yamlXContent, "{ field: 3}");
 
         GreaterThanAssertion greaterThanAssertion = GreaterThanAssertion.parse(parser);
         assertThat(greaterThanAssertion, notNullValue());
@@ -53,9 +47,7 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
     }
 
     public void testParseLessThan() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "{ field: 3}"
-        );
+        parser = createParser(YamlXContent.yamlXContent, "{ field: 3}");
 
         LessThanAssertion lessThanAssertion = LessThanAssertion.parse(parser);
         assertThat(lessThanAssertion, notNullValue());
@@ -65,9 +57,7 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
     }
 
     public void testParseLength() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "{ _id: 22}"
-        );
+        parser = createParser(YamlXContent.yamlXContent, "{ _id: 22}");
 
         LengthAssertion lengthAssertion = LengthAssertion.parse(parser);
         assertThat(lengthAssertion, notNullValue());
@@ -77,9 +67,7 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
     }
 
     public void testParseMatchSimpleIntegerValue() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "{ field: 10 }"
-        );
+        parser = createParser(YamlXContent.yamlXContent, "{ field: 10 }");
 
         MatchAssertion matchAssertion = MatchAssertion.parse(parser);
 
@@ -90,9 +78,7 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
     }
 
     public void testParseMatchSimpleStringValue() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "{ foo: bar }"
-        );
+        parser = createParser(YamlXContent.yamlXContent, "{ foo: bar }");
 
         MatchAssertion matchAssertion = MatchAssertion.parse(parser);
 
@@ -103,9 +89,7 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
     }
 
     public void testParseMatchArray() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "{'matches': ['test_percolator_1', 'test_percolator_2']}"
-        );
+        parser = createParser(YamlXContent.yamlXContent, "{'matches': ['test_percolator_1', 'test_percolator_2']}");
 
         MatchAssertion matchAssertion = MatchAssertion.parse(parser);
 
@@ -120,25 +104,18 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
 
     @SuppressWarnings("unchecked")
     public void testParseContains() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-            "{testKey: { someKey: someValue } }"
-        );
+        parser = createParser(YamlXContent.yamlXContent, "{testKey: { someKey: someValue } }");
 
         ContainsAssertion containsAssertion = ContainsAssertion.parse(parser);
         assertThat(containsAssertion, notNullValue());
         assertThat(containsAssertion.getField(), equalTo("testKey"));
         assertThat(containsAssertion.getExpectedValue(), instanceOf(Map.class));
-        assertThat(
-            ((Map<String, String>) containsAssertion.getExpectedValue()).get("someKey"),
-            equalTo("someValue")
-        );
+        assertThat(((Map<String, String>) containsAssertion.getExpectedValue()).get("someKey"), equalTo("someValue"));
     }
 
     @SuppressWarnings("unchecked")
     public void testParseMatchSourceValues() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-                "{ _source: { responses.0.hits.total: 3, foo: bar  }}"
-        );
+        parser = createParser(YamlXContent.yamlXContent, "{ _source: { responses.0.hits.total: 3, foo: bar  }}");
 
         MatchAssertion matchAssertion = MatchAssertion.parse(parser);
 
@@ -149,16 +126,14 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         assertThat(expectedValue.size(), equalTo(2));
         Object o = expectedValue.get("responses.0.hits.total");
         assertThat(o, instanceOf(Integer.class));
-        assertThat((Integer)o, equalTo(3));
+        assertThat((Integer) o, equalTo(3));
         o = expectedValue.get("foo");
         assertThat(o, instanceOf(String.class));
         assertThat(o.toString(), equalTo("bar"));
     }
 
     public void testCloseTo() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-            "{ field: { value: 42.2, error: 0.001 } }"
-        );
+        parser = createParser(YamlXContent.yamlXContent, "{ field: { value: 42.2, error: 0.001 } }");
 
         CloseToAssertion closeToAssertion = CloseToAssertion.parse(parser);
 
@@ -179,28 +154,20 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
     }
 
     public void testInvalidCloseTo() throws Exception {
-        parser = createParser(YamlXContent.yamlXContent,
-            "{ field: 42 }"
-        );
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->  CloseToAssertion.parse(parser));
+        parser = createParser(YamlXContent.yamlXContent, "{ field: 42 }");
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> CloseToAssertion.parse(parser));
         assertThat(exception.getMessage(), equalTo("expected a map with value and error but got Integer"));
 
-        parser = createParser(YamlXContent.yamlXContent,
-            "{ field: {  } }"
-        );
-        exception = expectThrows(IllegalArgumentException.class, () ->  CloseToAssertion.parse(parser));
+        parser = createParser(YamlXContent.yamlXContent, "{ field: {  } }");
+        exception = expectThrows(IllegalArgumentException.class, () -> CloseToAssertion.parse(parser));
         assertThat(exception.getMessage(), equalTo("expected a map with value and error but got a map with 0 fields"));
 
-        parser = createParser(YamlXContent.yamlXContent,
-            "{ field: { foo: 13, value: 15 } }"
-        );
-        exception = expectThrows(IllegalArgumentException.class, () ->  CloseToAssertion.parse(parser));
+        parser = createParser(YamlXContent.yamlXContent, "{ field: { foo: 13, value: 15 } }");
+        exception = expectThrows(IllegalArgumentException.class, () -> CloseToAssertion.parse(parser));
         assertThat(exception.getMessage(), equalTo("error is missing or not a number"));
 
-        parser = createParser(YamlXContent.yamlXContent,
-            "{ field: { foo: 13, bar: 15 } }"
-        );
-        exception = expectThrows(IllegalArgumentException.class, () ->  CloseToAssertion.parse(parser));
+        parser = createParser(YamlXContent.yamlXContent, "{ field: { foo: 13, bar: 15 } }");
+        exception = expectThrows(IllegalArgumentException.class, () -> CloseToAssertion.parse(parser));
         assertThat(exception.getMessage(), equalTo("value is missing or not a number"));
     }
 }

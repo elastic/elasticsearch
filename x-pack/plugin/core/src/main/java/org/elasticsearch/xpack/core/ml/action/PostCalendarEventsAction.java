@@ -10,10 +10,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -51,8 +51,9 @@ public class PostCalendarEventsAction extends ActionType<PostCalendarEventsActio
 
             for (ScheduledEvent.Builder event : events) {
                 if (event.getCalendarId() != null && event.getCalendarId().equals(calendarId) == false) {
-                    throw ExceptionsHelper.badRequestException(Messages.getMessage(Messages.INCONSISTENT_ID,
-                            Calendar.ID.getPreferredName(), event.getCalendarId(), calendarId));
+                    throw ExceptionsHelper.badRequestException(
+                        Messages.getMessage(Messages.INCONSISTENT_ID, Calendar.ID.getPreferredName(), event.getCalendarId(), calendarId)
+                    );
                 }
                 // Set the calendar Id in case it is null
                 event.calendarId(calendarId);

@@ -10,8 +10,8 @@ package org.elasticsearch.client.rollup.job.config;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -40,29 +40,37 @@ public class GroupConfig implements Validatable, ToXContentObject {
     static final String NAME = "groups";
     private static final ConstructingObjectParser<GroupConfig, Void> PARSER;
     static {
-        PARSER = new ConstructingObjectParser<>(NAME, true, args ->
-            new GroupConfig((DateHistogramGroupConfig) args[0], (HistogramGroupConfig) args[1], (TermsGroupConfig) args[2]));
-        PARSER.declareObject(constructorArg(),
-            (p, c) -> DateHistogramGroupConfig.fromXContent(p), new ParseField(DateHistogramGroupConfig.NAME));
-        PARSER.declareObject(optionalConstructorArg(),
-            (p, c) -> HistogramGroupConfig.fromXContent(p), new ParseField(HistogramGroupConfig.NAME));
-        PARSER.declareObject(optionalConstructorArg(),
-            (p, c) -> TermsGroupConfig.fromXContent(p), new ParseField(TermsGroupConfig.NAME));
+        PARSER = new ConstructingObjectParser<>(
+            NAME,
+            true,
+            args -> new GroupConfig((DateHistogramGroupConfig) args[0], (HistogramGroupConfig) args[1], (TermsGroupConfig) args[2])
+        );
+        PARSER.declareObject(
+            constructorArg(),
+            (p, c) -> DateHistogramGroupConfig.fromXContent(p),
+            new ParseField(DateHistogramGroupConfig.NAME)
+        );
+        PARSER.declareObject(
+            optionalConstructorArg(),
+            (p, c) -> HistogramGroupConfig.fromXContent(p),
+            new ParseField(HistogramGroupConfig.NAME)
+        );
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> TermsGroupConfig.fromXContent(p), new ParseField(TermsGroupConfig.NAME));
     }
 
     private final DateHistogramGroupConfig dateHistogram;
-    private final @Nullable
-    HistogramGroupConfig histogram;
-    private final @Nullable
-    TermsGroupConfig terms;
+    private final @Nullable HistogramGroupConfig histogram;
+    private final @Nullable TermsGroupConfig terms;
 
     public GroupConfig(final DateHistogramGroupConfig dateHistogram) {
         this(dateHistogram, null, null);
     }
 
-    public GroupConfig(final DateHistogramGroupConfig dateHistogram,
-                       final @Nullable HistogramGroupConfig histogram,
-                       final @Nullable TermsGroupConfig terms) {
+    public GroupConfig(
+        final DateHistogramGroupConfig dateHistogram,
+        final @Nullable HistogramGroupConfig histogram,
+        final @Nullable TermsGroupConfig terms
+    ) {
         this.dateHistogram = dateHistogram;
         this.histogram = histogram;
         this.terms = terms;

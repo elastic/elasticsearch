@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.job.results;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -30,8 +30,11 @@ public class Influence implements ToXContentObject {
     public static final ParseField INFLUENCER_FIELD_VALUES = new ParseField("influencer_field_values");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Influence, Void> PARSER =
-        new ConstructingObjectParser<>(INFLUENCER.getPreferredName(), true, a -> new Influence((String) a[0], (List<String>) a[1]));
+    public static final ConstructingObjectParser<Influence, Void> PARSER = new ConstructingObjectParser<>(
+        INFLUENCER.getPreferredName(),
+        true,
+        a -> new Influence((String) a[0], (List<String>) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), INFLUENCER_FIELD_NAME);

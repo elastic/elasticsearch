@@ -8,12 +8,12 @@
 
 package org.elasticsearch.search.profile.query;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -180,7 +180,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
         String name = null, reason = null;
         long time = -1;
         List<CollectorResult> children = new ArrayList<>();
-        while((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {

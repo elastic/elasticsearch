@@ -39,7 +39,8 @@ public class StatsPersister {
 
     public void persistWithRetry(ToXContentObject result, Function<String, String> docIdSupplier) {
         try {
-            resultsPersisterService.indexWithRetry(jobId,
+            resultsPersisterService.indexWithRetry(
+                jobId,
                 MlStatsIndex.writeAlias(),
                 result,
                 new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true")),
@@ -47,8 +48,12 @@ public class StatsPersister {
                 docIdSupplier.apply(jobId),
                 true,
                 () -> true,
-                retryMessage ->
-                    LOGGER.debug("[{}] failed to persist result with id [{}]; {}", jobId, docIdSupplier.apply(jobId), retryMessage)
+                retryMessage -> LOGGER.debug(
+                    "[{}] failed to persist result with id [{}]; {}",
+                    jobId,
+                    docIdSupplier.apply(jobId),
+                    retryMessage
+                )
             );
         } catch (IOException ioe) {
             LOGGER.error(() -> new ParameterizedMessage("[{}] Failed serializing stats result", jobId), ioe);

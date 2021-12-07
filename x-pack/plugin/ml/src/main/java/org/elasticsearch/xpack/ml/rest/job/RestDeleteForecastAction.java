@@ -29,10 +29,15 @@ public class RestDeleteForecastAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/")
-                .replaces(DELETE, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/", RestApiVersion.V_7).build(),
+                .replaces(DELETE, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/", RestApiVersion.V_7)
+                .build(),
             Route.builder(DELETE, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/{" + Forecast.FORECAST_ID + "}")
-                .replaces(DELETE, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/{" + Forecast.FORECAST_ID + "}",
-                    RestApiVersion.V_7).build()
+                .replaces(
+                    DELETE,
+                    PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast/{" + Forecast.FORECAST_ID + "}",
+                    RestApiVersion.V_7
+                )
+                .build()
         );
     }
 

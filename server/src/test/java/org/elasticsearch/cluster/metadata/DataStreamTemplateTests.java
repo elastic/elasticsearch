@@ -7,12 +7,12 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import java.io.IOException;
-
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+
+import java.io.IOException;
 
 public class DataStreamTemplateTests extends AbstractSerializingTestCase<DataStreamTemplate> {
 

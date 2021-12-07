@@ -66,6 +66,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
+@SuppressWarnings("removal")
 public class TransformDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private List<String> transformsToClean = new ArrayList<>();

@@ -47,20 +47,19 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 
-import javax.net.ssl.HostnameVerifier;
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
@@ -77,6 +76,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+
+import javax.net.ssl.HostnameVerifier;
 
 public class HttpClient implements Closeable {
 
@@ -137,14 +138,19 @@ public class HttpClient implements Closeable {
         clientBuilder.setMaxConnTotal(MAX_CONNECTIONS);
         clientBuilder.setRedirectStrategy(new DefaultRedirectStrategy() {
             @Override
-            public boolean isRedirected(org.apache.http.HttpRequest request, org.apache.http.HttpResponse response,
-                                        HttpContext context) throws ProtocolException {
+            public boolean isRedirected(org.apache.http.HttpRequest request, org.apache.http.HttpResponse response, HttpContext context)
+                throws ProtocolException {
                 boolean isRedirected = super.isRedirected(request, response, context);
                 if (isRedirected) {
                     String host = response.getHeaders("Location")[0].getValue();
                     if (isWhitelisted(host) == false) {
-                        throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
-                            HttpSettings.HOSTS_WHITELIST.getKey() + "], will not redirect");
+                        throw new ElasticsearchException(
+                            "host ["
+                                + host
+                                + "] is not whitelisted in setting ["
+                                + HttpSettings.HOSTS_WHITELIST.getKey()
+                                + "], will not redirect"
+                        );
                     }
                 }
 
@@ -154,8 +160,11 @@ public class HttpClient implements Closeable {
 
         clientBuilder.addInterceptorFirst((HttpRequestInterceptor) (request, context) -> {
             if (request instanceof HttpRequestWrapper == false) {
-                throw new ElasticsearchException("unable to check request [{}/{}] for white listing", request,
-                    request.getClass().getName());
+                throw new ElasticsearchException(
+                    "unable to check request [{}/{}] for white listing",
+                    request,
+                    request.getClass().getName()
+                );
             }
 
             HttpRequestWrapper wrapper = ((HttpRequestWrapper) request);
@@ -167,8 +176,9 @@ public class HttpClient implements Closeable {
             }
 
             if (isWhitelisted(host) == false) {
-                throw new ElasticsearchException("host [" + host + "] is not whitelisted in setting [" +
-                    HttpSettings.HOSTS_WHITELIST.getKey() + "], will not connect");
+                throw new ElasticsearchException(
+                    "host [" + host + "] is not whitelisted in setting [" + HttpSettings.HOSTS_WHITELIST.getKey() + "], will not connect"
+                );
             }
         });
 
@@ -224,8 +234,10 @@ public class HttpClient implements Closeable {
         // auth
         if (request.auth() != null) {
             CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
-            Credentials credentials = new UsernamePasswordCredentials(request.auth().username,
-                new String(request.auth().password.text(cryptoService)));
+            Credentials credentials = new UsernamePasswordCredentials(
+                request.auth().username,
+                new String(request.auth().password.text(cryptoService))
+            );
             credentialsProvider.setCredentials(new AuthScope(request.host, request.port), credentials);
             localContext.setCredentialsProvider(credentialsProvider);
 
@@ -267,7 +279,7 @@ public class HttpClient implements Closeable {
 
                     responseHeaders.put(header.getName(), values);
                 } else {
-                    responseHeaders.put(header.getName(), new String[]{header.getValue()});
+                    responseHeaders.put(header.getName(), new String[] { header.getValue() });
                 }
             }
 
@@ -313,14 +325,20 @@ public class HttpClient implements Closeable {
      */
     private HttpProxy getProxyFromSettings(Settings settings) {
         String proxyHost = HttpSettings.PROXY_HOST.get(settings);
-        Scheme proxyScheme = HttpSettings.PROXY_SCHEME.exists(settings) ?
-                Scheme.parse(HttpSettings.PROXY_SCHEME.get(settings)) : Scheme.HTTP;
+        Scheme proxyScheme = HttpSettings.PROXY_SCHEME.exists(settings)
+            ? Scheme.parse(HttpSettings.PROXY_SCHEME.get(settings))
+            : Scheme.HTTP;
         int proxyPort = HttpSettings.PROXY_PORT.get(settings);
         if (proxyPort != 0 && Strings.hasText(proxyHost)) {
             logger.info("Using default proxy for http input and slack/pagerduty/webhook actions [{}:{}]", proxyHost, proxyPort);
         } else if (proxyPort != 0 ^ Strings.hasText(proxyHost)) {
-            throw new IllegalArgumentException("HTTP proxy requires both settings: [" + HttpSettings.PROXY_HOST.getKey() + "] and [" +
-                    HttpSettings.PROXY_PORT.getKey() + "]");
+            throw new IllegalArgumentException(
+                "HTTP proxy requires both settings: ["
+                    + HttpSettings.PROXY_HOST.getKey()
+                    + "] and ["
+                    + HttpSettings.PROXY_PORT.getKey()
+                    + "]"
+            );
         }
 
         if (proxyPort > 0 && Strings.hasText(proxyHost)) {
@@ -359,8 +377,7 @@ public class HttpClient implements Closeable {
                 }
             }
 
-            final URI uri =  new URIBuilder()
-                .setScheme(request.scheme().scheme())
+            final URI uri = new URIBuilder().setScheme(request.scheme().scheme())
                 .setHost(request.host)
                 .setPort(request.port)
                 .setPathSegments(unescapedPathParts)
@@ -402,6 +419,7 @@ public class HttpClient implements Closeable {
     }
 
     private static final CharacterRunAutomaton MATCH_ALL_AUTOMATON = new CharacterRunAutomaton(Regex.simpleMatchToAutomaton("*"));
+
     // visible for testing
     static CharacterRunAutomaton createAutomaton(List<String> whiteListedHosts) {
         if (whiteListedHosts.isEmpty()) {

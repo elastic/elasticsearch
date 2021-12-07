@@ -8,14 +8,14 @@
 
 package org.elasticsearch.common.io.stream;
 
-import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.equalTo;
-
-import java.io.IOException;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+
+import java.io.IOException;
+
+import static java.util.Collections.singletonList;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DelayableWriteableTests extends ESTestCase {
     // NOTE: we don't use AbstractWireSerializingTestCase because we don't implement equals and hashCode.
@@ -161,14 +161,27 @@ public class DelayableWriteableTests extends ESTestCase {
         assertThat(roundTripped.expand(), equalTo(original.expand()));
     }
 
-    private <T extends Writeable> DelayableWriteable<T> roundTrip(DelayableWriteable<T> original,
-            Writeable.Reader<T> reader, Version version) throws IOException {
-        DelayableWriteable<T> delayed = copyInstance(original, writableRegistry(), (out, d) -> d.writeTo(out),
-            in -> DelayableWriteable.delayed(reader, in), version);
+    private <T extends Writeable> DelayableWriteable<T> roundTrip(
+        DelayableWriteable<T> original,
+        Writeable.Reader<T> reader,
+        Version version
+    ) throws IOException {
+        DelayableWriteable<T> delayed = copyInstance(
+            original,
+            writableRegistry(),
+            (out, d) -> d.writeTo(out),
+            in -> DelayableWriteable.delayed(reader, in),
+            version
+        );
         assertTrue(delayed.isSerialized());
 
-        DelayableWriteable<T> referencing = copyInstance(original, writableRegistry(), (out, d) -> d.writeTo(out),
-            in -> DelayableWriteable.referencing(reader, in), version);
+        DelayableWriteable<T> referencing = copyInstance(
+            original,
+            writableRegistry(),
+            (out, d) -> d.writeTo(out),
+            in -> DelayableWriteable.referencing(reader, in),
+            version
+        );
         assertFalse(referencing.isSerialized());
 
         return randomFrom(delayed, referencing);
@@ -176,8 +189,7 @@ public class DelayableWriteableTests extends ESTestCase {
 
     @Override
     protected NamedWriteableRegistry writableRegistry() {
-        return new NamedWriteableRegistry(singletonList(
-                new NamedWriteableRegistry.Entry(Example.class, "example", Example::new)));
+        return new NamedWriteableRegistry(singletonList(new NamedWriteableRegistry.Entry(Example.class, "example", Example::new)));
     }
 
     private static Version randomOldVersion() {

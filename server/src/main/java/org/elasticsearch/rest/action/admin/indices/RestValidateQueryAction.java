@@ -16,7 +16,6 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -24,6 +23,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -33,9 +33,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestValidateQueryAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(RestValidateQueryAction.class);
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
-        " Specifying types in validate query requests is deprecated.";
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestValidateQueryAction.class);
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" + " Specifying types in validate query requests is deprecated.";
+
     @Override
     public List<Route> routes() {
         return List.of(
@@ -43,12 +43,9 @@ public class RestValidateQueryAction extends BaseRestHandler {
             new Route(POST, "/_validate/query"),
             new Route(GET, "/{index}/_validate/query"),
             new Route(POST, "/{index}/_validate/query"),
-            Route.builder(GET, "/{index}/{type}/_validate/query")
-                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, "/{index}/{type}/_validate/query")
-                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build());
+            Route.builder(GET, "/{index}/{type}/_validate/query").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/{type}/_validate/query").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+        );
     }
 
     @Override

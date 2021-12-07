@@ -9,11 +9,11 @@
 package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -29,8 +29,11 @@ public class CreateIndexResponse extends ShardsAcknowledgedResponse {
 
     private static final ParseField INDEX = new ParseField("index");
 
-    private static final ConstructingObjectParser<CreateIndexResponse, Void> PARSER = new ConstructingObjectParser<>("create_index",
-        true, args -> new CreateIndexResponse((boolean) args[0], (boolean) args[1], (String) args[2]));
+    private static final ConstructingObjectParser<CreateIndexResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "create_index",
+        true,
+        args -> new CreateIndexResponse((boolean) args[0], (boolean) args[1], (String) args[2])
+    );
 
     static {
         declareFields(PARSER);

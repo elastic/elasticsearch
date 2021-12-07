@@ -21,8 +21,8 @@ public class RemoveIndexLifecyclePolicyRequest extends TimedRequest {
     private final IndicesOptions indicesOptions;
 
     public RemoveIndexLifecyclePolicyRequest(List<String> indices) {
-       this.indices = Objects.requireNonNull(indices);
-       this.indicesOptions = null;
+        this.indices = Objects.requireNonNull(indices);
+        this.indicesOptions = null;
     }
 
     public RemoveIndexLifecyclePolicyRequest(List<String> indices, IndicesOptions indicesOptions) {
@@ -52,7 +52,6 @@ public class RemoveIndexLifecyclePolicyRequest extends TimedRequest {
             return false;
         }
         RemoveIndexLifecyclePolicyRequest other = (RemoveIndexLifecyclePolicyRequest) obj;
-        return Objects.deepEquals(indices, other.indices) &&
-                Objects.equals(indicesOptions, other.indicesOptions);
+        return Objects.deepEquals(indices, other.indices) && Objects.equals(indicesOptions, other.indicesOptions);
     }
 }

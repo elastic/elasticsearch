@@ -164,8 +164,13 @@ public class AnalyzeRequest implements Validatable, ToXContentObject {
         this.text = text;
     }
 
-    private AnalyzeRequest(String index, NameOrDefinition tokenizer, List<NameOrDefinition> charFilters,
-                           List<NameOrDefinition> tokenFilters, String... text) {
+    private AnalyzeRequest(
+        String index,
+        NameOrDefinition tokenizer,
+        List<NameOrDefinition> charFilters,
+        List<NameOrDefinition> tokenFilters,
+        String... text
+    ) {
         this.index = index;
         this.analyzer = null;
         this.normalizer = null;

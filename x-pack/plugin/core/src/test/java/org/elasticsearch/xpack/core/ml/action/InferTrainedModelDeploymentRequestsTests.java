@@ -23,7 +23,6 @@ import java.util.Map;
 
 public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerializingTestCase<InferTrainedModelDeploymentAction.Request> {
 
-
     private static InferenceConfigUpdate randomInferenceConfigUpdate() {
         return randomFrom(ZeroShotClassificationConfigUpdateTests.createRandom(), EmptyConfigUpdateTests.testInstance());
     }
@@ -35,8 +34,10 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractWireSerial
 
     @Override
     protected InferTrainedModelDeploymentAction.Request createTestInstance() {
-        List<Map<String, Object>> docs = randomList(5, () -> randomMap(1, 3,
-            () -> Tuple.tuple(randomAlphaOfLength(7), randomAlphaOfLength(7))));
+        List<Map<String, Object>> docs = randomList(
+            5,
+            () -> randomMap(1, 3, () -> Tuple.tuple(randomAlphaOfLength(7), randomAlphaOfLength(7)))
+        );
 
         return new InferTrainedModelDeploymentAction.Request(
             randomAlphaOfLength(4),

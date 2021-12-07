@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.rollup;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -36,14 +37,14 @@ import static org.elasticsearch.test.ESTestCase.randomZone;
 
 public class ConfigTestHelpers {
 
-    private static final String[] TIME_SUFFIXES = new String[]{"d", "h", "ms", "s", "m"};
+    private static final String[] TIME_SUFFIXES = new String[] { "d", "h", "ms", "s", "m" };
 
-    private ConfigTestHelpers() {
-    }
+    private ConfigTestHelpers() {}
 
     public static RollupJobConfig randomRollupJobConfig(final Random random) {
         return randomRollupJobConfig(random, randomAsciiAlphanumOfLengthBetween(random, 5, 20));
     }
+
     public static RollupJobConfig randomRollupJobConfig(final Random random, final String id) {
         return randomRollupJobConfig(random, id, randomAsciiAlphanumOfLengthBetween(random, 5, 20));
     }
@@ -52,10 +53,12 @@ public class ConfigTestHelpers {
         return randomRollupJobConfig(random, id, indexPattern, "rollup_" + indexPattern);
     }
 
-    public static RollupJobConfig randomRollupJobConfig(final Random random,
-                                                        final String id,
-                                                        final String indexPattern,
-                                                        final String rollupIndex) {
+    public static RollupJobConfig randomRollupJobConfig(
+        final Random random,
+        final String id,
+        final String indexPattern,
+        final String rollupIndex
+    ) {
         final String cron = randomCron();
         final int pageSize = randomIntBetween(random, 1, 10);
         final TimeValue timeout = random.nextBoolean() ? null : randomTimeout(random);
@@ -107,20 +110,20 @@ public class ConfigTestHelpers {
         }
     }
 
-    public static  List<String> getFields() {
+    public static List<String> getFields() {
         return IntStream.range(0, ESTestCase.randomIntBetween(1, 10))
-                .mapToObj(n -> ESTestCase.randomAlphaOfLengthBetween(5, 10))
-                .collect(Collectors.toList());
+            .mapToObj(n -> ESTestCase.randomAlphaOfLengthBetween(5, 10))
+            .collect(Collectors.toList());
     }
 
     public static String randomCron() {
-        return (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 59)))             + //second
-                " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 59)))      + //minute
-                " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 23)))      + //hour
-                " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1, 31)))      + //day of month
-                " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1, 12)))      + //month
-                " ?"                                                                         + //day of week
-                " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1970, 2199)));  //year
+        return (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 59))) + // second
+            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 59))) + // minute
+            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(0, 23))) + // hour
+            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1, 31))) + // day of month
+            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1, 12))) + // month
+            " ?" + // day of week
+            " " + (ESTestCase.randomBoolean() ? "*" : String.valueOf(ESTestCase.randomIntBetween(1970, 2199)));  // year
     }
 
     public static HistogramGroupConfig randomHistogramGroupConfig(final Random random) {
@@ -175,8 +178,10 @@ public class ConfigTestHelpers {
     }
 
     public static TimeValue randomTimeout(final Random random) {
-        return new TimeValue(randomIntBetween(random, 0, 60),
-            randomFrom(random, Arrays.asList(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES)));
+        return new TimeValue(
+            randomIntBetween(random, 0, 60),
+            randomFrom(random, Arrays.asList(TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES))
+        );
     }
 
 }

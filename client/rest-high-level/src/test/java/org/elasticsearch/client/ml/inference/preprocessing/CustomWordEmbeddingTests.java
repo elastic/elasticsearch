@@ -7,11 +7,10 @@
  */
 package org.elasticsearch.client.ml.inference.preprocessing;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-
 
 public class CustomWordEmbeddingTests extends AbstractXContentTestCase<CustomWordEmbedding> {
 

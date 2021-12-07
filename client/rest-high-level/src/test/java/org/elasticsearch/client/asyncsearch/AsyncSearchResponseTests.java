@@ -12,16 +12,17 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class AsyncSearchResponseTests
-        extends AbstractResponseTestCase<org.elasticsearch.xpack.core.search.action.AsyncSearchResponse, AsyncSearchResponse> {
+public class AsyncSearchResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.xpack.core.search.action.AsyncSearchResponse,
+    AsyncSearchResponse> {
 
     @Override
     protected org.elasticsearch.xpack.core.search.action.AsyncSearchResponse createServerTestInstance(XContentType xContentType) {
@@ -32,12 +33,28 @@ public class AsyncSearchResponseTests
         String id = randomBoolean() ? null : randomAlphaOfLength(10);
         ElasticsearchException error = randomBoolean() ? null : new ElasticsearchException(randomAlphaOfLength(10));
         // add search response, minimal object is okay since the full randomization of parsing is tested in SearchResponseTests
-        SearchResponse searchResponse = randomBoolean() ? null
-                : new SearchResponse(InternalSearchResponse.empty(), randomAlphaOfLength(10), 1, 1, 0, randomIntBetween(0, 10000),
-                        ShardSearchFailure.EMPTY_ARRAY, Clusters.EMPTY);
+        SearchResponse searchResponse = randomBoolean()
+            ? null
+            : new SearchResponse(
+                InternalSearchResponse.empty(),
+                randomAlphaOfLength(10),
+                1,
+                1,
+                0,
+                randomIntBetween(0, 10000),
+                ShardSearchFailure.EMPTY_ARRAY,
+                Clusters.EMPTY
+            );
         org.elasticsearch.xpack.core.search.action.AsyncSearchResponse testResponse =
-                new org.elasticsearch.xpack.core.search.action.AsyncSearchResponse(id, searchResponse, error, isPartial, isRunning,
-                        startTimeMillis, expirationTimeMillis);
+            new org.elasticsearch.xpack.core.search.action.AsyncSearchResponse(
+                id,
+                searchResponse,
+                error,
+                isPartial,
+                isRunning,
+                startTimeMillis,
+                expirationTimeMillis
+            );
         return testResponse;
     }
 

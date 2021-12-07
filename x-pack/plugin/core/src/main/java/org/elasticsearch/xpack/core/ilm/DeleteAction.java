@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -28,8 +28,13 @@ public class DeleteAction implements LifecycleAction {
 
     public static final ParseField DELETE_SEARCHABLE_SNAPSHOT_FIELD = new ParseField("delete_searchable_snapshot");
 
-    private static final ConstructingObjectParser<DeleteAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        a -> new DeleteAction(a[0] == null ? true : (boolean) a[0]));
+    public static final DeleteAction WITH_SNAPSHOT_DELETE = new DeleteAction(true);
+    public static final DeleteAction NO_SNAPSHOT_DELETE = new DeleteAction(false);
+
+    private static final ConstructingObjectParser<DeleteAction, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        a -> (a[0] == null || (boolean) a[0]) ? WITH_SNAPSHOT_DELETE : NO_SNAPSHOT_DELETE
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DELETE_SEARCHABLE_SNAPSHOT_FIELD);
@@ -41,16 +46,12 @@ public class DeleteAction implements LifecycleAction {
 
     private final boolean deleteSearchableSnapshot;
 
-    public DeleteAction() {
-        this(true);
-    }
-
-    public DeleteAction(boolean deleteSearchableSnapshot) {
+    private DeleteAction(boolean deleteSearchableSnapshot) {
         this.deleteSearchableSnapshot = deleteSearchableSnapshot;
     }
 
-    public DeleteAction(StreamInput in) throws IOException {
-        this.deleteSearchableSnapshot = in.readBoolean();
+    public static DeleteAction readFrom(StreamInput in) throws IOException {
+        return in.readBoolean() ? WITH_SNAPSHOT_DELETE : NO_SNAPSHOT_DELETE;
     }
 
     @Override

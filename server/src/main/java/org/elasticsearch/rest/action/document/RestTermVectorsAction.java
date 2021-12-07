@@ -10,14 +10,14 @@ package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashSet;
@@ -32,8 +32,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * TermVectorsRequest.
  */
 public class RestTermVectorsAction extends BaseRestHandler {
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
-        "Specifying types in term vector requests is deprecated.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " + "Specifying types in term vector requests is deprecated.";
 
     @Override
     public List<Route> routes() {
@@ -42,18 +41,10 @@ public class RestTermVectorsAction extends BaseRestHandler {
             new Route(POST, "/{index}/_termvectors"),
             new Route(GET, "/{index}/_termvectors/{id}"),
             new Route(POST, "/{index}/_termvectors/{id}"),
-            Route.builder(GET, "/{index}/{type}/_termvectors")
-                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, "/{index}/{type}/_termvectors")
-                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build(),
-            Route.builder(GET, "/{index}/{type}/{id}/_termvectors")
-                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, "/{index}/{type}/{id}/_termvectors")
-                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build()
+            Route.builder(GET, "/{index}/{type}/_termvectors").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/{type}/_termvectors").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(GET, "/{index}/{type}/{id}/_termvectors").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/{type}/{id}/_termvectors").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
         );
     }
 

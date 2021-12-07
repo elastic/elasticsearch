@@ -24,10 +24,7 @@ public class RestMlInfoAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(GET, BASE_PATH + "info")
-                .replaces(GET, PRE_V7_BASE_PATH + "info", RestApiVersion.V_7).build()
-        );
+        return List.of(Route.builder(GET, BASE_PATH + "info").replaces(GET, PRE_V7_BASE_PATH + "info", RestApiVersion.V_7).build());
     }
 
     @Override

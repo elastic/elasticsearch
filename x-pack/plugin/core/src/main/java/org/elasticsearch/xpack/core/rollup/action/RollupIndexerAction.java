@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.rollup.action;
 
-
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
@@ -20,11 +19,11 @@ import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 
 import java.io.IOException;
@@ -46,8 +45,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
             this.rollupRequest = rollupRequest;
         }
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);

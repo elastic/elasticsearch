@@ -28,12 +28,12 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.fielddata.StringScriptFieldData;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.fielddata.BinaryScriptFieldData;
-import org.elasticsearch.index.fielddata.StringScriptFieldData;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -326,7 +326,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             }
         }
     }
-    
+
     // Normalized WildcardQueries are requested by the QueryStringQueryParser
     public void testNormalizedWildcardQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
@@ -337,7 +337,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                 assertThat(searcher.count(simpleMappedFieldType().normalizedWildcardQuery("a*b", null, mockContext())), equalTo(1));
             }
         }
-    }    
+    }
 
     public void testWildcardQueryIsExpensive() {
         checkExpensiveQuery(this::randomWildcardQuery);

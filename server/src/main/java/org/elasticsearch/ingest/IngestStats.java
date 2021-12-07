@@ -239,7 +239,6 @@ public class IngestStats implements Writeable, ToXContentFragment {
         private List<PipelineStat> pipelineStats = new ArrayList<>();
         private Map<String, List<ProcessorStat>> processorStats = new HashMap<>();
 
-
         Builder addTotalMetrics(IngestMetric totalMetric) {
             this.totalStats = totalMetric.createStats();
             return this;
@@ -257,8 +256,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
         }
 
         IngestStats build() {
-            return new IngestStats(totalStats, Collections.unmodifiableList(pipelineStats),
-                Collections.unmodifiableMap(processorStats));
+            return new IngestStats(totalStats, Collections.unmodifiableList(pipelineStats), Collections.unmodifiableMap(processorStats));
         }
     }
 
@@ -287,8 +285,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             IngestStats.PipelineStat that = (IngestStats.PipelineStat) o;
-            return Objects.equals(pipelineId, that.pipelineId)
-                && Objects.equals(stats, that.stats);
+            return Objects.equals(pipelineId, that.pipelineId) && Objects.equals(stats, that.stats);
         }
 
         @Override
@@ -323,15 +320,12 @@ public class IngestStats implements Writeable, ToXContentFragment {
             return stats;
         }
 
-
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             IngestStats.ProcessorStat that = (IngestStats.ProcessorStat) o;
-            return Objects.equals(name, that.name)
-                && Objects.equals(type, that.type)
-                && Objects.equals(stats, that.stats);
+            return Objects.equals(name, that.name) && Objects.equals(type, that.type) && Objects.equals(stats, that.stats);
         }
 
         @Override

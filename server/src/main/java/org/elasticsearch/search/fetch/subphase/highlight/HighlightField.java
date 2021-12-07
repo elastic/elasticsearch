@@ -115,8 +115,7 @@ public class HighlightField implements ToXContentFragment, Writeable {
         } else if (token == XContentParser.Token.VALUE_NULL) {
             fragments = null;
         } else {
-            throw new ParsingException(parser.getTokenLocation(),
-                    "unexpected token type [" + token + "]");
+            throw new ParsingException(parser.getTokenLocation(), "unexpected token type [" + token + "]");
         }
         return new HighlightField(fieldName, fragments);
     }

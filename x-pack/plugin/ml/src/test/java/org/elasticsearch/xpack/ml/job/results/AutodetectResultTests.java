@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.job.results;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationTests;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.output.FlushAcknowledgement;
@@ -71,8 +71,13 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             int size = randomInt(10);
             influencers = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                Influencer influencer = new Influencer(jobId, randomAlphaOfLength(10), randomAlphaOfLength(10),
-                        randomDate(), randomNonNegativeLong());
+                Influencer influencer = new Influencer(
+                    jobId,
+                    randomAlphaOfLength(10),
+                    randomAlphaOfLength(10),
+                    randomDate(),
+                    randomNonNegativeLong()
+                );
                 influencer.setProbability(randomDoubleBetween(0.0, 1.0, true));
                 influencers.add(influencer);
             }
@@ -103,8 +108,7 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
             annotation = null;
         }
         if (randomBoolean()) {
-            forecast = new Forecast(jobId, randomAlphaOfLength(20), randomDate(),
-                randomNonNegativeLong(), randomInt());
+            forecast = new Forecast(jobId, randomAlphaOfLength(20), randomDate(), randomNonNegativeLong(), randomInt());
         } else {
             forecast = null;
         }
@@ -129,9 +133,21 @@ public class AutodetectResultTests extends AbstractSerializingTestCase<Autodetec
         } else {
             flushAcknowledgement = null;
         }
-        return new AutodetectResult(bucket, records, influencers, quantiles, modelSnapshot,
-                modelSizeStats == null ? null : modelSizeStats.build(), modelPlot, annotation, forecast, forecastRequestStats,
-                categoryDefinition, categorizerStats == null ? null : categorizerStats.build(), flushAcknowledgement);
+        return new AutodetectResult(
+            bucket,
+            records,
+            influencers,
+            quantiles,
+            modelSnapshot,
+            modelSizeStats == null ? null : modelSizeStats.build(),
+            modelPlot,
+            annotation,
+            forecast,
+            forecastRequestStats,
+            categoryDefinition,
+            categorizerStats == null ? null : categorizerStats.build(),
+            flushAcknowledgement
+        );
     }
 
     @Override

@@ -6,12 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.outlierdetection;
 
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -19,6 +17,8 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationFields;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.EvaluationMetricResult;
@@ -46,8 +46,9 @@ abstract class AbstractConfusionMatrixMetric implements EvaluationMetric {
         }
         for (double threshold : thresholds) {
             if (threshold < 0 || threshold > 1.0) {
-                throw ExceptionsHelper.badRequestException("[" + getName() + "." + AT.getPreferredName()
-                    + "] values must be in [0.0, 1.0]");
+                throw ExceptionsHelper.badRequestException(
+                    "[" + getName() + "." + AT.getPreferredName() + "] values must be in [0.0, 1.0]"
+                );
             }
         }
     }
@@ -72,12 +73,16 @@ abstract class AbstractConfusionMatrixMetric implements EvaluationMetric {
     @Override
     public Set<String> getRequiredFields() {
         return Sets.newHashSet(
-            EvaluationFields.ACTUAL_FIELD.getPreferredName(), EvaluationFields.PREDICTED_PROBABILITY_FIELD.getPreferredName());
+            EvaluationFields.ACTUAL_FIELD.getPreferredName(),
+            EvaluationFields.PREDICTED_PROBABILITY_FIELD.getPreferredName()
+        );
     }
 
     @Override
-    public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
-                                                                                  EvaluationFields fields) {
+    public Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(
+        EvaluationParameters parameters,
+        EvaluationFields fields
+    ) {
         if (result != null) {
             return Tuple.tuple(List.of(), List.of());
         }

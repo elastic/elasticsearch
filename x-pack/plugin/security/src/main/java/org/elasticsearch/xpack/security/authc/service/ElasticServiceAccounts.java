@@ -22,36 +22,47 @@ final class ElasticServiceAccounts {
 
     static final String NAMESPACE = "elastic";
 
-    private static final ServiceAccount FLEET_ACCOUNT = new ElasticServiceAccount("fleet-server",
+    private static final ServiceAccount FLEET_ACCOUNT = new ElasticServiceAccount(
+        "fleet-server",
         new RoleDescriptor(
             NAMESPACE + "/fleet-server",
-            new String[]{"monitor", "manage_own_api_key"},
-            new RoleDescriptor.IndicesPrivileges[]{
-                RoleDescriptor.IndicesPrivileges
-                    .builder()
-                    .indices("logs-*", "metrics-*", "traces-*", "synthetics-*", ".logs-endpoint.diagnostic.collection-*")
+            new String[] { "monitor", "manage_own_api_key" },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(
+                        "logs-*",
+                        "metrics-*",
+                        "traces-*",
+                        "synthetics-*",
+                        ".logs-endpoint.diagnostic.collection-*",
+                        ".logs-endpoint.action.responses-*"
+                    )
                     .privileges("write", "create_index", "auto_configure")
                     .build(),
-                RoleDescriptor.IndicesPrivileges
-                    .builder()
+                RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".fleet-*")
                     .privileges("read", "write", "monitor", "create_index", "auto_configure")
                     .allowRestrictedIndices(true)
-                    .build()
-            },
-            new RoleDescriptor.ApplicationResourcePrivileges[]{
+                    .build() },
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
                 RoleDescriptor.ApplicationResourcePrivileges.builder()
-                    .application("kibana-*").resources("*").privileges("reserved_fleet-setup").build()
-            },
+                    .application("kibana-*")
+                    .resources("*")
+                    .privileges("reserved_fleet-setup")
+                    .build() },
             null,
             null,
             null,
             null
-        ));
-    private static final ServiceAccount KIBANA_SYSTEM_ACCOUNT =
-        new ElasticServiceAccount("kibana", ReservedRolesStore.kibanaSystemRoleDescriptor(NAMESPACE + "/kibana"));
+        )
+    );
+    private static final ServiceAccount KIBANA_SYSTEM_ACCOUNT = new ElasticServiceAccount(
+        "kibana",
+        ReservedRolesStore.kibanaSystemRoleDescriptor(NAMESPACE + "/kibana")
+    );
 
-    static final Map<String, ServiceAccount> ACCOUNTS = List.of(FLEET_ACCOUNT, KIBANA_SYSTEM_ACCOUNT).stream()
+    static final Map<String, ServiceAccount> ACCOUNTS = List.of(FLEET_ACCOUNT, KIBANA_SYSTEM_ACCOUNT)
+        .stream()
         .collect(Collectors.toMap(a -> a.id().asPrincipal(), Function.identity()));
 
     private ElasticServiceAccounts() {}
@@ -65,12 +76,22 @@ final class ElasticServiceAccounts {
             this.id = new ServiceAccountId(NAMESPACE, serviceName);
             this.roleDescriptor = Objects.requireNonNull(roleDescriptor, "Role descriptor cannot be null");
             if (roleDescriptor.getName().equals(id.asPrincipal()) == false) {
-                throw new IllegalArgumentException("the provided role descriptor [" + roleDescriptor.getName()
-                    + "] must have the same name as the service account [" + id.asPrincipal() + "]");
+                throw new IllegalArgumentException(
+                    "the provided role descriptor ["
+                        + roleDescriptor.getName()
+                        + "] must have the same name as the service account ["
+                        + id.asPrincipal()
+                        + "]"
+                );
             }
-            this.user = new User(id.asPrincipal(), Strings.EMPTY_ARRAY, "Service account - " + id, null,
+            this.user = new User(
+                id.asPrincipal(),
+                Strings.EMPTY_ARRAY,
+                "Service account - " + id,
+                null,
                 Map.of("_elastic_service_account", true),
-                true);
+                true
+            );
         }
 
         @Override

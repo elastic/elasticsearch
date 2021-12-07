@@ -84,7 +84,7 @@ public class GetCertificateInfoAction extends ActionType<GetCertificateInfoActio
             }
         }
 
-        }
+    }
 
     public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
 

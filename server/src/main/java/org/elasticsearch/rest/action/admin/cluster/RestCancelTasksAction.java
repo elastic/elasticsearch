@@ -23,7 +23,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.action.admin.cluster.RestListTasksAction.listTasksResponseListener;
 
-
 public class RestCancelTasksAction extends BaseRestHandler {
     private final Supplier<DiscoveryNodes> nodesInCluster;
 
@@ -38,10 +37,7 @@ public class RestCancelTasksAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/_tasks/_cancel"),
-            new Route(POST, "/_tasks/{task_id}/_cancel")
-        );
+        return List.of(new Route(POST, "/_tasks/_cancel"), new Route(POST, "/_tasks/{task_id}/_cancel"));
     }
 
     @Override
@@ -53,13 +49,14 @@ public class RestCancelTasksAction extends BaseRestHandler {
         final String groupBy = request.param("group_by", "nodes");
 
         CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
-        cancelTasksRequest.setTaskId(taskId);
+        cancelTasksRequest.setTargetTaskId(taskId);
         cancelTasksRequest.setNodes(nodesIds);
         cancelTasksRequest.setActions(actions);
-        cancelTasksRequest.setParentTaskId(parentTaskId);
+        cancelTasksRequest.setTargetParentTaskId(parentTaskId);
         cancelTasksRequest.setWaitForCompletion(request.paramAsBoolean("wait_for_completion", cancelTasksRequest.waitForCompletion()));
-        return channel ->
-            client.admin().cluster().cancelTasks(cancelTasksRequest, listTasksResponseListener(nodesInCluster, groupBy, channel));
+        return channel -> client.admin()
+            .cluster()
+            .cancelTasks(cancelTasksRequest, listTasksResponseListener(nodesInCluster, groupBy, channel));
     }
 
     @Override

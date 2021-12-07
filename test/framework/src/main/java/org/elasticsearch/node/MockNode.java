@@ -49,6 +49,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * A node for testing which allows:
@@ -66,27 +67,31 @@ public class MockNode extends Node {
     }
 
     public MockNode(
-            final Settings settings,
-            final Collection<Class<? extends Plugin>> classpathPlugins,
-            final boolean forbidPrivateIndexSettings) {
+        final Settings settings,
+        final Collection<Class<? extends Plugin>> classpathPlugins,
+        final boolean forbidPrivateIndexSettings
+    ) {
         this(settings, classpathPlugins, null, forbidPrivateIndexSettings);
     }
 
     public MockNode(
-            final Settings settings,
-            final Collection<Class<? extends Plugin>> classpathPlugins,
-            final Path configPath,
-            final boolean forbidPrivateIndexSettings) {
+        final Settings settings,
+        final Collection<Class<? extends Plugin>> classpathPlugins,
+        final Path configPath,
+        final boolean forbidPrivateIndexSettings
+    ) {
         this(
-                InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath, () -> "mock_ node"),
-                classpathPlugins,
-                forbidPrivateIndexSettings);
+            InternalSettingsPreparer.prepareEnvironment(settings, Collections.emptyMap(), configPath, () -> "mock_ node"),
+            classpathPlugins,
+            forbidPrivateIndexSettings
+        );
     }
 
     private MockNode(
-            final Environment environment,
-            final Collection<Class<? extends Plugin>> classpathPlugins,
-            final boolean forbidPrivateIndexSettings) {
+        final Environment environment,
+        final Collection<Class<? extends Plugin>> classpathPlugins,
+        final boolean forbidPrivateIndexSettings
+    ) {
         super(environment, classpathPlugins, forbidPrivateIndexSettings);
         this.classpathPlugins = classpathPlugins;
     }
@@ -114,33 +119,67 @@ public class MockNode extends Node {
         return new MockPageCacheRecycler(settings);
     }
 
-
     @Override
-    protected SearchService newSearchService(ClusterService clusterService, IndicesService indicesService,
-                                             ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays,
-                                             FetchPhase fetchPhase, ResponseCollectorService responseCollectorService,
-                                             CircuitBreakerService circuitBreakerService, ExecutorSelector executorSelector) {
+    protected SearchService newSearchService(
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        BigArrays bigArrays,
+        FetchPhase fetchPhase,
+        ResponseCollectorService responseCollectorService,
+        CircuitBreakerService circuitBreakerService,
+        ExecutorSelector executorSelector
+    ) {
         if (getPluginsService().filterPlugins(MockSearchService.TestPlugin.class).isEmpty()) {
-            return super.newSearchService(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase,
-                responseCollectorService, circuitBreakerService, executorSelector);
+            return super.newSearchService(
+                clusterService,
+                indicesService,
+                threadPool,
+                scriptService,
+                bigArrays,
+                fetchPhase,
+                responseCollectorService,
+                circuitBreakerService,
+                executorSelector
+            );
         }
-        return new MockSearchService(clusterService, indicesService, threadPool, scriptService,
-            bigArrays, fetchPhase, responseCollectorService, circuitBreakerService, executorSelector);
+        return new MockSearchService(
+            clusterService,
+            indicesService,
+            threadPool,
+            scriptService,
+            bigArrays,
+            fetchPhase,
+            responseCollectorService,
+            circuitBreakerService,
+            executorSelector
+        );
     }
 
     @Override
-    protected ScriptService newScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
+    protected ScriptService newScriptService(
+        Settings settings,
+        Map<String, ScriptEngine> engines,
+        Map<String, ScriptContext<?>> contexts,
+        LongSupplier timeProvider
+    ) {
         if (getPluginsService().filterPlugins(MockScriptService.TestPlugin.class).isEmpty()) {
-            return super.newScriptService(settings, engines, contexts);
+            return super.newScriptService(settings, engines, contexts, timeProvider);
         }
         return new MockScriptService(settings, engines, contexts);
     }
 
     @Override
-    protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,
-                                                   TransportInterceptor interceptor,
-                                                   Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
-                                                   ClusterSettings clusterSettings, Set<String> taskHeaders) {
+    protected TransportService newTransportService(
+        Settings settings,
+        Transport transport,
+        ThreadPool threadPool,
+        TransportInterceptor interceptor,
+        Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
+        ClusterSettings clusterSettings,
+        Set<String> taskHeaders
+    ) {
         // we use the MockTransportService.TestPlugin class as a marker to create a network
         // module with this MockNetworkService. NetworkService is such an integral part of the systme
         // we don't allow to plug it in from plugins or anything. this is a test-only override and
@@ -160,8 +199,12 @@ public class MockNode extends Node {
     }
 
     @Override
-    protected ClusterInfoService newClusterInfoService(Settings settings, ClusterService clusterService,
-                                                       ThreadPool threadPool, NodeClient client) {
+    protected ClusterInfoService newClusterInfoService(
+        Settings settings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        NodeClient client
+    ) {
         if (getPluginsService().filterPlugins(MockInternalClusterInfoService.TestPlugin.class).isEmpty()) {
             return super.newClusterInfoService(settings, clusterService, threadPool, client);
         } else {
@@ -182,7 +225,7 @@ public class MockNode extends Node {
 
     @Override
     protected void configureNodeAndClusterIdStateListener(ClusterService clusterService) {
-        //do not configure this in tests as this is causing SetOnce to throw exceptions when jvm is used for multiple tests
+        // do not configure this in tests as this is causing SetOnce to throw exceptions when jvm is used for multiple tests
     }
 
     public NamedWriteableRegistry getNamedWriteableRegistry() {

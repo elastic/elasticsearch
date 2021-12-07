@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,10 +24,11 @@ public class ForecastJobResponse implements ToXContentObject {
     public static final ParseField ACKNOWLEDGED = new ParseField("acknowledged");
     public static final ParseField FORECAST_ID = new ParseField("forecast_id");
 
-    public static final ConstructingObjectParser<ForecastJobResponse, Void> PARSER =
-        new ConstructingObjectParser<>("forecast_job_response",
-            true,
-            (a) -> new ForecastJobResponse((Boolean)a[0], (String)a[1]));
+    public static final ConstructingObjectParser<ForecastJobResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "forecast_job_response",
+        true,
+        (a) -> new ForecastJobResponse((Boolean) a[0], (String) a[1])
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ACKNOWLEDGED);
@@ -75,8 +76,7 @@ public class ForecastJobResponse implements ToXContentObject {
             return false;
         }
         ForecastJobResponse other = (ForecastJobResponse) obj;
-        return Objects.equals(acknowledged, other.acknowledged)
-            && Objects.equals(forecastId, other.forecastId);
+        return Objects.equals(acknowledged, other.acknowledged) && Objects.equals(forecastId, other.forecastId);
     }
 
     @Override

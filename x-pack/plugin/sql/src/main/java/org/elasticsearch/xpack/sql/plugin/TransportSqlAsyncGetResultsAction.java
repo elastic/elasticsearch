@@ -22,15 +22,26 @@ import org.elasticsearch.xpack.sql.action.SqlQueryTask;
 public class TransportSqlAsyncGetResultsAction extends AbstractTransportQlAsyncGetResultsAction<SqlQueryResponse, SqlQueryTask> {
 
     @Inject
-    public TransportSqlAsyncGetResultsAction(TransportService transportService,
-                                             ActionFilters actionFilters,
-                                             ClusterService clusterService,
-                                             NamedWriteableRegistry registry,
-                                             Client client,
-                                             ThreadPool threadPool,
-                                             BigArrays bigArrays) {
-        super(SqlAsyncGetResultsAction.NAME, transportService, actionFilters, clusterService, registry, client, threadPool, bigArrays,
-              SqlQueryTask.class);
+    public TransportSqlAsyncGetResultsAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        NamedWriteableRegistry registry,
+        Client client,
+        ThreadPool threadPool,
+        BigArrays bigArrays
+    ) {
+        super(
+            SqlAsyncGetResultsAction.NAME,
+            transportService,
+            actionFilters,
+            clusterService,
+            registry,
+            client,
+            threadPool,
+            bigArrays,
+            SqlQueryTask.class
+        );
     }
 
     @Override

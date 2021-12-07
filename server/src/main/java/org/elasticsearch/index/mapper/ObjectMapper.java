@@ -28,6 +28,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.BiFunction;
 
 public class ObjectMapper extends Mapper implements Cloneable {
@@ -65,15 +66,13 @@ public class ObjectMapper extends Mapper implements Cloneable {
     public static class Builder extends Mapper.Builder {
 
         protected Explicit<Boolean> enabled = new Explicit<>(true, false);
-        protected final boolean flatten;
 
         protected Dynamic dynamic;
 
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
-        public Builder(String name, boolean flatten) {
+        public Builder(String name) {
             super(name);
-            this.flatten = flatten;
         }
 
         public Builder enabled(boolean enabled) {
@@ -100,9 +99,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
          * @param context   the DocumentParserContext in which the mapper has been built
          */
         public void addDynamic(String name, String prefix, Mapper mapper, DocumentParserContext context) {
-            // If we're a flattened mapper, or if the mapper to add has no dots and is therefore
+            // If the mapper to add has no dots and is therefore
             // a leaf mapper, we just add it here
-            if (flatten || name.contains(".") == false) {
+            if (name.contains(".") == false) {
                 mappersBuilders.add(new Mapper.Builder(name) {
                     @Override
                     public Mapper build(MapperBuilderContext context) {
@@ -136,7 +135,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return child.newBuilder();
             }
             // create a new child mapper
-            return new ObjectMapper.Builder(childName, false);
+            return new ObjectMapper.Builder(childName);
+        }
+
+        public Optional<Mapper.Builder> getBuilder(String name) {
+            return mappersBuilders.stream().filter(b -> b.name().equals(name)).findFirst();
         }
 
         protected final Map<String, Mapper> buildMappers(boolean root, MapperBuilderContext context) {
@@ -146,10 +149,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(context);
-                if (flatten && mapper instanceof ObjectMapper) {
-                    throw new MapperParsingException(
-                        "Mapper [" + name + "] can only contain flat leaf fields, but [" + mapper.name() + "] is an object");
-                }
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
                     mapper = existing.merge(mapper);
@@ -161,19 +160,17 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         @Override
         public ObjectMapper build(MapperBuilderContext context) {
-            return new ObjectMapper(name, context.buildFullName(name), enabled, flatten, dynamic, buildMappers(false, context));
+            return new ObjectMapper(name, context.buildFullName(name), enabled, dynamic, buildMappers(false, context));
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name,
-                                    Map<String, Object> node,
-                                    MappingParserContext parserContext)
+        public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
 
             return parse(name, false, (n, c) -> {
-                ObjectMapper.Builder builder = new Builder(n, parseFlatten(node));
+                ObjectMapper.Builder builder = new Builder(n);
                 for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                     Map.Entry<String, Object> entry = iterator.next();
                     String fieldName = entry.getKey();
@@ -199,7 +196,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             String realFieldName = fieldNameParts[fieldNameParts.length - 1];
             Mapper.Builder builder = parser.apply(realFieldName, parserContext);
             for (int i = fieldNameParts.length - 2; i >= 0; --i) {
-                ObjectMapper.Builder intermediate = new ObjectMapper.Builder(fieldNameParts[i], false);
+                ObjectMapper.Builder intermediate = new ObjectMapper.Builder(fieldNameParts[i]);
                 intermediate.add(builder);
                 builder = intermediate;
             }
@@ -207,16 +204,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return builder;
         }
 
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        protected static boolean parseObjectOrDocumentTypeProperties(String fieldName,
-                                                                     Object fieldNode,
-                                                                     MappingParserContext parserContext,
-                                                                     ObjectMapper.Builder builder) {
+        @SuppressWarnings({ "unchecked", "rawtypes" })
+        protected static boolean parseObjectOrDocumentTypeProperties(
+            String fieldName,
+            Object fieldNode,
+            MappingParserContext parserContext,
+            ObjectMapper.Builder builder
+        ) {
             if (fieldName.equals("dynamic")) {
                 String value = fieldNode.toString();
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
-                }  else if (value.equalsIgnoreCase("runtime")) {
+                } else if (value.equalsIgnoreCase("runtime")) {
                     builder.dynamic(Dynamic.RUNTIME);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
@@ -236,16 +235,21 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
                 return true;
             } else if (fieldName.equals("include_in_all")) {
-                deprecationLogger.critical(DeprecationCategory.MAPPINGS, "include_in_all",
-                    "[include_in_all] is deprecated, the _all field have been removed in this version");
+                deprecationLogger.warn(
+                    DeprecationCategory.MAPPINGS,
+                    "include_in_all",
+                    "[include_in_all] is deprecated, the _all field have been removed in this version"
+                );
                 return true;
             }
             return false;
         }
 
-        protected static void parseProperties(ObjectMapper.Builder objBuilder,
-                                              Map<String, Object> propsNode,
-                                              MappingParserContext parserContext) {
+        protected static void parseProperties(
+            ObjectMapper.Builder objBuilder,
+            Map<String, Object> propsNode,
+            MappingParserContext parserContext
+        ) {
             Iterator<Map.Entry<String, Object>> iterator = propsNode.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -280,40 +284,34 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
-                    objBuilder.add(parse(
-                        fieldName,
-                        objBuilder.flatten,
-                        (n, c) -> typeParser.parse(n, propNode, c),
-                        parserContext
-                    ));
+                    String[] fieldNameParts = fieldName.split("\\.");
+                    String realFieldName = fieldNameParts[fieldNameParts.length - 1];
+                    Mapper.Builder fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
+                    for (int i = fieldNameParts.length - 2; i >= 0; --i) {
+                        ObjectMapper.Builder intermediate = new ObjectMapper.Builder(fieldNameParts[i]);
+                        intermediate.add(fieldBuilder);
+                        fieldBuilder = intermediate;
+                    }
+                    objBuilder.add(fieldBuilder);
                     propNode.remove("type");
                     MappingParser.checkNoRemainingFields(fieldName, propNode);
                     iterator.remove();
                 } else if (isEmptyList) {
                     iterator.remove();
                 } else {
-                    throw new MapperParsingException("Expected map for property [fields] on field [" + fieldName + "] but got a "
-                            + fieldName.getClass());
+                    throw new MapperParsingException(
+                        "Expected map for property [fields] on field [" + fieldName + "] but got a " + fieldName.getClass()
+                    );
                 }
             }
 
             MappingParser.checkNoRemainingFields(propsNode, "DocType mapping definition has unsupported parameters: ");
-        }
-
-        protected static boolean parseFlatten(Map<String, Object> node) {
-            if (node.containsKey(FLATTEN) == false) {
-                return false;
-            }
-            boolean value = XContentMapValues.nodeBooleanValue(node.get(FLATTEN), FLATTEN);
-            node.remove(FLATTEN);
-            return value;
         }
     }
 
     private final String fullPath;
 
     protected Explicit<Boolean> enabled;
-    protected boolean flatten;
     protected volatile Dynamic dynamic;
 
     protected volatile CopyOnWriteHashMap<String, Mapper> mappers;
@@ -322,7 +320,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
         String name,
         String fullPath,
         Explicit<Boolean> enabled,
-        boolean flatten,
         Dynamic dynamic,
         Map<String, Mapper> mappers
     ) {
@@ -332,7 +329,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
         this.fullPath = fullPath;
         this.enabled = enabled;
-        this.flatten = flatten;
         this.dynamic = dynamic;
         if (mappers == null) {
             this.mappers = new CopyOnWriteHashMap<>();
@@ -356,7 +352,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
      * @return a Builder that will produce an empty ObjectMapper with the same configuration as this one
      */
     public ObjectMapper.Builder newBuilder() {
-        ObjectMapper.Builder builder = new ObjectMapper.Builder(simpleName(), flatten);
+        ObjectMapper.Builder builder = new ObjectMapper.Builder(simpleName());
         builder.enabled = this.enabled;
         builder.dynamic = this.dynamic;
         return builder;
@@ -436,19 +432,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (mergeWith.enabled.explicit()) {
             if (reason == MergeReason.INDEX_TEMPLATE) {
                 this.enabled = mergeWith.enabled;
-            } else if (isEnabled() != mergeWith.isEnabled()){
+            } else if (isEnabled() != mergeWith.isEnabled()) {
                 throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
-            }
-        }
-
-        if (reason == MergeReason.INDEX_TEMPLATE) {
-            this.flatten = mergeWith.flatten;
-        } else {
-            if (this.flatten != mergeWith.flatten) {
-                throw new MapperParsingException(
-                    "Can't change parameter [flatten] from ["
-                        + this.flatten + "] to [" + mergeWith.flatten + "]"
-                );
             }
         }
 
@@ -464,8 +449,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
             } else {
                 assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
                 if (mergeWithMapper instanceof ObjectMapper) {
-                    throw new IllegalArgumentException("can't merge a non object mapping [" +
-                        mergeWithMapper.name() + "] with an object mapping");
+                    throw new IllegalArgumentException(
+                        "can't merge a non object mapping [" + mergeWithMapper.name() + "] with an object mapping"
+                    );
                 }
 
                 // If we're merging template mappings when creating an index, then a field definition always
@@ -497,9 +483,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
-        }
-        if (flatten) {
-            builder.field("flatten", flatten);
         }
         if (custom != null) {
             custom.toXContent(builder, params);

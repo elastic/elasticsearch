@@ -87,19 +87,34 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        SearchExecutionContext realSearchExecutionContext = new SearchExecutionContext(shardId.id(), 0, indexSettings,
-                null, null, null, mappingLookup, null, null, xContentRegistry(), writableRegistry(),
-                client, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
+        SearchExecutionContext realSearchExecutionContext = new SearchExecutionContext(
+            shardId.id(),
+            0,
+            indexSettings,
+            null,
+            null,
+            null,
+            mappingLookup,
+            null,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            client,
+            null,
+            () -> nowInMillis,
+            null,
+            null,
+            () -> true,
+            null,
+            emptyMap()
+        );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
 
         Directory directory = newDirectory();
-        IndexWriter iw = new IndexWriter(
-                directory,
-                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
-        );
+        IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE));
 
         int numValues = scaledRandomIntBetween(2, 16);
         String[] values = new String[numValues];
@@ -110,8 +125,12 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
         int numDocs = scaledRandomIntBetween(32, 128);
         int commitAfter = scaledRandomIntBetween(1, numDocs);
-        logger.info("Going to index [{}] documents with [{}] unique values and commit after [{}] documents have been indexed",
-                numDocs, numValues, commitAfter);
+        logger.info(
+            "Going to index [{}] documents with [{}] unique values and commit after [{}] documents have been indexed",
+            numDocs,
+            numValues,
+            commitAfter
+        );
 
         for (int doc = 1; doc <= numDocs; doc++) {
             int valueIndex = (numValues - 1) % doc;
@@ -140,12 +159,19 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), shardId);
         for (int i = 0; i < numValues; i++) {
-            String termQuery = "{\"term\": {\"field\": \""+ values[i] + "\"} }";
-            IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, new
-                FieldPermissions(),
-                DocumentPermissions.filteredBy(singleton(new BytesArray(termQuery))));
-            SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> searchExecutionContext,
-                bitsetCache, securityContext, licenseState, scriptService) {
+            String termQuery = "{\"term\": {\"field\": \"" + values[i] + "\"} }";
+            IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
+                true,
+                new FieldPermissions(),
+                DocumentPermissions.filteredBy(singleton(new BytesArray(termQuery)))
+            );
+            SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(
+                s -> searchExecutionContext,
+                bitsetCache,
+                securityContext,
+                licenseState,
+                scriptService
+            ) {
 
                 @Override
                 protected IndicesAccessControl getIndicesAccessControl() {
@@ -158,8 +184,12 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
             DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
             IndexSearcher indexSearcher = new ContextIndexSearcher(
-                    wrappedDirectoryReader, IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(),
-                    IndexSearcher.getDefaultQueryCachingPolicy(), true);
+                wrappedDirectoryReader,
+                IndexSearcher.getDefaultSimilarity(),
+                IndexSearcher.getDefaultQueryCache(),
+                IndexSearcher.getDefaultQueryCachingPolicy(),
+                true
+            );
 
             int expectedHitCount = valuesHitCount[i];
             logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery.query(), expectedHitCount);
@@ -178,10 +208,8 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     public void testDLSWithLimitedPermissions() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
-        MappingLookup mappingLookup = createMappingLookup(List.of(
-            new KeywordFieldType("field"),
-            new KeywordFieldType("f1"),
-            new KeywordFieldType("f2"))
+        MappingLookup mappingLookup = createMappingLookup(
+            List.of(new KeywordFieldType("field"), new KeywordFieldType("f1"), new KeywordFieldType("f2"))
         );
         ScriptService scriptService = mock(ScriptService.class);
 
@@ -200,31 +228,60 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         Set<BytesReference> queries = new HashSet<>();
         queries.add(new BytesArray("{\"terms\" : { \"f2\" : [\"fv22\"] } }"));
         queries.add(new BytesArray("{\"terms\" : { \"f2\" : [\"fv32\"] } }"));
-        IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, new
-                FieldPermissions(),
-                DocumentPermissions.filteredBy(queries));
+        IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(
+            true,
+            new FieldPermissions(),
+            DocumentPermissions.filteredBy(queries)
+        );
         queries = singleton(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv21\", \"fv31\"] } }"));
         if (restrictiveLimitedIndexPermissions) {
             queries = singleton(new BytesArray("{\"terms\" : { \"f1\" : [\"fv11\", \"fv31\"] } }"));
         }
-        IndicesAccessControl.IndexAccessControl limitedIndexAccessControl = new IndicesAccessControl.IndexAccessControl(true, new
-                FieldPermissions(),
-                DocumentPermissions.filteredBy(queries));
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.getIndex(),
-                Settings.builder().put(IndexSettings.ALLOW_UNMAPPED.getKey(), false).build());
+        IndicesAccessControl.IndexAccessControl limitedIndexAccessControl = new IndicesAccessControl.IndexAccessControl(
+            true,
+            new FieldPermissions(),
+            DocumentPermissions.filteredBy(queries)
+        );
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            shardId.getIndex(),
+            Settings.builder().put(IndexSettings.ALLOW_UNMAPPED.getKey(), false).build()
+        );
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        SearchExecutionContext realSearchExecutionContext = new SearchExecutionContext(shardId.id(), 0, indexSettings,
-                null, null, null, mappingLookup, null, null, xContentRegistry(), writableRegistry(),
-                client, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
+        SearchExecutionContext realSearchExecutionContext = new SearchExecutionContext(
+            shardId.id(),
+            0,
+            indexSettings,
+            null,
+            null,
+            null,
+            mappingLookup,
+            null,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            client,
+            null,
+            () -> nowInMillis,
+            null,
+            null,
+            () -> true,
+            null,
+            emptyMap()
+        );
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
 
         final MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
-        SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(s -> searchExecutionContext,
-                bitsetCache, securityContext, licenseState, scriptService) {
+        SecurityIndexReaderWrapper wrapper = new SecurityIndexReaderWrapper(
+            s -> searchExecutionContext,
+            bitsetCache,
+            securityContext,
+            licenseState,
+            scriptService
+        ) {
 
             @Override
             protected IndicesAccessControl getIndicesAccessControl() {
@@ -232,17 +289,16 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
                 if (noFilteredIndexPermissions) {
                     return indicesAccessControl;
                 }
-                IndicesAccessControl limitedByIndicesAccessControl = new IndicesAccessControl(true,
-                        singletonMap("_index", limitedIndexAccessControl));
+                IndicesAccessControl limitedByIndicesAccessControl = new IndicesAccessControl(
+                    true,
+                    singletonMap("_index", limitedIndexAccessControl)
+                );
                 return indicesAccessControl.limitIndicesAccessControl(limitedByIndicesAccessControl);
             }
         };
 
         Directory directory = newDirectory();
-        IndexWriter iw = new IndexWriter(
-                directory,
-                new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE)
-        );
+        IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(NoMergePolicy.INSTANCE));
 
         Document doc1 = new Document();
         doc1.add(new StringField("f1", "fv11", Store.NO));
@@ -262,8 +318,12 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), shardId);
         DirectoryReader wrappedDirectoryReader = wrapper.apply(directoryReader);
         IndexSearcher indexSearcher = new ContextIndexSearcher(
-                wrappedDirectoryReader, IndexSearcher.getDefaultSimilarity(), IndexSearcher.getDefaultQueryCache(),
-                IndexSearcher.getDefaultQueryCachingPolicy(), true);
+            wrappedDirectoryReader,
+            IndexSearcher.getDefaultSimilarity(),
+            IndexSearcher.getDefaultQueryCache(),
+            IndexSearcher.getDefaultQueryCachingPolicy(),
+            true
+        );
 
         ScoreDoc[] hits = indexSearcher.search(new MatchAllDocsQuery(), 1000).scoreDocs;
         Set<Integer> actualDocIds = new HashSet<>();

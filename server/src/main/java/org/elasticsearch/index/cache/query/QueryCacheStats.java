@@ -31,8 +31,7 @@ public class QueryCacheStats implements Writeable, ToXContentFragment {
     private long cacheCount;
     private long cacheSize;
 
-    public QueryCacheStats() {
-    }
+    public QueryCacheStats() {}
 
     public QueryCacheStats(StreamInput in) throws IOException {
         ramBytesUsed = in.readLong();

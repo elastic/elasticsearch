@@ -19,17 +19,17 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchParseException;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,23 +51,30 @@ import static org.hamcrest.Matchers.instanceOf;
 public class RankEvalResponseTests extends ESTestCase {
 
     private static final Exception[] RANDOM_EXCEPTIONS = new Exception[] {
-            new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)),
-            new CircuitBreakingException("Data too large", 123, 456, CircuitBreaker.Durability.PERMANENT),
-            new SearchParseException(SHARD_TARGET, "Parse failure", new XContentLocation(12, 98)),
-            new IllegalArgumentException("Closed resource", new RuntimeException("Resource")),
-            new SearchPhaseExecutionException("search", "all shards failed",
-                    new ShardSearchFailure[] { new ShardSearchFailure(new ParsingException(1, 2, "foobar", null),
-                            new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null)) }),
-            new ElasticsearchException("Parsing failed",
-                    new ParsingException(9, 42, "Wrong state", new NullPointerException("Unexpected null value"))) };
+        new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)),
+        new CircuitBreakingException("Data too large", 123, 456, CircuitBreaker.Durability.PERMANENT),
+        new SearchParseException(SHARD_TARGET, "Parse failure", new XContentLocation(12, 98)),
+        new IllegalArgumentException("Closed resource", new RuntimeException("Resource")),
+        new SearchPhaseExecutionException(
+            "search",
+            "all shards failed",
+            new ShardSearchFailure[] {
+                new ShardSearchFailure(
+                    new ParsingException(1, 2, "foobar", null),
+                    new SearchShardTarget("node_1", new ShardId("foo", "_na_", 1), null)
+                ) }
+        ),
+        new ElasticsearchException(
+            "Parsing failed",
+            new ParsingException(9, 42, "Wrong state", new NullPointerException("Unexpected null value"))
+        ) };
 
     private static RankEvalResponse createRandomResponse() {
         int numberOfRequests = randomIntBetween(0, 5);
         Map<String, EvalQueryQuality> partials = new HashMap<>(numberOfRequests);
         for (int i = 0; i < numberOfRequests; i++) {
             String id = randomAlphaOfLengthBetween(3, 10);
-            EvalQueryQuality evalQuality = new EvalQueryQuality(id,
-                    randomDoubleBetween(0.0, 1.0, true));
+            EvalQueryQuality evalQuality = new EvalQueryQuality(id, randomDoubleBetween(0.0, 1.0, true));
             int numberOfDocs = randomIntBetween(0, 5);
             List<RatedSearchHit> ratedHits = new ArrayList<>(numberOfDocs);
             for (int d = 0; d < numberOfDocs; d++) {
@@ -117,13 +124,16 @@ public class RankEvalResponseTests extends ESTestCase {
         }
         assertNotSame(testItem, parsedItem);
         // We cannot check equality of object here because some information (e.g.
-        // SearchHit#shard)  cannot fully be parsed back.
+        // SearchHit#shard) cannot fully be parsed back.
         assertEquals(testItem.getMetricScore(), parsedItem.getMetricScore(), 0.0);
         assertEquals(testItem.getPartialResults().keySet(), parsedItem.getPartialResults().keySet());
         for (EvalQueryQuality metricDetail : testItem.getPartialResults().values()) {
             EvalQueryQuality parsedEvalQueryQuality = parsedItem.getPartialResults().get(metricDetail.getId());
-            assertToXContentEquivalent(toXContent(metricDetail, xContentType, humanReadable),
-                    toXContent(parsedEvalQueryQuality, xContentType, humanReadable), xContentType);
+            assertToXContentEquivalent(
+                toXContent(metricDetail, xContentType, humanReadable),
+                toXContent(parsedEvalQueryQuality, xContentType, humanReadable),
+                xContentType
+            );
         }
         // Also exceptions that are parsed back will be different since they are re-wrapped during parsing.
         // However, we can check that there is the expected number
@@ -137,33 +147,39 @@ public class RankEvalResponseTests extends ESTestCase {
     public void testToXContent() throws IOException {
         EvalQueryQuality coffeeQueryQuality = new EvalQueryQuality("coffee_query", 0.1);
         coffeeQueryQuality.addHitsAndRatings(Arrays.asList(searchHit("index", 123, 5), searchHit("index", 456, null)));
-        RankEvalResponse response = new RankEvalResponse(0.123, Collections.singletonMap("coffee_query", coffeeQueryQuality),
-                Collections.singletonMap("beer_query", new ParsingException(new XContentLocation(0, 0), "someMsg")));
+        RankEvalResponse response = new RankEvalResponse(
+            0.123,
+            Collections.singletonMap("coffee_query", coffeeQueryQuality),
+            Collections.singletonMap("beer_query", new ParsingException(new XContentLocation(0, 0), "someMsg"))
+        );
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         String xContent = BytesReference.bytes(response.toXContent(builder, ToXContent.EMPTY_PARAMS)).utf8ToString();
-        assertEquals(("{" +
-                "    \"metric_score\": 0.123," +
-                "    \"details\": {" +
-                "        \"coffee_query\": {" +
-                "            \"metric_score\": 0.1," +
-                "            \"unrated_docs\": [{\"_index\":\"index\",\"_id\":\"456\"}]," +
-                "            \"hits\":[{\"hit\":{\"_index\":\"index\",\"_id\":\"123\",\"_score\":1.0}," +
-                "                       \"rating\":5}," +
-                "                      {\"hit\":{\"_index\":\"index\",\"_id\":\"456\",\"_score\":1.0}," +
-                "                       \"rating\":null}" +
-                "                     ]" +
-                "        }" +
-                "    }," +
-                "    \"failures\": {" +
-                "        \"beer_query\": {" +
-                "          \"error\" : {\"root_cause\": [{\"type\":\"parsing_exception\", \"reason\":\"someMsg\",\"line\":0,\"col\":0}]," +
-                "                       \"type\":\"parsing_exception\"," +
-                "                       \"reason\":\"someMsg\"," +
-                "                       \"line\":0,\"col\":0" +
-                "                      }" +
-                "        }" +
-                "    }" +
-                "}").replaceAll("\\s+", ""), xContent);
+        assertEquals(
+            ("{"
+                + "    \"metric_score\": 0.123,"
+                + "    \"details\": {"
+                + "        \"coffee_query\": {"
+                + "            \"metric_score\": 0.1,"
+                + "            \"unrated_docs\": [{\"_index\":\"index\",\"_id\":\"456\"}],"
+                + "            \"hits\":[{\"hit\":{\"_index\":\"index\",\"_id\":\"123\",\"_score\":1.0},"
+                + "                       \"rating\":5},"
+                + "                      {\"hit\":{\"_index\":\"index\",\"_id\":\"456\",\"_score\":1.0},"
+                + "                       \"rating\":null}"
+                + "                     ]"
+                + "        }"
+                + "    },"
+                + "    \"failures\": {"
+                + "        \"beer_query\": {"
+                + "          \"error\" : {\"root_cause\": [{\"type\":\"parsing_exception\", \"reason\":\"someMsg\",\"line\":0,\"col\":0}],"
+                + "                       \"type\":\"parsing_exception\","
+                + "                       \"reason\":\"someMsg\","
+                + "                       \"line\":0,\"col\":0"
+                + "                      }"
+                + "        }"
+                + "    }"
+                + "}").replaceAll("\\s+", ""),
+            xContent
+        );
     }
 
     private static RatedSearchHit searchHit(String index, int docId, Integer rating) {

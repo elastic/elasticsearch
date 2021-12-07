@@ -33,7 +33,8 @@ public class DeviceStatsTests extends ESTestCase {
             writesCompleted,
             sectorsWritten,
             ioTime,
-            null);
+            null
+        );
         FsInfo.DeviceStats current = new FsInfo.DeviceStats(
             majorDeviceNumber,
             minorDeviceNumber,
@@ -43,7 +44,8 @@ public class DeviceStatsTests extends ESTestCase {
             writesCompleted + 2048,
             sectorsWritten + 32768,
             ioTime + 128,
-            previous);
+            previous
+        );
         assertThat(current.operations(), equalTo(1024L + 2048L));
         assertThat(current.readOperations(), equalTo(1024L));
         assertThat(current.writeOperations(), equalTo(2048L));

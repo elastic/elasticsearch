@@ -18,8 +18,10 @@ import java.util.Map;
 /**
  * Builder for a cluster update settings request
  */
-public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<ClusterUpdateSettingsRequest,
-        ClusterUpdateSettingsResponse, ClusterUpdateSettingsRequestBuilder> {
+public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<
+    ClusterUpdateSettingsRequest,
+    ClusterUpdateSettingsResponse,
+    ClusterUpdateSettingsRequestBuilder> {
 
     public ClusterUpdateSettingsRequestBuilder(ElasticsearchClient client, ClusterUpdateSettingsAction action) {
         super(client, action, new ClusterUpdateSettingsRequest());

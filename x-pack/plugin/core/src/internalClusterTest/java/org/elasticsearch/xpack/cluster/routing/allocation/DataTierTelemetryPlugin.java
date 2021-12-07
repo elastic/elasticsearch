@@ -40,11 +40,17 @@ public class DataTierTelemetryPlugin extends LocalStateCompositeXPackPlugin {
 
     public static class DataTiersTransportXPackUsageAction extends TransportXPackUsageAction {
         @Inject
-        public DataTiersTransportXPackUsageAction(ThreadPool threadPool, TransportService transportService,
-                                                  ClusterService clusterService, ActionFilters actionFilters,
-                                                  IndexNameExpressionResolver indexNameExpressionResolver, NodeClient client) {
+        public DataTiersTransportXPackUsageAction(
+            ThreadPool threadPool,
+            TransportService transportService,
+            ClusterService clusterService,
+            ActionFilters actionFilters,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            NodeClient client
+        ) {
             super(threadPool, transportService, clusterService, actionFilters, indexNameExpressionResolver, client);
         }
+
         @Override
         protected List<XPackUsageFeatureAction> usageActions() {
             return Collections.singletonList(XPackUsageFeatureAction.DATA_TIERS);
@@ -53,8 +59,12 @@ public class DataTierTelemetryPlugin extends LocalStateCompositeXPackPlugin {
 
     public static class DataTiersTransportXPackInfoAction extends TransportXPackInfoAction {
         @Inject
-        public DataTiersTransportXPackInfoAction(TransportService transportService, ActionFilters actionFilters,
-                                                 LicenseService licenseService, NodeClient client) {
+        public DataTiersTransportXPackInfoAction(
+            TransportService transportService,
+            ActionFilters actionFilters,
+            LicenseService licenseService,
+            NodeClient client
+        ) {
             super(transportService, actionFilters, licenseService, client);
         }
 

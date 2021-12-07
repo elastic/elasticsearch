@@ -6,15 +6,15 @@
  */
 package org.elasticsearch.xpack.core.ccr.action;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -37,8 +37,7 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
 
         private String[] followerIndices;
 
-        public Request() {
-        }
+        public Request() {}
 
         public String[] getFollowerIndices() {
             return followerIndices;
@@ -145,8 +144,13 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
             private final Status status;
             private final FollowParameters parameters;
 
-            public FollowerInfo(String followerIndex, String remoteCluster, String leaderIndex, Status status,
-                                FollowParameters parameters) {
+            public FollowerInfo(
+                String followerIndex,
+                String remoteCluster,
+                String leaderIndex,
+                Status status,
+                FollowParameters parameters
+            ) {
                 this.followerIndex = followerIndex;
                 this.remoteCluster = remoteCluster;
                 this.leaderIndex = leaderIndex;
@@ -214,11 +218,11 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 FollowerInfo that = (FollowerInfo) o;
-                return Objects.equals(followerIndex, that.followerIndex) &&
-                    Objects.equals(remoteCluster, that.remoteCluster) &&
-                    Objects.equals(leaderIndex, that.leaderIndex) &&
-                    status == that.status &&
-                    Objects.equals(parameters, that.parameters);
+                return Objects.equals(followerIndex, that.followerIndex)
+                    && Objects.equals(remoteCluster, that.remoteCluster)
+                    && Objects.equals(leaderIndex, that.leaderIndex)
+                    && status == that.status
+                    && Objects.equals(parameters, that.parameters);
             }
 
             @Override

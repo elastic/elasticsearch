@@ -23,23 +23,24 @@ import java.util.List;
 public final class Features {
 
     private static final List<String> SUPPORTED = List.of(
-            "catch_unauthorized",
-            "default_shards",
-            "embedded_stash_key",
-            "headers",
-            "node_selector",
-            "stash_in_key",
-            "stash_in_path",
-            "stash_path_replace",
-            "warnings",
-            "warnings_regex",
-            "yaml",
-            "contains",
-            "transform_and_set",
-            "arbitrary_key",
-            "allowed_warnings",
-            "allowed_warnings_regex",
-            "close_to");
+        "catch_unauthorized",
+        "default_shards",
+        "embedded_stash_key",
+        "headers",
+        "node_selector",
+        "stash_in_key",
+        "stash_in_path",
+        "stash_path_replace",
+        "warnings",
+        "warnings_regex",
+        "yaml",
+        "contains",
+        "transform_and_set",
+        "arbitrary_key",
+        "allowed_warnings",
+        "allowed_warnings_regex",
+        "close_to"
+    );
 
     private Features() {
 

@@ -70,19 +70,14 @@ public final class PutFollowRequest extends FollowConfig implements Validatable,
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         PutFollowRequest that = (PutFollowRequest) o;
-        return Objects.equals(waitForActiveShards, that.waitForActiveShards) &&
-            Objects.equals(remoteCluster, that.remoteCluster) &&
-            Objects.equals(leaderIndex, that.leaderIndex) &&
-            Objects.equals(followerIndex, that.followerIndex);
+        return Objects.equals(waitForActiveShards, that.waitForActiveShards)
+            && Objects.equals(remoteCluster, that.remoteCluster)
+            && Objects.equals(leaderIndex, that.leaderIndex)
+            && Objects.equals(followerIndex, that.followerIndex);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(
-            super.hashCode(),
-            remoteCluster,
-            leaderIndex,
-            followerIndex,
-            waitForActiveShards);
+        return Objects.hash(super.hashCode(), remoteCluster, leaderIndex, followerIndex, waitForActiveShards);
     }
 }

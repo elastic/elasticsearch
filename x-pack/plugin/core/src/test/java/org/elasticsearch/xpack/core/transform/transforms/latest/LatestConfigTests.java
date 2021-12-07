@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.core.transform.transforms.latest;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 
 import java.io.IOException;

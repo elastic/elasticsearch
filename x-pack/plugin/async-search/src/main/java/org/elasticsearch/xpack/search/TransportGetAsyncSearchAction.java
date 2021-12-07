@@ -33,28 +33,46 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
     private final TransportService transportService;
 
     @Inject
-    public TransportGetAsyncSearchAction(TransportService transportService,
-                                         ActionFilters actionFilters,
-                                         ClusterService clusterService,
-                                         NamedWriteableRegistry registry,
-                                         Client client,
-                                         ThreadPool threadPool,
-                                         BigArrays bigArrays) {
+    public TransportGetAsyncSearchAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        NamedWriteableRegistry registry,
+        Client client,
+        ThreadPool threadPool,
+        BigArrays bigArrays
+    ) {
         super(GetAsyncSearchAction.NAME, transportService, actionFilters, GetAsyncResultRequest::new);
         this.transportService = transportService;
         this.resultsService = createResultsService(transportService, clusterService, registry, client, threadPool, bigArrays);
     }
 
-    static AsyncResultsService<AsyncSearchTask, AsyncSearchResponse> createResultsService(TransportService transportService,
-                                                                                          ClusterService clusterService,
-                                                                                          NamedWriteableRegistry registry,
-                                                                                          Client client,
-                                                                                          ThreadPool threadPool,
-                                                                                          BigArrays bigArrays) {
-        AsyncTaskIndexService<AsyncSearchResponse> store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService,
-            threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry, bigArrays);
-        return new AsyncResultsService<>(store, true, AsyncSearchTask.class, AsyncSearchTask::addCompletionListener,
-            transportService.getTaskManager(), clusterService);
+    static AsyncResultsService<AsyncSearchTask, AsyncSearchResponse> createResultsService(
+        TransportService transportService,
+        ClusterService clusterService,
+        NamedWriteableRegistry registry,
+        Client client,
+        ThreadPool threadPool,
+        BigArrays bigArrays
+    ) {
+        AsyncTaskIndexService<AsyncSearchResponse> store = new AsyncTaskIndexService<>(
+            XPackPlugin.ASYNC_RESULTS_INDEX,
+            clusterService,
+            threadPool.getThreadContext(),
+            client,
+            ASYNC_SEARCH_ORIGIN,
+            AsyncSearchResponse::new,
+            registry,
+            bigArrays
+        );
+        return new AsyncResultsService<>(
+            store,
+            true,
+            AsyncSearchTask.class,
+            AsyncSearchTask::addCompletionListener,
+            transportService.getTaskManager(),
+            clusterService
+        );
     }
 
     @Override
@@ -63,8 +81,12 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         if (node == null || resultsService.isLocalNode(node)) {
             resultsService.retrieveResult(request, listener);
         } else {
-            transportService.sendRequest(node, GetAsyncSearchAction.NAME, request,
-                new ActionListenerResponseHandler<>(listener, AsyncSearchResponse::new, ThreadPool.Names.SAME));
+            transportService.sendRequest(
+                node,
+                GetAsyncSearchAction.NAME,
+                request,
+                new ActionListenerResponseHandler<>(listener, AsyncSearchResponse::new, ThreadPool.Names.SAME)
+            );
         }
     }
 }

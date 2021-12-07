@@ -88,13 +88,13 @@ public class FloatRandomBinaryDocValuesRangeQueryTests extends BaseRandomBinaryD
 
         @Override
         protected boolean isDisjoint(Range o) {
-            FloatTestRange other = (FloatTestRange)o;
+            FloatTestRange other = (FloatTestRange) o;
             return this.min > other.max || this.max < other.min;
         }
 
         @Override
         protected boolean isWithin(Range o) {
-            FloatTestRange other = (FloatTestRange)o;
+            FloatTestRange other = (FloatTestRange) o;
             if ((this.min >= other.min && this.max <= other.max) == false) {
                 // not within:
                 return false;

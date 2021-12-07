@@ -9,9 +9,9 @@ package org.elasticsearch.client.ml.job.results;
 
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -37,15 +37,20 @@ public class BucketInfluencer implements ToXContentObject {
     public static final ParseField PROBABILITY = new ParseField("probability");
     public static final ParseField BUCKET_SPAN = new ParseField("bucket_span");
 
-    public static final ConstructingObjectParser<BucketInfluencer, Void> PARSER =
-        new ConstructingObjectParser<>(RESULT_TYPE_FIELD.getPreferredName(), true,
-            a -> new BucketInfluencer((String) a[0], (Date) a[1], (long) a[2]));
+    public static final ConstructingObjectParser<BucketInfluencer, Void> PARSER = new ConstructingObjectParser<>(
+        RESULT_TYPE_FIELD.getPreferredName(),
+        true,
+        a -> new BucketInfluencer((String) a[0], (Date) a[1], (long) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p) -> TimeUtil.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
-                Result.TIMESTAMP, ValueType.VALUE);
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            (p) -> TimeUtil.parseTimeField(p, Result.TIMESTAMP.getPreferredName()),
+            Result.TIMESTAMP,
+            ValueType.VALUE
+        );
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), BUCKET_SPAN);
         PARSER.declareString((bucketInfluencer, s) -> {}, Result.RESULT_TYPE);
         PARSER.declareString(BucketInfluencer::setInfluencerFieldName, INFLUENCER_FIELD_NAME);
@@ -149,8 +154,17 @@ public class BucketInfluencer implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(influenceField, initialAnomalyScore, anomalyScore, rawAnomalyScore, probability, isInterim, timestamp, jobId,
-                bucketSpan);
+        return Objects.hash(
+            influenceField,
+            initialAnomalyScore,
+            anomalyScore,
+            rawAnomalyScore,
+            probability,
+            isInterim,
+            timestamp,
+            jobId,
+            bucketSpan
+        );
     }
 
     @Override
@@ -169,9 +183,14 @@ public class BucketInfluencer implements ToXContentObject {
 
         BucketInfluencer other = (BucketInfluencer) obj;
 
-        return Objects.equals(influenceField, other.influenceField) && Double.compare(initialAnomalyScore, other.initialAnomalyScore) == 0
-                && Double.compare(anomalyScore, other.anomalyScore) == 0 && Double.compare(rawAnomalyScore, other.rawAnomalyScore) == 0
-                && Double.compare(probability, other.probability) == 0 && Objects.equals(isInterim, other.isInterim)
-                && Objects.equals(timestamp, other.timestamp) && Objects.equals(jobId, other.jobId) && bucketSpan == other.bucketSpan;
+        return Objects.equals(influenceField, other.influenceField)
+            && Double.compare(initialAnomalyScore, other.initialAnomalyScore) == 0
+            && Double.compare(anomalyScore, other.anomalyScore) == 0
+            && Double.compare(rawAnomalyScore, other.rawAnomalyScore) == 0
+            && Double.compare(probability, other.probability) == 0
+            && Objects.equals(isInterim, other.isInterim)
+            && Objects.equals(timestamp, other.timestamp)
+            && Objects.equals(jobId, other.jobId)
+            && bucketSpan == other.bucketSpan;
     }
 }

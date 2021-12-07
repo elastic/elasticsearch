@@ -39,9 +39,7 @@ public final class RestCreateApiKeyAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, "/_security/api_key"),
-            new Route(PUT, "/_security/api_key"));
+        return List.of(new Route(POST, "/_security/api_key"), new Route(PUT, "/_security/api_key"));
     }
 
     @Override
@@ -52,10 +50,13 @@ public final class RestCreateApiKeyAction extends SecurityBaseRestHandler {
     @Override
     protected RestChannelConsumer innerPrepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String refresh = request.param("refresh");
-        CreateApiKeyRequestBuilder builder = new CreateApiKeyRequestBuilder(client)
-            .source(request.requiredContent(), request.getXContentType())
-            .setRefreshPolicy((refresh != null) ?
-                WriteRequest.RefreshPolicy.parse(request.param("refresh")) : CreateApiKeyRequest.DEFAULT_REFRESH_POLICY);
+        CreateApiKeyRequestBuilder builder = new CreateApiKeyRequestBuilder(client).source(
+            request.requiredContent(),
+            request.getXContentType()
+        )
+            .setRefreshPolicy(
+                (refresh != null) ? WriteRequest.RefreshPolicy.parse(request.param("refresh")) : CreateApiKeyRequest.DEFAULT_REFRESH_POLICY
+            );
         return channel -> builder.execute(new RestToXContentListener<>(channel));
     }
 }

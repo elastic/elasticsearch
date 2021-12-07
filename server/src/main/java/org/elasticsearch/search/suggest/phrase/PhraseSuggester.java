@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.suggest.phrase;
 
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexReader;
@@ -20,7 +19,6 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -58,37 +56,60 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
      *   - phonetic filters could be interesting here too for candidate selection
      */
     @Override
-    public Suggestion<? extends Entry<? extends Option>> innerExecute(String name, PhraseSuggestionContext suggestion,
-            IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
+    public Suggestion<? extends Entry<? extends Option>> innerExecute(
+        String name,
+        PhraseSuggestionContext suggestion,
+        IndexSearcher searcher,
+        CharsRefBuilder spare
+    ) throws IOException {
         double realWordErrorLikelihood = suggestion.realworldErrorLikelihood();
         final PhraseSuggestion response = new PhraseSuggestion(name, suggestion.getSize());
         final IndexReader indexReader = searcher.getIndexReader();
-        List<PhraseSuggestionContext.DirectCandidateGenerator>  generators = suggestion.generators();
+        List<PhraseSuggestionContext.DirectCandidateGenerator> generators = suggestion.generators();
         final int numGenerators = generators.size();
         final List<CandidateGenerator> gens = new ArrayList<>(generators.size());
         for (int i = 0; i < numGenerators; i++) {
             PhraseSuggestionContext.DirectCandidateGenerator generator = generators.get(i);
             DirectSpellChecker directSpellChecker = generator.createDirectSpellChecker();
             Terms terms = MultiTerms.getTerms(indexReader, generator.field());
-            if (terms !=  null) {
-                gens.add(new DirectCandidateGenerator(directSpellChecker, generator.field(), generator.suggestMode(),
-                        indexReader, realWordErrorLikelihood, generator.size(), generator.preFilter(), generator.postFilter(), terms));
+            if (terms != null) {
+                gens.add(
+                    new DirectCandidateGenerator(
+                        directSpellChecker,
+                        generator.field(),
+                        generator.suggestMode(),
+                        indexReader,
+                        realWordErrorLikelihood,
+                        generator.size(),
+                        generator.preFilter(),
+                        generator.postFilter(),
+                        terms
+                    )
+                );
             }
         }
         final String suggestField = suggestion.getField();
         final Terms suggestTerms = MultiTerms.getTerms(indexReader, suggestField);
         if (gens.size() > 0 && suggestTerms != null) {
-            final NoisyChannelSpellChecker checker = new NoisyChannelSpellChecker(realWordErrorLikelihood, suggestion.getRequireUnigram(),
-                    suggestion.getTokenLimit());
+            final NoisyChannelSpellChecker checker = new NoisyChannelSpellChecker(
+                realWordErrorLikelihood,
+                suggestion.getRequireUnigram(),
+                suggestion.getTokenLimit()
+            );
             final BytesRef separator = suggestion.separator();
-            WordScorer wordScorer = suggestion.model().newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood,
-                    separator);
+            WordScorer wordScorer = suggestion.model()
+                .newScorer(indexReader, suggestTerms, suggestField, realWordErrorLikelihood, separator);
             Result checkerResult;
-            try (TokenStream stream = tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare,
-                    suggestion.getField())) {
-                checkerResult = checker.getCorrections(stream,
-                        new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens.toArray(new CandidateGenerator[gens.size()])),
-                        suggestion.maxErrors(), suggestion.getShardSize(), wordScorer, suggestion.confidence(), suggestion.gramSize());
+            try (TokenStream stream = tokenStream(suggestion.getAnalyzer(), suggestion.getText(), spare, suggestion.getField())) {
+                checkerResult = checker.getCorrections(
+                    stream,
+                    new MultiCandidateGeneratorWrapper(suggestion.getShardSize(), gens.toArray(new CandidateGenerator[gens.size()])),
+                    suggestion.maxErrors(),
+                    suggestion.getShardSize(),
+                    wordScorer,
+                    suggestion.confidence(),
+                    suggestion.gramSize()
+                );
             }
 
             PhraseSuggestion.Entry resultEntry = buildResultEntry(suggestion, spare, checkerResult.cutoffScore);
@@ -108,8 +129,10 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
                     SearchExecutionContext searchExecutionContext = suggestion.getSearchExecutionContext();
                     final String querySource = scriptFactory.newInstance(vars).execute();
-                    try (XContentParser parser = XContentFactory.xContent(querySource)
-                            .createParser(searchExecutionContext.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, querySource)) {
+                    try (
+                        XContentParser parser = XContentFactory.xContent(querySource)
+                            .createParser(searchExecutionContext.getParserConfig(), querySource)
+                    ) {
                         QueryBuilder innerQueryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
                         final ParsedQuery parsedQuery = searchExecutionContext.toQuery(innerQueryBuilder);
                         collateMatch = Lucene.exists(searcher, parsedQuery.query());
@@ -147,8 +170,11 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     }
 
     @Override
-    protected Suggestion<? extends Entry<? extends Option>> emptySuggestion(String name, PhraseSuggestionContext suggestion,
-            CharsRefBuilder spare) throws IOException {
+    protected Suggestion<? extends Entry<? extends Option>> emptySuggestion(
+        String name,
+        PhraseSuggestionContext suggestion,
+        CharsRefBuilder spare
+    ) throws IOException {
         PhraseSuggestion phraseSuggestion = new PhraseSuggestion(name, suggestion.getSize());
         spare.copyUTF8Bytes(suggestion.getText());
         phraseSuggestion.addTerm(new PhraseSuggestion.Entry(new Text(spare.toString()), 0, spare.length()));

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.actions.pagerduty;
 
-
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -108,9 +107,7 @@ public class PagerDutyAction implements Action {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.startObject(type)
-                        .field(XField.EVENT.getPreferredName(), event, params)
-                        .endObject();
+                return builder.startObject(type).field(XField.EVENT.getPreferredName(), event, params).endObject();
             }
         }
     }

@@ -28,8 +28,10 @@ public class RecallMetric extends AbstractConfusionMatrixMetric {
     public static final String NAME = "recall";
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<RecallMetric, Void> PARSER =
-        new ConstructingObjectParser<>(NAME, args -> new RecallMetric((List<Double>) args[0]));
+    private static final ConstructingObjectParser<RecallMetric, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        args -> new RecallMetric((List<Double>) args[0])
+    );
 
     static {
         PARSER.declareDoubleArray(constructorArg(), AT);

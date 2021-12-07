@@ -8,11 +8,10 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
 
@@ -62,9 +61,7 @@ public class GaussDecayFunctionBuilder extends DecayFunctionBuilder<GaussDecayFu
 
         @Override
         public Explanation explainFunction(String valueExpl, double value, double scale) {
-            return Explanation.match(
-                    (float) evaluate(value, scale),
-                    "exp(-0.5*pow(" + valueExpl + ",2.0)/" + -1 * scale + ")");
+            return Explanation.match((float) evaluate(value, scale), "exp(-0.5*pow(" + valueExpl + ",2.0)/" + -1 * scale + ")");
         }
 
         @Override

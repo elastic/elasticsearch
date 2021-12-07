@@ -10,6 +10,10 @@ package org.elasticsearch.index.rankeval;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -17,10 +21,6 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -201,8 +201,11 @@ public class PrecisionAtKTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         PrecisionAtK original = createTestItem();
-        PrecisionAtK deserialized = ESTestCase.copyWriteable(original, new NamedWriteableRegistry(Collections.emptyList()),
-                PrecisionAtK::new);
+        PrecisionAtK deserialized = ESTestCase.copyWriteable(
+            original,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            PrecisionAtK::new
+        );
         assertEquals(deserialized, original);
         assertEquals(deserialized.hashCode(), original.hashCode());
         assertNotSame(deserialized, original);
@@ -213,27 +216,39 @@ public class PrecisionAtKTests extends ESTestCase {
     }
 
     private static PrecisionAtK copy(PrecisionAtK original) {
-        return new PrecisionAtK(original.getRelevantRatingThreshold(), original.getIgnoreUnlabeled(),
-                original.forcedSearchSize().getAsInt());
+        return new PrecisionAtK(
+            original.getRelevantRatingThreshold(),
+            original.getIgnoreUnlabeled(),
+            original.forcedSearchSize().getAsInt()
+        );
     }
 
     private static PrecisionAtK mutate(PrecisionAtK original) {
         PrecisionAtK pAtK;
         switch (randomIntBetween(0, 2)) {
-        case 0:
-            pAtK = new PrecisionAtK(original.getRelevantRatingThreshold(), original.getIgnoreUnlabeled() == false,
-                    original.forcedSearchSize().getAsInt());
-            break;
-        case 1:
-            pAtK = new PrecisionAtK(randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
-                    original.getIgnoreUnlabeled(), original.forcedSearchSize().getAsInt());
-            break;
-        case 2:
-            pAtK = new PrecisionAtK(original.getRelevantRatingThreshold(),
-                    original.getIgnoreUnlabeled(), original.forcedSearchSize().getAsInt() + 1);
-            break;
-        default:
-            throw new IllegalStateException("The test should only allow three parameters mutated");
+            case 0:
+                pAtK = new PrecisionAtK(
+                    original.getRelevantRatingThreshold(),
+                    original.getIgnoreUnlabeled() == false,
+                    original.forcedSearchSize().getAsInt()
+                );
+                break;
+            case 1:
+                pAtK = new PrecisionAtK(
+                    randomValueOtherThan(original.getRelevantRatingThreshold(), () -> randomIntBetween(0, 10)),
+                    original.getIgnoreUnlabeled(),
+                    original.forcedSearchSize().getAsInt()
+                );
+                break;
+            case 2:
+                pAtK = new PrecisionAtK(
+                    original.getRelevantRatingThreshold(),
+                    original.getIgnoreUnlabeled(),
+                    original.forcedSearchSize().getAsInt() + 1
+                );
+                break;
+            default:
+                throw new IllegalStateException("The test should only allow three parameters mutated");
         }
         return pAtK;
     }

@@ -29,6 +29,7 @@ import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.Collections;
+
 import javax.net.ssl.SSLEngine;
 
 import static org.hamcrest.Matchers.arrayContaining;
@@ -43,6 +44,7 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     private Environment env;
     private Path testnodeCert;
     private Path testnodeKey;
+
     @Before
     public void createSSLService() {
         testnodeCert = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
@@ -62,15 +64,19 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     }
 
     public void testDefaultClientAuth() throws Exception {
-        Settings settings = Settings.builder()
-                .put(env.settings())
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
+        Settings settings = Settings.builder().put(env.settings()).put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
         sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
-                new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
-                mock(ThreadPool.class), xContentRegistry(), new NullDispatcher(),
-                randomClusterSettings(),
-                new SharedGroupFactory(settings)
+        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
+            settings,
+            new NetworkService(Collections.emptyList()),
+            mock(BigArrays.class),
+            mock(IPFilter.class),
+            sslService,
+            mock(ThreadPool.class),
+            xContentRegistry(),
+            new NullDispatcher(),
+            randomClusterSettings(),
+            new SharedGroupFactory(settings)
         );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
@@ -81,14 +87,23 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     public void testOptionalClientAuth() throws Exception {
         String value = AbstractSimpleSecurityTransportTestCase.randomCapitalization(SslClientAuthenticationMode.OPTIONAL);
         Settings settings = Settings.builder()
-                .put(env.settings())
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
-                .put("xpack.security.http.ssl.client_authentication", value).build();
+            .put(env.settings())
+            .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
+            .put("xpack.security.http.ssl.client_authentication", value)
+            .build();
         sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
-                new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
-                mock(ThreadPool.class), xContentRegistry(), new NullDispatcher(),
-                randomClusterSettings(), new SharedGroupFactory(settings));
+        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
+            settings,
+            new NetworkService(Collections.emptyList()),
+            mock(BigArrays.class),
+            mock(IPFilter.class),
+            sslService,
+            mock(ThreadPool.class),
+            xContentRegistry(),
+            new NullDispatcher(),
+            randomClusterSettings(),
+            new SharedGroupFactory(settings)
+        );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
@@ -98,14 +113,23 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     public void testRequiredClientAuth() throws Exception {
         String value = AbstractSimpleSecurityTransportTestCase.randomCapitalization(SslClientAuthenticationMode.REQUIRED);
         Settings settings = Settings.builder()
-                .put(env.settings())
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
-                .put("xpack.security.http.ssl.client_authentication", value).build();
+            .put(env.settings())
+            .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
+            .put("xpack.security.http.ssl.client_authentication", value)
+            .build();
         sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
-                new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
-                mock(ThreadPool.class), xContentRegistry(), new NullDispatcher(),
-                randomClusterSettings(), new SharedGroupFactory(settings));
+        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
+            settings,
+            new NetworkService(Collections.emptyList()),
+            mock(BigArrays.class),
+            mock(IPFilter.class),
+            sslService,
+            mock(ThreadPool.class),
+            xContentRegistry(),
+            new NullDispatcher(),
+            randomClusterSettings(),
+            new SharedGroupFactory(settings)
+        );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(true));
@@ -115,14 +139,23 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     public void testNoClientAuth() throws Exception {
         String value = AbstractSimpleSecurityTransportTestCase.randomCapitalization(SslClientAuthenticationMode.NONE);
         Settings settings = Settings.builder()
-                .put(env.settings())
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
-                .put("xpack.security.http.ssl.client_authentication", value).build();
+            .put(env.settings())
+            .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
+            .put("xpack.security.http.ssl.client_authentication", value)
+            .build();
         sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
-                new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
-                mock(ThreadPool.class), xContentRegistry(), new NullDispatcher(),
-                randomClusterSettings(), new SharedGroupFactory(settings));
+        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
+            settings,
+            new NetworkService(Collections.emptyList()),
+            mock(BigArrays.class),
+            mock(IPFilter.class),
+            sslService,
+            mock(ThreadPool.class),
+            xContentRegistry(),
+            new NullDispatcher(),
+            randomClusterSettings(),
+            new SharedGroupFactory(settings)
+        );
         ChannelHandler handler = transport.configureServerChannelHandler();
         final EmbeddedChannel ch = new EmbeddedChannel(handler);
         assertThat(ch.pipeline().get(SslHandler.class).engine().getNeedClientAuth(), is(false));
@@ -130,27 +163,42 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
     }
 
     public void testCustomSSLConfiguration() throws Exception {
-        Settings settings = Settings.builder()
-                .put(env.settings())
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
+        Settings settings = Settings.builder().put(env.settings()).put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true).build();
         sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
-                new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
-                mock(ThreadPool.class), xContentRegistry(), new NullDispatcher(),
-                randomClusterSettings(), new SharedGroupFactory(settings));
+        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
+            settings,
+            new NetworkService(Collections.emptyList()),
+            mock(BigArrays.class),
+            mock(IPFilter.class),
+            sslService,
+            mock(ThreadPool.class),
+            xContentRegistry(),
+            new NullDispatcher(),
+            randomClusterSettings(),
+            new SharedGroupFactory(settings)
+        );
         ChannelHandler handler = transport.configureServerChannelHandler();
         EmbeddedChannel ch = new EmbeddedChannel(handler);
         SSLEngine defaultEngine = ch.pipeline().get(SslHandler.class).engine();
 
         settings = Settings.builder()
-                .put(env.settings())
-                .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
-                .put("xpack.security.http.ssl.supported_protocols", "TLSv1.2")
-                .build();
+            .put(env.settings())
+            .put(XPackSettings.HTTP_SSL_ENABLED.getKey(), true)
+            .put("xpack.security.http.ssl.supported_protocols", "TLSv1.2")
+            .build();
         sslService = new SSLService(TestEnvironment.newEnvironment(settings));
-        transport = new SecurityNetty4HttpServerTransport(settings, new NetworkService(Collections.emptyList()),
-                mock(BigArrays.class), mock(IPFilter.class), sslService, mock(ThreadPool.class), xContentRegistry(), new NullDispatcher(),
-                randomClusterSettings(), new SharedGroupFactory(settings));
+        transport = new SecurityNetty4HttpServerTransport(
+            settings,
+            new NetworkService(Collections.emptyList()),
+            mock(BigArrays.class),
+            mock(IPFilter.class),
+            sslService,
+            mock(ThreadPool.class),
+            xContentRegistry(),
+            new NullDispatcher(),
+            randomClusterSettings(),
+            new SharedGroupFactory(settings)
+        );
         handler = transport.configureServerChannelHandler();
         ch = new EmbeddedChannel(handler);
         SSLEngine customEngine = ch.pipeline().get(SslHandler.class).engine();
@@ -170,10 +218,18 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             .build();
         env = TestEnvironment.newEnvironment(settings);
         sslService = new SSLService(env);
-        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(settings,
-                new NetworkService(Collections.emptyList()), mock(BigArrays.class), mock(IPFilter.class), sslService,
-                mock(ThreadPool.class), xContentRegistry(), new NullDispatcher(),
-                randomClusterSettings(), new SharedGroupFactory(settings));
+        SecurityNetty4HttpServerTransport transport = new SecurityNetty4HttpServerTransport(
+            settings,
+            new NetworkService(Collections.emptyList()),
+            mock(BigArrays.class),
+            mock(IPFilter.class),
+            sslService,
+            mock(ThreadPool.class),
+            xContentRegistry(),
+            new NullDispatcher(),
+            randomClusterSettings(),
+            new SharedGroupFactory(settings)
+        );
         assertNotNull(transport.configureServerChannelHandler());
     }
 }

@@ -12,8 +12,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.protocol.xpack.watcher.DeleteWatchResponse;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
@@ -22,6 +20,8 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 import org.elasticsearch.xpack.core.watcher.transport.actions.QueryWatchesAction;
@@ -45,13 +45,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -79,13 +79,13 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         refresh();
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "foo")), "idx");
         new PutWatchRequestBuilder(client()).setId("_name")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(request))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
-                        .addAction("_logger", loggingAction("_logging")
-                                .setCategory("_category")))
-                .get();
+            .setSource(
+                watchBuilder().trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
+                    .input(searchInput(request))
+                    .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
+                    .addAction("_logger", loggingAction("_logging").setCategory("_category"))
+            )
+            .get();
 
         timeWarp().trigger("_name");
         assertWatchWithMinimumPerformedActionsCount("_name", 1);
@@ -98,11 +98,12 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     public void testIndexWatchRegisterWatchBeforeTargetIndex() throws Exception {
         WatcherSearchTemplateRequest searchRequest = templateRequest(searchSource().query(termQuery("field", "value")), "idx");
         new PutWatchRequestBuilder(client()).setId("_name")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(searchRequest))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
-                .get();
+            .setSource(
+                watchBuilder().trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
+                    .input(searchInput(searchRequest))
+                    .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
+            )
+            .get();
         timeWarp().trigger("_name");
         // The watch's condition won't meet because there is no data that matches with the query
         assertWatchWithNoActionNeeded("_name", 1);
@@ -121,11 +122,12 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     public void testDeleteWatch() throws Exception {
         WatcherSearchTemplateRequest searchRequest = templateRequest(searchSource().query(matchAllQuery()), "idx");
         PutWatchResponse indexResponse = new PutWatchRequestBuilder(client()).setId("_name")
-                .setSource(watchBuilder()
-                        .trigger(schedule(cron("0/1 * * * * ? 2020")))
-                        .input(searchInput(searchRequest))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
-                .get();
+            .setSource(
+                watchBuilder().trigger(schedule(cron("0/1 * * * * ? 2020")))
+                    .input(searchInput(searchRequest))
+                    .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
+            )
+            .get();
         assertThat(indexResponse.isCreated(), is(true));
         DeleteWatchResponse deleteWatchResponse = new DeleteWatchRequestBuilder(client()).setId("_name").get();
         assertThat(deleteWatchResponse, notNullValue());
@@ -157,16 +159,14 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watchSource.endObject();
         try {
             new PutWatchRequestBuilder(client()).setId("_name")
-                    .setSource(BytesReference.bytes(watchSource), watchSource.contentType())
-                    .get();
+                .setSource(BytesReference.bytes(watchSource), watchSource.contentType())
+                .get();
             fail();
         } catch (ElasticsearchParseException e) {
             // In watch store we fail parsing if an watch contains undefined fields.
         }
         try {
-            client().prepareIndex().setIndex(Watch.INDEX).setId("_name")
-                    .setSource(watchSource)
-                    .get();
+            client().prepareIndex().setIndex(Watch.INDEX).setId("_name").setSource(watchSource).get();
             fail();
         } catch (Exception e) {
             // The watch index template the mapping is defined as strict
@@ -177,22 +177,21 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         createIndex("idx");
         WatcherSearchTemplateRequest searchRequest = templateRequest(searchSource().query(matchAllQuery()), "idx");
 
-        WatchSourceBuilder source = watchBuilder()
-                .trigger(schedule(interval("5s")))
-                .input(searchInput(searchRequest))
-                .addAction("_id", indexAction("idx"));
+        WatchSourceBuilder source = watchBuilder().trigger(schedule(interval("5s")))
+            .input(searchInput(searchRequest))
+            .addAction("_id", indexAction("idx"));
 
         new PutWatchRequestBuilder(client()).setId("_name")
-                .setSource(source.condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
-                .get();
+            .setSource(source.condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
+            .get();
 
         timeWarp().clock().fastForwardSeconds(5);
         timeWarp().trigger("_name");
         assertWatchWithMinimumPerformedActionsCount("_name", 0, false);
 
         new PutWatchRequestBuilder(client()).setId("_name")
-                .setSource(source.condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 0L)))
-                .get();
+            .setSource(source.condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 0L)))
+            .get();
 
         timeWarp().clock().fastForwardSeconds(5);
         timeWarp().trigger("_name");
@@ -200,10 +199,11 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertWatchWithMinimumPerformedActionsCount("_name", 1, false);
 
         new PutWatchRequestBuilder(client()).setId("_name")
-                .setSource(source
-                        .trigger(schedule(Schedules.cron("0/1 * * * * ? 2020")))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 0L)))
-                .get();
+            .setSource(
+                source.trigger(schedule(Schedules.cron("0/1 * * * * ? 2020")))
+                    .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 0L))
+            )
+            .get();
 
         timeWarp().clock().fastForwardSeconds(5);
         timeWarp().trigger("_name");
@@ -221,19 +221,33 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
     public void testConditionSearchWithIndexedTemplate() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(matchQuery("level", "a"));
-        assertAcked(client().admin().cluster().preparePutStoredScript()
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutStoredScript()
                 .setId("my-template")
-                .setContent(BytesReference.bytes(
-                    jsonBuilder().startObject().startObject("script")
-                        .field("lang", "mustache")
-                        .field("source").value(searchSourceBuilder)
-                        .endObject().endObject()),
-                        XContentType.JSON)
-                .get());
+                .setContent(
+                    BytesReference.bytes(
+                        jsonBuilder().startObject()
+                            .startObject("script")
+                            .field("lang", "mustache")
+                            .field("source")
+                            .value(searchSourceBuilder)
+                            .endObject()
+                            .endObject()
+                    ),
+                    XContentType.JSON
+                )
+                .get()
+        );
 
         Script template = new Script(ScriptType.STORED, null, "my-template", Collections.emptyMap());
-        WatcherSearchTemplateRequest searchRequest = new WatcherSearchTemplateRequest(new String[]{"events"},
-                SearchType.DEFAULT, WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, template);
+        WatcherSearchTemplateRequest searchRequest = new WatcherSearchTemplateRequest(
+            new String[] { "events" },
+            SearchType.DEFAULT,
+            WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS,
+            template
+        );
         testConditionSearch(searchRequest);
     }
 
@@ -244,18 +258,20 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         refresh();
         WatcherSearchTemplateRequest request = templateRequest(searchSource().query(termQuery("field", "foovalue")), "idx");
         new PutWatchRequestBuilder(client()).setId("_name1")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(request).extractKeys("hits.total.value"))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L)))
-                .get();
+            .setSource(
+                watchBuilder().trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
+                    .input(searchInput(request).extractKeys("hits.total.value"))
+                    .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1L))
+            )
+            .get();
         // in this watcher the condition will fail, because max_score isn't extracted, only total:
         new PutWatchRequestBuilder(client()).setId("_name2")
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(searchInput(request).extractKeys("hits.total.value"))
-                        .condition(new CompareCondition("ctx.payload.hits.max_score", CompareCondition.Op.GTE, 0L)))
-                .get();
+            .setSource(
+                watchBuilder().trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
+                    .input(searchInput(request).extractKeys("hits.total.value"))
+                    .condition(new CompareCondition("ctx.payload.hits.max_score", CompareCondition.Op.GTE, 0L))
+            )
+            .get();
 
         timeWarp().trigger("_name1");
         assertWatchWithMinimumPerformedActionsCount("_name1", 1);
@@ -273,12 +289,13 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
     public void testPutWatchWithNegativeSchedule() throws Exception {
         try {
             new PutWatchRequestBuilder(client()).setId("_name")
-                    .setSource(watchBuilder()
-                            .trigger(schedule(interval(-5, IntervalSchedule.Interval.Unit.SECONDS)))
-                            .input(simpleInput("key", "value"))
-                            .condition(InternalAlwaysCondition.INSTANCE)
-                            .addAction("_logger", loggingAction("executed!")))
-                    .get();
+                .setSource(
+                    watchBuilder().trigger(schedule(interval(-5, IntervalSchedule.Interval.Unit.SECONDS)))
+                        .input(simpleInput("key", "value"))
+                        .condition(InternalAlwaysCondition.INSTANCE)
+                        .addAction("_logger", loggingAction("executed!"))
+                )
+                .get();
             fail("put watch should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("interval can't be lower than 1000 ms, but [-5s] was specified"));
@@ -286,12 +303,13 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
         try {
             new PutWatchRequestBuilder(client()).setId("_name")
-                    .setSource(watchBuilder()
-                            .trigger(schedule(hourly().minutes(-10).build()))
-                            .input(simpleInput("key", "value"))
-                            .condition(InternalAlwaysCondition.INSTANCE)
-                            .addAction("_logger", loggingAction("executed!")))
-                    .get();
+                .setSource(
+                    watchBuilder().trigger(schedule(hourly().minutes(-10).build()))
+                        .input(simpleInput("key", "value"))
+                        .condition(InternalAlwaysCondition.INSTANCE)
+                        .addAction("_logger", loggingAction("executed!"))
+                )
+                .get();
             fail("put watch should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("invalid hourly minute [-10]. minute must be between 0 and 59 incl."));
@@ -299,44 +317,53 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
         try {
             new PutWatchRequestBuilder(client()).setId("_name")
-                    .setSource(watchBuilder()
-                            .trigger(schedule(daily().atRoundHour(-10).build()))
-                            .input(simpleInput("key", "value"))
-                            .condition(InternalAlwaysCondition.INSTANCE)
-                            .addAction("_logger", loggingAction("executed!")))
-                    .get();
+                .setSource(
+                    watchBuilder().trigger(schedule(daily().atRoundHour(-10).build()))
+                        .input(simpleInput("key", "value"))
+                        .condition(InternalAlwaysCondition.INSTANCE)
+                        .addAction("_logger", loggingAction("executed!"))
+                )
+                .get();
             fail("put watch should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(),
-                    equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl."));
+            assertThat(
+                e.getMessage(),
+                equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl.")
+            );
         }
 
         try {
             new PutWatchRequestBuilder(client()).setId("_name")
-                    .setSource(watchBuilder()
-                            .trigger(schedule(weekly().time(WeekTimes.builder().atRoundHour(-10).build()).build()))
-                            .input(simpleInput("key", "value"))
-                            .condition(InternalAlwaysCondition.INSTANCE)
-                            .addAction("_logger", loggingAction("executed!")))
-                    .get();
+                .setSource(
+                    watchBuilder().trigger(schedule(weekly().time(WeekTimes.builder().atRoundHour(-10).build()).build()))
+                        .input(simpleInput("key", "value"))
+                        .condition(InternalAlwaysCondition.INSTANCE)
+                        .addAction("_logger", loggingAction("executed!"))
+                )
+                .get();
             fail("put watch should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(),
-                    equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl."));
+            assertThat(
+                e.getMessage(),
+                equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl.")
+            );
         }
 
         try {
             new PutWatchRequestBuilder(client()).setId("_name")
-                    .setSource(watchBuilder()
-                            .trigger(schedule(monthly().time(MonthTimes.builder().atRoundHour(-10).build()).build()))
-                            .input(simpleInput("key", "value"))
-                            .condition(InternalAlwaysCondition.INSTANCE)
-                            .addAction("_logger", loggingAction("executed!")))
-                    .get();
+                .setSource(
+                    watchBuilder().trigger(schedule(monthly().time(MonthTimes.builder().atRoundHour(-10).build()).build()))
+                        .input(simpleInput("key", "value"))
+                        .condition(InternalAlwaysCondition.INSTANCE)
+                        .addAction("_logger", loggingAction("executed!"))
+                )
+                .get();
             fail("put watch should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(),
-                    equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl."));
+            assertThat(
+                e.getMessage(),
+                equalTo("invalid time [0-10:00]. invalid time hour value [-10]. time hours must be between 0 and 23 incl.")
+            );
         }
     }
 
@@ -348,37 +375,30 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertAcked(prepareCreate("events").setMapping("level", "type=text"));
 
         new PutWatchRequestBuilder(client()).setId(watchName)
-                .setSource(watchBuilder()
-                        .trigger(schedule(interval("5s")))
-                        .input(searchInput(request))
-                        .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GTE, 3L)))
-                .get();
+            .setSource(
+                watchBuilder().trigger(schedule(interval("5s")))
+                    .input(searchInput(request))
+                    .condition(new CompareCondition("ctx.payload.hits.total", CompareCondition.Op.GTE, 3L))
+            )
+            .get();
 
         logger.info("created watch [{}] at [{}]", watchName, ZonedDateTime.now(Clock.systemUTC()));
 
-        client().prepareIndex("events")
-                .setSource("level", "a")
-                .get();
-        client().prepareIndex("events")
-                .setSource("level", "a")
-                .get();
+        client().prepareIndex("events").setSource("level", "a").get();
+        client().prepareIndex("events").setSource("level", "a").get();
 
         refresh();
         timeWarp().clock().fastForwardSeconds(1);
         timeWarp().trigger(watchName);
         assertWatchWithNoActionNeeded(watchName, 1);
 
-        client().prepareIndex("events")
-                .setSource("level", "b")
-                .get();
+        client().prepareIndex("events").setSource("level", "b").get();
         refresh();
         timeWarp().clock().fastForwardSeconds(1);
         timeWarp().trigger(watchName);
         assertWatchWithNoActionNeeded(watchName, 2);
 
-        client().prepareIndex("events")
-                .setSource("level", "a")
-                .get();
+        client().prepareIndex("events").setSource("level", "a").get();
         refresh();
         timeWarp().clock().fastForwardSeconds(1);
         timeWarp().trigger(watchName);
@@ -389,17 +409,23 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         int numWatches = 6;
         for (int i = 0; i < numWatches; i++) {
             PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("" + i)
-                .setSource(watchBuilder()
-                    .trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.DAYS)))
-                    .addAction("_logger", loggingAction("log me"))
-                    .metadata(Map.of("key1", i, "key2", numWatches - i)))
+                .setSource(
+                    watchBuilder().trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.DAYS)))
+                        .addAction("_logger", loggingAction("log me"))
+                        .metadata(Map.of("key1", i, "key2", numWatches - i))
+                )
                 .get();
             assertThat(putWatchResponse.isCreated(), is(true));
         }
         refresh();
 
-        QueryWatchesAction.Request request =
-            new QueryWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata.key1")), null);
+        QueryWatchesAction.Request request = new QueryWatchesAction.Request(
+            0,
+            2,
+            null,
+            List.of(new FieldSortBuilder("metadata.key1")),
+            null
+        );
         QueryWatchesAction.Response response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
         assertThat(response.getWatches().size(), equalTo(2));
@@ -464,41 +490,62 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         int numWatches = 6;
         for (int i = 0; i < numWatches; i++) {
             PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client()).setId("" + i)
-                .setSource(watchBuilder()
-                    .trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.DAYS)))
-                    .addAction("_logger", loggingAction("log me"))
-                    .metadata(Map.of("_id", i)))
+                .setSource(
+                    watchBuilder().trigger(schedule(interval(1, IntervalSchedule.Interval.Unit.DAYS)))
+                        .addAction("_logger", loggingAction("log me"))
+                        .metadata(Map.of("_id", i))
+                )
                 .get();
             assertThat(putWatchResponse.isCreated(), is(true));
         }
         refresh();
 
-        QueryWatchesAction.Request request =
-            new QueryWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata._id")), null);
+        QueryWatchesAction.Request request = new QueryWatchesAction.Request(
+            0,
+            2,
+            null,
+            List.of(new FieldSortBuilder("metadata._id")),
+            null
+        );
         QueryWatchesAction.Response response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
         assertThat(response.getWatches().size(), equalTo(2));
         assertThat(response.getWatches().get(0).getId(), equalTo("0"));
         assertThat(response.getWatches().get(1).getId(), equalTo("1"));
 
-        request = new QueryWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata._id")),
-            new SearchAfterBuilder().setSortValues(new Object[]{"1"}));
+        request = new QueryWatchesAction.Request(
+            0,
+            2,
+            null,
+            List.of(new FieldSortBuilder("metadata._id")),
+            new SearchAfterBuilder().setSortValues(new Object[] { "1" })
+        );
         response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
         assertThat(response.getWatches().size(), equalTo(2));
         assertThat(response.getWatches().get(0).getId(), equalTo("2"));
         assertThat(response.getWatches().get(1).getId(), equalTo("3"));
 
-        request = new QueryWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata._id")),
-            new SearchAfterBuilder().setSortValues(new Object[]{"3"}));
+        request = new QueryWatchesAction.Request(
+            0,
+            2,
+            null,
+            List.of(new FieldSortBuilder("metadata._id")),
+            new SearchAfterBuilder().setSortValues(new Object[] { "3" })
+        );
         response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
         assertThat(response.getWatches().size(), equalTo(2));
         assertThat(response.getWatches().get(0).getId(), equalTo("4"));
         assertThat(response.getWatches().get(1).getId(), equalTo("5"));
 
-        request = new QueryWatchesAction.Request(0, 2, null, List.of(new FieldSortBuilder("metadata._id")),
-            new SearchAfterBuilder().setSortValues(new Object[]{"5"}));
+        request = new QueryWatchesAction.Request(
+            0,
+            2,
+            null,
+            List.of(new FieldSortBuilder("metadata._id")),
+            new SearchAfterBuilder().setSortValues(new Object[] { "5" })
+        );
         response = client().execute(QueryWatchesAction.INSTANCE, request).actionGet();
         assertThat(response.getWatchTotalCount(), equalTo((long) numWatches));
         assertThat(response.getWatches().size(), equalTo(0));

@@ -70,11 +70,7 @@ public class PolicyUtilTests extends ESTestCase {
     }
 
     public void testCodebaseJarMap() throws Exception {
-        Set<URL> urls = new LinkedHashSet<>(List.of(
-            makeUrl("file:///foo.jar"),
-            makeUrl("file:///bar.txt"),
-            makeUrl("file:///a/bar.jar")
-        ));
+        Set<URL> urls = new LinkedHashSet<>(List.of(makeUrl("file:///foo.jar"), makeUrl("file:///bar.txt"), makeUrl("file:///a/bar.jar")));
 
         Map<String, URL> jarMap = PolicyUtil.getCodebaseJarMap(urls);
         assertThat(jarMap, hasKey("foo.jar"));
@@ -98,13 +94,10 @@ public class PolicyUtilTests extends ESTestCase {
     }
 
     public void testPluginPolicyInfo() throws Exception {
-        Path plugin = makeDummyPlugin("dummy.policy",
-            "foo.jar", "foo.txt", "bar.jar");
+        Path plugin = makeDummyPlugin("dummy.policy", "foo.jar", "foo.txt", "bar.jar");
         PluginPolicyInfo info = PolicyUtil.readPolicyInfo(plugin);
         assertThat(info.policy, is(not(nullValue())));
-        assertThat(info.jars, containsInAnyOrder(
-            plugin.resolve("foo.jar").toUri().toURL(),
-            plugin.resolve("bar.jar").toUri().toURL()));
+        assertThat(info.jars, containsInAnyOrder(plugin.resolve("foo.jar").toUri().toURL(), plugin.resolve("bar.jar").toUri().toURL()));
     }
 
     public void testPolicyMissingCodebaseProperty() throws Exception {
@@ -127,8 +120,7 @@ public class PolicyUtilTests extends ESTestCase {
             assertThat(globalPermissions, contains(new RuntimePermission("queuePrintJob")));
 
             Set<Permission> jarPermissions = PolicyUtil.getPolicyPermissions(jarUrl, policy, tmpDir);
-            assertThat(jarPermissions,
-                containsInAnyOrder(new RuntimePermission("getClassLoader"), new RuntimePermission("queuePrintJob")));
+            assertThat(jarPermissions, containsInAnyOrder(new RuntimePermission("getClassLoader"), new RuntimePermission("queuePrintJob")));
         } finally {
             clearProperty("jarUrl");
         }
@@ -185,9 +177,11 @@ public class PolicyUtilTests extends ESTestCase {
     void assertIllegalPermission(String clazz, String name, String actions, Path tmpDir, PolicyParser parser) throws Exception {
         // global policy
         final Path globalPlugin = makeSinglePermissionPlugin(null, clazz, name, actions);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             "Permission (" + clazz + " " + name + (actions == null ? "" : (" " + actions)) + ") should be illegal",
-            () -> parser.parse(globalPlugin, tmpDir)); // no error
+            () -> parser.parse(globalPlugin, tmpDir)
+        ); // no error
         assertThat(e.getMessage(), containsString("contains illegal permission"));
         assertThat(e.getMessage(), containsString("in global grant"));
 

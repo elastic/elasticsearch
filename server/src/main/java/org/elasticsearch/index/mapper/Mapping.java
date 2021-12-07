@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -35,9 +34,10 @@ import static java.util.Collections.unmodifiableMap;
 public final class Mapping implements ToXContentFragment {
 
     public static final Mapping EMPTY = new Mapping(
-        new RootObjectMapper.Builder("_doc", false).build(MapperBuilderContext.ROOT),
+        new RootObjectMapper.Builder("_doc").build(MapperBuilderContext.ROOT),
         new MetadataFieldMapper[0],
-        null);
+        null
+    );
 
     private final RootObjectMapper root;
     private final Map<String, Object> meta;
@@ -73,7 +73,7 @@ public final class Mapping implements ToXContentFragment {
      */
     public CompressedXContent toCompressedXContent() {
         try {
-            return new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
+            return new CompressedXContent(this);
         } catch (Exception e) {
             throw new ElasticsearchGenerationException("failed to serialize source for type [" + root.name() + "]", e);
         }

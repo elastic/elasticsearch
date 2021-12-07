@@ -47,9 +47,14 @@ public class ProviderMethod<T> implements ProviderWithDependencies<T> {
     /**
      * @param method the method to invoke. Its return type must be the same type as {@code key}.
      */
-    ProviderMethod(Key<T> key, Method method, Object instance,
-                   Set<Dependency<?>> dependencies, List<Provider<?>> parameterProviders,
-                   Class<? extends Annotation> scopeAnnotation) {
+    ProviderMethod(
+        Key<T> key,
+        Method method,
+        Object instance,
+        Set<Dependency<?>> dependencies,
+        List<Provider<?>> parameterProviders,
+        Class<? extends Annotation> scopeAnnotation
+    ) {
         this.key = key;
         this.scopeAnnotation = scopeAnnotation;
         this.instance = instance;
@@ -97,7 +102,7 @@ public class ProviderMethod<T> implements ProviderWithDependencies<T> {
 
         try {
             // We know this cast is safe because T is the method's return type.
-            @SuppressWarnings({"unchecked"})
+            @SuppressWarnings({ "unchecked" })
             T result = (T) method.invoke(instance, parameters);
             return result;
         } catch (IllegalAccessException e) {

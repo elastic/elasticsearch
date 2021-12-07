@@ -18,10 +18,8 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -29,6 +27,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -60,16 +60,24 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     }
 
     public void testDynamicUpdates() throws Exception {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        Settings.builder()
-                                .put("index.number_of_shards", 1)
-                                .put("index.number_of_replicas", 0)
-                                .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
-                ).execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
+            )
+            .execute()
+            .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
-            Settings.builder().put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5)))
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder().put(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey(), TimeValue.timeValueMinutes(5))
+            )
             .get();
 
         int recCount = randomIntBetween(20, 200);
@@ -77,8 +85,12 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         for (int rec = 0; rec < recCount; rec++) {
             String type = "type";
             String fieldName = "field_" + type + "_" + rec;
-            indexRequests.add(client().prepareIndex("test").setId(Integer.toString(rec))
-                .setTimeout(TimeValue.timeValueMinutes(5)).setSource(fieldName, "some_value"));
+            indexRequests.add(
+                client().prepareIndex("test")
+                    .setId(Integer.toString(rec))
+                    .setTimeout(TimeValue.timeValueMinutes(5))
+                    .setSource(fieldName, "some_value")
+            );
         }
         indexRandom(true, false, indexRequests);
 
@@ -96,64 +108,81 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             assertConcreteMappingsOnAll("test", fieldName);
         }
 
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(
-            Settings.builder().putNull(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey())).get();
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull(MappingUpdatedAction.INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.getKey()))
+            .get();
     }
 
     public void testUpdateMappingWithoutType() {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        Settings.builder()
-                                .put("index.number_of_shards", 1)
-                                .put("index.number_of_replicas", 0)
-                ).setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
-                .execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+            .setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
+            .execute()
+            .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test")
-                .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
-                .execute().actionGet();
+        AcknowledgedResponse putMappingResponse = client().admin()
+            .indices()
+            .preparePutMapping("test")
+            .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
+            .execute()
+            .actionGet();
 
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").execute().actionGet();
-        assertThat(getMappingsResponse.mappings().get("test").source().toString(),
-                equalTo("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\"},\"date\":{\"type\":\"integer\"}}}}"));
+        assertThat(
+            getMappingsResponse.mappings().get("test").source().toString(),
+            equalTo("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\"},\"date\":{\"type\":\"integer\"}}}}")
+        );
     }
 
     public void testUpdateMappingWithoutTypeMultiObjects() {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        Settings.builder()
-                                .put("index.number_of_shards", 1)
-                                .put("index.number_of_replicas", 0)
-                ).execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+            .execute()
+            .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test")
-                .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
-                .execute().actionGet();
+        AcknowledgedResponse putMappingResponse = client().admin()
+            .indices()
+            .preparePutMapping("test")
+            .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
+            .execute()
+            .actionGet();
 
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").execute().actionGet();
-        assertThat(getMappingsResponse.mappings().get("test").source().toString(),
-                equalTo("{\"_doc\":{\"properties\":{\"date\":{\"type\":\"integer\"}}}}"));
+        assertThat(
+            getMappingsResponse.mappings().get("test").source().toString(),
+            equalTo("{\"_doc\":{\"properties\":{\"date\":{\"type\":\"integer\"}}}}")
+        );
     }
 
     public void testUpdateMappingWithConflicts() {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        Settings.builder()
-                                .put("index.number_of_shards", 2)
-                                .put("index.number_of_replicas", 0)
-                ).setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
-                .execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
+            .setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
+            .execute()
+            .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         try {
-            client().admin().indices().preparePutMapping("test")
-                    .setSource("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}", XContentType.JSON).execute().actionGet();
+            client().admin()
+                .indices()
+                .preparePutMapping("test")
+                .setSource("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}", XContentType.JSON)
+                .execute()
+                .actionGet();
             fail("Expected MergeMappingException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("mapper [body] cannot be changed from type [text] to [integer]"));
@@ -161,13 +190,19 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     }
 
     public void testUpdateMappingWithNormsConflicts() {
-        client().admin().indices().prepareCreate("test")
-                .setMapping("{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": false }}}")
-                .execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setMapping("{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": false }}}")
+            .execute()
+            .actionGet();
         try {
-            client().admin().indices().preparePutMapping("test")
-                    .setSource("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": true }}}}", XContentType.JSON).execute()
-                    .actionGet();
+            client().admin()
+                .indices()
+                .preparePutMapping("test")
+                .setSource("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": true }}}}", XContentType.JSON)
+                .execute()
+                .actionGet();
             fail("Expected MergeMappingException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("Cannot update parameter [norms] from [false] to [true]"));
@@ -178,20 +213,23 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     Second regression test for https://github.com/elastic/elasticsearch/issues/3381
      */
     public void testUpdateMappingNoChanges() {
-        client().admin().indices().prepareCreate("test")
-                .setSettings(
-                        Settings.builder()
-                                .put("index.number_of_shards", 2)
-                                .put("index.number_of_replicas", 0)
-                ).setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
-                .execute().actionGet();
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0))
+            .setMapping("{\"properties\":{\"body\":{\"type\":\"text\"}}}")
+            .execute()
+            .actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        AcknowledgedResponse putMappingResponse = client().admin().indices().preparePutMapping("test")
-                .setSource("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
-                .execute().actionGet();
+        AcknowledgedResponse putMappingResponse = client().admin()
+            .indices()
+            .preparePutMapping("test")
+            .setSource("{\"_doc\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}", XContentType.JSON)
+            .execute()
+            .actionGet();
 
-        //no changes, we return
+        // no changes, we return
         assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
     }
 
@@ -222,19 +260,30 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         String indexName = i % 2 == 0 ? "test2" : "test1";
                         String fieldName = Thread.currentThread().getName() + "_" + i;
 
-                        AcknowledgedResponse response = client1.admin().indices().preparePutMapping(indexName).setSource(
-                                JsonXContent.contentBuilder().startObject().startObject("_doc")
-                                        .startObject("properties").startObject(fieldName).field("type", "text").endObject().endObject()
-                                        .endObject().endObject()
-                        ).setMasterNodeTimeout(TimeValue.timeValueMinutes(5)).get();
+                        AcknowledgedResponse response = client1.admin()
+                            .indices()
+                            .preparePutMapping(indexName)
+                            .setSource(
+                                JsonXContent.contentBuilder()
+                                    .startObject()
+                                    .startObject("_doc")
+                                    .startObject("properties")
+                                    .startObject(fieldName)
+                                    .field("type", "text")
+                                    .endObject()
+                                    .endObject()
+                                    .endObject()
+                                    .endObject()
+                            )
+                            .setMasterNodeTimeout(TimeValue.timeValueMinutes(5))
+                            .get();
 
                         assertThat(response.isAcknowledged(), equalTo(true));
                         GetMappingsResponse getMappingResponse = client2.admin().indices().prepareGetMappings(indexName).get();
                         MappingMetadata mappings = getMappingResponse.getMappings().get(indexName);
                         @SuppressWarnings("unchecked")
                         Map<String, Object> properties = (Map<String, Object>) mappings.getSourceAsMap().get("properties");
-                        assertThat(properties.keySet(),
-                            Matchers.hasItem(fieldName));
+                        assertThat(properties.keySet(), Matchers.hasItem(fieldName));
                     }
                 } catch (Exception e) {
                     threadException.set(e);
@@ -246,7 +295,8 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             threads[j].start();
         }
 
-        for (Thread t : threads) t.join();
+        for (Thread t : threads)
+            t.join();
 
         if (threadException.get() != null) {
             throw threadException.get();
@@ -261,8 +311,12 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
             try {
                 enableIndexBlock("test", block);
-                assertAcked(client().admin().indices().preparePutMapping("test")
-                    .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON));
+                assertAcked(
+                    client().admin()
+                        .indices()
+                        .preparePutMapping("test")
+                        .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
+                );
             } finally {
                 disableIndexBlock("test", block);
             }
@@ -271,8 +325,12 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         for (String block : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", block);
-                assertBlocked(client().admin().indices().preparePutMapping("test")
-                    .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON));
+                assertBlocked(
+                    client().admin()
+                        .indices()
+                        .preparePutMapping("test")
+                        .setSource("{\"properties\":{\"date\":{\"type\":\"integer\"}}}", XContentType.JSON)
+                );
             } finally {
                 disableIndexBlock("test", block);
             }
@@ -317,8 +375,11 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
             if (fieldName.indexOf('.') != -1) {
                 fieldName = fieldName.replace(".", ".properties.");
             }
-            assertThat("field " + fieldName + " doesn't exists in mapping " + mappings.source().string(),
-                XContentMapValues.extractValue(fieldName, mappingProperties), notNullValue());
+            assertThat(
+                "field " + fieldName + " doesn't exists in mapping " + mappings.source().string(),
+                XContentMapValues.extractValue(fieldName, mappingProperties),
+                notNullValue()
+            );
         }
     }
 }

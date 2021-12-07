@@ -42,34 +42,31 @@ import java.util.function.Supplier;
 
 public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScript.LeafFactory> {
 
-    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, IpFieldScript.CONTEXT) {
-            @Override
-            AbstractScriptFieldType<?> createFieldType(String name,
-                                                       IpFieldScript.Factory factory,
-                                                       Script script,
-                                                       Map<String, String> meta) {
-                return new IpScriptFieldType(name, factory, getScript(), meta());
-            }
+    public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name -> new Builder<>(name, IpFieldScript.CONTEXT) {
+        @Override
+        AbstractScriptFieldType<?> createFieldType(String name, IpFieldScript.Factory factory, Script script, Map<String, String> meta) {
+            return new IpScriptFieldType(name, factory, getScript(), meta());
+        }
 
-            @Override
-            IpFieldScript.Factory getParseFromSourceFactory() {
-                return IpFieldScript.PARSE_FROM_SOURCE;
-            }
+        @Override
+        IpFieldScript.Factory getParseFromSourceFactory() {
+            return IpFieldScript.PARSE_FROM_SOURCE;
+        }
 
-            @Override
-            IpFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
-                return IpFieldScript.leafAdapter(parentScriptFactory);
-            }
-        });
+        @Override
+        IpFieldScript.Factory getCompositeLeafFactory(Function<SearchLookup, CompositeFieldScript.LeafFactory> parentScriptFactory) {
+            return IpFieldScript.leafAdapter(parentScriptFactory);
+        }
+    });
 
-    IpScriptFieldType(
-        String name,
-        IpFieldScript.Factory scriptFactory,
-        Script script,
-        Map<String, String> meta
-    ) {
-        super(name, searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup), script, meta);
+    IpScriptFieldType(String name, IpFieldScript.Factory scriptFactory, Script script, Map<String, String> meta) {
+        super(
+            name,
+            searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup),
+            script,
+            scriptFactory.isResultDeterministic(),
+            meta
+        );
     }
 
     @Override
@@ -99,7 +96,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return new IpScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
@@ -113,7 +110,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         DateMathParser parser,
         SearchExecutionContext context
     ) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         return IpFieldMapper.IpFieldType.rangeQuery(
             lowerTerm,
             upperTerm,
@@ -131,7 +128,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         if (value instanceof InetAddress) {
             return inetAddressQuery((InetAddress) value, context);
         }
@@ -149,7 +146,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
 
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-        checkAllowExpensiveQueries(context);
+        applyScriptContext(context);
         BytesRefHash terms = new BytesRefHash(values.size(), BigArrays.NON_RECYCLING_INSTANCE);
         List<Query> cidrQueries = null;
         for (Object value : values) {

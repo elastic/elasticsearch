@@ -11,10 +11,10 @@ package org.elasticsearch.client.transform;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -41,6 +41,7 @@ public class UpdateTransformRequestTests extends AbstractXContentTestCase<Update
     }
 
     private final String transformId = randomAlphaOfLength(10);
+
     @Override
     protected UpdateTransformRequest createTestInstance() {
         return new UpdateTransformRequest(randomTransformConfigUpdate(), transformId);

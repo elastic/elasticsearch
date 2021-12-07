@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.watcher.transport.action;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
@@ -20,6 +18,8 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.transport.actions.QueryWatchesAction;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ public class QueryWatchesRequestTests extends AbstractSerializingTestCase<QueryW
         SearchAfterBuilder searchAfter = null;
         if (randomBoolean()) {
             searchAfter = new SearchAfterBuilder();
-            searchAfter.setSortValues(new Object[]{randomInt()});
+            searchAfter.setSortValues(new Object[] { randomInt() });
         }
         return new QueryWatchesAction.Request(
             randomBoolean() ? randomIntBetween(0, 10000) : null,

@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
@@ -29,7 +29,8 @@ public class RestForecastJobAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast")
-                .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast", RestApiVersion.V_7).build()
+                .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_forecast", RestApiVersion.V_7)
+                .build()
         );
     }
 

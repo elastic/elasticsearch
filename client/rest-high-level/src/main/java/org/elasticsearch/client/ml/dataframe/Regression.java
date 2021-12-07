@@ -9,10 +9,10 @@ package org.elasticsearch.client.ml.dataframe;
 
 import org.elasticsearch.client.ml.inference.NamedXContentObjectHelper;
 import org.elasticsearch.client.ml.inference.preprocessing.PreProcessor;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -57,32 +57,32 @@ public class Regression implements DataFrameAnalysis {
     static final ParseField EARLY_STOPPING_ENABLED = new ParseField("early_stopping_enabled");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Regression, Void> PARSER =
-        new ConstructingObjectParser<>(
-            NAME.getPreferredName(),
-            true,
-            a -> new Regression(
-                (String) a[0],
-                (Double) a[1],
-                (Double) a[2],
-                (Double) a[3],
-                (Integer) a[4],
-                (Double) a[5],
-                (Integer) a[6],
-                (String) a[7],
-                (Double) a[8],
-                (Long) a[9],
-                (LossFunction) a[10],
-                (Double) a[11],
-                (List<PreProcessor>) a[12],
-                (Double) a[13],
-                (Double) a[14],
-                (Double) a[15],
-                (Double) a[16],
-                (Double) a[17],
-                (Integer) a[18],
-                (Boolean) a[19]
-            ));
+    private static final ConstructingObjectParser<Regression, Void> PARSER = new ConstructingObjectParser<>(
+        NAME.getPreferredName(),
+        true,
+        a -> new Regression(
+            (String) a[0],
+            (Double) a[1],
+            (Double) a[2],
+            (Double) a[3],
+            (Integer) a[4],
+            (Double) a[5],
+            (Integer) a[6],
+            (String) a[7],
+            (Double) a[8],
+            (Long) a[9],
+            (LossFunction) a[10],
+            (Double) a[11],
+            (List<PreProcessor>) a[12],
+            (Double) a[13],
+            (Double) a[14],
+            (Double) a[15],
+            (Double) a[16],
+            (Double) a[17],
+            (Integer) a[18],
+            (Boolean) a[19]
+        )
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DEPENDENT_VARIABLE);
@@ -97,10 +97,12 @@ public class Regression implements DataFrameAnalysis {
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), RANDOMIZE_SEED);
         PARSER.declareString(optionalConstructorArg(), LossFunction::fromString, LOSS_FUNCTION);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), LOSS_FUNCTION_PARAMETER);
-        PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(),
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.optionalConstructorArg(),
             (p, c, n) -> p.namedObject(PreProcessor.class, n, c),
             (regression) -> {},
-            FEATURE_PROCESSORS);
+            FEATURE_PROCESSORS
+        );
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), ALPHA);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), ETA_GROWTH_RATE_PER_TREE);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), SOFT_TREE_DEPTH_LIMIT);
@@ -131,14 +133,28 @@ public class Regression implements DataFrameAnalysis {
     private final Integer maxOptimizationRoundsPerHyperparameter;
     private final Boolean earlyStoppingEnabled;
 
-    private Regression(String dependentVariable, @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
-                       @Nullable Integer maxTrees, @Nullable Double featureBagFraction,
-                       @Nullable Integer numTopFeatureImportanceValues, @Nullable String predictionFieldName,
-                       @Nullable Double trainingPercent, @Nullable Long randomizeSeed, @Nullable LossFunction lossFunction,
-                       @Nullable Double lossFunctionParameter, @Nullable List<PreProcessor> featureProcessors, @Nullable Double alpha,
-                       @Nullable Double etaGrowthRatePerTree, @Nullable Double softTreeDepthLimit, @Nullable Double softTreeDepthTolerance,
-                       @Nullable Double downsampleFactor, @Nullable Integer maxOptimizationRoundsPerHyperparameter,
-                       @Nullable Boolean earlyStoppingEnabled) {
+    private Regression(
+        String dependentVariable,
+        @Nullable Double lambda,
+        @Nullable Double gamma,
+        @Nullable Double eta,
+        @Nullable Integer maxTrees,
+        @Nullable Double featureBagFraction,
+        @Nullable Integer numTopFeatureImportanceValues,
+        @Nullable String predictionFieldName,
+        @Nullable Double trainingPercent,
+        @Nullable Long randomizeSeed,
+        @Nullable LossFunction lossFunction,
+        @Nullable Double lossFunctionParameter,
+        @Nullable List<PreProcessor> featureProcessors,
+        @Nullable Double alpha,
+        @Nullable Double etaGrowthRatePerTree,
+        @Nullable Double softTreeDepthLimit,
+        @Nullable Double softTreeDepthTolerance,
+        @Nullable Double downsampleFactor,
+        @Nullable Integer maxOptimizationRoundsPerHyperparameter,
+        @Nullable Boolean earlyStoppingEnabled
+    ) {
         this.dependentVariable = Objects.requireNonNull(dependentVariable);
         this.lambda = lambda;
         this.gamma = gamma;
@@ -313,10 +329,28 @@ public class Regression implements DataFrameAnalysis {
 
     @Override
     public int hashCode() {
-        return Objects.hash(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction, numTopFeatureImportanceValues,
-            predictionFieldName, trainingPercent, randomizeSeed, lossFunction, lossFunctionParameter, featureProcessors, alpha,
-            etaGrowthRatePerTree, softTreeDepthLimit, softTreeDepthTolerance, downsampleFactor, maxOptimizationRoundsPerHyperparameter,
-            earlyStoppingEnabled);
+        return Objects.hash(
+            dependentVariable,
+            lambda,
+            gamma,
+            eta,
+            maxTrees,
+            featureBagFraction,
+            numTopFeatureImportanceValues,
+            predictionFieldName,
+            trainingPercent,
+            randomizeSeed,
+            lossFunction,
+            lossFunctionParameter,
+            featureProcessors,
+            alpha,
+            etaGrowthRatePerTree,
+            softTreeDepthLimit,
+            softTreeDepthTolerance,
+            downsampleFactor,
+            maxOptimizationRoundsPerHyperparameter,
+            earlyStoppingEnabled
+        );
     }
 
     @Override
@@ -473,15 +507,35 @@ public class Regression implements DataFrameAnalysis {
         }
 
         public Regression build() {
-            return new Regression(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction,
-                numTopFeatureImportanceValues, predictionFieldName, trainingPercent, randomizeSeed, lossFunction, lossFunctionParameter,
-                featureProcessors, alpha, etaGrowthRatePerTree, softTreeDepthLimit, softTreeDepthTolerance, downsampleFactor,
-                maxOptimizationRoundsPerHyperparameter, earlyStoppingEnabled);
+            return new Regression(
+                dependentVariable,
+                lambda,
+                gamma,
+                eta,
+                maxTrees,
+                featureBagFraction,
+                numTopFeatureImportanceValues,
+                predictionFieldName,
+                trainingPercent,
+                randomizeSeed,
+                lossFunction,
+                lossFunctionParameter,
+                featureProcessors,
+                alpha,
+                etaGrowthRatePerTree,
+                softTreeDepthLimit,
+                softTreeDepthTolerance,
+                downsampleFactor,
+                maxOptimizationRoundsPerHyperparameter,
+                earlyStoppingEnabled
+            );
         }
     }
 
     public enum LossFunction {
-        MSE, MSLE, HUBER;
+        MSE,
+        MSLE,
+        HUBER;
 
         private static LossFunction fromString(String value) {
             return LossFunction.valueOf(value.toUpperCase(Locale.ROOT));

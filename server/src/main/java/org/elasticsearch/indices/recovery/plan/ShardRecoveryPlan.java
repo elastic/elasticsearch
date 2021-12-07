@@ -33,28 +33,26 @@ public class ShardRecoveryPlan {
     @Nullable
     private final ShardRecoveryPlan fallbackPlan;
 
-    public ShardRecoveryPlan(SnapshotFilesToRecover snapshotFilesToRecover,
-                             List<StoreFileMetadata> sourceFilesToRecover,
-                             List<StoreFileMetadata> filesPresentInTarget,
-                             long startingSeqNo,
-                             int translogOps,
-                             Store.MetadataSnapshot sourceMetadataSnapshot) {
-        this(snapshotFilesToRecover,
-            sourceFilesToRecover,
-            filesPresentInTarget,
-            startingSeqNo,
-            translogOps,
-            sourceMetadataSnapshot,
-            null);
+    public ShardRecoveryPlan(
+        SnapshotFilesToRecover snapshotFilesToRecover,
+        List<StoreFileMetadata> sourceFilesToRecover,
+        List<StoreFileMetadata> filesPresentInTarget,
+        long startingSeqNo,
+        int translogOps,
+        Store.MetadataSnapshot sourceMetadataSnapshot
+    ) {
+        this(snapshotFilesToRecover, sourceFilesToRecover, filesPresentInTarget, startingSeqNo, translogOps, sourceMetadataSnapshot, null);
     }
 
-    public ShardRecoveryPlan(SnapshotFilesToRecover snapshotFilesToRecover,
-                             List<StoreFileMetadata> sourceFilesToRecover,
-                             List<StoreFileMetadata> filesPresentInTarget,
-                             long startingSeqNo,
-                             int translogOps,
-                             Store.MetadataSnapshot sourceMetadataSnapshot,
-                             @Nullable ShardRecoveryPlan fallbackPlan) {
+    public ShardRecoveryPlan(
+        SnapshotFilesToRecover snapshotFilesToRecover,
+        List<StoreFileMetadata> sourceFilesToRecover,
+        List<StoreFileMetadata> filesPresentInTarget,
+        long startingSeqNo,
+        int translogOps,
+        Store.MetadataSnapshot sourceMetadataSnapshot,
+        @Nullable ShardRecoveryPlan fallbackPlan
+    ) {
         this.snapshotFilesToRecover = snapshotFilesToRecover;
         this.sourceFilesToRecover = sourceFilesToRecover;
         this.filesPresentInTarget = filesPresentInTarget;
@@ -82,13 +80,11 @@ public class ShardRecoveryPlan {
     }
 
     public List<String> getFilesToRecoverNames() {
-        return getFilesToRecoverStream().map(StoreFileMetadata::name)
-            .collect(Collectors.toList());
+        return getFilesToRecoverStream().map(StoreFileMetadata::name).collect(Collectors.toList());
     }
 
     public List<Long> getFilesToRecoverSizes() {
-        return getFilesToRecoverStream().map(StoreFileMetadata::length)
-            .collect(Collectors.toList());
+        return getFilesToRecoverStream().map(StoreFileMetadata::length).collect(Collectors.toList());
     }
 
     public SnapshotFilesToRecover getSnapshotFilesToRecover() {

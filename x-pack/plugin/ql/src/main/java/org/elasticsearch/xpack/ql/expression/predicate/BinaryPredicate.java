@@ -57,9 +57,7 @@ public abstract class BinaryPredicate<T, U, R, F extends PredicateBiFunction<T, 
 
         BinaryPredicate<?, ?, ?, ?> other = (BinaryPredicate<?, ?, ?, ?>) obj;
 
-        return Objects.equals(symbol(), other.symbol())
-                && Objects.equals(left(), other.left())
-                && Objects.equals(right(), other.right());
+        return Objects.equals(symbol(), other.symbol()) && Objects.equals(left(), other.left()) && Objects.equals(right(), other.right());
     }
 
     public String symbol() {

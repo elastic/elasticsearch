@@ -35,7 +35,10 @@ public final class SamlServiceProviderFactory {
     SamlServiceProvider buildServiceProvider(SamlServiceProviderDocument document) {
         final ServiceProviderPrivileges privileges = buildPrivileges(document.privileges);
         final SamlServiceProvider.AttributeNames attributes = new SamlServiceProvider.AttributeNames(
-            document.attributeNames.principal, document.attributeNames.name, document.attributeNames.email, document.attributeNames.roles
+            document.attributeNames.principal,
+            document.attributeNames.name,
+            document.attributeNames.email,
+            document.attributeNames.roles
         );
         final Set<X509Credential> credentials = document.certificates.getServiceProviderX509SigningCertificates()
             .stream()
@@ -53,8 +56,19 @@ public final class SamlServiceProviderFactory {
         final boolean signAuthnRequests = document.signMessages.contains(SamlServiceProviderDocument.SIGN_AUTHN);
         final boolean signLogoutRequests = document.signMessages.contains(SamlServiceProviderDocument.SIGN_LOGOUT);
 
-        return new CloudServiceProvider(document.entityId, document.name, document.enabled, acs, nameIdFormat, authnExpiry,
-            privileges, attributes, credentials, signAuthnRequests, signLogoutRequests);
+        return new CloudServiceProvider(
+            document.entityId,
+            document.name,
+            document.enabled,
+            acs,
+            nameIdFormat,
+            authnExpiry,
+            privileges,
+            attributes,
+            credentials,
+            signAuthnRequests,
+            signLogoutRequests
+        );
     }
 
     private ServiceProviderPrivileges buildPrivileges(SamlServiceProviderDocument.Privileges configuredPrivileges) {
@@ -81,7 +95,12 @@ public final class SamlServiceProviderFactory {
             acs = new URL(document.acs);
         } catch (MalformedURLException e) {
             final ServiceProviderException exception = new ServiceProviderException(
-                "Service provider [{}] (doc {}) has an invalid ACS [{}]", e, document.entityId, document.docId, document.acs);
+                "Service provider [{}] (doc {}) has an invalid ACS [{}]",
+                e,
+                document.entityId,
+                document.docId,
+                document.acs
+            );
             exception.setEntityId(document.entityId);
             throw exception;
         }

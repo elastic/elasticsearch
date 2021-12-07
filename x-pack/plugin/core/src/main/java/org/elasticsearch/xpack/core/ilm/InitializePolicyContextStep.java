@@ -50,10 +50,11 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
             if (shouldParseIndexName(indexMetadata.getSettings())) {
                 long parsedOriginationDate = parseIndexNameAndExtractDate(index.getName());
                 indexMetadataBuilder.settingsVersion(indexMetadata.getSettingsVersion() + 1)
-                    .settings(Settings.builder()
-                        .put(indexMetadata.getSettings())
-                        .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, parsedOriginationDate)
-                        .build()
+                    .settings(
+                        Settings.builder()
+                            .put(indexMetadata.getSettings())
+                            .put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE, parsedOriginationDate)
+                            .build()
                     );
             }
         } catch (Exception e) {
@@ -67,9 +68,7 @@ public final class InitializePolicyContextStep extends ClusterStateActionStep {
         newCustomData.setIndexCreationDate(indexMetadata.getCreationDate());
         indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
 
-        newClusterStateBuilder.metadata(
-            Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder).build(false)
-        );
+        newClusterStateBuilder.metadata(Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder).build(false));
         return newClusterStateBuilder.build();
     }
 

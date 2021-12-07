@@ -31,8 +31,7 @@ public class RandomCreateIndexGenerator {
             // mapping definition for one that does not contain types.
             org.elasticsearch.action.admin.indices.create.CreateIndexRequest serverRequest =
                 org.elasticsearch.index.RandomCreateIndexGenerator.randomCreateIndexRequest();
-            return new CreateIndexRequest(serverRequest.index())
-                .settings(serverRequest.settings())
+            return new CreateIndexRequest(serverRequest.index()).settings(serverRequest.settings())
                 .aliases(serverRequest.aliases())
                 .mapping(randomMapping());
         } catch (IOException e) {

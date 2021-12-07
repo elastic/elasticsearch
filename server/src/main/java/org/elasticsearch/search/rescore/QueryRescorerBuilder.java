@@ -8,17 +8,17 @@
 
 package org.elasticsearch.search.rescore;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -42,10 +42,10 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "Could not parse inner query", e);
             }
-        } , RESCORE_QUERY_FIELD);
+        }, RESCORE_QUERY_FIELD);
         QUERY_RESCORE_PARSER.declareFloat(InnerBuilder::setQueryWeight, QUERY_WEIGHT_FIELD);
         QUERY_RESCORE_PARSER.declareFloat(InnerBuilder::setRescoreQueryWeight, RESCORE_QUERY_WEIGHT_FIELD);
-        QUERY_RESCORE_PARSER.declareString((struct, value) ->  struct.setScoreMode(QueryRescoreMode.fromString(value)), SCORE_MODE_FIELD);
+        QUERY_RESCORE_PARSER.declareString((struct, value) -> struct.setScoreMode(QueryRescoreMode.fromString(value)), SCORE_MODE_FIELD);
     }
 
     public static final float DEFAULT_RESCORE_QUERYWEIGHT = 1.0f;
@@ -105,7 +105,6 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
         this.queryWeight = queryWeight;
         return this;
     }
-
 
     /**
      * Gets the original query weight for rescoring. The default is {@code 1.0}
@@ -185,11 +184,11 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
             return false;
         }
         QueryRescorerBuilder other = (QueryRescorerBuilder) obj;
-        return super.equals(obj) &&
-               Objects.equals(scoreMode, other.scoreMode) &&
-               Objects.equals(queryWeight, other.queryWeight) &&
-               Objects.equals(rescoreQueryWeight, other.rescoreQueryWeight) &&
-               Objects.equals(queryBuilder, other.queryBuilder);
+        return super.equals(obj)
+            && Objects.equals(scoreMode, other.scoreMode)
+            && Objects.equals(queryWeight, other.queryWeight)
+            && Objects.equals(rescoreQueryWeight, other.rescoreQueryWeight)
+            && Objects.equals(queryBuilder, other.queryBuilder);
     }
 
     /**

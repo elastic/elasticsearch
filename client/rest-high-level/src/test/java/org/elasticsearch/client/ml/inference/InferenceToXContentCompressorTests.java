@@ -9,11 +9,11 @@ package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -22,12 +22,14 @@ import static org.hamcrest.Matchers.equalTo;
 public class InferenceToXContentCompressorTests extends ESTestCase {
 
     public void testInflateAndDeflate() throws IOException {
-        for(int i = 0; i < 10; i++) {
+        for (int i = 0; i < 10; i++) {
             TrainedModelDefinition definition = TrainedModelDefinitionTests.createRandomBuilder().build();
             String firstDeflate = InferenceToXContentCompressor.deflate(definition);
-            TrainedModelDefinition inflatedDefinition = InferenceToXContentCompressor.inflate(firstDeflate,
+            TrainedModelDefinition inflatedDefinition = InferenceToXContentCompressor.inflate(
+                firstDeflate,
                 parser -> TrainedModelDefinition.fromXContent(parser).build(),
-                xContentRegistry());
+                xContentRegistry()
+            );
 
             // Did we inflate to the same object?
             assertThat(inflatedDefinition, equalTo(definition));
@@ -39,10 +41,14 @@ public class InferenceToXContentCompressorTests extends ESTestCase {
         String firstDeflate = InferenceToXContentCompressor.deflate(definition);
         BytesReference inflatedBytes = InferenceToXContentCompressor.inflate(firstDeflate, 10L);
         assertThat(inflatedBytes.length(), equalTo(10));
-        try(XContentParser parser = XContentHelper.createParser(xContentRegistry(),
-            LoggingDeprecationHandler.INSTANCE,
-            inflatedBytes,
-            XContentType.JSON)) {
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                xContentRegistry(),
+                LoggingDeprecationHandler.INSTANCE,
+                inflatedBytes,
+                XContentType.JSON
+            )
+        ) {
             expectThrows(IOException.class, () -> TrainedModelConfig.fromXContent(parser));
         }
     }

@@ -36,8 +36,10 @@ public class NlpTaskTests extends ESTestCase {
         Map<String, Object> doc = new HashMap<>();
         doc.put("some other field", 42);
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> NlpTask.extractInput(new TrainedModelInput(Collections.singletonList(fieldName)), doc));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> NlpTask.extractInput(new TrainedModelInput(Collections.singletonList(fieldName)), doc)
+        );
 
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("no value could be found for input field [" + fieldName + "]"));
@@ -49,8 +51,10 @@ public class NlpTaskTests extends ESTestCase {
         doc.put(fieldName, 42);
         doc.put("some other field", 42);
 
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> NlpTask.extractInput(new TrainedModelInput(Collections.singletonList(fieldName)), doc));
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> NlpTask.extractInput(new TrainedModelInput(Collections.singletonList(fieldName)), doc)
+        );
 
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("input value [42] for field [" + fieldName + "] is not a string"));

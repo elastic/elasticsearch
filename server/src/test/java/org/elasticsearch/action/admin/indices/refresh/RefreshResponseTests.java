@@ -9,16 +9,20 @@
 package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.List;
 
 public class RefreshResponseTests extends AbstractBroadcastResponseTestCase<RefreshResponse> {
 
     @Override
-    protected RefreshResponse createTestInstance(int totalShards, int successfulShards, int failedShards,
-                                                 List<DefaultShardOperationFailedException> failures) {
+    protected RefreshResponse createTestInstance(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> failures
+    ) {
         return new RefreshResponse(totalShards, successfulShards, failedShards, failures);
     }
 

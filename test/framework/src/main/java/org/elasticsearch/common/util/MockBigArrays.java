@@ -20,11 +20,11 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Collection;
@@ -102,8 +102,10 @@ public class MockBigArrays extends BigArrays {
                 if (masterCopy.isEmpty() == false) {
                     Iterator<Object> causes = masterCopy.values().iterator();
                     Object firstCause = causes.next();
-                    RuntimeException exception = new RuntimeException(masterCopy.size() + " arrays have not been released",
-                            firstCause instanceof Throwable ? (Throwable) firstCause : null);
+                    RuntimeException exception = new RuntimeException(
+                        masterCopy.size() + " arrays have not been released",
+                        firstCause instanceof Throwable ? (Throwable) firstCause : null
+                    );
                     while (causes.hasNext()) {
                         Object cause = causes.next();
                         if (cause instanceof Throwable) {
@@ -149,7 +151,6 @@ public class MockBigArrays extends BigArrays {
         }
         random = new Random(seed);
     }
-
 
     @Override
     public BigArrays withCircuitBreaking() {

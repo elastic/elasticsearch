@@ -30,7 +30,8 @@ public class RestGetSettingsAction extends BaseRestHandler {
             new Route(GET, "/_settings/{name}"),
             new Route(GET, "/{index}/_settings"),
             new Route(GET, "/{index}/_settings/{name}"),
-            new Route(GET, "/{index}/_setting/{name}"));
+            new Route(GET, "/{index}/_setting/{name}")
+        );
     }
 
     @Override
@@ -44,12 +45,11 @@ public class RestGetSettingsAction extends BaseRestHandler {
         final boolean renderDefaults = request.paramAsBoolean("include_defaults", false);
         // This is required so the "flat_settings" parameter counts as consumed
         request.paramAsBoolean("flat_settings", false);
-        GetSettingsRequest getSettingsRequest = new GetSettingsRequest()
-                .indices(Strings.splitStringByCommaToArray(request.param("index")))
-                .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strictExpandOpen()))
-                .humanReadable(request.hasParam("human"))
-                .includeDefaults(renderDefaults)
-                .names(names);
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(Strings.splitStringByCommaToArray(request.param("index")))
+            .indicesOptions(IndicesOptions.fromRequest(request, IndicesOptions.strictExpandOpen()))
+            .humanReadable(request.hasParam("human"))
+            .includeDefaults(renderDefaults)
+            .names(names);
         getSettingsRequest.local(request.paramAsBoolean("local", getSettingsRequest.local()));
         getSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSettingsRequest.masterNodeTimeout()));
         return channel -> client.admin().indices().getSettings(getSettingsRequest, new RestToXContentListener<>(channel));

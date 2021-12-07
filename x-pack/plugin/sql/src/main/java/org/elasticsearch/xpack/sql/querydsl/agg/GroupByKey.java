@@ -67,8 +67,7 @@ public abstract class GroupByKey extends Agg {
         else {
             builder.field(source().fieldName());
         }
-        builder.order(direction.asOrder())
-            .missingBucket(true);
+        builder.order(direction.asOrder()).missingBucket(true);
 
         if (missing.aggregationOrder() != null) {
             builder.missingOrder(missing.aggregationOrder());

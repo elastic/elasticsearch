@@ -12,7 +12,10 @@ import java.util.List;
 import java.util.Objects;
 
 public abstract class Normalizable implements ToXContentObject {
-    public enum ChildType {BUCKET_INFLUENCER, RECORD}
+    public enum ChildType {
+        BUCKET_INFLUENCER,
+        RECORD
+    }
 
     private final String indexName;
     private boolean hadBigNormalizedUpdate;

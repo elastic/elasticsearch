@@ -782,10 +782,18 @@ public class RealmsTests extends ESTestCase {
         builder.put("xpack.security.authc.realms.kerberos.realm_2.order", 2);
         final Settings settings = builder.build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
-                () -> new Realms(settings, env, factories, licenseState, threadContext, reservedRealm));
-        assertThat(iae.getMessage(), is(equalTo(
-                "multiple realms [realm_1, realm_2] configured of type [kerberos], [kerberos] can only have one such realm configured")));
+        final IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> new Realms(settings, env, factories, licenseState, threadContext, reservedRealm)
+        );
+        assertThat(
+            iae.getMessage(),
+            is(
+                equalTo(
+                    "multiple realms [realm_1, realm_2] configured of type [kerberos], [kerberos] can only have one such realm configured"
+                )
+            )
+        );
     }
 
     public void testWarningsForReservedPrefixedRealmNames() throws Exception {
@@ -885,7 +893,7 @@ public class RealmsTests extends ESTestCase {
         }
 
         @Override
-        public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult> listener) {
+        public void authenticate(AuthenticationToken token, ActionListener<AuthenticationResult<User>> listener) {
             listener.onResponse(AuthenticationResult.notHandled());
         }
 

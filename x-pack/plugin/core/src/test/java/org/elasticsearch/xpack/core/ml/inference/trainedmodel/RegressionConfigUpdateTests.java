@@ -25,22 +25,28 @@ import static org.hamcrest.Matchers.instanceOf;
 public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCase<RegressionConfigUpdate> {
 
     public static RegressionConfigUpdate randomRegressionConfigUpdate() {
-        return new RegressionConfigUpdate(randomBoolean() ? null : randomAlphaOfLength(10),
-            randomBoolean() ? null : randomIntBetween(0, 10));
+        return new RegressionConfigUpdate(
+            randomBoolean() ? null : randomAlphaOfLength(10),
+            randomBoolean() ? null : randomIntBetween(0, 10)
+        );
     }
 
     public void testFromMap() {
         RegressionConfigUpdate expected = new RegressionConfigUpdate("foo", 3);
-        Map<String, Object> config = new HashMap<>(){{
-            put(RegressionConfig.RESULTS_FIELD.getPreferredName(), "foo");
-            put(RegressionConfig.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), 3);
-        }};
+        Map<String, Object> config = new HashMap<>() {
+            {
+                put(RegressionConfig.RESULTS_FIELD.getPreferredName(), "foo");
+                put(RegressionConfig.NUM_TOP_FEATURE_IMPORTANCE_VALUES.getPreferredName(), 3);
+            }
+        };
         assertThat(RegressionConfigUpdate.fromMap(config), equalTo(expected));
     }
 
     public void testFromMapWithUnknownField() {
-        ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> RegressionConfigUpdate.fromMap(Collections.singletonMap("some_key", 1)));
+        ElasticsearchException ex = expectThrows(
+            ElasticsearchException.class,
+            () -> RegressionConfigUpdate.fromMap(Collections.singletonMap("some_key", 1))
+        );
         assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
     }
 
@@ -49,23 +55,23 @@ public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCas
 
         assertThat(originalConfig, equalTo(RegressionConfigUpdate.EMPTY_PARAMS.apply(originalConfig)));
 
-        assertThat(new RegressionConfig.Builder(originalConfig).setNumTopFeatureImportanceValues(5).build(),
-            equalTo(new RegressionConfigUpdate.Builder().setNumTopFeatureImportanceValues(5).build().apply(originalConfig)));
-        assertThat(new RegressionConfig.Builder()
-                .setNumTopFeatureImportanceValues(1)
-                .setResultsField("foo")
-                .build(),
-            equalTo(new RegressionConfigUpdate.Builder()
-                .setNumTopFeatureImportanceValues(1)
-                .setResultsField("foo")
-                .build()
-                .apply(originalConfig)
-            ));
+        assertThat(
+            new RegressionConfig.Builder(originalConfig).setNumTopFeatureImportanceValues(5).build(),
+            equalTo(new RegressionConfigUpdate.Builder().setNumTopFeatureImportanceValues(5).build().apply(originalConfig))
+        );
+        assertThat(
+            new RegressionConfig.Builder().setNumTopFeatureImportanceValues(1).setResultsField("foo").build(),
+            equalTo(
+                new RegressionConfigUpdate.Builder().setNumTopFeatureImportanceValues(1)
+                    .setResultsField("foo")
+                    .build()
+                    .apply(originalConfig)
+            )
+        );
     }
 
     public void testInvalidResultFieldNotUnique() {
-        ElasticsearchStatusException e =
-            expectThrows(ElasticsearchStatusException.class, () -> new RegressionConfigUpdate("warning", 0));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> new RegressionConfigUpdate("warning", 0));
         assertEquals("Invalid inference config. More than one field is configured as [warning]", e.getMessage());
     }
 
@@ -79,8 +85,10 @@ public class RegressionConfigUpdateTests extends AbstractBWCSerializationTestCas
         assertEquals(newFieldName, updateWithField.getResultsField());
         // other fields are the same
         assertThat(updateWithField, instanceOf(RegressionConfigUpdate.class));
-        assertEquals(update.getNumTopFeatureImportanceValues(),
-            ((RegressionConfigUpdate)updateWithField).getNumTopFeatureImportanceValues());
+        assertEquals(
+            update.getNumTopFeatureImportanceValues(),
+            ((RegressionConfigUpdate) updateWithField).getNumTopFeatureImportanceValues()
+        );
     }
 
     @Override

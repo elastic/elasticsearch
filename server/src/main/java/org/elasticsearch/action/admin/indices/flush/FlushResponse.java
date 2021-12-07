@@ -23,12 +23,15 @@ import java.util.List;
  */
 public class FlushResponse extends BroadcastResponse {
 
-    private static final ConstructingObjectParser<FlushResponse, Void> PARSER = new ConstructingObjectParser<>("flush", true,
-        arg -> {
-            BroadcastResponse response = (BroadcastResponse) arg[0];
-            return new FlushResponse(response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(),
-                    Arrays.asList(response.getShardFailures()));
-        });
+    private static final ConstructingObjectParser<FlushResponse, Void> PARSER = new ConstructingObjectParser<>("flush", true, arg -> {
+        BroadcastResponse response = (BroadcastResponse) arg[0];
+        return new FlushResponse(
+            response.getTotalShards(),
+            response.getSuccessfulShards(),
+            response.getFailedShards(),
+            Arrays.asList(response.getShardFailures())
+        );
+    });
 
     static {
         declareBroadcastFields(PARSER);

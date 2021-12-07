@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedJobValidator;
 import org.elasticsearch.xpack.core.ml.datafeed.DelayedDataCheckConfig;
@@ -50,8 +50,10 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         Job job = builder.build(new Date());
         DatafeedConfig datafeedConfig = createValidDatafeedConfig().build();
 
-        ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
-                () -> DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry()));
+        ElasticsearchStatusException e = ESTestCase.expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry())
+        );
 
         assertEquals(errorMessage, e.getMessage());
     }
@@ -80,8 +82,10 @@ public class DatafeedJobValidatorTests extends ESTestCase {
     }
 
     public void testVerify_GivenAggsAndNoSummaryCountField() throws IOException {
-        String errorMessage = Messages.getMessage(Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD,
-                DatafeedConfig.DOC_COUNT);
+        String errorMessage = Messages.getMessage(
+            Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD,
+            DatafeedConfig.DOC_COUNT
+        );
         Job.Builder builder = buildJobBuilder("foo");
         AnalysisConfig.Builder ac = createAnalysisConfig();
         ac.setSummaryCountFieldName(null);
@@ -90,15 +94,19 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         Job job = builder.build(new Date());
         DatafeedConfig datafeedConfig = createValidDatafeedConfigWithAggs(1800.0).build();
 
-        ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
-                () -> DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry()));
+        ElasticsearchStatusException e = ESTestCase.expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry())
+        );
 
         assertEquals(errorMessage, e.getMessage());
     }
 
     public void testVerify_GivenAggsAndEmptySummaryCountField() throws IOException {
-        String errorMessage = Messages.getMessage(Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD,
-                DatafeedConfig.DOC_COUNT);
+        String errorMessage = Messages.getMessage(
+            Messages.DATAFEED_AGGREGATIONS_REQUIRES_JOB_WITH_SUMMARY_COUNT_FIELD,
+            DatafeedConfig.DOC_COUNT
+        );
         Job.Builder builder = buildJobBuilder("foo");
         AnalysisConfig.Builder ac = createAnalysisConfig();
         ac.setSummaryCountFieldName("");
@@ -107,8 +115,10 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         Job job = builder.build(new Date());
         DatafeedConfig datafeedConfig = createValidDatafeedConfigWithAggs(1800.0).build();
 
-        ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
-                () -> DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry()));
+        ElasticsearchStatusException e = ESTestCase.expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry())
+        );
 
         assertEquals(errorMessage, e.getMessage());
     }
@@ -133,8 +143,10 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         Job job = builder.build(new Date());
         DatafeedConfig datafeedConfig = createValidDatafeedConfigWithAggs(1800001.0).build();
 
-        ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
-                () -> DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry()));
+        ElasticsearchStatusException e = ESTestCase.expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry())
+        );
 
         assertEquals("Aggregation interval [1800001ms] must be less than or equal to the bucket_span [1800000ms]", e.getMessage());
     }
@@ -148,8 +160,10 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         Job job = builder.build(new Date());
         DatafeedConfig datafeedConfig = createValidDatafeedConfigWithAggs(37 * 1000).build();
 
-        ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
-                () -> DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry()));
+        ElasticsearchStatusException e = ESTestCase.expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedConfig, job, xContentRegistry())
+        );
         assertEquals("Aggregation interval [37000ms] must be a divisor of the bucket_span [300000ms]", e.getMessage());
 
         DatafeedConfig goodDatafeedConfig = createValidDatafeedConfigWithAggs(60 * 1000).build();
@@ -179,13 +193,17 @@ public class DatafeedJobValidatorTests extends ESTestCase {
 
         // Now non-multiples
         datafeedBuilder.setFrequency(TimeValue.timeValueSeconds(30));
-        ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
-                () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job, xContentRegistry()));
+        ElasticsearchStatusException e = ESTestCase.expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job, xContentRegistry())
+        );
         assertEquals("Datafeed frequency [30s] must be a multiple of the aggregation interval [60000ms]", e.getMessage());
 
         datafeedBuilder.setFrequency(TimeValue.timeValueSeconds(90));
-        e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
-                () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job, xContentRegistry()));
+        e = ESTestCase.expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job, xContentRegistry())
+        );
         assertEquals("Datafeed frequency [1.5m] must be a multiple of the aggregation interval [60000ms]", e.getMessage());
     }
 
@@ -202,15 +220,18 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         DatafeedJobValidator.validate(datafeedBuilder.build(), job, xContentRegistry());
 
         datafeedBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueSeconds(1)));
-        ElasticsearchStatusException e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
-            () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job, xContentRegistry()));
+        ElasticsearchStatusException e = ESTestCase.expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job, xContentRegistry())
+        );
         assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_TOO_SMALL, "1s", "2s"), e.getMessage());
 
         datafeedBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(24)));
-        e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
-            () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job, xContentRegistry()));
-        assertEquals(Messages.getMessage(
-            Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS, "1d", "2s"), e.getMessage());
+        e = ESTestCase.expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedBuilder.build(), job, xContentRegistry())
+        );
+        assertEquals(Messages.getMessage(Messages.DATAFEED_CONFIG_DELAYED_DATA_CHECK_SPANS_TOO_MANY_BUCKETS, "1d", "2s"), e.getMessage());
     }
 
     public void testVerify_WithRuntimeTimeField() {
@@ -232,8 +253,10 @@ public class DatafeedJobValidatorTests extends ESTestCase {
         datafeedBuilder.setRuntimeMappings(runtimeMappings);
 
         Job job = jobBuilder.build(new Date());
-        Exception e = ESTestCase.expectThrows(ElasticsearchStatusException.class,
-            () -> DatafeedJobValidator.validate(datafeedBuilder.build(), jobBuilder.build(), xContentRegistry()));
+        Exception e = ESTestCase.expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DatafeedJobValidator.validate(datafeedBuilder.build(), jobBuilder.build(), xContentRegistry())
+        );
         assertEquals("data_description.time_field [" + timeField + "] cannot be a runtime field", e.getMessage());
 
         runtimeMappings.remove(timeField);
@@ -258,8 +281,10 @@ public class DatafeedJobValidatorTests extends ESTestCase {
 
     private static DatafeedConfig.Builder createValidDatafeedConfigWithAggs(double interval) throws IOException {
         MaxAggregationBuilder maxTime = AggregationBuilders.max("time").field("time");
-        HistogramAggregationBuilder histogram =
-                AggregationBuilders.histogram("time").interval(interval).field("time").subAggregation(maxTime);
+        HistogramAggregationBuilder histogram = AggregationBuilders.histogram("time")
+            .interval(interval)
+            .field("time")
+            .subAggregation(maxTime);
         DatafeedConfig.Builder datafeedConfig = createValidDatafeedConfig();
         datafeedConfig.setParsedAggregations(new AggregatorFactories.Builder().addAggregator(histogram));
         return datafeedConfig;

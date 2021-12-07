@@ -9,9 +9,9 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.MlFilter;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -29,8 +29,10 @@ public class UpdateFilterRequest implements Validatable, ToXContentObject {
     public static final ParseField ADD_ITEMS = new ParseField("add_items");
     public static final ParseField REMOVE_ITEMS = new ParseField("remove_items");
 
-    public static final ConstructingObjectParser<UpdateFilterRequest, Void> PARSER =
-        new ConstructingObjectParser<>("update_filter_request", (a) -> new UpdateFilterRequest((String)a[0]));
+    public static final ConstructingObjectParser<UpdateFilterRequest, Void> PARSER = new ConstructingObjectParser<>(
+        "update_filter_request",
+        (a) -> new UpdateFilterRequest((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), MlFilter.ID);
@@ -77,8 +79,7 @@ public class UpdateFilterRequest implements Validatable, ToXContentObject {
      * @param addItems non-null items to add to the filter, defaults to empty array
      */
     public void setAddItems(Collection<String> addItems) {
-        this.addItems = new TreeSet<>(Objects.requireNonNull(addItems,
-            "[" + ADD_ITEMS.getPreferredName()+"] must not be null"));
+        this.addItems = new TreeSet<>(Objects.requireNonNull(addItems, "[" + ADD_ITEMS.getPreferredName() + "] must not be null"));
     }
 
     public SortedSet<String> getRemoveItems() {
@@ -90,8 +91,7 @@ public class UpdateFilterRequest implements Validatable, ToXContentObject {
      * @param removeItems non-null items to remove from the filter, defaults to empty array
      */
     public void setRemoveItems(Collection<String> removeItems) {
-        this.removeItems = new TreeSet<>(Objects.requireNonNull(removeItems,
-            "[" + REMOVE_ITEMS.getPreferredName()+"] must not be null"));
+        this.removeItems = new TreeSet<>(Objects.requireNonNull(removeItems, "[" + REMOVE_ITEMS.getPreferredName() + "] must not be null"));
     }
 
     @Override

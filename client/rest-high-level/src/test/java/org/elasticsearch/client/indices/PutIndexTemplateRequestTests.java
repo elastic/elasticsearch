@@ -10,11 +10,11 @@ package org.elasticsearch.client.indices;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.client.AbstractRequestTestCase;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -23,7 +23,8 @@ import java.util.List;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PutIndexTemplateRequestTests extends AbstractRequestTestCase<PutIndexTemplateRequest,
+public class PutIndexTemplateRequestTests extends AbstractRequestTestCase<
+    PutIndexTemplateRequest,
     org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest> {
 
     public void testValidateErrorMessage() throws Exception {
@@ -38,8 +39,10 @@ public class PutIndexTemplateRequestTests extends AbstractRequestTestCase<PutInd
 
     @Override
     protected PutIndexTemplateRequest createClientTestInstance() {
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest("test",
-            List.of(ESTestCase.generateRandomStringArray(20, 100, false, false)));
+        PutIndexTemplateRequest request = new PutIndexTemplateRequest(
+            "test",
+            List.of(ESTestCase.generateRandomStringArray(20, 100, false, false))
+        );
         if (randomBoolean()) {
             request.version(randomInt());
         }
@@ -61,11 +64,18 @@ public class PutIndexTemplateRequestTests extends AbstractRequestTestCase<PutInd
         }
         if (randomBoolean()) {
             try {
-                request.mapping(XContentFactory.jsonBuilder().startObject()
-                    .startObject("_doc")
-                    .startObject("properties")
-                    .startObject("field-" + randomInt()).field("type", randomFrom("keyword", "text")).endObject()
-                    .endObject().endObject().endObject());
+                request.mapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("_doc")
+                        .startObject("properties")
+                        .startObject("field-" + randomInt())
+                        .field("type", randomFrom("keyword", "text"))
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                );
             } catch (IOException ex) {
                 throw new UncheckedIOException(ex);
             }
@@ -77,14 +87,16 @@ public class PutIndexTemplateRequestTests extends AbstractRequestTestCase<PutInd
     }
 
     @Override
-    protected org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest doParseToServerInstance(
-        XContentParser parser) throws IOException {
+    protected org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest doParseToServerInstance(XContentParser parser)
+        throws IOException {
         return new org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest("test").source(parser.map());
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest serverInstance,
-                                   PutIndexTemplateRequest clientTestInstance) {
+    protected void assertInstances(
+        org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest serverInstance,
+        PutIndexTemplateRequest clientTestInstance
+    ) {
         assertNotSame(serverInstance, clientTestInstance);
         assertThat(serverInstance.version(), equalTo(clientTestInstance.version()));
         assertThat(serverInstance.order(), equalTo(clientTestInstance.order()));

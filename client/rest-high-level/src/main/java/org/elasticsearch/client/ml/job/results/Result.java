@@ -21,6 +21,5 @@ public final class Result {
     public static final ParseField TIMESTAMP = new ParseField("timestamp");
     public static final ParseField IS_INTERIM = new ParseField("is_interim");
 
-    private Result() {
-    }
+    private Result() {}
 }

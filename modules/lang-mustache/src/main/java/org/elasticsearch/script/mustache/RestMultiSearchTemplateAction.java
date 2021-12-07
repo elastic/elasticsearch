@@ -9,8 +9,8 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -39,7 +39,6 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         RESPONSE_PARAMS = Collections.unmodifiableSet(responseParams);
     }
 
-
     private final boolean allowExplicitIndex;
 
     public RestMultiSearchTemplateAction(Settings settings) {
@@ -53,12 +52,9 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             new Route(POST, "/_msearch/template"),
             new Route(GET, "/{index}/_msearch/template"),
             new Route(POST, "/{index}/_msearch/template"),
-            Route.builder(GET, "/{index}/{type}/_msearch/template")
-                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build(),
-            Route.builder(POST, "/{index}/{type}/_msearch/template")
-                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build());
+            Route.builder(GET, "/{index}/{type}/_msearch/template").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/{type}/_msearch/template").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -85,17 +81,21 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             multiRequest.maxConcurrentSearchRequests(restRequest.paramAsInt("max_concurrent_searches", 0));
         }
 
-        RestMultiSearchAction.parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex,
-                (searchRequest, bytes) -> {
-                    SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
-                    if (searchTemplateRequest.getScript() != null) {
-                        searchTemplateRequest.setRequest(searchRequest);
-                        multiRequest.add(searchTemplateRequest);
-                    } else {
-                        throw new IllegalArgumentException("Malformed search template");
-                    }
-                    RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
-                });
+        RestMultiSearchAction.parseMultiLineRequest(
+            restRequest,
+            multiRequest.indicesOptions(),
+            allowExplicitIndex,
+            (searchRequest, bytes) -> {
+                SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
+                if (searchTemplateRequest.getScript() != null) {
+                    searchTemplateRequest.setRequest(searchRequest);
+                    multiRequest.add(searchTemplateRequest);
+                } else {
+                    throw new IllegalArgumentException("Malformed search template");
+                }
+                RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
+            }
+        );
         return multiRequest;
     }
 

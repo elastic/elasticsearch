@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation.regression;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.Evaluation;
@@ -38,13 +38,18 @@ public class Regression implements Evaluation {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Regression, Void> PARSER = new ConstructingObjectParser<>(
-        NAME.getPreferredName(), a -> new Regression((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2]));
+        NAME.getPreferredName(),
+        a -> new Regression((String) a[0], (String) a[1], (List<EvaluationMetric>) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ACTUAL_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PREDICTED_FIELD);
-        PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME.getPreferredName(), n), c), METRICS);
+        PARSER.declareNamedObjects(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME.getPreferredName(), n), c),
+            METRICS
+        );
     }
 
     public static Regression fromXContent(XContentParser parser) {
@@ -65,14 +70,14 @@ public class Regression implements Evaluation {
     private final List<EvaluationMetric> metrics;
 
     public Regression(String actualField, String predictedField, @Nullable List<EvaluationMetric> metrics) {
-        this.fields =
-            new EvaluationFields(
-                ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD),
-                ExceptionsHelper.requireNonNull(predictedField, PREDICTED_FIELD),
-                null,
-                null,
-                null,
-                false);
+        this.fields = new EvaluationFields(
+            ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD),
+            ExceptionsHelper.requireNonNull(predictedField, PREDICTED_FIELD),
+            null,
+            null,
+            null,
+            false
+        );
         this.metrics = initMetrics(metrics, Regression::defaultMetrics);
     }
 
@@ -133,8 +138,7 @@ public class Regression implements Evaluation {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Regression that = (Regression) o;
-        return Objects.equals(that.fields, this.fields)
-            && Objects.equals(that.metrics, this.metrics);
+        return Objects.equals(that.fields, this.fields) && Objects.equals(that.metrics, this.metrics);
     }
 
     @Override

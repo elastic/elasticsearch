@@ -16,13 +16,14 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.is;
 
-public class DeleteServiceAccountTokenResponseTests
-    extends AbstractResponseTestCase<org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse,
+public class DeleteServiceAccountTokenResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse,
     DeleteServiceAccountTokenResponse> {
 
     @Override
     protected org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse createServerTestInstance(
-        XContentType xContentType) {
+        XContentType xContentType
+    ) {
         return new org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse(randomBoolean());
     }
 
@@ -34,7 +35,8 @@ public class DeleteServiceAccountTokenResponseTests
     @Override
     protected void assertInstances(
         org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse serverTestInstance,
-        DeleteServiceAccountTokenResponse clientInstance) {
+        DeleteServiceAccountTokenResponse clientInstance
+    ) {
         assertThat(serverTestInstance.found(), is(clientInstance.isAcknowledged()));
     }
 }

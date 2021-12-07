@@ -10,9 +10,9 @@ package org.elasticsearch.client.feature;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.List;
@@ -31,14 +31,17 @@ public class ResetFeaturesResponse {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<ResetFeaturesResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "features_reset_status_response", true,
+        "features_reset_status_response",
+        true,
         (a, ctx) -> new ResetFeaturesResponse((List<ResetFeatureStateStatus>) a[0])
     );
 
     static {
         PARSER.declareObjectArray(
             ConstructingObjectParser.constructorArg(),
-            ResetFeaturesResponse.ResetFeatureStateStatus::parse, FEATURES);
+            ResetFeaturesResponse.ResetFeatureStateStatus::parse,
+            FEATURES
+        );
     }
 
     /**
@@ -76,17 +79,19 @@ public class ResetFeaturesResponse {
         private static final ParseField EXCEPTION = new ParseField("exception");
 
         private static final ConstructingObjectParser<ResetFeatureStateStatus, Void> PARSER = new ConstructingObjectParser<>(
-            "feature_state_reset_stats", true,
+            "feature_state_reset_stats",
+            true,
             (a, ctx) -> new ResetFeatureStateStatus((String) a[0], (String) a[1], (ElasticsearchException) a[2])
         );
 
         static {
-            PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p, c) -> p.text(), FEATURE_NAME, ObjectParser.ValueType.STRING);
-            PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p, c) -> p.text(), STATUS, ObjectParser.ValueType.STRING);
-            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> ElasticsearchException.fromXContent(p), EXCEPTION);
+            PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> p.text(), FEATURE_NAME, ObjectParser.ValueType.STRING);
+            PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> p.text(), STATUS, ObjectParser.ValueType.STRING);
+            PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> ElasticsearchException.fromXContent(p),
+                EXCEPTION
+            );
         }
 
         /**

@@ -7,11 +7,11 @@
 package org.elasticsearch.xpack.ml.rest.calendar;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
@@ -30,7 +30,8 @@ public class RestGetCalendarEventsAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(GET, BASE_PATH + "calendars/{" + Calendar.ID + "}/events")
-                .replaces(GET, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}/events", RestApiVersion.V_7).build()
+                .replaces(GET, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}/events", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -56,8 +57,12 @@ public class RestGetCalendarEventsAction extends BaseRestHandler {
             request.setJobId(restRequest.param(Job.ID.getPreferredName(), null));
 
             if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
-                request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                        restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+                request.setPageParams(
+                    new PageParams(
+                        restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                        restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)
+                    )
+                );
             }
         }
 

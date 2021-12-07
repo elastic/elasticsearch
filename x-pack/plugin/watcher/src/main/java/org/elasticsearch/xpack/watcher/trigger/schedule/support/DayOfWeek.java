@@ -40,13 +40,20 @@ public enum DayOfWeek {
 
     public static DayOfWeek resolve(int day) {
         switch (day) {
-            case 1: return SUNDAY;
-            case 2: return MONDAY;
-            case 3: return TUESDAY;
-            case 4: return WEDNESDAY;
-            case 5: return THURSDAY;
-            case 6: return FRIDAY;
-            case 7: return SATURDAY;
+            case 1:
+                return SUNDAY;
+            case 2:
+                return MONDAY;
+            case 3:
+                return TUESDAY;
+            case 4:
+                return WEDNESDAY;
+            case 5:
+                return THURSDAY;
+            case 6:
+                return FRIDAY;
+            case 7:
+                return SATURDAY;
             default:
                 throw new ElasticsearchParseException("unknown day of week number [{}]", day);
         }
@@ -56,30 +63,36 @@ public enum DayOfWeek {
         switch (day.toLowerCase(Locale.ROOT)) {
             case "1":
             case "sun":
-            case "sunday": return SUNDAY;
+            case "sunday":
+                return SUNDAY;
             case "2":
             case "mon":
-            case "monday": return MONDAY;
+            case "monday":
+                return MONDAY;
             case "3":
             case "tue":
-            case "tuesday": return TUESDAY;
+            case "tuesday":
+                return TUESDAY;
             case "4":
             case "wed":
-            case "wednesday": return WEDNESDAY;
+            case "wednesday":
+                return WEDNESDAY;
             case "5":
             case "thu":
-            case "thursday": return THURSDAY;
+            case "thursday":
+                return THURSDAY;
             case "6":
             case "fri":
-            case "friday": return FRIDAY;
+            case "friday":
+                return FRIDAY;
             case "7":
             case "sat":
-            case "saturday": return SATURDAY;
+            case "saturday":
+                return SATURDAY;
             default:
                 throw new ElasticsearchParseException("unknown day of week [{}]", day);
         }
     }
-
 
     @Override
     public String toString() {

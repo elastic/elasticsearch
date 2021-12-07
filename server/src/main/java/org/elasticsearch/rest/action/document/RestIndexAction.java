@@ -39,12 +39,9 @@ public class RestIndexAction extends BaseRestHandler {
         return List.of(
             new Route(POST, "/{index}/_doc/{id}"),
             new Route(PUT, "/{index}/_doc/{id}"),
-            Route.builder(POST, "/{index}/{type}/{id}")
-                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build(),
-            Route.builder(PUT, "/{index}/{type}/{id}")
-                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                .build());
+            Route.builder(POST, "/{index}/{type}/{id}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/{index}/{type}/{id}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -64,12 +61,9 @@ public class RestIndexAction extends BaseRestHandler {
             return List.of(
                 new Route(POST, "/{index}/_create/{id}"),
                 new Route(PUT, "/{index}/_create/{id}"),
-                Route.builder(POST, "/{index}/{type}/{id}/_create")
-                    .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                    .build(),
-                Route.builder(PUT, "/{index}/{type}/{id}/_create")
-                    .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                    .build());
+                Route.builder(POST, "/{index}/{type}/{id}/_create").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+                Route.builder(PUT, "/{index}/{type}/{id}/_create").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            );
         }
 
         @Override
@@ -103,9 +97,8 @@ public class RestIndexAction extends BaseRestHandler {
         public List<Route> routes() {
             return List.of(
                 new Route(POST, "/{index}/_doc"),
-                Route.builder(POST, "/{index}/{type}")
-                    .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
-                    .build());
+                Route.builder(POST, "/{index}/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            );
         }
 
         @Override
@@ -146,8 +139,10 @@ public class RestIndexAction extends BaseRestHandler {
             indexRequest.opType(sOpType);
         }
 
-        return channel ->
-                client.index(indexRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));
+        return channel -> client.index(
+            indexRequest,
+            new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing()))
+        );
     }
 
 }

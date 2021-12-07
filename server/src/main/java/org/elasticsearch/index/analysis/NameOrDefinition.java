@@ -67,8 +67,10 @@ public class NameOrDefinition implements Writeable, ToXContentFragment {
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             return new NameOrDefinition(parser.map());
         }
-        throw new XContentParseException(parser.getTokenLocation(),
-            "Expected [VALUE_STRING] or [START_OBJECT], got " + parser.currentToken());
+        throw new XContentParseException(
+            parser.getTokenLocation(),
+            "Expected [VALUE_STRING] or [START_OBJECT], got " + parser.currentToken()
+        );
     }
 
     @Override
@@ -88,8 +90,7 @@ public class NameOrDefinition implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NameOrDefinition that = (NameOrDefinition) o;
-        return Objects.equals(name, that.name) &&
-            Objects.equals(definition, that.definition);
+        return Objects.equals(name, that.name) && Objects.equals(definition, that.definition);
     }
 
     @Override

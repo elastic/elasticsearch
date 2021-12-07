@@ -21,7 +21,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.concurrent.EWMATrackingEsThreadPoolExecutor;
@@ -50,7 +49,6 @@ import static org.elasticsearch.search.query.QueryCollectorContext.createMinScor
 import static org.elasticsearch.search.query.QueryCollectorContext.createMultiCollectorContext;
 import static org.elasticsearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
 
-
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
  * (document ids and score or sort criteria) so that matches can be reduced on the coordinating node
@@ -68,33 +66,14 @@ public class QueryPhase {
         this.rescorePhase = new RescorePhase();
     }
 
-    public void preProcess(SearchContext context) {
-        final Runnable cancellation;
-        if (context.lowLevelCancellation()) {
-            cancellation = context.searcher().addQueryCancellation(() -> {
-                SearchShardTask task = context.getTask();
-                if (task != null) {
-                    task.ensureNotCancelled();
-                }
-            });
-        } else {
-            cancellation = null;
-        }
-        try {
-            context.preProcess(true);
-        } finally {
-            if (cancellation != null) {
-                context.searcher().removeQueryCancellation(cancellation);
-            }
-        }
-    }
-
     public void execute(SearchContext searchContext) throws QueryPhaseExecutionException {
         if (searchContext.hasOnlySuggest()) {
             suggestPhase.execute(searchContext);
-            searchContext.queryResult().topDocs(new TopDocsAndMaxScore(
-                    new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
-                new DocValueFormat[0]);
+            searchContext.queryResult()
+                .topDocs(
+                    new TopDocsAndMaxScore(new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
+                    new DocValueFormat[0]
+                );
             return;
         }
 
@@ -103,7 +82,7 @@ public class QueryPhase {
         }
 
         // Pre-process aggregations as late as possible. In the case of a DFS_Q_T_F
-        // request, preProcess is called on the DFS phase phase, this is why we pre-process them
+        // request, preProcess is called on the DFS phase, this is why we pre-process them
         // here to make sure it happens during the QUERY phase
         aggregationPhase.preProcess(searchContext);
         boolean rescore = executeInternal(searchContext);
@@ -132,7 +111,7 @@ public class QueryPhase {
         try {
             queryResult.from(searchContext.from());
             queryResult.size(searchContext.size());
-            Query query = searchContext.query();
+            Query query = searchContext.rewrittenQuery();
             assert query == searcher.rewrite(query); // already rewritten
 
             final ScrollContext scrollContext = searchContext.scrollContext();
@@ -149,8 +128,7 @@ public class QueryPhase {
                         // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc
                         if (after != null) {
-                            query = new BooleanQuery.Builder()
-                                .add(query, BooleanClause.Occur.MUST)
+                            query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
                                 .add(new SearchAfterSortedDocQuery(searchContext.sort().sort, (FieldDoc) after), BooleanClause.Occur.FILTER)
                                 .build();
                         }
@@ -186,8 +164,9 @@ public class QueryPhase {
                 hasFilterCollector = true;
             }
 
-            boolean timeoutSet = scrollContext == null && searchContext.timeout() != null &&
-                searchContext.timeout().equals(SearchService.NO_TIMEOUT) == false;
+            boolean timeoutSet = scrollContext == null
+                && searchContext.timeout() != null
+                && searchContext.timeout().equals(SearchService.NO_TIMEOUT) == false;
 
             final Runnable timeoutRunnable;
             if (timeoutSet) {
@@ -204,21 +183,12 @@ public class QueryPhase {
                 timeoutRunnable = null;
             }
 
-            if (searchContext.lowLevelCancellation()) {
-                searcher.addQueryCancellation(() -> {
-                    SearchShardTask task = searchContext.getTask();
-                    if (task != null) {
-                        task.ensureNotCancelled();
-                    }
-                });
-            }
-
             try {
                 boolean shouldRescore = searchWithCollector(searchContext, searcher, query, collectors, hasFilterCollector, timeoutSet);
                 ExecutorService executor = searchContext.indexShard().getThreadPool().executor(ThreadPool.Names.SEARCH);
-                assert executor instanceof EWMATrackingEsThreadPoolExecutor ||
-                    (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */) :
-                    "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
+                assert executor instanceof EWMATrackingEsThreadPoolExecutor
+                    || (executor instanceof EsThreadPoolExecutor == false /* in case thread pool is mocked out in tests */)
+                    : "SEARCH threadpool should have an executor that exposes EWMA metrics, but is of type " + executor.getClass();
                 if (executor instanceof EWMATrackingEsThreadPoolExecutor) {
                     EWMATrackingEsThreadPoolExecutor rExecutor = (EWMATrackingEsThreadPoolExecutor) executor;
                     queryResult.nodeQueueSize(rExecutor.getCurrentQueueSize());
@@ -229,7 +199,7 @@ public class QueryPhase {
                 // Search phase has finished, no longer need to check for timeout
                 // otherwise aggregation phase might get cancelled.
                 if (timeoutRunnable != null) {
-                   searcher.removeQueryCancellation(timeoutRunnable);
+                    searcher.removeQueryCancellation(timeoutRunnable);
                 }
             }
         } catch (Exception e) {
@@ -237,8 +207,14 @@ public class QueryPhase {
         }
     }
 
-    private static boolean searchWithCollector(SearchContext searchContext, ContextIndexSearcher searcher, Query query,
-            LinkedList<QueryCollectorContext> collectors, boolean hasFilterCollector, boolean timeoutSet) throws IOException {
+    private static boolean searchWithCollector(
+        SearchContext searchContext,
+        ContextIndexSearcher searcher,
+        Query query,
+        LinkedList<QueryCollectorContext> collectors,
+        boolean hasFilterCollector,
+        boolean timeoutSet
+    ) throws IOException {
         // create the top docs collector last when the other collectors are known
         final TopDocsCollectorContext topDocsFactory = createTopDocsCollectorContext(searchContext, hasFilterCollector);
         // add the top docs collector, the first collector context in the chain

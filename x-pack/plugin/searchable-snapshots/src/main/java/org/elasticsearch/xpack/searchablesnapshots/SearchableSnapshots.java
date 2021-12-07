@@ -43,11 +43,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -134,7 +132,6 @@ import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchab
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.emptyIndexCommit;
 
 /**
  * Plugin for Searchable Snapshots feature
@@ -305,14 +302,14 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             CacheService.SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING,
             CacheService.SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT,
             SearchableSnapshotEnableAllocationDecider.SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART,
-            FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING,
-            FrozenCacheService.SNAPSHOT_CACHE_SIZE_MAX_HEADROOM_SETTING,
-            FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING,
+            FrozenCacheService.SHARED_CACHE_SIZE_SETTING,
+            FrozenCacheService.SHARED_CACHE_SIZE_MAX_HEADROOM_SETTING,
+            FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING,
             FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING,
-            FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING,
-            FrozenCacheService.SNAPSHOT_CACHE_MAX_FREQ_SETTING,
-            FrozenCacheService.SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING,
-            FrozenCacheService.SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING,
+            FrozenCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING,
+            FrozenCacheService.SHARED_CACHE_MAX_FREQ_SETTING,
+            FrozenCacheService.SHARED_CACHE_DECAY_INTERVAL_SETTING,
+            FrozenCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING,
             BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_INTERVAL_SETTING,
             BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_KEEP_ALIVE_SETTING,
             BlobStoreCacheMaintenanceService.SNAPSHOT_SNAPSHOT_CLEANUP_BATCH_SIZE_SETTING,
@@ -488,15 +485,6 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             }
         }
         return Optional.empty();
-    }
-
-    @Override
-    public Map<String, SnapshotCommitSupplier> getSnapshotCommitSuppliers() {
-        return Map.of(SEARCHABLE_SNAPSHOT_STORE_TYPE, e -> {
-            final Store store = e.config().getStore();
-            store.incRef();
-            return new Engine.IndexCommitRef(emptyIndexCommit(store.directory()), store::decRef);
-        });
     }
 
     @Override

@@ -71,8 +71,10 @@ public interface SystemIndexPlugin extends ActionPlugin {
      * @param listener Listener for post-cleanup result
      */
     default void cleanUpFeature(
-        ClusterService clusterService, Client client,
-        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener) {
+        ClusterService clusterService,
+        Client client,
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener
+    ) {
 
         SystemIndices.Feature.cleanUpFeature(
             getSystemIndexDescriptors(clusterService.getSettings()),

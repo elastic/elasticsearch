@@ -25,32 +25,61 @@ public interface DeprecationHandler {
         @Override
         public void logReplacedField(String parserName, Supplier<XContentLocation> location, String oldName, String replacedName) {
             if (parserName != null) {
-                throw new UnsupportedOperationException("deprecated fields not supported in [" + parserName + "] but got ["
-                    + oldName + "] at [" + location.get() + "] which is a deprecated name for [" + replacedName + "]");
+                throw new UnsupportedOperationException(
+                    "deprecated fields not supported in ["
+                        + parserName
+                        + "] but got ["
+                        + oldName
+                        + "] at ["
+                        + location.get()
+                        + "] which is a deprecated name for ["
+                        + replacedName
+                        + "]"
+                );
             } else {
-                throw new UnsupportedOperationException("deprecated fields not supported here but got ["
-                    + oldName + "] which is a deprecated name for [" + replacedName + "]");
+                throw new UnsupportedOperationException(
+                    "deprecated fields not supported here but got [" + oldName + "] which is a deprecated name for [" + replacedName + "]"
+                );
             }
         }
+
         @Override
         public void logRenamedField(String parserName, Supplier<XContentLocation> location, String oldName, String currentName) {
             if (parserName != null) {
-                throw new UnsupportedOperationException("deprecated fields not supported in [" + parserName + "] but got ["
-                    + oldName + "] at [" + location.get() + "] which has been replaced with [" + currentName + "]");
+                throw new UnsupportedOperationException(
+                    "deprecated fields not supported in ["
+                        + parserName
+                        + "] but got ["
+                        + oldName
+                        + "] at ["
+                        + location.get()
+                        + "] which has been replaced with ["
+                        + currentName
+                        + "]"
+                );
             } else {
-                throw new UnsupportedOperationException("deprecated fields not supported here but got ["
-                    + oldName + "] which has been replaced with [" + currentName + "]");
+                throw new UnsupportedOperationException(
+                    "deprecated fields not supported here but got [" + oldName + "] which has been replaced with [" + currentName + "]"
+                );
             }
         }
 
         @Override
         public void logRemovedField(String parserName, Supplier<XContentLocation> location, String removedName) {
             if (parserName != null) {
-                throw new UnsupportedOperationException("deprecated fields not supported in [" + parserName + "] but got ["
-                    + removedName + "] at [" + location.get() + "] which has been deprecated entirely");
+                throw new UnsupportedOperationException(
+                    "deprecated fields not supported in ["
+                        + parserName
+                        + "] but got ["
+                        + removedName
+                        + "] at ["
+                        + location.get()
+                        + "] which has been deprecated entirely"
+                );
             } else {
-                throw new UnsupportedOperationException("deprecated fields not supported here but got ["
-                    + removedName + "] which has been deprecated entirely");
+                throw new UnsupportedOperationException(
+                    "deprecated fields not supported here but got [" + removedName + "] which has been deprecated entirely"
+                );
             }
         }
     };
@@ -102,8 +131,13 @@ public interface DeprecationHandler {
      * @see DeprecationHandler#logRenamedField(String, Supplier, String, String)
      * Emits a compatible api warning instead of deprecation warning when isCompatibleDeprecation is true
      */
-    default void logRenamedField(String parserName, Supplier<XContentLocation> location, String oldName, String currentName,
-                                 boolean isCompatibleDeprecation) {
+    default void logRenamedField(
+        String parserName,
+        Supplier<XContentLocation> location,
+        String oldName,
+        String currentName,
+        boolean isCompatibleDeprecation
+    ) {
         logRenamedField(parserName, location, oldName, currentName);
     }
 
@@ -111,8 +145,13 @@ public interface DeprecationHandler {
      * @see DeprecationHandler#logReplacedField(String, Supplier, String, String)
      * Emits a compatible api warning instead of deprecation warning when isCompatibleDeprecation is true
      */
-    default void logReplacedField(String parserName, Supplier<XContentLocation> location, String oldName, String replacedName,
-                                  boolean isCompatibleDeprecation) {
+    default void logReplacedField(
+        String parserName,
+        Supplier<XContentLocation> location,
+        String oldName,
+        String replacedName,
+        boolean isCompatibleDeprecation
+    ) {
         logReplacedField(parserName, location, oldName, replacedName);
     }
 
@@ -120,8 +159,12 @@ public interface DeprecationHandler {
      * @see DeprecationHandler#logRemovedField(String, Supplier, String)
      * Emits a compatible api warning instead of deprecation warning when isCompatibleDeprecation is true
      */
-    default void logRemovedField(String parserName, Supplier<XContentLocation> location, String removedName,
-                                 boolean isCompatibleDeprecation) {
+    default void logRemovedField(
+        String parserName,
+        Supplier<XContentLocation> location,
+        String removedName,
+        boolean isCompatibleDeprecation
+    ) {
         logRemovedField(parserName, location, removedName);
     }
 

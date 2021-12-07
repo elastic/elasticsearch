@@ -8,14 +8,14 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
+import org.elasticsearch.xcontent.ToXContentFragment;
 
 /**
  * Intermediate serializable representation of a search ext section. To be subclassed by plugins that support

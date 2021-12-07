@@ -92,8 +92,8 @@ public class EstimateModelMemoryRequest implements Validatable, ToXContentObject
         }
 
         EstimateModelMemoryRequest that = (EstimateModelMemoryRequest) other;
-        return Objects.equals(analysisConfig, that.analysisConfig) &&
-            Objects.equals(overallCardinality, that.overallCardinality) &&
-            Objects.equals(maxBucketCardinality, that.maxBucketCardinality);
+        return Objects.equals(analysisConfig, that.analysisConfig)
+            && Objects.equals(overallCardinality, that.overallCardinality)
+            && Objects.equals(maxBucketCardinality, that.maxBucketCardinality);
     }
 }

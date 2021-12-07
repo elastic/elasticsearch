@@ -14,8 +14,8 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
@@ -35,9 +35,12 @@ public class TransformConfigurationIndexIT extends TransformRestTestCase {
      */
     public void testDeleteConfigurationLeftOver() throws IOException {
         String fakeTransformName = randomAlphaOfLengthBetween(5, 20);
-        final RequestOptions expectWarningOptions = expectWarnings("this request accesses system indices: [" +
-            TransformInternalIndexConstants.LATEST_INDEX_NAME + "], but in a future major version, direct access to system indices will " +
-            "be prevented by default");
+        final RequestOptions expectWarningOptions = expectWarnings(
+            "this request accesses system indices: ["
+                + TransformInternalIndexConstants.LATEST_INDEX_NAME
+                + "], but in a future major version, direct access to system indices will "
+                + "be prevented by default"
+        );
 
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -46,8 +49,10 @@ public class TransformConfigurationIndexIT extends TransformRestTestCase {
             }
             builder.endObject();
             final StringEntity entity = new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON);
-            Request req = new Request("PUT",
-                    TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_doc/" + TransformConfig.documentId(fakeTransformName));
+            Request req = new Request(
+                "PUT",
+                TransformInternalIndexConstants.LATEST_INDEX_NAME + "/_doc/" + TransformConfig.documentId(fakeTransformName)
+            );
             req.setOptions(expectWarningOptions);
             req.setEntity(entity);
             client().performRequest(req);
@@ -61,9 +66,9 @@ public class TransformConfigurationIndexIT extends TransformRestTestCase {
         Request deleteRequest = new Request("DELETE", getTransformEndpoint() + fakeTransformName);
         Response deleteResponse = client().performRequest(deleteRequest);
         assertOK(deleteResponse);
-        assertTrue((boolean)XContentMapValues.extractValue("acknowledged", entityAsMap(deleteResponse)));
+        assertTrue((boolean) XContentMapValues.extractValue("acknowledged", entityAsMap(deleteResponse)));
 
         // delete again, should fail
-        expectThrows(ResponseException.class,() -> client().performRequest(deleteRequest));
+        expectThrows(ResponseException.class, () -> client().performRequest(deleteRequest));
     }
 }

@@ -13,15 +13,15 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -48,29 +48,42 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private static final ParseField MAX_PRIMARY_SHARD_SIZE_CONDITION = new ParseField(MaxPrimaryShardSizeCondition.NAME);
 
     static {
-        CONDITION_PARSER.declareString((conditions, s) ->
-                conditions.put(MaxAgeCondition.NAME,
-                    new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))),
-            MAX_AGE_CONDITION);
-        CONDITION_PARSER.declareLong((conditions, value) ->
-            conditions.put(MaxDocsCondition.NAME,
-                new MaxDocsCondition(value)), MAX_DOCS_CONDITION);
-        CONDITION_PARSER.declareString((conditions, s) ->
-                conditions.put(MaxSizeCondition.NAME,
-                    new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSizeCondition.NAME))),
-            MAX_SIZE_CONDITION);
-        CONDITION_PARSER.declareString((conditions, s) ->
-                conditions.put(MaxPrimaryShardSizeCondition.NAME,
-                    new MaxPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxPrimaryShardSizeCondition.NAME))),
-            MAX_PRIMARY_SHARD_SIZE_CONDITION);
+        CONDITION_PARSER.declareString(
+            (conditions, s) -> conditions.put(MaxAgeCondition.NAME, new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))),
+            MAX_AGE_CONDITION
+        );
+        CONDITION_PARSER.declareLong(
+            (conditions, value) -> conditions.put(MaxDocsCondition.NAME, new MaxDocsCondition(value)),
+            MAX_DOCS_CONDITION
+        );
+        CONDITION_PARSER.declareString(
+            (conditions, s) -> conditions.put(
+                MaxSizeCondition.NAME,
+                new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSizeCondition.NAME))
+            ),
+            MAX_SIZE_CONDITION
+        );
+        CONDITION_PARSER.declareString(
+            (conditions, s) -> conditions.put(
+                MaxPrimaryShardSizeCondition.NAME,
+                new MaxPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxPrimaryShardSizeCondition.NAME))
+            ),
+            MAX_PRIMARY_SHARD_SIZE_CONDITION
+        );
 
-        PARSER.declareField((parser, request, context) -> CONDITION_PARSER.parse(parser, request.conditions, null),
-            CONDITIONS, ObjectParser.ValueType.OBJECT);
-        PARSER.declareField((parser, request, context) -> request.createIndexRequest.settings(parser.map()),
-            CreateIndexRequest.SETTINGS, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            (parser, request, context) -> CONDITION_PARSER.parse(parser, request.conditions, null),
+            CONDITIONS,
+            ObjectParser.ValueType.OBJECT
+        );
+        PARSER.declareField(
+            (parser, request, context) -> request.createIndexRequest.settings(parser.map()),
+            CreateIndexRequest.SETTINGS,
+            ObjectParser.ValueType.OBJECT
+        );
         PARSER.declareField((parser, request, includeTypeName) -> {
             if (includeTypeName) {
-                //expecting one type only
+                // expecting one type only
                 for (Map.Entry<String, Object> mappingsEntry : parser.map().entrySet()) {
                     @SuppressWarnings("unchecked")
                     final Map<String, Object> value = (Map<String, Object>) mappingsEntry.getValue();
@@ -80,8 +93,12 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
                 // a type is not included, add a dummy _doc type
                 Map<String, Object> mappings = parser.map();
                 if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
-                    throw new IllegalArgumentException("The mapping definition cannot be nested under a type " +
-                        "[" + MapperService.SINGLE_MAPPING_NAME + "] unless include_type_name is set to true.");
+                    throw new IllegalArgumentException(
+                        "The mapping definition cannot be nested under a type "
+                            + "["
+                            + MapperService.SINGLE_MAPPING_NAME
+                            + "] unless include_type_name is set to true."
+                    );
                 }
                 request.createIndexRequest.mapping(mappings);
             }
@@ -96,15 +113,18 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             request.createIndexRequest.mapping(mappings);
         }, CreateIndexRequest.MAPPINGS.forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8)), ObjectParser.ValueType.OBJECT);
 
-        PARSER.declareField((parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
-            CreateIndexRequest.ALIASES, ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            (parser, request, context) -> request.createIndexRequest.aliases(parser.map()),
+            CreateIndexRequest.ALIASES,
+            ObjectParser.ValueType.OBJECT
+        );
     }
 
     private String rolloverTarget;
     private String newIndexName;
     private boolean dryRun;
     private final Map<String, Condition<?>> conditions = new HashMap<>(2);
-    //the index name "_na_" is never read back, what matters are settings, mappings and aliases
+    // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
 
     public RolloverRequest(StreamInput in) throws IOException {
@@ -144,13 +164,14 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
         out.writeBoolean(dryRun);
         out.writeCollection(
             conditions.values().stream().filter(c -> c.includedInVersion(out.getVersion())).collect(Collectors.toList()),
-            StreamOutput::writeNamedWriteable);
+            StreamOutput::writeNamedWriteable
+        );
         createIndexRequest.writeTo(out);
     }
 
     @Override
     public String[] indices() {
-        return new String[] {rolloverTarget};
+        return new String[] { rolloverTarget };
     }
 
     @Override

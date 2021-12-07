@@ -13,9 +13,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -27,8 +27,7 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
     /**
      * Standard empty constructor.
      */
-    public ScoreFunctionBuilder() {
-    }
+    public ScoreFunctionBuilder() {}
 
     /**
      * Read from a stream.

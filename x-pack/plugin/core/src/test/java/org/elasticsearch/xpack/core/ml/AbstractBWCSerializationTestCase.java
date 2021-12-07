@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.ml;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.List;

@@ -26,9 +26,7 @@ public class RestUpgradeJobModelSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}/_upgrade")
-        );
+        return List.of(new Route(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}/_upgrade"));
     }
 
     @Override
@@ -43,13 +41,18 @@ public class RestUpgradeJobModelSnapshotAction extends BaseRestHandler {
         String snapshotId = restRequest.param(SNAPSHOT_ID.getPreferredName());
         TimeValue timeout = TimeValue.parseTimeValue(
             restRequest.param(UpgradeJobModelSnapshotAction.Request.TIMEOUT.getPreferredName(), DEFAULT_TIMEOUT.getStringRep()),
-            UpgradeJobModelSnapshotAction.Request.TIMEOUT.getPreferredName());
-        boolean waitForCompletion = restRequest.paramAsBoolean(UpgradeJobModelSnapshotAction.Request.WAIT_FOR_COMPLETION.getPreferredName(),
-            false);
-        UpgradeJobModelSnapshotAction.Request request = new UpgradeJobModelSnapshotAction.Request(jobId,
+            UpgradeJobModelSnapshotAction.Request.TIMEOUT.getPreferredName()
+        );
+        boolean waitForCompletion = restRequest.paramAsBoolean(
+            UpgradeJobModelSnapshotAction.Request.WAIT_FOR_COMPLETION.getPreferredName(),
+            false
+        );
+        UpgradeJobModelSnapshotAction.Request request = new UpgradeJobModelSnapshotAction.Request(
+            jobId,
             snapshotId,
             timeout,
-            waitForCompletion);
+            waitForCompletion
+        );
         return channel -> client.execute(UpgradeJobModelSnapshotAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

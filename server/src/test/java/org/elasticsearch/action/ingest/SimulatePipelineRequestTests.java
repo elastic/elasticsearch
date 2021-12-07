@@ -11,8 +11,8 @@ package org.elasticsearch.action.ingest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -43,8 +43,10 @@ public class SimulatePipelineRequestTests extends ESTestCase {
     }
 
     public void testSerializationWithXContent() throws IOException {
-        SimulatePipelineRequest request =
-            new SimulatePipelineRequest(new BytesArray("{}".getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
+        SimulatePipelineRequest request = new SimulatePipelineRequest(
+            new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
+            XContentType.JSON
+        );
         assertEquals(XContentType.JSON, request.getXContentType());
 
         BytesStreamOutput output = new BytesStreamOutput();

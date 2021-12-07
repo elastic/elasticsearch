@@ -20,32 +20,30 @@ public class AssociatedIndexDescriptorTests extends ESTestCase {
      */
     public void testValidation() {
         {
-            Exception ex = expectThrows(NullPointerException.class,
-                () -> new AssociatedIndexDescriptor(null, randomAlphaOfLength(5)));
+            Exception ex = expectThrows(NullPointerException.class, () -> new AssociatedIndexDescriptor(null, randomAlphaOfLength(5)));
             assertThat(ex.getMessage(), containsString("must not be null"));
         }
 
         {
-            Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new AssociatedIndexDescriptor("", randomAlphaOfLength(5)));
+            Exception ex = expectThrows(IllegalArgumentException.class, () -> new AssociatedIndexDescriptor("", randomAlphaOfLength(5)));
             assertThat(ex.getMessage(), containsString("must at least 2 characters in length"));
         }
 
         {
-            Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new AssociatedIndexDescriptor(".", randomAlphaOfLength(5)));
+            Exception ex = expectThrows(IllegalArgumentException.class, () -> new AssociatedIndexDescriptor(".", randomAlphaOfLength(5)));
             assertThat(ex.getMessage(), containsString("must at least 2 characters in length"));
         }
 
         {
-            Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new AssociatedIndexDescriptor(randomAlphaOfLength(10), randomAlphaOfLength(5)));
+            Exception ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> new AssociatedIndexDescriptor(randomAlphaOfLength(10), randomAlphaOfLength(5))
+            );
             assertThat(ex.getMessage(), containsString("must start with the character [.]"));
         }
 
         {
-            Exception ex = expectThrows(IllegalArgumentException.class,
-                () -> new AssociatedIndexDescriptor(".*", randomAlphaOfLength(5)));
+            Exception ex = expectThrows(IllegalArgumentException.class, () -> new AssociatedIndexDescriptor(".*", randomAlphaOfLength(5)));
             assertThat(ex.getMessage(), containsString("must not start with the character sequence [.*] to prevent conflicts"));
         }
         {
@@ -58,9 +56,7 @@ public class AssociatedIndexDescriptorTests extends ESTestCase {
     }
 
     public void testSpecialCharactersAreReplacedWhenConvertingToAutomaton() {
-        CharacterRunAutomaton automaton = new CharacterRunAutomaton(
-            AssociatedIndexDescriptor.buildAutomaton(".associated-index*")
-        );
+        CharacterRunAutomaton automaton = new CharacterRunAutomaton(AssociatedIndexDescriptor.buildAutomaton(".associated-index*"));
 
         // None of these should match, ever.
         assertFalse(automaton.run(".my-associated-index"));

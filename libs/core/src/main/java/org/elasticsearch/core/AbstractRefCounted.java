@@ -67,8 +67,7 @@ public abstract class AbstractRefCounted implements RefCounted {
      * Called whenever the ref count is incremented or decremented. Can be overridden to record access to the instance for debugging
      * purposes.
      */
-    protected void touch() {
-    }
+    protected void touch() {}
 
     protected void alreadyClosed() {
         final int currentRefCount = refCount.get();

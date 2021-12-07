@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.watcher.support;
 
-import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.execution.Wid;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
@@ -35,12 +35,12 @@ public class VariablesTests extends ESTestCase {
         TriggerEvent event = new ScheduleTriggerEvent("_watch_id", triggeredTime, scheduledTime);
         Wid wid = new Wid("_watch_id", executionTime);
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContextBuilder("_watch_id")
-                .wid(wid)
-                .executionTime(executionTime)
-                .triggerEvent(event)
-                .payload(payload)
-                .metadata(metatdata)
-                .buildMock();
+            .wid(wid)
+            .executionTime(executionTime)
+            .triggerEvent(event)
+            .payload(payload)
+            .metadata(metatdata)
+            .buildMock();
 
         Map<String, Object> model = Variables.createCtxParamsMap(ctx, payload);
         assertThat(model, notNullValue());

@@ -144,9 +144,21 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         }
 
         Throwable exception = expectFailure(settings);
-        assertThat(exception, throwableWithMessage("invalid SSL configuration for " + prefix +
-            " - server ssl configuration requires a key and certificate, but these have not been configured;" +
-            " you must set either [" + prefix + ".keystore.path], or both [" + prefix + ".key] and [" + prefix + ".certificate]"));
+        assertThat(
+            exception,
+            throwableWithMessage(
+                "invalid SSL configuration for "
+                    + prefix
+                    + " - server ssl configuration requires a key and certificate, but these have not been configured;"
+                    + " you must set either ["
+                    + prefix
+                    + ".keystore.path], or both ["
+                    + prefix
+                    + ".key] and ["
+                    + prefix
+                    + ".certificate]"
+            )
+        );
         assertThat(exception, instanceOf(ElasticsearchException.class));
     }
 
@@ -165,29 +177,33 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     public void testMessageForTransportNotEnabledButKeystoreConfigured() throws Exception {
         assumeFalse("Cannot run in a FIPS JVM since it uses a PKCS12 keystore", inFipsJvm());
         final String prefix = "xpack.security.transport.ssl";
-        checkUnusedConfiguration(prefix, prefix + ".keystore.path," + prefix + ".keystore.secure_password",
-            this::configureWorkingKeystore);
+        checkUnusedConfiguration(prefix, prefix + ".keystore.path," + prefix + ".keystore.secure_password", this::configureWorkingKeystore);
     }
 
     public void testMessageForTransportNotEnabledButTruststoreConfigured() throws Exception {
         assumeFalse("Cannot run in a FIPS JVM since it uses a PKCS12 keystore", inFipsJvm());
         final String prefix = "xpack.security.transport.ssl";
-        checkUnusedConfiguration(prefix, prefix + ".truststore.path," + prefix + ".truststore.secure_password",
-            this::configureWorkingTruststore);
+        checkUnusedConfiguration(
+            prefix,
+            prefix + ".truststore.path," + prefix + ".truststore.secure_password",
+            this::configureWorkingTruststore
+        );
     }
 
     public void testMessageForHttpsNotEnabledButKeystoreConfigured() throws Exception {
         assumeFalse("Cannot run in a FIPS JVM since it uses a PKCS12 keystore", inFipsJvm());
         final String prefix = "xpack.security.http.ssl";
-        checkUnusedConfiguration(prefix, prefix + ".keystore.path," + prefix + ".keystore.secure_password",
-            this::configureWorkingKeystore);
+        checkUnusedConfiguration(prefix, prefix + ".keystore.path," + prefix + ".keystore.secure_password", this::configureWorkingKeystore);
     }
 
     public void testMessageForHttpsNotEnabledButTruststoreConfigured() throws Exception {
         assumeFalse("Cannot run in a FIPS JVM since it uses a PKCS12 keystore", inFipsJvm());
         final String prefix = "xpack.security.http.ssl";
-        checkUnusedConfiguration(prefix, prefix + ".truststore.path," + prefix + ".truststore.secure_password",
-            this::configureWorkingTruststore);
+        checkUnusedConfiguration(
+            prefix,
+            prefix + ".truststore.path," + prefix + ".truststore.secure_password",
+            this::configureWorkingTruststore
+        );
     }
 
     private void checkMissingKeyManagerResource(String fileType, String configKey, @Nullable Settings.Builder additionalSettings) {
@@ -209,10 +225,18 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         checkMissingResource(fileType, configKey, this::configureWorkingKeystore);
     }
 
-    private void checkUnreadableKeyManagerResource(String fromResource, String fileType, String configKey,
-                                                   @Nullable Settings.Builder additionalSettings) throws Exception {
-        checkUnreadableResource(fromResource, fileType, configKey,
-            (prefix, builder) -> buildKeyConfigSettings(additionalSettings, prefix, builder));
+    private void checkUnreadableKeyManagerResource(
+        String fromResource,
+        String fileType,
+        String configKey,
+        @Nullable Settings.Builder additionalSettings
+    ) throws Exception {
+        checkUnreadableResource(
+            fromResource,
+            fileType,
+            configKey,
+            (prefix, builder) -> buildKeyConfigSettings(additionalSettings, prefix, builder)
+        );
     }
 
     private void checkUnreadableTrustManagerResource(String fromResource, String fileType, String configKey) throws Exception {
@@ -220,16 +244,19 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     private void checkBlockedKeyManagerResource(String fileType, String configKey, Settings.Builder additionalSettings) throws Exception {
-        checkBlockedResource("KeyManager", fileType, configKey,
-            (prefix, builder) -> buildKeyConfigSettings(additionalSettings, prefix, builder));
+        checkBlockedResource(
+            "KeyManager",
+            fileType,
+            configKey,
+            (prefix, builder) -> buildKeyConfigSettings(additionalSettings, prefix, builder)
+        );
     }
 
     private void checkBlockedTrustManagerResource(String fileType, String configKey) throws Exception {
         checkBlockedResource("TrustManager", fileType, configKey, this::configureWorkingKeystore);
     }
 
-    private void checkMissingResource(String fileType, String configKey,
-                                      BiConsumer<String, Settings.Builder> configure) {
+    private void checkMissingResource(String fileType, String configKey, BiConsumer<String, Settings.Builder> configure) {
         final String prefix = randomSslPrefix();
         final Settings.Builder settings = Settings.builder();
         configure.accept(prefix, settings);
@@ -252,8 +279,12 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         assertThat(exception, throwableWithMessage(fileName));
     }
 
-    private void checkUnreadableResource(String fromResource, String fileType, String configKey,
-                                         BiConsumer<String, Settings.Builder> configure) throws Exception {
+    private void checkUnreadableResource(
+        String fromResource,
+        String fileType,
+        String configKey,
+        BiConsumer<String, Settings.Builder> configure
+    ) throws Exception {
         final String prefix = randomSslPrefix();
         final Settings.Builder settings = Settings.builder();
         configure.accept(prefix, settings);
@@ -277,8 +308,12 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         assertThat(exception, throwableWithMessage(fileName));
     }
 
-    private void checkBlockedResource(String sslManagerType, String fileType, String configKey,
-                                      BiConsumer<String, Settings.Builder> configure) throws Exception {
+    private void checkBlockedResource(
+        String sslManagerType,
+        String fileType,
+        String configKey,
+        BiConsumer<String, Settings.Builder> configure
+    ) throws Exception {
         final String prefix = randomSslPrefix();
         final Settings.Builder settings = Settings.builder();
         configure.accept(prefix, settings);
@@ -287,9 +322,13 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         final String key = prefix + "." + configKey;
         settings.put(key, fileName);
 
-        final String fileErrorMessage = "cannot read configured " + fileType + " [" + fileName
+        final String fileErrorMessage = "cannot read configured "
+            + fileType
+            + " ["
+            + fileName
             + "] because access to read the file is blocked; SSL resources should be placed in the ["
-            + env.configFile().toAbsolutePath().toString() + "] directory";
+            + env.configFile().toAbsolutePath().toString()
+            + "] directory";
 
         Throwable exception = expectFailure(settings);
         assertThat(exception, throwableWithMessage("failed to load SSL configuration [" + prefix + "] - " + fileErrorMessage));
@@ -309,8 +348,19 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         configure.accept(prefix, settings);
 
         Throwable exception = expectFailure(settings);
-        assertThat(exception, throwableWithMessage("invalid configuration for " + prefix + " - [" + prefix + ".enabled] is not set," +
-            " but the following settings have been configured in elasticsearch.yml : [" + settingsConfigured + "]"));
+        assertThat(
+            exception,
+            throwableWithMessage(
+                "invalid configuration for "
+                    + prefix
+                    + " - ["
+                    + prefix
+                    + ".enabled] is not set,"
+                    + " but the following settings have been configured in elasticsearch.yml : ["
+                    + settingsConfigured
+                    + "]"
+            )
+        );
         assertThat(exception, instanceOf(ElasticsearchException.class));
     }
 
@@ -340,8 +390,10 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         Files.deleteIfExists(toPath);
         final FileAttribute<Set<PosixFilePermission>> fileAttributes = PosixFilePermissions.asFileAttribute(permissions);
         final EnumSet<StandardOpenOption> options = EnumSet.of(StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
-        try (SeekableByteChannel channel = Files.newByteChannel(toPath, options, fileAttributes);
-             OutputStream out = Channels.newOutputStream(channel)) {
+        try (
+            SeekableByteChannel channel = Files.newByteChannel(toPath, options, fileAttributes);
+            OutputStream out = Channels.newOutputStream(channel)
+        ) {
             Files.copy(fromPath, out);
         }
         return toPath.toString();
@@ -375,8 +427,10 @@ public class SSLErrorMessageFileTests extends ESTestCase {
     }
 
     private ElasticsearchException expectFailure(Settings.Builder settings) {
-        return expectThrows(ElasticsearchException.class,
-            () -> new SSLService(new Environment(buildEnvSettings(settings.build()), env.configFile())));
+        return expectThrows(
+            ElasticsearchException.class,
+            () -> new SSLService(new Environment(buildEnvSettings(settings.build()), env.configFile()))
+        );
     }
 
     private SSLService expectSuccess(Settings.Builder settings) {

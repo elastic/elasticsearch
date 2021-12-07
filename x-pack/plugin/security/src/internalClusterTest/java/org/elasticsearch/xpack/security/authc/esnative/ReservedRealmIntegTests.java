@@ -39,6 +39,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Integration tests for the built in realm
  */
+@SuppressWarnings("removal")
 public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
 
     private static Hasher hasher;
@@ -63,15 +64,19 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     public void testAuthenticate() {
-        final List<String> usernames = Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
-            LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        final List<String> usernames = Arrays.asList(
+            ElasticUser.NAME,
+            KibanaUser.NAME,
+            KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME,
+            APMSystemUser.NAME,
+            RemoteMonitoringUser.NAME
+        );
         for (String username : usernames) {
-            ClusterHealthResponse response = client()
-                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
-                    .admin()
-                    .cluster()
-                    .prepareHealth()
-                    .get();
+            ClusterHealthResponse response = client().filterWithHeader(
+                singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword()))
+            ).admin().cluster().prepareHealth().get();
 
             assertThat(response.getClusterName(), is(cluster().getClusterName()));
         }
@@ -83,93 +88,99 @@ public class ReservedRealmIntegTests extends NativeRealmIntegTestCase {
      */
     public void testAuthenticateAfterEnablingUser() throws IOException {
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
-        final List<String> usernames = Arrays.asList(ElasticUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
-            LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        final List<String> usernames = Arrays.asList(
+            ElasticUser.NAME,
+            KibanaUser.NAME,
+            KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME,
+            APMSystemUser.NAME,
+            RemoteMonitoringUser.NAME
+        );
         for (String username : usernames) {
             restClient.security().enableUser(new EnableUserRequest(username, RefreshPolicy.getDefault()), SECURITY_REQUEST_OPTIONS);
-            ClusterHealthResponse response = client()
-                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
-                    .admin()
-                    .cluster()
-                    .prepareHealth()
-                    .get();
+            ClusterHealthResponse response = client().filterWithHeader(
+                singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword()))
+            ).admin().cluster().prepareHealth().get();
 
             assertThat(response.getClusterName(), is(cluster().getClusterName()));
         }
     }
 
     public void testChangingPassword() throws IOException {
-        String username = randomFrom(ElasticUser.NAME, KibanaUser.NAME, KibanaSystemUser.NAME,
-            LogstashSystemUser.NAME, BeatsSystemUser.NAME, APMSystemUser.NAME, RemoteMonitoringUser.NAME);
+        String username = randomFrom(
+            ElasticUser.NAME,
+            KibanaUser.NAME,
+            KibanaSystemUser.NAME,
+            LogstashSystemUser.NAME,
+            BeatsSystemUser.NAME,
+            APMSystemUser.NAME,
+            RemoteMonitoringUser.NAME
+        );
         final char[] newPassword = "supersecretvalue".toCharArray();
 
         if (randomBoolean()) {
-            ClusterHealthResponse response = client()
-                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
-                    .admin()
-                    .cluster()
-                    .prepareHealth()
-                    .get();
+            ClusterHealthResponse response = client().filterWithHeader(
+                singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword()))
+            ).admin().cluster().prepareHealth().get();
             assertThat(response.getClusterName(), is(cluster().getClusterName()));
         }
 
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
         final boolean changed = restClient.security()
-            .changePassword(new ChangePasswordRequest(username, Arrays.copyOf(newPassword, newPassword.length), RefreshPolicy.IMMEDIATE),
-                SECURITY_REQUEST_OPTIONS);
+            .changePassword(
+                new ChangePasswordRequest(username, Arrays.copyOf(newPassword, newPassword.length), RefreshPolicy.IMMEDIATE),
+                SECURITY_REQUEST_OPTIONS
+            );
         assertTrue(changed);
 
-        ElasticsearchSecurityException elasticsearchSecurityException = expectThrows(ElasticsearchSecurityException.class, () -> client()
-                    .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
-                    .admin()
-                    .cluster()
-                    .prepareHealth()
-                    .get());
-        assertThat(elasticsearchSecurityException.getMessage(), containsString("authenticate"));
-
-        ClusterHealthResponse healthResponse = client()
-                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, new SecureString(newPassword))))
+        ElasticsearchSecurityException elasticsearchSecurityException = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(username, getReservedPassword())))
                 .admin()
                 .cluster()
                 .prepareHealth()
-                .get();
+                .get()
+        );
+        assertThat(elasticsearchSecurityException.getMessage(), containsString("authenticate"));
+
+        ClusterHealthResponse healthResponse = client().filterWithHeader(
+            singletonMap("Authorization", basicAuthHeaderValue(username, new SecureString(newPassword)))
+        ).admin().cluster().prepareHealth().get();
         assertThat(healthResponse.getClusterName(), is(cluster().getClusterName()));
     }
 
     public void testDisablingUser() throws Exception {
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
         // validate the user works
-        ClusterHealthResponse response = client()
-                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
-                .admin()
-                .cluster()
-                .prepareHealth()
-                .get();
+        ClusterHealthResponse response = client().filterWithHeader(
+            singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword()))
+        ).admin().cluster().prepareHealth().get();
         assertThat(response.getClusterName(), is(cluster().getClusterName()));
 
         // disable user
-        final boolean disabled =
-            restClient.security().disableUser(new DisableUserRequest(ElasticUser.NAME, RefreshPolicy.getDefault()),
-                SECURITY_REQUEST_OPTIONS);
+        final boolean disabled = restClient.security()
+            .disableUser(new DisableUserRequest(ElasticUser.NAME, RefreshPolicy.getDefault()), SECURITY_REQUEST_OPTIONS);
         assertTrue(disabled);
-        ElasticsearchSecurityException elasticsearchSecurityException = expectThrows(ElasticsearchSecurityException.class, () -> client()
-                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
+        ElasticsearchSecurityException elasticsearchSecurityException = expectThrows(
+            ElasticsearchSecurityException.class,
+            () -> client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
                 .admin()
                 .cluster()
                 .prepareHealth()
-                .get());
+                .get()
+        );
         assertThat(elasticsearchSecurityException.getMessage(), containsString("authenticate"));
 
-        //enable
-        final boolean enabled =
-            restClient.security().enableUser(new EnableUserRequest(ElasticUser.NAME, RefreshPolicy.getDefault()), SECURITY_REQUEST_OPTIONS);
+        // enable
+        final boolean enabled = restClient.security()
+            .enableUser(new EnableUserRequest(ElasticUser.NAME, RefreshPolicy.getDefault()), SECURITY_REQUEST_OPTIONS);
         assertTrue(enabled);
-        response = client()
-                .filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
-                .admin()
-                .cluster()
-                .prepareHealth()
-                .get();
+        response = client().filterWithHeader(singletonMap("Authorization", basicAuthHeaderValue(ElasticUser.NAME, getReservedPassword())))
+            .admin()
+            .cluster()
+            .prepareHealth()
+            .get();
         assertThat(response.getClusterName(), is(cluster().getClusterName()));
     }
 }

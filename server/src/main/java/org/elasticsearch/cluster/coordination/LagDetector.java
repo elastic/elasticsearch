@@ -47,9 +47,12 @@ public class LagDetector {
     private static final Logger logger = LogManager.getLogger(LagDetector.class);
 
     // the timeout for each node to apply a cluster state update after the leader has applied it, before being removed from the cluster
-    public static final Setting<TimeValue> CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING =
-        Setting.timeSetting("cluster.follower_lag.timeout",
-            TimeValue.timeValueMillis(90000), TimeValue.timeValueMillis(1), Setting.Property.NodeScope);
+    public static final Setting<TimeValue> CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING = Setting.timeSetting(
+        "cluster.follower_lag.timeout",
+        TimeValue.timeValueMillis(90000),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
 
     private final TimeValue clusterStateApplicationTimeout;
     private final LagListener lagListener;
@@ -92,8 +95,10 @@ public class LagDetector {
     }
 
     public void startLagDetector(final long version) {
-        final List<NodeAppliedStateTracker> laggingTrackers
-            = appliedStateTrackersByNode.values().stream().filter(t -> t.appliedVersionLessThan(version)).collect(Collectors.toList());
+        final List<NodeAppliedStateTracker> laggingTrackers = appliedStateTrackersByNode.values()
+            .stream()
+            .filter(t -> t.appliedVersionLessThan(version))
+            .collect(Collectors.toList());
 
         if (laggingTrackers.isEmpty()) {
             logger.trace("lag detection for version {} is unnecessary: {}", version, appliedStateTrackersByNode.values());
@@ -116,10 +121,12 @@ public class LagDetector {
 
     @Override
     public String toString() {
-        return "LagDetector{" +
-            "clusterStateApplicationTimeout=" + clusterStateApplicationTimeout +
-            ", appliedStateTrackersByNode=" + appliedStateTrackersByNode.values() +
-            '}';
+        return "LagDetector{"
+            + "clusterStateApplicationTimeout="
+            + clusterStateApplicationTimeout
+            + ", appliedStateTrackersByNode="
+            + appliedStateTrackersByNode.values()
+            + '}';
     }
 
     // for assertions
@@ -146,10 +153,7 @@ public class LagDetector {
 
         @Override
         public String toString() {
-            return "NodeAppliedStateTracker{" +
-                "discoveryNode=" + discoveryNode +
-                ", appliedVersion=" + appliedVersion +
-                '}';
+            return "NodeAppliedStateTracker{" + "discoveryNode=" + discoveryNode + ", appliedVersion=" + appliedVersion + '}';
         }
 
         void checkForLag(final long version) {
@@ -166,7 +170,11 @@ public class LagDetector {
 
             logger.warn(
                 "node [{}] is lagging at cluster state version [{}], although publication of cluster state version [{}] completed [{}] ago",
-                discoveryNode, appliedVersion, version, clusterStateApplicationTimeout);
+                discoveryNode,
+                appliedVersion,
+                version,
+                clusterStateApplicationTimeout
+            );
             lagListener.onLagDetected(discoveryNode, appliedVersion, version);
         }
     }
@@ -228,12 +236,16 @@ public class LagDetector {
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.debug(new ParameterizedMessage(
-                            "failed to get hot threads from node [{}] lagging at version {} despite commit of cluster state version [{}]",
-                            discoveryNode.descriptionWithoutAttributes(),
-                            appliedVersion,
-                            expectedVersion
-                        ), e);
+                        logger.debug(
+                            new ParameterizedMessage(
+                                "failed to get hot threads from node [{}] lagging at version {} "
+                                    + "despite commit of cluster state version [{}]",
+                                discoveryNode.descriptionWithoutAttributes(),
+                                appliedVersion,
+                                expectedVersion
+                            ),
+                            e
+                        );
                     }
                 };
 
@@ -248,7 +260,8 @@ public class LagDetector {
                             client.execute(
                                 NodesHotThreadsAction.INSTANCE,
                                 new NodesHotThreadsRequest(discoveryNode).threads(500),
-                                ActionListener.runBefore(debugListener, () -> Releasables.close(releasable)));
+                                ActionListener.runBefore(debugListener, () -> Releasables.close(releasable))
+                            );
                             success = true;
                         } finally {
                             if (success == false) {

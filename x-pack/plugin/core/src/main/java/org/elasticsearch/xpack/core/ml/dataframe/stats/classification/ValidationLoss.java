@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.stats.classification;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -32,13 +32,18 @@ public class ValidationLoss implements ToXContentObject, Writeable {
 
     @SuppressWarnings("unchecked")
     private static ConstructingObjectParser<ValidationLoss, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<ValidationLoss, Void> parser = new ConstructingObjectParser<>("classification_validation_loss",
+        ConstructingObjectParser<ValidationLoss, Void> parser = new ConstructingObjectParser<>(
+            "classification_validation_loss",
             ignoreUnknownFields,
-            a -> new ValidationLoss((String) a[0], (List<FoldValues>) a[1]));
+            a -> new ValidationLoss((String) a[0], (List<FoldValues>) a[1])
+        );
 
         parser.declareString(ConstructingObjectParser.constructorArg(), LOSS_TYPE);
-        parser.declareObjectArray(ConstructingObjectParser.constructorArg(),
-            (p, c) -> FoldValues.fromXContent(p, ignoreUnknownFields), FOLD_VALUES);
+        parser.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> FoldValues.fromXContent(p, ignoreUnknownFields),
+            FOLD_VALUES
+        );
         return parser;
     }
 

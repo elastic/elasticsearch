@@ -23,14 +23,12 @@ public class SearchContextSourcePrinter {
         StringBuilder builder = new StringBuilder();
         builder.append(searchContext.indexShard().shardId());
         builder.append(" ");
-        if (searchContext.request() != null &&
-            searchContext.request().source() != null) {
+        if (searchContext.request() != null && searchContext.request().source() != null) {
             builder.append("source[").append(searchContext.request().source().toString()).append("], ");
         } else {
             builder.append("source[], ");
         }
-        if (searchContext.getTask() != null &&
-            searchContext.getTask().getHeader(Task.X_OPAQUE_ID) != null) {
+        if (searchContext.getTask() != null && searchContext.getTask().getHeader(Task.X_OPAQUE_ID) != null) {
             builder.append("id[").append(searchContext.getTask().getHeader(Task.X_OPAQUE_ID)).append("], ");
         } else {
             builder.append("id[], ");

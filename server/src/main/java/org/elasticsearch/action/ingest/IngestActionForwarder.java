@@ -8,10 +8,10 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -36,10 +36,14 @@ public final class IngestActionForwarder implements ClusterStateApplier {
         ingestNodes = new DiscoveryNode[0];
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     public void forwardIngestRequest(ActionType<?> action, ActionRequest request, ActionListener<?> listener) {
-        transportService.sendRequest(randomIngestNode(), action.name(), request,
-            new ActionListenerResponseHandler(listener, action.getResponseReader()));
+        transportService.sendRequest(
+            randomIngestNode(),
+            action.name(),
+            request,
+            new ActionListenerResponseHandler(listener, action.getResponseReader())
+        );
     }
 
     private DiscoveryNode randomIngestNode() {

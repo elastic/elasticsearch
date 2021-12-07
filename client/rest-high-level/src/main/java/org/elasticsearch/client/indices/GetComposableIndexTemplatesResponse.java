@@ -8,8 +8,8 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -20,7 +20,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-
 public class GetComposableIndexTemplatesResponse {
 
     public static final ParseField NAME = new ParseField("name");
@@ -28,14 +27,18 @@ public class GetComposableIndexTemplatesResponse {
     public static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<Map<String, ComposableIndexTemplate>, Void> PARSER =
-        new ConstructingObjectParser<>("index_templates", false,
-            a -> ((List<NamedIndexTemplate>) a[0]).stream().collect(Collectors.toMap(n -> n.name, n -> n.indexTemplate,
-                (n1, n2) -> n1, LinkedHashMap::new)));
+    private static final ConstructingObjectParser<Map<String, ComposableIndexTemplate>, Void> PARSER = new ConstructingObjectParser<>(
+        "index_templates",
+        false,
+        a -> ((List<NamedIndexTemplate>) a[0]).stream()
+            .collect(Collectors.toMap(n -> n.name, n -> n.indexTemplate, (n1, n2) -> n1, LinkedHashMap::new))
+    );
 
-    private static final ConstructingObjectParser<NamedIndexTemplate, Void> INNER_PARSER =
-        new ConstructingObjectParser<>("named_index_template", false,
-            a -> new NamedIndexTemplate((String) a[0], (ComposableIndexTemplate) a[1]));
+    private static final ConstructingObjectParser<NamedIndexTemplate, Void> INNER_PARSER = new ConstructingObjectParser<>(
+        "named_index_template",
+        false,
+        a -> new NamedIndexTemplate((String) a[0], (ComposableIndexTemplate) a[1])
+    );
 
     static {
         INNER_PARSER.declareString(ConstructingObjectParser.constructorArg(), NAME);
@@ -68,7 +71,6 @@ public class GetComposableIndexTemplatesResponse {
         return indexTemplates;
     }
 
-
     public static GetComposableIndexTemplatesResponse fromXContent(XContentParser parser) throws IOException {
         return new GetComposableIndexTemplatesResponse(PARSER.apply(parser, null));
     }
@@ -92,6 +94,5 @@ public class GetComposableIndexTemplatesResponse {
         GetComposableIndexTemplatesResponse other = (GetComposableIndexTemplatesResponse) obj;
         return Objects.equals(indexTemplates, other.indexTemplates);
     }
-
 
 }

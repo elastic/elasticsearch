@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,9 +27,11 @@ public class SearchableSnapshotAction implements LifecycleAction, ToXContentObje
     public static final ParseField SNAPSHOT_REPOSITORY = new ParseField("snapshot_repository");
     public static final ParseField FORCE_MERGE_INDEX = new ParseField("force_merge_index");
 
-
-    private static final ConstructingObjectParser<SearchableSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        true, a -> new SearchableSnapshotAction((String) a[0], a[1] == null || (boolean) a[1]));
+    private static final ConstructingObjectParser<SearchableSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        a -> new SearchableSnapshotAction((String) a[0], a[1] == null || (boolean) a[1])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_REPOSITORY);
@@ -77,8 +79,7 @@ public class SearchableSnapshotAction implements LifecycleAction, ToXContentObje
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchableSnapshotAction that = (SearchableSnapshotAction) o;
-        return forceMergeIndex == that.forceMergeIndex &&
-            snapshotRepository.equals(that.snapshotRepository);
+        return forceMergeIndex == that.forceMergeIndex && snapshotRepository.equals(that.snapshotRepository);
     }
 
     @Override

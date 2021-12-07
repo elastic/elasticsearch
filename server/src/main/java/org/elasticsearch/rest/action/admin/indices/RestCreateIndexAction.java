@@ -11,11 +11,11 @@ package org.elasticsearch.rest.action.admin.indices;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -33,8 +33,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 public class RestCreateIndexAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCreateIndexAction.class);
-    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in create " +
-        "index requests is deprecated. The parameter will be removed in the next major version.";
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using include_type_name in create "
+        + "index requests is deprecated. The parameter will be removed in the next major version.";
 
     @Override
     public List<Route> routes() {
@@ -107,8 +107,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest(request.param("index"));
 
         if (request.hasContent()) {
-            Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false,
-                request.getXContentType()).v2();
+            Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
             sourceAsMap = prepareMappings(sourceAsMap);
             createIndexRequest.source(sourceAsMap, LoggingDeprecationHandler.INSTANCE);
         }
@@ -121,8 +120,7 @@ public class RestCreateIndexAction extends BaseRestHandler {
     }
 
     static Map<String, Object> prepareMappings(Map<String, Object> source) {
-        if (source.containsKey("mappings") == false
-            || (source.get("mappings") instanceof Map) == false) {
+        if (source.containsKey("mappings") == false || (source.get("mappings") instanceof Map) == false) {
             return source;
         }
 
@@ -131,8 +129,12 @@ public class RestCreateIndexAction extends BaseRestHandler {
         @SuppressWarnings("unchecked")
         Map<String, Object> mappings = (Map<String, Object>) source.get("mappings");
         if (MapperService.isMappingSourceTyped(MapperService.SINGLE_MAPPING_NAME, mappings)) {
-            throw new IllegalArgumentException("The mapping definition cannot be nested under a type " +
-                "[" + MapperService.SINGLE_MAPPING_NAME + "] unless include_type_name is set to true.");
+            throw new IllegalArgumentException(
+                "The mapping definition cannot be nested under a type "
+                    + "["
+                    + MapperService.SINGLE_MAPPING_NAME
+                    + "] unless include_type_name is set to true."
+            );
         }
 
         newSource.put("mappings", singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings));

@@ -9,8 +9,8 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.job.config.JobTests;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 

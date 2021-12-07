@@ -21,20 +21,23 @@ import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GetServiceAccountsResponseTests
-    extends AbstractResponseTestCase<org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse,
+public class GetServiceAccountsResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse,
     GetServiceAccountsResponse> {
 
     @Override
     protected org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse createServerTestInstance(
-        XContentType xContentType) {
+        XContentType xContentType
+    ) {
         final String principal = randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8);
         return new org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse(
-            new org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo[]{
-                new org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo(principal,
-                    new RoleDescriptor(principal,
+            new org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo[] {
+                new org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo(
+                    principal,
+                    new RoleDescriptor(
+                        principal,
                         randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)),
-                        new RoleDescriptor.IndicesPrivileges[]{
+                        new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .indices(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)))
                                 .privileges(randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)))
@@ -42,12 +45,11 @@ public class GetServiceAccountsResponseTests
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .indices(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)))
                                 .privileges(randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)))
-                                .build()
-                        },
+                                .build() },
                         Strings.EMPTY_ARRAY
                     )
-                )
-            });
+                ) }
+        );
     }
 
     @Override
@@ -58,7 +60,8 @@ public class GetServiceAccountsResponseTests
     @Override
     protected void assertInstances(
         org.elasticsearch.xpack.core.security.action.service.GetServiceAccountResponse serverTestInstance,
-        GetServiceAccountsResponse clientInstance) {
+        GetServiceAccountsResponse clientInstance
+    ) {
         final org.elasticsearch.xpack.core.security.action.service.ServiceAccountInfo serverTestInstanceServiceAccountInfo =
             serverTestInstance.getServiceAccountInfos()[0];
         final String principal = serverTestInstanceServiceAccountInfo.getPrincipal();
@@ -67,21 +70,24 @@ public class GetServiceAccountsResponseTests
         assertThat(clientInstance.getServiceAccountInfos().size(), equalTo(1));
         final ServiceAccountInfo serviceAccountInfo = clientInstance.getServiceAccountInfos().get(0);
         assertThat(serviceAccountInfo.getPrincipal(), equalTo(principal));
-        assertThat(serviceAccountInfo.getRole(), equalTo(
-            Role.builder()
-                .name("role_descriptor")
-                .clusterPrivileges(roleDescriptor.getClusterPrivileges())
-                .indicesPrivileges(
-                    IndicesPrivileges.builder()
-                        .indices(roleDescriptor.getIndicesPrivileges()[0].getIndices())
-                        .privileges(roleDescriptor.getIndicesPrivileges()[0].getPrivileges())
-                        .build(),
-                    IndicesPrivileges.builder()
-                        .indices(roleDescriptor.getIndicesPrivileges()[1].getIndices())
-                        .privileges(roleDescriptor.getIndicesPrivileges()[1].getPrivileges())
-                        .build()
-                )
-                .build()
-        ));
+        assertThat(
+            serviceAccountInfo.getRole(),
+            equalTo(
+                Role.builder()
+                    .name("role_descriptor")
+                    .clusterPrivileges(roleDescriptor.getClusterPrivileges())
+                    .indicesPrivileges(
+                        IndicesPrivileges.builder()
+                            .indices(roleDescriptor.getIndicesPrivileges()[0].getIndices())
+                            .privileges(roleDescriptor.getIndicesPrivileges()[0].getPrivileges())
+                            .build(),
+                        IndicesPrivileges.builder()
+                            .indices(roleDescriptor.getIndicesPrivileges()[1].getIndices())
+                            .privileges(roleDescriptor.getIndicesPrivileges()[1].getPrivileges())
+                            .build()
+                    )
+                    .build()
+            )
+        );
     }
 }

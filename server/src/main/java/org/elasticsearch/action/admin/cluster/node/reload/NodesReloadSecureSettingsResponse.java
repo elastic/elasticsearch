@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+
 import java.io.IOException;
 import java.util.List;
 
@@ -27,7 +28,8 @@ import java.util.List;
  * The response for the reload secure settings action
  */
 public class NodesReloadSecureSettingsResponse extends BaseNodesResponse<NodesReloadSecureSettingsResponse.NodeResponse>
-        implements ToXContentFragment {
+    implements
+        ToXContentFragment {
 
     public NodesReloadSecureSettingsResponse(StreamInput in) throws IOException {
         super(in);

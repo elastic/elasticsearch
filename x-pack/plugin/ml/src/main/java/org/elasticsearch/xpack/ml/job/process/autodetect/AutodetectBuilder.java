@@ -10,18 +10,18 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.ml.job.process.ProcessBuilderUtils;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ScheduledEventToRuleWriter;
 import org.elasticsearch.xpack.ml.process.NativeController;
-import org.elasticsearch.xpack.ml.job.process.ProcessBuilderUtils;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 
 import java.io.BufferedWriter;
@@ -72,8 +72,12 @@ public class AutodetectBuilder {
      * The maximum number of anomaly records that will be written each bucket
      */
     // Though this setting is dynamic, it is only set when a new job is opened. So, already running jobs will not get the updated value.
-    public static final Setting<Integer> MAX_ANOMALY_RECORDS_SETTING_DYNAMIC = Setting.intSetting("xpack.ml.max_anomaly_records",
-            DEFAULT_MAX_NUM_RECORDS, Setting.Property.NodeScope, Setting.Property.Dynamic);
+    public static final Setting<Integer> MAX_ANOMALY_RECORDS_SETTING_DYNAMIC = Setting.intSetting(
+        "xpack.ml.max_anomaly_records",
+        DEFAULT_MAX_NUM_RECORDS,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     /**
      * Persisted quantiles are written to disk so they can be read by
@@ -100,8 +104,15 @@ public class AutodetectBuilder {
      *                      deleted when the process completes
      * @param logger        The job's logger
      */
-    public AutodetectBuilder(Job job, List<Path> filesToDelete, Logger logger, Environment env, Settings settings,
-                             NativeController controller, ProcessPipes processPipes) {
+    public AutodetectBuilder(
+        Job job,
+        List<Path> filesToDelete,
+        Logger logger,
+        Environment env,
+        Settings settings,
+        NativeController controller,
+        ProcessPipes processPipes
+    ) {
         this.env = env;
         this.settings = settings;
         this.controller = controller;
@@ -193,13 +204,15 @@ public class AutodetectBuilder {
     /**
      * Write the normalizer init state to file.
      */
-    public static Path writeNormalizerInitState(String jobId, String state, Environment env)
-            throws IOException {
+    public static Path writeNormalizerInitState(String jobId, String state, Environment env) throws IOException {
         // createTempFile has a race condition where it may return the same
         // temporary file name to different threads if called simultaneously
         // from multiple threads, hence add the thread ID to avoid this
-        Path stateFile = Files.createTempFile(env.tmpFile(), jobId + "_quantiles_" + Thread.currentThread().getId(),
-                QUANTILES_FILE_EXTENSION);
+        Path stateFile = Files.createTempFile(
+            env.tmpFile(),
+            jobId + "_quantiles_" + Thread.currentThread().getId(),
+            QUANTILES_FILE_EXTENSION
+        );
 
         try (BufferedWriter osw = Files.newBufferedWriter(stateFile, StandardCharsets.UTF_8)) {
             osw.write(state);
@@ -219,12 +232,17 @@ public class AutodetectBuilder {
             .map(x -> new ScheduledEventToRuleWriter(x.getDescription(), x.toDetectionRule(job.getAnalysisConfig().getBucketSpan())))
             .collect(Collectors.toList());
 
-        try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(eventsConfigFile),StandardCharsets.UTF_8);
-             XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
-            osw.write(Strings.toString(
-                jsonBuilder.startObject()
-                    .field(ScheduledEvent.RESULTS_FIELD.getPreferredName(), scheduledEventToRuleWriters)
-                    .endObject()));
+        try (
+            OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(eventsConfigFile), StandardCharsets.UTF_8);
+            XContentBuilder jsonBuilder = JsonXContent.contentBuilder()
+        ) {
+            osw.write(
+                Strings.toString(
+                    jsonBuilder.startObject()
+                        .field(ScheduledEvent.RESULTS_FIELD.getPreferredName(), scheduledEventToRuleWriters)
+                        .endObject()
+                )
+            );
         }
 
         command.add(EVENTS_CONFIG_ARG + eventsConfigFile.toString());
@@ -233,8 +251,10 @@ public class AutodetectBuilder {
     private void buildJobConfig(List<String> command) throws IOException {
         Path configFile = Files.createTempFile(env.tmpFile(), "config", JSON_EXTENSION);
         filesToDelete.add(configFile);
-        try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(configFile),StandardCharsets.UTF_8);
-            XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
+        try (
+            OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(configFile), StandardCharsets.UTF_8);
+            XContentBuilder jsonBuilder = JsonXContent.contentBuilder()
+        ) {
 
             job.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
             osw.write(Strings.toString(jsonBuilder));
@@ -250,12 +270,13 @@ public class AutodetectBuilder {
         Path filtersConfigFile = Files.createTempFile(env.tmpFile(), "filtersConfig", JSON_EXTENSION);
         filesToDelete.add(filtersConfigFile);
 
-        try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(filtersConfigFile),StandardCharsets.UTF_8);
-             XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
-            osw.write(Strings.toString(
-                jsonBuilder.startObject()
-                    .field(MlFilter.RESULTS_FIELD.getPreferredName(), referencedFilters)
-                    .endObject()));
+        try (
+            OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(filtersConfigFile), StandardCharsets.UTF_8);
+            XContentBuilder jsonBuilder = JsonXContent.contentBuilder()
+        ) {
+            osw.write(
+                Strings.toString(jsonBuilder.startObject().field(MlFilter.RESULTS_FIELD.getPreferredName(), referencedFilters).endObject())
+            );
         }
         command.add(FILTERS_CONFIG_ARG + filtersConfigFile.toString());
     }

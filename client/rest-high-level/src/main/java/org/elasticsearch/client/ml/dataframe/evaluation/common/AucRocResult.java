@@ -8,10 +8,10 @@
 package org.elasticsearch.client.ml.dataframe.evaluation.common;
 
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -36,9 +36,11 @@ public class AucRocResult implements EvaluationMetric.Result {
     private static final ParseField CURVE = new ParseField("curve");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<AucRocResult, Void> PARSER =
-        new ConstructingObjectParser<>(
-            NAME, true, args -> new AucRocResult((double) args[0], (List<AucRocPoint>) args[1]));
+    private static final ConstructingObjectParser<AucRocResult, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        args -> new AucRocResult((double) args[0], (List<AucRocPoint>) args[1])
+    );
 
     static {
         PARSER.declareDouble(constructorArg(), VALUE);
@@ -82,8 +84,7 @@ public class AucRocResult implements EvaluationMetric.Result {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AucRocResult that = (AucRocResult) o;
-        return value == that.value
-            && Objects.equals(curve, that.curve);
+        return value == that.value && Objects.equals(curve, that.curve);
     }
 
     @Override

@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.trigger.schedule.support.DayTimes;
@@ -106,22 +106,34 @@ public class HourlySchedule extends CronnableSchedule {
                         try {
                             minutes.add(DayTimes.parseMinuteValue(parser, token));
                         } catch (ElasticsearchParseException pe) {
-                            throw new ElasticsearchParseException("could not parse [{}] schedule. invalid value for [{}]", pe, TYPE,
-                                    currentFieldName);
+                            throw new ElasticsearchParseException(
+                                "could not parse [{}] schedule. invalid value for [{}]",
+                                pe,
+                                TYPE,
+                                currentFieldName
+                            );
                         }
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
                                 minutes.add(DayTimes.parseMinuteValue(parser, token));
                             } catch (ElasticsearchParseException pe) {
-                                throw new ElasticsearchParseException("could not parse [{}] schedule. invalid value for [{}]", pe, TYPE,
-                                        currentFieldName);
+                                throw new ElasticsearchParseException(
+                                    "could not parse [{}] schedule. invalid value for [{}]",
+                                    pe,
+                                    TYPE,
+                                    currentFieldName
+                                );
                             }
                         }
                     } else {
-                        throw new ElasticsearchParseException("could not parse [{}] schedule. invalid value for [{}]. " +
-                                "expected either string/value or an array of string/number values, but found [{}]", TYPE, currentFieldName,
-                                token);
+                        throw new ElasticsearchParseException(
+                            "could not parse [{}] schedule. invalid value for [{}]. "
+                                + "expected either string/value or an array of string/number values, but found [{}]",
+                            TYPE,
+                            currentFieldName,
+                            token
+                        );
                     }
                 } else {
                     throw new ElasticsearchParseException("could not parse [{}] schedule. unexpected field [{}]", TYPE, currentFieldName);
@@ -137,8 +149,7 @@ public class HourlySchedule extends CronnableSchedule {
 
         private Set<Integer> minutes = new HashSet<>();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder minutes(int... minutes) {
             for (int minute : minutes) {

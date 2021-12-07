@@ -48,7 +48,7 @@ public class YearTimes implements Times {
 
     void validate() {
         for (int day : days) {
-            if (day < 1 || day > 32) { //32 represents the last day of the month
+            if (day < 1 || day > 32) { // 32 represents the last day of the month
                 throw illegalArgument("invalid month day [{}]", day);
             }
         }
@@ -90,9 +90,8 @@ public class YearTimes implements Times {
 
         YearTimes that = (YearTimes) o;
 
-        return Arrays.equals(days, that.days)
-            && months.equals(that.months)
-            // order doesn't matter
+        return Arrays.equals(days, that.days) && months.equals(that.months)
+        // order doesn't matter
             && newHashSet(times).equals(newHashSet(that.times));
     }
 
@@ -107,11 +106,11 @@ public class YearTimes implements Times {
     @Override
     public String toString() {
         return String.format(
-                Locale.ROOT,
-                "months [%s], days [%s], times [%s]",
-                Strings.collectionToCommaDelimitedString(months),
-                join(",", days),
-                Strings.arrayToCommaDelimitedString(times)
+            Locale.ROOT,
+            "months [%s], days [%s], times [%s]",
+            Strings.collectionToCommaDelimitedString(months),
+            join(",", days),
+            Strings.arrayToCommaDelimitedString(times)
         );
     }
 
@@ -151,8 +150,12 @@ public class YearTimes implements Times {
                         monthsSet.add(parseMonthValue(parser, token));
                     }
                 } else {
-                    throw new ElasticsearchParseException("invalid year month value for [{}] field. expected string/number value or an " +
-                            "array of string/number values, but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException(
+                        "invalid year month value for [{}] field. expected string/number value or an "
+                            + "array of string/number values, but found [{}]",
+                        currentFieldName,
+                        token
+                    );
                 }
             } else if (DAY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token.isValue()) {
@@ -162,8 +165,12 @@ public class YearTimes implements Times {
                         daysSet.add(MonthTimes.parseDayValue(parser, token));
                     }
                 } else {
-                    throw new ElasticsearchParseException("invalid year day value for [{}] field. expected string/number value or an " +
-                            "array of string/number values, but found [{}]", currentFieldName, token);
+                    throw new ElasticsearchParseException(
+                        "invalid year day value for [{}] field. expected string/number value or an "
+                            + "array of string/number values, but found [{}]",
+                        currentFieldName,
+                        token
+                    );
                 }
             } else if (TIME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                 if (token != XContentParser.Token.START_ARRAY) {
@@ -205,8 +212,7 @@ public class YearTimes implements Times {
         private final Set<Integer> days = new HashSet<>();
         private final Set<DayTimes> times = new HashSet<>();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder in(Month... months) {
             Collections.addAll(this.months, months);

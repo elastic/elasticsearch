@@ -10,10 +10,10 @@ package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 

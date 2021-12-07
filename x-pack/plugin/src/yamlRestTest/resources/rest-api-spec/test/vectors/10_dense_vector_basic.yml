@@ -17,7 +17,7 @@ setup:
                 type: dense_vector
                 dims: 5
                 index: true
-                similarity: dot_product
+                similarity: cosine
   - do:
       index:
         index: test-index

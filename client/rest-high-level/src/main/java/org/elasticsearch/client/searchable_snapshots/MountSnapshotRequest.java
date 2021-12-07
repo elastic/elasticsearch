@@ -140,7 +140,8 @@ public class MountSnapshotRequest implements ToXContentObject, Validatable {
                 builder.field("renamed_index", renamedIndex);
             }
             if (indexSettings != null) {
-                builder.startObject("index_settings"); {
+                builder.startObject("index_settings");
+                {
                     indexSettings.toXContent(builder, params);
                 }
                 builder.endObject();

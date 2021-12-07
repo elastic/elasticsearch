@@ -102,21 +102,19 @@ import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.searchafter.SearchAfterBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.hamcrest.Matchers;
 
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -141,6 +139,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -158,19 +159,18 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@SuppressWarnings("removal")
 public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     @Override
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("admin_user", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public void testGetUsers() throws Exception {
         final RestHighLevelClient client = highLevelClient();
-        String[] usernames = new String[]{"user1", "user2", "user3"};
+        String[] usernames = new String[] { "user1", "user2", "user3" };
         addUser(client, usernames[0], randomAlphaOfLengthBetween(14, 18));
         addUser(client, usernames[1], randomAlphaOfLengthBetween(14, 18));
         addUser(client, usernames[2], randomAlphaOfLengthBetween(14, 18));
@@ -285,7 +285,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             byte[] salt = new byte[32];
             // no need for secure random in a test; it could block and would not be reproducible anyway
             random().nextBytes(salt);
-            char[] password = new char[]{'t', 'e', 's', 't', '-', 'u', 's', 'e', 'r', '-', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+            char[] password = new char[] { 't', 'e', 's', 't', '-', 'u', 's', 'e', 'r', '-', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' };
             User user = new User("example2", Collections.singletonList("superuser"));
 
             //tag::put-user-hash-request
@@ -424,9 +424,15 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                 .addExpression(FieldRoleMapperExpression.ofUsername("*"))
                 .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com"))
                 .build();
-            final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true, Collections.emptyList(),
+            final PutRoleMappingRequest request = new PutRoleMappingRequest(
+                "mapping-example",
+                true,
+                Collections.emptyList(),
                 Collections.singletonList(new TemplateRoleName("{\"source\":\"{{username}}\"}", TemplateRoleName.Format.STRING)),
-                rules, null, RefreshPolicy.NONE);
+                rules,
+                null,
+                RefreshPolicy.NONE
+            );
             // tag::put-role-mapping-execute-listener
             ActionListener<PutRoleMappingResponse> listener = new ActionListener<PutRoleMappingResponse>() {
                 @Override
@@ -463,22 +469,39 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         final TemplateRoleName monitoring = new TemplateRoleName("{\"source\":\"monitoring\"}", TemplateRoleName.Format.STRING);
         final TemplateRoleName template = new TemplateRoleName("{\"source\":\"{{username}}\"}", TemplateRoleName.Format.STRING);
 
-        final RoleMapperExpression rules1 = AnyRoleMapperExpression.builder().addExpression(FieldRoleMapperExpression.ofUsername("*"))
-            .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com")).build();
-        final PutRoleMappingRequest putRoleMappingRequest1 = new PutRoleMappingRequest("mapping-example-1", true, Collections.emptyList(),
-            Arrays.asList(monitoring, template), rules1, null, RefreshPolicy.NONE);
-        final PutRoleMappingResponse putRoleMappingResponse1 = client.security().putRoleMapping(putRoleMappingRequest1,
-            RequestOptions.DEFAULT);
+        final RoleMapperExpression rules1 = AnyRoleMapperExpression.builder()
+            .addExpression(FieldRoleMapperExpression.ofUsername("*"))
+            .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com"))
+            .build();
+        final PutRoleMappingRequest putRoleMappingRequest1 = new PutRoleMappingRequest(
+            "mapping-example-1",
+            true,
+            Collections.emptyList(),
+            Arrays.asList(monitoring, template),
+            rules1,
+            null,
+            RefreshPolicy.NONE
+        );
+        final PutRoleMappingResponse putRoleMappingResponse1 = client.security()
+            .putRoleMapping(putRoleMappingRequest1, RequestOptions.DEFAULT);
         boolean isCreated1 = putRoleMappingResponse1.isCreated();
         assertTrue(isCreated1);
-        final RoleMapperExpression rules2 = AnyRoleMapperExpression.builder().addExpression(FieldRoleMapperExpression.ofGroups(
-            "cn=admins,dc=example,dc=com")).build();
+        final RoleMapperExpression rules2 = AnyRoleMapperExpression.builder()
+            .addExpression(FieldRoleMapperExpression.ofGroups("cn=admins,dc=example,dc=com"))
+            .build();
         final Map<String, Object> metadata2 = new HashMap<>();
         metadata2.put("k1", "v1");
-        final PutRoleMappingRequest putRoleMappingRequest2 = new PutRoleMappingRequest("mapping-example-2", true,
-            Arrays.asList("superuser"), Collections.emptyList(), rules2, metadata2, RefreshPolicy.NONE);
-        final PutRoleMappingResponse putRoleMappingResponse2 = client.security().putRoleMapping(putRoleMappingRequest2,
-            RequestOptions.DEFAULT);
+        final PutRoleMappingRequest putRoleMappingRequest2 = new PutRoleMappingRequest(
+            "mapping-example-2",
+            true,
+            Arrays.asList("superuser"),
+            Collections.emptyList(),
+            rules2,
+            metadata2,
+            RefreshPolicy.NONE
+        );
+        final PutRoleMappingResponse putRoleMappingResponse2 = client.security()
+            .putRoleMapping(putRoleMappingRequest2, RequestOptions.DEFAULT);
         boolean isCreated2 = putRoleMappingResponse2.isCreated();
         assertTrue(isCreated2);
 
@@ -511,7 +534,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(mappings.size(), is(2));
             for (ExpressionRoleMapping roleMapping : mappings) {
                 assertThat(roleMapping.isEnabled(), is(true));
-                assertThat(roleMapping.getName(), in(new String[]{"mapping-example-1", "mapping-example-2"}));
+                assertThat(roleMapping.getName(), in(new String[] { "mapping-example-1", "mapping-example-2" }));
                 if (roleMapping.getName().equals("mapping-example-1")) {
                     assertThat(roleMapping.getMetadata(), equalTo(Collections.emptyMap()));
                     assertThat(roleMapping.getExpression(), equalTo(rules1));
@@ -536,7 +559,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(mappings.size(), is(2));
             for (ExpressionRoleMapping roleMapping : mappings) {
                 assertThat(roleMapping.isEnabled(), is(true));
-                assertThat(roleMapping.getName(), in(new String[]{"mapping-example-1", "mapping-example-2"}));
+                assertThat(roleMapping.getName(), in(new String[] { "mapping-example-1", "mapping-example-2" }));
                 if (roleMapping.getName().equals("mapping-example-1")) {
                     assertThat(roleMapping.getMetadata(), equalTo(Collections.emptyMap()));
                     assertThat(roleMapping.getExpression(), equalTo(rules1));
@@ -581,7 +604,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testEnableUser() throws Exception {
         RestHighLevelClient client = highLevelClient();
-        char[] password = new char[]{'t', 'e', 's', 't', '-', 'u', 's', 'e', 'r', '-', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+        char[] password = new char[] { 't', 'e', 's', 't', '-', 'u', 's', 'e', 'r', '-', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' };
         User enable_user = new User("enable_user", Collections.singletonList("superuser"));
         PutUserRequest putUserRequest = PutUserRequest.withPassword(enable_user, password, true, RefreshPolicy.IMMEDIATE);
         PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
@@ -626,7 +649,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testDisableUser() throws Exception {
         RestHighLevelClient client = highLevelClient();
-        char[] password = new char[]{'t', 'e', 's', 't', '-', 'u', 's', 'e', 'r', '-', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+        char[] password = new char[] { 't', 'e', 's', 't', '-', 'u', 's', 'e', 'r', '-', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' };
         User disable_user = new User("disable_user", Collections.singletonList("superuser"));
         PutUserRequest putUserRequest = PutUserRequest.withPassword(disable_user, password, true, RefreshPolicy.IMMEDIATE);
         PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
@@ -770,7 +793,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             //end::authenticate-response
 
             assertThat(user.getUsername(), is("test_user"));
-            assertThat(user.getRoles(), contains(new String[]{"admin"}));
+            assertThat(user.getRoles(), contains(new String[] { "admin" }));
             assertThat(user.getFullName(), nullValue());
             assertThat(user.getEmail(), nullValue());
             assertThat(user.getMetadata().isEmpty(), is(true));
@@ -1141,8 +1164,12 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            ClearServiceAccountTokenCacheRequest request = new ClearServiceAccountTokenCacheRequest("elastic", "fleet-server",
-                "token1", "token2");
+            ClearServiceAccountTokenCacheRequest request = new ClearServiceAccountTokenCacheRequest(
+                "elastic",
+                "fleet-server",
+                "token1",
+                "token2"
+            );
             //tag::clear-service-account-token-cache-execute-listener
             ActionListener<ClearSecurityCacheResponse> listener = new ActionListener<>() {
                 @Override
@@ -1259,9 +1286,30 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testChangePassword() throws Exception {
         RestHighLevelClient client = highLevelClient();
-        char[] password = new char[]{'t', 'e', 's', 't', '-', 'u', 's', 'e', 'r', '-', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-        char[] newPassword =
-            new char[]{'n', 'e', 'w', '-', 't', 'e', 's', 't', '-', 'u', 's', 'e', 'r', '-', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
+        char[] password = new char[] { 't', 'e', 's', 't', '-', 'u', 's', 'e', 'r', '-', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd' };
+        char[] newPassword = new char[] {
+            'n',
+            'e',
+            'w',
+            '-',
+            't',
+            'e',
+            's',
+            't',
+            '-',
+            'u',
+            's',
+            'e',
+            'r',
+            '-',
+            'p',
+            'a',
+            's',
+            's',
+            'w',
+            'o',
+            'r',
+            'd' };
         User user = new User("change_password_user", Collections.singletonList("superuser"), Collections.emptyMap(), null, null);
         PutUserRequest putUserRequest = PutUserRequest.withPassword(user, password, true, RefreshPolicy.NONE);
         PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
@@ -1308,8 +1356,15 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Create role mappings
             final RoleMapperExpression rules = FieldRoleMapperExpression.ofUsername("*");
-            final PutRoleMappingRequest request = new PutRoleMappingRequest("mapping-example", true,
-                Collections.singletonList("superuser"), Collections.emptyList(), rules, null, RefreshPolicy.NONE);
+            final PutRoleMappingRequest request = new PutRoleMappingRequest(
+                "mapping-example",
+                true,
+                Collections.singletonList("superuser"),
+                Collections.emptyList(),
+                rules,
+                null,
+                RefreshPolicy.NONE
+            );
             final PutRoleMappingResponse response = client.security().putRoleMapping(request, RequestOptions.DEFAULT);
             boolean isCreated = response.isCreated();
             assertTrue(isCreated);
@@ -1466,10 +1521,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     private void addRole(String roleName) throws IOException {
-        final Role role = Role.builder()
-            .name(roleName)
-            .clusterPrivileges("all")
-            .build();
+        final Role role = Role.builder().name(roleName).clusterPrivileges("all").build();
         final PutRoleRequest request = new PutRoleRequest(role, RefreshPolicy.IMMEDIATE);
         highLevelClient().security().putRole(request, RequestOptions.DEFAULT);
     }
@@ -1480,8 +1532,12 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // Setup user
             User token_user = new User("token_user", Collections.singletonList("kibana_user"));
-            PutUserRequest putUserRequest = PutUserRequest.withPassword(token_user, "test-user-password".toCharArray(), true,
-                RefreshPolicy.IMMEDIATE);
+            PutUserRequest putUserRequest = PutUserRequest.withPassword(
+                token_user,
+                "test-user-password".toCharArray(),
+                true,
+                RefreshPolicy.IMMEDIATE
+            );
             PutUserResponse putUserResponse = client.security().putUser(putUserRequest, RequestOptions.DEFAULT);
             assertTrue(putUserResponse.isCreated());
         }
@@ -1626,8 +1682,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::invalidate-refresh-token-request
             InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.refreshToken(refreshToken);
             // end::invalidate-refresh-token-request
-            InvalidateTokenResponse invalidateTokenResponse =
-                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            InvalidateTokenResponse invalidateTokenResponse = client.security()
+                .invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
             assertTrue(invalidateTokenResponse.getErrors().isEmpty());
             assertThat(invalidateTokenResponse.getInvalidatedTokens(), equalTo(1));
             assertThat(invalidateTokenResponse.getPreviouslyInvalidatedTokens(), equalTo(0));
@@ -1637,8 +1693,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::invalidate-user-tokens-request
             InvalidateTokenRequest invalidateTokenRequest = InvalidateTokenRequest.userTokens("other_user");
             // end::invalidate-user-tokens-request
-            InvalidateTokenResponse invalidateTokenResponse =
-                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            InvalidateTokenResponse invalidateTokenResponse = client.security()
+                .invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
             assertTrue(invalidateTokenResponse.getErrors().isEmpty());
             // We have one refresh and one access token for that user
             assertThat(invalidateTokenResponse.getInvalidatedTokens(), equalTo(2));
@@ -1649,8 +1705,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::invalidate-user-realm-tokens-request
             InvalidateTokenRequest invalidateTokenRequest = new InvalidateTokenRequest(null, null, "default_native", "extra_user");
             // end::invalidate-user-realm-tokens-request
-            InvalidateTokenResponse invalidateTokenResponse =
-                client.security().invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
+            InvalidateTokenResponse invalidateTokenResponse = client.security()
+                .invalidateToken(invalidateTokenRequest, RequestOptions.DEFAULT);
             assertTrue(invalidateTokenResponse.getErrors().isEmpty());
             // We have one refresh and one access token for that user in this realm
             assertThat(invalidateTokenResponse.getInvalidatedTokens(), equalTo(2));
@@ -1691,7 +1747,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final InvalidateTokenResponse response = future.get(30, TimeUnit.SECONDS);
             assertNotNull(response);
             assertTrue(response.getErrors().isEmpty());
-            //We still have 4 tokens ( 2 access_tokens and 2 refresh_tokens ) for the default_native realm
+            // We still have 4 tokens ( 2 access_tokens and 2 refresh_tokens ) for the default_native realm
             assertThat(response.getInvalidatedTokens(), equalTo(4));
             assertThat(response.getPreviouslyInvalidatedTokens(), equalTo(0));
         }
@@ -1753,22 +1809,46 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testGetPrivileges() throws Exception {
         final RestHighLevelClient client = highLevelClient();
-        final ApplicationPrivilege readTestappPrivilege =
-            new ApplicationPrivilege("testapp", "read", Arrays.asList("action:login", "data:read/*"), null);
+        final ApplicationPrivilege readTestappPrivilege = new ApplicationPrivilege(
+            "testapp",
+            "read",
+            Arrays.asList("action:login", "data:read/*"),
+            null
+        );
         final Map<String, Object> metadata = new HashMap<>();
         metadata.put("key1", "value1");
-        final ApplicationPrivilege writeTestappPrivilege =
-            new ApplicationPrivilege("testapp", "write", Arrays.asList("action:login", "data:write/*"), metadata);
-        final ApplicationPrivilege allTestappPrivilege =
-            new ApplicationPrivilege("testapp", "all", Arrays.asList("action:login", "data:write/*", "manage:*"), null);
+        final ApplicationPrivilege writeTestappPrivilege = new ApplicationPrivilege(
+            "testapp",
+            "write",
+            Arrays.asList("action:login", "data:write/*"),
+            metadata
+        );
+        final ApplicationPrivilege allTestappPrivilege = new ApplicationPrivilege(
+            "testapp",
+            "all",
+            Arrays.asList("action:login", "data:write/*", "manage:*"),
+            null
+        );
         final Map<String, Object> metadata2 = new HashMap<>();
         metadata2.put("key2", "value2");
-        final ApplicationPrivilege readTestapp2Privilege =
-            new ApplicationPrivilege("testapp2", "read", Arrays.asList("action:login", "data:read/*"), metadata2);
-        final ApplicationPrivilege writeTestapp2Privilege =
-            new ApplicationPrivilege("testapp2", "write", Arrays.asList("action:login", "data:write/*"), null);
-        final ApplicationPrivilege allTestapp2Privilege =
-            new ApplicationPrivilege("testapp2", "all", Arrays.asList("action:login", "data:write/*", "manage:*"), null);
+        final ApplicationPrivilege readTestapp2Privilege = new ApplicationPrivilege(
+            "testapp2",
+            "read",
+            Arrays.asList("action:login", "data:read/*"),
+            metadata2
+        );
+        final ApplicationPrivilege writeTestapp2Privilege = new ApplicationPrivilege(
+            "testapp2",
+            "write",
+            Arrays.asList("action:login", "data:write/*"),
+            null
+        );
+        final ApplicationPrivilege allTestapp2Privilege = new ApplicationPrivilege(
+            "testapp2",
+            "all",
+            Arrays.asList("action:login", "data:write/*", "manage:*"),
+            null
+        );
 
         {
             List<ApplicationPrivilege> applicationPrivileges = new ArrayList<>();
@@ -1810,8 +1890,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertNotNull(response);
             assertThat(response.getPrivileges().size(), equalTo(3));
-            final GetPrivilegesResponse expectedResponse =
-                new GetPrivilegesResponse(Arrays.asList(readTestappPrivilege, writeTestappPrivilege, allTestappPrivilege));
+            final GetPrivilegesResponse expectedResponse = new GetPrivilegesResponse(
+                Arrays.asList(readTestappPrivilege, writeTestappPrivilege, allTestappPrivilege)
+            );
             assertThat(response, equalTo(expectedResponse));
             //tag::get-privileges-response
             Set<ApplicationPrivilege> privileges = response.getPrivileges();
@@ -1840,9 +1921,16 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertNotNull(response);
             assertThat(response.getPrivileges().size(), equalTo(6));
-            final GetPrivilegesResponse exptectedResponse =
-                new GetPrivilegesResponse(Arrays.asList(readTestappPrivilege, writeTestappPrivilege, allTestappPrivilege,
-                    readTestapp2Privilege, writeTestapp2Privilege, allTestapp2Privilege));
+            final GetPrivilegesResponse exptectedResponse = new GetPrivilegesResponse(
+                Arrays.asList(
+                    readTestappPrivilege,
+                    writeTestappPrivilege,
+                    allTestappPrivilege,
+                    readTestapp2Privilege,
+                    writeTestapp2Privilege,
+                    allTestapp2Privilege
+                )
+            );
             assertThat(response, equalTo(exptectedResponse));
         }
 
@@ -1915,12 +2003,14 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             final List<ApplicationPrivilege> privileges = new ArrayList<>();
-            privileges.add(ApplicationPrivilege.builder()
-                .application("app01")
-                .privilege("all")
-                .actions(List.of("action:login"))
-                .metadata(Collections.singletonMap("k1", "v1"))
-                .build());
+            privileges.add(
+                ApplicationPrivilege.builder()
+                    .application("app01")
+                    .privilege("all")
+                    .actions(List.of("action:login"))
+                    .metadata(Collections.singletonMap("k1", "v1"))
+                    .build()
+            );
             final PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(privileges, RefreshPolicy.IMMEDIATE);
 
             // tag::put-privileges-execute-listener
@@ -1957,21 +2047,15 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             List<ApplicationPrivilege> applicationPrivileges = new ArrayList<>();
-            applicationPrivileges.add(ApplicationPrivilege.builder()
-                .application("testapp")
-                .privilege("read")
-                .actions("action:login", "data:read/*")
-                .build());
-            applicationPrivileges.add(ApplicationPrivilege.builder()
-                .application("testapp")
-                .privilege("write")
-                .actions("action:login", "data:write/*")
-                .build());
-            applicationPrivileges.add(ApplicationPrivilege.builder()
-                .application("testapp")
-                .privilege("all")
-                .actions("action:login", "data:write/*")
-                .build());
+            applicationPrivileges.add(
+                ApplicationPrivilege.builder().application("testapp").privilege("read").actions("action:login", "data:read/*").build()
+            );
+            applicationPrivileges.add(
+                ApplicationPrivilege.builder().application("testapp").privilege("write").actions("action:login", "data:write/*").build()
+            );
+            applicationPrivileges.add(
+                ApplicationPrivilege.builder().application("testapp").privilege("all").actions("action:login", "data:write/*").build()
+            );
             PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest(applicationPrivileges, RefreshPolicy.IMMEDIATE);
             PutPrivilegesResponse putPrivilegesResponse = client.security().putPrivileges(putPrivilegesRequest, RequestOptions.DEFAULT);
 
@@ -2036,8 +2120,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testCreateApiKey() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
-            .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
+        List<Role> roles = Collections.singletonList(
+            Role.builder()
+                .name("r1")
+                .clusterPrivileges(ClusterPrivilegeName.ALL)
+                .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build())
+                .build()
+        );
         final TimeValue expiration = TimeValue.timeValueHours(24);
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         final Map<String, Object> metadata = CreateApiKeyRequestTests.randomMetadata();
@@ -2107,9 +2196,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         addUser(client, username, passwordString);
 
-        List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
-            .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
-
+        List<Role> roles = Collections.singletonList(
+            Role.builder()
+                .name("r1")
+                .clusterPrivileges(ClusterPrivilegeName.ALL)
+                .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build())
+                .build()
+        );
 
         final Instant start = Instant.now();
         final Map<String, Object> metadata = CreateApiKeyRequestTests.randomMetadata();
@@ -2205,8 +2298,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testGetApiKey() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
-            .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
+        List<Role> roles = Collections.singletonList(
+            Role.builder()
+                .name("r1")
+                .clusterPrivileges(ClusterPrivilegeName.ALL)
+                .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build())
+                .build()
+        );
         final TimeValue expiration = TimeValue.timeValueHours(24);
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         final Map<String, Object> metadata = CreateApiKeyRequestTests.randomMetadata();
@@ -2217,8 +2315,16 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         assertNotNull(createApiKeyResponse1.getKey());
         assertNotNull(createApiKeyResponse1.getEncoded());
 
-        final ApiKey expectedApiKeyInfo = new ApiKey(createApiKeyResponse1.getName(), createApiKeyResponse1.getId(), Instant.now(),
-            Instant.now().plusMillis(expiration.getMillis()), false, "test_user", "default_file", metadata);
+        final ApiKey expectedApiKeyInfo = new ApiKey(
+            createApiKeyResponse1.getName(),
+            createApiKeyResponse1.getId(),
+            Instant.now(),
+            Instant.now().plusMillis(expiration.getMillis()),
+            false,
+            "test_user",
+            "default_file",
+            metadata
+        );
         {
             // tag::get-api-key-id-request
             GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId(), false);
@@ -2362,8 +2468,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testInvalidateApiKey() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
-        List<Role> roles = Collections.singletonList(Role.builder().name("r1").clusterPrivileges(ClusterPrivilegeName.ALL)
-            .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
+        List<Role> roles = Collections.singletonList(
+            Role.builder()
+                .name("r1")
+                .clusterPrivileges(ClusterPrivilegeName.ALL)
+                .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build())
+                .build()
+        );
         final TimeValue expiration = TimeValue.timeValueHours(24);
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
         final Map<String, Object> metadata = CreateApiKeyRequestTests.randomMetadata();
@@ -2400,8 +2511,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                 Arrays.asList("kI3QZHYBnpSXoDRq1XzR", "ko3SZHYBnpSXoDRqk3zm"), false);
             // end::invalidate-api-key-ids-request
 
-            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,
-                RequestOptions.DEFAULT);
+            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security()
+                .invalidateApiKey(invalidateApiKeyRequest, RequestOptions.DEFAULT);
 
             final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
             final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();
@@ -2424,8 +2535,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                 false);
             // end::invalidate-api-key-name-request
 
-            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,
-                RequestOptions.DEFAULT);
+            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security()
+                .invalidateApiKey(invalidateApiKeyRequest, RequestOptions.DEFAULT);
 
             final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
             final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();
@@ -2448,8 +2559,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmName("default_file");
             // end::invalidate-realm-api-keys-request
 
-            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,
-                RequestOptions.DEFAULT);
+            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security()
+                .invalidateApiKey(invalidateApiKeyRequest, RequestOptions.DEFAULT);
 
             final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
             final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();
@@ -2472,8 +2583,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingUserName("test_user");
             // end::invalidate-user-api-keys-request
 
-            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,
-                RequestOptions.DEFAULT);
+            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security()
+                .invalidateApiKey(invalidateApiKeyRequest, RequestOptions.DEFAULT);
 
             final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
             final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();
@@ -2566,8 +2677,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.forOwnedApiKeys();
             // end::invalidate-api-keys-owned-by-authenticated-user-request
 
-            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,
-                RequestOptions.DEFAULT);
+            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security()
+                .invalidateApiKey(invalidateApiKeyRequest, RequestOptions.DEFAULT);
 
             final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
             final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();
@@ -2583,13 +2694,21 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testQueryApiKey() throws IOException, ExecutionException, InterruptedException, TimeoutException {
         RestHighLevelClient client = highLevelClient();
-        final CreateApiKeyRequest createApiKeyRequest1 = new CreateApiKeyRequest("key-10000", List.of(),
+        final CreateApiKeyRequest createApiKeyRequest1 = new CreateApiKeyRequest(
+            "key-10000",
+            List.of(),
             randomBoolean() ? TimeValue.timeValueHours(24) : null,
-            RefreshPolicy.WAIT_UNTIL, Map.of("environment", "east-production"));
+            RefreshPolicy.WAIT_UNTIL,
+            Map.of("environment", "east-production")
+        );
         final CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest1, RequestOptions.DEFAULT);
-        final CreateApiKeyRequest createApiKeyRequest2 = new CreateApiKeyRequest("key-20000", List.of(),
+        final CreateApiKeyRequest createApiKeyRequest2 = new CreateApiKeyRequest(
+            "key-20000",
+            List.of(),
             randomBoolean() ? TimeValue.timeValueHours(24) : null,
-            RefreshPolicy.WAIT_UNTIL, Map.of("environment", "east-staging"));
+            RefreshPolicy.WAIT_UNTIL,
+            Map.of("environment", "east-staging")
+        );
         final CreateApiKeyResponse createApiKeyResponse2 = client.security().createApiKey(createApiKeyRequest2, RequestOptions.DEFAULT);
 
         {
@@ -2603,10 +2722,14 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertThat(queryApiKeyResponse.getTotal(), equalTo(2L));
             assertThat(queryApiKeyResponse.getCount(), equalTo(2));
-            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getName).collect(Collectors.toUnmodifiableSet()),
-                equalTo(Set.of("key-10000", "key-20000")));
-            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getId).collect(Collectors.toUnmodifiableSet()),
-                equalTo(Set.of(createApiKeyResponse1.getId(), createApiKeyResponse2.getId())));
+            assertThat(
+                queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getName).collect(Collectors.toUnmodifiableSet()),
+                equalTo(Set.of("key-10000", "key-20000"))
+            );
+            assertThat(
+                queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getId).collect(Collectors.toUnmodifiableSet()),
+                equalTo(Set.of(createApiKeyResponse1.getId(), createApiKeyResponse2.getId()))
+            );
         }
 
         {
@@ -2699,10 +2822,14 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(queryApiKeyResponse.getCount(), equalTo(2));
             assertThat(queryApiKeyResponse.getApiKeys(), is(notNullValue()));
             assertThat(queryApiKeyResponse.getApiKeys().size(), is(2));
-            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getName).collect(Collectors.toUnmodifiableSet()),
-                equalTo(Set.of("key-10000", "key-20000")));
-            assertThat(queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getId).collect(Collectors.toUnmodifiableSet()),
-                equalTo(Set.of(createApiKeyResponse1.getId(), createApiKeyResponse2.getId())));
+            assertThat(
+                queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getName).collect(Collectors.toUnmodifiableSet()),
+                equalTo(Set.of("key-10000", "key-20000"))
+            );
+            assertThat(
+                queryApiKeyResponse.getApiKeys().stream().map(ApiKey::getId).collect(Collectors.toUnmodifiableSet()),
+                equalTo(Set.of(createApiKeyResponse1.getId(), createApiKeyResponse2.getId()))
+            );
         }
     }
 
@@ -2824,8 +2951,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testDeleteServiceAccountToken() throws IOException {
         RestHighLevelClient client = highLevelClient();
-        final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-            new CreateServiceAccountTokenRequest("elastic", "fleet-server", "test-token");
+        final CreateServiceAccountTokenRequest createServiceAccountTokenRequest = new CreateServiceAccountTokenRequest(
+            "elastic",
+            "fleet-server",
+            "test-token"
+        );
         client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
         {
             // tag::delete-service-account-token-request
@@ -2846,8 +2976,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
         {
-            DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest =
-                new DeleteServiceAccountTokenRequest("elastic", "fleet-server", "test-token");
+            DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest = new DeleteServiceAccountTokenRequest(
+                "elastic",
+                "fleet-server",
+                "test-token"
+            );
             ActionListener<DeleteServiceAccountTokenResponse> listener;
             // tag::delete-service-account-token-execute-listener
             listener = new ActionListener<DeleteServiceAccountTokenResponse>() {
@@ -2877,10 +3010,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
     public void testGetServiceAccountCredentials() throws IOException {
         RestHighLevelClient client = highLevelClient();
-        final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-            new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token2");
-        final CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
-            client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
+        final CreateServiceAccountTokenRequest createServiceAccountTokenRequest = new CreateServiceAccountTokenRequest(
+            "elastic",
+            "fleet-server",
+            "token2"
+        );
+        final CreateServiceAccountTokenResponse createServiceAccountTokenResponse = client.security()
+            .createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
         assertThat(createServiceAccountTokenResponse.getName(), equalTo("token2"));
 
         {
@@ -2916,8 +3052,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            final GetServiceAccountCredentialsRequest getServiceAccountCredentialsRequest =
-                new GetServiceAccountCredentialsRequest("elastic", "fleet-server");
+            final GetServiceAccountCredentialsRequest getServiceAccountCredentialsRequest = new GetServiceAccountCredentialsRequest(
+                "elastic",
+                "fleet-server"
+            );
 
             ActionListener<GetServiceAccountCredentialsResponse> listener;
             // tag::get-service-account-credentials-execute-listener
@@ -2945,8 +3083,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(future.actionGet());
             assertThat(future.actionGet().getPrincipal(), equalTo("elastic/fleet-server"));
             assertThat(future.actionGet().getIndexTokenInfos().size(), greaterThanOrEqualTo(1));
-            assertThat(future.actionGet().getIndexTokenInfos().stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()),
-                hasItem("token2"));
+            assertThat(
+                future.actionGet().getIndexTokenInfos().stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()),
+                hasItem("token2")
+            );
         }
     }
 
@@ -2981,7 +3121,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             DelegatePkiAuthenticationRequest request = new DelegatePkiAuthenticationRequest(
-                Arrays.asList(clientCertificate, intermediateCA));
+                Arrays.asList(clientCertificate, intermediateCA)
+            );
             ActionListener<DelegatePkiAuthenticationResponse> listener;
 
             //tag::delegate-pki-execute-listener

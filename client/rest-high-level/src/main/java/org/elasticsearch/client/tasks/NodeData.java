@@ -7,14 +7,15 @@
  */
 package org.elasticsearch.client.tasks;
 
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.XContentParser;
 
 class NodeData {
 
@@ -24,7 +25,7 @@ class NodeData {
     private String host;
     private String ip;
     private final List<String> roles = new ArrayList<>();
-    private final Map<String,String> attributes = new HashMap<>();
+    private final Map<String, String> attributes = new HashMap<>();
     private final List<TaskInfo> tasks = new ArrayList<>();
 
     NodeData(String nodeId) {
@@ -36,7 +37,7 @@ class NodeData {
     }
 
     public void setAttributes(Map<String, String> attributes) {
-        if(attributes!=null){
+        if (attributes != null) {
             this.attributes.putAll(attributes);
         }
     }
@@ -54,7 +55,7 @@ class NodeData {
     }
 
     void setRoles(List<String> roles) {
-        if(roles!=null){
+        if (roles != null) {
             this.roles.addAll(roles);
         }
     }
@@ -92,22 +93,34 @@ class NodeData {
     }
 
     void setTasks(List<TaskInfo> tasks) {
-        if(tasks!=null){
+        if (tasks != null) {
             this.tasks.addAll(tasks);
         }
     }
 
     @Override
     public String toString() {
-        return "NodeData{" +
-            "nodeId='" + nodeId + '\'' +
-            ", name='" + name + '\'' +
-            ", transportAddress='" + transportAddress + '\'' +
-            ", host='" + host + '\'' +
-            ", ip='" + ip + '\'' +
-            ", roles=" + roles +
-            ", attributes=" + attributes +
-            '}';
+        return "NodeData{"
+            + "nodeId='"
+            + nodeId
+            + '\''
+            + ", name='"
+            + name
+            + '\''
+            + ", transportAddress='"
+            + transportAddress
+            + '\''
+            + ", host='"
+            + host
+            + '\''
+            + ", ip='"
+            + ip
+            + '\''
+            + ", roles="
+            + roles
+            + ", attributes="
+            + attributes
+            + '}';
     }
 
     @Override
@@ -115,14 +128,14 @@ class NodeData {
         if (this == o) return true;
         if ((o instanceof NodeData) == false) return false;
         NodeData nodeData = (NodeData) o;
-        return Objects.equals(getNodeId(), nodeData.getNodeId()) &&
-            Objects.equals(getName(), nodeData.getName()) &&
-            Objects.equals(getTransportAddress(), nodeData.getTransportAddress()) &&
-            Objects.equals(getHost(), nodeData.getHost()) &&
-            Objects.equals(getIp(), nodeData.getIp()) &&
-            Objects.equals(getRoles(), nodeData.getRoles()) &&
-            Objects.equals(getAttributes(), nodeData.getAttributes()) &&
-            Objects.equals(getTasks(), nodeData.getTasks());
+        return Objects.equals(getNodeId(), nodeData.getNodeId())
+            && Objects.equals(getName(), nodeData.getName())
+            && Objects.equals(getTransportAddress(), nodeData.getTransportAddress())
+            && Objects.equals(getHost(), nodeData.getHost())
+            && Objects.equals(getIp(), nodeData.getIp())
+            && Objects.equals(getRoles(), nodeData.getRoles())
+            && Objects.equals(getAttributes(), nodeData.getAttributes())
+            && Objects.equals(getTasks(), nodeData.getTasks());
     }
 
     @Override
@@ -139,10 +152,7 @@ class NodeData {
         parser.declareString(NodeData::setHost, new ParseField("host"));
         parser.declareString(NodeData::setIp, new ParseField("ip"));
         parser.declareStringArray(NodeData::setRoles, new ParseField("roles"));
-        parser.declareField(NodeData::setAttributes,
-           (p, c) -> p.mapStrings(),
-           new ParseField("attributes"),
-           ObjectParser.ValueType.OBJECT);
+        parser.declareField(NodeData::setAttributes, (p, c) -> p.mapStrings(), new ParseField("attributes"), ObjectParser.ValueType.OBJECT);
         parser.declareNamedObjects(NodeData::setTasks, TaskInfo.PARSER, new ParseField("tasks"));
         PARSER = (XContentParser p, Void v, String nodeId) -> parser.parse(p, new NodeData(nodeId), null);
     }

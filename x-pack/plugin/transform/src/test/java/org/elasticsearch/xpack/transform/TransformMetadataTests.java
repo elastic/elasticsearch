@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 
 public class TransformMetadataTests extends AbstractSerializingTestCase<TransformMetadata> {

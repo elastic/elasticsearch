@@ -28,8 +28,13 @@ public final class RenameProcessor extends AbstractProcessor {
     private final TemplateScript.Factory targetField;
     private final boolean ignoreMissing;
 
-    RenameProcessor(String tag, String description, TemplateScript.Factory field, TemplateScript.Factory targetField,
-                    boolean ignoreMissing) {
+    RenameProcessor(
+        String tag,
+        String description,
+        TemplateScript.Factory field,
+        TemplateScript.Factory targetField,
+        boolean ignoreMissing
+    ) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
@@ -93,16 +98,24 @@ public final class RenameProcessor extends AbstractProcessor {
         }
 
         @Override
-        public RenameProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                      String description, Map<String, Object> config) throws Exception {
+        public RenameProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
-            TemplateScript.Factory fieldTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
-                "field", field, scriptService);
+            TemplateScript.Factory fieldTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", field, scriptService);
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field");
-            TemplateScript.Factory targetFieldTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
-                "target_field", targetField, scriptService);
+            TemplateScript.Factory targetFieldTemplate = ConfigurationUtils.compileTemplate(
+                TYPE,
+                processorTag,
+                "target_field",
+                targetField,
+                scriptService
+            );
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            return new RenameProcessor(processorTag, description, fieldTemplate, targetFieldTemplate , ignoreMissing);
+            return new RenameProcessor(processorTag, description, fieldTemplate, targetFieldTemplate, ignoreMissing);
         }
     }
 }

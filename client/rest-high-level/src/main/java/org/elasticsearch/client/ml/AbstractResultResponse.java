@@ -29,8 +29,7 @@ public abstract class AbstractResultResponse<T extends ToXContent> implements To
     protected final long count;
 
     AbstractResultResponse(ParseField resultsField, List<T> results, long count) {
-        this.resultsField = Objects.requireNonNull(resultsField,
-            "[results_field] must not be null");
+        this.resultsField = Objects.requireNonNull(resultsField, "[results_field] must not be null");
         this.results = Collections.unmodifiableList(results);
         this.count = count;
     }

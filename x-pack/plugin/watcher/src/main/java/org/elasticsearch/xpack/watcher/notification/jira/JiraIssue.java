@@ -8,17 +8,17 @@ package org.elasticsearch.xpack.watcher.notification.jira;
 
 import org.apache.http.HttpStatus;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.watcher.actions.jira.JiraAction;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
-import org.elasticsearch.xpack.watcher.actions.jira.JiraAction;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,11 +29,15 @@ import java.util.Objects;
 
 public class JiraIssue implements ToXContentObject {
 
-    @Nullable final String account;
+    @Nullable
+    final String account;
     private final Map<String, Object> fields;
-    @Nullable private final HttpRequest request;
-    @Nullable private final HttpResponse response;
-    @Nullable private final String failureReason;
+    @Nullable
+    private final HttpRequest request;
+    @Nullable
+    private final HttpResponse response;
+    @Nullable
+    private final String failureReason;
 
     public static JiraIssue responded(String account, Map<String, Object> fields, HttpRequest request, HttpResponse response) {
         return new JiraIssue(account, fields, request, response, resolveFailureReason(response));
@@ -77,11 +81,11 @@ public class JiraIssue implements ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
 
         JiraIssue issue = (JiraIssue) o;
-        return Objects.equals(account, issue.account) &&
-                Objects.equals(fields, issue.fields) &&
-                Objects.equals(request, issue.request) &&
-                Objects.equals(response, issue.response) &&
-                Objects.equals(failureReason, issue.failureReason);
+        return Objects.equals(account, issue.account)
+            && Objects.equals(fields, issue.fields)
+            && Objects.equals(request, issue.request)
+            && Objects.equals(response, issue.response)
+            && Objects.equals(failureReason, issue.failureReason);
     }
 
     @Override
@@ -152,16 +156,23 @@ public class JiraIssue implements ToXContentObject {
         if (response.hasContent()) {
             final List<String> errors = new ArrayList<>();
             // EMPTY is safe here because we never call namedObject
-            try (InputStream stream = response.body().streamInput();
-                 XContentParser parser = JsonXContent.jsonXContent
-                         .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
+            try (
+                InputStream stream = response.body().streamInput();
+                XContentParser parser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    LoggingDeprecationHandler.INSTANCE,
+                    stream
+                )
+            ) {
                 XContentParser.Token token = parser.currentToken();
                 if (token == null) {
                     token = parser.nextToken();
                 }
                 if (token != XContentParser.Token.START_OBJECT) {
-                    throw new ElasticsearchParseException("failed to parse jira project. expected an object, but found [{}] instead",
-                            token);
+                    throw new ElasticsearchParseException(
+                        "failed to parse jira project. expected an object, but found [{}] instead",
+                        token
+                    );
                 }
                 String currentFieldName = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

@@ -27,10 +27,23 @@ public class TransportPostDataAction extends TransportJobTaskAction<PostDataActi
     private final AnalysisRegistry analysisRegistry;
 
     @Inject
-    public TransportPostDataAction(TransportService transportService, ClusterService clusterService, ActionFilters actionFilters,
-                                   AutodetectProcessManager processManager, AnalysisRegistry analysisRegistry) {
-        super(PostDataAction.NAME, clusterService, transportService, actionFilters,
-            PostDataAction.Request::new, PostDataAction.Response::new, ThreadPool.Names.SAME, processManager);
+    public TransportPostDataAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionFilters actionFilters,
+        AutodetectProcessManager processManager,
+        AnalysisRegistry analysisRegistry
+    ) {
+        super(
+            PostDataAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            PostDataAction.Request::new,
+            PostDataAction.Response::new,
+            ThreadPool.Names.SAME,
+            processManager
+        );
         // ThreadPool.Names.SAME, because operations is executed by autodetect worker thread
         this.analysisRegistry = analysisRegistry;
     }
@@ -40,8 +53,7 @@ public class TransportPostDataAction extends TransportJobTaskAction<PostDataActi
         TimeRange timeRange = TimeRange.builder().startTime(request.getResetStart()).endTime(request.getResetEnd()).build();
         DataLoadParams params = new DataLoadParams(timeRange, Optional.ofNullable(request.getDataDescription()));
         try (InputStream contentStream = request.getContent().streamInput()) {
-            processManager.processData(task, analysisRegistry, contentStream, request.getXContentType(),
-                    params, (dataCounts, e) -> {
+            processManager.processData(task, analysisRegistry, contentStream, request.getXContentType(), params, (dataCounts, e) -> {
                 if (dataCounts != null) {
                     listener.onResponse(new PostDataAction.Response(dataCounts));
                 } else {

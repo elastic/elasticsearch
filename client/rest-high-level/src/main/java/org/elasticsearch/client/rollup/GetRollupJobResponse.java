@@ -11,9 +11,9 @@ package org.elasticsearch.client.rollup;
 import org.elasticsearch.client.core.IndexerJobStats;
 import org.elasticsearch.client.core.IndexerState;
 import org.elasticsearch.client.rollup.job.config.RollupJobConfig;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -70,13 +70,14 @@ public class GetRollupJobResponse {
     }
 
     private static final ConstructingObjectParser<GetRollupJobResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "get_rollup_job_response",
-            true,
-            args -> {
-                @SuppressWarnings("unchecked") // We're careful about the type in the list
-                List<JobWrapper> jobs = (List<JobWrapper>) args[0];
-                return new GetRollupJobResponse(unmodifiableList(jobs));
-            });
+        "get_rollup_job_response",
+        true,
+        args -> {
+            @SuppressWarnings("unchecked") // We're careful about the type in the list
+            List<JobWrapper> jobs = (List<JobWrapper>) args[0];
+            return new GetRollupJobResponse(unmodifiableList(jobs));
+        }
+    );
     static {
         PARSER.declareObjectArray(constructorArg(), JobWrapper.PARSER::apply, JOBS);
     }
@@ -123,9 +124,10 @@ public class GetRollupJobResponse {
         }
 
         private static final ConstructingObjectParser<JobWrapper, Void> PARSER = new ConstructingObjectParser<>(
-                "job",
-                true,
-                a -> new JobWrapper((RollupJobConfig) a[0], (RollupIndexerJobStats) a[1], (RollupJobStatus) a[2]));
+            "job",
+            true,
+            a -> new JobWrapper((RollupJobConfig) a[0], (RollupIndexerJobStats) a[1], (RollupJobStatus) a[2])
+        );
         static {
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RollupJobConfig.fromXContent(p, null), CONFIG);
             PARSER.declareObject(ConstructingObjectParser.constructorArg(), RollupIndexerJobStats.PARSER::apply, STATS);
@@ -141,9 +143,7 @@ public class GetRollupJobResponse {
                 return false;
             }
             JobWrapper other = (JobWrapper) obj;
-            return Objects.equals(job, other.job)
-                    && Objects.equals(stats, other.stats)
-                    && Objects.equals(status, other.status);
+            return Objects.equals(job, other.job) && Objects.equals(stats, other.stats) && Objects.equals(status, other.status);
         }
 
         @Override
@@ -153,9 +153,7 @@ public class GetRollupJobResponse {
 
         @Override
         public final String toString() {
-            return "{job=" + job
-                    + ", stats=" + stats
-                    + ", status=" + status + "}";
+            return "{job=" + job + ", stats=" + stats + ", status=" + status + "}";
         }
     }
 
@@ -165,19 +163,54 @@ public class GetRollupJobResponse {
      */
     public static class RollupIndexerJobStats extends IndexerJobStats {
 
-        RollupIndexerJobStats(long numPages, long numInputDocuments, long numOuputDocuments, long numInvocations,
-                              long indexTime, long indexTotal, long searchTime, long searchTotal, long processingTime,
-                              long processingTotal, long indexFailures, long searchFailures) {
-            super(numPages, numInputDocuments, numOuputDocuments, numInvocations,
-                    indexTime, searchTime, processingTime, indexTotal, searchTotal, processingTotal, indexFailures, searchFailures);
+        RollupIndexerJobStats(
+            long numPages,
+            long numInputDocuments,
+            long numOuputDocuments,
+            long numInvocations,
+            long indexTime,
+            long indexTotal,
+            long searchTime,
+            long searchTotal,
+            long processingTime,
+            long processingTotal,
+            long indexFailures,
+            long searchFailures
+        ) {
+            super(
+                numPages,
+                numInputDocuments,
+                numOuputDocuments,
+                numInvocations,
+                indexTime,
+                searchTime,
+                processingTime,
+                indexTotal,
+                searchTotal,
+                processingTotal,
+                indexFailures,
+                searchFailures
+            );
         }
 
         private static final ConstructingObjectParser<RollupIndexerJobStats, Void> PARSER = new ConstructingObjectParser<>(
-                STATS.getPreferredName(),
-                true,
-                args -> new RollupIndexerJobStats((long) args[0], (long) args[1], (long) args[2], (long) args[3],
-                    (long) args[4], (long) args[5], (long) args[6], (long) args[7], (long) args[8], (long) args[9],
-                    (long) args[10], (long) args[11]));
+            STATS.getPreferredName(),
+            true,
+            args -> new RollupIndexerJobStats(
+                (long) args[0],
+                (long) args[1],
+                (long) args[2],
+                (long) args[3],
+                (long) args[4],
+                (long) args[5],
+                (long) args[6],
+                (long) args[7],
+                (long) args[8],
+                (long) args[9],
+                (long) args[10],
+                (long) args[11]
+            )
+        );
         static {
             PARSER.declareLong(constructorArg(), NUM_PAGES);
             PARSER.declareLong(constructorArg(), NUM_INPUT_DOCUMENTS);
@@ -212,6 +245,7 @@ public class GetRollupJobResponse {
         public IndexerState getState() {
             return state;
         }
+
         /**
          * The current position of the writer.
          */
@@ -220,14 +254,15 @@ public class GetRollupJobResponse {
         }
 
         private static final ConstructingObjectParser<RollupJobStatus, Void> PARSER = new ConstructingObjectParser<>(
-                STATUS.getPreferredName(),
-                true,
-                args -> {
-                    IndexerState state = (IndexerState) args[0];
-                    @SuppressWarnings("unchecked") // We're careful of the contents
-                    Map<String, Object> currentPosition = (Map<String, Object>) args[1];
-                    return new RollupJobStatus(state, currentPosition);
-                });
+            STATUS.getPreferredName(),
+            true,
+            args -> {
+                IndexerState state = (IndexerState) args[0];
+                @SuppressWarnings("unchecked") // We're careful of the contents
+                Map<String, Object> currentPosition = (Map<String, Object>) args[1];
+                return new RollupJobStatus(state, currentPosition);
+            }
+        );
         static {
             PARSER.declareField(constructorArg(), p -> IndexerState.fromString(p.text()), STATE, ObjectParser.ValueType.STRING);
             PARSER.declareField(optionalConstructorArg(), p -> {
@@ -249,8 +284,7 @@ public class GetRollupJobResponse {
             if (this == other) return true;
             if (other == null || getClass() != other.getClass()) return false;
             RollupJobStatus that = (RollupJobStatus) other;
-            return Objects.equals(state, that.state)
-                    && Objects.equals(currentPosition, that.currentPosition);
+            return Objects.equals(state, that.state) && Objects.equals(currentPosition, that.currentPosition);
         }
 
         @Override
@@ -260,8 +294,7 @@ public class GetRollupJobResponse {
 
         @Override
         public final String toString() {
-            return "{stats=" + state
-                    + ", currentPosition=" + currentPosition + "}";
+            return "{stats=" + state + ", currentPosition=" + currentPosition + "}";
         }
     }
 }

@@ -242,8 +242,8 @@ public class InternalMatrixStats extends InternalAggregation implements MatrixSt
         }
 
         if (reduceContext.isFinalReduce()) {
-            MatrixStatsResults results = new MatrixStatsResults(runningStats);
-            return new InternalMatrixStats(name, results.getDocCount(), runningStats, results, getMetadata());
+            MatrixStatsResults matrixStatsResults = new MatrixStatsResults(runningStats);
+            return new InternalMatrixStats(name, matrixStatsResults.getDocCount(), runningStats, matrixStatsResults, getMetadata());
         }
         return new InternalMatrixStats(name, runningStats.docCount, runningStats, null, getMetadata());
     }

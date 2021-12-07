@@ -39,7 +39,7 @@ import java.util.HashMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class NodeReplacementAllocationDeciderTests  extends ESAllocationTestCase {
+public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase {
     private static final DiscoveryNode NODE_A = newNode("node-a", "node-a", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
     private static final DiscoveryNode NODE_B = newNode("node-b", "node-b", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
     private static final DiscoveryNode NODE_C = newNode("node-c", "node-c", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
@@ -82,11 +82,7 @@ public class NodeReplacementAllocationDeciderTests  extends ESAllocationTestCase
 
     public void testNoReplacements() {
         ClusterState state = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .nodes(DiscoveryNodes.builder()
-                .add(NODE_A)
-                .add(NODE_B)
-                .add(NODE_C)
-                .build())
+            .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build())
             .build();
 
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state.getRoutingNodes(), state, null, null, 0);
@@ -96,17 +92,11 @@ public class NodeReplacementAllocationDeciderTests  extends ESAllocationTestCase
 
         Decision decision = decider.canAllocate(shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(
-            decision.getExplanation(),
-            equalTo(NodeReplacementAllocationDecider.NO_REPLACEMENTS.getExplanation())
-        );
+        assertThat(decision.getExplanation(), equalTo(NodeReplacementAllocationDecider.NO_REPLACEMENTS.getExplanation()));
 
         decision = decider.canRemain(shard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(
-            decision.getExplanation(),
-            equalTo(NodeReplacementAllocationDecider.NO_REPLACEMENTS.getExplanation())
-        );
+        assertThat(decision.getExplanation(), equalTo(NodeReplacementAllocationDecider.NO_REPLACEMENTS.getExplanation()));
     }
 
     public void testCanForceAllocate() {
@@ -135,16 +125,21 @@ public class NodeReplacementAllocationDeciderTests  extends ESAllocationTestCase
 
         decision = decider.canForceAllocateDuringReplace(assignedShard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
-        assertThat(decision.getExplanation(),
-            equalTo("node [" + NODE_A.getId() + "] is being replaced by node [" + NODE_B.getId() +
-                "], and can be force vacated to the target"));
+        assertThat(
+            decision.getExplanation(),
+            equalTo(
+                "node [" + NODE_A.getId() + "] is being replaced by node [" + NODE_B.getId() + "], and can be force vacated to the target"
+            )
+        );
 
         routingNode = new RoutingNode(NODE_C.getId(), NODE_C, assignedShard);
 
         decision = decider.canForceAllocateDuringReplace(assignedShard, routingNode, allocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(decision.getExplanation(),
-            equalTo("shard is not on the source of a node replacement relocated to the replacement target"));
+        assertThat(
+            decision.getExplanation(),
+            equalTo("shard is not on the source of a node replacement relocated to the replacement target")
+        );
     }
 
     public void testCannotRemainOnReplacedNode() {
@@ -188,8 +183,7 @@ public class NodeReplacementAllocationDeciderTests  extends ESAllocationTestCase
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(
             decision.getExplanation(),
-            equalTo("node [" + NODE_A.getId() + "] is being replaced by [" + NODE_B.getName() +
-                "], so no data may be allocated to it")
+            equalTo("node [" + NODE_A.getId() + "] is being replaced by [" + NODE_B.getName() + "], so no data may be allocated to it")
         );
 
         routingNode = new RoutingNode(NODE_B.getId(), NODE_B, testShard);
@@ -198,19 +192,21 @@ public class NodeReplacementAllocationDeciderTests  extends ESAllocationTestCase
         assertThat(decision.type(), equalTo(Decision.Type.NO));
         assertThat(
             decision.getExplanation(),
-            equalTo("node [" + NODE_B.getId() +
-                "] is replacing the vacating node [" + NODE_A.getId() + "], only data currently allocated " +
-                "to the source node may be allocated to it until the replacement is complete")
+            equalTo(
+                "node ["
+                    + NODE_B.getId()
+                    + "] is replacing the vacating node ["
+                    + NODE_A.getId()
+                    + "], only data currently allocated "
+                    + "to the source node may be allocated to it until the replacement is complete"
+            )
         );
 
         routingNode = new RoutingNode(NODE_C.getId(), NODE_C, testShard);
 
         decision = decider.canAllocate(testShard, routingNode, allocation);
         assertThat(decision.getExplanation(), decision.type(), equalTo(Decision.Type.YES));
-        assertThat(
-            decision.getExplanation(),
-            containsString("neither the source nor target node are part of an ongoing node replacement")
-        );
+        assertThat(decision.getExplanation(), containsString("neither the source nor target node are part of an ongoing node replacement"));
     }
 
     private ClusterState prepareState(ClusterState initialState, String sourceNodeId, String targetNodeName) {
@@ -225,13 +221,10 @@ public class NodeReplacementAllocationDeciderTests  extends ESAllocationTestCase
             nodeShutdownMetadata
         );
         return ClusterState.builder(initialState)
-            .nodes(DiscoveryNodes.builder()
-                .add(NODE_A)
-                .add(NODE_B)
-                .add(NODE_C)
-                .build())
-            .metadata(Metadata.builder().put(IndexMetadata.builder(indexMetadata))
-                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata))
+            .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build())
+            .metadata(
+                Metadata.builder().put(IndexMetadata.builder(indexMetadata)).putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata)
+            )
             .build();
     }
 }

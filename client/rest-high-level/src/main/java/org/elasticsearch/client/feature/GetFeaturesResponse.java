@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.feature;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.List;
@@ -24,7 +24,9 @@ public class GetFeaturesResponse {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<GetFeaturesResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "snapshottable_features_response", true, (a, ctx) -> new GetFeaturesResponse((List<SnapshottableFeature>) a[0])
+        "snapshottable_features_response",
+        true,
+        (a, ctx) -> new GetFeaturesResponse((List<SnapshottableFeature>) a[0])
     );
 
     static {
@@ -64,15 +66,15 @@ public class GetFeaturesResponse {
         private static final ParseField FEATURE_NAME = new ParseField("name");
         private static final ParseField DESCRIPTION = new ParseField("description");
 
-        private static final ConstructingObjectParser<SnapshottableFeature, Void> PARSER =  new ConstructingObjectParser<>(
-            "feature", true, (a, ctx) -> new SnapshottableFeature((String) a[0], (String) a[1])
+        private static final ConstructingObjectParser<SnapshottableFeature, Void> PARSER = new ConstructingObjectParser<>(
+            "feature",
+            true,
+            (a, ctx) -> new SnapshottableFeature((String) a[0], (String) a[1])
         );
 
         static {
-            PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p, c) -> p.text(), FEATURE_NAME, ObjectParser.ValueType.STRING);
-            PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p, c) -> p.text(), DESCRIPTION, ObjectParser.ValueType.STRING);
+            PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> p.text(), FEATURE_NAME, ObjectParser.ValueType.STRING);
+            PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> p.text(), DESCRIPTION, ObjectParser.ValueType.STRING);
         }
 
         public SnapshottableFeature(String featureName, String description) {

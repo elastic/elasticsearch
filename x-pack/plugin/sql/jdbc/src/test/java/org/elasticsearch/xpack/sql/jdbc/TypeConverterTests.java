@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.sql.jdbc;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.sql.Date;
 import java.sql.Timestamp;
@@ -19,7 +19,6 @@ import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.sql.jdbc.JdbcTestUtils.nowWithMillisResolution;
 import static org.hamcrest.Matchers.instanceOf;
-
 
 public class TypeConverterTests extends ESTestCase {
 

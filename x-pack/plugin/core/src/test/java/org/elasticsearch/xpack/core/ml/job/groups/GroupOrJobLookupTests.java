@@ -53,8 +53,10 @@ public class GroupOrJobLookupTests extends ESTestCase {
         jobs.add(mockJob("foo", Arrays.asList("foo-group")));
         jobs.add(mockJob("foo-group", Collections.emptyList()));
         ResourceAlreadyExistsException e = expectThrows(ResourceAlreadyExistsException.class, () -> new GroupOrJobLookup(jobs));
-        assertThat(e.getMessage(),
-                equalTo("job and group names must be unique but job [foo-group] and group [foo-group] have the same name"));
+        assertThat(
+            e.getMessage(),
+            equalTo("job and group names must be unique but job [foo-group] and group [foo-group] have the same name")
+        );
     }
 
     public void testConstructor_GivenGroupWithSameNameAsPreviousJobId() {
@@ -62,8 +64,7 @@ public class GroupOrJobLookupTests extends ESTestCase {
         jobs.add(mockJob("foo", Collections.emptyList()));
         jobs.add(mockJob("foo-2", Arrays.asList("foo")));
         ResourceAlreadyExistsException e = expectThrows(ResourceAlreadyExistsException.class, () -> new GroupOrJobLookup(jobs));
-        assertThat(e.getMessage(),
-                equalTo("job and group names must be unique but job [foo] and group [foo] have the same name"));
+        assertThat(e.getMessage(), equalTo("job and group names must be unique but job [foo] and group [foo] have the same name"));
     }
 
     public void testLookup() {

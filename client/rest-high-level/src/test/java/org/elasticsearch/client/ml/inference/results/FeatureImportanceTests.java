@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.ml.inference.results;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -30,11 +30,13 @@ public class FeatureImportanceTests extends AbstractXContentTestCase<FeatureImpo
         return new FeatureImportance(
             randomAlphaOfLength(10),
             randomBoolean() ? null : randomDoubleBetween(-10.0, 10.0, false),
-            randomBoolean() ? null :
-                Stream.generate(classNameGenerator)
+            randomBoolean()
+                ? null
+                : Stream.generate(classNameGenerator)
                     .limit(randomLongBetween(2, 10))
                     .map(name -> new FeatureImportance.ClassImportance(name, randomDoubleBetween(-10, 10, false)))
-                    .collect(Collectors.toList()));
+                    .collect(Collectors.toList())
+        );
 
     }
 

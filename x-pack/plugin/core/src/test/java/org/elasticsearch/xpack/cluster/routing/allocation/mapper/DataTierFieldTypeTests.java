@@ -137,15 +137,31 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
 
     private SearchExecutionContext createContextWithoutSetting() {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .build())
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        return new SearchExecutionContext(0, 0, indexSettings, null, null, null, null, null, null,
-            xContentRegistry(), writableRegistry(), null, null, System::currentTimeMillis, null,
-            value -> true, () -> true, null, emptyMap());
+        return new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            null,
+            null,
+            System::currentTimeMillis,
+            null,
+            value -> true,
+            () -> true,
+            null,
+            emptyMap()
+        );
     }
 }

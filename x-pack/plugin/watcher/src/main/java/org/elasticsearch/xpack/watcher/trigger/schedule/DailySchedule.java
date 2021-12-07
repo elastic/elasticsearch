@@ -94,16 +94,26 @@ public class DailySchedule extends CronnableSchedule {
                         try {
                             times.add(DayTimes.parse(parser, token));
                         } catch (ElasticsearchParseException pe) {
-                            throw new ElasticsearchParseException("could not parse [{}] schedule. invalid time value for field [{}] - [{}]",
-                                    pe, TYPE, currentFieldName, token);
+                            throw new ElasticsearchParseException(
+                                "could not parse [{}] schedule. invalid time value for field [{}] - [{}]",
+                                pe,
+                                TYPE,
+                                currentFieldName,
+                                token
+                            );
                         }
                     } else {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             try {
                                 times.add(DayTimes.parse(parser, token));
                             } catch (ElasticsearchParseException pe) {
-                                throw new ElasticsearchParseException("could not parse [{}] schedule. invalid time value for field [{}] -" +
-                                        " [{}]", pe, TYPE, currentFieldName, token);
+                                throw new ElasticsearchParseException(
+                                    "could not parse [{}] schedule. invalid time value for field [{}] -" + " [{}]",
+                                    pe,
+                                    TYPE,
+                                    currentFieldName,
+                                    token
+                                );
                             }
                         }
                     }
@@ -120,8 +130,7 @@ public class DailySchedule extends CronnableSchedule {
 
         private Set<DayTimes> times = new HashSet<>();
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder at(int hour, int minute) {
             times.add(new DayTimes(hour, minute));

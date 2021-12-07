@@ -13,7 +13,8 @@ import java.util.Locale;
 
 public enum TargetType {
 
-    REGRESSION, CLASSIFICATION;
+    REGRESSION,
+    CLASSIFICATION;
 
     public static final ParseField TARGET_TYPE = new ParseField("target_type");
 

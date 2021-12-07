@@ -40,7 +40,9 @@ public class MaxPrimaryShardSizeCondition extends Condition<ByteSizeValue> {
     }
 
     @Override
-    public String getWriteableName() { return NAME; }
+    public String getWriteableName() {
+        return NAME;
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {

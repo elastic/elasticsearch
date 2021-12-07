@@ -8,15 +8,15 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.CcrSingleNodeTestCase;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowStatsAction;
@@ -31,8 +31,8 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -53,19 +53,23 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         final PutFollowAction.Request followRequest = getPutFollowRequest("leader", "follower");
         client().execute(PutFollowAction.INSTANCE, followRequest).get();
 
-        assertBusy(() -> {
-            assertThat(client().prepareSearch("follower").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs));
-        });
+        assertBusy(
+            () -> { assertThat(client().prepareSearch("follower").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs)); }
+        );
 
         final long secondBatchNumDocs = randomIntBetween(2, 64);
         for (int i = 0; i < secondBatchNumDocs; i++) {
             client().prepareIndex("leader").setSource("{}", XContentType.JSON).get();
         }
 
-        assertBusy(() -> {
-            assertThat(client().prepareSearch("follower").get()
-                .getHits().getTotalHits().value, equalTo(firstBatchNumDocs + secondBatchNumDocs));
-        });
+        assertBusy(
+            () -> {
+                assertThat(
+                    client().prepareSearch("follower").get().getHits().getTotalHits().value,
+                    equalTo(firstBatchNumDocs + secondBatchNumDocs)
+                );
+            }
+        );
 
         PauseFollowAction.Request pauseRequest = new PauseFollowAction.Request("follower");
         client().execute(PauseFollowAction.INSTANCE, pauseRequest);
@@ -77,8 +81,10 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
         client().execute(ResumeFollowAction.INSTANCE, getResumeFollowRequest("follower")).get();
         assertBusy(() -> {
-            assertThat(client().prepareSearch("follower").get().getHits().getTotalHits().value,
-                equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs));
+            assertThat(
+                client().prepareSearch("follower").get().getHits().getTotalHits().value,
+                equalTo(firstBatchNumDocs + secondBatchNumDocs + thirdBatchNumDocs)
+            );
         });
         ensureEmptyWriteBuffers();
     }
@@ -100,7 +106,9 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
 
         ThreadPool nodeThreadPool = getInstanceFromNode(ThreadPool.class);
         ThreadPool.Info writeInfo = StreamSupport.stream(nodeThreadPool.info().spliterator(), false)
-            .filter(i -> i.getName().equals(ThreadPool.Names.WRITE)).findAny().get();
+            .filter(i -> i.getName().equals(ThreadPool.Names.WRITE))
+            .findAny()
+            .get();
         int numberOfThreads = writeInfo.getMax();
         CountDownLatch threadBlockedLatch = new CountDownLatch(numberOfThreads);
         CountDownLatch blocker = new CountDownLatch(1);
@@ -130,9 +138,9 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
                 assertEquals(firstBatchNumDocs, indexingPressure.stats().getCurrentPrimaryOps());
             });
             blocker.countDown();
-            assertBusy(() -> {
-                assertThat(client().prepareSearch("follower").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs));
-            });
+            assertBusy(
+                () -> { assertThat(client().prepareSearch("follower").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs)); }
+            );
             ensureEmptyWriteBuffers();
         } finally {
             if (blocker.getCount() > 0) {
@@ -160,8 +168,10 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         client().prepareIndex("logs-20200101").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> {
             CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
-            assertThat(response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(),
-                equalTo(previousNumberOfSuccessfulFollowedIndices + 1));
+            assertThat(
+                response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(),
+                equalTo(previousNumberOfSuccessfulFollowedIndices + 1)
+            );
             assertThat(response.getFollowStats().getStatsResponses().size(), equalTo(1));
             assertThat(response.getFollowStats().getStatsResponses().get(0).status().followerGlobalCheckpoint(), equalTo(0L));
         });
@@ -177,11 +187,13 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         client().prepareIndex("logs-20200101").setSource("{}", XContentType.JSON).get();
         assertBusy(() -> {
             CcrStatsAction.Response response = client().execute(CcrStatsAction.INSTANCE, new CcrStatsAction.Request()).actionGet();
-            assertThat(response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(),
-                equalTo(previousNumberOfSuccessfulFollowedIndices + 2));
+            assertThat(
+                response.getAutoFollowStats().getNumberOfSuccessfulFollowIndices(),
+                equalTo(previousNumberOfSuccessfulFollowedIndices + 2)
+            );
 
             FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
-            statsRequest.setIndices(new String[]{"copy-logs-20200101"});
+            statsRequest.setIndices(new String[] { "copy-logs-20200101" });
             FollowStatsAction.StatsResponses responses = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
             assertThat(responses.getStatsResponses().size(), equalTo(1));
             assertThat(responses.getStatsResponses().get(0).status().getFatalException(), nullValue());
@@ -222,7 +234,7 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         // index-2 should detect that the leader index has changed
         assertBusy(() -> {
             FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
-            statsRequest.setIndices(new String[]{"index-2"});
+            statsRequest.setIndices(new String[] { "index-2" });
             FollowStatsAction.StatsResponses resp = client().execute(FollowStatsAction.INSTANCE, statsRequest).actionGet();
             assertThat(resp.getStatsResponses(), hasSize(1));
             FollowStatsAction.StatsResponse stats = resp.getStatsResponses().get(0);
@@ -233,9 +245,11 @@ public class LocalIndexFollowingIT extends CcrSingleNodeTestCase {
         });
     }
 
-    public static String getIndexSettings(final int numberOfShards,
-                                          final int numberOfReplicas,
-                                          final Map<String, String> additionalIndexSettings) throws IOException {
+    public static String getIndexSettings(
+        final int numberOfShards,
+        final int numberOfReplicas,
+        final Map<String, String> additionalIndexSettings
+    ) throws IOException {
         final String settings;
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();

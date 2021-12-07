@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.ml.annotations;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Date;
 
@@ -27,8 +27,7 @@ public class AnnotationTests extends AbstractSerializingTestCase<Annotation> {
     }
 
     public static Annotation randomAnnotation(String jobId) {
-        return new Annotation.Builder()
-            .setAnnotation(randomAlphaOfLengthBetween(100, 1000))
+        return new Annotation.Builder().setAnnotation(randomAlphaOfLengthBetween(100, 1000))
             .setCreateTime(new Date(randomNonNegativeLong()))
             .setCreateUsername(randomAlphaOfLengthBetween(5, 20))
             .setTimestamp(new Date(randomNonNegativeLong()))

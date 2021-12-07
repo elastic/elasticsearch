@@ -78,9 +78,9 @@ final class QueryTranslator {
             if (translation instanceof ScriptQuery) {
                 // check the operators and the expressions involved in these operations so that all can be used
                 // in a doc-values multi-valued context
-                boolean multiValuedIncompatible = e.anyMatch(exp -> {
-                    return false == (exp instanceof Literal || exp instanceof FieldAttribute || exp instanceof Function);
-                });
+                boolean multiValuedIncompatible = e.anyMatch(
+                    exp -> { return false == (exp instanceof Literal || exp instanceof FieldAttribute || exp instanceof Function); }
+                );
                 if (multiValuedIncompatible == false) {
                     ScriptQuery query = (ScriptQuery) translation;
                     return new MultiValueAwareScriptQuery(query.source(), Scripts.multiValueDocValuesRewrite(query.script()));
@@ -105,10 +105,14 @@ final class QueryTranslator {
         }
 
         public static void checkInsensitiveComparison(InsensitiveBinaryComparison bc) {
-            Check.isTrue(bc.right().foldable(),
+            Check.isTrue(
+                bc.right().foldable(),
                 "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
-                bc.right().sourceLocation().getLineNumber(), bc.right().sourceLocation().getColumnNumber(),
-                Expressions.name(bc.right()), bc.symbol());
+                bc.right().sourceLocation().getLineNumber(),
+                bc.right().sourceLocation().getColumnNumber(),
+                Expressions.name(bc.right()),
+                bc.symbol()
+            );
         }
 
         private static Query translate(InsensitiveBinaryComparison bc, TranslatorHandler handler) {

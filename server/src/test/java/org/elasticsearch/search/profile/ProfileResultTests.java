@@ -10,11 +10,11 @@ package org.elasticsearch.search.profile;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -87,99 +87,111 @@ public class ProfileResultTests extends AbstractSerializingTestCase<ProfileResul
         ProfileResult result = new ProfileResult("someType", "some description", breakdown, debug, 223456L, children);
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\n" +
-                "  \"type\" : \"someType\",\n" +
-                "  \"description\" : \"some description\",\n" +
-                "  \"time_in_nanos\" : 223456,\n" +
-                "  \"breakdown\" : {\n" +
-                "    \"key1\" : 123456,\n" +
-                "    \"stuff\" : 10000\n" +
-                "  },\n" +
-                "  \"debug\" : {\n" +
-                "    \"a\" : \"foo\",\n" +
-                "    \"b\" : \"bar\"\n" +
-                "  },\n" +
-                "  \"children\" : [\n" +
-                "    {\n" +
-                "      \"type\" : \"child1\",\n" +
-                "      \"description\" : \"desc1\",\n" +
-                "      \"time_in_nanos\" : 100,\n" +
-                "      \"breakdown\" : {\n" +
-                "        \"key1\" : 100\n" +
-                "      }\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"type\" : \"child2\",\n" +
-                "      \"description\" : \"desc2\",\n" +
-                "      \"time_in_nanos\" : 123356,\n" +
-                "      \"breakdown\" : {\n" +
-                "        \"key1\" : 123356\n" +
-                "      }\n" +
-                "    }\n" +
-                "  ]\n" +
-          "}", Strings.toString(builder));
+        assertEquals(
+            "{\n"
+                + "  \"type\" : \"someType\",\n"
+                + "  \"description\" : \"some description\",\n"
+                + "  \"time_in_nanos\" : 223456,\n"
+                + "  \"breakdown\" : {\n"
+                + "    \"key1\" : 123456,\n"
+                + "    \"stuff\" : 10000\n"
+                + "  },\n"
+                + "  \"debug\" : {\n"
+                + "    \"a\" : \"foo\",\n"
+                + "    \"b\" : \"bar\"\n"
+                + "  },\n"
+                + "  \"children\" : [\n"
+                + "    {\n"
+                + "      \"type\" : \"child1\",\n"
+                + "      \"description\" : \"desc1\",\n"
+                + "      \"time_in_nanos\" : 100,\n"
+                + "      \"breakdown\" : {\n"
+                + "        \"key1\" : 100\n"
+                + "      }\n"
+                + "    },\n"
+                + "    {\n"
+                + "      \"type\" : \"child2\",\n"
+                + "      \"description\" : \"desc2\",\n"
+                + "      \"time_in_nanos\" : 123356,\n"
+                + "      \"breakdown\" : {\n"
+                + "        \"key1\" : 123356\n"
+                + "      }\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}",
+            Strings.toString(builder)
+        );
 
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\n" +
-                "  \"type\" : \"someType\",\n" +
-                "  \"description\" : \"some description\",\n" +
-                "  \"time\" : \"223.4micros\",\n" +
-                "  \"time_in_nanos\" : 223456,\n" +
-                "  \"breakdown\" : {\n" +
-                "    \"key1\" : 123456,\n" +
-                "    \"stuff\" : 10000\n" +
-                "  },\n" +
-                "  \"debug\" : {\n" +
-                "    \"a\" : \"foo\",\n" +
-                "    \"b\" : \"bar\"\n" +
-                "  },\n" +
-                "  \"children\" : [\n" +
-                "    {\n" +
-                "      \"type\" : \"child1\",\n" +
-                "      \"description\" : \"desc1\",\n" +
-                "      \"time\" : \"100nanos\",\n" +
-                "      \"time_in_nanos\" : 100,\n" +
-                "      \"breakdown\" : {\n" +
-                "        \"key1\" : 100\n" +
-                "      }\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"type\" : \"child2\",\n" +
-                "      \"description\" : \"desc2\",\n" +
-                "      \"time\" : \"123.3micros\",\n" +
-                "      \"time_in_nanos\" : 123356,\n" +
-                "      \"breakdown\" : {\n" +
-                "        \"key1\" : 123356\n" +
-                "      }\n" +
-                "    }\n" +
-                "  ]\n" +
-          "}", Strings.toString(builder));
+        assertEquals(
+            "{\n"
+                + "  \"type\" : \"someType\",\n"
+                + "  \"description\" : \"some description\",\n"
+                + "  \"time\" : \"223.4micros\",\n"
+                + "  \"time_in_nanos\" : 223456,\n"
+                + "  \"breakdown\" : {\n"
+                + "    \"key1\" : 123456,\n"
+                + "    \"stuff\" : 10000\n"
+                + "  },\n"
+                + "  \"debug\" : {\n"
+                + "    \"a\" : \"foo\",\n"
+                + "    \"b\" : \"bar\"\n"
+                + "  },\n"
+                + "  \"children\" : [\n"
+                + "    {\n"
+                + "      \"type\" : \"child1\",\n"
+                + "      \"description\" : \"desc1\",\n"
+                + "      \"time\" : \"100nanos\",\n"
+                + "      \"time_in_nanos\" : 100,\n"
+                + "      \"breakdown\" : {\n"
+                + "        \"key1\" : 100\n"
+                + "      }\n"
+                + "    },\n"
+                + "    {\n"
+                + "      \"type\" : \"child2\",\n"
+                + "      \"description\" : \"desc2\",\n"
+                + "      \"time\" : \"123.3micros\",\n"
+                + "      \"time_in_nanos\" : 123356,\n"
+                + "      \"breakdown\" : {\n"
+                + "        \"key1\" : 123356\n"
+                + "      }\n"
+                + "    }\n"
+                + "  ]\n"
+                + "}",
+            Strings.toString(builder)
+        );
 
         result = new ProfileResult("profileName", "some description", Map.of("key1", 12345678L), Map.of(), 12345678L, List.of());
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\n" +
-                "  \"type\" : \"profileName\",\n" +
-                "  \"description\" : \"some description\",\n" +
-                "  \"time\" : \"12.3ms\",\n" +
-                "  \"time_in_nanos\" : 12345678,\n" +
-                "  \"breakdown\" : {\n" +
-                "    \"key1\" : 12345678\n" +
-                "  }\n" +
-              "}", Strings.toString(builder));
+        assertEquals(
+            "{\n"
+                + "  \"type\" : \"profileName\",\n"
+                + "  \"description\" : \"some description\",\n"
+                + "  \"time\" : \"12.3ms\",\n"
+                + "  \"time_in_nanos\" : 12345678,\n"
+                + "  \"breakdown\" : {\n"
+                + "    \"key1\" : 12345678\n"
+                + "  }\n"
+                + "}",
+            Strings.toString(builder)
+        );
 
         result = new ProfileResult("profileName", "some description", Map.of("key1", 1234567890L), Map.of(), 1234567890L, List.of());
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\n" +
-                "  \"type\" : \"profileName\",\n" +
-                "  \"description\" : \"some description\",\n" +
-                "  \"time\" : \"1.2s\",\n" +
-                "  \"time_in_nanos\" : 1234567890,\n" +
-                "  \"breakdown\" : {\n" +
-                "    \"key1\" : 1234567890\n" +
-                "  }\n" +
-              "}", Strings.toString(builder));
+        assertEquals(
+            "{\n"
+                + "  \"type\" : \"profileName\",\n"
+                + "  \"description\" : \"some description\",\n"
+                + "  \"time\" : \"1.2s\",\n"
+                + "  \"time_in_nanos\" : 1234567890,\n"
+                + "  \"breakdown\" : {\n"
+                + "    \"key1\" : 1234567890\n"
+                + "  }\n"
+                + "}",
+            Strings.toString(builder)
+        );
     }
 }

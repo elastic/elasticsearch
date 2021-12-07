@@ -16,9 +16,9 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.client.ESRestHighLevelClientTestCase;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -54,8 +54,7 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
     public void testTopMetricsDoubleMetric() throws IOException {
         indexTopMetricsDoubleTestData();
         SearchRequest search = new SearchRequest("test");
-        search.source().aggregation(new TopMetricsAggregationBuilder(
-                "test", new FieldSortBuilder("s").order(SortOrder.DESC), 1, "v"));
+        search.source().aggregation(new TopMetricsAggregationBuilder("test", new FieldSortBuilder("s").order(SortOrder.DESC), 1, "v"));
         SearchResponse response = highLevelClient().search(search, RequestOptions.DEFAULT);
         ParsedTopMetrics top = response.getAggregations().get("test");
         assertThat(top.getTopMetrics(), hasSize(1));
@@ -67,8 +66,7 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
     public void testTopMetricsLongMetric() throws IOException {
         indexTopMetricsLongTestData();
         SearchRequest search = new SearchRequest("test");
-        search.source().aggregation(new TopMetricsAggregationBuilder(
-                "test", new FieldSortBuilder("s").order(SortOrder.DESC), 1, "v"));
+        search.source().aggregation(new TopMetricsAggregationBuilder("test", new FieldSortBuilder("s").order(SortOrder.DESC), 1, "v"));
         SearchResponse response = highLevelClient().search(search, RequestOptions.DEFAULT);
         ParsedTopMetrics top = response.getAggregations().get("test");
         assertThat(top.getTopMetrics(), hasSize(1));
@@ -80,8 +78,7 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
     public void testTopMetricsDateMetric() throws IOException {
         indexTopMetricsDateTestData();
         SearchRequest search = new SearchRequest("test");
-        search.source().aggregation(new TopMetricsAggregationBuilder(
-                "test", new FieldSortBuilder("s").order(SortOrder.DESC), 1, "v"));
+        search.source().aggregation(new TopMetricsAggregationBuilder("test", new FieldSortBuilder("s").order(SortOrder.DESC), 1, "v"));
         SearchResponse response = highLevelClient().search(search, RequestOptions.DEFAULT);
         ParsedTopMetrics top = response.getAggregations().get("test");
         assertThat(top.getTopMetrics(), hasSize(1));
@@ -93,8 +90,7 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
     public void testTopMetricsManyMetrics() throws IOException {
         indexTopMetricsDoubleTestData();
         SearchRequest search = new SearchRequest("test");
-        search.source().aggregation(new TopMetricsAggregationBuilder(
-                "test", new FieldSortBuilder("s").order(SortOrder.DESC), 1, "v", "m"));
+        search.source().aggregation(new TopMetricsAggregationBuilder("test", new FieldSortBuilder("s").order(SortOrder.DESC), 1, "v", "m"));
         SearchResponse response = highLevelClient().search(search, RequestOptions.DEFAULT);
         ParsedTopMetrics top = response.getAggregations().get("test");
         assertThat(top.getTopMetrics(), hasSize(1));
@@ -107,8 +103,7 @@ public class AnalyticsAggsIT extends ESRestHighLevelClientTestCase {
     public void testTopMetricsSizeTwo() throws IOException {
         indexTopMetricsDoubleTestData();
         SearchRequest search = new SearchRequest("test");
-        search.source().aggregation(new TopMetricsAggregationBuilder(
-                "test", new FieldSortBuilder("s").order(SortOrder.DESC), 2, "v"));
+        search.source().aggregation(new TopMetricsAggregationBuilder("test", new FieldSortBuilder("s").order(SortOrder.DESC), 2, "v"));
         SearchResponse response = highLevelClient().search(search, RequestOptions.DEFAULT);
         ParsedTopMetrics top = response.getAggregations().get("test");
         assertThat(top.getTopMetrics(), hasSize(2));

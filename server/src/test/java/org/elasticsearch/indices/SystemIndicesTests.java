@@ -38,13 +38,25 @@ public class SystemIndicesTests extends ESTestCase {
         String otherSource = "ZZZ" + randomAlphaOfLength(6);
         Map<String, SystemIndices.Feature> descriptors = new HashMap<>();
         descriptors.put(broadPatternSource, new SystemIndices.Feature(broadPatternSource, "test feature", List.of(broadPattern)));
-        descriptors.put(otherSource,
-            new SystemIndices.Feature(otherSource, "test 2", List.of(notOverlapping, overlapping1, overlapping2, overlapping3)));
+        descriptors.put(
+            otherSource,
+            new SystemIndices.Feature(otherSource, "test 2", List.of(notOverlapping, overlapping1, overlapping2, overlapping3))
+        );
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> SystemIndices.checkForOverlappingPatterns(descriptors));
-        assertThat(exception.getMessage(), containsString("a system index descriptor [" + broadPattern +
-            "] from [" + broadPatternSource + "] overlaps with other system index descriptors:"));
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> SystemIndices.checkForOverlappingPatterns(descriptors)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "a system index descriptor ["
+                    + broadPattern
+                    + "] from ["
+                    + broadPatternSource
+                    + "] overlaps with other system index descriptors:"
+            )
+        );
         String fromPluginString = " from [" + otherSource + "]";
         assertThat(exception.getMessage(), containsString(overlapping1.toString() + fromPluginString));
         assertThat(exception.getMessage(), containsString(overlapping2.toString() + fromPluginString));
@@ -68,10 +80,16 @@ public class SystemIndicesTests extends ESTestCase {
         descriptors.put(source1, new SystemIndices.Feature(source1, "test", List.of(pattern1)));
         descriptors.put(source2, new SystemIndices.Feature(source2, "test", List.of(pattern2)));
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> SystemIndices.checkForOverlappingPatterns(descriptors));
-        assertThat(exception.getMessage(), containsString("a system index descriptor [" + pattern1 +
-            "] from [" + source1 + "] overlaps with other system index descriptors:"));
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> SystemIndices.checkForOverlappingPatterns(descriptors)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "a system index descriptor [" + pattern1 + "] from [" + source1 + "] overlaps with other system index descriptors:"
+            )
+        );
         assertThat(exception.getMessage(), containsString(pattern2.toString() + " from [" + source2 + "]"));
 
         IllegalStateException constructorException = expectThrows(IllegalStateException.class, () -> new SystemIndices(descriptors));
@@ -173,11 +191,17 @@ public class SystemIndicesTests extends ESTestCase {
         descriptors.put(source1, new SystemIndices.Feature(source1, "source 1", List.of(pattern1)));
         descriptors.put(source2, new SystemIndices.Feature(source2, "source 2", List.of(pattern2)));
 
-        IllegalStateException exception = expectThrows(IllegalStateException.class,
-            () -> SystemIndices.checkForOverlappingPatterns(descriptors));
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> SystemIndices.checkForOverlappingPatterns(descriptors)
+        );
 
-        assertThat(exception.getMessage(), containsString("a system index descriptor [" + pattern1 +
-            "] from [" + source1 + "] overlaps with other system index descriptors:"));
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "a system index descriptor [" + pattern1 + "] from [" + source1 + "] overlaps with other system index descriptors:"
+            )
+        );
 
         assertThat(exception.getMessage(), containsString(pattern2.toString() + " from [" + source2 + "]"));
     }

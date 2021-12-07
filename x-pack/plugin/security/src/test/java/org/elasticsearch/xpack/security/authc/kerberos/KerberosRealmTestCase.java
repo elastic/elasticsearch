@@ -10,13 +10,12 @@ package org.elasticsearch.xpack.security.authc.kerberos;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -27,9 +26,10 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.After;
@@ -52,8 +52,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.AdditionalMatchers.aryEq;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -72,7 +72,7 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
 
     protected KerberosTicketValidator mockKerberosTicketValidator;
     protected NativeRoleMappingStore mockNativeRoleMappingStore;
-    protected XPackLicenseState licenseState;
+    protected MockLicenseState licenseState;
 
     protected static final Set<String> roles = Sets.newHashSet("admin", "kibana_user");
 
@@ -82,10 +82,16 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         resourceWatcherService = new ResourceWatcherService(Settings.EMPTY, threadPool);
         dir = createTempDir();
         globalSettings = Settings.builder().put("path.home", dir).build();
-        settings = buildKerberosRealmSettings(REALM_NAME,
-            writeKeyTab(dir.resolve("key.keytab"), "asa").toString(), 100, "10m", true, randomBoolean());
-        licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(Feature.SECURITY_AUTHORIZATION_REALM)).thenReturn(true);
+        settings = buildKerberosRealmSettings(
+            REALM_NAME,
+            writeKeyTab(dir.resolve("key.keytab"), "asa").toString(),
+            100,
+            "10m",
+            true,
+            randomBoolean()
+        );
+        licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.DELEGATED_AUTHORIZATION_FEATURE)).thenReturn(true);
     }
 
     @After
@@ -95,8 +101,13 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected void mockKerberosTicketValidator(final byte[] decodedTicket, final Path keytabPath, final boolean krbDebug,
-                                               final Tuple<String, String> value, final Exception e) {
+    protected void mockKerberosTicketValidator(
+        final byte[] decodedTicket,
+        final Path keytabPath,
+        final boolean krbDebug,
+        final Tuple<String, String> value,
+        final Exception e
+    ) {
         assert value != null || e != null;
         doAnswer((i) -> {
             ActionListener<Tuple<String, String>> listener = (ActionListener<Tuple<String, String>>) i.getArguments()[3];
@@ -109,14 +120,20 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         }).when(mockKerberosTicketValidator).validateTicket(aryEq(decodedTicket), eq(keytabPath), eq(krbDebug), any(ActionListener.class));
     }
 
-    protected void assertSuccessAuthenticationResult(final User expectedUser, final String outToken, final AuthenticationResult result) {
+    protected void assertSuccessAuthenticationResult(
+        final User expectedUser,
+        final String outToken,
+        final AuthenticationResult<User> result
+    ) {
         assertThat(result, is(notNullValue()));
         assertThat(result.getStatus(), is(equalTo(AuthenticationResult.Status.SUCCESS)));
-        assertThat(result.getUser(), is(equalTo(expectedUser)));
+        assertThat(result.getValue(), is(equalTo(expectedUser)));
         final Map<String, List<String>> responseHeaders = threadPool.getThreadContext().getResponseHeaders();
         assertThat(responseHeaders, is(notNullValue()));
-        assertThat(responseHeaders.get(KerberosAuthenticationToken.WWW_AUTHENTICATE).get(0),
-            is(equalTo(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX + outToken)));
+        assertThat(
+            responseHeaders.get(KerberosAuthenticationToken.WWW_AUTHENTICATE).get(0),
+            is(equalTo(KerberosAuthenticationToken.NEGOTIATE_AUTH_HEADER_PREFIX + outToken))
+        );
     }
 
     protected KerberosRealm createKerberosRealm(final String... userForRoleMapping) {
@@ -125,19 +142,29 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
 
     protected KerberosRealm createKerberosRealm(final List<Realm> delegatedRealms, final String... userForRoleMapping) {
         final RealmConfig.RealmIdentifier id = new RealmConfig.RealmIdentifier(KerberosRealmSettings.TYPE, REALM_NAME);
-        config = new RealmConfig(id, merge(id, settings, globalSettings),
-            TestEnvironment.newEnvironment(globalSettings), new ThreadContext(globalSettings));
+        config = new RealmConfig(
+            id,
+            merge(id, settings, globalSettings),
+            TestEnvironment.newEnvironment(globalSettings),
+            new ThreadContext(globalSettings)
+        );
         mockNativeRoleMappingStore = roleMappingStore(Arrays.asList(userForRoleMapping));
         mockKerberosTicketValidator = mock(KerberosTicketValidator.class);
-        final KerberosRealm kerberosRealm =
-            new KerberosRealm(config, mockNativeRoleMappingStore, mockKerberosTicketValidator, threadPool, null);
+        final KerberosRealm kerberosRealm = new KerberosRealm(
+            config,
+            mockNativeRoleMappingStore,
+            mockKerberosTicketValidator,
+            threadPool,
+            null
+        );
         Collections.shuffle(delegatedRealms, random());
         kerberosRealm.initialize(delegatedRealms, licenseState);
         return kerberosRealm;
     }
 
     private Settings merge(RealmConfig.RealmIdentifier identifier, Settings realmSettings, Settings globalSettings) {
-        return Settings.builder().put(realmSettings)
+        return Settings.builder()
+            .put(realmSettings)
             .normalizePrefix(RealmSettings.realmSettingPrefix(identifier))
             .put(globalSettings)
             .put(RealmSettings.getFullSettingKey(identifier, RealmSettings.ORDER_SETTING), 0)
@@ -151,8 +178,12 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
         when(mockClient.threadPool()).thenReturn(threadPool);
         when(mockClient.settings()).thenReturn(settings);
 
-        final NativeRoleMappingStore store = new NativeRoleMappingStore(Settings.EMPTY, mockClient, mock(SecurityIndexManager.class),
-            mock(ScriptService.class));
+        final NativeRoleMappingStore store = new NativeRoleMappingStore(
+            Settings.EMPTY,
+            mockClient,
+            mock(SecurityIndexManager.class),
+            mock(ScriptService.class)
+        );
         final NativeRoleMappingStore roleMapper = spy(store);
 
         doAnswer(invocation -> {
@@ -162,7 +193,8 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
                 listener.onResponse(roles);
             } else {
                 listener.onFailure(
-                    Exceptions.authorizationError("Expected UPN '" + expectedUserNames + "' but was '" + userData.getUsername() + "'"));
+                    Exceptions.authorizationError("Expected UPN '" + expectedUserNames + "' but was '" + userData.getUsername() + "'")
+                );
             }
             return null;
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
@@ -239,12 +271,18 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
      * @param keytabPath key tab file path
      * @return {@link Settings} for kerberos realm
      */
-    public static Settings buildKerberosRealmSettings(final String realmName,final String keytabPath) {
+    public static Settings buildKerberosRealmSettings(final String realmName, final String keytabPath) {
         return buildKerberosRealmSettings(realmName, keytabPath, 100, "10m", true, false);
     }
 
-    public static Settings buildKerberosRealmSettings(String realmName, String keytabPath, int maxUsersInCache, String cacheTTL,
-                                                      boolean enableDebugging, boolean removeRealmName) {
+    public static Settings buildKerberosRealmSettings(
+        String realmName,
+        String keytabPath,
+        int maxUsersInCache,
+        String cacheTTL,
+        boolean enableDebugging,
+        boolean removeRealmName
+    ) {
         final Settings global = Settings.builder().put("path.home", createTempDir()).build();
         return buildKerberosRealmSettings(realmName, keytabPath, maxUsersInCache, cacheTTL, enableDebugging, removeRealmName, global);
     }
@@ -262,8 +300,15 @@ public abstract class KerberosRealmTestCase extends ESTestCase {
      * @return {@link Settings} for kerberos realm
      */
 
-    public static Settings buildKerberosRealmSettings(String realmName, String keytabPath, int maxUsersInCache, String cacheTTL,
-                                                      boolean enableDebugging, boolean removeRealmName, Settings globalSettings) {
+    public static Settings buildKerberosRealmSettings(
+        String realmName,
+        String keytabPath,
+        int maxUsersInCache,
+        String cacheTTL,
+        boolean enableDebugging,
+        boolean removeRealmName,
+        Settings globalSettings
+    ) {
         final Settings.Builder builder = Settings.builder()
             .put(RealmSettings.getFullSettingKey(realmName, KerberosRealmSettings.HTTP_SERVICE_KEYTAB_PATH), keytabPath)
             .put(RealmSettings.getFullSettingKey(realmName, KerberosRealmSettings.CACHE_MAX_USERS_SETTING), maxUsersInCache)

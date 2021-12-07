@@ -12,10 +12,10 @@ import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfigTe
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfigTests;
 import org.elasticsearch.client.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -26,7 +26,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 
 public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedModelConfig> {
 
@@ -41,21 +40,24 @@ public class TrainedModelConfigTests extends AbstractXContentTestCase<TrainedMod
             Instant.ofEpochMilli(randomNonNegativeLong()),
             randomBoolean() ? null : TrainedModelDefinitionTests.createRandomBuilder(targetType).build(),
             randomBoolean() ? null : randomAlphaOfLength(100),
-            randomBoolean() ? null :
-                Stream.generate(() -> randomAlphaOfLength(10)).limit(randomIntBetween(0, 5)).collect(Collectors.toList()),
+            randomBoolean()
+                ? null
+                : Stream.generate(() -> randomAlphaOfLength(10)).limit(randomIntBetween(0, 5)).collect(Collectors.toList()),
             randomBoolean() ? null : Collections.singletonMap(randomAlphaOfLength(10), randomAlphaOfLength(10)),
             randomBoolean() ? null : TrainedModelInputTests.createRandomInput(),
             randomBoolean() ? null : randomNonNegativeLong(),
             randomBoolean() ? null : randomNonNegativeLong(),
             randomBoolean() ? null : randomFrom("platinum", "basic"),
-            randomBoolean() ? null :
-                Stream.generate(() -> randomAlphaOfLength(10))
+            randomBoolean()
+                ? null
+                : Stream.generate(() -> randomAlphaOfLength(10))
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toMap(Function.identity(), (k) -> randomAlphaOfLength(10))),
-            targetType.equals(TargetType.CLASSIFICATION) ?
-                ClassificationConfigTests.randomClassificationConfig() :
-                RegressionConfigTests.randomRegressionConfig(),
-            randomBoolean() ? null : IndexLocationTests.randomInstance());
+            targetType.equals(TargetType.CLASSIFICATION)
+                ? ClassificationConfigTests.randomClassificationConfig()
+                : RegressionConfigTests.randomRegressionConfig(),
+            randomBoolean() ? null : IndexLocationTests.randomInstance()
+        );
     }
 
     @Override

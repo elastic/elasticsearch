@@ -10,8 +10,8 @@ package org.elasticsearch.client.ml.dataframe.evaluation.classification;
 import org.elasticsearch.client.ml.dataframe.evaluation.Evaluation;
 import org.elasticsearch.client.ml.dataframe.evaluation.EvaluationMetric;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -42,14 +42,18 @@ public class Classification implements Evaluation {
     public static final ConstructingObjectParser<Classification, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new Classification((String) a[0], (String) a[1], (String) a[2], (List<EvaluationMetric>) a[3]));
+        a -> new Classification((String) a[0], (String) a[1], (String) a[2], (List<EvaluationMetric>) a[3])
+    );
 
     static {
         PARSER.declareString(constructorArg(), ACTUAL_FIELD);
         PARSER.declareString(optionalConstructorArg(), PREDICTED_FIELD);
         PARSER.declareString(optionalConstructorArg(), TOP_CLASSES_FIELD);
         PARSER.declareNamedObjects(
-            optionalConstructorArg(), (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME, n), c), METRICS);
+            optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(EvaluationMetric.class, registeredMetricName(NAME, n), c),
+            METRICS
+        );
     }
 
     public static Classification fromXContent(XContentParser parser) {
@@ -76,23 +80,20 @@ public class Classification implements Evaluation {
      */
     private final List<EvaluationMetric> metrics;
 
-    public Classification(String actualField,
-                          String predictedField,
-                          String topClassesField) {
-        this(actualField, predictedField, topClassesField, (List<EvaluationMetric>)null);
+    public Classification(String actualField, String predictedField, String topClassesField) {
+        this(actualField, predictedField, topClassesField, (List<EvaluationMetric>) null);
     }
 
-    public Classification(String actualField,
-                          String predictedField,
-                          String topClassesField,
-                          EvaluationMetric... metrics) {
+    public Classification(String actualField, String predictedField, String topClassesField, EvaluationMetric... metrics) {
         this(actualField, predictedField, topClassesField, Arrays.asList(metrics));
     }
 
-    public Classification(String actualField,
-                          @Nullable String predictedField,
-                          @Nullable String topClassesField,
-                          @Nullable List<EvaluationMetric> metrics) {
+    public Classification(
+        String actualField,
+        @Nullable String predictedField,
+        @Nullable String topClassesField,
+        @Nullable List<EvaluationMetric> metrics
+    ) {
         this.actualField = Objects.requireNonNull(actualField);
         this.predictedField = predictedField;
         this.topClassesField = topClassesField;
@@ -118,11 +119,11 @@ public class Classification implements Evaluation {
             builder.field(TOP_CLASSES_FIELD.getPreferredName(), topClassesField);
         }
         if (metrics != null) {
-           builder.startObject(METRICS.getPreferredName());
-           for (EvaluationMetric metric : metrics) {
-               builder.field(metric.getName(), metric);
-           }
-           builder.endObject();
+            builder.startObject(METRICS.getPreferredName());
+            for (EvaluationMetric metric : metrics) {
+                builder.field(metric.getName(), metric);
+            }
+            builder.endObject();
         }
 
         builder.endObject();

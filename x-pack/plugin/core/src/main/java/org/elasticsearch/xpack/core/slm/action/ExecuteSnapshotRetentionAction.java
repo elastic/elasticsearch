@@ -27,7 +27,7 @@ public class ExecuteSnapshotRetentionAction extends ActionType<AcknowledgedRespo
 
     public static class Request extends AcknowledgedRequest<ExecuteSnapshotRetentionAction.Request> implements ToXContentObject {
 
-        public Request() { }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);

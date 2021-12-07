@@ -61,9 +61,10 @@ public abstract class HttpSmokeTestCase extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put(NetworkModule.TRANSPORT_TYPE_KEY, nodeTransportTypeKey)
-                .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey).build();
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, nodeTransportTypeKey)
+            .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey)
+            .build();
     }
 
     @Override

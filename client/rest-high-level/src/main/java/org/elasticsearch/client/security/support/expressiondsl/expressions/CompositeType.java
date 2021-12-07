@@ -16,7 +16,9 @@ import java.util.Map;
 
 public enum CompositeType {
 
-    ANY("any"), ALL("all"), EXCEPT("except");
+    ANY("any"),
+    ALL("all"),
+    EXCEPT("except");
 
     private static Map<String, CompositeType> nameToType = Collections.unmodifiableMap(initialize());
     private ParseField field;

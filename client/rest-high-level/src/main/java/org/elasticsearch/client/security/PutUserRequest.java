@@ -96,8 +96,13 @@ public final class PutUserRequest implements Validatable, ToXContentObject {
      * @param enabled true if the user is enabled and allowed to access elasticsearch
      * @param refreshPolicy the refresh policy for the request.
      */
-    private PutUserRequest(User user, @Nullable char[] password, @Nullable char[] passwordHash, boolean enabled,
-                           RefreshPolicy refreshPolicy) {
+    private PutUserRequest(
+        User user,
+        @Nullable char[] password,
+        @Nullable char[] passwordHash,
+        boolean enabled,
+        RefreshPolicy refreshPolicy
+    ) {
         this.user = Objects.requireNonNull(user, "user is required, cannot be null");
         if (password != null && passwordHash != null) {
             throw new IllegalArgumentException("cannot specify both password and passwordHash");
@@ -130,10 +135,10 @@ public final class PutUserRequest implements Validatable, ToXContentObject {
         if (o == null || getClass() != o.getClass()) return false;
         final PutUserRequest that = (PutUserRequest) o;
         return Objects.equals(user, that.user)
-                && Arrays.equals(password, that.password)
-                && Arrays.equals(passwordHash, that.passwordHash)
-                && enabled == that.enabled
-                && refreshPolicy == that.refreshPolicy;
+            && Arrays.equals(password, that.password)
+            && Arrays.equals(passwordHash, that.passwordHash)
+            && enabled == that.enabled
+            && refreshPolicy == that.refreshPolicy;
     }
 
     @Override

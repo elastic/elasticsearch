@@ -19,11 +19,13 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isExact;
 public class Order extends Expression {
 
     public enum OrderDirection {
-        ASC, DESC
+        ASC,
+        DESC
     }
 
     public enum NullsPosition {
-        FIRST, LAST,
+        FIRST,
+        LAST,
         /**
          * Nulls position has not been specified by the user and an appropriate default will be used.
          *
@@ -102,8 +104,6 @@ public class Order extends Expression {
         }
 
         Order other = (Order) obj;
-        return Objects.equals(direction, other.direction)
-                && Objects.equals(nulls, other.nulls)
-                && Objects.equals(child, other.child);
+        return Objects.equals(direction, other.direction) && Objects.equals(nulls, other.nulls) && Objects.equals(child, other.child);
     }
 }

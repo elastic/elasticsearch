@@ -15,10 +15,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -33,6 +29,10 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -71,8 +71,13 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     private final AnomalyDetectionAuditor auditor;
     private final ThreadPool threadPool;
 
-    public ExpiredResultsRemover(OriginSettingClient client, Iterator<Job> jobIterator, TaskId parentTaskId,
-                                 AnomalyDetectionAuditor auditor, ThreadPool threadPool) {
+    public ExpiredResultsRemover(
+        OriginSettingClient client,
+        Iterator<Job> jobIterator,
+        TaskId parentTaskId,
+        AnomalyDetectionAuditor auditor,
+        ThreadPool threadPool
+    ) {
         super(client, jobIterator, parentTaskId);
         this.auditor = Objects.requireNonNull(auditor);
         this.threadPool = Objects.requireNonNull(threadPool);
@@ -120,14 +125,16 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
             Result.RESULT_TYPE.getPreferredName(),
             ModelSizeStats.RESULT_TYPE_VALUE,
             ForecastRequestStats.RESULT_TYPE_VALUE,
-            Forecast.RESULT_TYPE_VALUE);
+            Forecast.RESULT_TYPE_VALUE
+        );
         QueryBuilder query = QueryBuilders.boolQuery()
             .filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), job.getId()))
             .filter(QueryBuilders.rangeQuery(Result.TIMESTAMP.getPreferredName()).lt(cutoffEpochMs).format("epoch_millis"))
             .filter(QueryBuilders.existsQuery(Result.RESULT_TYPE.getPreferredName()))
             .mustNot(excludeFilter);
-        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()))
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+        DeleteByQueryRequest request = new DeleteByQueryRequest(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId())).setSlices(
+            AbstractBulkByScrollRequest.AUTO_SLICES
+        )
             .setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE)
             // We are deleting old data, we should simply proceed as a version conflict could mean that another deletion is taking place
             .setAbortOnVersionConflict(false)
@@ -142,19 +149,21 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
     @Override
     void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
-        ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(LOGGER, threadPool,
-                MachineLearning.UTILITY_THREAD_POOL_NAME, listener, false);
-        latestBucketTime(client, getParentTaskId(), jobId, ActionListener.wrap(
-                latestTime -> {
-                    if (latestTime == null) {
-                        threadedActionListener.onResponse(null);
-                    } else {
-                        long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
-                        threadedActionListener.onResponse(new CutoffDetails(latestTime, cutoff));
-                    }
-                },
-                listener::onFailure
-        ));
+        ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
+            LOGGER,
+            threadPool,
+            MachineLearning.UTILITY_THREAD_POOL_NAME,
+            listener,
+            false
+        );
+        latestBucketTime(client, getParentTaskId(), jobId, ActionListener.wrap(latestTime -> {
+            if (latestTime == null) {
+                threadedActionListener.onResponse(null);
+            } else {
+                long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
+                threadedActionListener.onResponse(new CutoffDetails(latestTime, cutoff));
+            }
+        }, listener::onFailure));
     }
 
     static void latestBucketTime(OriginSettingClient client, TaskId parentTaskId, String jobId, ActionListener<Long> listener) {
@@ -173,25 +182,25 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
         searchRequest.setParentTask(parentTaskId);
 
-        client.search(searchRequest, ActionListener.wrap(
-                response -> {
-                    SearchHit[] hits = response.getHits().getHits();
-                    if (hits.length == 0) {
-                        // no buckets found
-                        listener.onResponse(null);
-                    } else {
+        client.search(searchRequest, ActionListener.wrap(response -> {
+            SearchHit[] hits = response.getHits().getHits();
+            if (hits.length == 0) {
+                // no buckets found
+                listener.onResponse(null);
+            } else {
 
-                        try (InputStream stream = hits[0].getSourceRef().streamInput();
-                             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)) {
-                            Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
-                            listener.onResponse(bucket.getTimestamp().getTime());
-                        } catch (IOException e) {
-                            listener.onFailure(new ElasticsearchParseException("failed to parse bucket", e));
-                        }
-                    }
-                }, listener::onFailure
-        ));
+                try (
+                    InputStream stream = hits[0].getSourceRef().streamInput();
+                    XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                        .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                ) {
+                    Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
+                    listener.onResponse(bucket.getTimestamp().getTime());
+                } catch (IOException e) {
+                    listener.onFailure(new ElasticsearchParseException("failed to parse bucket", e));
+                }
+            }
+        }, listener::onFailure));
     }
 
     private void auditResultsWereDeleted(String jobId, long cutoffEpochMs) {

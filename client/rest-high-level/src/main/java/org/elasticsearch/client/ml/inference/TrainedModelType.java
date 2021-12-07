@@ -11,7 +11,9 @@ package org.elasticsearch.client.ml.inference;
 import java.util.Locale;
 
 public enum TrainedModelType {
-    TREE_ENSEMBLE, LANG_IDENT, PYTORCH;
+    TREE_ENSEMBLE,
+    LANG_IDENT,
+    PYTORCH;
 
     public static TrainedModelType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

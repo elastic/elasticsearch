@@ -35,17 +35,25 @@ public class EqlUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final Client client;
 
     @Inject
-    public EqlUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                   ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   Client client) {
-        super(XPackUsageFeatureAction.EQL.name(), transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver);
+    public EqlUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client
+    ) {
+        super(XPackUsageFeatureAction.EQL.name(), transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver);
         this.client = client;
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
 
         EqlStatsRequest eqlRequest = new EqlStatsRequest();
         eqlRequest.includeStats(true);

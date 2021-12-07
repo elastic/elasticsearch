@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.job.results;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -30,10 +30,12 @@ public class OverallBucketTests extends AbstractXContentTestCase<OverallBucket> 
         for (int i = 0; i < jobCount; ++i) {
             jobs.add(new OverallBucket.JobInfo(randomAlphaOfLength(10), randomDoubleBetween(0.0, 100.0, true)));
         }
-        OverallBucket overallBucket = new OverallBucket(new Date(randomNonNegativeLong()),
-                randomIntBetween(60, 24 * 3600),
-                randomDoubleBetween(0.0, 100.0, true),
-                randomBoolean());
+        OverallBucket overallBucket = new OverallBucket(
+            new Date(randomNonNegativeLong()),
+            randomIntBetween(60, 24 * 3600),
+            randomDoubleBetween(0.0, 100.0, true),
+            randomBoolean()
+        );
         overallBucket.setJobs(jobs);
         return overallBucket;
     }

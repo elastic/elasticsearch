@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.core.ml.inference;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -47,20 +47,26 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
     public static final ObjectParser<TrainedModelDefinition.Builder, Void> STRICT_PARSER = createParser(false);
 
     private static ObjectParser<TrainedModelDefinition.Builder, Void> createParser(boolean ignoreUnknownFields) {
-        ObjectParser<TrainedModelDefinition.Builder, Void> parser = new ObjectParser<>(NAME,
+        ObjectParser<TrainedModelDefinition.Builder, Void> parser = new ObjectParser<>(
+            NAME,
             ignoreUnknownFields,
-            TrainedModelDefinition.Builder::builderForParser);
-        parser.declareNamedObject(TrainedModelDefinition.Builder::setTrainedModel,
-            (p, c, n) -> ignoreUnknownFields ?
-                p.namedObject(LenientlyParsedTrainedModel.class, n, null) :
-                p.namedObject(StrictlyParsedTrainedModel.class, n, null),
-            TRAINED_MODEL);
-        parser.declareNamedObjects(TrainedModelDefinition.Builder::setPreProcessors,
-            (p, c, n) -> ignoreUnknownFields ?
-                p.namedObject(LenientlyParsedPreProcessor.class, n, PreProcessor.PreProcessorParseContext.DEFAULT) :
-                p.namedObject(StrictlyParsedPreProcessor.class, n, PreProcessor.PreProcessorParseContext.DEFAULT),
+            TrainedModelDefinition.Builder::builderForParser
+        );
+        parser.declareNamedObject(
+            TrainedModelDefinition.Builder::setTrainedModel,
+            (p, c, n) -> ignoreUnknownFields
+                ? p.namedObject(LenientlyParsedTrainedModel.class, n, null)
+                : p.namedObject(StrictlyParsedTrainedModel.class, n, null),
+            TRAINED_MODEL
+        );
+        parser.declareNamedObjects(
+            TrainedModelDefinition.Builder::setPreProcessors,
+            (p, c, n) -> ignoreUnknownFields
+                ? p.namedObject(LenientlyParsedPreProcessor.class, n, PreProcessor.PreProcessorParseContext.DEFAULT)
+                : p.namedObject(StrictlyParsedPreProcessor.class, n, PreProcessor.PreProcessorParseContext.DEFAULT),
             (trainedModelDefBuilder) -> trainedModelDefBuilder.setProcessorsInOrder(true),
-            PREPROCESSORS);
+            PREPROCESSORS
+        );
         return parser;
     }
 
@@ -90,16 +96,14 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        NamedXContentObjectHelper.writeNamedObjects(builder,
+        NamedXContentObjectHelper.writeNamedObjects(
+            builder,
             params,
             false,
             TRAINED_MODEL.getPreferredName(),
-            Collections.singletonList(trainedModel));
-        NamedXContentObjectHelper.writeNamedObjects(builder,
-            params,
-            true,
-            PREPROCESSORS.getPreferredName(),
-            preProcessors);
+            Collections.singletonList(trainedModel)
+        );
+        NamedXContentObjectHelper.writeNamedObjects(builder, params, true, PREPROCESSORS.getPreferredName(), preProcessors);
         builder.endObject();
         return builder;
     }
@@ -122,8 +126,7 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TrainedModelDefinition that = (TrainedModelDefinition) o;
-        return Objects.equals(trainedModel, that.trainedModel) &&
-            Objects.equals(preProcessors, that.preProcessors);
+        return Objects.equals(trainedModel, that.trainedModel) && Objects.equals(preProcessors, that.preProcessors);
     }
 
     @Override
@@ -143,7 +146,7 @@ public class TrainedModelDefinition implements ToXContentObject, Writeable, Acco
     public Collection<Accountable> getChildResources() {
         List<Accountable> accountables = new ArrayList<>(preProcessors.size() + 2);
         accountables.add(Accountables.namedAccountable("trained_model", trainedModel));
-        for(PreProcessor preProcessor : preProcessors) {
+        for (PreProcessor preProcessor : preProcessors) {
             accountables.add(Accountables.namedAccountable("pre_processor_" + preProcessor.getName(), preProcessor));
         }
         return accountables;

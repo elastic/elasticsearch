@@ -7,5 +7,5 @@
   - do:
       migration.get_feature_upgrade_status: {}
 
-  - is_true: upgrade_status
+  - is_true: migration_status
   - is_true: features

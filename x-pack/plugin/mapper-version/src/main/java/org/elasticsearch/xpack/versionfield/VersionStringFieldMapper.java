@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -62,6 +63,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
+import static org.elasticsearch.xpack.versionfield.VersionScriptDocValues.VersionScriptSupplier;
 
 /**
  * A {@link FieldMapper} for indexing fields with version strings.
@@ -279,7 +281,11 @@ public class VersionStringFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), VersionScriptDocValues::new, CoreValuesSourceType.KEYWORD);
+            return new SortedSetOrdinalsIndexFieldData.Builder(
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new DelegateDocValuesField(new VersionScriptDocValues(new VersionScriptSupplier(dv)), n)
+            );
         }
 
         @Override

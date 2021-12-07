@@ -1,23 +1,23 @@
-/* @notice
- *  Licensed to the Apache Software Foundation (ASF) under one
- *  or more contributor license agreements.  See the NOTICE file
- *  distributed with this work for additional information
- *  regarding copyright ownership.  The ASF licenses this file
- *  to you under the Apache License, Version 2.0 (the
- *  "License"); you may not use this file except in compliance
- *  with the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- *  Unless required by applicable law or agreed to in writing,
- *  software distributed under the License is distributed on an
- *  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- *  KIND, either express or implied.  See the License for the
- *  specific language governing permissions and limitations
- *  under the License.
- */
-
 /*
+ * @notice
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ *
+ *
  * This code sourced from:
  * http://svn.apache.org/repos/asf/directory/studio/tags/2.0.0.v20170904-M13/plugins/valueeditors/src/main/java/org/apache/directory/studio/valueeditors/msad/InPlaceMsAdObjectSidValueEditor.java
  */
@@ -28,8 +28,8 @@ import org.apache.commons.codec.binary.Hex;
 
 public class ActiveDirectorySIDUtil {
     public static final String TOKEN_GROUPS = "tokenGroups";
-    public static String convertToString(byte[] bytes)
-    {
+
+    public static String convertToString(byte[] bytes) {
         /*
          * The binary data structure, from http://msdn.microsoft.com/en-us/library/cc230371(PROT.10).aspx:
          *   byte[0] - Revision (1 byte): An 8-bit unsigned integer that specifies the revision level of
@@ -46,50 +46,46 @@ public class ActiveDirectorySIDUtil {
          *      by SubAuthorityCount. little-endian!
          */
 
-        if ( ( bytes == null ) || ( bytes.length < 8 ) )
-        {
+        if ((bytes == null) || (bytes.length < 8)) {
             throw new IllegalArgumentException("Invalid SID");
         }
 
-        char[] hex = Hex.encodeHex( bytes );
+        char[] hex = Hex.encodeHex(bytes);
         StringBuffer sb = new StringBuffer();
 
         // start with 'S'
-        sb.append( 'S' );
+        sb.append('S');
 
         // revision
-        int revision = Integer.parseInt( new String( hex, 0, 2 ), 16 );
-        sb.append( '-' );
-        sb.append( revision );
+        int revision = Integer.parseInt(new String(hex, 0, 2), 16);
+        sb.append('-');
+        sb.append(revision);
 
         // get count
-        int count = Integer.parseInt( new String( hex, 2, 2 ), 16 );
+        int count = Integer.parseInt(new String(hex, 2, 2), 16);
 
         // check length
-        if ( bytes.length != ( 8 + count * 4 ) )
-        {
+        if (bytes.length != (8 + count * 4)) {
             throw new IllegalArgumentException("Invalid SID");
         }
 
         // get authority, big-endian
-        long authority = Long.parseLong( new String( hex, 4, 12 ), 16 );
-        sb.append( '-' );
-        sb.append( authority );
+        long authority = Long.parseLong(new String(hex, 4, 12), 16);
+        sb.append('-');
+        sb.append(authority);
 
         // sub-authorities, little-endian
-        for ( int i = 0; i < count; i++ )
-        {
+        for (int i = 0; i < count; i++) {
             StringBuffer rid = new StringBuffer();
 
-            for ( int k = 3; k >= 0; k-- )
-            {
-                rid.append( hex[16 + ( i * 8 ) + ( k * 2 )] );
-                rid.append( hex[16 + ( i * 8 ) + ( k * 2 ) + 1] );
+            for (int k = 3; k >= 0; k--) {
+                rid.append(hex[16 + (i * 8) + (k * 2)]);
+                rid.append(hex[16 + (i * 8) + (k * 2) + 1]);
             }
 
-            long subAuthority = Long.parseLong( rid.toString(), 16 );
-            sb.append( '-' );
-            sb.append( subAuthority );
+            long subAuthority = Long.parseLong(rid.toString(), 16);
+            sb.append('-');
+            sb.append(subAuthority);
         }
 
         return sb.toString();

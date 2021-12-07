@@ -22,8 +22,7 @@ public class ShutdownPluginsStatus implements Writeable, ToXContentObject {
     private final SingleNodeShutdownMetadata.Status status;
 
     public ShutdownPluginsStatus(boolean safeToShutdown) {
-        this.status = safeToShutdown ? SingleNodeShutdownMetadata.Status.COMPLETE :
-            SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        this.status = safeToShutdown ? SingleNodeShutdownMetadata.Status.COMPLETE : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
     }
 
     public ShutdownPluginsStatus(StreamInput in) throws IOException {

@@ -47,9 +47,14 @@ final class ServerTransportFilter {
     private final DestructiveOperations destructiveOperations;
     private final SecurityContext securityContext;
 
-    ServerTransportFilter(AuthenticationService authcService, AuthorizationService authzService,
-                ThreadContext threadContext, boolean extractClientCert, DestructiveOperations destructiveOperations,
-                SecurityContext securityContext) {
+    ServerTransportFilter(
+        AuthenticationService authcService,
+        AuthorizationService authzService,
+        ThreadContext threadContext,
+        boolean extractClientCert,
+        DestructiveOperations destructiveOperations,
+        SecurityContext securityContext
+    ) {
         this.authcService = authcService;
         this.authzService = authzService;
         this.threadContext = threadContext;
@@ -63,12 +68,12 @@ final class ServerTransportFilter {
      * thrown by this method will stop the request from being handled and the error will
      * be sent back to the sender.
      */
-    void inbound(String action, TransportRequest request, TransportChannel transportChannel,ActionListener<Void> listener) {
+    void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener) {
         if (CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action) || DeleteIndexAction.NAME.equals(action)) {
             IndicesRequest indicesRequest = (IndicesRequest) request;
             try {
                 destructiveOperations.failDestructive(indicesRequest.indices());
-            } catch(IllegalArgumentException e) {
+            } catch (IllegalArgumentException e) {
                 listener.onFailure(e);
                 return;
             }
@@ -99,8 +104,7 @@ final class ServerTransportFilter {
         final Version version = transportChannel.getVersion();
         authcService.authenticate(securityAction, request, true, ActionListener.wrap((authentication) -> {
             if (authentication != null) {
-                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) &&
-                    SystemUser.is(authentication.getUser()) == false) {
+                if (securityAction.equals(TransportService.HANDSHAKE_ACTION_NAME) && SystemUser.is(authentication.getUser()) == false) {
                     securityContext.executeAsUser(SystemUser.INSTANCE, (ctx) -> {
                         final Authentication replaced = securityContext.getAuthentication();
                         authzService.authorize(replaced, securityAction, request, listener);

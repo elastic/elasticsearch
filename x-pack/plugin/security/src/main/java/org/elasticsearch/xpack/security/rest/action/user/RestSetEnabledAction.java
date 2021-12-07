@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequestBuilder;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
@@ -40,13 +40,17 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(POST, "/_security/user/{username}/_enable")
-                .replaces(POST, "/_xpack/security/user/{username}/_enable", RestApiVersion.V_7).build(),
+                .replaces(POST, "/_xpack/security/user/{username}/_enable", RestApiVersion.V_7)
+                .build(),
             Route.builder(PUT, "/_security/user/{username}/_enable")
-                .replaces(PUT, "/_xpack/security/user/{username}/_enable", RestApiVersion.V_7).build(),
+                .replaces(PUT, "/_xpack/security/user/{username}/_enable", RestApiVersion.V_7)
+                .build(),
             Route.builder(POST, "/_security/user/{username}/_disable")
-                .replaces(POST, "/_xpack/security/user/{username}/_disable", RestApiVersion.V_7).build(),
+                .replaces(POST, "/_xpack/security/user/{username}/_disable", RestApiVersion.V_7)
+                .build(),
             Route.builder(PUT, "/_security/user/{username}/_disable")
-                .replaces(PUT, "/_xpack/security/user/{username}/_disable", RestApiVersion.V_7).build()
+                .replaces(PUT, "/_xpack/security/user/{username}/_disable", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -61,8 +65,7 @@ public class RestSetEnabledAction extends SecurityBaseRestHandler {
         final boolean enabled = request.path().endsWith("_enable");
         assert enabled || request.path().endsWith("_disable");
         final String username = request.param("username");
-        return channel -> new SetEnabledRequestBuilder(client)
-            .username(username)
+        return channel -> new SetEnabledRequestBuilder(client).username(username)
             .enabled(enabled)
             .execute(new RestBuilderListener<>(channel) {
                 @Override

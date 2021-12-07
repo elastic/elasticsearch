@@ -24,8 +24,7 @@ public class ReadOnlyAction implements LifecycleAction, ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
-    public ReadOnlyAction() {
-    }
+    public ReadOnlyAction() {}
 
     @Override
     public String getName() {

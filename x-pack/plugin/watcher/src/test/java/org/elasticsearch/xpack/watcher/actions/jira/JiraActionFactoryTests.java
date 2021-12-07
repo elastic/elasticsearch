@@ -6,16 +6,16 @@
  */
 package org.elasticsearch.xpack.watcher.actions.jira;
 
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraAccount;
 import org.elasticsearch.xpack.watcher.notification.jira.JiraService;
 import org.junit.Before;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.watcher.notification.jira.JiraAccountTests.randomIssueDefaults;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.jiraAction;
+import static org.elasticsearch.xpack.watcher.notification.jira.JiraAccountTests.randomIssueDefaults;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

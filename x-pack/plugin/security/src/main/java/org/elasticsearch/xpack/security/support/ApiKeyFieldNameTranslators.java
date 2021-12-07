@@ -24,7 +24,8 @@ public class ApiKeyFieldNameTranslators {
             new ExactFieldNameTranslator(s -> "creation_time", "creation"),
             new ExactFieldNameTranslator(s -> "expiration_time", "expiration"),
             new ExactFieldNameTranslator(s -> "api_key_invalidated", "invalidated"),
-            new PrefixFieldNameTranslator(s -> "metadata_flattened" + s.substring(8), "metadata."));
+            new PrefixFieldNameTranslator(s -> "metadata_flattened" + s.substring(8), "metadata.")
+        );
     }
 
     /**

@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.sql.execution.search.extractor;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;

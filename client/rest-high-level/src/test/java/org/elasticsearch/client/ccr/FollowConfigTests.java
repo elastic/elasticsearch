@@ -10,8 +10,8 @@ package org.elasticsearch.client.ccr;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 
@@ -20,16 +20,11 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class FollowConfigTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
-            FollowConfigTests::createTestInstance,
-            (followConfig, xContentBuilder) -> {
-                xContentBuilder.startObject();
-                followConfig.toXContentFragment(xContentBuilder, ToXContent.EMPTY_PARAMS);
-                xContentBuilder.endObject();
-            },
-            FollowConfig::fromXContent)
-            .supportsUnknownFields(true)
-            .test();
+        xContentTester(this::createParser, FollowConfigTests::createTestInstance, (followConfig, xContentBuilder) -> {
+            xContentBuilder.startObject();
+            followConfig.toXContentFragment(xContentBuilder, ToXContent.EMPTY_PARAMS);
+            xContentBuilder.endObject();
+        }, FollowConfig::fromXContent).supportsUnknownFields(true).test();
     }
 
     static FollowConfig createTestInstance() {

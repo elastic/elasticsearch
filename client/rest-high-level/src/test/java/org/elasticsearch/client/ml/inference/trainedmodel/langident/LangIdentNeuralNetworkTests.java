@@ -7,13 +7,12 @@
  */
 package org.elasticsearch.client.ml.inference.trainedmodel.langident;
 
+import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 
 import java.io.IOException;
-
 
 public class LangIdentNeuralNetworkTests extends AbstractXContentTestCase<LangIdentNeuralNetwork> {
 
@@ -33,9 +32,7 @@ public class LangIdentNeuralNetworkTests extends AbstractXContentTestCase<LangId
     }
 
     public static LangIdentNeuralNetwork createRandom() {
-        return new LangIdentNeuralNetwork(randomAlphaOfLength(10),
-            LangNetLayerTests.createRandom(),
-            LangNetLayerTests.createRandom());
+        return new LangIdentNeuralNetwork(randomAlphaOfLength(10), LangNetLayerTests.createRandom(), LangNetLayerTests.createRandom());
     }
 
     @Override

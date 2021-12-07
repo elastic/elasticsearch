@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -32,19 +32,25 @@ public class SetPriorityAction implements LifecycleAction {
     public static final ParseField RECOVERY_PRIORITY_FIELD = new ParseField("priority");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<SetPriorityAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        a -> new SetPriorityAction((Integer) a[0]));
+    private static final ConstructingObjectParser<SetPriorityAction, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        a -> new SetPriorityAction((Integer) a[0])
+    );
 
-    private static final Settings NULL_PRIORITY_SETTINGS =
-        Settings.builder().putNull(IndexMetadata.INDEX_PRIORITY_SETTING.getKey()).build();
+    private static final Settings NULL_PRIORITY_SETTINGS = Settings.builder()
+        .putNull(IndexMetadata.INDEX_PRIORITY_SETTING.getKey())
+        .build();
 
-    //package private for testing
+    // package private for testing
     final Integer recoveryPriority;
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
-            (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue()
-            , RECOVERY_PRIORITY_FIELD, ObjectParser.ValueType.INT_OR_NULL);
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            (p) -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue(),
+            RECOVERY_PRIORITY_FIELD,
+            ObjectParser.ValueType.INT_OR_NULL
+        );
     }
 
     public static SetPriorityAction parse(XContentParser parser) {
@@ -92,8 +98,8 @@ public class SetPriorityAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey key = new StepKey(phase, NAME, NAME);
-        Settings indexPriority = recoveryPriority == null ?
-                NULL_PRIORITY_SETTINGS
+        Settings indexPriority = recoveryPriority == null
+            ? NULL_PRIORITY_SETTINGS
             : Settings.builder().put(IndexMetadata.INDEX_PRIORITY_SETTING.getKey(), recoveryPriority).build();
         return Collections.singletonList(new UpdateSettingsStep(key, nextStepKey, client, indexPriority));
     }

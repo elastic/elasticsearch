@@ -25,8 +25,7 @@ public class SamlValidateAuthnRequestRequest extends ActionRequest {
         queryString = in.readString();
     }
 
-    public SamlValidateAuthnRequestRequest() {
-    }
+    public SamlValidateAuthnRequestRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {

@@ -15,8 +15,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
 import static org.elasticsearch.common.geo.SphericalMercatorUtils.MERCATOR_BOUNDS;
-import static org.elasticsearch.common.geo.SphericalMercatorUtils.lonToSphericalMercator;
 import static org.elasticsearch.common.geo.SphericalMercatorUtils.latToSphericalMercator;
+import static org.elasticsearch.common.geo.SphericalMercatorUtils.lonToSphericalMercator;
 import static org.elasticsearch.common.geo.SphericalMercatorUtils.recToSphericalMercator;
 
 public class SphericalMercatorUtilTests extends ESTestCase {
@@ -34,12 +34,28 @@ public class SphericalMercatorUtilTests extends ESTestCase {
         assertThat(latToSphericalMercator(GeoTileUtils.LATITUDE_MASK), Matchers.closeTo(MERCATOR_BOUNDS, 1e-7));
         assertThat(latToSphericalMercator(-GeoTileUtils.LATITUDE_MASK), Matchers.closeTo(-MERCATOR_BOUNDS, 1e-7));
         assertThat(latToSphericalMercator(0.0), Matchers.closeTo(0, 1e-7));
-        final double lat = latToSphericalMercator(randomValueOtherThanMany(
-            l -> l >= GeoTileUtils.LATITUDE_MASK || l <= -GeoTileUtils.LATITUDE_MASK,
-            GeometryTestUtils::randomLat
-        ));
-        assertThat(lat, Matchers.greaterThanOrEqualTo(-MERCATOR_BOUNDS));
-        assertThat(lat, Matchers.lessThanOrEqualTo(MERCATOR_BOUNDS));
+        {
+            final double lat = latToSphericalMercator(
+                randomValueOtherThanMany(
+                    l -> l >= GeoTileUtils.LATITUDE_MASK || l <= -GeoTileUtils.LATITUDE_MASK,
+                    GeometryTestUtils::randomLat
+                )
+            );
+            assertThat(lat, Matchers.greaterThanOrEqualTo(-MERCATOR_BOUNDS));
+            assertThat(lat, Matchers.lessThanOrEqualTo(MERCATOR_BOUNDS));
+        }
+        {
+            // out of bounds values
+            final double lat = latToSphericalMercator(randomDoubleBetween(GeoTileUtils.LATITUDE_MASK, 90, false));
+            assertThat(lat, Matchers.greaterThan(MERCATOR_BOUNDS));
+            assertTrue(Double.isFinite(latToSphericalMercator(90)));
+        }
+        {
+            // out of bounds values
+            final double lat = latToSphericalMercator(-randomDoubleBetween(GeoTileUtils.LATITUDE_MASK, 90, false));
+            assertThat(lat, Matchers.lessThan(-MERCATOR_BOUNDS));
+            assertTrue(Double.isFinite(latToSphericalMercator(-90)));
+        }
     }
 
     public void testRectangle() {

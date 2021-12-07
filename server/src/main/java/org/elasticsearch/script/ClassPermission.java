@@ -61,27 +61,28 @@ public final class ClassPermission extends BasicPermission {
     /** Typical set of classes for scripting: basic data types, math, dates, and simple collections */
     // this is the list from the old grovy sandbox impl (+ some things like String, Iterator, etc that were missing)
     private static final Set<String> STANDARD_CLASSES = Set.of(
-            Boolean.class.getName(),
-            Byte.class.getName(),
-            Character.class.getName(),
-            Double.class.getName(),
-            Integer.class.getName(),
-            Long.class.getName(),
-            Math.class.getName(),
-            Object.class.getName(),
-            Short.class.getName(),
-            String.class.getName(),
-            java.math.BigDecimal.class.getName(),
-            java.util.ArrayList.class.getName(),
-            Arrays.class.getName(),
-            java.util.Date.class.getName(),
-            java.util.HashMap.class.getName(),
-            HashSet.class.getName(),
-            java.util.Iterator.class.getName(),
-            java.util.List.class.getName(),
-            java.util.Map.class.getName(),
-            Set.class.getName(),
-            java.util.UUID.class.getName());
+        Boolean.class.getName(),
+        Byte.class.getName(),
+        Character.class.getName(),
+        Double.class.getName(),
+        Integer.class.getName(),
+        Long.class.getName(),
+        Math.class.getName(),
+        Object.class.getName(),
+        Short.class.getName(),
+        String.class.getName(),
+        java.math.BigDecimal.class.getName(),
+        java.util.ArrayList.class.getName(),
+        Arrays.class.getName(),
+        java.util.Date.class.getName(),
+        java.util.HashMap.class.getName(),
+        HashSet.class.getName(),
+        java.util.Iterator.class.getName(),
+        java.util.List.class.getName(),
+        java.util.Map.class.getName(),
+        Set.class.getName(),
+        java.util.UUID.class.getName()
+    );
 
     /**
      * Creates a new ClassPermission object.

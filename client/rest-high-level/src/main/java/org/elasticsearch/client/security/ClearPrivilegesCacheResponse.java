@@ -21,9 +21,11 @@ import java.util.List;
 public final class ClearPrivilegesCacheResponse extends SecurityNodesResponse {
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<ClearPrivilegesCacheResponse, Void> PARSER =
-        new ConstructingObjectParser<>("clear_privileges_cache_response", false,
-            args -> new ClearPrivilegesCacheResponse((List<Node>)args[0], (NodesResponseHeader) args[1], (String) args[2]));
+    private static final ConstructingObjectParser<ClearPrivilegesCacheResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "clear_privileges_cache_response",
+        false,
+        args -> new ClearPrivilegesCacheResponse((List<Node>) args[0], (NodesResponseHeader) args[1], (String) args[2])
+    );
 
     static {
         SecurityNodesResponse.declareCommonNodesResponseParsing(PARSER);

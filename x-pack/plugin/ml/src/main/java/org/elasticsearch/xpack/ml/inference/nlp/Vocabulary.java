@@ -28,10 +28,13 @@ public class Vocabulary implements Writeable, ToXContentObject {
     private static final String NAME = "vocabulary";
     private static final ParseField VOCAB = new ParseField("vocab");
 
-    @SuppressWarnings({ "unchecked"})
+    @SuppressWarnings({ "unchecked" })
     public static ConstructingObjectParser<Vocabulary, Void> createParser(boolean ignoreUnkownFields) {
-        ConstructingObjectParser<Vocabulary, Void> parser = new ConstructingObjectParser<>("vocabulary", ignoreUnkownFields,
-            a -> new Vocabulary((List<String>) a[0], (String) a[1]));
+        ConstructingObjectParser<Vocabulary, Void> parser = new ConstructingObjectParser<>(
+            "vocabulary",
+            ignoreUnkownFields,
+            a -> new Vocabulary((List<String>) a[0], (String) a[1])
+        );
         parser.declareStringArray(ConstructingObjectParser.constructorArg(), VOCAB);
         parser.declareString(ConstructingObjectParser.constructorArg(), TrainedModelConfig.MODEL_ID);
         return parser;

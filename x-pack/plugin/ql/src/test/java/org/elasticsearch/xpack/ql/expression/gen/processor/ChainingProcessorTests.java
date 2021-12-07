@@ -43,10 +43,9 @@ public class ChainingProcessorTests extends AbstractWireSerializingTestCase<Chai
     protected ChainingProcessor mutateInstance(ChainingProcessor instance) throws IOException {
         @SuppressWarnings("unchecked")
         Supplier<ChainingProcessor> supplier = randomFrom(
-            () -> new ChainingProcessor(
-                    instance.first(), randomValueOtherThan(instance.second(), () -> randomProcessor())),
-            () -> new ChainingProcessor(
-                    randomValueOtherThan(instance.first(), () -> randomProcessor()), instance.second()));
+            () -> new ChainingProcessor(instance.first(), randomValueOtherThan(instance.second(), () -> randomProcessor())),
+            () -> new ChainingProcessor(randomValueOtherThan(instance.first(), () -> randomProcessor()), instance.second())
+        );
         return supplier.get();
     }
 

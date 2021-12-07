@@ -100,10 +100,19 @@ public final class RuntimeUtils {
 
         SearchHit[] hits = response.getHits().getHits();
         int count = hits != null ? hits.length : 0;
-        logger.trace("Got search response [hits {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
-                + "{} successful shards, {} total shards, took {}, timed out [{}]]", count, aggs.size(),
-                aggsNames, response.getFailedShards(), response.getSkippedShards(), response.getSuccessfulShards(),
-                response.getTotalShards(), response.getTook(), response.isTimedOut());
+        logger.trace(
+            "Got search response [hits {}, {} aggregations: [{}], {} failed shards, {} skipped shards, "
+                + "{} successful shards, {} total shards, took {}, timed out [{}]]",
+            count,
+            aggs.size(),
+            aggsNames,
+            response.getFailedShards(),
+            response.getSkippedShards(),
+            response.getSuccessfulShards(),
+            response.getTotalShards(),
+            response.getTook(),
+            response.isTimedOut()
+        );
     }
 
     public static List<HitExtractor> createExtractor(List<FieldExtraction> fields, EqlConfiguration cfg) {
@@ -145,16 +154,14 @@ public final class RuntimeUtils {
         throw new EqlIllegalArgumentException("Unexpected value reference {}", ref.getClass());
     }
 
-
-    public static SearchRequest prepareRequest(SearchSourceBuilder source,
-                                               boolean includeFrozen,
-                                               String... indices) {
+    public static SearchRequest prepareRequest(SearchSourceBuilder source, boolean includeFrozen, String... indices) {
         SearchRequest searchRequest = new SearchRequest(SWITCH_TO_MULTI_VALUE_FIELDS_VERSION);
         searchRequest.indices(indices);
         searchRequest.source(source);
         searchRequest.allowPartialSearchResults(false);
         searchRequest.indicesOptions(
-            includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS);
+            includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
+        );
         return searchRequest;
     }
 
@@ -173,8 +180,7 @@ public final class RuntimeUtils {
             if (filter != null && bool.filter().contains(filter) == false) {
                 bool.filter(filter);
             }
-        }
-        else {
+        } else {
             bool = boolQuery();
             if (query != null) {
                 bool.filter(query);
@@ -188,9 +194,11 @@ public final class RuntimeUtils {
         return source;
     }
 
-    public static SearchSourceBuilder replaceFilter(List<QueryBuilder> oldFilters,
-                                                    List<QueryBuilder> newFilters,
-                                                    SearchSourceBuilder source) {
+    public static SearchSourceBuilder replaceFilter(
+        List<QueryBuilder> oldFilters,
+        List<QueryBuilder> newFilters,
+        SearchSourceBuilder source
+    ) {
         BoolQueryBuilder bool = null;
         QueryBuilder query = source.query();
 

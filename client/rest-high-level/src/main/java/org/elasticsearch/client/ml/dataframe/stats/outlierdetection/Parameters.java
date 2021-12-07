@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.dataframe.stats.outlierdetection;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -27,16 +27,11 @@ public class Parameters implements ToXContentObject {
     public static final ParseField STANDARDIZATION_ENABLED = new ParseField("standardization_enabled");
 
     @SuppressWarnings("unchecked")
-    public static ConstructingObjectParser<Parameters, Void> PARSER = new ConstructingObjectParser<>("outlier_detection_parameters",
+    public static ConstructingObjectParser<Parameters, Void> PARSER = new ConstructingObjectParser<>(
+        "outlier_detection_parameters",
         true,
-        a -> new Parameters(
-            (Integer) a[0],
-            (String) a[1],
-            (Boolean) a[2],
-            (Double) a[3],
-            (Double) a[4],
-            (Boolean) a[5]
-        ));
+        a -> new Parameters((Integer) a[0], (String) a[1], (Boolean) a[2], (Double) a[3], (Double) a[4], (Boolean) a[5])
+    );
 
     static {
         PARSER.declareInt(optionalConstructorArg(), N_NEIGHBORS);
@@ -54,8 +49,14 @@ public class Parameters implements ToXContentObject {
     private final Double outlierFraction;
     private final Boolean standardizationEnabled;
 
-    public Parameters(Integer nNeighbors, String method, Boolean computeFeatureInfluence, Double featureInfluenceThreshold,
-                      Double outlierFraction, Boolean standardizationEnabled) {
+    public Parameters(
+        Integer nNeighbors,
+        String method,
+        Boolean computeFeatureInfluence,
+        Double featureInfluenceThreshold,
+        Double outlierFraction,
+        Boolean standardizationEnabled
+    ) {
         this.nNeighbors = nNeighbors;
         this.method = method;
         this.computeFeatureInfluence = computeFeatureInfluence;
@@ -129,7 +130,13 @@ public class Parameters implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(nNeighbors, method, computeFeatureInfluence, featureInfluenceThreshold, outlierFraction,
-            standardizationEnabled);
+        return Objects.hash(
+            nNeighbors,
+            method,
+            computeFeatureInfluence,
+            featureInfluenceThreshold,
+            outlierFraction,
+            standardizationEnabled
+        );
     }
 }

@@ -22,23 +22,27 @@ public class NodeTests extends ESTestCase {
         {
             ChildrenAreAProperty empty = new ChildrenAreAProperty(randomSource(), emptyList(), "thing");
             assertEquals("ChildrenAreAProperty[thing]", empty.toString());
-            assertEquals("ChildrenAreAProperty[single]\n\\_ChildrenAreAProperty[thing]",
-                new ChildrenAreAProperty(randomSource(), singletonList(empty), "single").toString());
-            assertEquals("ChildrenAreAProperty[many]\n"
-                       + "|_ChildrenAreAProperty[thing]\n"
-                      + "\\_ChildrenAreAProperty[thing]",
-                new ChildrenAreAProperty(randomSource(), Arrays.asList(empty, empty), "many").toString());
+            assertEquals(
+                "ChildrenAreAProperty[single]\n\\_ChildrenAreAProperty[thing]",
+                new ChildrenAreAProperty(randomSource(), singletonList(empty), "single").toString()
+            );
+            assertEquals(
+                "ChildrenAreAProperty[many]\n" + "|_ChildrenAreAProperty[thing]\n" + "\\_ChildrenAreAProperty[thing]",
+                new ChildrenAreAProperty(randomSource(), Arrays.asList(empty, empty), "many").toString()
+            );
         }
         {
             NoChildren empty = new NoChildren(randomSource(), "thing");
-            assertEquals("AChildIsAProperty[single]\n"
-                      + "\\_NoChildren[thing]",
-                new AChildIsAProperty(randomSource(), empty, "single").toString());
+            assertEquals(
+                "AChildIsAProperty[single]\n" + "\\_NoChildren[thing]",
+                new AChildIsAProperty(randomSource(), empty, "single").toString()
+            );
         }
     }
 
     public abstract static class Dummy extends Node<Dummy> {
         private final String thing;
+
         public Dummy(Source source, List<Dummy> children, String thing) {
             super(source, children);
             this.thing = thing;
@@ -57,8 +61,7 @@ public class NodeTests extends ESTestCase {
                 return false;
             }
             Dummy other = (Dummy) obj;
-            return thing.equals(other.thing)
-                && children().equals(other.children());
+            return thing.equals(other.thing) && children().equals(other.children());
         }
 
         @Override

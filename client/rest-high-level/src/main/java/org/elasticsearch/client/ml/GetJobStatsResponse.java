@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.client.ml.job.stats.JobStats;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.client.ml.job.stats.JobStats;
 
 import java.io.IOException;
 import java.util.List;
@@ -22,14 +22,16 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 /**
  * Contains a {@link List} of the found {@link JobStats} objects and the total count found
  */
-public class GetJobStatsResponse extends AbstractResultResponse<JobStats>  {
+public class GetJobStatsResponse extends AbstractResultResponse<JobStats> {
 
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<GetJobStatsResponse, Void> PARSER =
-        new ConstructingObjectParser<>("jobs_stats_response", true,
-            a -> new GetJobStatsResponse((List<JobStats>) a[0], (long) a[1]));
+    public static final ConstructingObjectParser<GetJobStatsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "jobs_stats_response",
+        true,
+        a -> new GetJobStatsResponse((List<JobStats>) a[0], (long) a[1])
+    );
 
     static {
         PARSER.declareObjectArray(constructorArg(), JobStats.PARSER, RESULTS_FIELD);

@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.transform.transforms;
 
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -19,30 +19,32 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class TransformStatsTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
+        xContentTester(
+            this::createParser,
             TransformStatsTests::randomInstance,
             TransformStatsTests::toXContent,
-            TransformStats::fromXContent)
-                .supportsUnknownFields(true)
-                .randomFieldsExcludeFilter(field -> field.equals("node.attributes") || field.contains("position"))
-                .test();
+            TransformStats::fromXContent
+        ).supportsUnknownFields(true)
+            .randomFieldsExcludeFilter(field -> field.equals("node.attributes") || field.contains("position"))
+            .test();
     }
 
     public static TransformStats randomInstance() {
-        return new TransformStats(randomAlphaOfLength(10),
+        return new TransformStats(
+            randomAlphaOfLength(10),
             randomBoolean() ? null : randomFrom(TransformStats.State.values()),
             randomBoolean() ? null : randomAlphaOfLength(100),
             randomBoolean() ? null : NodeAttributesTests.createRandom(),
             TransformIndexerStatsTests.randomStats(),
-            randomBoolean() ? null : TransformCheckpointingInfoTests.randomTransformCheckpointingInfo());
+            randomBoolean() ? null : TransformCheckpointingInfoTests.randomTransformCheckpointingInfo()
+        );
     }
 
     public static void toXContent(TransformStats stats, XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field(TransformStats.ID.getPreferredName(), stats.getId());
         if (stats.getState() != null) {
-            builder.field(TransformStats.STATE_FIELD.getPreferredName(),
-                stats.getState().value());
+            builder.field(TransformStats.STATE_FIELD.getPreferredName(), stats.getState().value());
         }
         if (stats.getReason() != null) {
             builder.field(TransformStats.REASON_FIELD.getPreferredName(), stats.getReason());

@@ -11,6 +11,11 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.GeographyValidator;
+import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -18,11 +23,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.geo.GeometryTestUtils;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.utils.GeographyValidator;
-import org.elasticsearch.test.AbstractXContentTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Map;
@@ -73,19 +73,14 @@ public class GeoJsonSerializationTests extends ESTestCase {
         }
     }
 
-
     private void xContentTest(Supplier<Geometry> instanceSupplier) throws IOException {
         AbstractXContentTestCase.xContentTester(
             this::createParser,
             () -> new GeometryWrapper(instanceSupplier.get()),
-            (geometryWrapper, xContentBuilder) -> {
-                geometryWrapper.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
-            },
-            GeometryWrapper::fromXContent)
-            .supportsUnknownFields(true)
-            .test();
+            (geometryWrapper, xContentBuilder) -> { geometryWrapper.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS); },
+            GeometryWrapper::fromXContent
+        ).supportsUnknownFields(true).test();
     }
-
 
     public void testPoint() throws IOException {
         xContentTest(() -> randomPoint(randomBoolean()));
@@ -130,8 +125,10 @@ public class GeoJsonSerializationTests extends ESTestCase {
             GeoJson.toXContent(geometry, builder, ToXContent.EMPTY_PARAMS);
             StreamInput input = BytesReference.bytes(builder).streamInput();
 
-            try (XContentParser parser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input)) {
+            try (
+                XContentParser parser = XContentType.JSON.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input)
+            ) {
                 Map<String, Object> map = GeoJson.toMap(geometry);
                 assertThat(parser.map(), equalTo(map));
             }

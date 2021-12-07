@@ -34,32 +34,24 @@ final class WatcherRequestConverters {
     private WatcherRequestConverters() {}
 
     static Request startWatchService(StartWatchServiceRequest startWatchServiceRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-                .addPathPartAsIs("_watcher")
-                .addPathPartAsIs("_start")
-                .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher").addPathPartAsIs("_start").build();
 
         return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 
     static Request stopWatchService(StopWatchServiceRequest stopWatchServiceRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-                .addPathPartAsIs("_watcher")
-                .addPathPartAsIs("_stop")
-                .build();
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher").addPathPartAsIs("_stop").build();
 
         return new Request(HttpPost.METHOD_NAME, endpoint);
     }
 
     static Request putWatch(PutWatchRequest putWatchRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_watcher", "watch")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher", "watch")
             .addPathPart(putWatchRequest.getId())
             .build();
 
         Request request = new Request(HttpPut.METHOD_NAME, endpoint);
-        RequestConverters.Params params = new RequestConverters.Params()
-            .withIfSeqNo(putWatchRequest.ifSeqNo())
+        RequestConverters.Params params = new RequestConverters.Params().withIfSeqNo(putWatchRequest.ifSeqNo())
             .withIfPrimaryTerm(putWatchRequest.ifPrimaryTerm());
         if (putWatchRequest.isActive() == false) {
             params.putParam("active", "false");
@@ -71,10 +63,8 @@ final class WatcherRequestConverters {
         return request;
     }
 
-
     static Request getWatch(GetWatchRequest getWatchRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_watcher", "watch")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher", "watch")
             .addPathPart(getWatchRequest.getId())
             .build();
 
@@ -82,8 +72,7 @@ final class WatcherRequestConverters {
     }
 
     static Request deactivateWatch(DeactivateWatchRequest deactivateWatchRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_watcher")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher")
             .addPathPartAsIs("watch")
             .addPathPart(deactivateWatchRequest.getWatchId())
             .addPathPartAsIs("_deactivate")
@@ -92,8 +81,7 @@ final class WatcherRequestConverters {
     }
 
     static Request deleteWatch(DeleteWatchRequest deleteWatchRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_watcher", "watch")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher", "watch")
             .addPathPart(deleteWatchRequest.getId())
             .build();
 
@@ -102,10 +90,10 @@ final class WatcherRequestConverters {
     }
 
     static Request executeWatch(ExecuteWatchRequest executeWatchRequest) throws IOException {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_watcher", "watch")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher", "watch")
             .addPathPart(executeWatchRequest.getId())       // will ignore if ID is null
-            .addPathPartAsIs("_execute").build();
+            .addPathPartAsIs("_execute")
+            .build();
 
         Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         RequestConverters.Params params = new RequestConverters.Params();
@@ -124,8 +112,7 @@ final class WatcherRequestConverters {
     }
 
     public static Request ackWatch(AckWatchRequest ackWatchRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_watcher", "watch")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher", "watch")
             .addPathPart(ackWatchRequest.getWatchId())
             .addPathPartAsIs("_ack")
             .addCommaSeparatedPathParts(ackWatchRequest.getActionIds())
@@ -135,8 +122,7 @@ final class WatcherRequestConverters {
     }
 
     static Request activateWatch(ActivateWatchRequest activateWatchRequest) {
-        String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_watcher", "watch")
+        String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_watcher", "watch")
             .addPathPart(activateWatchRequest.getWatchId())
             .addPathPartAsIs("_activate")
             .build();

@@ -7,9 +7,8 @@
  */
 package org.elasticsearch.client.ml.inference.trainedmodel.ensemble;
 
-
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -27,7 +26,8 @@ public class WeightedSum implements OutputAggregator {
     private static final ConstructingObjectParser<WeightedSum, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new WeightedSum((List<Double>)a[0]));
+        a -> new WeightedSum((List<Double>) a[0])
+    );
 
     static {
         PARSER.declareDoubleArray(ConstructingObjectParser.optionalConstructorArg(), WEIGHTS);

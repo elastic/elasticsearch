@@ -11,19 +11,18 @@ package org.elasticsearch.index.query.plugin;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.plugin.DummyQueryParserPlugin.DummyQuery;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
 public class DummyQueryBuilder extends AbstractQueryBuilder<DummyQueryBuilder> {
     public static final String NAME = "dummy";
 
-    public DummyQueryBuilder() {
-    }
+    public DummyQueryBuilder() {}
 
     public DummyQueryBuilder(StreamInput in) throws IOException {
         super(in);

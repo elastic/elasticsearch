@@ -33,11 +33,13 @@ include-tagged::{doc-tests}/EnrollmentDocumentationIT.java[{api}-response]
 for the HTTP layer, as a Base64 encoded string of the ASN.1 DER encoding of the key.
 <2> The CA certificate that can be used by the new node in order to sign its certificate
 for the HTTP layer, as a Base64 encoded string of the ASN.1 DER encoding of the certificate.
-<3> The private key that the node can use for  TLS for its transport layer, as a Base64
+<3> The CA certificate that is used to sign the TLS certificate for the transport layer, as
+a Base64 encoded string of the ASN.1 DER encoding of the certificate.
+<4> The private key that the node can use for  TLS for its transport layer, as a Base64
 encoded string of the ASN.1 DER encoding of the key.
-<4> The certificate that the node can use for  TLS for its transport layer, as a Base64
+<5> The certificate that the node can use for  TLS for its transport layer, as a Base64
 encoded string of the ASN.1 DER encoding of the certificate.
-<5> A list of transport addresses in the form of `host:port` for the nodes that are already
+<6> A list of transport addresses in the form of `host:port` for the nodes that are already
 members of the cluster.
 
 

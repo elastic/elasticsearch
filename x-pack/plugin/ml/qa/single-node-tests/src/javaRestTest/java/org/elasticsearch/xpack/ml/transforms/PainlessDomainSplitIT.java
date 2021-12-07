@@ -86,13 +86,18 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         tests.add(new TestConfiguration("example", "local", "example.local"));
         tests.add(new TestConfiguration("b.example", "local", "b.example.local"));
         tests.add(new TestConfiguration("a.b.example", "local", "a.b.example.local"));
-        tests.add(new TestConfiguration("r192494180984795-1-1041782-channel-live.ums", "ustream.tv", "r192494180984795-1-1041782-cha" +
-                "nnel-live.ums.ustream.tv"));
+        tests.add(
+            new TestConfiguration(
+                "r192494180984795-1-1041782-channel-live.ums",
+                "ustream.tv",
+                "r192494180984795-1-1041782-cha" + "nnel-live.ums.ustream.tv"
+            )
+        );
         tests.add(new TestConfiguration("192.168.62.9", "prelert.com", "192.168.62.9.prelert.com"));
 
         // These are not a valid DNS names
         tests.add(new TestConfiguration("kerberos.http.192.168", "62.222", "kerberos.http.192.168.62.222"));
-        //tests.add(new TestConfiguration("192.168", "62.9\143\127", "192.168.62.9\143\127"));
+        // tests.add(new TestConfiguration("192.168", "62.9\143\127", "192.168.62.9\143\127"));
 
         // no part of the DNS name can be longer than 63 octets
         /*
@@ -105,15 +110,14 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         */
 
         // [Zach] This breaks the script's JSON encoding, skipping for now
-        //String bad = "0u1aof\209\1945\188hI4\236\197\205J\244\188\247\223\190F\2135\229gVE7\230i\215\231\205Qzay\225UJ\192
+        // String bad = "0u1aof\209\1945\188hI4\236\197\205J\244\188\247\223\190F\2135\229gVE7\230i\215\231\205Qzay\225UJ\192
         // pw\216\231\204\194\216\193QV4g\196\207Whpvx.fVxl\194BjA\245kbYk\211XG\235\198\218B\252\219\225S\197\217I\2538n\229
         // \244\213\252\215Ly\226NW\242\248\244Q\220\245\221c\207\189\205Hxq5\224\240.\189Jt4\243\245t\244\198\199p\210\1987
         // r\2050L\239sR0M\190w\238\223\234L\226\2242D\233\210\206\195h\199\206tA\214J\192C\224\191b\188\201\251\198M\244h
         // \206.\198\242l\2114\191JBU\198h\207\215w\243\228R\1924\242\208\191CV\208p\197gDW\198P\217\195X\191Fp\196\197J\193
         // \245\2070\196zH\197\243\253g\239.adz.beacon.base.net";
-        //hrd = "base.net";
-        //tests.add(new TestConfiguration(bad.substring(0, bad.length() - (hrd.length() + 1)), hrd, bad));
-
+        // hrd = "base.net";
+        // tests.add(new TestConfiguration(bad.substring(0, bad.length() - (hrd.length() + 1)), hrd, bad));
 
         tests.add(new TestConfiguration("_example", "local", "_example.local"));
         tests.add(new TestConfiguration("www._maps", "google.co.uk", "www._maps.google.co.uk"));
@@ -130,7 +134,7 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         tests.add(new TestConfiguration(null, "example.com", "WwW.example.COM"));
 
         // TLD with only 1 rule.
-        tests.add(new TestConfiguration(null, "domain.biz", "domain.biz" ));
+        tests.add(new TestConfiguration(null, "domain.biz", "domain.biz"));
         tests.add(new TestConfiguration(null, "domain.biz", "b.domain.biz"));
         tests.add(new TestConfiguration(null, "domain.biz", "a.b.domain.biz"));
 
@@ -154,8 +158,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         tests.add(new TestConfiguration(null, "test.kyoto.jp", "test.kyoto.jp"));
         tests.add(new TestConfiguration(null, "b.ide.kyoto.jp", "b.ide.kyoto.jp"));
         tests.add(new TestConfiguration(null, "b.ide.kyoto.jp", "a.b.ide.kyoto.jp"));
-        //tests.add(new TestConfiguration(null, "b.c.kobe.jp", "b.c.kobe.jp"));
-        //tests.add(new TestConfiguration(null, "b.c.kobe.jp", "a.b.c.kobe.jp"));
+        // tests.add(new TestConfiguration(null, "b.c.kobe.jp", "b.c.kobe.jp"));
+        // tests.add(new TestConfiguration(null, "b.c.kobe.jp", "a.b.c.kobe.jp"));
         tests.add(new TestConfiguration(null, "city.kobe.jp", "city.kobe.jp"));
         tests.add(new TestConfiguration(null, "city.kobe.jp", "www.city.kobe.jp"));
         tests.add(new TestConfiguration(null, "test.us", "test.us"));
@@ -164,27 +168,27 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         tests.add(new TestConfiguration(null, "test.ak.us", "www.test.ak.us"));
         tests.add(new TestConfiguration(null, "test.k12.ak.us", "test.k12.ak.us"));
         tests.add(new TestConfiguration(null, "test.k12.ak.us", "www.test.k12.ak.us"));
-        //tests.add(new TestConfiguration(null, "食狮.com.cn", "食狮.com.cn"));
-        //tests.add(new TestConfiguration(null, "食狮.公司.cn", "食狮.公司.cn"));
-        //tests.add(new TestConfiguration(null, "食狮.公司.cn", "www.食狮.公司.cn"));
-        //tests.add(new TestConfiguration(null, "shishi.公司.cn", "shishi.公司.cn"));
-        //tests.add(new TestConfiguration(null, "食狮.中国", "食狮.中国"));
-        //tests.add(new TestConfiguration(null, "食狮.中国", "www.食狮.中国"));
-        //tests.add(new TestConfiguration(null, "shishi.中国", "shishi.中国"));
+        // tests.add(new TestConfiguration(null, "食狮.com.cn", "食狮.com.cn"));
+        // tests.add(new TestConfiguration(null, "食狮.公司.cn", "食狮.公司.cn"));
+        // tests.add(new TestConfiguration(null, "食狮.公司.cn", "www.食狮.公司.cn"));
+        // tests.add(new TestConfiguration(null, "shishi.公司.cn", "shishi.公司.cn"));
+        // tests.add(new TestConfiguration(null, "食狮.中国", "食狮.中国"));
+        // tests.add(new TestConfiguration(null, "食狮.中国", "www.食狮.中国"));
+        // tests.add(new TestConfiguration(null, "shishi.中国", "shishi.中国"));
 
         tests.add(new TestConfiguration(null, "xn--85x722f.com.cn", "xn--85x722f.com.cn"));
-        tests.add(new TestConfiguration(null,  "xn--85x722f.xn--55qx5d.cn", "xn--85x722f.xn--55qx5d.cn"));
+        tests.add(new TestConfiguration(null, "xn--85x722f.xn--55qx5d.cn", "xn--85x722f.xn--55qx5d.cn"));
         tests.add(new TestConfiguration(null, "xn--85x722f.xn--55qx5d.cn", "www.xn--85x722f.xn--55qx5d.cn"));
         tests.add(new TestConfiguration(null, "shishi.xn--55qx5d.cn", "shishi.xn--55qx5d.cn"));
         tests.add(new TestConfiguration(null, "xn--85x722f.xn--fiqs8s", "xn--85x722f.xn--fiqs8s"));
         tests.add(new TestConfiguration(null, "xn--85x722f.xn--fiqs8s", "www.xn--85x722f.xn--fiqs8s"));
-        tests.add(new TestConfiguration(null, "shishi.xn--fiqs8s","shishi.xn--fiqs8s"));
+        tests.add(new TestConfiguration(null, "shishi.xn--fiqs8s", "shishi.xn--fiqs8s"));
     }
 
     public void testIsolated() throws Exception {
         Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
         createIndex("painless", settings.build());
         Request createDoc = new Request("PUT", "/painless/_doc/1");
@@ -202,21 +206,24 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
             Request searchRequest = new Request("GET", "/painless/_search");
             searchRequest.setJsonEntity(
-                    "{\n" +
-                    "    \"query\" : {\n" +
-                    "        \"match_all\": {}\n" +
-                    "    },\n" +
-                    "    \"script_fields\" : {\n" +
-                    "        \"domain_split\" : {\n" +
-                    "            \"script\" : {\n" +
-                    "                \"lang\": \"painless\",\n" +
-                    "                \"source\": \"" +
-                    " return domainSplit(params['host']); \",\n" +
-                    "                \"params\": " + mapAsJson + "\n" +
-                    "            }\n" +
-                    "        }\n" +
-                    "    }\n" +
-                    "}");
+                "{\n"
+                    + "    \"query\" : {\n"
+                    + "        \"match_all\": {}\n"
+                    + "    },\n"
+                    + "    \"script_fields\" : {\n"
+                    + "        \"domain_split\" : {\n"
+                    + "            \"script\" : {\n"
+                    + "                \"lang\": \"painless\",\n"
+                    + "                \"source\": \""
+                    + " return domainSplit(params['host']); \",\n"
+                    + "                \"params\": "
+                    + mapAsJson
+                    + "\n"
+                    + "            }\n"
+                    + "        }\n"
+                    + "    }\n"
+                    + "}"
+            );
             String responseBody = EntityUtils.toString(client().performRequest(searchRequest).getEntity());
             Matcher m = pattern.matcher(responseBody);
 
@@ -232,13 +239,32 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
             // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() do not
             if (testConfig.subDomainExpected != null) {
-                assertThat("Expected subdomain [" + testConfig.subDomainExpected + "] but found [" + actualSubDomain
-                        + "]. Actual " + actualTotal + " vs Expected " + expectedTotal, actualSubDomain,
-                        equalTo(testConfig.subDomainExpected));
+                assertThat(
+                    "Expected subdomain ["
+                        + testConfig.subDomainExpected
+                        + "] but found ["
+                        + actualSubDomain
+                        + "]. Actual "
+                        + actualTotal
+                        + " vs Expected "
+                        + expectedTotal,
+                    actualSubDomain,
+                    equalTo(testConfig.subDomainExpected)
+                );
             }
 
-            assertThat("Expected domain [" + testConfig.domainExpected + "] but found [" + actualDomain + "].  Actual "
-                    + actualTotal + " vs Expected " + expectedTotal, actualDomain, equalTo(testConfig.domainExpected));
+            assertThat(
+                "Expected domain ["
+                    + testConfig.domainExpected
+                    + "] but found ["
+                    + actualDomain
+                    + "].  Actual "
+                    + actualTotal
+                    + " vs Expected "
+                    + expectedTotal,
+                actualDomain,
+                equalTo(testConfig.domainExpected)
+            );
         }
     }
 
@@ -246,35 +272,39 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         // Create job
         Request createJobRequest = new Request("PUT", BASE_PATH + "anomaly_detectors/hrd-split-job");
         createJobRequest.setJsonEntity(
-                "{\n" +
-                "    \"description\":\"Domain splitting\",\n" +
-                "    \"analysis_config\" : {\n" +
-                "        \"bucket_span\":\"3600s\",\n" +
-                "        \"detectors\" :[{\"function\":\"count\", \"by_field_name\" : \"domain_split\"}]\n" +
-                "    },\n" +
-                "    \"data_description\" : {\n" +
-                "        \"time_field\":\"time\"\n" +
-                "    }\n" +
-                "}");
+            "{\n"
+                + "    \"description\":\"Domain splitting\",\n"
+                + "    \"analysis_config\" : {\n"
+                + "        \"bucket_span\":\"3600s\",\n"
+                + "        \"detectors\" :[{\"function\":\"count\", \"by_field_name\" : \"domain_split\"}]\n"
+                + "    },\n"
+                + "    \"data_description\" : {\n"
+                + "        \"time_field\":\"time\"\n"
+                + "    }\n"
+                + "}"
+        );
         client().performRequest(createJobRequest);
         client().performRequest(new Request("POST", BASE_PATH + "anomaly_detectors/hrd-split-job/_open"));
 
         // Create index to hold data
         Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
 
-        createIndex("painless", settings.build(), "\"properties\": { \"domain\": { \"type\": \"keyword\" }," +
-                "\"time\": { \"type\": \"date\" } }");
+        createIndex(
+            "painless",
+            settings.build(),
+            "\"properties\": { \"domain\": { \"type\": \"keyword\" }," + "\"time\": { \"type\": \"date\" } }"
+        );
 
         // Index some data
         ZonedDateTime baseTime = ZonedDateTime.now(ZoneOffset.UTC).minusYears(1);
-        TestConfiguration test = tests.get(randomInt(tests.size()-1));
+        TestConfiguration test = tests.get(randomInt(tests.size() - 1));
 
         // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() did not, so we need a special case for sub
         String expectedSub = test.subDomainExpected == null ? ".*" : test.subDomainExpected.replace(".", "\\.");
         String expectedHRD = test.domainExpected.replace(".", "\\.");
-        Pattern pattern = Pattern.compile("domain_split\":\\[\"(" + expectedSub + "),(" + expectedHRD +")\"[,\\]]");
+        Pattern pattern = Pattern.compile("domain_split\":\\[\"(" + expectedSub + "),(" + expectedHRD + ")\"[,\\]]");
 
         for (int i = 1; i <= 100; i++) {
             ZonedDateTime time = baseTime.plusHours(i);
@@ -299,15 +329,16 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
         // Create and start datafeed
         Request createFeedRequest = new Request("PUT", BASE_PATH + "datafeeds/hrd-split-datafeed");
         createFeedRequest.setJsonEntity(
-                "{\n" +
-                "   \"job_id\":\"hrd-split-job\",\n" +
-                "   \"indexes\":[\"painless\"],\n" +
-                "   \"script_fields\": {\n" +
-                "      \"domain_split\": {\n" +
-                "         \"script\": \"return domainSplit(doc['domain'].value, params);\"\n" +
-                "      }\n" +
-                "   }\n" +
-                "}");
+            "{\n"
+                + "   \"job_id\":\"hrd-split-job\",\n"
+                + "   \"indexes\":[\"painless\"],\n"
+                + "   \"script_fields\": {\n"
+                + "      \"domain_split\": {\n"
+                + "         \"script\": \"return domainSplit(doc['domain'].value, params);\"\n"
+                + "      }\n"
+                + "   }\n"
+                + "}"
+        );
 
         client().performRequest(createFeedRequest);
         Request startDatafeedRequest = new Request("POST", BASE_PATH + "datafeeds/hrd-split-datafeed/_start");
@@ -320,12 +351,9 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
         client().performRequest(new Request("POST", "/.ml-anomalies-*/_refresh"));
 
-        Response records = client().performRequest(new Request("GET",
-            BASE_PATH + "anomaly_detectors/hrd-split-job/results/records"));
+        Response records = client().performRequest(new Request("GET", BASE_PATH + "anomaly_detectors/hrd-split-job/results/records"));
         String responseBody = EntityUtils.toString(records.getEntity());
-        assertThat("response body [" + responseBody + "] did not contain [\"count\":2]",
-            responseBody,
-            containsString("\"count\":2"));
+        assertThat("response body [" + responseBody + "] did not contain [\"count\":2]", responseBody, containsString("\"count\":2"));
 
         Matcher m = pattern.matcher(responseBody);
         String actualSubDomain = "";
@@ -340,20 +368,40 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
 
         // domainSplit() tests had subdomain, testHighestRegisteredDomainCases() do not
         if (test.subDomainExpected != null) {
-            assertThat("Expected subdomain [" + test.subDomainExpected + "] but found [" + actualSubDomain
-                + "]. Actual " + actualTotal + " vs Expected " + expectedTotal, actualSubDomain,
-                equalTo(test.subDomainExpected));
+            assertThat(
+                "Expected subdomain ["
+                    + test.subDomainExpected
+                    + "] but found ["
+                    + actualSubDomain
+                    + "]. Actual "
+                    + actualTotal
+                    + " vs Expected "
+                    + expectedTotal,
+                actualSubDomain,
+                equalTo(test.subDomainExpected)
+            );
         }
 
-        assertThat("Expected domain [" + test.domainExpected + "] but found [" + actualDomain + "].  Actual "
-           + actualTotal + " vs Expected " + expectedTotal, actualDomain, equalTo(test.domainExpected));
+        assertThat(
+            "Expected domain ["
+                + test.domainExpected
+                + "] but found ["
+                + actualDomain
+                + "].  Actual "
+                + actualTotal
+                + " vs Expected "
+                + expectedTotal,
+            actualDomain,
+            equalTo(test.domainExpected)
+        );
     }
 
     private void waitUntilJobIsClosed(String jobId) throws Exception {
         assertBusy(() -> {
             try {
-                Response jobStatsResponse = client().performRequest(new Request("GET",
-                    BASE_PATH + "anomaly_detectors/" + jobId + "/_stats"));
+                Response jobStatsResponse = client().performRequest(
+                    new Request("GET", BASE_PATH + "anomaly_detectors/" + jobId + "/_stats")
+                );
                 assertThat(EntityUtils.toString(jobStatsResponse.getEntity()), containsString("\"state\":\"closed\""));
             } catch (Exception e) {
                 throw new RuntimeException(e);
@@ -364,10 +412,8 @@ public class PainlessDomainSplitIT extends ESRestTestCase {
     private void waitUntilDatafeedIsStopped(String dfId) throws Exception {
         assertBusy(() -> {
             try {
-                Response datafeedStatsResponse = client().performRequest(new Request("GET",
-                    BASE_PATH + "datafeeds/" + dfId + "/_stats"));
-                assertThat(EntityUtils.toString(datafeedStatsResponse.getEntity()),
-                    containsString("\"state\":\"stopped\""));
+                Response datafeedStatsResponse = client().performRequest(new Request("GET", BASE_PATH + "datafeeds/" + dfId + "/_stats"));
+                assertThat(EntityUtils.toString(datafeedStatsResponse.getEntity()), containsString("\"state\":\"stopped\""));
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

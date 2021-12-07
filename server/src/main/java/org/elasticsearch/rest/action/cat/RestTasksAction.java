@@ -62,8 +62,7 @@ public class RestTasksAction extends AbstractCatAction {
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final ListTasksRequest listTasksRequest = generateListTasksRequest(request);
-        return channel ->
-                client.admin().cluster().listTasks(listTasksRequest, new RestResponseListener<>(channel) {
+        return channel -> client.admin().cluster().listTasks(listTasksRequest, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(ListTasksResponse listTasksResponse) throws Exception {
                 return RestTable.buildResponse(buildTable(request, listTasksResponse), channel);

@@ -25,19 +25,18 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.MockDeterministicScript;
 import org.elasticsearch.script.MockScriptEngine;
@@ -50,6 +49,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
@@ -83,13 +83,13 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
-import org.elasticsearch.xpack.core.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
+import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.transform.Transform;
 
 import java.io.IOException;
@@ -145,19 +145,23 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             IndexLifecycle.class,
             // The feature reset API touches transform custom cluster state so we need this plugin to understand it
             Transform.class,
-            DataStreamsPlugin.class);
+            DataStreamsPlugin.class
+        );
     }
 
     @Override
     protected Function<Client, Client> getClientWrapper() {
-        final Map<String, String> headers =
-            Map.of("Authorization", basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
+        final Map<String, String> headers = Map.of(
+            "Authorization",
+            basicAuthHeaderValue("x_pack_rest_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+        );
         // we need to wrap node clients because we do not specify a user for nodes and all requests will use the system
         // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
         // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls
         // return a node client
         return client -> client.filterWithHeader(headers);
     }
+
     @Override
     protected Settings externalClusterClientSettings() {
         final Path home = createTempDir();
@@ -207,23 +211,25 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Set<String> excludeTemplates() {
-        return new HashSet<>(Arrays.asList(
-            NotificationsIndex.NOTIFICATIONS_INDEX,
-            MlMetaIndex.indexName(),
-            AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
-            AnomalyDetectorsIndex.jobResultsIndexPrefix(),
-            InferenceIndexConstants.LATEST_INDEX_NAME,
-            SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME
-        ));
+        return new HashSet<>(
+            Arrays.asList(
+                NotificationsIndex.NOTIFICATIONS_INDEX,
+                MlMetaIndex.indexName(),
+                AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
+                AnomalyDetectorsIndex.jobResultsIndexPrefix(),
+                InferenceIndexConstants.LATEST_INDEX_NAME,
+                SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME
+            )
+        );
     }
 
-    protected void cleanUpResources(){
+    protected void cleanUpResources() {
         client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();
     }
 
     protected void setUpgradeModeTo(boolean enabled) {
-        AcknowledgedResponse response =
-            client().execute(SetUpgradeModeAction.INSTANCE, new SetUpgradeModeAction.Request(enabled)).actionGet();
+        AcknowledgedResponse response = client().execute(SetUpgradeModeAction.INSTANCE, new SetUpgradeModeAction.Request(enabled))
+            .actionGet();
         assertThat(response.isAcknowledged(), is(true));
         assertThat(upgradeMode(), is(enabled));
     }
@@ -235,8 +241,10 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
     }
 
     protected DeleteExpiredDataAction.Response deleteExpiredData() throws Exception {
-        DeleteExpiredDataAction.Response response = client().execute(DeleteExpiredDataAction.INSTANCE,
-            new DeleteExpiredDataAction.Request()).get();
+        DeleteExpiredDataAction.Response response = client().execute(
+            DeleteExpiredDataAction.INSTANCE,
+            new DeleteExpiredDataAction.Request()
+        ).get();
 
         // We need to refresh to ensure the deletion is visible
         refresh("*");
@@ -263,12 +271,9 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
         RefreshResponse refreshResponse = client().execute(RefreshAction.INSTANCE, refreshRequest).actionGet();
         assertThat(refreshResponse.getStatus().getStatus(), anyOf(equalTo(200), equalTo(201)));
 
-        SearchRequest searchRequest = new SearchRequestBuilder(client(), SearchAction.INSTANCE)
-            .setIndices(NotificationsIndex.NOTIFICATIONS_INDEX)
-            .addSort("timestamp", SortOrder.ASC)
-            .setQuery(QueryBuilders.termQuery("job_id", jobId))
-            .setSize(100)
-            .request();
+        SearchRequest searchRequest = new SearchRequestBuilder(client(), SearchAction.INSTANCE).setIndices(
+            NotificationsIndex.NOTIFICATIONS_INDEX
+        ).addSort("timestamp", SortOrder.ASC).setQuery(QueryBuilders.termQuery("job_id", jobId)).setSize(100).request();
         SearchResponse searchResponse = client().execute(SearchAction.INSTANCE, searchRequest).actionGet();
 
         return Arrays.stream(searchResponse.getHits().getHits())
@@ -299,30 +304,51 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelAliasMetadata.NAME, ModelAliasMetadata::readDiffFrom));
             entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, "ml", MlMetadata::new));
             entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new));
-            entries.add(new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE,
-                (in) -> TimeseriesLifecycleType.INSTANCE));
-            entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::new));
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    LifecycleType.class,
+                    TimeseriesLifecycleType.TYPE,
+                    (in) -> TimeseriesLifecycleType.INSTANCE
+                )
+            );
+            entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom));
             entries.add(new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::new));
-            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DATAFEED_TASK_NAME,
-                StartDatafeedAction.DatafeedParams::new));
-            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-                StartDataFrameAnalyticsAction.TaskParams::new));
-            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.JOB_TASK_NAME,
-                OpenJobAction.JobParams::new));
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    PersistentTaskParams.class,
+                    MlTasks.DATAFEED_TASK_NAME,
+                    StartDatafeedAction.DatafeedParams::new
+                )
+            );
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    PersistentTaskParams.class,
+                    MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
+                    StartDataFrameAnalyticsAction.TaskParams::new
+                )
+            );
+            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskParams.class, MlTasks.JOB_TASK_NAME, OpenJobAction.JobParams::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, JobTaskState.NAME, JobTaskState::new));
             entries.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, DatafeedState.NAME, DatafeedState::fromStream));
-            entries.add(new NamedWriteableRegistry.Entry(PersistentTaskState.class, DataFrameAnalyticsTaskState.NAME,
-                DataFrameAnalyticsTaskState::new));
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    PersistentTaskState.class,
+                    DataFrameAnalyticsTaskState.NAME,
+                    DataFrameAnalyticsTaskState::new
+                )
+            );
             entries.add(new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetadata.TYPE, TokenMetadata::new));
             entries.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new));
-            entries.add(new NamedWriteableRegistry.Entry(NamedDiff.class,
-                AutoscalingMetadata.NAME,
-                AutoscalingMetadata.AutoscalingMetadataDiff::new));
-            entries.add(new NamedWriteableRegistry.Entry(
-                AutoscalingDeciderResult.Reason.class,
-                MlScalingReason.NAME,
-                MlScalingReason::new
-            ));
+            entries.add(
+                new NamedWriteableRegistry.Entry(
+                    NamedDiff.class,
+                    AutoscalingMetadata.NAME,
+                    AutoscalingMetadata.AutoscalingMetadataDiff::new
+                )
+            );
+            entries.add(
+                new NamedWriteableRegistry.Entry(AutoscalingDeciderResult.Reason.class, MlScalingReason.NAME, MlScalingReason::new)
+            );
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(entries);
             ClusterState masterClusterState = client().admin().cluster().prepareState().all().get().getState();
             byte[] masterClusterStateBytes = ClusterState.Builder.toBytes(masterClusterState);
@@ -340,19 +366,24 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 final int localClusterStateSize = ClusterState.Builder.toBytes(localClusterState).length;
                 // Check that the non-master node has the same version of the cluster state as the master and
                 // that the master node matches the master (otherwise there is no requirement for the cluster state to match)
-                if (masterClusterState.version() == localClusterState.version() &&
-                        masterId.equals(localClusterState.nodes().getMasterNodeId())) {
+                if (masterClusterState.version() == localClusterState.version()
+                    && masterId.equals(localClusterState.nodes().getMasterNodeId())) {
                     try {
                         assertEquals("clusterstate UUID does not match", masterClusterState.stateUUID(), localClusterState.stateUUID());
                         // We cannot compare serialization bytes since serialization order of maps is not guaranteed
                         // but we can compare serialization sizes - they should be the same
                         assertEquals("clusterstate size does not match", masterClusterStateSize, localClusterStateSize);
                         // Compare JSON serialization
-                        assertNull("clusterstate JSON serialization does not match",
-                                differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
+                        assertNull(
+                            "clusterstate JSON serialization does not match",
+                            differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap)
+                        );
                     } catch (AssertionError error) {
-                        logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}",
-                                masterClusterState.toString(), localClusterState.toString());
+                        logger.error(
+                            "Cluster state from master:\n{}\nLocal cluster state:\n{}",
+                            masterClusterState.toString(),
+                            localClusterState.toString()
+                        );
                         throw error;
                     }
                 }
@@ -361,24 +392,28 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
     }
 
     protected static void createDataStreamAndTemplate(String dataStreamName, String mapping) throws IOException {
-        client().execute(PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request(dataStreamName + "_template")
-                .indexTemplate(new ComposableIndexTemplate(Collections.singletonList(dataStreamName),
+        client().execute(
+            PutComposableIndexTemplateAction.INSTANCE,
+            new PutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(
+                new ComposableIndexTemplate(
+                    Collections.singletonList(dataStreamName),
                     new Template(null, new CompressedXContent(mapping), null),
                     null,
                     null,
                     null,
                     null,
                     new ComposableIndexTemplate.DataStreamTemplate(),
-                    null)))
-            .actionGet();
+                    null
+                )
+            )
+        ).actionGet();
         client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).actionGet();
     }
 
     protected static void deleteAllDataStreams() {
         AcknowledgedResponse response = client().execute(
             DeleteDataStreamAction.INSTANCE,
-            new DeleteDataStreamAction.Request(new String[]{"*"})
+            new DeleteDataStreamAction.Request(new String[] { "*" })
         ).actionGet();
         assertAcked(response);
     }
@@ -412,8 +447,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
             if (context.name.equals("ingest")) {
                 IngestScript.Factory factory = vars -> new IngestScript(vars) {
                     @Override
-                    public void execute(Map<String, Object> ctx) {
-                    }
+                    public void execute(Map<String, Object> ctx) {}
                 };
                 return context.factoryClazz.cast(factory);
             }

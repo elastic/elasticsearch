@@ -53,7 +53,7 @@ tasks.named("integTest").configure {
   nonInputProperties.systemProperty 'test.userkt', "peppa@${realm}"
   nonInputProperties.systemProperty 'test.userkt.keytab', "${peppaKeytab}"
   nonInputProperties.systemProperty 'test.userpwd', "george@${realm}"
-  systemProperty 'test.userpwd.password', "dino"
+  systemProperty 'test.userpwd.password', "dino_but_longer_than_14_chars"
   systemProperty 'tests.security.manager', 'true'
   jvmArgs([
     "-Djava.security.krb5.conf=${project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("peppa")}",

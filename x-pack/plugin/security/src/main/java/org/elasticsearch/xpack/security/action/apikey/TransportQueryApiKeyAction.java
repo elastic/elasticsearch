@@ -35,8 +35,12 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportQueryApiKeyAction(TransportService transportService, ActionFilters actionFilters, ApiKeyService apiKeyService,
-                                      SecurityContext context) {
+    public TransportQueryApiKeyAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ApiKeyService apiKeyService,
+        SecurityContext context
+    ) {
         super(QueryApiKeyAction.NAME, transportService, actionFilters, QueryApiKeyRequest::new);
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
@@ -61,8 +65,10 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
             searchSourceBuilder.size(request.getSize());
         }
 
-        final ApiKeyBoolQueryBuilder apiKeyBoolQueryBuilder =
-            ApiKeyBoolQueryBuilder.build(request.getQueryBuilder(), request.isFilterForCurrentUser() ? authentication : null);
+        final ApiKeyBoolQueryBuilder apiKeyBoolQueryBuilder = ApiKeyBoolQueryBuilder.build(
+            request.getQueryBuilder(),
+            request.isFilterForCurrentUser() ? authentication : null
+        );
         searchSourceBuilder.query(apiKeyBoolQueryBuilder);
 
         if (request.getFieldSortBuilders() != null) {
@@ -90,12 +96,12 @@ public final class TransportQueryApiKeyAction extends HandledTransportAction<Que
                 if (translatedFieldName.equals(fieldSortBuilder.getFieldName())) {
                     searchSourceBuilder.sort(fieldSortBuilder);
                 } else {
-                    final FieldSortBuilder translatedFieldSortBuilder =
-                        new FieldSortBuilder(translatedFieldName)
-                            .order(fieldSortBuilder.order())
-                            .missing(fieldSortBuilder.missing())
-                            .unmappedType(fieldSortBuilder.unmappedType())
-                            .setFormat(fieldSortBuilder.getFormat());
+                    final FieldSortBuilder translatedFieldSortBuilder = new FieldSortBuilder(translatedFieldName).order(
+                        fieldSortBuilder.order()
+                    )
+                        .missing(fieldSortBuilder.missing())
+                        .unmappedType(fieldSortBuilder.unmappedType())
+                        .setFormat(fieldSortBuilder.getFormat());
 
                     if (fieldSortBuilder.sortMode() != null) {
                         translatedFieldSortBuilder.sortMode(fieldSortBuilder.sortMode());

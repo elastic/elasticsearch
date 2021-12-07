@@ -9,9 +9,9 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchMatchers;
+import org.elasticsearch.xcontent.ParsedMediaType;
 import org.hamcrest.Matcher;
 
 import static org.hamcrest.Matchers.equalTo;

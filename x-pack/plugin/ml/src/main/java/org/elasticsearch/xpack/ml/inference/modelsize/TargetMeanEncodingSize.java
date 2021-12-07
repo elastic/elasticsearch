@@ -30,7 +30,7 @@ public class TargetMeanEncodingSize implements PreprocessorSize {
     private static final ConstructingObjectParser<TargetMeanEncodingSize, Void> PARSER = new ConstructingObjectParser<>(
         "target_mean_encoding_size",
         false,
-        a -> new TargetMeanEncodingSize((Integer)a[0], (Integer)a[1], (List<Integer>)a[2])
+        a -> new TargetMeanEncodingSize((Integer) a[0], (Integer) a[1], (List<Integer>) a[2])
     );
     static {
         PARSER.declareInt(constructorArg(), FIELD_LENGTH);
@@ -85,9 +85,9 @@ public class TargetMeanEncodingSize implements PreprocessorSize {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TargetMeanEncodingSize that = (TargetMeanEncodingSize) o;
-        return fieldLength == that.fieldLength &&
-            featureNameLength == that.featureNameLength &&
-            Arrays.equals(fieldValueLengths, that.fieldValueLengths);
+        return fieldLength == that.fieldLength
+            && featureNameLength == that.featureNameLength
+            && Arrays.equals(fieldValueLengths, that.fieldValueLengths);
     }
 
     @Override

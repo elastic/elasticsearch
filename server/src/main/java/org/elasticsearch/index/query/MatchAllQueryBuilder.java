@@ -25,8 +25,7 @@ import java.io.IOException;
 public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuilder> {
     public static final String NAME = "match_all";
 
-    public MatchAllQueryBuilder() {
-    }
+    public MatchAllQueryBuilder() {}
 
     /**
      * Read from a stream.

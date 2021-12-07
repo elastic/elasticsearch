@@ -11,13 +11,13 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.search.MatchQueryParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.index.search.MatchQueryParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -197,12 +197,12 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
 
     @Override
     protected boolean doEquals(MatchPhrasePrefixQueryBuilder other) {
-        return Objects.equals(fieldName, other.fieldName) &&
-                Objects.equals(value, other.value) &&
-                Objects.equals(analyzer, other.analyzer)&&
-                Objects.equals(slop, other.slop) &&
-                Objects.equals(maxExpansions, other.maxExpansions) &&
-                Objects.equals(zeroTermsQuery, other.zeroTermsQuery);
+        return Objects.equals(fieldName, other.fieldName)
+            && Objects.equals(value, other.value)
+            && Objects.equals(analyzer, other.analyzer)
+            && Objects.equals(slop, other.slop)
+            && Objects.equals(maxExpansions, other.maxExpansions)
+            && Objects.equals(zeroTermsQuery, other.zeroTermsQuery);
     }
 
     @Override
@@ -250,16 +250,22 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
                             } else if ("all".equalsIgnoreCase(zeroTermsValue)) {
                                 zeroTermsQuery = ZeroTermsQueryOption.ALL;
                             } else {
-                                throw new ParsingException(parser.getTokenLocation(),
-                                    "Unsupported zero_terms_query value [" + zeroTermsValue + "]");
+                                throw new ParsingException(
+                                    parser.getTokenLocation(),
+                                    "Unsupported zero_terms_query value [" + zeroTermsValue + "]"
+                                );
                             }
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(),
-                                    "[" + NAME + "] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[" + NAME + "] query does not support [" + currentFieldName + "]"
+                            );
                         }
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(),
-                                "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "[" + NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]"
+                        );
                     }
                 }
             } else {

@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.job.config.JobTests;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,7 +24,7 @@ public class DeleteForecastRequestTests extends AbstractXContentTestCase<DeleteF
         if (randomBoolean()) {
             int length = randomInt(10);
             List<String> ids = new ArrayList<>(length);
-            for(int i = 0; i < length; i++) {
+            for (int i = 0; i < length; i++) {
                 ids.add(randomAlphaOfLength(10));
             }
             deleteForecastRequest.setForecastIds(ids);

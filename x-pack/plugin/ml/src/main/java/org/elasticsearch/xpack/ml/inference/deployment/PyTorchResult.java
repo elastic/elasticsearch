@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.utils.MlParserUtils;
 
 import java.io.IOException;
@@ -35,14 +35,16 @@ public class PyTorchResult implements ToXContentObject, Writeable {
     private static final ParseField ERROR = new ParseField("error");
     private static final ParseField TIME_MS = new ParseField("time_ms");
 
-    public static final ConstructingObjectParser<PyTorchResult, Void> PARSER = new ConstructingObjectParser<>("pytorch_result",
-        a -> new PyTorchResult((String) a[0], (double[][][]) a[1], (Long) a[2], (String) a[3]));
+    public static final ConstructingObjectParser<PyTorchResult, Void> PARSER = new ConstructingObjectParser<>(
+        "pytorch_result",
+        a -> new PyTorchResult((String) a[0], (double[][][]) a[1], (Long) a[2], (String) a[3])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REQUEST_ID);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) ->
-                MlParserUtils.parse3DArrayOfDoubles(INFERENCE.getPreferredName(), p),
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> MlParserUtils.parse3DArrayOfDoubles(INFERENCE.getPreferredName(), p),
             INFERENCE,
             ObjectParser.ValueType.VALUE_ARRAY
         );
@@ -59,10 +61,7 @@ public class PyTorchResult implements ToXContentObject, Writeable {
     private final Long timeMs;
     private final String error;
 
-    public PyTorchResult(String requestId,
-                         @Nullable double[][][] inference,
-                         @Nullable Long timeMs,
-                         @Nullable String error) {
+    public PyTorchResult(String requestId, @Nullable double[][][] inference, @Nullable Long timeMs, @Nullable String error) {
         this.requestId = Objects.requireNonNull(requestId);
         this.inference = inference;
         this.timeMs = timeMs;
@@ -109,8 +108,7 @@ public class PyTorchResult implements ToXContentObject, Writeable {
             builder.startArray(INFERENCE.getPreferredName());
             for (int i = 0; i < inference.length; i++) {
                 builder.startArray();
-                for (int j = 0; j < inference[0].length; j++)
-                {
+                for (int j = 0; j < inference[0].length; j++) {
                     builder.startArray();
                     for (int k = 0; k < inference[0][0].length; k++) {
                         builder.value(inference[i][j][k]);
@@ -138,9 +136,7 @@ public class PyTorchResult implements ToXContentObject, Writeable {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeArray(
-                (out2, arr) -> out2.writeArray(StreamOutput::writeDoubleArray, arr),
-                inference);
+            out.writeArray((out2, arr) -> out2.writeArray(StreamOutput::writeDoubleArray, arr), inference);
         }
         out.writeOptionalLong(timeMs);
         out.writeOptionalString(error);

@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.condition.ExecutableCondition;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -41,8 +41,11 @@ public class NeverConditionTests extends ESTestCase {
         parser.nextToken();
         try {
             NeverCondition.parse("_id", parser);
-            fail("expected a condition exception trying to parse an invalid condition XContent, ["
-                    + InternalAlwaysCondition.TYPE + "] condition should not parse with a body");
+            fail(
+                "expected a condition exception trying to parse an invalid condition XContent, ["
+                    + InternalAlwaysCondition.TYPE
+                    + "] condition should not parse with a body"
+            );
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), containsString("expected an empty object but found [foo]"));
         }

@@ -8,9 +8,9 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 
 import static org.hamcrest.Matchers.nullValue;
@@ -27,7 +27,7 @@ public abstract class AbstractClientYamlTestFragmentParserTestCase extends ESTes
         super.tearDown();
         // test may be skipped so we did not create a parser instance
         if (parser != null) {
-            //next token can be null even in the middle of the document (e.g. with "---"), but not too many consecutive times
+            // next token can be null even in the middle of the document (e.g. with "---"), but not too many consecutive times
             assertThat(parser.currentToken(), nullValue());
             assertThat(parser.nextToken(), nullValue());
             assertThat(parser.nextToken(), nullValue());

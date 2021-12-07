@@ -41,5 +41,4 @@ public abstract class AbstractSortedSetDocValues extends SortedSetDocValues {
         throw new UnsupportedOperationException();
     }
 
-
 }

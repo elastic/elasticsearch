@@ -21,8 +21,7 @@ import static org.elasticsearch.client.RequestConverters.createEntity;
 final class SearchableSnapshotsRequestConverters {
 
     static Request mountSnapshot(final MountSnapshotRequest mountSnapshotRequest) throws IOException {
-        final String endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_snapshot")
+        final String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_snapshot")
             .addPathPart(mountSnapshotRequest.getRepository())
             .addPathPart(mountSnapshotRequest.getSnapshot())
             .addPathPartAsIs("_mount")
@@ -44,8 +43,7 @@ final class SearchableSnapshotsRequestConverters {
     }
 
     static Request cacheStats(final CachesStatsRequest cacheStatsRequest) {
-        final RequestConverters.EndpointBuilder endpoint = new RequestConverters.EndpointBuilder()
-            .addPathPartAsIs("_searchable_snapshots");
+        final RequestConverters.EndpointBuilder endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_searchable_snapshots");
         if (cacheStatsRequest.getNodesIds() != null) {
             endpoint.addCommaSeparatedPathParts(cacheStatsRequest.getNodesIds());
         }

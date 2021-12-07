@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.sql.proto;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -32,14 +32,18 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.ROWS_NAME;
 public class SqlQueryResponse {
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<SqlQueryResponse, Void> PARSER = new ConstructingObjectParser<>("sql", true,
-            objects -> new SqlQueryResponse(
-                    objects[0] == null ? "" : (String) objects[0],
-                    (List<ColumnInfo>) objects[1],
-                    (List<List<Object>>) objects[2],
-                    (String) objects[3],
-                    objects[4] != null && (boolean) objects[4],
-                    objects[5] != null && (boolean) objects[5]));
+    public static final ConstructingObjectParser<SqlQueryResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "sql",
+        true,
+        objects -> new SqlQueryResponse(
+            objects[0] == null ? "" : (String) objects[0],
+            (List<ColumnInfo>) objects[1],
+            (List<List<Object>>) objects[2],
+            (String) objects[3],
+            objects[4] != null && (boolean) objects[4],
+            objects[5] != null && (boolean) objects[5]
+        )
+    );
 
     public static final ParseField CURSOR = new ParseField(CURSOR_NAME);
     public static final ParseField COLUMNS = new ParseField(COLUMNS_NAME);
@@ -71,8 +75,14 @@ public class SqlQueryResponse {
         this(cursor, columns, rows, null, false, false);
     }
 
-    public SqlQueryResponse(String cursor, @Nullable List<ColumnInfo> columns, List<List<Object>> rows, String asyncExecutionId,
-                            boolean isPartial, boolean isRunning) {
+    public SqlQueryResponse(
+        String cursor,
+        @Nullable List<ColumnInfo> columns,
+        List<List<Object>> rows,
+        String asyncExecutionId,
+        boolean isPartial,
+        boolean isRunning
+    ) {
         this.cursor = cursor;
         this.columns = columns;
         this.rows = rows;
@@ -148,12 +158,12 @@ public class SqlQueryResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SqlQueryResponse that = (SqlQueryResponse) o;
-        return Objects.equals(cursor, that.cursor) &&
-                Objects.equals(columns, that.columns) &&
-                Objects.equals(rows, that.rows) &&
-                Objects.equals(asyncExecutionId, that.asyncExecutionId) &&
-                isPartial == that.isPartial &&
-                isRunning == that.isRunning;
+        return Objects.equals(cursor, that.cursor)
+            && Objects.equals(columns, that.columns)
+            && Objects.equals(rows, that.rows)
+            && Objects.equals(asyncExecutionId, that.asyncExecutionId)
+            && isPartial == that.isPartial
+            && isRunning == that.isRunning;
     }
 
     @Override

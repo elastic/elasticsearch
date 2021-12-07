@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.watcher.notification.slack.message;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 
 import java.io.IOException;
@@ -32,14 +32,26 @@ public class DynamicAttachments implements MessageElement {
     public List<Attachment> render(TextTemplateEngine engine, Map<String, Object> model, SlackMessageDefaults.AttachmentDefaults defaults) {
         Object value = ObjectPath.eval(listPath, model);
         if ((value instanceof Iterable) == false) {
-            throw new IllegalArgumentException("dynamic attachment could not be resolved. expected context [" + listPath + "] to be a " +
-                    "list, but found [" + value + "] instead");
+            throw new IllegalArgumentException(
+                "dynamic attachment could not be resolved. expected context ["
+                    + listPath
+                    + "] to be a "
+                    + "list, but found ["
+                    + value
+                    + "] instead"
+            );
         }
         List<Attachment> attachments = new ArrayList<>();
         for (Object obj : (Iterable<Object>) value) {
             if ((obj instanceof Map) == false) {
-                throw new IllegalArgumentException("dynamic attachment could not be resolved. expected [" + listPath + "] list to contain" +
-                        " key/value pairs, but found [" + obj + "] instead");
+                throw new IllegalArgumentException(
+                    "dynamic attachment could not be resolved. expected ["
+                        + listPath
+                        + "] list to contain"
+                        + " key/value pairs, but found ["
+                        + obj
+                        + "] instead"
+                );
             }
             Map<String, Object> attachmentModel = (Map<String, Object>) obj;
             attachments.add(attachment.render(engine, attachmentModel, defaults));
@@ -50,9 +62,9 @@ public class DynamicAttachments implements MessageElement {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
-                .field(XField.LIST_PATH.getPreferredName(), listPath)
-                .field(XField.TEMPLATE.getPreferredName(), attachment, params)
-                .endObject();
+            .field(XField.LIST_PATH.getPreferredName(), listPath)
+            .field(XField.TEMPLATE.getPreferredName(), attachment, params)
+            .endObject();
     }
 
     public static DynamicAttachments parse(XContentParser parser) throws IOException {
@@ -68,27 +80,37 @@ public class DynamicAttachments implements MessageElement {
                 if (token == XContentParser.Token.VALUE_STRING) {
                     listPath = parser.text();
                 } else {
-                    throw new ElasticsearchParseException("could not parse dynamic attachments. expected a string value for [{}] field, " +
-                            "but found [{}]", XField.LIST_PATH.getPreferredName(), token);
+                    throw new ElasticsearchParseException(
+                        "could not parse dynamic attachments. expected a string value for [{}] field, " + "but found [{}]",
+                        XField.LIST_PATH.getPreferredName(),
+                        token
+                    );
                 }
             } else if (XField.TEMPLATE.match(currentFieldName, parser.getDeprecationHandler())) {
                 try {
                     template = Attachment.Template.parse(parser);
                 } catch (ElasticsearchParseException pe) {
-                    throw new ElasticsearchParseException("could not parse dynamic attachments. failed to parse [{}] field", pe,
-                            XField.TEMPLATE.getPreferredName());
+                    throw new ElasticsearchParseException(
+                        "could not parse dynamic attachments. failed to parse [{}] field",
+                        pe,
+                        XField.TEMPLATE.getPreferredName()
+                    );
                 }
             } else {
                 throw new ElasticsearchParseException("could not parse dynamic attachments. unexpected field [{}]", currentFieldName);
             }
         }
         if (listPath == null) {
-            throw new ElasticsearchParseException("could not parse dynamic attachments. missing required field [{}]",
-                    XField.LIST_PATH.getPreferredName());
+            throw new ElasticsearchParseException(
+                "could not parse dynamic attachments. missing required field [{}]",
+                XField.LIST_PATH.getPreferredName()
+            );
         }
         if (template == null) {
-            throw new ElasticsearchParseException("could not parse dynamic attachments. missing required field [{}]",
-                    XField.TEMPLATE.getPreferredName());
+            throw new ElasticsearchParseException(
+                "could not parse dynamic attachments. missing required field [{}]",
+                XField.TEMPLATE.getPreferredName()
+            );
         }
         return new DynamicAttachments(listPath, template);
     }

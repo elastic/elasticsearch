@@ -25,8 +25,7 @@ public class RestPostStartBasicLicense extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(POST, "/_license/start_basic")
-                .replaces(POST, "/_xpack/license/start_basic", RestApiVersion.V_7).build()
+            Route.builder(POST, "/_license/start_basic").replaces(POST, "/_xpack/license/start_basic", RestApiVersion.V_7).build()
         );
     }
 

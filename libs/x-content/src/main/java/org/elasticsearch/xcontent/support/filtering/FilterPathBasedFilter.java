@@ -59,32 +59,20 @@ public class FilterPathBasedFilter extends TokenFilter {
      */
     private TokenFilter evaluate(String name, FilterPath[] filterPaths) {
         if (filterPaths != null) {
-            List<FilterPath> nextFilters = null;
-
+            List<FilterPath> nextFilters = new ArrayList<>();
             for (FilterPath filter : filterPaths) {
-                FilterPath next = filter.matchProperty(name);
-                if (next != null) {
-                    if (next.matches()) {
-                        return MATCHING;
-                    } else {
-                        if (nextFilters == null) {
-                            nextFilters = new ArrayList<>();
-                        }
-                        if (filter.isDoubleWildcard()) {
-                            nextFilters.add(filter);
-                        }
-                        nextFilters.add(next);
-                    }
+                boolean matches = filter.matches(name, nextFilters);
+                if (matches) {
+                    return MATCHING;
                 }
             }
 
-            if ((nextFilters != null) && (nextFilters.isEmpty() == false)) {
+            if (nextFilters.isEmpty() == false) {
                 return new FilterPathBasedFilter(nextFilters.toArray(new FilterPath[nextFilters.size()]), inclusive);
             }
         }
         return NO_MATCHING;
     }
-
 
     @Override
     public TokenFilter includeProperty(String name) {

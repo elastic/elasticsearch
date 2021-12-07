@@ -10,27 +10,25 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.xcontent.ParseField;
 
 /**
  * Factory for ASCIIFoldingFilter.
  */
-public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory
-        implements NormalizingTokenFilterFactory {
+public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
     public static final ParseField PRESERVE_ORIGINAL = new ParseField("preserve_original");
     public static final boolean DEFAULT_PRESERVE_ORIGINAL = false;
 
     private final boolean preserveOriginal;
 
-    public ASCIIFoldingTokenFilterFactory(IndexSettings indexSettings, Environment environment,
-            String name, Settings settings) {
+    public ASCIIFoldingTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         preserveOriginal = settings.getAsBoolean(PRESERVE_ORIGINAL.getPreferredName(), DEFAULT_PRESERVE_ORIGINAL);
     }

@@ -19,6 +19,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -36,6 +37,8 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.script.field.DelegateDocValuesField;
+import org.elasticsearch.script.field.DocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -419,9 +422,12 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         }
 
                         @Override
-                        public ScriptDocValues<?> getScriptValues() {
+                        public DocValuesField<?> getScriptField(String name) {
                             // getAggregateMetricValues returns all metric as doubles, including `value_count`
-                            return new ScriptDocValues.Doubles(getAggregateMetricValues(defaultMetric));
+                            return new DelegateDocValuesField(
+                                new ScriptDocValues.Doubles(new DoublesSupplier(getAggregateMetricValues(defaultMetric))),
+                                name
+                            );
                         }
 
                         @Override

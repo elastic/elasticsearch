@@ -33,6 +33,28 @@ setup:
       indices.refresh: {}
 
 ---
+"Execute successful search with wait_for_checkpoints default":
+  - do:
+      fleet.search:
+        index: "test-after-refresh"
+        allow_partial_search_results: false
+
+        body: { query: { match_all: {} } }
+
+  - match: { _shards.successful: 1 }
+  - match: { hits.total.value: 2 }
+
+  - do:
+      fleet.search:
+        index: "test-after-refresh"
+        allow_partial_search_results: false
+        wait_for_checkpoints: []
+        body: { query: { match_all: { } } }
+
+  - match: { _shards.successful: 1 }
+  - match: { hits.total.value: 2 }
+
+---
 "Execute successful after refresh search":
   - do:
       fleet.search:
@@ -114,3 +136,19 @@ setup:
   - match: { responses.1._shards.successful: 1 }
   - match: { responses.1.hits.total.value: 2 }
   - match: { responses.2.error.caused_by.type: "illegal_argument_exception" }
+
+---
+"Test msearch wait_for_checkpoints default":
+  - do:
+      fleet.msearch:
+        index: "test-after-refresh"
+        body:
+          - { "allow_partial_search_results": false }
+          - { query: { match_all: { } } }
+          - { "allow_partial_search_results": false, wait_for_checkpoints: [] }
+          - { query: { match_all: { } } }
+
+  - match: { responses.0._shards.successful: 1 }
+  - match: { responses.0.hits.total.value: 2 }
+  - match: { responses.1._shards.successful: 1 }
+  - match: { responses.1.hits.total.value: 2 }

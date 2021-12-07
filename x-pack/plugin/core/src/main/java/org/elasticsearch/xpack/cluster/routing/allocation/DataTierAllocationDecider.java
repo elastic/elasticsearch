@@ -13,11 +13,11 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.cluster.routing.allocation.DataTier;
 
 import java.util.List;
 import java.util.Optional;
@@ -32,8 +32,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "data_tier";
 
-    public DataTierAllocationDecider() {
-    }
+    public DataTierAllocationDecider() {}
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
@@ -67,8 +66,12 @@ public class DataTierAllocationDecider extends AllocationDecider {
         Optional<String> apply(List<String> tierPreference, DiscoveryNodes nodes);
     }
 
-    public Decision shouldFilter(IndexMetadata indexMd, Set<DiscoveryNodeRole> roles,
-                                 PreferredTierFunction preferredTierFunction, RoutingAllocation allocation) {
+    public Decision shouldFilter(
+        IndexMetadata indexMd,
+        Set<DiscoveryNodeRole> roles,
+        PreferredTierFunction preferredTierFunction,
+        RoutingAllocation allocation
+    ) {
         Decision decision = shouldIndexPreferTier(indexMd, roles, preferredTierFunction, allocation);
         if (decision != null) {
             return decision;
@@ -77,8 +80,12 @@ public class DataTierAllocationDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, "node passes tier preference filters");
     }
 
-    private Decision shouldIndexPreferTier(IndexMetadata indexMetadata, Set<DiscoveryNodeRole> roles,
-                                           PreferredTierFunction preferredTierFunction, RoutingAllocation allocation) {
+    private Decision shouldIndexPreferTier(
+        IndexMetadata indexMetadata,
+        Set<DiscoveryNodeRole> roles,
+        PreferredTierFunction preferredTierFunction,
+        RoutingAllocation allocation
+    ) {
         List<String> tierPreference = indexMetadata.getTierPreference();
 
         if (tierPreference.isEmpty() == false) {
@@ -89,8 +96,13 @@ public class DataTierAllocationDecider extends AllocationDecider {
                     if (allocation.debugDecision() == false) {
                         return Decision.YES;
                     }
-                    return allocation.decision(Decision.YES, NAME,
-                        "index has a preference for tiers [%s] and node has tier [%s]", String.join(",", tierPreference), tierName);
+                    return allocation.decision(
+                        Decision.YES,
+                        NAME,
+                        "index has a preference for tiers [%s] and node has tier [%s]",
+                        String.join(",", tierPreference),
+                        tierName
+                    );
                 } else {
                     if (allocation.debugDecision() == false) {
                         return Decision.NO;
@@ -107,8 +119,12 @@ public class DataTierAllocationDecider extends AllocationDecider {
                 if (allocation.debugDecision() == false) {
                     return Decision.NO;
                 }
-                return allocation.decision(Decision.NO, NAME, "index has a preference for tiers [%s], " +
-                    "but no nodes for any of those tiers are available in the cluster", String.join(",", tierPreference));
+                return allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "index has a preference for tiers [%s], " + "but no nodes for any of those tiers are available in the cluster",
+                    String.join(",", tierPreference)
+                );
             }
         }
         return null;
@@ -130,8 +146,8 @@ public class DataTierAllocationDecider extends AllocationDecider {
     }
 
     static boolean tierNodesPresent(String singleTier, DiscoveryNodes nodes) {
-        assert singleTier.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || DataTier.validTierName(singleTier) :
-            "tier " + singleTier + " is an invalid tier name";
+        assert singleTier.equals(DiscoveryNodeRole.DATA_ROLE.roleName()) || DataTier.validTierName(singleTier)
+            : "tier " + singleTier + " is an invalid tier name";
         for (DiscoveryNode node : nodes.getNodes().values()) {
             for (DiscoveryNodeRole discoveryNodeRole : node.getRoles()) {
                 String s = discoveryNodeRole.roleName();
@@ -142,7 +158,6 @@ public class DataTierAllocationDecider extends AllocationDecider {
         }
         return false;
     }
-
 
     private static boolean allocationAllowed(String tierName, Set<DiscoveryNodeRole> roles) {
         assert Strings.hasText(tierName) : "tierName must be not null and non-empty, but was [" + tierName + "]";

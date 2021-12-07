@@ -14,5 +14,4 @@ import org.elasticsearch.xcontent.ToXContentObject;
  * {@link PersistentTaskState} represents the state of the persistent tasks, as it
  * is persisted in the cluster state.
  */
-public interface PersistentTaskState extends ToXContentObject, NamedWriteable {
-}
+public interface PersistentTaskState extends ToXContentObject, NamedWriteable {}

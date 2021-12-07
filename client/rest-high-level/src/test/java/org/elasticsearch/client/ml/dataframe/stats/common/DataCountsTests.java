@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.ml.dataframe.stats.common;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -21,11 +21,7 @@ public class DataCountsTests extends AbstractXContentTestCase<DataCounts> {
     }
 
     public static DataCounts createRandom() {
-        return new DataCounts(
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong()
-        );
+        return new DataCounts(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     @Override

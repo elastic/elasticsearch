@@ -26,10 +26,9 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public abstract class RestResizeHandler extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(RestResizeHandler.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestResizeHandler.class);
 
-    RestResizeHandler() {
-    }
+    RestResizeHandler() {}
 
     @Override
     public abstract String getName();
@@ -60,9 +59,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(
-                new Route(POST, "/{index}/_shrink/{target}"),
-                new Route(PUT, "/{index}/_shrink/{target}"));
+            return List.of(new Route(POST, "/{index}/_shrink/{target}"), new Route(PUT, "/{index}/_shrink/{target}"));
         }
 
         @Override
@@ -81,9 +78,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(
-                new Route(POST, "/{index}/_split/{target}"),
-                new Route(PUT, "/{index}/_split/{target}"));
+            return List.of(new Route(POST, "/{index}/_split/{target}"), new Route(PUT, "/{index}/_split/{target}"));
         }
 
         @Override
@@ -102,9 +97,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(
-                new Route(POST, "/{index}/_clone/{target}"),
-                new Route(PUT, "/{index}/_clone/{target}"));
+            return List.of(new Route(POST, "/{index}/_clone/{target}"), new Route(PUT, "/{index}/_clone/{target}"));
         }
 
         @Override

@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ssl.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -15,6 +14,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction.Response;
 
@@ -30,10 +30,7 @@ public class RestGetCertificateInfoAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(GET, "/_ssl/certificates")
-                .replaces(GET, "/_xpack/ssl/certificates", RestApiVersion.V_7).build()
-        );
+        return List.of(Route.builder(GET, "/_ssl/certificates").replaces(GET, "/_xpack/ssl/certificates", RestApiVersion.V_7).build());
     }
 
     @Override
@@ -43,12 +40,13 @@ public class RestGetCertificateInfoAction extends BaseRestHandler {
 
     @Override
     protected final RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-        return channel -> new GetCertificateInfoAction.RequestBuilder(client, GetCertificateInfoAction.INSTANCE)
-                .execute(new RestBuilderListener<Response>(channel) {
-                    @Override
-                    public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
-                        return new BytesRestResponse(RestStatus.OK, response.toXContent(builder, request));
-                    }
-                });
+        return channel -> new GetCertificateInfoAction.RequestBuilder(client, GetCertificateInfoAction.INSTANCE).execute(
+            new RestBuilderListener<Response>(channel) {
+                @Override
+                public RestResponse buildResponse(Response response, XContentBuilder builder) throws Exception {
+                    return new BytesRestResponse(RestStatus.OK, response.toXContent(builder, request));
+                }
+            }
+        );
     }
 }

@@ -19,8 +19,7 @@ public final class GetBuiltinPrivilegesRequest implements Validatable {
 
     public static final GetBuiltinPrivilegesRequest INSTANCE = new GetBuiltinPrivilegesRequest();
 
-    private GetBuiltinPrivilegesRequest() {
-    }
+    private GetBuiltinPrivilegesRequest() {}
 
     public Request getRequest() {
         return new Request(HttpGet.METHOD_NAME, "/_security/privilege/_builtin");

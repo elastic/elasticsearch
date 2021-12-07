@@ -30,9 +30,11 @@ class SimpleStruct implements ToXContentObject {
     private static final ParseField S = new ParseField("s");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<SimpleStruct, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "simple_struct", true, args -> new SimpleStruct((int) args[0], (double) args[1], (String) args[2]));
+    private static final ConstructingObjectParser<SimpleStruct, Void> PARSER = new ConstructingObjectParser<>(
+        "simple_struct",
+        true,
+        args -> new SimpleStruct((int) args[0], (double) args[1], (String) args[2])
+    );
 
     static {
         PARSER.declareInt(constructorArg(), I);
@@ -52,8 +54,7 @@ class SimpleStruct implements ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder
-            .startObject()
+        return builder.startObject()
             .field(I.getPreferredName(), i)
             .field(D.getPreferredName(), d)
             .field(S.getPreferredName(), s)
@@ -78,4 +79,3 @@ class SimpleStruct implements ToXContentObject {
         return Strings.toString(this);
     }
 }
-

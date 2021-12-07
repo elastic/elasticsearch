@@ -31,7 +31,7 @@ public class InternalDateRangeTests extends InternalRangeTestCase<InternalDateRa
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        format = randomNumericDocValueFormat();
+        format = randomDateDocValueFormat();
 
         Function<ZonedDateTime, ZonedDateTime> interval = randomFrom(
             dateTime -> dateTime.plusSeconds(1),

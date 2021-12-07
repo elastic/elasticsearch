@@ -25,8 +25,8 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.RowResults;
 import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefinitionChunk;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsPersister;
-import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 
@@ -63,9 +63,15 @@ public class AnalyticsResultProcessor {
 
     private volatile String latestModelId;
 
-    public AnalyticsResultProcessor(DataFrameAnalyticsConfig analytics, DataFrameRowsJoiner dataFrameRowsJoiner,
-                                    StatsHolder statsHolder, TrainedModelProvider trainedModelProvider,
-                                    DataFrameAnalyticsAuditor auditor, StatsPersister statsPersister, ExtractedFields extractedFields) {
+    public AnalyticsResultProcessor(
+        DataFrameAnalyticsConfig analytics,
+        DataFrameRowsJoiner dataFrameRowsJoiner,
+        StatsHolder statsHolder,
+        TrainedModelProvider trainedModelProvider,
+        DataFrameAnalyticsAuditor auditor,
+        StatsPersister statsPersister,
+        ExtractedFields extractedFields
+    ) {
         this.analytics = Objects.requireNonNull(analytics);
         this.dataFrameRowsJoiner = Objects.requireNonNull(dataFrameRowsJoiner);
         this.statsHolder = Objects.requireNonNull(statsHolder);
@@ -137,8 +143,12 @@ public class AnalyticsResultProcessor {
         }
         PhaseProgress phaseProgress = result.getPhaseProgress();
         if (phaseProgress != null) {
-            LOGGER.debug("[{}] progress for phase [{}] updated to [{}]", analytics.getId(), phaseProgress.getPhase(),
-                phaseProgress.getProgressPercent());
+            LOGGER.debug(
+                "[{}] progress for phase [{}] updated to [{}]",
+                analytics.getId(),
+                phaseProgress.getPhase(),
+                phaseProgress.getProgressPercent()
+            );
             statsHolder.getProgressTracker().updatePhase(phaseProgress);
         }
         ModelSizeInfo modelSize = result.getModelSizeInfo();

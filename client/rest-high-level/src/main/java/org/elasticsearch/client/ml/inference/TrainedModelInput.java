@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.inference;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,9 +24,11 @@ public class TrainedModelInput implements ToXContentObject {
     public static final ParseField FIELD_NAMES = new ParseField("field_names");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<TrainedModelInput, Void> PARSER = new ConstructingObjectParser<>(NAME,
+    public static final ConstructingObjectParser<TrainedModelInput, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
         true,
-        a -> new TrainedModelInput((List<String>) a[0]));
+        a -> new TrainedModelInput((List<String>) a[0])
+    );
 
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), FIELD_NAMES);

@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml.job.results;
 
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -40,8 +40,11 @@ public class CategoryDefinition implements ToXContentObject {
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("categories");
 
-    public static final ConstructingObjectParser<CategoryDefinition, Void> PARSER =
-        new ConstructingObjectParser<>(TYPE.getPreferredName(), true, a -> new CategoryDefinition((String) a[0]));
+    public static final ConstructingObjectParser<CategoryDefinition, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE.getPreferredName(),
+        true,
+        a -> new CategoryDefinition((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
@@ -212,7 +215,18 @@ public class CategoryDefinition implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, categoryId, partitionFieldName, partitionFieldValue, terms, regex, maxMatchingLength, examples,
-            preferredToCategories, numMatches, grokPattern);
+        return Objects.hash(
+            jobId,
+            categoryId,
+            partitionFieldName,
+            partitionFieldValue,
+            terms,
+            regex,
+            maxMatchingLength,
+            examples,
+            preferredToCategories,
+            numMatches,
+            grokPattern
+        );
     }
 }

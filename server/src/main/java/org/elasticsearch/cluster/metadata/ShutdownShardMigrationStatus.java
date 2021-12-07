@@ -14,20 +14,22 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject {
-    private static final Version ALLOCATION_DECISION_ADDED_VERSION = Version.V_8_0_0;
+    private static final Version ALLOCATION_DECISION_ADDED_VERSION = Version.V_7_16_0;
 
     private final SingleNodeShutdownMetadata.Status status;
     private final long shardsRemaining;
-    @Nullable private final String explanation;
-    @Nullable private final ShardAllocationDecision allocationDecision;
+    @Nullable
+    private final String explanation;
+    @Nullable
+    private final ShardAllocationDecision allocationDecision;
 
     public ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status status, long shardsRemaining) {
         this(status, shardsRemaining, null, null);

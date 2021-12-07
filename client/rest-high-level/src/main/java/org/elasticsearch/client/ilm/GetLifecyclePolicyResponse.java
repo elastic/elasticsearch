@@ -6,10 +6,10 @@
  * Side Public License, v 1.
  */
 
-
 package org.elasticsearch.client.ilm;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;

@@ -14,10 +14,10 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.tasks.TaskInfo;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,8 +34,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
 
     public static class Request extends MasterNodeRequest<Request> {
 
-        public Request() {
-        }
+        public Request() {}
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -122,9 +121,9 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Response response = (Response) o;
-            return executingPolicies.equals(response.executingPolicies) &&
-                coordinatorStats.equals(response.coordinatorStats) &&
-                Objects.equals(cacheStats, response.cacheStats);
+            return executingPolicies.equals(response.executingPolicies)
+                && coordinatorStats.equals(response.coordinatorStats)
+                && Objects.equals(cacheStats, response.cacheStats);
         }
 
         @Override
@@ -140,11 +139,13 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
             private final long remoteRequestsTotal;
             private final long executedSearchesTotal;
 
-            public CoordinatorStats(String nodeId,
-                                    int queueSize,
-                                    int remoteRequestsCurrent,
-                                    long remoteRequestsTotal,
-                                    long executedSearchesTotal) {
+            public CoordinatorStats(
+                String nodeId,
+                int queueSize,
+                int remoteRequestsCurrent,
+                long remoteRequestsTotal,
+                long executedSearchesTotal
+            ) {
                 this.nodeId = nodeId;
                 this.queueSize = queueSize;
                 this.remoteRequestsCurrent = remoteRequestsCurrent;
@@ -200,11 +201,11 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 CoordinatorStats stats = (CoordinatorStats) o;
-                return Objects.equals(nodeId, stats.nodeId) &&
-                    queueSize == stats.queueSize &&
-                    remoteRequestsCurrent == stats.remoteRequestsCurrent &&
-                    remoteRequestsTotal == stats.remoteRequestsTotal &&
-                    executedSearchesTotal == stats.executedSearchesTotal;
+                return Objects.equals(nodeId, stats.nodeId)
+                    && queueSize == stats.queueSize
+                    && remoteRequestsCurrent == stats.remoteRequestsCurrent
+                    && remoteRequestsTotal == stats.remoteRequestsTotal
+                    && executedSearchesTotal == stats.executedSearchesTotal;
             }
 
             @Override
@@ -257,8 +258,7 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 ExecutingPolicy that = (ExecutingPolicy) o;
-                return name.equals(that.name) &&
-                    taskInfo.equals(that.taskInfo);
+                return name.equals(that.name) && taskInfo.equals(that.taskInfo);
             }
 
             @Override
@@ -331,8 +331,11 @@ public class EnrichStatsAction extends ActionType<EnrichStatsAction.Response> {
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 CacheStats that = (CacheStats) o;
-                return count == that.count && hits == that.hits && misses == that.misses && evictions == that.evictions &&
-                    nodeId.equals(that.nodeId);
+                return count == that.count
+                    && hits == that.hits
+                    && misses == that.misses
+                    && evictions == that.evictions
+                    && nodeId.equals(that.nodeId);
             }
 
             @Override

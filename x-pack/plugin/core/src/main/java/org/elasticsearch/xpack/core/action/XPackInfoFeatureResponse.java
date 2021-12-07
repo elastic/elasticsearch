@@ -35,4 +35,4 @@ public class XPackInfoFeatureResponse extends ActionResponse {
         info.writeTo(out);
     }
 
-    }
+}

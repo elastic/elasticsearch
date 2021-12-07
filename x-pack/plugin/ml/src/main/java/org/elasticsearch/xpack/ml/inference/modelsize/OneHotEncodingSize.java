@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.ml.inference.modelsize;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
@@ -32,7 +32,7 @@ public class OneHotEncodingSize implements PreprocessorSize {
     private static final ConstructingObjectParser<OneHotEncodingSize, Void> PARSER = new ConstructingObjectParser<>(
         "one_hot_encoding_size",
         false,
-        a -> new OneHotEncodingSize((Integer)a[0], (List<Integer>)a[1], (List<Integer>)a[2])
+        a -> new OneHotEncodingSize((Integer) a[0], (List<Integer>) a[1], (List<Integer>) a[2])
     );
     static {
         PARSER.declareInt(constructorArg(), FIELD_LENGTH);
@@ -86,9 +86,9 @@ public class OneHotEncodingSize implements PreprocessorSize {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         OneHotEncodingSize that = (OneHotEncodingSize) o;
-        return fieldLength == that.fieldLength &&
-            Arrays.equals(featureNameLengths, that.featureNameLengths) &&
-            Arrays.equals(fieldValueLengths, that.fieldValueLengths);
+        return fieldLength == that.fieldLength
+            && Arrays.equals(featureNameLengths, that.featureNameLengths)
+            && Arrays.equals(fieldValueLengths, that.fieldValueLengths);
     }
 
     @Override

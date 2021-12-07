@@ -8,17 +8,17 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Response when adding a role to the native roles store. Returns a
@@ -49,8 +49,11 @@ public final class PutRoleResponse {
         return Objects.hash(created);
     }
 
-    private static final ConstructingObjectParser<PutRoleResponse, Void> PARSER = new ConstructingObjectParser<>("put_role_response",
-        true, args -> new PutRoleResponse((boolean) args[0]));
+    private static final ConstructingObjectParser<PutRoleResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "put_role_response",
+        true,
+        args -> new PutRoleResponse((boolean) args[0])
+    );
 
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("created"));

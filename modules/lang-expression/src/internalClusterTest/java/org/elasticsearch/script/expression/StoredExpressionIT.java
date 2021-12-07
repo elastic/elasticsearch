@@ -10,13 +10,13 @@ package org.elasticsearch.script.expression;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -39,33 +39,39 @@ public class StoredExpressionIT extends ESIntegTestCase {
     }
 
     public void testAllOpsDisabledIndexedScripts() throws IOException {
-        client().admin().cluster().preparePutStoredScript()
-                .setId("script1")
-                .setContent(new BytesArray("{\"script\": {\"lang\": \"expression\", \"source\": \"2\"} }"), XContentType.JSON)
-                .get();
+        client().admin()
+            .cluster()
+            .preparePutStoredScript()
+            .setId("script1")
+            .setContent(new BytesArray("{\"script\": {\"lang\": \"expression\", \"source\": \"2\"} }"), XContentType.JSON)
+            .get();
         client().prepareIndex("test").setId("1").setSource("{\"theField\":\"foo\"}", XContentType.JSON).get();
         try {
-            client().prepareUpdate("test", "1")
-                    .setScript(new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())).get();
+            client().prepareUpdate("test", "1").setScript(new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())).get();
             fail("update script should have been rejected");
-        } catch(Exception e) {
+        } catch (Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
             assertThat(e.getCause().getMessage(), containsString("Failed to compile stored script [script1] using lang [expression]"));
         }
         try {
             client().prepareSearch()
-                    .setSource(new SearchSourceBuilder().scriptField("test1",
-                            new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())))
-                    .setIndices("test").get();
+                .setSource(
+                    new SearchSourceBuilder().scriptField("test1", new Script(ScriptType.STORED, null, "script1", Collections.emptyMap()))
+                )
+                .setIndices("test")
+                .get();
             fail("search script should have been rejected");
-        } catch(Exception e) {
+        } catch (Exception e) {
             assertThat(e.toString(), containsString("cannot execute scripts using [field] context"));
         }
         try {
             client().prepareSearch("test")
-                    .setSource(
-                            new SearchSourceBuilder().aggregation(AggregationBuilders.terms("test").script(
-                                    new Script(ScriptType.STORED, null, "script1", Collections.emptyMap())))).get();
+                .setSource(
+                    new SearchSourceBuilder().aggregation(
+                        AggregationBuilders.terms("test").script(new Script(ScriptType.STORED, null, "script1", Collections.emptyMap()))
+                    )
+                )
+                .get();
         } catch (Exception e) {
             assertThat(e.toString(), containsString("cannot execute scripts using [aggs] context"));
         }

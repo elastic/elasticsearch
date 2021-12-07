@@ -5,7 +5,6 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.util.BytesRef;
@@ -14,16 +13,13 @@ import org.elasticsearch.xpack.vectors.query.DenseVectorScriptDocValues;
 
 import java.nio.ByteBuffer;
 
-
 public final class VectorEncoderDecoder {
     public static final byte INT_BYTES = 4;
 
-    private VectorEncoderDecoder() { }
+    private VectorEncoderDecoder() {}
 
     public static int denseVectorLength(Version indexVersion, BytesRef vectorBR) {
-        return indexVersion.onOrAfter(Version.V_7_5_0)
-            ? (vectorBR.length - INT_BYTES) / INT_BYTES
-            : vectorBR.length / INT_BYTES;
+        return indexVersion.onOrAfter(Version.V_7_5_0) ? (vectorBR.length - INT_BYTES) / INT_BYTES : vectorBR.length / INT_BYTES;
     }
 
     /**

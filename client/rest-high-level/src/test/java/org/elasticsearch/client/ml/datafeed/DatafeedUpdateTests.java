@@ -9,12 +9,12 @@ package org.elasticsearch.client.ml.datafeed;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,8 +46,9 @@ public class DatafeedUpdateTests extends AbstractXContentTestCase<DatafeedUpdate
             int scriptsSize = randomInt(3);
             List<SearchSourceBuilder.ScriptField> scriptFields = new ArrayList<>(scriptsSize);
             for (int scriptIndex = 0; scriptIndex < scriptsSize; scriptIndex++) {
-                scriptFields.add(new SearchSourceBuilder.ScriptField(randomAlphaOfLength(10), mockScript(randomAlphaOfLength(10)),
-                    randomBoolean()));
+                scriptFields.add(
+                    new SearchSourceBuilder.ScriptField(randomAlphaOfLength(10), mockScript(randomAlphaOfLength(10)), randomBoolean())
+                );
             }
             builder.setScriptFields(scriptFields);
         }
@@ -76,11 +77,9 @@ public class DatafeedUpdateTests extends AbstractXContentTestCase<DatafeedUpdate
             builder.setMaxEmptySearches(randomIntBetween(10, 100));
         }
         if (randomBoolean()) {
-            builder.setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean(),
-                randomBoolean()));
+            builder.setIndicesOptions(
+                IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+            );
         }
         if (randomBoolean()) {
             Map<String, Object> settings = new HashMap<>();

@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.ml.dataframe.process.results;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -24,8 +24,10 @@ public class RowResults implements ToXContentObject {
     public static final ParseField RESULTS = new ParseField("results");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<RowResults, Void> PARSER = new ConstructingObjectParser<>(TYPE.getPreferredName(),
-            a -> new RowResults((Integer) a[0], (Map<String, Object>) a[1]));
+    public static final ConstructingObjectParser<RowResults, Void> PARSER = new ConstructingObjectParser<>(
+        TYPE.getPreferredName(),
+        a -> new RowResults((Integer) a[0], (Map<String, Object>) a[1])
+    );
 
     static {
         PARSER.declareInt(constructorArg(), CHECKSUM);

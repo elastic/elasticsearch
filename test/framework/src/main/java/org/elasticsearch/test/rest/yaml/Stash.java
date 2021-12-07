@@ -154,8 +154,15 @@ public class Stash implements ToXContentFragment {
                 }
                 path.remove(path.size() - 1);
                 if (null != result.putIfAbsent(key, value)) {
-                    throw new IllegalArgumentException("Unstashing has caused a key conflict! The map is [" + result + "] and the key is ["
-                            + entry.getKey() + "] which unstashes to [" + key + "]");
+                    throw new IllegalArgumentException(
+                        "Unstashing has caused a key conflict! The map is ["
+                            + result
+                            + "] and the key is ["
+                            + entry.getKey()
+                            + "] which unstashes to ["
+                            + key
+                            + "]"
+                    );
                 }
             }
             return result;

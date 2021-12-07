@@ -42,7 +42,6 @@ dependencies {
   testImplementation project(":client:test")
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.elasticsearch:securemock:${versions.securemock}"
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 

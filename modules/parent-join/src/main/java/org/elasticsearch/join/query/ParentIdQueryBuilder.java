@@ -15,16 +15,16 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.join.mapper.Joiner;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.join.mapper.Joiner;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -143,12 +143,12 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
         return queryBuilder;
     }
 
-
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (context.allowExpensiveQueries() == false) {
-            throw new ElasticsearchException("[joining] queries cannot be executed when '" +
-                    ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
+            throw new ElasticsearchException(
+                "[joining] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
+            );
         }
 
         Joiner joiner = Joiner.getJoiner(context);
@@ -157,7 +157,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
                 return new MatchNoDocsQuery();
             } else {
                 final String indexName = context.getIndexSettings().getIndex().getName();
-                throw new QueryShardException(context, "[" + NAME + "] no join field found for index [" + indexName  + "]");
+                throw new QueryShardException(context, "[" + NAME + "] no join field found for index [" + indexName + "]");
             }
         }
         if (joiner.childTypeExists(type) == false) {
@@ -167,8 +167,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
                 throw new QueryShardException(context, "[" + NAME + "] no relation found for child [" + type + "]");
             }
         }
-        return new BooleanQuery.Builder()
-            .add(new TermQuery(new Term(joiner.parentJoinField(type), id)), BooleanClause.Occur.MUST)
+        return new BooleanQuery.Builder().add(new TermQuery(new Term(joiner.parentJoinField(type), id)), BooleanClause.Occur.MUST)
             // Need to take child type into account, otherwise a child doc of different type with the same id could match
             .add(new TermQuery(new Term(joiner.getJoinField(), type)), BooleanClause.Occur.FILTER)
             .build();
@@ -176,9 +175,7 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
 
     @Override
     protected boolean doEquals(ParentIdQueryBuilder that) {
-        return Objects.equals(type, that.type)
-                && Objects.equals(id, that.id)
-                && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
+        return Objects.equals(type, that.type) && Objects.equals(id, that.id) && Objects.equals(ignoreUnmapped, that.ignoreUnmapped);
     }
 
     @Override

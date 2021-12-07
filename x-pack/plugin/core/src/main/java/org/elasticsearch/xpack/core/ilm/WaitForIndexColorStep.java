@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
@@ -17,10 +18,10 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.index.Index;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -80,9 +81,13 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
         IndexMetadata indexMetadata = clusterState.metadata().index(indexName);
         // check if the (potentially) derived index exists
         if (indexMetadata == null) {
-            String errorMessage = String.format(Locale.ROOT, "[%s] lifecycle action for index [%s] executed but the target index [%s] " +
-                    "does not exist",
-                getKey().getAction(), index.getName(), indexName);
+            String errorMessage = String.format(
+                Locale.ROOT,
+                "[%s] lifecycle action for index [%s] executed but the target index [%s] " + "does not exist",
+                getKey().getAction(),
+                index.getName(),
+                indexName
+            );
             logger.debug(errorMessage);
             return new Result(false, new Info(errorMessage));
         }

@@ -158,7 +158,7 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
         SpanQueryBuilder exclude = null;
 
         Integer dist = null;
-        Integer pre  = null;
+        Integer pre = null;
         Integer post = null;
 
         String queryName = null;
@@ -245,10 +245,10 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
 
     @Override
     protected boolean doEquals(SpanNotQueryBuilder other) {
-        return Objects.equals(include, other.include) &&
-               Objects.equals(exclude, other.exclude) &&
-               (pre == other.pre) &&
-               (post == other.post);
+        return Objects.equals(include, other.include)
+            && Objects.equals(exclude, other.exclude)
+            && (pre == other.pre)
+            && (post == other.post);
     }
 
     @Override

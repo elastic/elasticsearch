@@ -9,11 +9,11 @@
 package org.elasticsearch.client.migration;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.List;
@@ -27,8 +27,10 @@ public class PostFeatureUpgradeResponse {
     private final boolean accepted;
     private final List<Feature> features;
 
-    @Nullable private final String reason;
-    @Nullable private final ElasticsearchException elasticsearchException;
+    @Nullable
+    private final String reason;
+    @Nullable
+    private final ElasticsearchException elasticsearchException;
 
     private static final ParseField ACCEPTED = new ParseField("accepted");
     private static final ParseField FEATURES = new ParseField("features");
@@ -37,22 +39,25 @@ public class PostFeatureUpgradeResponse {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<PostFeatureUpgradeResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "post_feature_upgrade_response", true, (a, ctx) -> new PostFeatureUpgradeResponse(
-        (Boolean) a[0],
-        (List<Feature>) a[1],
-        (String) a[2],
-        (ElasticsearchException) a[3]
-    ));
+        "post_feature_upgrade_response",
+        true,
+        (a, ctx) -> new PostFeatureUpgradeResponse((Boolean) a[0], (List<Feature>) a[1], (String) a[2], (ElasticsearchException) a[3])
+    );
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
-            (p, c) -> p.booleanValue(), ACCEPTED, ObjectParser.ValueType.BOOLEAN);
-        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
-            Feature::parse, FEATURES);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> p.text(), REASON, ObjectParser.ValueType.STRING);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> ElasticsearchException.fromXContent(p), ELASTICSEARCH_EXCEPTION);
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> p.booleanValue(),
+            ACCEPTED,
+            ObjectParser.ValueType.BOOLEAN
+        );
+        PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), Feature::parse, FEATURES);
+        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.text(), REASON, ObjectParser.ValueType.STRING);
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> ElasticsearchException.fromXContent(p),
+            ELASTICSEARCH_EXCEPTION
+        );
     }
 
     public static PostFeatureUpgradeResponse parse(XContentParser parser) {
@@ -123,12 +128,13 @@ public class PostFeatureUpgradeResponse {
         private static final ParseField FEATURE_NAME = new ParseField("feature_name");
 
         private static final ConstructingObjectParser<Feature, Void> PARSER = new ConstructingObjectParser<>(
-            "feature", true, (a, ctx) -> new Feature((String) a[0])
+            "feature",
+            true,
+            (a, ctx) -> new Feature((String) a[0])
         );
 
         static {
-            PARSER.declareField(ConstructingObjectParser.constructorArg(),
-                (p, c) -> p.text(), FEATURE_NAME, ObjectParser.ValueType.STRING);
+            PARSER.declareField(ConstructingObjectParser.constructorArg(), (p, c) -> p.text(), FEATURE_NAME, ObjectParser.ValueType.STRING);
         }
 
         public static Feature parse(XContentParser parser, Void ctx) {

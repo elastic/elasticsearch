@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.core.termsenum.action;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -67,7 +67,8 @@ public class TermsEnumResponse extends BroadcastResponse {
         int totalShards,
         int successfulShards,
         int failedShards,
-        List<DefaultShardOperationFailedException> shardFailures, boolean complete
+        List<DefaultShardOperationFailedException> shardFailures,
+        boolean complete
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.terms = terms == null ? Collections.emptyList() : terms;

@@ -13,6 +13,8 @@ setup:
                 type: keyword
               text:
                 type: text
+              value:
+                type: long
 
   - do:
       headers:
@@ -23,19 +25,19 @@ setup:
         refresh: true
         body: |
           {"index": {}}
-          {"product": "server","text": "Node 2 stopping"}
+          {"product": "server","text": "Node 2 stopping", "value": 1}
           {"index": {}}
-          {"product": "server", "text": "Node 2 starting"}
+          {"product": "server", "text": "Node 2 starting", "value": 1}
           {"index": {}}
-          {"product": "server", "text": "Node 4 stopping"}
+          {"product": "server", "text": "Node 4 stopping", "value": 1}
           {"index": {}}
-          {"product": "server", "text": "Node 5 stopping"}
+          {"product": "server", "text": "Node 5 stopping", "value": 1}
           {"index": {}}
-          {"product": "user", "text": "User Foo logging on"}
+          {"product": "user", "text": "User Foo logging on", "value": 1}
           {"index": {}}
-          {"product": "user", "text": "User Foo logging on"}
+          {"product": "user", "text": "User Foo logging on", "value": 1}
           {"index": {}}
-          {"product": "user", "text": "User Foo logging off"}
+          {"product": "user", "text": "User Foo logging off", "value": 1}
 
 ---
 "Test categorization agg simple":
@@ -83,10 +85,28 @@ setup:
   - match: { aggregations.categories.buckets.1.doc_count: 3 }
   - match: { aggregations.categories.buckets.1.key: "User Foo logging *" }
 ---
+"Test categorization aggregation against unsupported field":
+  - do:
+      catch: /categorize_text agg \[categories\] only works on analyzable text fields/
+      search:
+        index: to_categorize
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "categories": {
+                "categorize_text": {
+                  "field": "value"
+                }
+              }
+            }
+          }
+
+---
 "Test categorization aggregation with poor settings":
 
   - do:
-      catch: /\[max_unique_tokens\] must be greater than 0 and less than \[100\]/
+      catch: /\[max_unique_tokens\] must be greater than 0 and less than or equal \[100\]/
       search:
         index: to_categorize
         body: >
@@ -102,7 +122,23 @@ setup:
             }
           }
   - do:
-      catch: /\[max_matched_tokens\] must be greater than 0 and less than \[100\]/
+      catch: /\[max_unique_tokens\] must be greater than 0 and less than or equal \[100\]/
+      search:
+        index: to_categorize
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "categories": {
+                "categorize_text": {
+                  "field": "text",
+                  "max_unique_tokens": 101
+                }
+              }
+            }
+          }
+  - do:
+      catch: /\[max_matched_tokens\] must be greater than 0 and less than or equal \[100\]/
       search:
         index: to_categorize
         body: >
@@ -117,6 +153,23 @@ setup:
               }
             }
           }
+  - do:
+      catch: /\[max_matched_tokens\] must be greater than 0 and less than or equal \[100\]/
+      search:
+        index: to_categorize
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "categories": {
+                "categorize_text": {
+                  "field": "text",
+                  "max_matched_tokens": 101
+                }
+              }
+            }
+          }
+
   - do:
       catch: /\[similarity_threshold\] must be in the range \[1, 100\]/
       search:

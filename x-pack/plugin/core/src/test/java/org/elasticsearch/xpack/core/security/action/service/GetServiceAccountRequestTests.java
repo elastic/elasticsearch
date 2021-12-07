@@ -21,8 +21,10 @@ public class GetServiceAccountRequestTests extends AbstractWireSerializingTestCa
 
     @Override
     protected GetServiceAccountRequest createTestInstance() {
-        return new GetServiceAccountRequest(randomFrom(randomAlphaOfLengthBetween(3, 8), null),
-            randomFrom(randomAlphaOfLengthBetween(3, 8), null));
+        return new GetServiceAccountRequest(
+            randomFrom(randomAlphaOfLengthBetween(3, 8), null),
+            randomFrom(randomAlphaOfLengthBetween(3, 8), null)
+        );
     }
 
     @Override
@@ -30,11 +32,13 @@ public class GetServiceAccountRequestTests extends AbstractWireSerializingTestCa
         if (randomBoolean()) {
             return new GetServiceAccountRequest(
                 randomValueOtherThan(instance.getNamespace(), () -> randomFrom(randomAlphaOfLengthBetween(3, 8), null)),
-                instance.getServiceName());
+                instance.getServiceName()
+            );
         } else {
             return new GetServiceAccountRequest(
                 instance.getNamespace(),
-                randomValueOtherThan(instance.getServiceName(), () -> randomFrom(randomAlphaOfLengthBetween(3, 8), null)));
+                randomValueOtherThan(instance.getServiceName(), () -> randomFrom(randomAlphaOfLengthBetween(3, 8), null))
+            );
         }
     }
 }

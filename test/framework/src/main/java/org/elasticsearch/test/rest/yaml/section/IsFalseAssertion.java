@@ -45,11 +45,7 @@ public class IsFalseAssertion extends Assertion {
         }
 
         String actualString = actualValue.toString();
-        assertThat(errorMessage(), actualString, anyOf(
-                equalTo(""),
-                equalToIgnoringCase(Boolean.FALSE.toString()),
-                equalTo("0")
-        ));
+        assertThat(errorMessage(), actualString, anyOf(equalTo(""), equalToIgnoringCase(Boolean.FALSE.toString()), equalTo("0")));
     }
 
     private String errorMessage() {

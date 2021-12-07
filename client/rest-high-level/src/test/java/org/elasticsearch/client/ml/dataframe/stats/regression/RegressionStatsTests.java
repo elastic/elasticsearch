@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.dataframe.stats.regression;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -24,7 +24,6 @@ public class RegressionStatsTests extends AbstractXContentTestCase<RegressionSta
     protected RegressionStats doParseInstance(XContentParser parser) throws IOException {
         return RegressionStats.PARSER.apply(parser, null);
     }
-
 
     @Override
     protected RegressionStats createTestInstance() {

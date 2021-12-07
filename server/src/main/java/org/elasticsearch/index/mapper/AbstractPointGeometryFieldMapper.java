@@ -11,8 +11,8 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -22,25 +22,38 @@ import java.util.function.Supplier;
 /** Base class for for spatial fields that only support indexing points */
 public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
 
-    public static <T> Parameter<T> nullValueParam(Function<FieldMapper, T> initializer,
-                                                  TriFunction<String, MappingParserContext, Object, T> parser,
-                                                  Supplier<T> def) {
+    public static <T> Parameter<T> nullValueParam(
+        Function<FieldMapper, T> initializer,
+        TriFunction<String, MappingParserContext, Object, T> parser,
+        Supplier<T> def
+    ) {
         return new Parameter<T>("null_value", false, def, parser, initializer);
     }
 
     protected final T nullValue;
 
-    protected AbstractPointGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                                               MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
-                                               Explicit<Boolean> ignoreZValue, T nullValue, CopyTo copyTo,
-                                               Parser<T> parser) {
+    protected AbstractPointGeometryFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        Explicit<Boolean> ignoreMalformed,
+        Explicit<Boolean> ignoreZValue,
+        T nullValue,
+        CopyTo copyTo,
+        Parser<T> parser
+    ) {
         super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
         this.nullValue = nullValue;
     }
 
-    protected AbstractPointGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                                               MultiFields multiFields, CopyTo copyTo,
-                                               Parser<T> parser, String onScriptError) {
+    protected AbstractPointGeometryFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Parser<T> parser,
+        String onScriptError
+    ) {
         super(simpleName, mappedFieldType, multiFields, copyTo, parser, onScriptError);
         this.nullValue = null;
     }
@@ -58,12 +71,14 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
         private final boolean ignoreZValue;
         protected final boolean ignoreMalformed;
 
-        protected PointParser(String field,
-                              Supplier<T> pointSupplier,
-                              CheckedBiFunction<XContentParser, T, T, IOException> objectParser,
-                              T nullValue,
-                              boolean ignoreZValue,
-                              boolean ignoreMalformed) {
+        protected PointParser(
+            String field,
+            Supplier<T> pointSupplier,
+            CheckedBiFunction<XContentParser, T, T, IOException> objectParser,
+            T nullValue,
+            boolean ignoreZValue,
+            boolean ignoreMalformed
+        ) {
             this.field = field;
             this.pointSupplier = pointSupplier;
             this.objectParser = objectParser;
@@ -77,11 +92,8 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
         protected abstract void reset(T in, double x, double y);
 
         @Override
-        public void parse(
-            XContentParser parser,
-            CheckedConsumer<T, IOException> consumer,
-            Consumer<Exception> onMalformed
-        ) throws IOException {
+        public void parse(XContentParser parser, CheckedConsumer<T, IOException> consumer, Consumer<Exception> onMalformed)
+            throws IOException {
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 XContentParser.Token token = parser.nextToken();
                 T point = pointSupplier.get();
@@ -92,8 +104,11 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
                     token = parser.nextToken();
                     if (token == XContentParser.Token.VALUE_NUMBER) {
                         if (ignoreZValue == false) {
-                            throw new ElasticsearchParseException("Exception parsing coordinates: found Z value [{}] but [ignore_z_value] "
-                                + "parameter is [{}]", parser.doubleValue(), ignoreZValue);
+                            throw new ElasticsearchParseException(
+                                "Exception parsing coordinates: found Z value [{}] but [ignore_z_value] " + "parameter is [{}]",
+                                parser.doubleValue(),
+                                ignoreZValue
+                            );
                         }
                     } else if (token != XContentParser.Token.END_ARRAY) {
                         throw new ElasticsearchParseException("field type does not accept > 3 dimensions");

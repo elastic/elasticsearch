@@ -10,20 +10,20 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -61,8 +61,9 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                 }
                 mapIn.readString(); // type
             }
-            return unmodifiableMap(mapIn.readMap(StreamInput::readString,
-                    inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference())));
+            return unmodifiableMap(
+                mapIn.readMap(StreamInput::readString, inpt -> new FieldMappingMetadata(inpt.readString(), inpt.readBytesReference()))
+            );
         }));
     }
 
@@ -93,8 +94,8 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             builder.startObject(indexEntry.getKey());
             builder.startObject(MAPPINGS.getPreferredName());
             if (indexEntry.getValue() != null) {
-                if (builder.getRestApiVersion() == RestApiVersion.V_7 &&
-                    params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
+                if (builder.getRestApiVersion() == RestApiVersion.V_7
+                    && params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
                     if (indexEntry.getValue().size() > 0) {
                         builder.startObject(MapperService.SINGLE_MAPPING_NAME);
                         addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
@@ -105,7 +106,6 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
                 }
             }
 
-
             builder.endObject();
             builder.endObject();
         }
@@ -113,9 +113,8 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         return builder;
     }
 
-    private void addFieldMappingsToBuilder(XContentBuilder builder,
-                                           Params params,
-                                           Map<String, FieldMappingMetadata> mappings) throws IOException {
+    private void addFieldMappingsToBuilder(XContentBuilder builder, Params params, Map<String, FieldMappingMetadata> mappings)
+        throws IOException {
         for (Map.Entry<String, FieldMappingMetadata> fieldEntry : mappings.entrySet()) {
             builder.startObject(fieldEntry.getKey());
             fieldEntry.getValue().toXContent(builder, params);
@@ -128,10 +127,11 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
         private static final ParseField FULL_NAME = new ParseField("full_name");
         private static final ParseField MAPPING = new ParseField("mapping");
 
-        private static final ConstructingObjectParser<FieldMappingMetadata, String> PARSER =
-            new ConstructingObjectParser<>("field_mapping_meta_data", true,
-                a -> new FieldMappingMetadata((String)a[0], (BytesReference)a[1])
-            );
+        private static final ConstructingObjectParser<FieldMappingMetadata, String> PARSER = new ConstructingObjectParser<>(
+            "field_mapping_meta_data",
+            true,
+            a -> new FieldMappingMetadata((String) a[0], (BytesReference) a[1])
+        );
 
         private final String fullName;
         private final BytesReference source;
@@ -150,7 +150,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             return XContentHelper.convertToMap(source, true, XContentType.JSON).v2();
         }
 
-        //pkg-private for testing
+        // pkg-private for testing
         BytesReference getSource() {
             return source;
         }
@@ -178,8 +178,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             if (this == o) return true;
             if ((o instanceof FieldMappingMetadata) == false) return false;
             FieldMappingMetadata that = (FieldMappingMetadata) o;
-            return Objects.equals(fullName, that.fullName) &&
-                Objects.equals(source, that.source);
+            return Objects.equals(fullName, that.fullName) && Objects.equals(source, that.source);
         }
 
         @Override
@@ -204,9 +203,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     @Override
     public String toString() {
-        return "GetFieldMappingsResponse{" +
-            "mappings=" + mappings +
-            '}';
+        return "GetFieldMappingsResponse{" + "mappings=" + mappings + '}';
     }
 
     @Override

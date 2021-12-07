@@ -14,17 +14,17 @@ import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -71,7 +71,7 @@ public class PutIndexTemplateRequest extends TimedRequest implements ToXContentF
      * Sets the name of the index template.
      */
     public PutIndexTemplateRequest name(String name) {
-        if(name == null) {
+        if (name == null) {
             throw new IllegalArgumentException("Name cannot be null");
         }
         this.name = name;
@@ -85,11 +85,11 @@ public class PutIndexTemplateRequest extends TimedRequest implements ToXContentF
         return this.name;
     }
 
-    public PutIndexTemplateRequest patterns(List<String> indexPatterns) {
-        if (indexPatterns == null || indexPatterns.size() == 0) {
+    public PutIndexTemplateRequest patterns(List<String> patterns) {
+        if (patterns == null || patterns.size() == 0) {
             throw new IllegalArgumentException("index patterns are missing");
         }
-        this.indexPatterns = indexPatterns;
+        this.indexPatterns = patterns;
         return this;
     }
 
@@ -193,8 +193,7 @@ public class PutIndexTemplateRequest extends TimedRequest implements ToXContentF
      * @param source The mapping source
      */
     public PutIndexTemplateRequest mapping(XContentBuilder source) {
-        internalMapping(XContentHelper.convertToMap(BytesReference.bytes(source),
-                true, source.contentType()).v2());
+        internalMapping(XContentHelper.convertToMap(BytesReference.bytes(source), true, source.contentType()).v2());
         return this;
     }
 
@@ -224,8 +223,7 @@ public class PutIndexTemplateRequest extends TimedRequest implements ToXContentF
             builder.map(source);
             Objects.requireNonNull(builder.contentType());
             try {
-                mappings = new BytesArray(
-                        XContentHelper.convertToJson(BytesReference.bytes(builder), false, false,  builder.contentType()));
+                mappings = new BytesArray(XContentHelper.convertToJson(BytesReference.bytes(builder), false, false, builder.contentType()));
                 return this;
             } catch (IOException e) {
                 throw new UncheckedIOException("failed to convert source to json", e);
@@ -257,9 +255,9 @@ public class PutIndexTemplateRequest extends TimedRequest implements ToXContentF
     public PutIndexTemplateRequest source(Map<String, Object> templateSource) {
         Map<String, Object> source = templateSource;
         for (Map.Entry<String, Object> entry : source.entrySet()) {
-            String name = entry.getKey();
-            if (name.equals("index_patterns")) {
-                if(entry.getValue() instanceof String) {
+            String entryName = entry.getKey();
+            if (entryName.equals("index_patterns")) {
+                if (entry.getValue() instanceof String) {
                     patterns(Collections.singletonList((String) entry.getValue()));
                 } else if (entry.getValue() instanceof List) {
                     List<String> elements = ((List<?>) entry.getValue()).stream().map(Object::toString).collect(Collectors.toList());
@@ -267,25 +265,24 @@ public class PutIndexTemplateRequest extends TimedRequest implements ToXContentF
                 } else {
                     throw new IllegalArgumentException("Malformed [index_patterns] value, should be a string or a list of strings");
                 }
-            } else if (name.equals("order")) {
+            } else if (entryName.equals("order")) {
                 order(XContentMapValues.nodeIntegerValue(entry.getValue(), order()));
-            } else if ("version".equals(name)) {
+            } else if ("version".equals(entryName)) {
                 if ((entry.getValue() instanceof Integer) == false) {
                     throw new IllegalArgumentException("Malformed [version] value, should be an integer");
                 }
-                version((Integer)entry.getValue());
-            } else if (name.equals("settings")) {
+                version((Integer) entry.getValue());
+            } else if (entryName.equals("settings")) {
                 if ((entry.getValue() instanceof Map) == false) {
                     throw new IllegalArgumentException("Malformed [settings] section, should include an inner object");
                 }
                 settings((Map<String, Object>) entry.getValue());
-            } else if (name.equals("mappings")) {
-                Map<String, Object> mappings = (Map<String, Object>) entry.getValue();
-                mapping(mappings);
-            } else if (name.equals("aliases")) {
+            } else if (entryName.equals("mappings")) {
+                mapping((Map<String, Object>) entry.getValue());
+            } else if (entryName.equals("aliases")) {
                 aliases((Map<String, Object>) entry.getValue());
             } else {
-                throw new ElasticsearchParseException("unknown key [{}] in the template ", name);
+                throw new ElasticsearchParseException("unknown key [{}] in the template ", entryName);
             }
         }
         return this;
@@ -318,7 +315,6 @@ public class PutIndexTemplateRequest extends TimedRequest implements ToXContentF
     public PutIndexTemplateRequest source(BytesReference source, XContentType xContentType) {
         return source(XContentHelper.convertToMap(source, true, xContentType).v2());
     }
-
 
     public Set<Alias> aliases() {
         return this.aliases;
@@ -356,15 +352,20 @@ public class PutIndexTemplateRequest extends TimedRequest implements ToXContentF
      */
     public PutIndexTemplateRequest aliases(BytesReference source) {
         // EMPTY is safe here because we never call namedObject
-        try (XContentParser parser = XContentHelper
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source)) {
-            //move to the first alias
+        try (
+            XContentParser parser = XContentHelper.createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                source
+            )
+        ) {
+            // move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 alias(Alias.fromXContent(parser));
             }
             return this;
-        } catch(IOException e) {
+        } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse aliases", e);
         }
     }
@@ -411,8 +412,13 @@ public class PutIndexTemplateRequest extends TimedRequest implements ToXContentF
 
         if (mappings != null) {
             builder.field("mappings");
-            try (XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, mappings.utf8ToString())) {
+            try (
+                XContentParser parser = JsonXContent.jsonXContent.createParser(
+                    NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    mappings.utf8ToString()
+                )
+            ) {
                 builder.copyCurrentStructure(parser);
             }
         }

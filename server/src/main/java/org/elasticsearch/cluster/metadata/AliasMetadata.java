@@ -11,18 +11,18 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -51,8 +51,14 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     @Nullable
     private final Boolean isHidden;
 
-    private AliasMetadata(String alias, CompressedXContent filter, String indexRouting, String searchRouting, Boolean writeIndex,
-                          @Nullable Boolean isHidden) {
+    private AliasMetadata(
+        String alias,
+        CompressedXContent filter,
+        String indexRouting,
+        String searchRouting,
+        Boolean writeIndex,
+        @Nullable Boolean isHidden
+    ) {
         this.alias = alias;
         this.filter = filter;
         this.indexRouting = indexRouting;
@@ -67,8 +73,14 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     }
 
     private AliasMetadata(AliasMetadata aliasMetadata, String alias) {
-        this(alias, aliasMetadata.filter(), aliasMetadata.indexRouting(), aliasMetadata.searchRouting(), aliasMetadata.writeIndex(),
-            aliasMetadata.isHidden);
+        this(
+            alias,
+            aliasMetadata.filter(),
+            aliasMetadata.indexRouting(),
+            aliasMetadata.searchRouting(),
+            aliasMetadata.writeIndex(),
+            aliasMetadata.isHidden
+        );
     }
 
     public String alias() {

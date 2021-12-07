@@ -8,12 +8,12 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.StringJoiner;
@@ -59,8 +59,7 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
         }
     }
 
-    static SimulateProcessorResult createTestInstance(boolean isSuccessful,
-                                                                boolean isIgnoredException, boolean hasCondition) {
+    static SimulateProcessorResult createTestInstance(boolean isSuccessful, boolean isIgnoredException, boolean hasCondition) {
         String type = randomAlphaOfLengthBetween(1, 10);
         String processorTag = randomAlphaOfLengthBetween(1, 10);
         String description = randomAlphaOfLengthBetween(1, 10);
@@ -69,14 +68,25 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
         if (isSuccessful) {
             IngestDocument ingestDocument = createRandomIngestDoc();
             if (isIgnoredException) {
-                simulateProcessorResult = new SimulateProcessorResult(type, processorTag, description, ingestDocument,
-                    new IllegalArgumentException("test"), conditionWithResult);
+                simulateProcessorResult = new SimulateProcessorResult(
+                    type,
+                    processorTag,
+                    description,
+                    ingestDocument,
+                    new IllegalArgumentException("test"),
+                    conditionWithResult
+                );
             } else {
                 simulateProcessorResult = new SimulateProcessorResult(type, processorTag, description, ingestDocument, conditionWithResult);
             }
         } else {
-            simulateProcessorResult = new SimulateProcessorResult(type, processorTag, description,
-                new IllegalArgumentException("test"), conditionWithResult);
+            simulateProcessorResult = new SimulateProcessorResult(
+                type,
+                processorTag,
+                description,
+                new IllegalArgumentException("test"),
+                conditionWithResult
+            );
         }
         return simulateProcessorResult;
     }
@@ -107,29 +117,20 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
     @Override
     protected Predicate<String> getRandomFieldsExcludeFilter() {
         // We cannot have random fields in the _source field and _ingest field
-        return field ->
-            field.startsWith(
-                new StringJoiner(".")
-                    .add(WriteableIngestDocument.DOC_FIELD)
-                    .add(WriteableIngestDocument.SOURCE_FIELD).toString()
-            ) ||
-                field.startsWith(
-                    new StringJoiner(".")
-                        .add(WriteableIngestDocument.DOC_FIELD)
-                        .add(WriteableIngestDocument.INGEST_FIELD).toString()
-                );
+        return field -> field.startsWith(
+            new StringJoiner(".").add(WriteableIngestDocument.DOC_FIELD).add(WriteableIngestDocument.SOURCE_FIELD).toString()
+        )
+            || field.startsWith(
+                new StringJoiner(".").add(WriteableIngestDocument.DOC_FIELD).add(WriteableIngestDocument.INGEST_FIELD).toString()
+            );
     }
 
-    static void assertEqualProcessorResults(SimulateProcessorResult response,
-                                                      SimulateProcessorResult parsedResponse) {
+    static void assertEqualProcessorResults(SimulateProcessorResult response, SimulateProcessorResult parsedResponse) {
         assertEquals(response.getProcessorTag(), parsedResponse.getProcessorTag());
         assertEquals(response.getIngestDocument(), parsedResponse.getIngestDocument());
-        if (response.getFailure() != null ) {
+        if (response.getFailure() != null) {
             assertNotNull(parsedResponse.getFailure());
-            assertThat(
-                parsedResponse.getFailure().getMessage(),
-                containsString(response.getFailure().getMessage())
-            );
+            assertThat(parsedResponse.getFailure().getMessage(), containsString(response.getFailure().getMessage()));
         } else {
             assertNull(parsedResponse.getFailure());
         }
@@ -147,21 +148,36 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
      */
     public void testFromXContentWithFailures() throws IOException {
         Supplier<SimulateProcessorResult> instanceSupplier = SimulateProcessorResultTests::createTestInstanceWithFailures;
-        //with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
-        //but that does not bother our assertions, as we only want to test that we don't break.
+        // with random fields insertion in the inner exceptions, some random stuff may be parsed back as metadata,
+        // but that does not bother our assertions, as we only want to test that we don't break.
         boolean supportsUnknownFields = true;
-        //exceptions are not of the same type whenever parsed back
+        // exceptions are not of the same type whenever parsed back
         boolean assertToXContentEquivalence = false;
-        AbstractXContentTestCase.testFromXContent(NUMBER_OF_TEST_RUNS, instanceSupplier, supportsUnknownFields,
-            getShuffleFieldsExceptions(), getRandomFieldsExcludeFilter(), this::createParser, this::doParseInstance,
-            this::assertEqualInstances, assertToXContentEquivalence, getToXContentParams());
+        AbstractXContentTestCase.testFromXContent(
+            NUMBER_OF_TEST_RUNS,
+            instanceSupplier,
+            supportsUnknownFields,
+            getShuffleFieldsExceptions(),
+            getRandomFieldsExcludeFilter(),
+            this::createParser,
+            this::doParseInstance,
+            this::assertEqualInstances,
+            assertToXContentEquivalence,
+            getToXContentParams()
+        );
     }
 
-    public void testStatus(){
+    public void testStatus() {
         SimulateProcessorResult result;
         // conditional returned false
-        result = new SimulateProcessorResult(null, null, null, createRandomIngestDoc(), null,
-            new Tuple<>(randomAlphaOfLengthBetween(1, 10), false));
+        result = new SimulateProcessorResult(
+            null,
+            null,
+            null,
+            createRandomIngestDoc(),
+            null,
+            new Tuple<>(randomAlphaOfLengthBetween(1, 10), false)
+        );
         assertEquals(SimulateProcessorResult.Status.SKIPPED, result.getStatus("set"));
 
         // no ingest doc
@@ -180,13 +196,19 @@ public class SimulateProcessorResultTests extends AbstractXContentTestCase<Simul
         result = new SimulateProcessorResult(null, null, null, createRandomIngestDoc(), new RuntimeException(""), null);
         assertEquals(SimulateProcessorResult.Status.ERROR_IGNORED, result.getStatus(""));
 
-        //success - no conditional
+        // success - no conditional
         result = new SimulateProcessorResult(null, null, null, createRandomIngestDoc(), null, null);
         assertEquals(SimulateProcessorResult.Status.SUCCESS, result.getStatus(null));
 
-        //success - conditional true
-        result = new SimulateProcessorResult(null, null, null, createRandomIngestDoc(), null,
-            new Tuple<>(randomAlphaOfLengthBetween(1, 10), true));
+        // success - conditional true
+        result = new SimulateProcessorResult(
+            null,
+            null,
+            null,
+            createRandomIngestDoc(),
+            null,
+            new Tuple<>(randomAlphaOfLengthBetween(1, 10), true)
+        );
         assertEquals(SimulateProcessorResult.Status.SUCCESS, result.getStatus(null));
     }
 }

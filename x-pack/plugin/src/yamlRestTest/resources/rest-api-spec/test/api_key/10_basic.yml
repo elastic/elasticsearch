@@ -124,6 +124,8 @@ teardown:
   - length: { roles: 0 }
   - match: { authentication_realm.name: "_es_api_key" }
   - match: { authentication_realm.type: "_es_api_key" }
+  - match: { api_key.id: "${api_key_id}" }
+  - match: { api_key.name: "my-api-key" }
 
   - do:
       security.clear_api_key_cache:

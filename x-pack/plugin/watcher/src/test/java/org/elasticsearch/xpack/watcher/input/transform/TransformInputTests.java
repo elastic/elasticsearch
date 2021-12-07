@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.watcher.input.transform;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.input.Input;
@@ -62,17 +62,20 @@ public class TransformInputTests extends ESTestCase {
     }
 
     public void testParserValid() throws Exception {
-        Map<String,
+        Map<
+            String,
             TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories =
-            Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
+                Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
         TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(registry);
 
         // { "script" : { "lang" : "mockscript", "source" : "1" } }
-        XContentBuilder builder = jsonBuilder().startObject().startObject("script")
-                .field("lang", MockScriptEngine.NAME)
-                .field("source", "1")
-                .endObject().endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startObject("script")
+            .field("lang", MockScriptEngine.NAME)
+            .field("source", "1")
+            .endObject()
+            .endObject();
 
         XContentParser parser = createParser(builder);
         parser.nextToken();
@@ -87,9 +90,10 @@ public class TransformInputTests extends ESTestCase {
     public void testParserInvalid() throws Exception {
         XContentBuilder jsonBuilder = jsonBuilder().value("just a string");
 
-        Map<String,
+        Map<
+            String,
             TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories =
-            Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
+                Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
         TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(registry);
         XContentParser parser = createParser(jsonBuilder);
@@ -107,16 +111,19 @@ public class TransformInputTests extends ESTestCase {
     }
 
     public void testTransformInputToXContentIsSameAsParsing() throws Exception {
-        Map<String,
+        Map<
+            String,
             TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories =
-            Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
+                Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
         TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(registry);
 
-        XContentBuilder jsonBuilder = jsonBuilder().startObject().startObject("script")
-                .field("source", "1")
-                .field("lang", "mockscript")
-                .endObject().endObject();
+        XContentBuilder jsonBuilder = jsonBuilder().startObject()
+            .startObject("script")
+            .field("source", "1")
+            .field("lang", "mockscript")
+            .endObject()
+            .endObject();
         XContentParser parser = createParser(jsonBuilder);
 
         parser.nextToken();

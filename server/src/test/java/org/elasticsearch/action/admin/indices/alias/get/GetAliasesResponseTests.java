@@ -35,8 +35,10 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
 
     @Override
     protected GetAliasesResponse mutateInstance(GetAliasesResponse response) {
-        return new GetAliasesResponse(mutateAliases(response.getAliases()),
-            randomMap(5, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomList(5, DataStreamTestHelper::randomAliasInstance))));
+        return new GetAliasesResponse(
+            mutateAliases(response.getAliases()),
+            randomMap(5, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomList(5, DataStreamTestHelper::randomAliasInstance)))
+        );
     }
 
     private static ImmutableOpenMap<String, List<AliasMetadata>> mutateAliases(ImmutableOpenMap<String, List<AliasMetadata>> aliases) {
@@ -72,8 +74,10 @@ public class GetAliasesResponseTests extends AbstractWireSerializingTestCase<Get
     }
 
     private static GetAliasesResponse createTestItem() {
-        return new GetAliasesResponse(mutateAliases(createIndicesAliasesMap(0, 5).build()
-        ), randomMap(5, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomList(5, DataStreamTestHelper::randomAliasInstance))));
+        return new GetAliasesResponse(
+            mutateAliases(createIndicesAliasesMap(0, 5).build()),
+            randomMap(5, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomList(5, DataStreamTestHelper::randomAliasInstance)))
+        );
     }
 
     private static ImmutableOpenMap.Builder<String, List<AliasMetadata>> createIndicesAliasesMap(int min, int max) {

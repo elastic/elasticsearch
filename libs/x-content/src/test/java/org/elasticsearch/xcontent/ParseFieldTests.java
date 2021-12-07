@@ -7,10 +7,7 @@
  */
 package org.elasticsearch.xcontent;
 
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.test.ESTestCase;
 
@@ -25,7 +22,7 @@ public class ParseFieldTests extends ESTestCase {
     public void testParse() {
         String name = "foo_bar";
         ParseField field = new ParseField(name);
-        String[] deprecated = new String[]{"barFoo", "bar_foo", "Foobar"};
+        String[] deprecated = new String[] { "barFoo", "bar_foo", "Foobar" };
         ParseField withDeprecations = field.withDeprecation(deprecated);
         assertThat(field, not(sameInstance(withDeprecations)));
         assertThat(field.match(name, LoggingDeprecationHandler.INSTANCE), is(true));
@@ -44,7 +41,7 @@ public class ParseFieldTests extends ESTestCase {
 
     public void testAllDeprecated() {
         String name = "like_text";
-        String[] deprecated = new String[]{"text", "same_as_text"};
+        String[] deprecated = new String[] { "text", "same_as_text" };
         ParseField field = new ParseField(name).withDeprecation(deprecated).withAllDeprecated("like");
         assertFalse(field.match("not a field name", LoggingDeprecationHandler.INSTANCE));
         assertTrue(field.match("text", LoggingDeprecationHandler.INSTANCE));
@@ -57,7 +54,7 @@ public class ParseFieldTests extends ESTestCase {
 
     public void testDeprecatedWithNoReplacement() {
         String name = "dep";
-        String[] alternatives = new String[]{"old_dep", "new_dep"};
+        String[] alternatives = new String[] { "old_dep", "new_dep" };
         ParseField field = new ParseField(name).withDeprecation(alternatives).withAllDeprecated();
         assertFalse(field.match("not a field name", LoggingDeprecationHandler.INSTANCE));
         assertTrue(field.match("dep", LoggingDeprecationHandler.INSTANCE));
@@ -81,33 +78,44 @@ public class ParseFieldTests extends ESTestCase {
         public boolean compatibleWarningsUsed = false;
 
         @Override
-        public void logRenamedField(String parserName, Supplier<XContentLocation> location, String oldName, String currentName) {
-        }
+        public void logRenamedField(String parserName, Supplier<XContentLocation> location, String oldName, String currentName) {}
 
         @Override
-        public void logReplacedField(String parserName, Supplier<XContentLocation> location, String oldName, String replacedName) {
-        }
+        public void logReplacedField(String parserName, Supplier<XContentLocation> location, String oldName, String replacedName) {}
 
         @Override
-        public void logRemovedField(String parserName, Supplier<XContentLocation> location, String removedName) {
-        }
+        public void logRemovedField(String parserName, Supplier<XContentLocation> location, String removedName) {}
 
         @Override
-        public void logRenamedField(String parserName, Supplier<XContentLocation> location, String oldName, String currentName,
-                                    boolean isCompatibleDeprecation) {
+        public void logRenamedField(
+            String parserName,
+            Supplier<XContentLocation> location,
+            String oldName,
+            String currentName,
+            boolean isCompatibleDeprecation
+        ) {
             this.compatibleWarningsUsed = isCompatibleDeprecation;
         }
 
         @Override
-        public void logReplacedField(String parserName, Supplier<XContentLocation> location, String oldName, String replacedName,
-                                     boolean isCompatibleDeprecation) {
+        public void logReplacedField(
+            String parserName,
+            Supplier<XContentLocation> location,
+            String oldName,
+            String replacedName,
+            boolean isCompatibleDeprecation
+        ) {
             this.compatibleWarningsUsed = isCompatibleDeprecation;
 
         }
 
         @Override
-        public void logRemovedField(String parserName, Supplier<XContentLocation> location, String removedName,
-                                    boolean isCompatibleDeprecation) {
+        public void logRemovedField(
+            String parserName,
+            Supplier<XContentLocation> location,
+            String removedName,
+            boolean isCompatibleDeprecation
+        ) {
             this.compatibleWarningsUsed = isCompatibleDeprecation;
         }
     }
@@ -116,44 +124,45 @@ public class ParseFieldTests extends ESTestCase {
         {
             // a field deprecated in previous version and now available under old name only in compatible api
             // emitting compatible logs
-            ParseField field = new ParseField("new_name", "old_name")
-                .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported()));
+            ParseField field = new ParseField("new_name", "old_name").forRestApiVersion(
+                RestApiVersion.equalTo(RestApiVersion.minimumSupported())
+            );
 
-            TestDeprecationHandler  testDeprecationHandler = new TestDeprecationHandler();
+            TestDeprecationHandler testDeprecationHandler = new TestDeprecationHandler();
 
             assertTrue(field.match("old_name", testDeprecationHandler));
-            assertThat(testDeprecationHandler.compatibleWarningsUsed , is(true));
+            assertThat(testDeprecationHandler.compatibleWarningsUsed, is(true));
         }
 
         {
-            //a regular newly deprecated field. Emitting deprecation logs instead of compatible logs
+            // a regular newly deprecated field. Emitting deprecation logs instead of compatible logs
             ParseField field = new ParseField("new_name", "old_name");
 
-            TestDeprecationHandler  testDeprecationHandler = new TestDeprecationHandler();
+            TestDeprecationHandler testDeprecationHandler = new TestDeprecationHandler();
 
             assertTrue(field.match("old_name", testDeprecationHandler));
-            assertThat(testDeprecationHandler.compatibleWarningsUsed , is(false));
+            assertThat(testDeprecationHandler.compatibleWarningsUsed, is(false));
         }
 
     }
 
     public void testCompatibleWarnings() {
-        ParseField field = new ParseField("new_name", "old_name")
-            .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported()));
+        ParseField field = new ParseField("new_name", "old_name").forRestApiVersion(
+            RestApiVersion.equalTo(RestApiVersion.minimumSupported())
+        );
 
         assertTrue(field.match("new_name", LoggingDeprecationHandler.INSTANCE));
         ensureNoWarnings();
         assertTrue(field.match("old_name", LoggingDeprecationHandler.INSTANCE));
-        assertWarnings("Deprecated field [old_name] used, expected [new_name] instead");
+        assertCriticalWarnings("Deprecated field [old_name] used, expected [new_name] instead");
 
-        ParseField allDepField = new ParseField("dep", "old_name")
-            .withAllDeprecated()
+        ParseField allDepField = new ParseField("dep", "old_name").withAllDeprecated()
             .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.minimumSupported()));
 
         assertTrue(allDepField.match("dep", LoggingDeprecationHandler.INSTANCE));
-        assertWarnings("Deprecated field [dep] used, this field is unused and will be removed entirely");
+        assertCriticalWarnings("Deprecated field [dep] used, this field is unused and will be removed entirely");
         assertTrue(allDepField.match("old_name", LoggingDeprecationHandler.INSTANCE));
-        assertWarnings("Deprecated field [old_name] used, this field is unused and will be removed entirely");
+        assertCriticalWarnings("Deprecated field [old_name] used, this field is unused and will be removed entirely");
 
         ParseField regularField = new ParseField("new_name");
         assertTrue(regularField.match("new_name", LoggingDeprecationHandler.INSTANCE));

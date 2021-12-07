@@ -30,8 +30,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -140,6 +140,11 @@ public class EnrichStatsCollectorTests extends BaseCollectorTestCase {
             assertThat(actual.getId(), nullValue());
             assertThat(actual.getExecutingPolicy(), equalTo(expected));
         }
+
+        assertWarnings(
+            "[xpack.monitoring.collection.enrich.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 
     private EnrichStatsCollector createCollector(ClusterService clusterService, XPackLicenseState licenseState, Client client) {

@@ -18,13 +18,15 @@ public class StopRollupJobRequestTests extends ESTestCase {
     }
 
     public void testEqualsAndHash() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(new StopRollupJobRequest(randomAlphaOfLength(5)),
-                orig -> new StopRollupJobRequest(orig.getJobId()),
-                orig -> new StopRollupJobRequest(orig.getJobId() + "_suffix"));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            new StopRollupJobRequest(randomAlphaOfLength(5)),
+            orig -> new StopRollupJobRequest(orig.getJobId()),
+            orig -> new StopRollupJobRequest(orig.getJobId() + "_suffix")
+        );
     }
 
     public void testRequireJobId() {
-        final NullPointerException e = expectThrows(NullPointerException.class, ()-> new StopRollupJobRequest(null));
+        final NullPointerException e = expectThrows(NullPointerException.class, () -> new StopRollupJobRequest(null));
         assertEquals("id parameter must not be null", e.getMessage());
     }
 

@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -23,8 +23,11 @@ public class CloseJobResponse implements ToXContentObject {
 
     private static final ParseField CLOSED = new ParseField("closed");
 
-    public static final ConstructingObjectParser<CloseJobResponse, Void> PARSER =
-        new ConstructingObjectParser<>("close_job_response", true, (a) -> new CloseJobResponse((Boolean)a[0]));
+    public static final ConstructingObjectParser<CloseJobResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "close_job_response",
+        true,
+        (a) -> new CloseJobResponse((Boolean) a[0])
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), CLOSED);

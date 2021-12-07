@@ -9,13 +9,13 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchRequest;
@@ -35,14 +35,14 @@ public class RestAckWatchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            Route.builder(POST, "/_watcher/watch/{id}/_ack")
-                .replaces(POST, "/_xpack/watcher/watch/{id}/_ack", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_watcher/watch/{id}/_ack")
-                .replaces(PUT, "/_xpack/watcher/watch/{id}/_ack", RestApiVersion.V_7).build(),
+            Route.builder(POST, "/_watcher/watch/{id}/_ack").replaces(POST, "/_xpack/watcher/watch/{id}/_ack", RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/_watcher/watch/{id}/_ack").replaces(PUT, "/_xpack/watcher/watch/{id}/_ack", RestApiVersion.V_7).build(),
             Route.builder(POST, "/_watcher/watch/{id}/_ack/{actions}")
-                .replaces(POST, "/_xpack/watcher/watch/{id}/_ack/{actions}", RestApiVersion.V_7).build(),
+                .replaces(POST, "/_xpack/watcher/watch/{id}/_ack/{actions}", RestApiVersion.V_7)
+                .build(),
             Route.builder(PUT, "/_watcher/watch/{id}/_ack/{actions}")
-                .replaces(PUT, "/_xpack/watcher/watch/{id}/_ack/{actions}", RestApiVersion.V_7).build()
+                .replaces(PUT, "/_xpack/watcher/watch/{id}/_ack/{actions}", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -61,9 +61,12 @@ public class RestAckWatchAction extends BaseRestHandler {
         return channel -> client.execute(AckWatchAction.INSTANCE, ackWatchRequest, new RestBuilderListener<AckWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(AckWatchResponse response, XContentBuilder builder) throws Exception {
-                return new BytesRestResponse(RestStatus.OK, builder.startObject()
+                return new BytesRestResponse(
+                    RestStatus.OK,
+                    builder.startObject()
                         .field(WatchField.STATUS.getPreferredName(), response.getStatus(), WatcherParams.HIDE_SECRETS)
-                        .endObject());
+                        .endObject()
+                );
 
             }
         });

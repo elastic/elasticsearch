@@ -9,9 +9,9 @@ package org.elasticsearch.client.ml.dataframe.stats.classification;
 
 import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.dataframe.stats.AnalysisStats;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -29,22 +29,19 @@ public class ClassificationStats implements AnalysisStats {
     public static final ParseField TIMING_STATS = new ParseField("timing_stats");
     public static final ParseField VALIDATION_LOSS = new ParseField("validation_loss");
 
-    public static final ConstructingObjectParser<ClassificationStats, Void> PARSER = new ConstructingObjectParser<>(NAME.getPreferredName(),
+    public static final ConstructingObjectParser<ClassificationStats, Void> PARSER = new ConstructingObjectParser<>(
+        NAME.getPreferredName(),
         true,
-        a -> new ClassificationStats(
-            (Instant) a[0],
-            (Integer) a[1],
-            (Hyperparameters) a[2],
-            (TimingStats) a[3],
-            (ValidationLoss) a[4]
-        )
+        a -> new ClassificationStats((Instant) a[0], (Integer) a[1], (Hyperparameters) a[2], (TimingStats) a[3], (ValidationLoss) a[4])
     );
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
             p -> TimeUtil.parseTimeFieldToInstant(p, TIMESTAMP.getPreferredName()),
             TIMESTAMP,
-            ObjectParser.ValueType.VALUE);
+            ObjectParser.ValueType.VALUE
+        );
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), ITERATION);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), Hyperparameters.PARSER, HYPERPARAMETERS);
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), TimingStats.PARSER, TIMING_STATS);
@@ -57,8 +54,13 @@ public class ClassificationStats implements AnalysisStats {
     private final TimingStats timingStats;
     private final ValidationLoss validationLoss;
 
-    public ClassificationStats(Instant timestamp, Integer iteration, Hyperparameters hyperparameters, TimingStats timingStats,
-                               ValidationLoss validationLoss) {
+    public ClassificationStats(
+        Instant timestamp,
+        Integer iteration,
+        Hyperparameters hyperparameters,
+        TimingStats timingStats,
+        ValidationLoss validationLoss
+    ) {
         this.timestamp = Instant.ofEpochMilli(Objects.requireNonNull(timestamp).toEpochMilli());
         this.iteration = iteration;
         this.hyperparameters = Objects.requireNonNull(hyperparameters);

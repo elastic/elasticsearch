@@ -8,8 +8,8 @@
 package org.elasticsearch.client.textstructure;
 
 import org.elasticsearch.client.textstructure.structurefinder.TextStructureTests;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.function.Predicate;

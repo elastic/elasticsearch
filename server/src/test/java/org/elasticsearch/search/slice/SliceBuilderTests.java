@@ -24,10 +24,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -40,6 +36,10 @@ import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -81,9 +81,11 @@ public class SliceBuilderTests extends ESTestCase {
                     newField = randomBoolean() ? original.getField() + "_xyz" : null;
                 }
                 return new SliceBuilder(newField, original.getId(), original.getMax());
-            case 1: return new SliceBuilder(original.getField(), original.getId() - 1, original.getMax());
+            case 1:
+                return new SliceBuilder(original.getField(), original.getId() - 1, original.getMax());
             case 2:
-            default: return new SliceBuilder(original.getField(), original.getId(), original.getMax() + 1);
+            default:
+                return new SliceBuilder(original.getField(), original.getId(), original.getMax() + 1);
         }
     }
 
@@ -100,21 +102,48 @@ public class SliceBuilderTests extends ESTestCase {
     private ShardSearchRequest createPointInTimeRequest(int shardIndex, int numShards) {
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true)
             .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("1m")));
-        return new ShardSearchRequest(OriginalIndices.NONE, searchRequest,
-            new ShardId("index", "index", 0), shardIndex, numShards, null, 0f, System.currentTimeMillis(), null);
+        return new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            new ShardId("index", "index", 0),
+            shardIndex,
+            numShards,
+            null,
+            0f,
+            System.currentTimeMillis(),
+            null
+        );
     }
 
     private ShardSearchRequest createScrollRequest(int shardIndex, int numShards) {
-        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true)
-            .scroll("1m");
-        return new ShardSearchRequest(OriginalIndices.NONE, searchRequest,
-            new ShardId("index", "index", 0), shardIndex, numShards, null, 0f, System.currentTimeMillis(), null);
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).scroll("1m");
+        return new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            new ShardId("index", "index", 0),
+            shardIndex,
+            numShards,
+            null,
+            0f,
+            System.currentTimeMillis(),
+            null
+        );
     }
 
-    private SearchExecutionContext createShardContext(Version indexVersionCreated, IndexReader reader,
-                                                      String fieldName, DocValuesType dvType) {
-        MappedFieldType fieldType = new MappedFieldType(fieldName, true, false, dvType != null,
-            TextSearchInfo.NONE, Collections.emptyMap()) {
+    private SearchExecutionContext createShardContext(
+        Version indexVersionCreated,
+        IndexReader reader,
+        String fieldName,
+        DocValuesType dvType
+    ) {
+        MappedFieldType fieldType = new MappedFieldType(
+            fieldName,
+            true,
+            false,
+            dvType != null,
+            TextSearchInfo.NONE,
+            Collections.emptyMap()
+        ) {
 
             @Override
             public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
@@ -221,8 +250,7 @@ public class SliceBuilderTests extends ESTestCase {
             writer.commit();
         }
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            SearchExecutionContext context =
-                createShardContext(Version.CURRENT, reader, "_id", null);
+            SearchExecutionContext context = createShardContext(Version.CURRENT, reader, "_id", null);
             SliceBuilder builder = new SliceBuilder(5, 10);
             Query query = builder.toFilter(createScrollRequest(0, 1), context);
             assertThat(query, instanceOf(TermsSliceQuery.class));
@@ -241,8 +269,7 @@ public class SliceBuilderTests extends ESTestCase {
             writer.commit();
         }
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            SearchExecutionContext context =
-                createShardContext(Version.CURRENT, reader, "field", DocValuesType.SORTED_NUMERIC);
+            SearchExecutionContext context = createShardContext(Version.CURRENT, reader, "field", DocValuesType.SORTED_NUMERIC);
             SliceBuilder builder = new SliceBuilder("field", 5, 10);
             Query query = builder.toFilter(createScrollRequest(0, 1), context);
             assertThat(query, instanceOf(DocValuesSliceQuery.class));
@@ -327,8 +354,10 @@ public class SliceBuilderTests extends ESTestCase {
         try (IndexReader reader = DirectoryReader.open(dir)) {
             SearchExecutionContext context = createShardContext(Version.CURRENT, reader, "field", null);
             SliceBuilder builder = new SliceBuilder("field", 5, 10);
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-                () -> builder.toFilter(createScrollRequest(0, 1), context));
+            IllegalArgumentException exc = expectThrows(
+                IllegalArgumentException.class,
+                () -> builder.toFilter(createScrollRequest(0, 1), context)
+            );
             assertThat(exc.getMessage(), containsString("cannot load numeric doc values"));
         }
     }

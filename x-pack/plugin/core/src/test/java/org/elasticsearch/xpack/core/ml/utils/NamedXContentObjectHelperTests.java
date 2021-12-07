@@ -8,16 +8,16 @@ package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.client.ml.inference.NamedXContentObject;
 import org.elasticsearch.client.ml.inference.NamedXContentObjectHelper;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,8 +32,7 @@ public class NamedXContentObjectHelperTests extends ESTestCase {
     static class NamedTestObject implements NamedXContentObject {
 
         private String fieldValue;
-        public static final ObjectParser<NamedTestObject, Void> PARSER =
-            new ObjectParser<>("my_named_object", true, NamedTestObject::new);
+        public static final ObjectParser<NamedTestObject, Void> PARSER = new ObjectParser<>("my_named_object", true, NamedTestObject::new);
         static {
             PARSER.declareString(NamedTestObject::setFieldValue, new ParseField("my_field"));
         }
@@ -92,9 +91,15 @@ public class NamedXContentObjectHelperTests extends ESTestCase {
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
-        namedXContent.addAll(Collections.singletonList(new NamedXContentRegistry.Entry(NamedXContentObject.class,
-            new ParseField("my_named_object"),
-            (p, c) -> NamedTestObject.PARSER.apply(p, null))));
+        namedXContent.addAll(
+            Collections.singletonList(
+                new NamedXContentRegistry.Entry(
+                    NamedXContentObject.class,
+                    new ParseField("my_named_object"),
+                    (p, c) -> NamedTestObject.PARSER.apply(p, null)
+                )
+            )
+        );
         namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }

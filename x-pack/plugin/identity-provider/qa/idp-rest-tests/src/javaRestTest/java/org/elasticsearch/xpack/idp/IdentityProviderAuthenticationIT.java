@@ -12,11 +12,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.action.saml.SamlPrepareAuthenticationResponse;
@@ -46,26 +46,27 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
     @Before
     public void setupSecurityData() throws IOException {
         setUserPassword("kibana_system", new SecureString("kibana_system".toCharArray()));
-        createApplicationPrivileges("elastic-cloud", Map.ofEntries(
-            Map.entry("deployment_admin", Set.of("sso:admin")),
-            Map.entry("deployment_viewer", Set.of("sso:viewer"))
-        ));
+        createApplicationPrivileges(
+            "elastic-cloud",
+            Map.ofEntries(Map.entry("deployment_admin", Set.of("sso:admin")), Map.entry("deployment_viewer", Set.of("sso:viewer")))
+        );
     }
 
     public void testRegistrationAndIdpInitiatedSso() throws Exception {
         final Map<String, Object> request = Map.ofEntries(
             Map.entry("name", "Test SP"),
             Map.entry("acs", SP_ACS),
-            Map.entry("privileges", Map.ofEntries(
-                Map.entry("resource", SP_ENTITY_ID),
-                Map.entry("roles", List.of("sso:(\\w+)"))
-            )),
-            Map.entry("attributes", Map.ofEntries(
-                Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),
-                Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
-                Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
-                Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
-            )));
+            Map.entry("privileges", Map.ofEntries(Map.entry("resource", SP_ENTITY_ID), Map.entry("roles", List.of("sso:(\\w+)")))),
+            Map.entry(
+                "attributes",
+                Map.ofEntries(
+                    Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),
+                    Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
+                    Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
+                    Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
+                )
+            )
+        );
         final SamlServiceProviderIndex.DocumentVersion docVersion = createServiceProvider(SP_ENTITY_ID, request);
         checkIndexDoc(docVersion);
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
@@ -77,16 +78,17 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
         final Map<String, Object> request = Map.ofEntries(
             Map.entry("name", "Test SP"),
             Map.entry("acs", SP_ACS),
-            Map.entry("privileges", Map.ofEntries(
-                Map.entry("resource", SP_ENTITY_ID),
-                Map.entry("roles", List.of("sso:(\\w+)"))
-            )),
-            Map.entry("attributes", Map.ofEntries(
-                Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),
-                Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
-                Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
-                Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
-            )));
+            Map.entry("privileges", Map.ofEntries(Map.entry("resource", SP_ENTITY_ID), Map.entry("roles", List.of("sso:(\\w+)")))),
+            Map.entry(
+                "attributes",
+                Map.ofEntries(
+                    Map.entry("principal", "https://idp.test.es.elasticsearch.org/attribute/principal"),
+                    Map.entry("name", "https://idp.test.es.elasticsearch.org/attribute/name"),
+                    Map.entry("email", "https://idp.test.es.elasticsearch.org/attribute/email"),
+                    Map.entry("roles", "https://idp.test.es.elasticsearch.org/attribute/roles")
+                )
+            )
+        );
         final SamlServiceProviderIndex.DocumentVersion docVersion = createServiceProvider(SP_ENTITY_ID, request);
         checkIndexDoc(docVersion);
         ensureGreen(SamlServiceProviderIndex.INDEX_NAME);
@@ -126,15 +128,24 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
     private String generateSamlResponse(String entityId, String acs, @Nullable Map<String, Object> authnState) throws Exception {
         final Request request = new Request("POST", "/_idp/saml/init");
         if (authnState != null && authnState.isEmpty() == false) {
-            request.setJsonEntity("{\"entity_id\":\"" + entityId + "\", \"acs\":\"" + acs + "\"," +
-                "\"authn_state\":" + Strings.toString(JsonXContent.contentBuilder().map(authnState)) + "}");
+            request.setJsonEntity(
+                "{\"entity_id\":\""
+                    + entityId
+                    + "\", \"acs\":\""
+                    + acs
+                    + "\","
+                    + "\"authn_state\":"
+                    + Strings.toString(JsonXContent.contentBuilder().map(authnState))
+                    + "}"
+            );
         } else {
             request.setJsonEntity("{\"entity_id\":\"" + entityId + "\", \"acs\":\"" + acs + "\"}");
         }
-        request.setOptions(RequestOptions.DEFAULT.toBuilder()
-            .addHeader("es-secondary-authorization", basicAuthHeaderValue("idp_user",
-                new SecureString("idp-password".toCharArray())))
-            .build());
+        request.setOptions(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader("es-secondary-authorization", basicAuthHeaderValue("idp_user", new SecureString("idp-password".toCharArray())))
+                .build()
+        );
         final Response response = client().performRequest(request);
         final Map<String, Object> map = entityAsMap(response);
         assertThat(ObjectPath.eval("service_provider.entity_id", map), equalTo(entityId));
@@ -170,8 +181,10 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
             assertThat(ObjectPath.eval("username", authMap), instanceOf(String.class));
             assertThat(ObjectPath.eval("username", authMap), equalTo("idp_user"));
             assertThat(ObjectPath.eval("metadata.saml_nameid_format", authMap), instanceOf(String.class));
-            assertThat(ObjectPath.eval("metadata.saml_nameid_format", authMap),
-                equalTo("urn:oasis:names:tc:SAML:2.0:nameid-format:transient"));
+            assertThat(
+                ObjectPath.eval("metadata.saml_nameid_format", authMap),
+                equalTo("urn:oasis:names:tc:SAML:2.0:nameid-format:transient")
+            );
             assertThat(ObjectPath.eval("metadata.saml_roles", authMap), instanceOf(List.class));
             assertThat(ObjectPath.eval("metadata.saml_roles", authMap), hasSize(1));
             assertThat(ObjectPath.eval("metadata.saml_roles", authMap), contains("viewer"));
@@ -181,14 +194,19 @@ public class IdentityProviderAuthenticationIT extends IdpRestTestCase {
     private RestClient restClientWithToken(String accessToken) throws IOException {
         return buildClient(
             Settings.builder().put(ThreadContext.PREFIX + ".Authorization", "Bearer " + accessToken).build(),
-            getClusterHosts().toArray(new HttpHost[getClusterHosts().size()]));
+            getClusterHosts().toArray(new HttpHost[getClusterHosts().size()])
+        );
     }
 
     private RestClient restClientAsKibanaSystem() throws IOException {
         return buildClient(
-            Settings.builder().put(ThreadContext.PREFIX + ".Authorization", basicAuthHeaderValue("kibana_system",
-                new SecureString("kibana_system".toCharArray()))).build(),
-            getClusterHosts().toArray(new HttpHost[getClusterHosts().size()]));
+            Settings.builder()
+                .put(
+                    ThreadContext.PREFIX + ".Authorization",
+                    basicAuthHeaderValue("kibana_system", new SecureString("kibana_system".toCharArray()))
+                )
+                .build(),
+            getClusterHosts().toArray(new HttpHost[getClusterHosts().size()])
+        );
     }
 }
-

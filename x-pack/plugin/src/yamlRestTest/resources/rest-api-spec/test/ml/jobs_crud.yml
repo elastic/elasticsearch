@@ -26,15 +26,6 @@
   - match: { count: 0 }
   - match: { jobs: [] }
 
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      ml.get_jobs:
-        job_id: "missing-*"
-        allow_no_jobs: true
-  - match: { count: 0 }
-  - match: { jobs: [] }
-
 ---
 "Test get jobs with expression that does not match and not allow_no_match":
   - skip:
@@ -46,14 +37,6 @@
       ml.get_jobs:
         job_id: "missing-*"
         allow_no_match: false
-
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      catch: missing
-      ml.get_jobs:
-        job_id: "missing-*"
-        allow_no_jobs: false
 
 ---
 "Test job crud apis":
@@ -872,14 +855,6 @@
         allow_no_match: true
   - match: { closed: true }
 
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      ml.close_job:
-        job_id: "missing-*"
-        allow_no_jobs: true
-  - match: { closed: true }
-
 ---
 "Test close jobs with expression that does not match and not allow_no_match":
   - skip:
@@ -890,14 +865,6 @@
       ml.close_job:
         job_id: "missing-*"
         allow_no_match: false
-
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      catch: missing
-      ml.close_job:
-        job_id: "missing-*"
-        allow_no_jobs: false
 
 ---
 "Test force close job":
@@ -1529,25 +1496,4 @@
         body:  >
           {
             "allow_no_match" : true
-          }
-
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      catch: missing
-      ml.close_job:
-        job_id: job-that-doesnot-exist*
-        body:  >
-          {
-            "allow_no_jobs" : false
-          }
-
-  - do:
-      warnings:
-        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
-      ml.close_job:
-        job_id: job-that-doesnot-exist*
-        body:  >
-          {
-            "allow_no_jobs" : true
           }

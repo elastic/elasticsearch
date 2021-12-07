@@ -5,18 +5,29 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 public abstract class DenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
+
+    public interface DenseVectorSupplier<T> extends Supplier<BytesRef> {
+
+        @Override
+        default BytesRef getInternal(int index) {
+            throw new UnsupportedOperationException();
+        }
+
+        T getInternal();
+    }
+
     public static final String MISSING_VECTOR_FIELD_MESSAGE = "A document doesn't have a value for a vector field!";
 
     private final int dims;
 
-    public DenseVectorScriptDocValues(int dims) {
+    public DenseVectorScriptDocValues(DenseVectorSupplier<?> supplier, int dims) {
+        super(supplier);
         this.dims = dims;
     }
 
@@ -35,17 +46,20 @@ public abstract class DenseVectorScriptDocValues extends ScriptDocValues<BytesRe
     public abstract float getMagnitude();
 
     public abstract double dotProduct(float[] queryVector);
+
     public abstract double l1Norm(float[] queryVector);
+
     public abstract double l2Norm(float[] queryVector);
 
     @Override
     public BytesRef get(int index) {
-        throw new UnsupportedOperationException("accessing a vector field's value through 'get' or 'value' is not supported!" +
-            "Use 'vectorValue' or 'magnitude' instead!'");
+        throw new UnsupportedOperationException(
+            "accessing a vector field's value through 'get' or 'value' is not supported!" + "Use 'vectorValue' or 'magnitude' instead!'"
+        );
     }
 
-    public static DenseVectorScriptDocValues empty(int dims) {
-        return new DenseVectorScriptDocValues(dims) {
+    public static DenseVectorScriptDocValues empty(DenseVectorSupplier<?> supplier, int dims) {
+        return new DenseVectorScriptDocValues(supplier, dims) {
             @Override
             public float[] getVectorValue() {
                 throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
@@ -72,13 +86,8 @@ public abstract class DenseVectorScriptDocValues extends ScriptDocValues<BytesRe
             }
 
             @Override
-            public void setNextDocId(int docId) {
-                // do nothing
-            }
-
-            @Override
             public int size() {
-                return 0;
+                return supplier.size();
             }
         };
     }

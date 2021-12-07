@@ -13,14 +13,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.xcontent.ToXContentFragment;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizationBytesRefHash.WILD_CARD_REF;
-
 
 public class InternalCategorizationAggregation extends InternalMultiBucketAggregation<
     InternalCategorizationAggregation,
@@ -212,7 +211,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             return builder;
         }
 
-        BucketKey getRawKey()  {
+        BucketKey getRawKey() {
             return key;
         }
 
@@ -359,7 +358,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 similarityThreshold
             );
             // TODO: Could we do a merge sort similar to terms?
-            //  It would require us returning partial reductions sorted by key, not by doc_count
+            // It would require us returning partial reductions sorted by key, not by doc_count
             // First, make sure we have all the counts for equal categorizations
             Map<BucketKey, DelayedCategorizationBucket> reduced = new HashMap<>();
             for (InternalAggregation aggregation : aggregations) {
@@ -369,13 +368,9 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 }
             }
 
-            reduced.values()
-                .stream()
-                .sorted(Comparator.comparing(DelayedCategorizationBucket::getDocCount).reversed())
-                .forEach(bucket ->
-                    // Parse tokens takes document count into account and merging on smallest groups
-                    categorizationTokenTree.parseTokens(hash.getIds(bucket.key.keyAsTokens()), bucket.docCount)
-                );
+            reduced.values().stream().sorted(Comparator.comparing(DelayedCategorizationBucket::getDocCount).reversed()).forEach(bucket ->
+            // Parse tokens takes document count into account and merging on smallest groups
+            categorizationTokenTree.parseTokens(hash.getIds(bucket.key.keyAsTokens()), bucket.docCount));
             categorizationTokenTree.mergeSmallestChildren();
             Map<BucketKey, DelayedCategorizationBucket> mergedBuckets = new HashMap<>();
             for (DelayedCategorizationBucket delayedBucket : reduced.values()) {
@@ -387,13 +382,13 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                     );
                 BytesRef[] categoryTokens = hash.getDeeps(group.getCategorization());
 
-                BucketKey key = reduceContext.isFinalReduce() ?
-                    BucketKey.withCollapsedWildcards(categoryTokens) :
-                    new BucketKey(categoryTokens);
+                BucketKey key = reduceContext.isFinalReduce()
+                    ? BucketKey.withCollapsedWildcards(categoryTokens)
+                    : new BucketKey(categoryTokens);
                 mergedBuckets.computeIfAbsent(
-                        key,
-                        k -> new DelayedCategorizationBucket(k, new ArrayList<>(delayedBucket.toReduce.size()), 0L)
-                    ).add(delayedBucket);
+                    key,
+                    k -> new DelayedCategorizationBucket(k, new ArrayList<>(delayedBucket.toReduce.size()), 0L)
+                ).add(delayedBucket);
             }
 
             final int size = reduceContext.isFinalReduce() == false ? mergedBuckets.size() : Math.min(requiredSize, mergedBuckets.size());

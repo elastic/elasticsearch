@@ -8,10 +8,10 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ public final class CreateApiKeyResponse {
         // As we do not yet support the nanosecond precision when we serialize to JSON,
         // here creating the 'Instant' of milliseconds precision.
         // This Instant can then be used for date comparison.
-        this.expiration = (expiration != null) ? Instant.ofEpochMilli(expiration.toEpochMilli()): null;
+        this.expiration = (expiration != null) ? Instant.ofEpochMilli(expiration.toEpochMilli()) : null;
     }
 
     public String getName() {
@@ -79,25 +79,31 @@ public final class CreateApiKeyResponse {
         }
         final CreateApiKeyResponse other = (CreateApiKeyResponse) obj;
         return Objects.equals(id, other.id)
-                && Objects.equals(key, other.key)
-                && Objects.equals(name, other.name)
-                && Objects.equals(expiration, other.expiration);
+            && Objects.equals(key, other.key)
+            && Objects.equals(name, other.name)
+            && Objects.equals(expiration, other.expiration);
     }
 
     private static String encode(CharSequence id, CharSequence key) {
         return Base64.getEncoder().encodeToString((id + ":" + key).getBytes(StandardCharsets.UTF_8));
     }
 
-    static final ConstructingObjectParser<CreateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>("create_api_key_response",
+    static final ConstructingObjectParser<CreateApiKeyResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "create_api_key_response",
         args -> {
             final String id = (String) args[1];
             final String key = (String) args[2];
             if (args[4] != null && false == args[4].equals(encode(id, key))) {
                 throw new IllegalArgumentException("the encoded value does not match id and api_key");
             }
-            return new CreateApiKeyResponse((String) args[0], id, new SecureString(key.toCharArray()),
-                    (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3]));
-    });
+            return new CreateApiKeyResponse(
+                (String) args[0],
+                id,
+                new SecureString(key.toCharArray()),
+                (args[3] == null) ? null : Instant.ofEpochMilli((Long) args[3])
+            );
+        }
+    );
     static {
         PARSER.declareString(constructorArg(), new ParseField("name"));
         PARSER.declareString(constructorArg(), new ParseField("id"));

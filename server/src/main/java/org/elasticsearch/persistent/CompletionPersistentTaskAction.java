@@ -101,10 +101,10 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Objects.equals(taskId, request.taskId) &&
-                    allocationId == request.allocationId &&
-                    Objects.equals(exception, request.exception) &&
-                    Objects.equals(localAbortReason, request.localAbortReason);
+            return Objects.equals(taskId, request.taskId)
+                && allocationId == request.allocationId
+                && Objects.equals(exception, request.exception)
+                && Objects.equals(localAbortReason, request.localAbortReason);
         }
 
         @Override
@@ -113,8 +113,10 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<CompletionPersistentTaskAction.Request,
-            PersistentTaskResponse, CompletionPersistentTaskAction.RequestBuilder> {
+    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
+        CompletionPersistentTaskAction.Request,
+        PersistentTaskResponse,
+        CompletionPersistentTaskAction.RequestBuilder> {
 
         protected RequestBuilder(ElasticsearchClient client, CompletionPersistentTaskAction action) {
             super(client, action, new Request());
@@ -126,12 +128,25 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         private final PersistentTasksClusterService persistentTasksClusterService;
 
         @Inject
-        public TransportAction(TransportService transportService, ClusterService clusterService,
-                               ThreadPool threadPool, ActionFilters actionFilters,
-                               PersistentTasksClusterService persistentTasksClusterService,
-                               IndexNameExpressionResolver indexNameExpressionResolver) {
-            super(CompletionPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                Request::new, indexNameExpressionResolver, PersistentTaskResponse::new, ThreadPool.Names.GENERIC);
+        public TransportAction(
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ActionFilters actionFilters,
+            PersistentTasksClusterService persistentTasksClusterService,
+            IndexNameExpressionResolver indexNameExpressionResolver
+        ) {
+            super(
+                CompletionPersistentTaskAction.NAME,
+                transportService,
+                clusterService,
+                threadPool,
+                actionFilters,
+                Request::new,
+                indexNameExpressionResolver,
+                PersistentTaskResponse::new,
+                ThreadPool.Names.GENERIC
+            );
             this.persistentTasksClusterService = persistentTasksClusterService;
         }
 
@@ -142,19 +157,29 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         }
 
         @Override
-        protected final void masterOperation(Task ignoredTask, final Request request, ClusterState state,
-                                             final ActionListener<PersistentTaskResponse> listener) {
+        protected final void masterOperation(
+            Task ignoredTask,
+            final Request request,
+            ClusterState state,
+            final ActionListener<PersistentTaskResponse> listener
+        ) {
             if (request.localAbortReason != null) {
                 assert request.exception == null
                     : "request has both exception " + request.exception + " and local abort reason " + request.localAbortReason;
-                persistentTasksClusterService.unassignPersistentTask(request.taskId, request.allocationId, request.localAbortReason,
-                    listener.map(PersistentTaskResponse::new));
+                persistentTasksClusterService.unassignPersistentTask(
+                    request.taskId,
+                    request.allocationId,
+                    request.localAbortReason,
+                    listener.map(PersistentTaskResponse::new)
+                );
             } else {
-                persistentTasksClusterService.completePersistentTask(request.taskId, request.allocationId, request.exception,
-                    listener.map(PersistentTaskResponse::new));
+                persistentTasksClusterService.completePersistentTask(
+                    request.taskId,
+                    request.allocationId,
+                    request.exception,
+                    listener.map(PersistentTaskResponse::new)
+                );
             }
         }
     }
 }
-
-

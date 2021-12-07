@@ -35,7 +35,7 @@ public final class MonitoringTemplateUtils {
      */
     public static final String OLD_TEMPLATE_VERSION = "6";
 
-    private MonitoringTemplateUtils() { }
+    private MonitoringTemplateUtils() {}
 
     /**
      * Get the index name given a specific date format, a monitored system and a timestamp.

@@ -79,30 +79,55 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         int numberOfShards = randomIntBetween(1, 10);
         ShrinkAction action = new ShrinkAction(numberOfShards, null);
         String phase = randomAlphaOfLengthBetween(1, 10);
-        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10));
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         BranchingStep step = ((BranchingStep) steps.get(0));
 
-        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, Collections.singletonMap("warm",
-                new Phase("warm", TimeValue.ZERO, Collections.singletonMap(action.getWriteableName(), action))));
-        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong());
+        LifecyclePolicy policy = new LifecyclePolicy(
+            lifecycleName,
+            Collections.singletonMap("warm", new Phase("warm", TimeValue.ZERO, Collections.singletonMap(action.getWriteableName(), action)))
+        );
+        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(
+            policy,
+            Collections.emptyMap(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
         String indexName = randomAlphaOfLength(5);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.RUNNING))
-            .put(IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
-                .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
-                    LifecycleExecutionState.builder()
-                        .setPhase(step.getKey().getPhase())
-                        .setPhaseTime(0L)
-                        .setAction(step.getKey().getAction())
-                        .setActionTime(0L)
-                        .setStep(step.getKey().getName())
-                        .setStepTime(0L)
-                        .build().asMap())
-                .numberOfShards(numberOfShards).numberOfReplicas(0))).build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        IndexLifecycleMetadata.TYPE,
+                        new IndexLifecycleMetadata(
+                            Collections.singletonMap(policyMetadata.getName(), policyMetadata),
+                            OperationMode.RUNNING
+                        )
+                    )
+                    .put(
+                        IndexMetadata.builder(indexName)
+                            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+                            .putCustom(
+                                LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
+                                LifecycleExecutionState.builder()
+                                    .setPhase(step.getKey().getPhase())
+                                    .setPhaseTime(0L)
+                                    .setAction(step.getKey().getAction())
+                                    .setActionTime(0L)
+                                    .setStep(step.getKey().getName())
+                                    .setStepTime(0L)
+                                    .build()
+                                    .asMap()
+                            )
+                            .numberOfShards(numberOfShards)
+                            .numberOfReplicas(0)
+                    )
+            )
+            .build();
         step.performAction(state.metadata().index(indexName).getIndex(), state);
         assertThat(step.getNextStepKey(), equalTo(nextStepKey));
     }
@@ -114,30 +139,55 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         String lifecycleName = randomAlphaOfLengthBetween(4, 10);
         ShrinkAction action = new ShrinkAction(expectedFinalShards, null);
         String phase = randomAlphaOfLengthBetween(1, 10);
-        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10));
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         BranchingStep step = ((BranchingStep) steps.get(0));
 
-        LifecyclePolicy policy = new LifecyclePolicy(lifecycleName, Collections.singletonMap("warm",
-            new Phase("warm", TimeValue.ZERO, Collections.singletonMap(action.getWriteableName(), action))));
-        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
-            randomNonNegativeLong(), randomNonNegativeLong());
+        LifecyclePolicy policy = new LifecyclePolicy(
+            lifecycleName,
+            Collections.singletonMap("warm", new Phase("warm", TimeValue.ZERO, Collections.singletonMap(action.getWriteableName(), action)))
+        );
+        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(
+            policy,
+            Collections.emptyMap(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
         String indexName = randomAlphaOfLength(5);
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.RUNNING))
-            .put(IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
-                .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
-                    LifecycleExecutionState.builder()
-                        .setPhase(step.getKey().getPhase())
-                        .setPhaseTime(0L)
-                        .setAction(step.getKey().getAction())
-                        .setActionTime(0L)
-                        .setStep(step.getKey().getName())
-                        .setStepTime(0L)
-                        .build().asMap())
-                .numberOfShards(numShards).numberOfReplicas(0))).build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .putCustom(
+                        IndexLifecycleMetadata.TYPE,
+                        new IndexLifecycleMetadata(
+                            Collections.singletonMap(policyMetadata.getName(), policyMetadata),
+                            OperationMode.RUNNING
+                        )
+                    )
+                    .put(
+                        IndexMetadata.builder(indexName)
+                            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName))
+                            .putCustom(
+                                LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY,
+                                LifecycleExecutionState.builder()
+                                    .setPhase(step.getKey().getPhase())
+                                    .setPhaseTime(0L)
+                                    .setAction(step.getKey().getAction())
+                                    .setActionTime(0L)
+                                    .setStep(step.getKey().getName())
+                                    .setStepTime(0L)
+                                    .build()
+                                    .asMap()
+                            )
+                            .numberOfShards(numShards)
+                            .numberOfReplicas(0)
+                    )
+            )
+            .build();
         step.performAction(state.metadata().index(indexName).getIndex(), state);
         assertThat(step.getNextStepKey(), equalTo(steps.get(1).getKey()));
     }
@@ -145,8 +195,11 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
     public void testToSteps() {
         ShrinkAction action = createTestInstance();
         String phase = randomAlphaOfLengthBetween(1, 10);
-        StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
-            randomAlphaOfLengthBetween(1, 10));
+        StepKey nextStepKey = new StepKey(
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10),
+            randomAlphaOfLengthBetween(1, 10)
+        );
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertThat(steps.size(), equalTo(17));
         StepKey expectedFirstKey = new StepKey(phase, ShrinkAction.NAME, ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP);
@@ -215,8 +268,10 @@ public class ShrinkActionTests extends AbstractActionTestCase<ShrinkAction> {
         assertTrue(steps.get(10) instanceof ClusterStateWaitUntilThresholdStep);
         assertThat(steps.get(10).getKey(), equalTo(expectedEleventhKey));
         assertThat(steps.get(10).getNextStepKey(), equalTo(expectedTwelveKey));
-        assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(10)).getStepToExecute(),
-            is(instanceOf(ShrunkShardsAllocatedStep.class)));
+        assertThat(
+            ((ClusterStateWaitUntilThresholdStep) steps.get(10)).getStepToExecute(),
+            is(instanceOf(ShrunkShardsAllocatedStep.class))
+        );
         // assert in case the threshold is breached we go back to the "cleanup shrunk index" step
         assertThat(((ClusterStateWaitUntilThresholdStep) steps.get(10)).getNextKeyOnThreshold(), is(expectedSixthKey));
 

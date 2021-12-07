@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.search;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -19,6 +17,8 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -67,21 +67,25 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
         return builder;
     }
 
-    static final ConstructingObjectParser<CancellingAggregationBuilder, String> PARSER =
-        new ConstructingObjectParser<>(NAME, false, (args, name) -> new CancellingAggregationBuilder(name, 0L));
-
+    static final ConstructingObjectParser<CancellingAggregationBuilder, String> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        false,
+        (args, name) -> new CancellingAggregationBuilder(name, 0L)
+    );
 
     @Override
-    protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent,
-                                        AggregatorFactories.Builder subfactoriesBuilder) throws IOException {
+    protected AggregatorFactory doBuild(
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subfactoriesBuilder
+    ) throws IOException {
         final FilterAggregationBuilder filterAgg = new FilterAggregationBuilder(name, QueryBuilders.matchAllQuery());
         filterAgg.subAggregations(subfactoriesBuilder);
         final AggregatorFactory factory = filterAgg.build(context, parent);
         return new AggregatorFactory(name, context, parent, subfactoriesBuilder, metadata) {
             @Override
-            protected Aggregator createInternal(Aggregator parent,
-                                                CardinalityUpperBound cardinality,
-                                                Map<String, Object> metadata) throws IOException {
+            protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+                throws IOException {
                 while (context.isCancelled() == false) {
                     try {
                         Thread.sleep(SLEEP_TIME);

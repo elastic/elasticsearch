@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.dataframe;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
@@ -25,7 +25,10 @@ public class StoredProgress implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<StoredProgress, Void> PARSER = new ConstructingObjectParser<>(
-        PROGRESS.getPreferredName(), true, a -> new StoredProgress((List<PhaseProgress>) a[0]));
+        PROGRESS.getPreferredName(),
+        true,
+        a -> new StoredProgress((List<PhaseProgress>) a[0])
+    );
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), PhaseProgress.PARSER, PROGRESS);

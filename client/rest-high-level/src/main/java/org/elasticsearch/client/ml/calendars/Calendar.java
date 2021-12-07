@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml.calendars;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -32,9 +32,11 @@ public class Calendar implements ToXContentObject {
     public static final ParseField DESCRIPTION = new ParseField("description");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Calendar, Void> PARSER =
-            new ConstructingObjectParser<>(CALENDAR_TYPE, true, a ->
-                    new Calendar((String) a[0], (List<String>) a[1], (String) a[2]));
+    public static final ConstructingObjectParser<Calendar, Void> PARSER = new ConstructingObjectParser<>(
+        CALENDAR_TYPE,
+        true,
+        a -> new Calendar((String) a[0], (List<String>) a[1], (String) a[2])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID);

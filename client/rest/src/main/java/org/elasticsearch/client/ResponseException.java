@@ -40,7 +40,8 @@ public final class ResponseException extends IOException {
     }
 
     static String buildMessage(Response response) throws IOException {
-        String message = String.format(Locale.ROOT,
+        String message = String.format(
+            Locale.ROOT,
             "method [%s], host [%s], URI [%s], status line [%s]",
             response.getRequestLine().getMethod(),
             response.getHost(),

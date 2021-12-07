@@ -8,11 +8,11 @@
 package org.elasticsearch.client.ilm;
 
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -47,7 +47,11 @@ public class ExplainLifecycleResponseTests extends AbstractXContentTestCase<Expl
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(CollectionUtils.appendToCopy(ClusterModule.getNamedXWriteables(),
-                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)));
+        return new NamedXContentRegistry(
+            CollectionUtils.appendToCopy(
+                ClusterModule.getNamedXWriteables(),
+                new NamedXContentRegistry.Entry(LifecycleAction.class, new ParseField(DeleteAction.NAME), DeleteAction::parse)
+            )
+        );
     }
 }

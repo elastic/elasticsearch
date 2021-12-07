@@ -11,9 +11,9 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
 
 import java.io.IOException;

@@ -38,10 +38,9 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.RestoreInfo;
@@ -49,6 +48,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -80,6 +80,7 @@ import static org.hamcrest.Matchers.equalTo;
  * than 84, the line will be cut and a horizontal scroll bar will be displayed.
  * (the code indentation of the tag is not included in the width)
  */
+@SuppressWarnings("removal")
 public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
     private static final String repositoryName = "test_repository";
@@ -294,7 +295,6 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         // tag::restore-snapshot-request-include-aliases
         request.includeAliases(false); // <1>
         // end::restore-snapshot-request-include-aliases
-
 
         // tag::restore-snapshot-request-indices
         request.indices("test_index"); // <1>
@@ -802,7 +802,7 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
 
         String sourceSnapshotName = snapshotName;
         String targetSnapshotName = snapshotName + "_clone";
-        String[] indices = new String[]{indexName};
+        String[] indices = new String[] { indexName };
 
         // tag::clone-snapshot-request
         CloneSnapshotRequest request = new CloneSnapshotRequest(repositoryName, sourceSnapshotName, targetSnapshotName, indices);
@@ -841,7 +841,12 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         RestHighLevelClient client = highLevelClient();
         {
             String targetSnapshot = snapshotName + "_clone";
-            CloneSnapshotRequest request = new CloneSnapshotRequest(repositoryName, snapshotName, targetSnapshot, new String[]{indexName});
+            CloneSnapshotRequest request = new CloneSnapshotRequest(
+                repositoryName,
+                snapshotName,
+                targetSnapshot,
+                new String[] { indexName }
+            );
 
             // tag::clone-snapshot-execute-listener
             ActionListener<AcknowledgedResponse> listener =

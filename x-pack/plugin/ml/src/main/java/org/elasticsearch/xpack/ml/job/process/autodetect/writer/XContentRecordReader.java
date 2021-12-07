@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import com.fasterxml.jackson.core.JsonParseException;
+
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -134,7 +135,7 @@ class XContentRecordReader {
     private String parseSingleFieldValue(XContentParser.Token token) throws IOException {
         if (token == XContentParser.Token.START_ARRAY) {
             // Convert any scalar values in the array to a comma delimited
-            // string.  (Arrays of more complex objects are ignored.)
+            // string. (Arrays of more complex objects are ignored.)
             StringBuilder strBuilder = new StringBuilder();
             boolean needComma = false;
             while (token != XContentParser.Token.END_ARRAY) {
@@ -167,8 +168,7 @@ class XContentRecordReader {
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     ++arrayDepth;
                 }
-            }
-            while (token != null && arrayDepth > 0);
+            } while (token != null && arrayDepth > 0);
         }
     }
 

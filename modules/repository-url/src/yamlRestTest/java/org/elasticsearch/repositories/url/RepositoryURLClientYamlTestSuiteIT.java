@@ -10,21 +10,22 @@ package org.elasticsearch.repositories.url;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.nio.entity.NStringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -75,15 +76,17 @@ public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
 
         // Create a FS repository using the path.repo location
         Request createFsRepositoryRequest = new Request("PUT", "/_snapshot/repository-fs");
-        createFsRepositoryRequest.setEntity(buildRepositorySettings(FsRepository.TYPE,
-                Settings.builder().put("location", pathRepo).build()));
+        createFsRepositoryRequest.setEntity(
+            buildRepositorySettings(FsRepository.TYPE, Settings.builder().put("location", pathRepo).build())
+        );
         Response createFsRepositoryResponse = client().performRequest(createFsRepositoryRequest);
         assertThat(createFsRepositoryResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
         // Create a URL repository using the file://{path.repo} URL
         Request createFileRepositoryRequest = new Request("PUT", "/_snapshot/repository-file");
-        createFileRepositoryRequest.setEntity(buildRepositorySettings("url",
-                Settings.builder().put("url", pathRepoUri.toString()).build()));
+        createFileRepositoryRequest.setEntity(
+            buildRepositorySettings("url", Settings.builder().put("url", pathRepoUri.toString()).build())
+        );
         Response createFileRepositoryResponse = client().performRequest(createFileRepositoryRequest);
         assertThat(createFileRepositoryResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
 
@@ -95,8 +98,7 @@ public class RepositoryURLClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
                 InetAddress inetAddress = InetAddress.getByName(new URL(allowedUrl).getHost());
                 if (inetAddress.isAnyLocalAddress() || inetAddress.isLoopbackAddress()) {
                     Request createUrlRepositoryRequest = new Request("PUT", "/_snapshot/repository-url");
-                    createUrlRepositoryRequest.setEntity(buildRepositorySettings("url",
-                            Settings.builder().put("url", allowedUrl).build()));
+                    createUrlRepositoryRequest.setEntity(buildRepositorySettings("url", Settings.builder().put("url", allowedUrl).build()));
                     Response createUrlRepositoryResponse = client().performRequest(createUrlRepositoryRequest);
                     assertThat(createUrlRepositoryResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
                     break;

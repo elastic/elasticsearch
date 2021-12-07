@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.ml.dataframe;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
@@ -17,24 +18,23 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
-import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.ClassificationTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
@@ -60,7 +60,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -69,10 +68,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
 
     @Override
     protected DataFrameAnalyticsConfig doParseInstance(XContentParser parser) throws IOException {
-        ObjectParser<DataFrameAnalyticsConfig.Builder, Void> dataFrameAnalyticsConfigParser =
-            lenient
-                ? DataFrameAnalyticsConfig.LENIENT_PARSER
-                : DataFrameAnalyticsConfig.STRICT_PARSER;
+        ObjectParser<DataFrameAnalyticsConfig.Builder, Void> dataFrameAnalyticsConfigParser = lenient
+            ? DataFrameAnalyticsConfig.LENIENT_PARSER
+            : DataFrameAnalyticsConfig.STRICT_PARSER;
         return dataFrameAnalyticsConfigParser.apply(parser, null).build();
     }
 
@@ -100,100 +98,21 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     }
 
     @Override
-    protected List<Version> bwcVersions() {
-        return AbstractBWCWireSerializationTestCase.getAllBWCVersions(Version.V_7_7_0);
-    }
-
-    @Override
     protected DataFrameAnalyticsConfig mutateInstanceForVersion(DataFrameAnalyticsConfig instance, Version version) {
-        DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder(instance)
-            .setSource(DataFrameAnalyticsSourceTests.mutateForVersion(instance.getSource(), version))
-            .setDest(DataFrameAnalyticsDestTests.mutateForVersion(instance.getDest(), version));
+        DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder(instance).setSource(
+            DataFrameAnalyticsSourceTests.mutateForVersion(instance.getSource(), version)
+        ).setDest(DataFrameAnalyticsDestTests.mutateForVersion(instance.getDest(), version));
         if (instance.getAnalysis() instanceof OutlierDetection) {
-            builder.setAnalysis(OutlierDetectionTests.mutateForVersion((OutlierDetection)instance.getAnalysis(), version));
+            builder.setAnalysis(OutlierDetectionTests.mutateForVersion((OutlierDetection) instance.getAnalysis(), version));
         }
         if (instance.getAnalysis() instanceof Regression) {
-            builder.setAnalysis(RegressionTests.mutateForVersion((Regression)instance.getAnalysis(), version));
+            builder.setAnalysis(RegressionTests.mutateForVersion((Regression) instance.getAnalysis(), version));
         }
         if (instance.getAnalysis() instanceof Classification) {
-            builder.setAnalysis(ClassificationTests.mutateForVersion((Classification)instance.getAnalysis(), version));
-        }
-        if (version.before(Version.V_7_5_0)) {
-            builder.setAllowLazyStart(false);
-        }
-        if (version.before(Version.V_7_4_0)) {
-            builder.setDescription(null);
-        }
-        if (version.before(Version.V_7_3_0)) {
-            builder.setCreateTime(null);
-            builder.setVersion(null);
+            builder.setAnalysis(ClassificationTests.mutateForVersion((Classification) instance.getAnalysis(), version));
         }
         return builder.build();
     }
-
-    @Override
-    protected void assertOnBWCObject(DataFrameAnalyticsConfig bwcSerializedObject, DataFrameAnalyticsConfig testInstance, Version version) {
-
-        // Don't have to worry about Regression/Classifications Seeds
-        if (version.onOrAfter(Version.V_7_6_0) || testInstance.getAnalysis() instanceof OutlierDetection) {
-            super.assertOnBWCObject(bwcSerializedObject, testInstance, version);
-            return;
-        }
-        DataFrameAnalysis bwcAnalysis;
-        DataFrameAnalysis testAnalysis;
-        if (testInstance.getAnalysis() instanceof Regression) {
-            Regression testRegression = (Regression)testInstance.getAnalysis();
-            Regression bwcRegression = (Regression)bwcSerializedObject.getAnalysis();
-
-            bwcAnalysis = new Regression(bwcRegression.getDependentVariable(),
-                bwcRegression.getBoostedTreeParams(),
-                bwcRegression.getPredictionFieldName(),
-                bwcRegression.getTrainingPercent(),
-                42L,
-                bwcRegression.getLossFunction(),
-                bwcRegression.getLossFunctionParameter(),
-                bwcRegression.getFeatureProcessors(),
-                bwcRegression.getEarlyStoppingEnabled());
-            testAnalysis = new Regression(testRegression.getDependentVariable(),
-                testRegression.getBoostedTreeParams(),
-                testRegression.getPredictionFieldName(),
-                testRegression.getTrainingPercent(),
-                42L,
-                testRegression.getLossFunction(),
-                testRegression.getLossFunctionParameter(),
-                testRegression.getFeatureProcessors(),
-                testRegression.getEarlyStoppingEnabled());
-        } else {
-            Classification testClassification = (Classification)testInstance.getAnalysis();
-            Classification bwcClassification = (Classification)bwcSerializedObject.getAnalysis();
-            bwcAnalysis = new Classification(bwcClassification.getDependentVariable(),
-                bwcClassification.getBoostedTreeParams(),
-                bwcClassification.getPredictionFieldName(),
-                bwcClassification.getClassAssignmentObjective(),
-                bwcClassification.getNumTopClasses(),
-                bwcClassification.getTrainingPercent(),
-                42L,
-                bwcClassification.getFeatureProcessors(),
-                bwcClassification.getEarlyStoppingEnabled());
-            testAnalysis = new Classification(testClassification.getDependentVariable(),
-                testClassification.getBoostedTreeParams(),
-                testClassification.getPredictionFieldName(),
-                testClassification.getClassAssignmentObjective(),
-                testClassification.getNumTopClasses(),
-                testClassification.getTrainingPercent(),
-                42L,
-                testClassification.getFeatureProcessors(),
-                testClassification.getEarlyStoppingEnabled());
-        }
-        super.assertOnBWCObject(new DataFrameAnalyticsConfig.Builder(bwcSerializedObject)
-            .setAnalysis(bwcAnalysis)
-            .build(),
-            new DataFrameAnalyticsConfig.Builder(testInstance)
-            .setAnalysis(testAnalysis)
-            .build(),
-            version);
-    }
-
 
     @Override
     protected Writeable.Reader<DataFrameAnalyticsConfig> instanceReader() {
@@ -205,29 +124,36 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     }
 
     public static DataFrameAnalyticsConfig createRandom(String id, boolean withGeneratedFields) {
-        return createRandomBuilder(id, withGeneratedFields, randomFrom(OutlierDetectionTests.createRandom(),
-            RegressionTests.createRandom(),
-            ClassificationTests.createRandom())).build();
+        return createRandomBuilder(
+            id,
+            withGeneratedFields,
+            randomFrom(OutlierDetectionTests.createRandom(), RegressionTests.createRandom(), ClassificationTests.createRandom())
+        ).build();
     }
 
     public static DataFrameAnalyticsConfig.Builder createRandomBuilder(String id) {
-        return createRandomBuilder(id, false, randomFrom(OutlierDetectionTests.createRandom(),
-            RegressionTests.createRandom(),
-            ClassificationTests.createRandom()));
+        return createRandomBuilder(
+            id,
+            false,
+            randomFrom(OutlierDetectionTests.createRandom(), RegressionTests.createRandom(), ClassificationTests.createRandom())
+        );
     }
 
     public static DataFrameAnalyticsConfig.Builder createRandomBuilder(String id, boolean withGeneratedFields, DataFrameAnalysis analysis) {
         DataFrameAnalyticsSource source = DataFrameAnalyticsSourceTests.createRandom();
         DataFrameAnalyticsDest dest = DataFrameAnalyticsDestTests.createRandom();
-        DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder()
-            .setId(id)
+        DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder().setId(id)
             .setAnalysis(analysis)
             .setSource(source)
             .setDest(dest);
         if (randomBoolean()) {
-            builder.setAnalyzedFields(new FetchSourceContext(true,
-                generateRandomStringArray(10, 10, false, false),
-                generateRandomStringArray(10, 10, false, false)));
+            builder.setAnalyzedFields(
+                new FetchSourceContext(
+                    true,
+                    generateRandomStringArray(10, 10, false, false),
+                    generateRandomStringArray(10, 10, false, false)
+                )
+            );
         }
         if (randomBoolean()) {
             builder.setModelMemoryLimit(new ByteSizeValue(randomIntBetween(1, 16), randomFrom(ByteSizeUnit.MB, ByteSizeUnit.GB)));
@@ -257,21 +183,19 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         return generator.ofCodePointsLength(random(), 10, 10);
     }
 
-    private static final String ANACHRONISTIC_QUERY_DATA_FRAME_ANALYTICS = "{\n" +
-        "    \"id\": \"old-data-frame\",\n" +
-        //query:match:type stopped being supported in 6.x
-        "    \"source\": {\"index\":\"my-index\", \"query\": {\"match\" : {\"query\":\"fieldName\", \"type\": \"phrase\"}}},\n" +
-        "    \"dest\": {\"index\":\"dest-index\"},\n" +
-        "    \"analysis\": {\"outlier_detection\": {\"n_neighbors\": 10}}\n" +
-        "}";
+    private static final String ANACHRONISTIC_QUERY_DATA_FRAME_ANALYTICS = "{\n" + "    \"id\": \"old-data-frame\",\n" +
+    // query:match:type stopped being supported in 6.x
+        "    \"source\": {\"index\":\"my-index\", \"query\": {\"match\" : {\"query\":\"fieldName\", \"type\": \"phrase\"}}},\n"
+        + "    \"dest\": {\"index\":\"dest-index\"},\n"
+        + "    \"analysis\": {\"outlier_detection\": {\"n_neighbors\": 10}}\n"
+        + "}";
 
-    private static final String MODERN_QUERY_DATA_FRAME_ANALYTICS = "{\n" +
-        "    \"id\": \"data-frame\",\n" +
-        // match_all if parsed, adds default values in the options
-        "    \"source\": {\"index\":\"my-index\", \"query\": {\"match_all\" : {}}},\n" +
-        "    \"dest\": {\"index\":\"dest-index\"},\n" +
-        "    \"analysis\": {\"outlier_detection\": {\"n_neighbors\": 10}}\n" +
-        "}";
+    private static final String MODERN_QUERY_DATA_FRAME_ANALYTICS = "{\n" + "    \"id\": \"data-frame\",\n" +
+    // match_all if parsed, adds default values in the options
+        "    \"source\": {\"index\":\"my-index\", \"query\": {\"match_all\" : {}}},\n"
+        + "    \"dest\": {\"index\":\"dest-index\"},\n"
+        + "    \"analysis\": {\"outlier_detection\": {\"n_neighbors\": 10}}\n"
+        + "}";
 
     private boolean lenient;
 
@@ -281,19 +205,19 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     }
 
     public void testQueryConfigStoresUserInputOnly() throws IOException {
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                MODERN_QUERY_DATA_FRAME_ANALYTICS)) {
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, MODERN_QUERY_DATA_FRAME_ANALYTICS)
+        ) {
 
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
             assertThat(config.getSource().getQuery(), equalTo(Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap())));
         }
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                MODERN_QUERY_DATA_FRAME_ANALYTICS)) {
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, MODERN_QUERY_DATA_FRAME_ANALYTICS)
+        ) {
 
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null).build();
             assertThat(config.getSource().getQuery(), equalTo(Collections.singletonMap(MatchAllQueryBuilder.NAME, Collections.emptyMap())));
@@ -301,23 +225,25 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     }
 
     public void testPastQueryConfigParse() throws IOException {
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                ANACHRONISTIC_QUERY_DATA_FRAME_ANALYTICS)) {
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_QUERY_DATA_FRAME_ANALYTICS)
+        ) {
 
             DataFrameAnalyticsConfig config = DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build();
             ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> config.getSource().getParsedQuery());
             assertEquals("[match] query doesn't support multiple fields, found [query] and [type]", e.getMessage());
         }
 
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-            .createParser(xContentRegistry(),
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                ANACHRONISTIC_QUERY_DATA_FRAME_ANALYTICS)) {
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, ANACHRONISTIC_QUERY_DATA_FRAME_ANALYTICS)
+        ) {
 
-            XContentParseException e = expectThrows(XContentParseException.class,
-                () -> DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null).build());
+            XContentParseException e = expectThrows(
+                XContentParseException.class,
+                () -> DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null).build()
+            );
             assertThat(e.getMessage(), containsString("[data_frame_analytics_config] failed to parse field [source]"));
         }
     }
@@ -354,16 +280,36 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder();
 
         // All these are different ways of specifying a limit that is lower than the minimum
-        assertTooSmall(expectThrows(ElasticsearchStatusException.class,
-            () -> builder.setModelMemoryLimit(new ByteSizeValue(-1, ByteSizeUnit.BYTES)).build()));
-        assertTooSmall(expectThrows(ElasticsearchStatusException.class,
-            () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.BYTES)).build()));
-        assertTooSmall(expectThrows(ElasticsearchStatusException.class,
-            () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.KB)).build()));
-        assertTooSmall(expectThrows(ElasticsearchStatusException.class,
-            () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.MB)).build()));
-        assertTooSmall(expectThrows(ElasticsearchStatusException.class,
-            () -> builder.setModelMemoryLimit(new ByteSizeValue(1023, ByteSizeUnit.BYTES)).build()));
+        assertTooSmall(
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> builder.setModelMemoryLimit(new ByteSizeValue(-1, ByteSizeUnit.BYTES)).build()
+            )
+        );
+        assertTooSmall(
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.BYTES)).build()
+            )
+        );
+        assertTooSmall(
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.KB)).build()
+            )
+        );
+        assertTooSmall(
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> builder.setModelMemoryLimit(new ByteSizeValue(0, ByteSizeUnit.MB)).build()
+            )
+        );
+        assertTooSmall(
+            expectThrows(
+                ElasticsearchStatusException.class,
+                () -> builder.setModelMemoryLimit(new ByteSizeValue(1023, ByteSizeUnit.BYTES)).build()
+            )
+        );
     }
 
     public void testNoMemoryCapping() {
@@ -371,8 +317,10 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         DataFrameAnalyticsConfig uncapped = createRandom("foo");
 
         ByteSizeValue unlimited = randomBoolean() ? null : ByteSizeValue.ZERO;
-        assertThat(uncapped.getModelMemoryLimit(),
-            equalTo(new DataFrameAnalyticsConfig.Builder(uncapped, unlimited).build().getModelMemoryLimit()));
+        assertThat(
+            uncapped.getModelMemoryLimit(),
+            equalTo(new DataFrameAnalyticsConfig.Builder(uncapped, unlimited).build().getModelMemoryLimit())
+        );
     }
 
     public void testMemoryCapping() {
@@ -381,11 +329,12 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
 
         ByteSizeValue maxLimit = new ByteSizeValue(randomIntBetween(500, 1000), ByteSizeUnit.MB);
         if (maxLimit.compareTo(defaultLimitConfig.getModelMemoryLimit()) < 0) {
-            assertThat(maxLimit,
-                equalTo(new DataFrameAnalyticsConfig.Builder(defaultLimitConfig, maxLimit).build().getModelMemoryLimit()));
+            assertThat(maxLimit, equalTo(new DataFrameAnalyticsConfig.Builder(defaultLimitConfig, maxLimit).build().getModelMemoryLimit()));
         } else {
-            assertThat(defaultLimitConfig.getModelMemoryLimit(),
-                equalTo(new DataFrameAnalyticsConfig.Builder(defaultLimitConfig, maxLimit).build().getModelMemoryLimit()));
+            assertThat(
+                defaultLimitConfig.getModelMemoryLimit(),
+                equalTo(new DataFrameAnalyticsConfig.Builder(defaultLimitConfig, maxLimit).build().getModelMemoryLimit())
+            );
         }
     }
 
@@ -395,8 +344,10 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         DataFrameAnalyticsConfig explicitLimitConfig = createRandomBuilder("foo").setModelMemoryLimit(configuredLimit).build();
 
         ByteSizeValue maxLimit = new ByteSizeValue(randomIntBetween(500, 1000), ByteSizeUnit.MB);
-        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class,
-            () -> new DataFrameAnalyticsConfig.Builder(explicitLimitConfig, maxLimit).build());
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> new DataFrameAnalyticsConfig.Builder(explicitLimitConfig, maxLimit).build()
+        );
         assertThat(e.getMessage(), startsWith("model_memory_limit"));
         assertThat(e.getMessage(), containsString("must be less than the value of the xpack.ml.max_model_memory_limit setting"));
     }
@@ -410,8 +361,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     }
 
     public void testBuildForExplain_MissingId() {
-        DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder()
-            .setAnalysis(OutlierDetectionTests.createRandom())
+        DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder().setAnalysis(OutlierDetectionTests.createRandom())
             .setSource(DataFrameAnalyticsSourceTests.createRandom())
             .setDest(DataFrameAnalyticsDestTests.createRandom());
 
@@ -421,8 +371,7 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
     }
 
     public void testBuildForExplain_MissingDest() {
-        DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder()
-            .setId("foo")
+        DataFrameAnalyticsConfig.Builder builder = new DataFrameAnalyticsConfig.Builder().setId("foo")
             .setAnalysis(OutlierDetectionTests.createRandom())
             .setSource(DataFrameAnalyticsSourceTests.createRandom());
 
@@ -438,24 +387,22 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
             + " \"dest\" : {\"index\": \"dest\"},"
             + "}";
 
-        try (XContentParser parser =
-                 XContentFactory.xContent(XContentType.JSON).createParser(
-                     xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)) {
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)
+        ) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null));
             assertThat(e.getMessage(), containsString("unknown field [create_time]"));
         }
     }
 
     public void testPreventVersionInjection() throws IOException {
-        String json = "{"
-            + " \"version\" : \"7.3.0\","
-            + " \"source\" : {\"index\":\"src\"},"
-            + " \"dest\" : {\"index\": \"dest\"},"
-            + "}";
+        String json = "{" + " \"version\" : \"7.3.0\"," + " \"source\" : {\"index\":\"src\"}," + " \"dest\" : {\"index\": \"dest\"}," + "}";
 
-        try (XContentParser parser =
-                 XContentFactory.xContent(XContentType.JSON).createParser(
-                     xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)) {
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json)
+        ) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> DataFrameAnalyticsConfig.STRICT_PARSER.apply(parser, null));
             assertThat(e.getMessage(), containsString("unknown field [version]"));
         }
@@ -465,10 +412,9 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         Regression regression = new Regression("foo");
         assertThat(regression.getRandomizeSeed(), is(notNullValue()));
 
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
-            .setVersion(Version.CURRENT)
+        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setVersion(Version.CURRENT)
             .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
+            .setSource(new DataFrameAnalyticsSource(new String[] { "source_index" }, null, null, null))
             .setDest(new DataFrameAnalyticsDest("dest_index", null))
             .setAnalysis(regression)
             .build();
@@ -480,53 +426,40 @@ public class DataFrameAnalyticsConfigTests extends AbstractBWCSerializationTestC
         }
     }
 
-    public void testToXContent_GivenAnalysisWithRandomizeSeedAndVersionIsBeforeItWasIntroduced() throws IOException {
-        Regression regression = new Regression("foo");
-        assertThat(regression.getRandomizeSeed(), is(notNullValue()));
-
-        DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder()
-            .setVersion(Version.V_7_5_0)
-            .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
-            .setDest(new DataFrameAnalyticsDest("dest_index", null))
-            .setAnalysis(regression)
-            .build();
-
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            config.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            String json = Strings.toString(builder);
-            assertThat(json, not(containsString("randomize_seed")));
-        }
-    }
-
     public void testExtractJobIdFromDocId() {
         assertThat(DataFrameAnalyticsConfig.extractJobIdFromDocId("data_frame_analytics_config-foo"), equalTo("foo"));
-        assertThat(DataFrameAnalyticsConfig.extractJobIdFromDocId("data_frame_analytics_config-data_frame_analytics_config-foo"),
-            equalTo("data_frame_analytics_config-foo"));
+        assertThat(
+            DataFrameAnalyticsConfig.extractJobIdFromDocId("data_frame_analytics_config-data_frame_analytics_config-foo"),
+            equalTo("data_frame_analytics_config-foo")
+        );
         assertThat(DataFrameAnalyticsConfig.extractJobIdFromDocId("foo"), is(nullValue()));
     }
 
     public void testCtor_GivenMaxNumThreadsIsZero() {
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new DataFrameAnalyticsConfig.Builder()
-            .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
-            .setDest(new DataFrameAnalyticsDest("dest_index", null))
-            .setAnalysis(new Regression("foo"))
-            .setMaxNumThreads(0)
-            .build());
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> new DataFrameAnalyticsConfig.Builder().setId("test_config")
+                .setSource(new DataFrameAnalyticsSource(new String[] { "source_index" }, null, null, null))
+                .setDest(new DataFrameAnalyticsDest("dest_index", null))
+                .setAnalysis(new Regression("foo"))
+                .setMaxNumThreads(0)
+                .build()
+        );
 
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("[max_num_threads] must be a positive integer"));
     }
 
     public void testCtor_GivenMaxNumThreadsIsNegative() {
-        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> new DataFrameAnalyticsConfig.Builder()
-            .setId("test_config")
-            .setSource(new DataFrameAnalyticsSource(new String[] {"source_index"}, null, null, null))
-            .setDest(new DataFrameAnalyticsDest("dest_index", null))
-            .setAnalysis(new Regression("foo"))
-            .setMaxNumThreads(randomIntBetween(Integer.MIN_VALUE, 0))
-            .build());
+        ElasticsearchException e = expectThrows(
+            ElasticsearchException.class,
+            () -> new DataFrameAnalyticsConfig.Builder().setId("test_config")
+                .setSource(new DataFrameAnalyticsSource(new String[] { "source_index" }, null, null, null))
+                .setDest(new DataFrameAnalyticsDest("dest_index", null))
+                .setAnalysis(new Regression("foo"))
+                .setMaxNumThreads(randomIntBetween(Integer.MIN_VALUE, 0))
+                .build()
+        );
 
         assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(e.getMessage(), equalTo("[max_num_threads] must be a positive integer"));

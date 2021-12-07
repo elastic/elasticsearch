@@ -30,46 +30,45 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
-
 public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBoundingBoxQueryBuilder> {
     /** Randomly generate either NaN or one of the two infinity values. */
-    private static Double[] brokenDoubles = {Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY};
+    private static Double[] brokenDoubles = { Double.NaN, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY };
 
     @Override
     protected GeoBoundingBoxQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME, GEO_SHAPE_FIELD_NAME);
         GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(fieldName);
-        // make sure that minX != maxX and minY != maxY  after geohash encoding
-        Rectangle box = randomValueOtherThanMany((r) ->
-            Math.abs(r.getMaxX() - r.getMinX()) < 0.1 ||  Math.abs(r.getMaxY() - r.getMinY()) < 0.1, GeometryTestUtils::randomRectangle);
+        // make sure that minX != maxX and minY != maxY after geohash encoding
+        Rectangle box = randomValueOtherThanMany(
+            (r) -> Math.abs(r.getMaxX() - r.getMinX()) < 0.1 || Math.abs(r.getMaxY() - r.getMinY()) < 0.1,
+            GeometryTestUtils::randomRectangle
+        );
 
         if (randomBoolean()) {
             // check the top-left/bottom-right combination of setters
             int path = randomIntBetween(0, 2);
             switch (path) {
-            case 0:
-                builder.setCorners(
-                        new GeoPoint(box.getMaxY(), box.getMinX()),
-                        new GeoPoint(box.getMinY(), box.getMaxX()));
-                break;
-            case 1:
-                builder.setCorners(
+                case 0:
+                    builder.setCorners(new GeoPoint(box.getMaxY(), box.getMinX()), new GeoPoint(box.getMinY(), box.getMaxX()));
+                    break;
+                case 1:
+                    builder.setCorners(
                         Geohash.stringEncode(box.getMinX(), box.getMaxY()),
-                        Geohash.stringEncode(box.getMaxX(), box.getMinY()));
-                break;
-            default:
-                builder.setCorners(box.getMaxY(), box.getMinX(), box.getMinY(), box.getMaxX());
+                        Geohash.stringEncode(box.getMaxX(), box.getMinY())
+                    );
+                    break;
+                default:
+                    builder.setCorners(box.getMaxY(), box.getMinX(), box.getMinY(), box.getMaxX());
             }
         } else {
             // check the bottom-left/ top-right combination of setters
             if (randomBoolean()) {
-                builder.setCornersOGC(
-                        new GeoPoint(box.getMinY(), box.getMinX()),
-                        new GeoPoint(box.getMaxY(), box.getMaxX()));
+                builder.setCornersOGC(new GeoPoint(box.getMinY(), box.getMinX()), new GeoPoint(box.getMaxY(), box.getMaxX()));
             } else {
                 builder.setCornersOGC(
-                        Geohash.stringEncode(box.getMinX(), box.getMinY()),
-                        Geohash.stringEncode(box.getMaxX(), box.getMaxY()));
+                    Geohash.stringEncode(box.getMinX(), box.getMinY()),
+                    Geohash.stringEncode(box.getMaxX(), box.getMaxY())
+                );
             }
         }
 
@@ -127,19 +126,24 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             GeoBoundingBoxQueryBuilder builder = createTestQueryBuilder();
             tester.invalidateCoordinate(builder.setValidationMethod(GeoValidationMethod.COERCE), false);
             except = builder.checkLatLon();
-            assertNull("validation w/ coerce should ignore invalid "
+            assertNull(
+                "validation w/ coerce should ignore invalid "
                     + tester.getClass().getName()
                     + " coordinate: "
-                    + tester.invalidCoordinate + " ",
-                    except);
+                    + tester.invalidCoordinate
+                    + " ",
+                except
+            );
 
             tester.invalidateCoordinate(builder.setValidationMethod(GeoValidationMethod.STRICT), false);
             except = builder.checkLatLon();
-            assertNotNull("validation w/o coerce should detect invalid coordinate: "
+            assertNotNull(
+                "validation w/o coerce should detect invalid coordinate: "
                     + tester.getClass().getName()
                     + " coordinate: "
                     + tester.invalidCoordinate,
-                    except);
+                except
+            );
         }
     }
 
@@ -180,8 +184,10 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testStrictnessDefault() {
-        assertFalse("Someone changed the default for coordinate validation - were the docs changed as well?",
-                GeoValidationMethod.DEFAULT_LENIENT_PARSING);
+        assertFalse(
+            "Someone changed the default for coordinate validation - were the docs changed as well?",
+            GeoValidationMethod.DEFAULT_LENIENT_PARSING
+        );
     }
 
     @Override
@@ -194,17 +200,27 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             assertEquals(IndexOrDocValuesQuery.class, query.getClass());
             Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
-            assertEquals(LatLonPoint.newBoxQuery(expectedFieldName,
+            assertEquals(
+                LatLonPoint.newBoxQuery(
+                    expectedFieldName,
                     queryBuilder.bottomRight().lat(),
                     queryBuilder.topLeft().lat(),
                     queryBuilder.topLeft().lon(),
-                    queryBuilder.bottomRight().lon()), indexQuery);
+                    queryBuilder.bottomRight().lon()
+                ),
+                indexQuery
+            );
             Query dvQuery = ((IndexOrDocValuesQuery) query).getRandomAccessQuery();
-            assertEquals(LatLonDocValuesField.newSlowBoxQuery(expectedFieldName,
+            assertEquals(
+                LatLonDocValuesField.newSlowBoxQuery(
+                    expectedFieldName,
                     queryBuilder.bottomRight().lat(),
                     queryBuilder.topLeft().lat(),
                     queryBuilder.topLeft().lon(),
-                    queryBuilder.bottomRight().lon()), dvQuery);
+                    queryBuilder.bottomRight().lon()
+                ),
+                dvQuery
+            );
         } else {
             assertEquals(GeoShapeFieldMapper.GeoShapeFieldType.class, fieldType.getClass());
         }
@@ -217,6 +233,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         public PointTester(double invalidCoodinate) {
             this.invalidCoordinate = invalidCoodinate;
         }
+
         public void invalidateCoordinate(GeoBoundingBoxQueryBuilder qb, boolean useBrokenDouble) {
             if (useBrokenDouble) {
                 fillIn(brokenCoordinate, qb);
@@ -224,6 +241,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 fillIn(invalidCoordinate, qb);
             }
         }
+
         protected abstract void fillIn(double fillIn, GeoBoundingBoxQueryBuilder qb);
     }
 
@@ -272,82 +290,94 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testParsingAndToQuery1() throws IOException {
-        String query = "{\n" +
-                "    \"geo_bounding_box\":{\n" +
-                "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
-                "            \"top_left\":[-70, 40],\n" +
-                "            \"bottom_right\":[-80, 30]\n" +
-                "        }\n" +
-                "    }\n" +
-                "}\n";
+        String query = "{\n"
+            + "    \"geo_bounding_box\":{\n"
+            + "        \""
+            + GEO_POINT_FIELD_NAME
+            + "\":{\n"
+            + "            \"top_left\":[-70, 40],\n"
+            + "            \"bottom_right\":[-80, 30]\n"
+            + "        }\n"
+            + "    }\n"
+            + "}\n";
         assertGeoBoundingBoxQuery(query);
     }
 
     public void testParsingAndToQuery2() throws IOException {
-        String query = "{\n" +
-                "    \"geo_bounding_box\":{\n" +
-                "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
-                "            \"top_left\":{\n" +
-                "                \"lat\":40,\n" +
-                "                \"lon\":-70\n" +
-                "            },\n" +
-                "            \"bottom_right\":{\n" +
-                "                \"lat\":30,\n" +
-                "                \"lon\":-80\n" +
-                "            }\n" +
-                "        }\n" +
-                "    }\n" +
-                "}\n";
+        String query = "{\n"
+            + "    \"geo_bounding_box\":{\n"
+            + "        \""
+            + GEO_POINT_FIELD_NAME
+            + "\":{\n"
+            + "            \"top_left\":{\n"
+            + "                \"lat\":40,\n"
+            + "                \"lon\":-70\n"
+            + "            },\n"
+            + "            \"bottom_right\":{\n"
+            + "                \"lat\":30,\n"
+            + "                \"lon\":-80\n"
+            + "            }\n"
+            + "        }\n"
+            + "    }\n"
+            + "}\n";
         assertGeoBoundingBoxQuery(query);
     }
 
     public void testParsingAndToQuery3() throws IOException {
-        String query = "{\n" +
-                "    \"geo_bounding_box\":{\n" +
-                "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
-                "            \"top_left\":\"40, -70\",\n" +
-                "            \"bottom_right\":\"30, -80\"\n" +
-                "        }\n" +
-                "    }\n" +
-                "}\n";
+        String query = "{\n"
+            + "    \"geo_bounding_box\":{\n"
+            + "        \""
+            + GEO_POINT_FIELD_NAME
+            + "\":{\n"
+            + "            \"top_left\":\"40, -70\",\n"
+            + "            \"bottom_right\":\"30, -80\"\n"
+            + "        }\n"
+            + "    }\n"
+            + "}\n";
         assertGeoBoundingBoxQuery(query);
     }
 
     public void testParsingAndToQuery4() throws IOException {
-        String query = "{\n" +
-                "    \"geo_bounding_box\":{\n" +
-                "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
-                "            \"top_left\":\"drn5x1g8cu2y\",\n" +
-                "            \"bottom_right\":\"30, -80\"\n" +
-                "        }\n" +
-                "    }\n" +
-                "}\n";
+        String query = "{\n"
+            + "    \"geo_bounding_box\":{\n"
+            + "        \""
+            + GEO_POINT_FIELD_NAME
+            + "\":{\n"
+            + "            \"top_left\":\"drn5x1g8cu2y\",\n"
+            + "            \"bottom_right\":\"30, -80\"\n"
+            + "        }\n"
+            + "    }\n"
+            + "}\n";
         assertGeoBoundingBoxQuery(query);
     }
 
     public void testParsingAndToQuery5() throws IOException {
-        String query = "{\n" +
-                "    \"geo_bounding_box\":{\n" +
-                "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
-                "            \"top_right\":\"40, -80\",\n" +
-                "            \"bottom_left\":\"30, -70\"\n" +
-                "        }\n" +
-                "    }\n" +
-                "}\n";
+        String query = "{\n"
+            + "    \"geo_bounding_box\":{\n"
+            + "        \""
+            + GEO_POINT_FIELD_NAME
+            + "\":{\n"
+            + "            \"top_right\":\"40, -80\",\n"
+            + "            \"bottom_left\":\"30, -70\"\n"
+            + "        }\n"
+            + "    }\n"
+            + "}\n";
         assertGeoBoundingBoxQuery(query);
     }
 
     public void testParsingAndToQuery6() throws IOException {
-        String query = "{\n" +
-                "    \"geo_bounding_box\":{\n" +
-                "        \"" + GEO_POINT_FIELD_NAME+ "\":{\n" +
-                "            \"right\": -80,\n" +
-                "            \"top\": 40,\n" +
-                "            \"left\": -70,\n" +
-                "            \"bottom\": 30\n" +
-                "        }\n" +
-                "    }\n" +
-                "}\n";
+        String query = "{\n"
+            + "    \"geo_bounding_box\":{\n"
+            + "        \""
+            + GEO_POINT_FIELD_NAME
+            + "\":{\n"
+            + "            \"right\": -80,\n"
+            + "            \"top\": 40,\n"
+            + "            \"left\": -70,\n"
+            + "            \"bottom\": 30\n"
+            + "        }\n"
+            + "    }\n"
+            + "}\n";
         assertGeoBoundingBoxQuery(query);
     }
 
@@ -358,18 +388,17 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{\n" +
-                "  \"geo_bounding_box\" : {\n" +
-                "    \"pin.location\" : {\n" +
-                "      \"top_left\" : [ -74.1, 40.73 ],\n" +
-                "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
-                "    },\n" +
-                "    \"validation_method\" : \"STRICT\",\n" +
-                 "    \"ignore_unmapped\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"geo_bounding_box\" : {\n"
+            + "    \"pin.location\" : {\n"
+            + "      \"top_left\" : [ -74.1, 40.73 ],\n"
+            + "      \"bottom_right\" : [ -71.12, 40.01 ]\n"
+            + "    },\n"
+            + "    \"validation_method\" : \"STRICT\",\n"
+            + "    \"ignore_unmapped\" : false,\n"
+            + "    \"boost\" : 1.0\n"
+            + "  }\n"
+            + "}";
         GeoBoundingBoxQueryBuilder parsed = (GeoBoundingBoxQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, "pin.location", parsed.fieldName());
@@ -381,32 +410,30 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testFromWKT() throws IOException {
-        String wkt =
-            "{\n" +
-                "  \"geo_bounding_box\" : {\n" +
-                "    \"pin.location\" : {\n" +
-                "      \"wkt\" : \"BBOX (-74.1, -71.12, 40.73, 40.01)\"\n" +
-                "    },\n" +
-                "    \"validation_method\" : \"STRICT\",\n" +
-                "    \"ignore_unmapped\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        String wkt = "{\n"
+            + "  \"geo_bounding_box\" : {\n"
+            + "    \"pin.location\" : {\n"
+            + "      \"wkt\" : \"BBOX (-74.1, -71.12, 40.73, 40.01)\"\n"
+            + "    },\n"
+            + "    \"validation_method\" : \"STRICT\",\n"
+            + "    \"ignore_unmapped\" : false,\n"
+            + "    \"boost\" : 1.0\n"
+            + "  }\n"
+            + "}";
 
         // toXContent generates the query in geojson only; for now we need to test against the expected
         // geojson generated content
-        String expectedJson =
-            "{\n" +
-                "  \"geo_bounding_box\" : {\n" +
-                "    \"pin.location\" : {\n" +
-                "      \"top_left\" : [ -74.1, 40.73 ],\n" +
-                "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
-                "    },\n" +
-                "    \"validation_method\" : \"STRICT\",\n" +
-                "    \"ignore_unmapped\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        String expectedJson = "{\n"
+            + "  \"geo_bounding_box\" : {\n"
+            + "    \"pin.location\" : {\n"
+            + "      \"top_left\" : [ -74.1, 40.73 ],\n"
+            + "      \"bottom_right\" : [ -71.12, 40.01 ]\n"
+            + "    },\n"
+            + "    \"validation_method\" : \"STRICT\",\n"
+            + "    \"ignore_unmapped\" : false,\n"
+            + "    \"boost\" : 1.0\n"
+            + "  }\n"
+            + "}";
 
         // parse with wkt
         GeoBoundingBoxQueryBuilder parsed = (GeoBoundingBoxQueryBuilder) parseQuery(wkt);
@@ -422,31 +449,29 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testFromGeohash() throws IOException {
-        String json =
-            "{\n" +
-                "  \"geo_bounding_box\" : {\n" +
-                "    \"pin.location\" : {\n" +
-                "      \"top_left\" : \"dr\",\n" +
-                "      \"bottom_right\" : \"dq\"\n" +
-                "    },\n" +
-                "    \"validation_method\" : \"STRICT\",\n" +
-                "    \"ignore_unmapped\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        String json = "{\n"
+            + "  \"geo_bounding_box\" : {\n"
+            + "    \"pin.location\" : {\n"
+            + "      \"top_left\" : \"dr\",\n"
+            + "      \"bottom_right\" : \"dq\"\n"
+            + "    },\n"
+            + "    \"validation_method\" : \"STRICT\",\n"
+            + "    \"ignore_unmapped\" : false,\n"
+            + "    \"boost\" : 1.0\n"
+            + "  }\n"
+            + "}";
 
-        String expectedJson =
-            "{\n" +
-                "  \"geo_bounding_box\" : {\n" +
-                "    \"pin.location\" : {\n" +
-                "      \"top_left\" : [ -78.75, 45.0 ],\n" +
-                "      \"bottom_right\" : [ -67.5, 33.75 ]\n" +
-                "    },\n" +
-                "    \"validation_method\" : \"STRICT\",\n" +
-                "    \"ignore_unmapped\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        String expectedJson = "{\n"
+            + "  \"geo_bounding_box\" : {\n"
+            + "    \"pin.location\" : {\n"
+            + "      \"top_left\" : [ -78.75, 45.0 ],\n"
+            + "      \"bottom_right\" : [ -67.5, 33.75 ]\n"
+            + "    },\n"
+            + "    \"validation_method\" : \"STRICT\",\n"
+            + "    \"ignore_unmapped\" : false,\n"
+            + "    \"boost\" : 1.0\n"
+            + "  }\n"
+            + "}";
         GeoBoundingBoxQueryBuilder parsed = (GeoBoundingBoxQueryBuilder) parseQuery(json);
         checkGeneratedJson(expectedJson, parsed);
         assertEquals(json, "pin.location", parsed.fieldName());
@@ -458,39 +483,40 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testMalformedGeohashes() {
-        String jsonGeohashAndWkt =
-            "{\n" +
-                "  \"geo_bounding_box\" : {\n" +
-                "    \"pin.location\" : {\n" +
-                "      \"top_left\" : [ -78.75, 45.0 ],\n" +
-                "      \"wkt\" : \"BBOX (-74.1, -71.12, 40.73, 40.01)\"\n" +
-                "    },\n" +
-                "    \"validation_method\" : \"STRICT\",\n" +
-                "    \"ignore_unmapped\" : false,\n" +
-                "    \"boost\" : 1.0\n" +
-                "  }\n" +
-                "}";
+        String jsonGeohashAndWkt = "{\n"
+            + "  \"geo_bounding_box\" : {\n"
+            + "    \"pin.location\" : {\n"
+            + "      \"top_left\" : [ -78.75, 45.0 ],\n"
+            + "      \"wkt\" : \"BBOX (-74.1, -71.12, 40.73, 40.01)\"\n"
+            + "    },\n"
+            + "    \"validation_method\" : \"STRICT\",\n"
+            + "    \"ignore_unmapped\" : false,\n"
+            + "    \"boost\" : 1.0\n"
+            + "  }\n"
+            + "}";
 
         ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class, () -> parseQuery(jsonGeohashAndWkt));
         assertThat(e1.getMessage(), containsString("Conflicting definition found using well-known text and explicit corners."));
     }
 
     public void testHonorsCoercion() throws IOException {
-        String query = "{\n" +
-            "  \"geo_bounding_box\": {\n" +
-            "    \"validation_method\": \"COERCE\",\n" +
-            "    \"" + GEO_POINT_FIELD_NAME + "\": {\n" +
-            "      \"top_left\": {\n" +
-            "        \"lat\": -15.5,\n" +
-            "        \"lon\": 176.5\n" +
-            "      },\n" +
-            "      \"bottom_right\": {\n" +
-            "        \"lat\": -19.6,\n" +
-            "        \"lon\": 181\n" +
-            "      }\n" +
-            "    }\n" +
-            "  }\n" +
-            "}\n";
+        String query = "{\n"
+            + "  \"geo_bounding_box\": {\n"
+            + "    \"validation_method\": \"COERCE\",\n"
+            + "    \""
+            + GEO_POINT_FIELD_NAME
+            + "\": {\n"
+            + "      \"top_left\": {\n"
+            + "        \"lat\": -15.5,\n"
+            + "        \"lon\": 176.5\n"
+            + "      },\n"
+            + "      \"bottom_right\": {\n"
+            + "        \"lat\": -19.6,\n"
+            + "        \"lon\": 181\n"
+            + "      }\n"
+            + "    }\n"
+            + "  }\n"
+            + "}\n";
         assertGeoBoundingBoxQuery(query);
     }
 

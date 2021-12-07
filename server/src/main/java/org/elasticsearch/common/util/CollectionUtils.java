@@ -9,6 +9,7 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -146,7 +147,7 @@ public class CollectionUtils {
             return null;
         }
         if (value instanceof Map) {
-            Map<?,?> map = (Map<?,?>) value;
+            Map<?, ?> map = (Map<?, ?>) value;
             return () -> Iterators.concat(map.keySet().iterator(), map.values().iterator());
         } else if ((value instanceof Iterable) && (value instanceof Path == false)) {
             return (Iterable<?>) value;
@@ -157,8 +158,12 @@ public class CollectionUtils {
         }
     }
 
-    private static void ensureNoSelfReferences(final Iterable<?> value, Object originalReference, final Set<Object> ancestors,
-                                               String messageHint) {
+    private static void ensureNoSelfReferences(
+        final Iterable<?> value,
+        Object originalReference,
+        final Set<Object> ancestors,
+        String messageHint
+    ) {
         if (value != null) {
             if (ancestors.add(originalReference) == false) {
                 String suffix = Strings.isNullOrEmpty(messageHint) ? "" : String.format(Locale.ROOT, " (%s)", messageHint);
@@ -206,14 +211,19 @@ public class CollectionUtils {
         sort(new BytesRefBuilder(), new BytesRefBuilder(), bytes, indices);
     }
 
-    private static void sort(final BytesRefBuilder scratch, final BytesRefBuilder scratch1,
-                             final BytesRefArray bytes, final int[] indices) {
+    private static void sort(
+        final BytesRefBuilder scratch,
+        final BytesRefBuilder scratch1,
+        final BytesRefArray bytes,
+        final int[] indices
+    ) {
 
         final int numValues = bytes.size();
         assert indices.length >= numValues;
         if (numValues > 1) {
             new InPlaceMergeSorter() {
                 final Comparator<BytesRef> comparator = Comparator.naturalOrder();
+
                 @Override
                 protected int compare(int i, int j) {
                     return comparator.compare(bytes.get(scratch, indices[i]), bytes.get(scratch1, indices[j]));

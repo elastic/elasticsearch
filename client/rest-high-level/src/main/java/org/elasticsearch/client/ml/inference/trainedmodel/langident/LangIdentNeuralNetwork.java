@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml.inference.trainedmodel.langident;
 
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -33,9 +33,8 @@ public class LangIdentNeuralNetwork implements TrainedModel {
     public static final ConstructingObjectParser<LangIdentNeuralNetwork, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        a -> new LangIdentNeuralNetwork((String) a[0],
-            (LangNetLayer) a[1],
-            (LangNetLayer) a[2]));
+        a -> new LangIdentNeuralNetwork((String) a[0], (LangNetLayer) a[1], (LangNetLayer) a[2])
+    );
 
     static {
         PARSER.declareString(constructorArg(), EMBEDDED_VECTOR_FEATURE_NAME);
@@ -51,9 +50,7 @@ public class LangIdentNeuralNetwork implements TrainedModel {
     private final LangNetLayer softmaxLayer;
     private final String embeddedVectorFeatureName;
 
-    LangIdentNeuralNetwork(String embeddedVectorFeatureName,
-                                  LangNetLayer hiddenLayer,
-                                  LangNetLayer softmaxLayer) {
+    LangIdentNeuralNetwork(String embeddedVectorFeatureName, LangNetLayer hiddenLayer, LangNetLayer softmaxLayer) {
         this.embeddedVectorFeatureName = embeddedVectorFeatureName;
         this.hiddenLayer = hiddenLayer;
         this.softmaxLayer = softmaxLayer;

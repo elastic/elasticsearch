@@ -7,12 +7,12 @@
  */
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -40,8 +40,15 @@ public class GetWatchResponse {
         this(id, Versions.NOT_FOUND, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, null, null, null);
     }
 
-    public GetWatchResponse(String id, long version, long seqNo, long primaryTerm, WatchStatus status,
-                            BytesReference source, XContentType xContentType) {
+    public GetWatchResponse(
+        String id,
+        long version,
+        long seqNo,
+        long primaryTerm,
+        WatchStatus status,
+        BytesReference source,
+        XContentType xContentType
+    ) {
         this.id = id;
         this.version = version;
         this.status = status;
@@ -101,11 +108,11 @@ public class GetWatchResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetWatchResponse that = (GetWatchResponse) o;
-        return version == that.version &&
-            Objects.equals(id, that.id) &&
-            Objects.equals(status, that.status) &&
-            Objects.equals(xContentType, that.xContentType) &&
-            Objects.equals(source, that.source);
+        return version == that.version
+            && Objects.equals(id, that.id)
+            && Objects.equals(status, that.status)
+            && Objects.equals(xContentType, that.xContentType)
+            && Objects.equals(source, that.source);
     }
 
     @Override
@@ -121,19 +128,28 @@ public class GetWatchResponse {
     private static final ParseField STATUS_FIELD = new ParseField("status");
     private static final ParseField WATCH_FIELD = new ParseField("watch");
 
-    private static final ConstructingObjectParser<GetWatchResponse, Void> PARSER =
-        new ConstructingObjectParser<>("get_watch_response", true,
-            a -> {
-                boolean isFound = (boolean) a[1];
-                if (isFound) {
-                    XContentBuilder builder = (XContentBuilder) a[6];
-                    BytesReference source = BytesReference.bytes(builder);
-                    return new GetWatchResponse((String) a[0], (long) a[2], (long) a[3], (long) a[4], (WatchStatus) a[5],
-                        source, builder.contentType());
-                } else {
-                    return new GetWatchResponse((String) a[0]);
-                }
-            });
+    private static final ConstructingObjectParser<GetWatchResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_watch_response",
+        true,
+        a -> {
+            boolean isFound = (boolean) a[1];
+            if (isFound) {
+                XContentBuilder builder = (XContentBuilder) a[6];
+                BytesReference source = BytesReference.bytes(builder);
+                return new GetWatchResponse(
+                    (String) a[0],
+                    (long) a[2],
+                    (long) a[3],
+                    (long) a[4],
+                    (WatchStatus) a[5],
+                    source,
+                    builder.contentType()
+                );
+            } else {
+                return new GetWatchResponse((String) a[0]);
+            }
+        }
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), ID_FIELD);
@@ -141,15 +157,17 @@ public class GetWatchResponse {
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), VERSION_FIELD);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), SEQ_NO_FIELD);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), PRIMARY_TERM_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-            (parser, context) -> WatchStatus.parse(parser), STATUS_FIELD);
-        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-            (parser, context) -> {
-                try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
-                    builder.copyCurrentStructure(parser);
-                    return builder;
-                }
-            }, WATCH_FIELD);
+        PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (parser, context) -> WatchStatus.parse(parser),
+            STATUS_FIELD
+        );
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (parser, context) -> {
+            try (XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent())) {
+                builder.copyCurrentStructure(parser);
+                return builder;
+            }
+        }, WATCH_FIELD);
     }
 
     public static GetWatchResponse fromXContent(XContentParser parser) throws IOException {

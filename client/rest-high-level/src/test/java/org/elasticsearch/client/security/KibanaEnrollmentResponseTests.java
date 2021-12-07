@@ -10,11 +10,11 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.io.IOException;
 
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class KibanaEnrollmentResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        final String tokenName = randomAlphaOfLengthBetween(8 ,14);
+        final String tokenName = randomAlphaOfLengthBetween(8, 14);
         final String tokenValue = randomAlphaOfLengthBetween(58, 70);
         final String httpCa = randomAlphaOfLength(50);
 
@@ -45,17 +45,21 @@ public class KibanaEnrollmentResponseTests extends ESTestCase {
     }
 
     public void testEqualsHashCode() {
-        final String tokenName = randomAlphaOfLengthBetween(8 ,14);
+        final String tokenName = randomAlphaOfLengthBetween(8, 14);
         final SecureString tokenValue = new SecureString(randomAlphaOfLengthBetween(58, 70).toCharArray());
         final String httpCa = randomAlphaOfLength(50);
         KibanaEnrollmentResponse kibanaEnrollmentResponse = new KibanaEnrollmentResponse(tokenName, tokenValue, httpCa);
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(kibanaEnrollmentResponse,
-            (original) -> new KibanaEnrollmentResponse(original.getTokenName(), original.getTokenValue(), original.getHttpCa()));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            kibanaEnrollmentResponse,
+            (original) -> new KibanaEnrollmentResponse(original.getTokenName(), original.getTokenValue(), original.getHttpCa())
+        );
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(kibanaEnrollmentResponse,
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            kibanaEnrollmentResponse,
             (original) -> new KibanaEnrollmentResponse(original.getTokenName(), original.getTokenValue(), original.getHttpCa()),
-            KibanaEnrollmentResponseTests::mutateTestItem);
+            KibanaEnrollmentResponseTests::mutateTestItem
+        );
     }
 
     private static KibanaEnrollmentResponse mutateTestItem(KibanaEnrollmentResponse original) {
@@ -73,11 +77,7 @@ public class KibanaEnrollmentResponseTests extends ESTestCase {
                     randomAlphaOfLength(52)
                 );
             case 2:
-                return new KibanaEnrollmentResponse(
-                    randomAlphaOfLengthBetween(14, 20),
-                    original.getTokenValue(),
-                    randomAlphaOfLength(52)
-                );
+                return new KibanaEnrollmentResponse(randomAlphaOfLengthBetween(14, 20), original.getTokenValue(), randomAlphaOfLength(52));
             case 3:
                 return new KibanaEnrollmentResponse(
                     randomAlphaOfLengthBetween(14, 20),

@@ -13,9 +13,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,8 +29,10 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
 
     private final boolean accepted;
     private final List<Feature> features;
-    @Nullable private final String reason;
-    @Nullable private final ElasticsearchException elasticsearchException;
+    @Nullable
+    private final String reason;
+    @Nullable
+    private final ElasticsearchException elasticsearchException;
 
     /**
      * @param accepted Whether the upgrade request is accepted by the server
@@ -38,8 +40,12 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
      * @param reason If the upgrade is rejected, the reason for rejection. Null otherwise.
      * @param exception If the upgrade is rejected because of an exception, the exception. Null otherwise.
      */
-    public PostFeatureUpgradeResponse(boolean accepted, List<Feature> features,
-                                      @Nullable String reason, @Nullable ElasticsearchException exception) {
+    public PostFeatureUpgradeResponse(
+        boolean accepted,
+        List<Feature> features,
+        @Nullable String reason,
+        @Nullable ElasticsearchException exception
+    ) {
         this.accepted = accepted;
         this.features = Objects.nonNull(features) ? features : Collections.emptyList();
         this.reason = reason;
@@ -116,9 +122,7 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         PostFeatureUpgradeResponse that = (PostFeatureUpgradeResponse) o;
-        return accepted == that.accepted
-            && Objects.equals(features, that.features)
-            && Objects.equals(reason, that.reason);
+        return accepted == that.accepted && Objects.equals(features, that.features) && Objects.equals(reason, that.reason);
     }
 
     /**
@@ -131,12 +135,17 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
 
     @Override
     public String toString() {
-        return "PostFeatureUpgradeResponse{" +
-            "accepted=" + accepted +
-            ", features=" + features +
-            ", reason='" + reason + '\'' +
-            ", elasticsearchException=" + elasticsearchException +
-            '}';
+        return "PostFeatureUpgradeResponse{"
+            + "accepted="
+            + accepted
+            + ", features="
+            + features
+            + ", reason='"
+            + reason
+            + '\''
+            + ", elasticsearchException="
+            + elasticsearchException
+            + '}';
     }
 
     /**
@@ -192,9 +201,7 @@ public class PostFeatureUpgradeResponse extends ActionResponse implements ToXCon
 
         @Override
         public String toString() {
-            return "Feature{" +
-                "featureName='" + featureName + '\'' +
-                '}';
+            return "Feature{" + "featureName='" + featureName + '\'' + '}';
         }
     }
 }

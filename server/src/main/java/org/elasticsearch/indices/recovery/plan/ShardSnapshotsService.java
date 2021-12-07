@@ -62,10 +62,12 @@ public class ShardSnapshotsService {
     private final ClusterService clusterService;
 
     @Inject
-    public ShardSnapshotsService(Client client,
-                                 RepositoriesService repositoriesService,
-                                 ThreadPool threadPool,
-                                 ClusterService clusterService) {
+    public ShardSnapshotsService(
+        Client client,
+        RepositoriesService repositoriesService,
+        ThreadPool threadPool,
+        ClusterService clusterService
+    ) {
         this.client = client;
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
@@ -86,8 +88,12 @@ public class ShardSnapshotsService {
             .collect(Collectors.toList());
 
         if (repositories.isEmpty() || masterSupportsFetchingLatestSnapshots() == false) {
-            logger.debug("Unable to use snapshots during peer recovery use_for_peer_recovery_repositories=[{}]," +
-                " masterSupportsFetchingLatestSnapshots=[{}]", repositories, masterSupportsFetchingLatestSnapshots());
+            logger.debug(
+                "Unable to use snapshots during peer recovery use_for_peer_recovery_repositories=[{}],"
+                    + " masterSupportsFetchingLatestSnapshots=[{}]",
+                repositories,
+                masterSupportsFetchingLatestSnapshots()
+            );
             listener.onResponse(Optional.empty());
             return;
         }
@@ -95,7 +101,8 @@ public class ShardSnapshotsService {
         logger.debug("Searching for peer recovery compatible snapshots in [{}]", repositories);
 
         GetShardSnapshotRequest request = GetShardSnapshotRequest.latestSnapshotInRepositories(shardId, repositories);
-        client.execute(GetShardSnapshotAction.INSTANCE,
+        client.execute(
+            GetShardSnapshotAction.INSTANCE,
             request,
             new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, listener.map(this::fetchSnapshotFiles), false)
         );
@@ -119,10 +126,14 @@ public class ShardSnapshotsService {
             }
 
             BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-            BlobContainer blobContainer = blobStoreRepository.shardContainer(latestShardSnapshot.getIndexId(),
-                latestShardSnapshot.getShardId().getId());
-            BlobStoreIndexShardSnapshot blobStoreIndexShardSnapshot =
-                blobStoreRepository.loadShardSnapshot(blobContainer, snapshot.getSnapshotId());
+            BlobContainer blobContainer = blobStoreRepository.shardContainer(
+                latestShardSnapshot.getIndexId(),
+                latestShardSnapshot.getShardId().getId()
+            );
+            BlobStoreIndexShardSnapshot blobStoreIndexShardSnapshot = blobStoreRepository.loadShardSnapshot(
+                blobContainer,
+                snapshot.getSnapshotId()
+            );
 
             Map<String, StoreFileMetadata> snapshotFiles = blobStoreIndexShardSnapshot.indexFiles()
                 .stream()
@@ -197,7 +208,6 @@ public class ShardSnapshotsService {
             final StoreFileMetadata storeFileMetadata = getStoreFileMetadata(name);
             return storeFileMetadata.length();
         }
-
 
         @Override
         public IndexOutput createOutput(String name, IOContext context) {

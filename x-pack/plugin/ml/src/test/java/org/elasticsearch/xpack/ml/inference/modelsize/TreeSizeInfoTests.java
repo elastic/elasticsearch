@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeTests;
 import java.io.IOException;
 import java.util.Arrays;
 
-
 public class TreeSizeInfoTests extends SizeEstimatorTestCase<TreeSizeInfo, TreeInferenceModel> {
 
     static TreeSizeInfo createRandom() {
@@ -26,14 +25,15 @@ public class TreeSizeInfoTests extends SizeEstimatorTestCase<TreeSizeInfo, TreeI
     static TreeSizeInfo translateToEstimate(TreeInferenceModel tree) {
         int numClasses = Arrays.stream(tree.getNodes())
             .filter(TreeInferenceModel.Node::isLeaf)
-            .map(n -> (TreeInferenceModel.LeafNode)n)
+            .map(n -> (TreeInferenceModel.LeafNode) n)
             .findFirst()
             .get()
-            .getLeafValue()
-            .length;
-        return new TreeSizeInfo((int)Arrays.stream(tree.getNodes()).filter(TreeInferenceModel.Node::isLeaf).count(),
-            (int)Arrays.stream(tree.getNodes()).filter(t -> t.isLeaf() == false).count(),
-            numClasses);
+            .getLeafValue().length;
+        return new TreeSizeInfo(
+            (int) Arrays.stream(tree.getNodes()).filter(TreeInferenceModel.Node::isLeaf).count(),
+            (int) Arrays.stream(tree.getNodes()).filter(t -> t.isLeaf() == false).count(),
+            numClasses
+        );
     }
 
     @Override

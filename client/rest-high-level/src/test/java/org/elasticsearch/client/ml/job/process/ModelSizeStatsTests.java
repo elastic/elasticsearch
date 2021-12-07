@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml.job.process;
 
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Date;
 

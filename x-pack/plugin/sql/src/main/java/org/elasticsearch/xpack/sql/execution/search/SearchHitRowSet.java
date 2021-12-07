@@ -46,9 +46,9 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
 
         this.hits = response.getHits().getHits();
 
-         // Since the results might contain nested docs, the iteration is similar to that of Aggregation
-         // namely it discovers the nested docs and then, for iteration, increments the deepest level first
-         // and eventually carries that over to the top level
+        // Since the results might contain nested docs, the iteration is similar to that of Aggregation
+        // namely it discovers the nested docs and then, for iteration, increments the deepest level first
+        // and eventually carries that over to the top level
 
         String innerHit = null;
         for (HitExtractor ex : exts) {
@@ -98,7 +98,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
             int remainingLimit = limit < 0 ? limit : limit - size;
             // if the computed limit is zero, or the size is zero it means either there's nothing left or the limit has been reached
             if (size == 0 || remainingLimit == 0
-                // or the scroll has ended
+            // or the scroll has ended
                 || totalHits != null && totalHits.value == hits.length) {
                 nextScrollData = null;
             } else {
@@ -117,7 +117,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
 
         SearchHit hit = null;
         SearchHit[] sh = hits;
-        for (int lvl = 0; lvl <= extractorLevel ; lvl++) {
+        for (int lvl = 0; lvl <= extractorLevel; lvl++) {
             // TODO: add support for multi-nested doc
             if (hit != null) {
                 SearchHit[] innerHits = flatInnerHits.get(hit).get(innerHit);
@@ -156,7 +156,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
     }
 
     private class NestedHitOffsetComparator implements Comparator<SearchHit> {
-    @Override
+        @Override
         public int compare(SearchHit sh1, SearchHit sh2) {
             if (sh1 == null && sh2 == null) {
                 return 0;
@@ -192,8 +192,7 @@ class SearchHitRowSet extends ResultRowSet<HitExtractor> {
                     // restart the loop
                     lvl = 0;
                     sh = hits;
-                }
-                else {
+                } else {
                     SearchHit h = sh[indexPerLevel[lvl]];
                     // TODO: improve this for multi-nested responses
                     String path = lvl == 0 ? innerHit : null;

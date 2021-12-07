@@ -8,17 +8,17 @@
 
 package org.elasticsearch.search.rescore;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.query.Rewriteable;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -27,7 +27,10 @@ import java.util.Objects;
  * The abstract base builder for instances of {@link RescorerBuilder}.
  */
 public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
-        implements NamedWriteable, ToXContentObject, Rewriteable<RescorerBuilder<RB>> {
+    implements
+        NamedWriteable,
+        ToXContentObject,
+        Rewriteable<RescorerBuilder<RB>> {
     public static final int DEFAULT_WINDOW_SIZE = 10;
 
     protected Integer windowSize;
@@ -37,8 +40,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
     /**
      * Construct an empty RescoreBuilder.
      */
-    public RescorerBuilder() {
-    }
+    public RescorerBuilder() {}
 
     /**
      * Read from a stream.

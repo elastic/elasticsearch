@@ -7,15 +7,15 @@
 package org.elasticsearch.xpack.core.index.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -93,20 +93,19 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
      * Creates a new PinnedQueryBuilder
      */
     private PinnedQueryBuilder(QueryBuilder organicQuery, List<String> ids, List<Item> docs) {
-      if (organicQuery == null) {
-          throw new IllegalArgumentException("[" + NAME + "] organicQuery cannot be null");
-      }
-      this.organicQuery = organicQuery;
-      if (ids == null && docs == null) {
-          throw new IllegalArgumentException("[" + NAME + "] ids and docs cannot both be null");
-      }
-      if (ids != null && docs != null) {
-          throw new IllegalArgumentException("[" + NAME + "] ids and docs cannot both be used");
-      }
-      this.ids = ids;
-      this.docs = docs;
+        if (organicQuery == null) {
+            throw new IllegalArgumentException("[" + NAME + "] organicQuery cannot be null");
+        }
+        this.organicQuery = organicQuery;
+        if (ids == null && docs == null) {
+            throw new IllegalArgumentException("[" + NAME + "] ids and docs cannot both be null");
+        }
+        if (ids != null && docs != null) {
+            throw new IllegalArgumentException("[" + NAME + "] ids and docs cannot both be used");
+        }
+        this.ids = ids;
+        this.docs = docs;
     }
-
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
@@ -147,7 +146,6 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         return Collections.unmodifiableList(this.docs);
     }
 
-
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
@@ -177,7 +175,6 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         throw new UnsupportedOperationException("Client side-only class for use in HLRC");
     }
-
 
     @Override
     protected int doHashCode() {

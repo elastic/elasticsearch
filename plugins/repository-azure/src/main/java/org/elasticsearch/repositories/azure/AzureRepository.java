@@ -21,9 +21,9 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Locale;
 import java.util.Map;
@@ -50,21 +50,42 @@ public class AzureRepository extends MeteredBlobStoreRepository {
 
     public static final class Repository {
         @Deprecated // Replaced by client
-        public static final Setting<String> ACCOUNT_SETTING = new Setting<>("account", "default", Function.identity(),
-            Property.NodeScope, Property.Deprecated);
+        public static final Setting<String> ACCOUNT_SETTING = new Setting<>(
+            "account",
+            "default",
+            Function.identity(),
+            Property.NodeScope,
+            Property.DeprecatedWarning
+        );
         public static final Setting<String> CLIENT_NAME = new Setting<>("client", ACCOUNT_SETTING, Function.identity());
-        public static final Setting<String> CONTAINER_SETTING =
-            new Setting<>("container", "elasticsearch-snapshots", Function.identity(), Property.NodeScope);
+        public static final Setting<String> CONTAINER_SETTING = new Setting<>(
+            "container",
+            "elasticsearch-snapshots",
+            Function.identity(),
+            Property.NodeScope
+        );
         public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path", Property.NodeScope);
-        public static final Setting<LocationMode> LOCATION_MODE_SETTING = new Setting<>("location_mode",
-                s -> LocationMode.PRIMARY_ONLY.toString(), s -> LocationMode.valueOf(s.toUpperCase(Locale.ROOT)), Property.NodeScope);
-        public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING =
-            Setting.byteSizeSetting("chunk_size", MAX_CHUNK_SIZE, MIN_CHUNK_SIZE, MAX_CHUNK_SIZE, Property.NodeScope);
+        public static final Setting<LocationMode> LOCATION_MODE_SETTING = new Setting<>(
+            "location_mode",
+            s -> LocationMode.PRIMARY_ONLY.toString(),
+            s -> LocationMode.valueOf(s.toUpperCase(Locale.ROOT)),
+            Property.NodeScope
+        );
+        public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
+            "chunk_size",
+            MAX_CHUNK_SIZE,
+            MIN_CHUNK_SIZE,
+            MAX_CHUNK_SIZE,
+            Property.NodeScope
+        );
         public static final Setting<Boolean> READONLY_SETTING = Setting.boolSetting(READONLY_SETTING_KEY, false, Property.NodeScope);
         // see ModelHelper.BLOB_DEFAULT_MAX_SINGLE_UPLOAD_SIZE
         private static final ByteSizeValue DEFAULT_MAX_SINGLE_UPLOAD_SIZE = new ByteSizeValue(256, ByteSizeUnit.MB);
-        public static final Setting<ByteSizeValue> MAX_SINGLE_PART_UPLOAD_SIZE_SETTING =
-            Setting.byteSizeSetting("max_single_part_upload_size", DEFAULT_MAX_SINGLE_UPLOAD_SIZE, Property.NodeScope);
+        public static final Setting<ByteSizeValue> MAX_SINGLE_PART_UPLOAD_SIZE_SETTING = Setting.byteSizeSetting(
+            "max_single_part_upload_size",
+            DEFAULT_MAX_SINGLE_UPLOAD_SIZE,
+            Property.NodeScope
+        );
     }
 
     private final ByteSizeValue chunkSize;
@@ -77,14 +98,17 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         final AzureStorageService storageService,
         final ClusterService clusterService,
         final BigArrays bigArrays,
-        final RecoverySettings recoverySettings) {
-        super(metadata,
+        final RecoverySettings recoverySettings
+    ) {
+        super(
+            metadata,
             namedXContentRegistry,
             clusterService,
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata));
+            buildLocation(metadata)
+        );
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.storageService = storageService;
 
@@ -103,7 +127,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         if (Strings.hasLength(basePath)) {
             // Remove starting / if any
             BlobPath path = BlobPath.EMPTY;
-            for(final String elem : basePath.split("/")) {
+            for (final String elem : basePath.split("/")) {
                 path = path.add(elem);
             }
             return path;
@@ -113,8 +137,12 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
-        return Map.of("base_path", Repository.BASE_PATH_SETTING.get(metadata.settings()),
-            "container", Repository.CONTAINER_SETTING.get(metadata.settings()));
+        return Map.of(
+            "base_path",
+            Repository.BASE_PATH_SETTING.get(metadata.settings()),
+            "container",
+            Repository.CONTAINER_SETTING.get(metadata.settings())
+        );
     }
 
     @Override
@@ -126,9 +154,15 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     protected AzureBlobStore createBlobStore() {
         final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService, bigArrays);
 
-        logger.debug(() -> new ParameterizedMessage(
-            "using container [{}], chunk_size [{}], compress [{}], base_path [{}]",
-            blobStore, chunkSize, isCompress(), basePath()));
+        logger.debug(
+            () -> new ParameterizedMessage(
+                "using container [{}], chunk_size [{}], compress [{}], base_path [{}]",
+                blobStore,
+                chunkSize,
+                isCompress(),
+                basePath()
+            )
+        );
         return blobStore;
     }
 

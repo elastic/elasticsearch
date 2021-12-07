@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.ml.inference.modelsize;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
@@ -33,16 +33,16 @@ public class ModelSizeInfo implements Accountable, ToXContentObject {
     public static ConstructingObjectParser<ModelSizeInfo, Void> PARSER = new ConstructingObjectParser<>(
         "model_size",
         false,
-        a -> new ModelSizeInfo((EnsembleSizeInfo)a[0], (List<PreprocessorSize>)a[1])
+        a -> new ModelSizeInfo((EnsembleSizeInfo) a[0], (List<PreprocessorSize>) a[1])
     );
     static {
-        PARSER.declareNamedObject(constructorArg(),
-            (p, c, n) -> p.namedObject(TrainedModelSizeInfo.class, n, null),
-            TRAINED_MODEL_SIZE);
-        PARSER.declareNamedObjects(optionalConstructorArg(),
+        PARSER.declareNamedObject(constructorArg(), (p, c, n) -> p.namedObject(TrainedModelSizeInfo.class, n, null), TRAINED_MODEL_SIZE);
+        PARSER.declareNamedObjects(
+            optionalConstructorArg(),
             (p, c, n) -> p.namedObject(PreprocessorSize.class, n, null),
             (val) -> {},
-            PREPROCESSORS);
+            PREPROCESSORS
+        );
     }
 
     private final EnsembleSizeInfo ensembleSizeInfo;
@@ -81,8 +81,8 @@ public class ModelSizeInfo implements Accountable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ModelSizeInfo modelSizeInfo = (ModelSizeInfo) o;
-        return Objects.equals(ensembleSizeInfo, modelSizeInfo.ensembleSizeInfo) &&
-            Objects.equals(preprocessorSizes, modelSizeInfo.preprocessorSizes);
+        return Objects.equals(ensembleSizeInfo, modelSizeInfo.ensembleSizeInfo)
+            && Objects.equals(preprocessorSizes, modelSizeInfo.preprocessorSizes);
     }
 
     @Override

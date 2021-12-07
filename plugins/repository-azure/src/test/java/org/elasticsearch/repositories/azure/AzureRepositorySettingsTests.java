@@ -14,11 +14,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
 import static org.hamcrest.Matchers.is;
@@ -33,10 +33,14 @@ public class AzureRepositorySettingsTests extends ESTestCase {
             .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
             .put(settings)
             .build();
-        final AzureRepository azureRepository = new AzureRepository(new RepositoryMetadata("foo", "azure", internalSettings),
-            NamedXContentRegistry.EMPTY, mock(AzureStorageService.class), BlobStoreTestUtil.mockClusterService(),
+        final AzureRepository azureRepository = new AzureRepository(
+            new RepositoryMetadata("foo", "azure", internalSettings),
+            NamedXContentRegistry.EMPTY,
+            mock(AzureStorageService.class),
+            BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
-            new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+            new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+        );
         assertThat(azureRepository.getBlobStore(), is(nullValue()));
         return azureRepository;
     }
@@ -46,50 +50,76 @@ public class AzureRepositorySettingsTests extends ESTestCase {
     }
 
     public void testReadonlyDefaultAndReadonlyOn() {
-        assertThat(azureRepository(Settings.builder()
-            .put(READONLY_SETTING_KEY, true)
-            .build()).isReadOnly(), is(true));
+        assertThat(azureRepository(Settings.builder().put(READONLY_SETTING_KEY, true).build()).isReadOnly(), is(true));
     }
 
     public void testReadonlyWithPrimaryOnly() {
-        assertThat(azureRepository(Settings.builder()
-            .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_ONLY.name())
-            .build()).isReadOnly(), is(false));
+        assertThat(
+            azureRepository(
+                Settings.builder().put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_ONLY.name()).build()
+            ).isReadOnly(),
+            is(false)
+        );
     }
 
     public void testReadonlyWithPrimaryOnlyAndReadonlyOn() {
-        assertThat(azureRepository(Settings.builder()
-            .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_ONLY.name())
-            .put(READONLY_SETTING_KEY, true)
-            .build()).isReadOnly(), is(true));
+        assertThat(
+            azureRepository(
+                Settings.builder()
+                    .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_ONLY.name())
+                    .put(READONLY_SETTING_KEY, true)
+                    .build()
+            ).isReadOnly(),
+            is(true)
+        );
     }
 
     public void testReadonlyWithSecondaryOnlyAndReadonlyOn() {
-        assertThat(azureRepository(Settings.builder()
-            .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.SECONDARY_ONLY.name())
-            .put(READONLY_SETTING_KEY, true)
-            .build()).isReadOnly(), is(true));
+        assertThat(
+            azureRepository(
+                Settings.builder()
+                    .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.SECONDARY_ONLY.name())
+                    .put(READONLY_SETTING_KEY, true)
+                    .build()
+            ).isReadOnly(),
+            is(true)
+        );
     }
 
     public void testReadonlyWithSecondaryOnlyAndReadonlyOff() {
-        assertThat(azureRepository(Settings.builder()
-            .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.SECONDARY_ONLY.name())
-            .put(READONLY_SETTING_KEY, false)
-            .build()).isReadOnly(), is(false));
+        assertThat(
+            azureRepository(
+                Settings.builder()
+                    .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.SECONDARY_ONLY.name())
+                    .put(READONLY_SETTING_KEY, false)
+                    .build()
+            ).isReadOnly(),
+            is(false)
+        );
     }
 
     public void testReadonlyWithPrimaryAndSecondaryOnlyAndReadonlyOn() {
-        assertThat(azureRepository(Settings.builder()
-            .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_THEN_SECONDARY.name())
-            .put(READONLY_SETTING_KEY, true)
-            .build()).isReadOnly(), is(true));
+        assertThat(
+            azureRepository(
+                Settings.builder()
+                    .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_THEN_SECONDARY.name())
+                    .put(READONLY_SETTING_KEY, true)
+                    .build()
+            ).isReadOnly(),
+            is(true)
+        );
     }
 
     public void testReadonlyWithPrimaryAndSecondaryOnlyAndReadonlyOff() {
-        assertThat(azureRepository(Settings.builder()
-            .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_THEN_SECONDARY.name())
-            .put(READONLY_SETTING_KEY, false)
-            .build()).isReadOnly(), is(false));
+        assertThat(
+            azureRepository(
+                Settings.builder()
+                    .put(AzureRepository.Repository.LOCATION_MODE_SETTING.getKey(), LocationMode.PRIMARY_THEN_SECONDARY.name())
+                    .put(READONLY_SETTING_KEY, false)
+                    .build()
+            ).isReadOnly(),
+            is(false)
+        );
     }
 
     public void testChunkSize() {
@@ -103,20 +133,22 @@ public class AzureRepositorySettingsTests extends ESTestCase {
         assertEquals(new ByteSizeValue(size, ByteSizeUnit.MB), azureRepository.chunkSize());
 
         // zero bytes is not allowed
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            azureRepository(Settings.builder().put("chunk_size", "0").build()));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> azureRepository(Settings.builder().put("chunk_size", "0").build())
+        );
         assertEquals("failed to parse value [0] for setting [chunk_size], must be >= [1b]", e.getMessage());
 
         // negative bytes not allowed
-        e = expectThrows(IllegalArgumentException.class, () ->
-            azureRepository(Settings.builder().put("chunk_size", "-1").build()));
+        e = expectThrows(IllegalArgumentException.class, () -> azureRepository(Settings.builder().put("chunk_size", "-1").build()));
         assertEquals("failed to parse value [-1] for setting [chunk_size], must be >= [1b]", e.getMessage());
 
         // greater than max chunk size not allowed
-        e = expectThrows(IllegalArgumentException.class, () ->
-                azureRepository(Settings.builder().put("chunk_size", "6tb").build()));
-        assertEquals("failed to parse value [6tb] for setting [chunk_size], must be <= ["
-                + AzureStorageService.MAX_CHUNK_SIZE.getStringRep() + "]", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> azureRepository(Settings.builder().put("chunk_size", "6tb").build()));
+        assertEquals(
+            "failed to parse value [6tb] for setting [chunk_size], must be <= [" + AzureStorageService.MAX_CHUNK_SIZE.getStringRep() + "]",
+            e.getMessage()
+        );
     }
 
 }

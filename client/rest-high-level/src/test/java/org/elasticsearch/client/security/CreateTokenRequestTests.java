@@ -60,10 +60,7 @@ public class CreateTokenRequestTests extends ESTestCase {
         assertThat(request.getPassword(), nullValue());
         assertThat(request.getRefreshToken(), nullValue());
         assertThat(new String(request.getKerberosTicket()), equalTo("top secret kerberos ticket"));
-        assertThat(
-            Strings.toString(request),
-            equalTo("{\"grant_type\":\"_kerberos\",\"kerberos_ticket\":\"top secret kerberos ticket\"}")
-        );
+        assertThat(Strings.toString(request), equalTo("{\"grant_type\":\"_kerberos\",\"kerberos_ticket\":\"top secret kerberos ticket\"}"));
     }
 
     public void testEqualsAndHashCode() {
@@ -74,34 +71,78 @@ public class CreateTokenRequestTests extends ESTestCase {
         final String refreshToken = randomBoolean() ? null : randomAlphaOfLengthBetween(12, 24);
         final char[] kerberosTicket = randomBoolean() ? null : randomAlphaOfLengthBetween(8, 12).toCharArray();
         final CreateTokenRequest request = new CreateTokenRequest(grantType, scope, username, password, refreshToken, kerberosTicket);
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(request,
-            r -> new CreateTokenRequest(r.getGrantType(), r.getScope(), r.getUsername(), r.getPassword(),
-                                        r.getRefreshToken(), r.getKerberosTicket()),
-            this::mutate);
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            request,
+            r -> new CreateTokenRequest(
+                r.getGrantType(),
+                r.getScope(),
+                r.getUsername(),
+                r.getPassword(),
+                r.getRefreshToken(),
+                r.getKerberosTicket()
+            ),
+            this::mutate
+        );
     }
 
     private CreateTokenRequest mutate(CreateTokenRequest req) {
         switch (randomIntBetween(1, 6)) {
-        case 1:
-            return new CreateTokenRequest("g", req.getScope(), req.getUsername(), req.getPassword(), req.getRefreshToken(),
-                    req.getKerberosTicket());
-        case 2:
-            return new CreateTokenRequest(req.getGrantType(), "s", req.getUsername(), req.getPassword(), req.getRefreshToken(),
-                    req.getKerberosTicket());
-        case 3:
-            return new CreateTokenRequest(req.getGrantType(), req.getScope(), "u", req.getPassword(), req.getRefreshToken(),
-                    req.getKerberosTicket());
-        case 4:
-            final char[] password = { 'p' };
-            return new CreateTokenRequest(req.getGrantType(), req.getScope(), req.getUsername(), password, req.getRefreshToken(),
-                    req.getKerberosTicket());
-        case 5:
-            final char[] kerberosTicket = { 'k' };
-            return new CreateTokenRequest(req.getGrantType(), req.getScope(), req.getUsername(), req.getPassword(), req.getRefreshToken(),
-                    kerberosTicket);
-        case 6:
-            return new CreateTokenRequest(req.getGrantType(), req.getScope(), req.getUsername(), req.getPassword(), "r",
-                    req.getKerberosTicket());
+            case 1:
+                return new CreateTokenRequest(
+                    "g",
+                    req.getScope(),
+                    req.getUsername(),
+                    req.getPassword(),
+                    req.getRefreshToken(),
+                    req.getKerberosTicket()
+                );
+            case 2:
+                return new CreateTokenRequest(
+                    req.getGrantType(),
+                    "s",
+                    req.getUsername(),
+                    req.getPassword(),
+                    req.getRefreshToken(),
+                    req.getKerberosTicket()
+                );
+            case 3:
+                return new CreateTokenRequest(
+                    req.getGrantType(),
+                    req.getScope(),
+                    "u",
+                    req.getPassword(),
+                    req.getRefreshToken(),
+                    req.getKerberosTicket()
+                );
+            case 4:
+                final char[] password = { 'p' };
+                return new CreateTokenRequest(
+                    req.getGrantType(),
+                    req.getScope(),
+                    req.getUsername(),
+                    password,
+                    req.getRefreshToken(),
+                    req.getKerberosTicket()
+                );
+            case 5:
+                final char[] kerberosTicket = { 'k' };
+                return new CreateTokenRequest(
+                    req.getGrantType(),
+                    req.getScope(),
+                    req.getUsername(),
+                    req.getPassword(),
+                    req.getRefreshToken(),
+                    kerberosTicket
+                );
+            case 6:
+                return new CreateTokenRequest(
+                    req.getGrantType(),
+                    req.getScope(),
+                    req.getUsername(),
+                    req.getPassword(),
+                    "r",
+                    req.getKerberosTicket()
+                );
         }
         throw new IllegalStateException("Bad random number");
     }

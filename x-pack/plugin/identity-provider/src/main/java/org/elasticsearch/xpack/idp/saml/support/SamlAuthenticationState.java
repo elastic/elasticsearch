@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.idp.saml.support;
 
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -57,8 +57,11 @@ public class SamlAuthenticationState implements Writeable, ToXContentObject {
         this.authnRequestId = authnRequestId;
     }
 
-    public static final ObjectParser<SamlAuthenticationState, SamlAuthenticationState> PARSER
-        = new ObjectParser<>("saml_authn_state", true, SamlAuthenticationState::new);
+    public static final ObjectParser<SamlAuthenticationState, SamlAuthenticationState> PARSER = new ObjectParser<>(
+        "saml_authn_state",
+        true,
+        SamlAuthenticationState::new
+    );
 
     static {
         PARSER.declareStringOrNull(SamlAuthenticationState::setRequestedNameidFormat, Fields.NAMEID_FORMAT);
@@ -99,8 +102,7 @@ public class SamlAuthenticationState implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SamlAuthenticationState that = (SamlAuthenticationState) o;
-        return Objects.equals(requestedNameidFormat, that.requestedNameidFormat) &&
-            Objects.equals(authnRequestId, that.authnRequestId);
+        return Objects.equals(requestedNameidFormat, that.requestedNameidFormat) && Objects.equals(authnRequestId, that.authnRequestId);
     }
 
     @Override

@@ -106,6 +106,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+@SuppressWarnings("HiddenField")
 public class XPackPlugin extends XPackClientPlugin
     implements
         ExtensiblePlugin,
@@ -150,7 +151,7 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     protected final Settings settings;
-    //private final Environment env;
+    // private final Environment env;
     protected final Licensing licensing;
     // These should not be directly accessed as they cannot be overridden in tests. Please use the getters so they can be overridden.
     private static final SetOnce<XPackLicenseState> licenseState = new SetOnce<>();
@@ -158,10 +159,8 @@ public class XPackPlugin extends XPackClientPlugin
     private static final SetOnce<LicenseService> licenseService = new SetOnce<>();
     private static final SetOnce<LongSupplier> epochMillisSupplier = new SetOnce<>();
 
-    public XPackPlugin(
-            final Settings settings,
-            final Path configPath) {
-        super(settings);
+    public XPackPlugin(final Settings settings) {
+        super();
         // FIXME: The settings might be changed after this (e.g. from "additionalSettings" method in other plugins)
         // We should only depend on the settings from the Environment object passed to createComponents
         this.settings = settings;
@@ -176,13 +175,34 @@ public class XPackPlugin extends XPackClientPlugin
         return Clock.systemUTC();
     }
 
-    protected SSLService getSslService() { return getSharedSslService(); }
-    protected LicenseService getLicenseService() { return getSharedLicenseService(); }
-    protected XPackLicenseState getLicenseState() { return getSharedLicenseState(); }
-    protected LongSupplier getEpochMillisSupplier() { return getSharedEpochMillisSupplier(); }
-    protected void setSslService(SSLService sslService) { XPackPlugin.sslService.set(sslService); }
-    protected void setLicenseService(LicenseService licenseService) { XPackPlugin.licenseService.set(licenseService); }
-    protected void setLicenseState(XPackLicenseState licenseState) { XPackPlugin.licenseState.set(licenseState); }
+    protected SSLService getSslService() {
+        return getSharedSslService();
+    }
+
+    protected LicenseService getLicenseService() {
+        return getSharedLicenseService();
+    }
+
+    protected XPackLicenseState getLicenseState() {
+        return getSharedLicenseState();
+    }
+
+    protected LongSupplier getEpochMillisSupplier() {
+        return getSharedEpochMillisSupplier();
+    }
+
+    protected void setSslService(SSLService sslService) {
+        XPackPlugin.sslService.set(sslService);
+    }
+
+    protected void setLicenseService(LicenseService licenseService) {
+        XPackPlugin.licenseService.set(licenseService);
+    }
+
+    protected void setLicenseState(XPackLicenseState licenseState) {
+        XPackPlugin.licenseState.set(licenseState);
+    }
+
     protected void setEpochMillisSupplier(LongSupplier epochMillisSupplier) {
         XPackPlugin.epochMillisSupplier.set(epochMillisSupplier);
     }
@@ -194,9 +214,18 @@ public class XPackPlugin extends XPackClientPlugin
         }
         return ssl;
     }
-    public static LicenseService getSharedLicenseService() { return licenseService.get(); }
-    public static XPackLicenseState getSharedLicenseState() { return licenseState.get(); }
-    public static LongSupplier getSharedEpochMillisSupplier() { return epochMillisSupplier.get(); }
+
+    public static LicenseService getSharedLicenseService() {
+        return licenseService.get();
+    }
+
+    public static XPackLicenseState getSharedLicenseState() {
+        return licenseState.get();
+    }
+
+    public static LongSupplier getSharedEpochMillisSupplier() {
+        return epochMillisSupplier.get();
+    }
 
     /**
      * Checks if the cluster state allows this node to add x-pack metadata to the cluster state,
@@ -242,11 +271,11 @@ public class XPackPlugin extends XPackClientPlugin
 
     private static boolean alreadyContainsXPackCustomMetadata(ClusterState clusterState) {
         final Metadata metadata = clusterState.metadata();
-        return metadata.custom(LicensesMetadata.TYPE) != null ||
-            metadata.custom(MlMetadata.TYPE) != null ||
-            metadata.custom(WatcherMetadata.TYPE) != null ||
-            clusterState.custom(TokenMetadata.TYPE) != null ||
-            metadata.custom(TransformMetadata.TYPE) != null;
+        return metadata.custom(LicensesMetadata.TYPE) != null
+            || metadata.custom(MlMetadata.TYPE) != null
+            || metadata.custom(WatcherMetadata.TYPE) != null
+            || clusterState.custom(TokenMetadata.TYPE) != null
+            || metadata.custom(TransformMetadata.TYPE) != null;
     }
 
     @Override
@@ -265,17 +294,25 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     @Override
-    public Collection<Object> createComponents(Client client, ClusterService clusterService, ThreadPool threadPool,
-                                               ResourceWatcherService resourceWatcherService, ScriptService scriptService,
-                                               NamedXContentRegistry xContentRegistry, Environment environment,
-                                               NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver,
-                                               Supplier<RepositoriesService> repositoriesServiceSupplier) {
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
         List<Object> components = new ArrayList<>();
 
         final SSLService sslService = createSSLService(environment, resourceWatcherService);
-        setLicenseService(new LicenseService(settings, threadPool, clusterService, getClock(),
-                environment, resourceWatcherService, getLicenseState()));
+        setLicenseService(
+            new LicenseService(settings, threadPool, clusterService, getClock(), environment, resourceWatcherService, getLicenseState())
+        );
 
         setEpochMillisSupplier(threadPool::absoluteTimeInMillis);
 
@@ -327,16 +364,31 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-            IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
-            Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestXPackInfoAction());
         handlers.add(new RestXPackUsageAction());
         handlers.add(new RestReloadAnalyzersAction());
         handlers.add(new RestTermsEnumAction());
-        handlers.addAll(licensing.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
-            indexNameExpressionResolver, nodesInCluster));
+        handlers.addAll(
+            licensing.getRestHandlers(
+                settings,
+                restController,
+                clusterSettings,
+                indexScopedSettings,
+                settingsFilter,
+                indexNameExpressionResolver,
+                nodesInCluster
+            )
+        );
         return handlers;
     }
 
@@ -351,13 +403,20 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     public static Path resolveConfigFile(Environment env, String name) {
-        Path config =  env.configFile().resolve(name);
+        Path config = env.configFile().resolve(name);
         if (Files.exists(config) == false) {
             Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
             if (Files.exists(legacyConfig)) {
-                deprecationLogger.critical(DeprecationCategory.OTHER, "config_file_path",
-                    "Config file [" + name + "] is in a deprecated location. Move from " +
-                    legacyConfig.toString() + " to " + config.toString());
+                deprecationLogger.warn(
+                    DeprecationCategory.OTHER,
+                    "config_file_path",
+                    "Config file ["
+                        + name
+                        + "] is in a deprecated location. Move from "
+                        + legacyConfig.toString()
+                        + " to "
+                        + config.toString()
+                );
                 return legacyConfig;
             }
         }
@@ -365,16 +424,20 @@ public class XPackPlugin extends XPackClientPlugin
     }
 
     @Override
-    public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                           ClusterService clusterService, BigArrays bigArrays,
-                                                           RecoverySettings recoverySettings) {
+    public Map<String, Repository.Factory> getRepositories(
+        Environment env,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings
+    ) {
         return Collections.singletonMap("source", SourceOnlySnapshotRepository.newRepositoryFactory());
     }
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY) &&
-            SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings.getSettings()) == false) {
+        if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
+            && SearchableSnapshotsSettings.isSearchableSnapshotStore(indexSettings.getSettings()) == false) {
             return Optional.of(SourceOnlySnapshotRepository.getEngineFactory());
         }
 
@@ -404,8 +467,7 @@ public class XPackPlugin extends XPackClientPlugin
      */
     private SSLService createSSLService(Environment environment, ResourceWatcherService resourceWatcherService) {
         final Map<String, SslConfiguration> sslConfigurations = SSLService.getSSLConfigurations(environment);
-        final SSLConfigurationReloader reloader =
-            new SSLConfigurationReloader(resourceWatcherService, sslConfigurations.values());
+        final SSLConfigurationReloader reloader = new SSLConfigurationReloader(resourceWatcherService, sslConfigurations.values());
         final SSLService sslService = new SSLService(environment, sslConfigurations);
         reloader.setSSLService(sslService);
         setSslService(sslService);

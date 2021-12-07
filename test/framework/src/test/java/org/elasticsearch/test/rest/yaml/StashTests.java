@@ -82,8 +82,10 @@ public class StashTests extends ESTestCase {
         map.put("key", map2);
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> stash.replaceStashedValues(map));
-        assertEquals(e.getMessage(), "Unstashing has caused a key conflict! The map is [{foobar=whatever}] and the key is ["
-                            + key + "] which unstashes to [foobar]");
+        assertEquals(
+            e.getMessage(),
+            "Unstashing has caused a key conflict! The map is [{foobar=whatever}] and the key is [" + key + "] which unstashes to [foobar]"
+        );
     }
 
     public void testReplaceStashedValuesStashKeyInList() throws IOException {

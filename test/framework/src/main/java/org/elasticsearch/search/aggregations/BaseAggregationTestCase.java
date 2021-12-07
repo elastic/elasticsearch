@@ -12,13 +12,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
+import org.elasticsearch.test.AbstractBuilderTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.elasticsearch.test.AbstractBuilderTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -201,18 +201,18 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
     protected void randomFieldOrScript(ValuesSourceAggregationBuilder<?> factory, String field) {
         int choice = randomInt(2);
         switch (choice) {
-        case 0:
-            factory.field(field);
-            break;
-        case 1:
-            factory.field(field);
-            factory.script(mockScript("_value + 1"));
-            break;
-        case 2:
-            factory.script(mockScript("doc[" + field + "] + 1"));
-            break;
-        default:
-            throw new AssertionError("Unknown random operation [" + choice + "]");
+            case 0:
+                factory.field(field);
+                break;
+            case 1:
+                factory.field(field);
+                factory.script(mockScript("_value + 1"));
+                break;
+            case 2:
+                factory.script(mockScript("doc[" + field + "] + 1"));
+                break;
+            default:
+                throw new AssertionError("Unknown random operation [" + choice + "]");
         }
     }
 

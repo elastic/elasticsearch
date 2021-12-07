@@ -9,20 +9,20 @@ package org.elasticsearch.tasks;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.InstantiatingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParserHelper;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.InstantiatingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -30,9 +30,9 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
+import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 
 /**
  * Information about a running task or a task that stored its result. Running tasks just have a {@link #getTask()} while
@@ -167,7 +167,10 @@ public final class TaskResult implements Writeable, ToXContentObject {
 
     static {
         InstantiatingObjectParser.Builder<TaskResult, Void> parser = InstantiatingObjectParser.builder(
-            "stored_task_result", true, TaskResult.class);
+            "stored_task_result",
+            true,
+            TaskResult.class
+        );
         parser.declareBoolean(constructorArg(), new ParseField("completed"));
         parser.declareObject(constructorArg(), TaskInfo.PARSER, new ParseField("task"));
         ObjectParserHelper<TaskResult, Void> parserHelper = new ObjectParserHelper<>();
@@ -193,9 +196,9 @@ public final class TaskResult implements Writeable, ToXContentObject {
          * differences so perfect for testing.
          */
         return Objects.equals(completed, other.completed)
-                && Objects.equals(task, other.task)
-                && Objects.equals(getErrorAsMap(), other.getErrorAsMap())
-                && Objects.equals(getResponseAsMap(), other.getResponseAsMap());
+            && Objects.equals(task, other.task)
+            && Objects.equals(getErrorAsMap(), other.getErrorAsMap())
+            && Objects.equals(getResponseAsMap(), other.getResponseAsMap());
     }
 
     @Override

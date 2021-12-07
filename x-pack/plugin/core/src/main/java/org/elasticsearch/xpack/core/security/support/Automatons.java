@@ -16,8 +16,8 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -38,16 +38,24 @@ import static org.elasticsearch.common.Strings.collectionToDelimitedString;
 
 public final class Automatons {
 
-    static final Setting<Integer> MAX_DETERMINIZED_STATES_SETTING =
-        Setting.intSetting("xpack.security.automata.max_determinized_states", 100000, DEFAULT_DETERMINIZE_WORK_LIMIT,
-            Setting.Property.NodeScope);
+    static final Setting<Integer> MAX_DETERMINIZED_STATES_SETTING = Setting.intSetting(
+        "xpack.security.automata.max_determinized_states",
+        100000,
+        DEFAULT_DETERMINIZE_WORK_LIMIT,
+        Setting.Property.NodeScope
+    );
 
-    static final Setting<Boolean> CACHE_ENABLED =
-        Setting.boolSetting("xpack.security.automata.cache.enabled", true, Setting.Property.NodeScope);
-    static final Setting<Integer> CACHE_SIZE =
-        Setting.intSetting("xpack.security.automata.cache.size", 10_000, Setting.Property.NodeScope);
-    static final Setting<TimeValue> CACHE_TTL =
-        Setting.timeSetting("xpack.security.automata.cache.ttl", TimeValue.timeValueHours(48), Setting.Property.NodeScope);
+    static final Setting<Boolean> CACHE_ENABLED = Setting.boolSetting(
+        "xpack.security.automata.cache.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+    static final Setting<Integer> CACHE_SIZE = Setting.intSetting("xpack.security.automata.cache.size", 10_000, Setting.Property.NodeScope);
+    static final Setting<TimeValue> CACHE_TTL = Setting.timeSetting(
+        "xpack.security.automata.cache.ttl",
+        TimeValue.timeValueHours(48),
+        Setting.Property.NodeScope
+    );
 
     public static final Automaton EMPTY = Automata.makeEmpty();
     public static final Automaton MATCH_ALL = Automata.makeAnyString();
@@ -60,8 +68,7 @@ public final class Automatons {
     static final char WILDCARD_CHAR = '?';       // Char equality with support for wildcards
     static final char WILDCARD_ESCAPE = '\\';    // Escape character
 
-    private Automatons() {
-    }
+    private Automatons() {}
 
     /**
      * Builds and returns an automaton that will represent the union of all the given patterns.
@@ -105,13 +112,13 @@ public final class Automatons {
         // We originally just compiled each automaton separately and then unioned them all.
         // However, that approach can be quite slow, and very memory intensive.
         // It is far more efficient if
-        //   1. we strip leading/trailing "*"
-        //   2. union the automaton produced from the remaining text
-        //   3. append/prepend MatchAnyString automatons as appropriate
+        // 1. we strip leading/trailing "*"
+        // 2. union the automaton produced from the remaining text
+        // 3. append/prepend MatchAnyString automatons as appropriate
         // That is:
-        //  - `MATCH_ALL + (bullseye|daredevil) + MATCH_ALL`
-        //  can be determinized more efficiently than
-        //  - `(MATCH_ALL + bullseye + MATCH_ALL)|(MATCH_ALL + daredevil + MATCH_ALL)`
+        // - `MATCH_ALL + (bullseye|daredevil) + MATCH_ALL`
+        // can be determinized more efficiently than
+        // - `(MATCH_ALL + bullseye + MATCH_ALL)|(MATCH_ALL + daredevil + MATCH_ALL)`
 
         final Set<String> prefix = new HashSet<>();
         final Set<String> infix = new HashSet<>();
@@ -145,7 +152,7 @@ public final class Automatons {
                 // If we were to handle them here, we would run 2 minimize operations (one for the union of strings,
                 // then another after concatenating MATCH_ANY), which is substantially slower.
                 // However, that's not true if the string has an embedded '*' in it - in that case it is more efficient to determinize
-                //   the set of prefixes (with the embedded MATCH_ANY) and then concatenate another MATCH_ANY and minimize.
+                // the set of prefixes (with the embedded MATCH_ANY) and then concatenate another MATCH_ANY and minimize.
                 prefix.add(p.substring(0, p.length() - 1));
             } else {
                 // something* / some*thing / some?thing / etc
@@ -194,9 +201,13 @@ public final class Automatons {
     private static Automaton buildAutomaton(String pattern) {
         if (pattern.startsWith("/")) { // it's a lucene regexp
             if (pattern.length() == 1 || pattern.endsWith("/") == false) {
-                throw new IllegalArgumentException("invalid pattern [" + pattern + "]. patterns starting with '/' " +
-                    "indicate regular expression pattern and therefore must also end with '/'." +
-                    " other patterns (those that do not start with '/') will be treated as simple wildcard patterns");
+                throw new IllegalArgumentException(
+                    "invalid pattern ["
+                        + pattern
+                        + "]. patterns starting with '/' "
+                        + "indicate regular expression pattern and therefore must also end with '/'."
+                        + " other patterns (those that do not start with '/') will be treated as simple wildcard patterns"
+                );
             }
             String regex = pattern.substring(1, pattern.length() - 1);
             return new RegExp(regex).toAutomaton();
@@ -222,7 +233,7 @@ public final class Automatons {
     @SuppressWarnings("fallthrough") // explicit fallthrough at end of switch
     static Automaton wildcard(String text) {
         List<Automaton> automata = new ArrayList<>();
-        for (int i = 0; i < text.length(); ) {
+        for (int i = 0; i < text.length();) {
             final char c = text.charAt(i);
             int length = 1;
             switch (c) {

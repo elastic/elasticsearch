@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfigUpdate;
@@ -31,11 +32,26 @@ public class ZeroShotClassificationProcessorTests extends ESTestCase {
     public void testBuildRequest() throws IOException {
         NlpTokenizer tokenizer = NlpTokenizer.build(
             new Vocabulary(
-                Arrays.asList("Elastic", "##search", "fun", "default", "label", "new", "stuff", "This", "example", "is", ".",
-                    BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN, BertTokenizer.PAD_TOKEN),
+                Arrays.asList(
+                    "Elastic",
+                    "##search",
+                    "fun",
+                    "default",
+                    "label",
+                    "new",
+                    "stuff",
+                    "This",
+                    "example",
+                    "is",
+                    ".",
+                    BertTokenizer.CLASS_TOKEN,
+                    BertTokenizer.SEPARATOR_TOKEN,
+                    BertTokenizer.PAD_TOKEN
+                ),
                 randomAlphaOfLength(10)
             ),
-            new BertTokenization(null, true, 512));
+            new BertTokenization(null, true, 512, Tokenization.Truncate.NONE)
+        );
 
         ZeroShotClassificationConfig config = new ZeroShotClassificationConfig(
             List.of("entailment", "neutral", "contradiction"),
@@ -49,17 +65,17 @@ public class ZeroShotClassificationProcessorTests extends ESTestCase {
         ZeroShotClassificationProcessor processor = new ZeroShotClassificationProcessor(tokenizer, config);
 
         NlpTask.Request request = processor.getRequestBuilder(
-            (NlpConfig)new ZeroShotClassificationConfigUpdate.Builder().setLabels(List.of("new", "stuff")).build().apply(config)
-        ).buildRequest(List.of("Elasticsearch fun"), "request1");
+            (NlpConfig) new ZeroShotClassificationConfigUpdate.Builder().setLabels(List.of("new", "stuff")).build().apply(config)
+        ).buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE);
 
         Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput, true, XContentType.JSON).v2();
 
         assertThat(jsonDocAsMap.keySet(), hasSize(5));
         assertEquals("request1", jsonDocAsMap.get("request_id"));
-        assertEquals(Arrays.asList(11, 0, 1, 2, 12, 7, 8, 9, 5, 10, 12), ((List<List<Integer>>)jsonDocAsMap.get("tokens")).get(0));
-        assertEquals(Arrays.asList(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), ((List<List<Integer>>)jsonDocAsMap.get("arg_1")).get(0));
-        assertEquals(Arrays.asList(11, 0, 1, 2, 12, 7, 8, 9, 6, 10, 12), ((List<List<Integer>>)jsonDocAsMap.get("tokens")).get(1));
-        assertEquals(Arrays.asList(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), ((List<List<Integer>>)jsonDocAsMap.get("arg_1")).get(1));
+        assertEquals(Arrays.asList(11, 0, 1, 2, 12, 7, 8, 9, 5, 10, 12), ((List<List<Integer>>) jsonDocAsMap.get("tokens")).get(0));
+        assertEquals(Arrays.asList(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), ((List<List<Integer>>) jsonDocAsMap.get("arg_1")).get(0));
+        assertEquals(Arrays.asList(11, 0, 1, 2, 12, 7, 8, 9, 6, 10, 12), ((List<List<Integer>>) jsonDocAsMap.get("tokens")).get(1));
+        assertEquals(Arrays.asList(1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1), ((List<List<Integer>>) jsonDocAsMap.get("arg_1")).get(1));
     }
 
 }

@@ -19,13 +19,13 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -64,13 +64,19 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
 
         final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
         final String threadName = "TimestampFieldMapperService#updateTask";
-        executor = EsExecutors.newScaling(nodeName + "/" + threadName, 0, 1, 0, TimeUnit.MILLISECONDS,
-                daemonThreadFactory(nodeName, threadName), threadPool.getThreadContext());
+        executor = EsExecutors.newScaling(
+            nodeName + "/" + threadName,
+            0,
+            1,
+            0,
+            TimeUnit.MILLISECONDS,
+            daemonThreadFactory(nodeName, threadName),
+            threadPool.getThreadContext()
+        );
     }
 
     @Override
-    protected void doStart() {
-    }
+    protected void doStart() {}
 
     @Override
     protected void doStop() {
@@ -78,8 +84,7 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
     }
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     @Override
     public void applyClusterState(ClusterChangedEvent event) {

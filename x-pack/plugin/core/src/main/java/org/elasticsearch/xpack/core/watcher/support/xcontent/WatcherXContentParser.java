@@ -59,16 +59,23 @@ public class WatcherXContentParser extends FilterXContentParser {
     }
 
     private final ZonedDateTime parseTime;
-    @Nullable private final CryptoService cryptoService;
+    @Nullable
+    private final CryptoService cryptoService;
     private final boolean allowRedactedPasswords;
 
-    public WatcherXContentParser(XContentParser parser, ZonedDateTime parseTime, @Nullable CryptoService cryptoService,
-                                 boolean allowRedactedPasswords) {
+    public WatcherXContentParser(
+        XContentParser parser,
+        ZonedDateTime parseTime,
+        @Nullable CryptoService cryptoService,
+        boolean allowRedactedPasswords
+    ) {
         super(parser);
         this.parseTime = parseTime;
         this.cryptoService = cryptoService;
         this.allowRedactedPasswords = allowRedactedPasswords;
     }
 
-    public ZonedDateTime getParseDateTime() { return parseTime; }
+    public ZonedDateTime getParseDateTime() {
+        return parseTime;
+    }
 }

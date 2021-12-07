@@ -30,8 +30,7 @@ public class QlSourceBuilder {
 
     boolean trackScores = false;
 
-    public QlSourceBuilder() {
-    }
+    public QlSourceBuilder() {}
 
     /**
      * Turns on returning the {@code _score} for documents.

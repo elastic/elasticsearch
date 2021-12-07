@@ -33,19 +33,19 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 import org.hamcrest.core.CombinableMatcher;
@@ -111,8 +111,10 @@ public class ElasticsearchAssertions {
      */
     public static void assertAcked(CreateIndexResponse response) {
         assertThat(response.getClass().getSimpleName() + " failed - not acked", response.isAcknowledged(), equalTo(true));
-        assertTrue(response.getClass().getSimpleName() + " failed - index creation acked but not all shards were started",
-            response.isShardsAcknowledged());
+        assertTrue(
+            response.getClass().getSimpleName() + " failed - index creation acked but not all shards were started",
+            response.isShardsAcknowledged()
+        );
     }
 
     /**
@@ -131,13 +133,20 @@ public class ElasticsearchAssertions {
      *
      * */
     public static void assertBlocked(BroadcastResponse replicatedBroadcastResponse) {
-        assertThat("all shard requests should have failed",
-                replicatedBroadcastResponse.getFailedShards(), equalTo(replicatedBroadcastResponse.getTotalShards()));
+        assertThat(
+            "all shard requests should have failed",
+            replicatedBroadcastResponse.getFailedShards(),
+            equalTo(replicatedBroadcastResponse.getTotalShards())
+        );
         for (DefaultShardOperationFailedException exception : replicatedBroadcastResponse.getShardFailures()) {
-            ClusterBlockException clusterBlockException =
-                    (ClusterBlockException) ExceptionsHelper.unwrap(exception.getCause(), ClusterBlockException.class);
-            assertNotNull("expected the cause of failure to be a ClusterBlockException but got " + exception.getCause().getMessage(),
-                    clusterBlockException);
+            ClusterBlockException clusterBlockException = (ClusterBlockException) ExceptionsHelper.unwrap(
+                exception.getCause(),
+                ClusterBlockException.class
+            );
+            assertNotNull(
+                "expected the cause of failure to be a ClusterBlockException but got " + exception.getCause().getMessage(),
+                clusterBlockException
+            );
             assertThat(clusterBlockException.blocks().size(), greaterThan(0));
 
             RestStatus status = checkRetryableBlock(clusterBlockException.blocks()) ? RestStatus.TOO_MANY_REQUESTS : RestStatus.FORBIDDEN;
@@ -183,7 +192,7 @@ public class ElasticsearchAssertions {
         assertBlocked(builder, expectedBlock != null ? expectedBlock.id() : null);
     }
 
-    private static boolean checkRetryableBlock(Set<ClusterBlock> clusterBlocks){
+    private static boolean checkRetryableBlock(Set<ClusterBlock> clusterBlocks) {
         // check only retryable blocks exist in the set
         for (ClusterBlock clusterBlock : clusterBlocks) {
             if (clusterBlock.id() != IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK.id()) {
@@ -195,9 +204,13 @@ public class ElasticsearchAssertions {
 
     public static String formatShardStatus(BroadcastResponse response) {
         StringBuilder msg = new StringBuilder();
-        msg.append(" Total shards: ").append(response.getTotalShards())
-           .append(" Successful shards: ").append(response.getSuccessfulShards())
-           .append(" & ").append(response.getFailedShards()).append(" shard failures:");
+        msg.append(" Total shards: ")
+            .append(response.getTotalShards())
+            .append(" Successful shards: ")
+            .append(response.getSuccessfulShards())
+            .append(" & ")
+            .append(response.getFailedShards())
+            .append(" shard failures:");
         for (DefaultShardOperationFailedException failure : response.getShardFailures()) {
             msg.append("\n ").append(failure);
         }
@@ -206,9 +219,13 @@ public class ElasticsearchAssertions {
 
     public static String formatShardStatus(SearchResponse response) {
         StringBuilder msg = new StringBuilder();
-        msg.append(" Total shards: ").append(response.getTotalShards())
-           .append(" Successful shards: ").append(response.getSuccessfulShards())
-           .append(" & ").append(response.getFailedShards()).append(" shard failures:");
+        msg.append(" Total shards: ")
+            .append(response.getTotalShards())
+            .append(" Successful shards: ")
+            .append(response.getSuccessfulShards())
+            .append(" & ")
+            .append(response.getFailedShards())
+            .append(" shard failures:");
         for (ShardSearchFailure failure : response.getShardFailures()) {
             msg.append("\n ").append(failure);
         }
@@ -225,12 +242,19 @@ public class ElasticsearchAssertions {
         Set<String> idsSet = new HashSet<>(Arrays.asList(ids));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(
-                    "id [" + hit.getId() + "] was found in search results but wasn't expected (index ["
-                        + hit.getIndex() + "])" + shardStatus, idsSet.remove(hit.getId()),
-                    equalTo(true));
+                "id [" + hit.getId() + "] was found in search results but wasn't expected (index [" + hit.getIndex() + "])" + shardStatus,
+                idsSet.remove(hit.getId()),
+                equalTo(true)
+            );
         }
-        assertThat("Some expected ids were not found in search results: " + Arrays.toString(idsSet.toArray(new String[idsSet.size()])) + "."
-                + shardStatus, idsSet.size(), equalTo(0));
+        assertThat(
+            "Some expected ids were not found in search results: "
+                + Arrays.toString(idsSet.toArray(new String[idsSet.size()]))
+                + "."
+                + shardStatus,
+            idsSet.size(),
+            equalTo(0)
+        );
     }
 
     public static void assertSortValues(SearchResponse searchResponse, Object[]... sortValues) {
@@ -255,14 +279,12 @@ public class ElasticsearchAssertions {
     public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
         final TotalHits totalHits = countResponse.getHits().getTotalHits();
         if (totalHits.relation != TotalHits.Relation.EQUAL_TO || totalHits.value != expectedHitCount) {
-            fail("Count is " + totalHits + " but " + expectedHitCount
-                    + " was expected. " + formatShardStatus(countResponse));
+            fail("Count is " + totalHits + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
         }
     }
 
     public static void assertExists(GetResponse response) {
-        String message = String.format(Locale.ROOT, "Expected %s/%s to exist, but does not",
-                response.getIndex(), response.getId());
+        String message = String.format(Locale.ROOT, "Expected %s/%s to exist, but does not", response.getIndex(), response.getId());
         assertThat(message, response.isExists(), is(true));
     }
 
@@ -290,23 +312,24 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertNoFailures(SearchResponse searchResponse) {
-        assertThat("Unexpected ShardFailures: " + Arrays.toString(searchResponse.getShardFailures()),
-                searchResponse.getShardFailures().length, equalTo(0));
+        assertThat(
+            "Unexpected ShardFailures: " + Arrays.toString(searchResponse.getShardFailures()),
+            searchResponse.getShardFailures().length,
+            equalTo(0)
+        );
     }
 
     public static void assertFailures(SearchResponse searchResponse) {
-        assertThat("Expected at least one shard failure, got none",
-                searchResponse.getShardFailures().length, greaterThan(0));
+        assertThat("Expected at least one shard failure, got none", searchResponse.getShardFailures().length, greaterThan(0));
     }
 
     public static void assertNoFailures(BulkResponse response) {
-        assertThat("Unexpected ShardFailures: " + response.buildFailureMessage(),
-                response.hasFailures(), is(false));
+        assertThat("Unexpected ShardFailures: " + response.buildFailureMessage(), response.hasFailures(), is(false));
     }
 
     public static void assertFailures(SearchRequestBuilder searchRequestBuilder, RestStatus restStatus, Matcher<String> reasonMatcher) {
-        //when the number for shards is randomized and we expect failures
-        //we can either run into partial or total failures depending on the current number of shards
+        // when the number for shards is randomized and we expect failures
+        // we can either run into partial or total failures depending on the current number of shards
         try {
             SearchResponse searchResponse = searchRequestBuilder.get();
             assertThat("Expected shard failures, got none", searchResponse.getShardFailures().length, greaterThan(0));
@@ -340,22 +363,26 @@ public class ElasticsearchAssertions {
 
     public static void assertAllSuccessful(BroadcastResponse response) {
         assertNoFailures(response);
-        assertThat("Expected all shards successful",
-                response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+        assertThat("Expected all shards successful", response.getSuccessfulShards(), equalTo(response.getTotalShards()));
     }
 
     public static void assertAllSuccessful(SearchResponse response) {
         assertNoFailures(response);
-        assertThat("Expected all shards successful",
-                response.getSuccessfulShards(), equalTo(response.getTotalShards()));
+        assertThat("Expected all shards successful", response.getSuccessfulShards(), equalTo(response.getTotalShards()));
     }
 
     public static void assertHighlight(SearchResponse resp, int hit, String field, int fragment, Matcher<String> matcher) {
         assertHighlight(resp, hit, field, fragment, greaterThan(fragment), matcher);
     }
 
-    public static void assertHighlight(SearchResponse resp, int hit, String field, int fragment,
-            int totalFragments, Matcher<String> matcher) {
+    public static void assertHighlight(
+        SearchResponse resp,
+        int hit,
+        String field,
+        int fragment,
+        int totalFragments,
+        Matcher<String> matcher
+    ) {
         assertHighlight(resp, hit, field, fragment, equalTo(totalFragments), matcher);
     }
 
@@ -367,15 +394,26 @@ public class ElasticsearchAssertions {
         assertHighlight(hit, field, fragment, equalTo(totalFragments), matcher);
     }
 
-    private static void assertHighlight(SearchResponse resp, int hit, String field, int fragment,
-            Matcher<Integer> fragmentsMatcher, Matcher<String> matcher) {
+    private static void assertHighlight(
+        SearchResponse resp,
+        int hit,
+        String field,
+        int fragment,
+        Matcher<Integer> fragmentsMatcher,
+        Matcher<String> matcher
+    ) {
         assertNoFailures(resp);
         assertThat("not enough hits", resp.getHits().getHits().length, greaterThan(hit));
         assertHighlight(resp.getHits().getHits()[hit], field, fragment, fragmentsMatcher, matcher);
     }
 
-    private static void assertHighlight(SearchHit hit, String field, int fragment,
-            Matcher<Integer> fragmentsMatcher, Matcher<String> matcher) {
+    private static void assertHighlight(
+        SearchHit hit,
+        String field,
+        int fragment,
+        Matcher<Integer> fragmentsMatcher,
+        Matcher<String> matcher
+    ) {
         assertThat(hit.getHighlightFields(), hasKey(field));
         assertThat(hit.getHighlightFields().get(field).fragments().length, fragmentsMatcher);
         assertThat(hit.getHighlightFields().get(field).fragments()[fragment].string(), matcher);
@@ -483,7 +521,7 @@ public class ElasticsearchAssertions {
     }
 
     public static Function<SearchHit, Object> fieldFromSource(String fieldName) {
-        return (response) ->  response.getSourceAsMap().get(fieldName);
+        return (response) -> response.getSourceAsMap().get(fieldName);
     }
 
     public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {
@@ -504,8 +542,11 @@ public class ElasticsearchAssertions {
     /**
      * Run the request from a given builder and check that it throws an exception of the right type, with a given {@link RestStatus}
      */
-    public static <E extends Throwable> void assertRequestBuilderThrows(ActionRequestBuilder<?, ?> builder, Class<E> exceptionClass,
-                                                                        RestStatus status) {
+    public static <E extends Throwable> void assertRequestBuilderThrows(
+        ActionRequestBuilder<?, ?> builder,
+        Class<E> exceptionClass,
+        RestStatus status
+    ) {
         assertFutureThrows(builder.execute(), exceptionClass, status);
     }
 
@@ -514,8 +555,11 @@ public class ElasticsearchAssertions {
      *
      * @param extraInfo extra information to add to the failure message
      */
-    public static <E extends Throwable> void assertRequestBuilderThrows(ActionRequestBuilder<?, ?> builder, Class<E> exceptionClass,
-                                                                        String extraInfo) {
+    public static <E extends Throwable> void assertRequestBuilderThrows(
+        ActionRequestBuilder<?, ?> builder,
+        Class<E> exceptionClass,
+        String extraInfo
+    ) {
         assertFutureThrows(builder.execute(), exceptionClass, extraInfo);
     }
 
@@ -549,8 +593,12 @@ public class ElasticsearchAssertions {
      * @param status         {@link org.elasticsearch.rest.RestStatus} to check for. Can be null to disable the check
      * @param extraInfo      extra information to add to the failure message. Can be null.
      */
-    public static <E extends Throwable> void assertFutureThrows(ActionFuture<?> future, Class<E> exceptionClass,
-                                                                @Nullable RestStatus status, @Nullable String extraInfo) {
+    public static <E extends Throwable> void assertFutureThrows(
+        ActionFuture<?> future,
+        Class<E> exceptionClass,
+        @Nullable RestStatus status,
+        @Nullable String extraInfo
+    ) {
         extraInfo = extraInfo == null || extraInfo.isEmpty() ? "" : extraInfo + ": ";
         extraInfo += "expected a " + exceptionClass + " exception to be thrown";
 
@@ -628,18 +676,22 @@ public class ElasticsearchAssertions {
      * Also binary values (byte[]) are properly compared through arrays comparisons.
      */
     public static void assertToXContentEquivalent(BytesReference expected, BytesReference actual, XContentType xContentType)
-            throws IOException {
-        //we tried comparing byte per byte, but that didn't fly for a couple of reasons:
-        //1) whenever anything goes through a map while parsing, ordering is not preserved, which is perfectly ok
-        //2) Jackson SMILE parser parses floats as double, which then get printed out as double (with double precision)
-        //Note that byte[] holding binary values need special treatment as they need to be properly compared item per item.
+        throws IOException {
+        // we tried comparing byte per byte, but that didn't fly for a couple of reasons:
+        // 1) whenever anything goes through a map while parsing, ordering is not preserved, which is perfectly ok
+        // 2) Jackson SMILE parser parses floats as double, which then get printed out as double (with double precision)
+        // Note that byte[] holding binary values need special treatment as they need to be properly compared item per item.
         Map<String, Object> actualMap = null;
         Map<String, Object> expectedMap = null;
-        try (XContentParser actualParser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, actual.streamInput())) {
+        try (
+            XContentParser actualParser = xContentType.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, actual.streamInput())
+        ) {
             actualMap = actualParser.map();
-            try (XContentParser expectedParser = xContentType.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, expected.streamInput())) {
+            try (
+                XContentParser expectedParser = xContentType.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, expected.streamInput())
+            ) {
                 expectedMap = expectedParser.map();
                 try {
                     assertMapEquals(expectedMap, actualMap);
@@ -710,8 +762,8 @@ public class ElasticsearchAssertions {
         } else if (expected instanceof List) {
             assertListEquals((List<Object>) expected, (List<Object>) actual);
         } else if (expected instanceof byte[]) {
-            //byte[] is really a special case for binary values when comparing SMILE and CBOR, arrays of other types
-            //don't need to be handled. Ordinary arrays get parsed as lists.
+            // byte[] is really a special case for binary values when comparing SMILE and CBOR, arrays of other types
+            // don't need to be handled. Ordinary arrays get parsed as lists.
             assertArrayEquals((byte[]) expected, (byte[]) actual);
         } else {
             assertEquals(expected, actual);

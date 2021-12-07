@@ -15,8 +15,7 @@ public class PutLicenseRequest extends TimedRequest {
     private String licenseDefinition;
     private boolean acknowledge = false;
 
-    public PutLicenseRequest() {
-    }
+    public PutLicenseRequest() {}
 
     public void setLicenseDefinition(String licenseDefinition) {
         this.licenseDefinition = licenseDefinition;

@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.termsenum;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.termsenum.action.TermCount;
 
 import java.io.IOException;

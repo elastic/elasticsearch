@@ -56,15 +56,25 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     @Nullable
     private volatile Set<Path> unhealthyPaths;
 
-    public static final Setting<Boolean> ENABLED_SETTING =
-        Setting.boolSetting("monitor.fs.health.enabled", true, Setting.Property.NodeScope, Setting.Property.Dynamic);
-    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("monitor.fs.health.refresh_interval", TimeValue.timeValueSeconds(120), TimeValue.timeValueMillis(1),
-            Setting.Property.NodeScope);
-    public static final Setting<TimeValue> SLOW_PATH_LOGGING_THRESHOLD_SETTING =
-        Setting.timeSetting("monitor.fs.health.slow_path_logging_threshold", TimeValue.timeValueSeconds(5), TimeValue.timeValueMillis(1),
-            Setting.Property.NodeScope, Setting.Property.Dynamic);
-
+    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
+        "monitor.fs.health.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "monitor.fs.health.refresh_interval",
+        TimeValue.timeValueSeconds(120),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope
+    );
+    public static final Setting<TimeValue> SLOW_PATH_LOGGING_THRESHOLD_SETTING = Setting.timeSetting(
+        "monitor.fs.health.slow_path_logging_threshold",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.timeValueMillis(1),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     public FsHealthService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool, NodeEnvironment nodeEnv) {
         this.threadPool = threadPool;
@@ -88,8 +98,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
     }
 
     @Override
-    protected void doClose() {
-    }
+    protected void doClose() {}
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
@@ -110,8 +119,9 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         } else if (unhealthyPaths == null) {
             statusInfo = new StatusInfo(HEALTHY, "health check passed");
         } else {
-            String info = "health check failed on [" + unhealthyPaths.stream()
-                .map(k -> k.toString()).collect(Collectors.joining(",")) + "]";
+            String info = "health check failed on ["
+                + unhealthyPaths.stream().map(k -> k.toString()).collect(Collectors.joining(","))
+                + "]";
             statusInfo = new StatusInfo(UNHEALTHY, info);
         }
 
@@ -123,7 +133,7 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         static final String TEMP_FILE_NAME = ".es_temp_file";
         private byte[] bytesToWrite;
 
-        FsHealthMonitor(){
+        FsHealthMonitor() {
             this.bytesToWrite = UUIDs.randomBase64UUID().getBytes(StandardCharsets.UTF_8);
         }
 
@@ -163,8 +173,12 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
                         Files.delete(tempDataPath);
                         final long elapsedTime = currentTimeMillisSupplier.getAsLong() - executionStartTime;
                         if (elapsedTime > slowPathLoggingThreshold.millis()) {
-                            logger.warn("health check of [{}] took [{}ms] which is above the warn threshold of [{}]",
-                                path, elapsedTime, slowPathLoggingThreshold);
+                            logger.warn(
+                                "health check of [{}] took [{}ms] which is above the warn threshold of [{}]",
+                                path,
+                                elapsedTime,
+                                slowPathLoggingThreshold
+                            );
                         }
                     }
                 } catch (Exception ex) {
@@ -180,4 +194,3 @@ public class FsHealthService extends AbstractLifecycleComponent implements NodeH
         }
     }
 }
-

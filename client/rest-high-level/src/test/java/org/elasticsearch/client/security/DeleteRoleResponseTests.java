@@ -9,12 +9,12 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
@@ -23,8 +23,7 @@ public class DeleteRoleResponseTests extends ESTestCase {
     public void testBasicParsing() throws IOException {
         XContentType contentType = randomFrom(XContentType.values());
         final boolean found = randomBoolean();
-        XContentBuilder builder = XContentFactory.contentBuilder(contentType).startObject()
-            .field("found", found).endObject();
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType).startObject().field("found", found).endObject();
         BytesReference bytes = BytesReference.bytes(builder);
 
         DeleteRoleResponse response = parse(builder.contentType(), bytes);
@@ -40,8 +39,7 @@ public class DeleteRoleResponseTests extends ESTestCase {
     }
 
     private DeleteRoleResponse parse(XContentType contentType, BytesReference bytes) throws IOException {
-        XContentParser parser = XContentFactory.xContent(contentType)
-            .createParser(NamedXContentRegistry.EMPTY, null, bytes.streamInput());
+        XContentParser parser = XContentFactory.xContent(contentType).createParser(NamedXContentRegistry.EMPTY, null, bytes.streamInput());
         parser.nextToken();
         return DeleteRoleResponse.fromXContent(parser);
     }

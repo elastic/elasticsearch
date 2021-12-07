@@ -28,7 +28,7 @@ import static org.junit.Assert.assertThat;
 public class CloseToAssertion extends Assertion {
     public static CloseToAssertion parse(XContentParser parser) throws IOException {
         XContentLocation location = parser.getTokenLocation();
-        Tuple<String,Object> fieldValueTuple = ParserUtils.parseTuple(parser);
+        Tuple<String, Object> fieldValueTuple = ParserUtils.parseTuple(parser);
         if (fieldValueTuple.v2() instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, Object> map = (Map<String, Object>) fieldValueTuple.v2();
@@ -43,10 +43,11 @@ public class CloseToAssertion extends Assertion {
             if (errObj instanceof Number == false) {
                 throw new IllegalArgumentException("error is missing or not a number");
             }
-            return new CloseToAssertion(location, fieldValueTuple.v1(), ((Number)valObj).doubleValue(), ((Number)errObj).doubleValue());
+            return new CloseToAssertion(location, fieldValueTuple.v1(), ((Number) valObj).doubleValue(), ((Number) errObj).doubleValue());
         } else {
-            throw new IllegalArgumentException("expected a map with value and error but got " +
-                fieldValueTuple.v2().getClass().getSimpleName());
+            throw new IllegalArgumentException(
+                "expected a map with value and error but got " + fieldValueTuple.v2().getClass().getSimpleName()
+            );
         }
 
     }

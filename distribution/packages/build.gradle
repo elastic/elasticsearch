@@ -175,6 +175,7 @@ def commonPackageConfig(String type, String architecture) {
 
     // ========= config files =========
     configurationFile '/etc/elasticsearch/elasticsearch.yml'
+    configurationFile '/etc/elasticsearch/elasticsearch-plugins.example.yml'
     configurationFile '/etc/elasticsearch/jvm.options'
     configurationFile '/etc/elasticsearch/log4j2.properties'
     configurationFile '/etc/elasticsearch/role_mapping.yml'

@@ -14,13 +14,13 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsRequest;
@@ -79,8 +79,15 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         secondTriggerServiceStats.inc("foo.bar.baz", 1024);
         when(triggerService.stats()).thenReturn(firstTriggerServiceStats, secondTriggerServiceStats);
 
-        action = new TransportWatcherStatsAction(transportService, clusterService, threadPool, new
-            ActionFilters(Collections.emptySet()), watcherLifeCycleService, executionService, triggerService);
+        action = new TransportWatcherStatsAction(
+            transportService,
+            clusterService,
+            threadPool,
+            new ActionFilters(Collections.emptySet()),
+            watcherLifeCycleService,
+            executionService,
+            triggerService
+        );
     }
 
     public void testWatcherStats() throws Exception {
@@ -89,8 +96,7 @@ public class TransportWatcherStatsActionTests extends ESTestCase {
         WatcherStatsResponse.Node nodeResponse1 = action.nodeOperation(new WatcherStatsRequest.Node(request), null);
         WatcherStatsResponse.Node nodeResponse2 = action.nodeOperation(new WatcherStatsRequest.Node(request), null);
 
-        WatcherStatsResponse response = action.newResponse(request,
-            Arrays.asList(nodeResponse1, nodeResponse2), Collections.emptyList());
+        WatcherStatsResponse response = action.newResponse(request, Arrays.asList(nodeResponse1, nodeResponse2), Collections.emptyList());
         assertThat(response.getWatchesCount(), is(40L));
 
         try (XContentBuilder builder = jsonBuilder()) {

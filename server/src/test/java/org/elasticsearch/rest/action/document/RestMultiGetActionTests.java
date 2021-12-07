@@ -10,15 +10,15 @@ package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -40,18 +40,18 @@ public class RestMultiGetActionTests extends RestActionTestCase {
             return Mockito.mock(MultiGetResponse.class);
         });
     }
+
     public void testTypeInPath() {
-        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withHeaders( Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
-            .withMethod(RestRequest.Method.GET)
-            .withPath("some_index/some_type/_mget")
-            .build();
+        RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
+            Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
+        ).withMethod(RestRequest.Method.GET).withPath("some_index/some_type/_mget").build();
         dispatchRequest(deprecatedRequest);
-        assertWarnings(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeInBody() throws Exception {
-        XContentBuilder content = XContentFactory.contentBuilder(VND_TYPE).startObject()
+        XContentBuilder content = XContentFactory.contentBuilder(VND_TYPE)
+            .startObject()
             .startArray("docs")
             .startObject()
             .field("_index", "some_index")
@@ -65,13 +65,12 @@ public class RestMultiGetActionTests extends RestActionTestCase {
             .endArray()
             .endObject();
 
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withPath("_mget")
-            .withHeaders( Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("_mget")
+            .withHeaders(Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader))
             .withContent(BytesReference.bytes(content), null)
             .build();
         dispatchRequest(request);
-        assertWarnings(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
     }
 
 }

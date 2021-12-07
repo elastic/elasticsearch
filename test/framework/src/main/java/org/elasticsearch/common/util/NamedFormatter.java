@@ -15,13 +15,12 @@ import java.util.regex.Pattern;
  * A formatter that allows named placeholders e.g. "%(param)" to be replaced.
  */
 public class NamedFormatter {
-    private static final Pattern PARAM_REGEX = Pattern
-        .compile(
-            // Match either any backlash-escaped characters, or a "%(param)" pattern.
-            // COMMENTS is specified to allow whitespace in this pattern, for clarity
-            "\\\\(.) | (% \\( ([^)]+) \\) )",
-            Pattern.COMMENTS
-        );
+    private static final Pattern PARAM_REGEX = Pattern.compile(
+        // Match either any backlash-escaped characters, or a "%(param)" pattern.
+        // COMMENTS is specified to allow whitespace in this pattern, for clarity
+        "\\\\(.) | (% \\( ([^)]+) \\) )",
+        Pattern.COMMENTS
+    );
 
     private NamedFormatter() {}
 

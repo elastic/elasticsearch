@@ -229,7 +229,9 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
                 listener.onFailure(
                     new ElasticsearchStatusException(
                         TransformMessages.getMessage(
-                            TransformMessages.TRANSFORM_CONFIGURATION_INVALID, request.getId(), validationException.getMessage()
+                            TransformMessages.TRANSFORM_CONFIGURATION_INVALID,
+                            request.getId(),
+                            validationException.getMessage()
                         ),
                         RestStatus.BAD_REQUEST
                     )
@@ -238,20 +240,29 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             }
             transformTaskParamsHolder.set(
                 new TransformTaskParams(
-                    config.getId(), config.getVersion(), config.getFrequency(), config.getSource().requiresRemoteCluster()
+                    config.getId(),
+                    config.getVersion(),
+                    config.getFrequency(),
+                    config.getSource().requiresRemoteCluster()
                 )
             );
             transformConfigHolder.set(config);
-            client.execute(ValidateTransformAction.INSTANCE, new ValidateTransformAction.Request(config, false), validationListener);
+            client.execute(
+                ValidateTransformAction.INSTANCE,
+                new ValidateTransformAction.Request(config, false, request.timeout()),
+                validationListener
+            );
         }, listener::onFailure);
 
         // <1> Get the config to verify it exists and is valid
         transformConfigManager.getTransformConfiguration(request.getId(), getTransformListener);
     }
 
-    private void createDestinationIndex(final TransformConfig config,
-                                        final Map<String, String> mappings,
-                                        final ActionListener<Boolean> listener) {
+    private void createDestinationIndex(
+        final TransformConfig config,
+        final Map<String, String> mappings,
+        final ActionListener<Boolean> listener
+    ) {
 
         TransformDestIndexSettings generatedDestIndexSettings = TransformIndex.createTransformDestIndexSettings(
             mappings,

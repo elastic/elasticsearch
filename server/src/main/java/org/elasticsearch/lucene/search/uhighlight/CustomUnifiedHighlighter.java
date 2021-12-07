@@ -38,6 +38,7 @@ import java.io.IOException;
 import java.text.BreakIterator;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -87,18 +88,22 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
      * @param maxAnalyzedOffset if the field is more than this long we'll refuse to use the ANALYZED
      *                          offset source for it because it'd be super slow
      */
-    public CustomUnifiedHighlighter(IndexSearcher searcher,
-                                    Analyzer analyzer,
-                                    OffsetSource offsetSource,
-                                    PassageFormatter passageFormatter,
-                                    @Nullable Locale breakIteratorLocale,
-                                    @Nullable BreakIterator breakIterator,
-                                    String index, String field, Query query,
-                                    int noMatchSize,
-                                    int maxPassages,
-                                    Predicate<String> fieldMatcher,
-                                    int maxAnalyzedOffset,
-                                    Integer queryMaxAnalyzedOffset) throws IOException {
+    public CustomUnifiedHighlighter(
+        IndexSearcher searcher,
+        Analyzer analyzer,
+        OffsetSource offsetSource,
+        PassageFormatter passageFormatter,
+        @Nullable Locale breakIteratorLocale,
+        @Nullable BreakIterator breakIterator,
+        String index,
+        String field,
+        Query query,
+        int noMatchSize,
+        int maxPassages,
+        Predicate<String> fieldMatcher,
+        int maxAnalyzedOffset,
+        Integer queryMaxAnalyzedOffset
+    ) throws IOException {
         super(searcher, analyzer);
         this.offsetSource = offsetSource;
         this.breakIterator = breakIterator;
@@ -126,13 +131,28 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             return null;
         }
         int fieldValueLength = fieldValue.length();
-        if (((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset > maxAnalyzedOffset) &&
-                (offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset))) {
+        if (((queryMaxAnalyzedOffset == null || queryMaxAnalyzedOffset > maxAnalyzedOffset)
+            && (offsetSource == OffsetSource.ANALYSIS)
+            && (fieldValueLength > maxAnalyzedOffset))) {
             throw new IllegalArgumentException(
-                "The length [" + fieldValueLength + "] of field [" + field +"] in doc[" + docId + "]/index[" + index +"] exceeds the ["
-                    + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] limit [" + maxAnalyzedOffset + "]. To avoid this error, set "
-                    + "the query parameter [" + MAX_ANALYZED_OFFSET_FIELD.toString() + "] to a value less than index setting ["
-                    + maxAnalyzedOffset + "] and this will tolerate long field values by truncating them."
+                "The length ["
+                    + fieldValueLength
+                    + "] of field ["
+                    + field
+                    + "] in doc["
+                    + docId
+                    + "]/index["
+                    + index
+                    + "] exceeds the ["
+                    + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey()
+                    + "] limit ["
+                    + maxAnalyzedOffset
+                    + "]. To avoid this error, set "
+                    + "the query parameter ["
+                    + MAX_ANALYZED_OFFSET_FIELD.toString()
+                    + "] to a value less than index setting ["
+                    + maxAnalyzedOffset
+                    + "] and this will tolerate long field values by truncating them."
             );
         }
         Snippet[] result = (Snippet[]) fieldHighlighter.highlightFieldForDoc(reader, docId, fieldValue);
@@ -160,13 +180,36 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         Set<HighlightFlag> highlightFlags = getFlags(field);
         PhraseHelper phraseHelper = getPhraseHelper(field, query, highlightFlags);
         LabelledCharArrayMatcher[] automata = getAutomata(field, query, highlightFlags);
-        UHComponents components = new UHComponents(field, fieldMatcher, query, terms, phraseHelper, automata, false , highlightFlags);
+        UHComponents components = new UHComponents(field, fieldMatcher, query, terms, phraseHelper, automata, false, highlightFlags);
         OffsetSource offsetSource = getOptimizedOffsetSource(components);
-        BreakIterator breakIterator = new SplittingBreakIterator(getBreakIterator(field),
-            UnifiedHighlighter.MULTIVAL_SEP_CHAR);
+        BreakIterator breakIterator = new SplittingBreakIterator(getBreakIterator(field), UnifiedHighlighter.MULTIVAL_SEP_CHAR);
         FieldOffsetStrategy strategy = getOffsetStrategy(offsetSource, components);
-        return new CustomFieldHighlighter(field, strategy, breakIteratorLocale, breakIterator,
-            getScorer(field), maxPassages, (noMatchSize > 0 ? 1 : 0), getFormatter(field), noMatchSize);
+        return new CustomFieldHighlighter(
+            field,
+            strategy,
+            breakIteratorLocale,
+            breakIterator,
+            getScorer(field),
+            maxPassages,
+            (noMatchSize > 0 ? 1 : 0),
+            getFormatter(field),
+            noMatchSize
+        );
+    }
+
+    @Override
+    protected Set<HighlightFlag> getFlags(String field) {
+        Set<HighlightFlag> highlightFlags = EnumSet.noneOf(HighlightFlag.class);
+        if (shouldHandleMultiTermQuery(field)) {
+            highlightFlags.add(HighlightFlag.MULTI_TERM_QUERY);
+        }
+        if (shouldHighlightPhrasesStrictly(field)) {
+            highlightFlags.add(HighlightFlag.PHRASES);
+        }
+        if (shouldPreferPassageRelevancyOverSpeed(field)) {
+            highlightFlags.add(HighlightFlag.PASSAGE_RELEVANCY_OVER_SPEED);
+        }
+        return highlightFlags;
     }
 
     @Override
@@ -206,13 +249,12 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             // sum position increments beyond 1
             int positionGaps = 0;
             if (positions.length >= 2) {
-                // positions are in increasing order.   max(0,...) is just a safeguard.
+                // positions are in increasing order. max(0,...) is just a safeguard.
                 positionGaps = Math.max(0, positions[positions.length - 1] - positions[0] - positions.length + 1);
             }
-            //if original slop is 0 then require inOrder
+            // if original slop is 0 then require inOrder
             boolean inorder = (mpq.getSlop() == 0);
-            return Collections.singletonList(new SpanNearQuery(positionSpanQueries,
-                mpq.getSlop() + positionGaps, inorder));
+            return Collections.singletonList(new SpanNearQuery(positionSpanQueries, mpq.getSlop() + positionGaps, inorder));
         } else if (query instanceof ESToParentBlockJoinQuery) {
             return Collections.singletonList(((ESToParentBlockJoinQuery) query).getChildQuery());
         } else {

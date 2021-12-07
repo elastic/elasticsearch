@@ -25,15 +25,25 @@ public class ManualTrigger implements Trigger {
         return builder.startObject().endObject();
     }
 
-    static ManualTrigger parse(XContentParser parser) throws IOException{
-        if (parser.currentToken() != XContentParser.Token.START_OBJECT){
-            throw new ElasticsearchParseException("unable to parse [" + ManualTriggerEngine.TYPE +
-                    "] trigger. expected a start object token, found [" + parser.currentToken() + "]");
+    static ManualTrigger parse(XContentParser parser) throws IOException {
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new ElasticsearchParseException(
+                "unable to parse ["
+                    + ManualTriggerEngine.TYPE
+                    + "] trigger. expected a start object token, found ["
+                    + parser.currentToken()
+                    + "]"
+            );
         }
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.END_OBJECT) {
-            throw new ElasticsearchParseException("unable to parse [" + ManualTriggerEngine.TYPE +
-                    "] trigger. expected an empty object, but found an object with [" + token + "]");
+            throw new ElasticsearchParseException(
+                "unable to parse ["
+                    + ManualTriggerEngine.TYPE
+                    + "] trigger. expected an empty object, but found an object with ["
+                    + token
+                    + "]"
+            );
         }
         return new ManualTrigger();
     }

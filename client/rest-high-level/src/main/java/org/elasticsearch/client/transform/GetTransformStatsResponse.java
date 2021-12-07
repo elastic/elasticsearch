@@ -12,8 +12,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Collections;

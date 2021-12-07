@@ -9,12 +9,12 @@ package org.elasticsearch.client.ml.inference;
 
 import org.elasticsearch.client.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.ingest.IngestStats;
 
 import java.io.IOException;
 import java.util.Map;
@@ -36,11 +36,11 @@ public class TrainedModelStats implements ToXContentObject {
     private final InferenceStats inferenceStats;
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<TrainedModelStats, Void> PARSER =
-        new ConstructingObjectParser<>(
-            "trained_model_stats",
-            true,
-            args -> new TrainedModelStats((String) args[0], (Map<String, Object>) args[1], (Integer) args[2], (InferenceStats) args[3]));
+    static final ConstructingObjectParser<TrainedModelStats, Void> PARSER = new ConstructingObjectParser<>(
+        "trained_model_stats",
+        true,
+        args -> new TrainedModelStats((String) args[0], (Map<String, Object>) args[1], (Integer) args[2], (InferenceStats) args[3])
+    );
 
     static {
         PARSER.declareString(constructorArg(), MODEL_ID);

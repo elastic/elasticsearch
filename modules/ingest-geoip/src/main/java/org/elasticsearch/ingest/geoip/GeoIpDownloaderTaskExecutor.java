@@ -42,10 +42,15 @@ import static org.elasticsearch.ingest.geoip.GeoIpDownloader.GEOIP_DOWNLOADER;
  */
 public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<GeoIpTaskParams> implements ClusterStateListener {
 
-    private static final boolean ENABLED_DEFAULT =
-        "false".equals(System.getProperty("ingest.geoip.downloader.enabled.default", "true")) == false;
-    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting("ingest.geoip.downloader.enabled", ENABLED_DEFAULT,
-        Setting.Property.Dynamic, Setting.Property.NodeScope);
+    private static final boolean ENABLED_DEFAULT = "false".equals(
+        System.getProperty("ingest.geoip.downloader.enabled.default", "true")
+    ) == false;
+    public static final Setting<Boolean> ENABLED_SETTING = Setting.boolSetting(
+        "ingest.geoip.downloader.enabled",
+        ENABLED_DEFAULT,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private static final Logger logger = LogManager.getLogger(GeoIpDownloader.class);
 
@@ -76,11 +81,9 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             return;
         }
         if (enabled) {
-            startTask(() -> {
-            });
+            startTask(() -> {});
         } else {
-            stopTask(() -> {
-            });
+            stopTask(() -> {});
         }
     }
 
@@ -96,20 +99,36 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     }
 
     @Override
-    protected GeoIpDownloader createTask(long id, String type, String action, TaskId parentTaskId,
-                                         PersistentTasksCustomMetadata.PersistentTask<GeoIpTaskParams> taskInProgress,
-                                         Map<String, String> headers) {
-        return new GeoIpDownloader(client, httpClient, clusterService, threadPool, settings, id, type, action,
-            getDescription(taskInProgress), parentTaskId, headers);
+    protected GeoIpDownloader createTask(
+        long id,
+        String type,
+        String action,
+        TaskId parentTaskId,
+        PersistentTasksCustomMetadata.PersistentTask<GeoIpTaskParams> taskInProgress,
+        Map<String, String> headers
+    ) {
+        return new GeoIpDownloader(
+            client,
+            httpClient,
+            clusterService,
+            threadPool,
+            settings,
+            id,
+            type,
+            action,
+            getDescription(taskInProgress),
+            parentTaskId,
+            headers
+        );
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if(event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)){
-            //wait for state recovered
+        if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
+            // wait for state recovered
             return;
         }
-        //bootstrap downloader after first cluster start
+        // bootstrap downloader after first cluster start
         clusterService.removeListener(this);
         if (event.localNodeMaster()) {
             if (ENABLED_SETTING.get(event.state().getMetadata().settings(), settings)) {
@@ -121,30 +140,37 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
     }
 
     private void startTask(Runnable onFailure) {
-        persistentTasksService.sendStartRequest(GEOIP_DOWNLOADER, GEOIP_DOWNLOADER, new GeoIpTaskParams(), ActionListener.wrap(r -> {
-        }, e -> {
-            if (e instanceof ResourceAlreadyExistsException == false) {
-                logger.error("failed to create geoip downloader task", e);
-                onFailure.run();
-            }
-        }));
+        persistentTasksService.sendStartRequest(
+            GEOIP_DOWNLOADER,
+            GEOIP_DOWNLOADER,
+            new GeoIpTaskParams(),
+            ActionListener.wrap(r -> {}, e -> {
+                if (e instanceof ResourceAlreadyExistsException == false) {
+                    logger.error("failed to create geoip downloader task", e);
+                    onFailure.run();
+                }
+            })
+        );
     }
 
     private void stopTask(Runnable onFailure) {
-        ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = ActionListener.wrap(r -> {
-        }, e -> {
+        ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener = ActionListener.wrap(r -> {}, e -> {
             if (e instanceof ResourceNotFoundException == false) {
                 logger.error("failed to remove geoip downloader task", e);
                 onFailure.run();
             }
         });
-        persistentTasksService.sendRemoveRequest(GEOIP_DOWNLOADER, ActionListener.runAfter(listener, () ->
-            client.admin().indices().prepareDelete(DATABASES_INDEX).execute(ActionListener.wrap(rr -> {
-            }, e -> {
-                if (e instanceof ResourceNotFoundException == false) {
-                    logger.warn("failed to remove " + DATABASES_INDEX, e);
-                }
-            }))));
+        persistentTasksService.sendRemoveRequest(
+            GEOIP_DOWNLOADER,
+            ActionListener.runAfter(
+                listener,
+                () -> client.admin().indices().prepareDelete(DATABASES_INDEX).execute(ActionListener.wrap(rr -> {}, e -> {
+                    if (e instanceof ResourceNotFoundException == false) {
+                        logger.warn("failed to remove " + DATABASES_INDEX, e);
+                    }
+                }))
+            )
+        );
     }
 
     public GeoIpDownloader getCurrentTask() {

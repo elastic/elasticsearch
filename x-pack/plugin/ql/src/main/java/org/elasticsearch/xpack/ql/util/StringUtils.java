@@ -10,10 +10,10 @@ import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ public final class StringUtils {
 
     private static final String[] INTEGER_ORDINALS = new String[] { "th", "st", "nd", "rd", "th", "th", "th", "th", "th", "th" };
 
-    //CamelCase to camel_case
+    // CamelCase to camel_case
     public static String camelCaseToUnderscore(String string) {
         if (Strings.hasText(string) == false) {
             return EMPTY;
@@ -52,12 +52,10 @@ public final class StringUtils {
                         sb.append("_");
                     }
                     previousCharWasUp = true;
-                }
-                else {
+                } else {
                     previousCharWasUp = (ch == '_');
                 }
-            }
-            else {
+            } else {
                 previousCharWasUp = true;
             }
             sb.append(ch);
@@ -65,7 +63,7 @@ public final class StringUtils {
         return sb.toString().toUpperCase(Locale.ROOT);
     }
 
-    //CAMEL_CASE to camelCase
+    // CAMEL_CASE to camelCase
     public static String underscoreToLowerCamelCase(String string) {
         if (Strings.hasText(string) == false) {
             return EMPTY;
@@ -78,13 +76,11 @@ public final class StringUtils {
             char ch = s.charAt(i);
             if (ch == '_') {
                 previousCharWasUnderscore = true;
-            }
-            else {
+            } else {
                 if (previousCharWasUnderscore) {
                     sb.append(Character.toUpperCase(ch));
                     previousCharWasUnderscore = false;
-                }
-                else {
+                } else {
                     sb.append(ch);
                 }
             }
@@ -106,11 +102,9 @@ public final class StringUtils {
             if (escaped == false && (curr == escape) && escape != 0) {
                 escaped = true;
                 if (i + 1 == pattern.length()) {
-                    throw new QlIllegalArgumentException(
-                            "Invalid sequence - escape character is not followed by special wildcard char");
+                    throw new QlIllegalArgumentException("Invalid sequence - escape character is not followed by special wildcard char");
                 }
-            }
-            else {
+            } else {
                 switch (curr) {
                     case '%':
                         regex.append(escaped ? SQL_WILDCARD : ".*");
@@ -121,7 +115,8 @@ public final class StringUtils {
                     default:
                         if (escaped) {
                             throw new QlIllegalArgumentException(
-                                    "Invalid sequence - escape character is not followed by special wildcard char");
+                                "Invalid sequence - escape character is not followed by special wildcard char"
+                            );
                         }
                         // escape special regex characters
                         switch (curr) {
@@ -184,14 +179,15 @@ public final class StringUtils {
                     default:
                         if (escaped) {
                             throw new QlIllegalArgumentException(
-                                    "Invalid sequence - escape character is not followed by special wildcard char");
+                                "Invalid sequence - escape character is not followed by special wildcard char"
+                            );
                         }
                         // escape special regex characters
                         switch (curr) {
                             case '\\':
                             case '*':
                             case '?':
-                              wildcard.append('\\');
+                                wildcard.append('\\');
                         }
                         wildcard.append(curr);
                 }
@@ -230,7 +226,8 @@ public final class StringUtils {
                     default:
                         if (escaped) {
                             throw new QlIllegalArgumentException(
-                                    "Invalid sequence - escape character is not followed by special wildcard char");
+                                "Invalid sequence - escape character is not followed by special wildcard char"
+                            );
                         }
                         // the resolver doesn't support escaping...
                         wildcard.append(curr);
@@ -287,10 +284,8 @@ public final class StringUtils {
                 scoredMatches.add(new Tuple<>(distance, potentialMatch));
             }
         }
-        CollectionUtil.timSort(scoredMatches, (a,b) -> b.v1().compareTo(a.v1()));
-        return scoredMatches.stream()
-                .map(a -> a.v2())
-                .collect(toList());
+        CollectionUtil.timSort(scoredMatches, (a, b) -> b.v1().compareTo(a.v1()));
+        return scoredMatches.stream().map(a -> a.v2()).collect(toList());
     }
 
     public static double parseDouble(String string) throws QlIllegalArgumentException {

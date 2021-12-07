@@ -44,7 +44,8 @@ public class UsageServiceTests extends ESTestCase {
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.addRestHandler(horse));
         assertThat(
             e.getMessage(),
-            equalTo("handler of type [org.elasticsearch.usage.UsageServiceTests$MockRestHandler] does not have a name"));
+            equalTo("handler of type [org.elasticsearch.usage.UsageServiceTests$MockRestHandler] does not have a name")
+        );
     }
 
     /**
@@ -151,7 +152,6 @@ public class UsageServiceTests extends ESTestCase {
             usageService.incAggregationUsage("c", OTHER_SUBTYPE);
         }
 
-
         Map<String, Object> aggsUsage = usageService.getUsageStats();
         assertThat(aggsUsage, notNullValue());
         assertThat(aggsUsage.size(), equalTo(3));
@@ -183,8 +183,7 @@ public class UsageServiceTests extends ESTestCase {
 
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
-            return channel -> {
-            };
+            return channel -> {};
         }
 
     }

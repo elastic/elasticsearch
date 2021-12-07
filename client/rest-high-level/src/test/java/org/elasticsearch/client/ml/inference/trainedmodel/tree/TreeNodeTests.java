@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml.inference.trainedmodel.tree;
 
 import org.elasticsearch.client.ml.job.config.Operator;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -43,12 +43,14 @@ public class TreeNodeTests extends AbstractXContentTestCase<TreeNode> {
             .build();
     }
 
-    public static TreeNode.Builder createRandom(int nodeIndex,
-                                                Integer left,
-                                                Integer right,
-                                                Double threshold,
-                                                Integer featureIndex,
-                                                Operator operator) {
+    public static TreeNode.Builder createRandom(
+        int nodeIndex,
+        Integer left,
+        Integer right,
+        Double threshold,
+        Integer featureIndex,
+        Operator operator
+    ) {
         return TreeNode.builder(nodeIndex)
             .setLeafValue(left == null ? Collections.singletonList(randomDouble()) : null)
             .setDefaultLeft(randomBoolean() ? null : randomBoolean())

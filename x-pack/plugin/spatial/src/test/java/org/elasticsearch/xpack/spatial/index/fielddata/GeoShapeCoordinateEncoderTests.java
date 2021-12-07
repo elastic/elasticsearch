@@ -18,8 +18,7 @@ public class GeoShapeCoordinateEncoderTests extends ESTestCase {
 
     public void testLongitude() {
         double randomLon = randomDoubleBetween(-180, 180, true);
-        double randomInvalidLon = randomFrom(randomDoubleBetween(-1000, -180.01, true),
-            randomDoubleBetween(180.01, 1000, true));
+        double randomInvalidLon = randomFrom(randomDoubleBetween(-1000, -180.01, true), randomDoubleBetween(180.01, 1000, true));
 
         assertThat(CoordinateEncoder.GEO.encodeX(Double.POSITIVE_INFINITY), equalTo(Integer.MAX_VALUE));
         assertThat(CoordinateEncoder.GEO.encodeX(Double.NEGATIVE_INFINITY), equalTo(Integer.MIN_VALUE));
@@ -35,8 +34,7 @@ public class GeoShapeCoordinateEncoderTests extends ESTestCase {
 
     public void testLatitude() {
         double randomLat = randomDoubleBetween(-90, 90, true);
-        double randomInvalidLat = randomFrom(randomDoubleBetween(-1000, -90.01, true),
-            randomDoubleBetween(90.01, 1000, true));
+        double randomInvalidLat = randomFrom(randomDoubleBetween(-1000, -90.01, true), randomDoubleBetween(90.01, 1000, true));
 
         assertThat(CoordinateEncoder.GEO.encodeY(Double.POSITIVE_INFINITY), equalTo(Integer.MAX_VALUE));
         assertThat(CoordinateEncoder.GEO.encodeY(Double.NEGATIVE_INFINITY), equalTo(Integer.MIN_VALUE));

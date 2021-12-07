@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -46,8 +46,11 @@ public final class PutUserResponse {
         return Objects.hash(created);
     }
 
-    private static final ConstructingObjectParser<PutUserResponse, Void> PARSER = new ConstructingObjectParser<>("put_user_response",
-        true, args -> new PutUserResponse((boolean) args[0]));
+    private static final ConstructingObjectParser<PutUserResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "put_user_response",
+        true,
+        args -> new PutUserResponse((boolean) args[0])
+    );
 
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("created"));

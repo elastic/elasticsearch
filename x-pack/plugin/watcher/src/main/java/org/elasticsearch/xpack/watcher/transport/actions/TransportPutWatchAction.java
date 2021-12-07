@@ -16,14 +16,14 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchRequest;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.core.watcher.transport.actions.put.PutWatchAction;
@@ -61,12 +61,22 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
     private final Clock clock;
     private final WatchParser parser;
     private final Client client;
-    private static final ToXContent.Params DEFAULT_PARAMS =
-            WatcherParams.builder().hideSecrets(false).hideHeaders(false).includeStatus(true).build();
+    private static final ToXContent.Params DEFAULT_PARAMS = WatcherParams.builder()
+        .hideSecrets(false)
+        .hideHeaders(false)
+        .includeStatus(true)
+        .build();
 
     @Inject
-    public TransportPutWatchAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
-                                   ClockHolder clockHolder, XPackLicenseState licenseState, WatchParser parser, Client client) {
+    public TransportPutWatchAction(
+        TransportService transportService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        ClockHolder clockHolder,
+        XPackLicenseState licenseState,
+        WatchParser parser,
+        Client client
+    ) {
         super(PutWatchAction.NAME, transportService, actionFilters, licenseState, PutWatchRequest::new);
         this.threadPool = threadPool;
         this.clock = clockHolder.clock;
@@ -79,8 +89,16 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
         try {
             ZonedDateTime now = clock.instant().atZone(ZoneOffset.UTC);
             boolean isUpdate = request.getVersion() > 0 || request.getIfSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
-            Watch watch = parser.parseWithSecrets(request.getId(), false, request.getSource(), now, request.xContentType(),
-                isUpdate, request.getIfSeqNo(), request.getIfPrimaryTerm());
+            Watch watch = parser.parseWithSecrets(
+                request.getId(),
+                false,
+                request.getSource(),
+                now,
+                request.xContentType(),
+                isUpdate,
+                request.getIfSeqNo(),
+                request.getIfPrimaryTerm()
+            );
 
             watch.setState(request.isActive(), now);
 
@@ -102,24 +120,46 @@ public class TransportPutWatchAction extends WatcherTransportAction<PutWatchRequ
                     updateRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                     updateRequest.doc(builder);
 
-                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, updateRequest,
-                            ActionListener.<UpdateResponse>wrap(response -> {
-                                boolean created = response.getResult() == DocWriteResponse.Result.CREATED;
-                                listener.onResponse(new PutWatchResponse(response.getId(), response.getVersion(),
-                                    response.getSeqNo(), response.getPrimaryTerm(), created));
-                            }, listener::onFailure),
-                            client::update);
+                    executeAsyncWithOrigin(
+                        client.threadPool().getThreadContext(),
+                        WATCHER_ORIGIN,
+                        updateRequest,
+                        ActionListener.<UpdateResponse>wrap(response -> {
+                            boolean created = response.getResult() == DocWriteResponse.Result.CREATED;
+                            listener.onResponse(
+                                new PutWatchResponse(
+                                    response.getId(),
+                                    response.getVersion(),
+                                    response.getSeqNo(),
+                                    response.getPrimaryTerm(),
+                                    created
+                                )
+                            );
+                        }, listener::onFailure),
+                        client::update
+                    );
                 } else {
                     IndexRequest indexRequest = new IndexRequest(Watch.INDEX).id(request.getId());
                     indexRequest.source(builder);
                     indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-                    executeAsyncWithOrigin(client.threadPool().getThreadContext(), WATCHER_ORIGIN, indexRequest,
+                    executeAsyncWithOrigin(
+                        client.threadPool().getThreadContext(),
+                        WATCHER_ORIGIN,
+                        indexRequest,
                         ActionListener.<IndexResponse>wrap(response -> {
                             boolean created = response.getResult() == DocWriteResponse.Result.CREATED;
-                            listener.onResponse(new PutWatchResponse(response.getId(), response.getVersion(),
-                                response.getSeqNo(), response.getPrimaryTerm(), created));
+                            listener.onResponse(
+                                new PutWatchResponse(
+                                    response.getId(),
+                                    response.getVersion(),
+                                    response.getSeqNo(),
+                                    response.getPrimaryTerm(),
+                                    created
+                                )
+                            );
                         }, listener::onFailure),
-                        client::index);
+                        client::index
+                    );
                 }
             }
         } catch (Exception e) {

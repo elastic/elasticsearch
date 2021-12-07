@@ -29,8 +29,9 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
      * both for equality and asserts equality on the two instances.
      */
     public final void testFromXContent() throws IOException {
-        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance)
-            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
+        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance).numberOfTestRuns(
+            NUMBER_OF_TEST_RUNS
+        )
             .supportsUnknownFields(supportsUnknownFields())
             .shuffleFieldsExceptions(getShuffleFieldsExceptions())
             .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())

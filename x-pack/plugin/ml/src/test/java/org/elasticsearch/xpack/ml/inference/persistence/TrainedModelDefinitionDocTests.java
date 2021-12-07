@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.ml.inference.persistence;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.Base64;
@@ -25,14 +25,16 @@ public class TrainedModelDefinitionDocTests extends AbstractXContentTestCase<Tra
 
         // The previous storage format was a base64 encoded string.
         // The new format should parse and decode the string storing the raw bytes.
-        String compressedStringDoc = "{\"doc_type\":\"trained_model_definition_doc\"," +
-            "\"model_id\":\"bntHUo\"," +
-            "\"doc_num\":6," +
-            "\"definition_length\":7," +
-            "\"total_definition_length\":13," +
-            "\"compression_version\":3," +
-            "\"definition\":\"" + base64 + "\"," +
-            "\"eos\":false}";
+        String compressedStringDoc = "{\"doc_type\":\"trained_model_definition_doc\","
+            + "\"model_id\":\"bntHUo\","
+            + "\"doc_num\":6,"
+            + "\"definition_length\":7,"
+            + "\"total_definition_length\":13,"
+            + "\"compression_version\":3,"
+            + "\"definition\":\""
+            + base64
+            + "\","
+            + "\"eos\":false}";
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, compressedStringDoc)) {
             TrainedModelDefinitionDoc parsed = doParseInstance(parser);
@@ -54,10 +56,9 @@ public class TrainedModelDefinitionDocTests extends AbstractXContentTestCase<Tra
     protected TrainedModelDefinitionDoc createTestInstance() {
         int length = randomIntBetween(4, 10);
 
-        return new TrainedModelDefinitionDoc.Builder()
-            .setModelId(randomAlphaOfLength(6))
+        return new TrainedModelDefinitionDoc.Builder().setModelId(randomAlphaOfLength(6))
             .setDefinitionLength(length)
-            .setTotalDefinitionLength(randomIntBetween(length, length *2))
+            .setTotalDefinitionLength(randomIntBetween(length, length * 2))
             .setBinaryData(new BytesArray(randomByteArrayOfLength(length)))
             .setDocNum(randomIntBetween(0, 10))
             .setCompressionVersion(randomIntBetween(1, 5))

@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml.job.config;
 
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import static org.elasticsearch.client.ml.job.config.DataDescription.DataFormat;
 import static org.hamcrest.Matchers.equalTo;

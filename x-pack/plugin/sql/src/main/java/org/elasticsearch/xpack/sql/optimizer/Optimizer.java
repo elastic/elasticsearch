@@ -109,7 +109,6 @@ import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparis
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
-
 public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     public ExecutionInfo debugOptimize(LogicalPlan verified) {
@@ -122,72 +121,73 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
-        Batch substitutions = new Batch("Substitutions", Limiter.ONCE,
-                new RewritePivot(),
-                new ReplaceRegexMatch(),
-                new ReplaceAggregatesWithLiterals()
-                );
-
-        Batch refs = new Batch("Replace References", Limiter.ONCE,
-                new ReplaceReferenceAttributeWithSource()
-                );
-
-        Batch operators = new Batch("Operator Optimization",
-                // combining
-                new CombineProjections(),
-                // folding
-                new ReplaceFoldableAttributes(),
-                new FoldNull(),
-                new ReplaceAggregationsInLocalRelations(),
-                new ConstantFolding(),
-                new SimplifyConditional(),
-                new SimplifyCase(),
-                // boolean
-                new BooleanSimplification(),
-                new LiteralsOnTheRight(),
-                new BinaryComparisonSimplification(),
-                // needs to occur before BinaryComparison combinations (see class)
-                new PropagateEquals(),
-                new PropagateNullable(),
-                new CombineBinaryComparisons(),
-                new CombineDisjunctionsToIn(),
-                new SimplifyComparisonsArithmetics(SqlDataTypes::areCompatible),
-                // prune/elimination
-                new PruneDuplicatesInGroupBy(),
-                new PruneFilters(),
-                new PruneOrderByForImplicitGrouping(),
-                new PruneLiteralsInOrderBy(),
-                new PruneOrderByNestedFields(),
-                new PruneCast(),
-                // order by alignment of the aggs
-                new SortAggregateOnOrderBy(),
-                // ReplaceAggregationsInLocalRelations, ConstantFolding and PruneFilters must all be applied before this:
-                new PushDownAndCombineFilters()
+        Batch substitutions = new Batch(
+            "Substitutions",
+            Limiter.ONCE,
+            new RewritePivot(),
+            new ReplaceRegexMatch(),
+            new ReplaceAggregatesWithLiterals()
         );
 
-        Batch aggregate = new Batch("Aggregation Rewrite",
-                new ReplaceMinMaxWithTopHits(),
-                new ReplaceAggsWithMatrixStats(),
-                new ReplaceAggsWithExtendedStats(),
-                new ReplaceAggsWithStats(),
-                new ReplaceSumWithStats(),
-                new PromoteStatsToExtendedStats(),
-                new ReplaceAggsWithPercentiles(),
-                new ReplaceAggsWithPercentileRanks()
-                );
+        Batch refs = new Batch("Replace References", Limiter.ONCE, new ReplaceReferenceAttributeWithSource());
 
-        Batch local = new Batch("Skip Elasticsearch",
-                new SkipQueryOnLimitZero(),
-                new SkipQueryForLiteralAggregations(),
-                new PushProjectionsIntoLocalRelation(),
-                // must run after `PushProjectionsIntoLocalRelation` because it removes the distinction between implicit
-                // and explicit groupings
-                new PruneLiteralsInGroupBy()
-                );
+        Batch operators = new Batch(
+            "Operator Optimization",
+            // combining
+            new CombineProjections(),
+            // folding
+            new ReplaceFoldableAttributes(),
+            new FoldNull(),
+            new ReplaceAggregationsInLocalRelations(),
+            new ConstantFolding(),
+            new SimplifyConditional(),
+            new SimplifyCase(),
+            // boolean
+            new BooleanSimplification(),
+            new LiteralsOnTheRight(),
+            new BinaryComparisonSimplification(),
+            // needs to occur before BinaryComparison combinations (see class)
+            new PropagateEquals(),
+            new PropagateNullable(),
+            new CombineBinaryComparisons(),
+            new CombineDisjunctionsToIn(),
+            new SimplifyComparisonsArithmetics(SqlDataTypes::areCompatible),
+            // prune/elimination
+            new PruneDuplicatesInGroupBy(),
+            new PruneFilters(),
+            new PruneOrderByForImplicitGrouping(),
+            new PruneLiteralsInOrderBy(),
+            new PruneOrderByNestedFields(),
+            new PruneCast(),
+            // order by alignment of the aggs
+            new SortAggregateOnOrderBy(),
+            // ReplaceAggregationsInLocalRelations, ConstantFolding and PruneFilters must all be applied before this:
+            new PushDownAndCombineFilters()
+        );
 
-        Batch label = new Batch("Set as Optimized", Limiter.ONCE,
-                CleanAliases.INSTANCE,
-                new SetAsOptimized());
+        Batch aggregate = new Batch(
+            "Aggregation Rewrite",
+            new ReplaceMinMaxWithTopHits(),
+            new ReplaceAggsWithMatrixStats(),
+            new ReplaceAggsWithExtendedStats(),
+            new ReplaceAggsWithStats(),
+            new ReplaceSumWithStats(),
+            new PromoteStatsToExtendedStats(),
+            new ReplaceAggsWithPercentiles(),
+            new ReplaceAggsWithPercentileRanks()
+        );
+
+        Batch local = new Batch(
+            "Skip Elasticsearch",
+            new SkipQueryOnLimitZero(),
+            new SkipQueryForLiteralAggregations(),
+            new PushProjectionsIntoLocalRelation(),
+            // must run after `PushProjectionsIntoLocalRelation` because it removes the distinction between implicit
+            // and explicit groupings
+            new PruneLiteralsInGroupBy()
+        );
+
+        Batch label = new Batch("Set as Optimized", Limiter.ONCE, CleanAliases.INSTANCE, new SetAsOptimized());
 
         return Arrays.asList(substitutions, refs, operators, aggregate, local, label);
     }
@@ -205,8 +205,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
                 // fallback - should not happen
                 else {
-                    UnresolvedAttribute attr = new UnresolvedAttribute(namedExpression.source(), namedExpression.name(), null,
-                            "Unexpected alias");
+                    UnresolvedAttribute attr = new UnresolvedAttribute(
+                        namedExpression.source(),
+                        namedExpression.name(),
+                        null,
+                        "Unexpected alias"
+                    );
                     return new Pivot(plan.source(), plan.child(), plan.column(), singletonList(attr), plan.aggregates());
                 }
             }
@@ -364,8 +368,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // projection has no nested field references, remove any nested orders
                 if (nestedTopFields.isEmpty()) {
                     orders.removeAll(nestedOrders.values());
-                }
-                else {
+                } else {
                     // remove orders that are not ancestors of the nested projections
                     for (Entry<String, Order> entry : nestedOrders.entrySet()) {
                         String parent = entry.getKey();
@@ -462,7 +465,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                                     // Check if the groupings (a, y) match the orderings (b, x) through the aggregates' aliases (x, y)
                                     // e.g. SELECT a AS x, b AS y ... GROUP BY a, y ORDER BY b, x
                                     if ((equalsAsAttribute(child, group)
-                                            && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder)))
+                                        && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder)))
                                         || (equalsAsAttribute(alias, group)
                                             && (equalsAsAttribute(alias, fieldToOrder) || equalsAsAttribute(child, fieldToOrder)))) {
                                         isMatching.set(Boolean.TRUE);
@@ -559,7 +562,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         // for example an alias defined in the lower list might be referred in the upper - without replacing it the alias becomes invalid
         private List<NamedExpression> combineProjections(List<? extends NamedExpression> upper, List<? extends NamedExpression> lower) {
 
-            //TODO: this need rewriting when moving functions of NamedExpression
+            // TODO: this need rewriting when moving functions of NamedExpression
 
             // collect aliases in the lower list
             AttributeMap.Builder<NamedExpression> aliasesBuilder = AttributeMap.builder();
@@ -581,7 +584,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return replaced;
         }
     }
-
 
     // replace attributes of foldable expressions with the foldable trees
     // SELECT 5 a, 3 + 2 b ... WHERE a < 10 ORDER BY b
@@ -648,11 +650,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         private boolean canPropagateFoldable(LogicalPlan p) {
             return p instanceof Project
-                    || p instanceof Filter
-                    || p instanceof SubQueryAlias
-                    || p instanceof Aggregate
-                    || p instanceof Limit
-                    || p instanceof OrderBy;
+                || p instanceof Filter
+                || p instanceof SubQueryAlias
+                || p instanceof Aggregate
+                || p instanceof Limit
+                || p instanceof OrderBy;
         }
     }
 
@@ -681,8 +683,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
             } else if (e instanceof Alias == false
-                    && e.nullable() == Nullability.TRUE
-                    && Expressions.anyMatch(e.children(), Expressions::isNull)) {
+                && e.nullable() == Nullability.TRUE
+                && Expressions.anyMatch(e.children(), Expressions::isNull)) {
                     return Literal.of(e, null);
                 }
             return e;
@@ -1089,16 +1091,24 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         public LogicalPlan apply(LogicalPlan p) {
             Map<PercentileKey, Set<Expression>> percentsPerAggKey = new LinkedHashMap<>();
 
-            p.forEachExpressionUp(Percentile.class, per ->
-                percentsPerAggKey.computeIfAbsent(new PercentileKey(per), v -> new LinkedHashSet<>()).add(per.percent())
+            p.forEachExpressionUp(
+                Percentile.class,
+                per -> percentsPerAggKey.computeIfAbsent(new PercentileKey(per), v -> new LinkedHashSet<>()).add(per.percent())
             );
 
             // create a Percentile agg for each agg key
             Map<PercentileKey, Percentiles> percentilesPerAggKey = new LinkedHashMap<>();
-            percentsPerAggKey.forEach((aggKey, percents) -> percentilesPerAggKey.put(
-                aggKey,
-                new Percentiles(percents.iterator().next().source(), aggKey.field(), new ArrayList<>(percents),
-                    aggKey.percentilesConfig())));
+            percentsPerAggKey.forEach(
+                (aggKey, percents) -> percentilesPerAggKey.put(
+                    aggKey,
+                    new Percentiles(
+                        percents.iterator().next().source(),
+                        aggKey.field(),
+                        new ArrayList<>(percents),
+                        aggKey.percentilesConfig()
+                    )
+                )
+            );
 
             return p.transformExpressionsUp(Percentile.class, per -> {
                 PercentileKey a = new PercentileKey(per);
@@ -1114,16 +1124,24 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         public LogicalPlan apply(LogicalPlan p) {
             final Map<PercentileKey, Set<Expression>> valuesPerAggKey = new LinkedHashMap<>();
 
-            p.forEachExpressionUp(PercentileRank.class, per ->
-                valuesPerAggKey.computeIfAbsent(new PercentileKey(per), v -> new LinkedHashSet<>()).add(per.value())
+            p.forEachExpressionUp(
+                PercentileRank.class,
+                per -> valuesPerAggKey.computeIfAbsent(new PercentileKey(per), v -> new LinkedHashSet<>()).add(per.value())
             );
 
             // create a PercentileRank agg for each agg key
             Map<PercentileKey, PercentileRanks> ranksPerAggKey = new LinkedHashMap<>();
-            valuesPerAggKey.forEach((aggKey, values) -> ranksPerAggKey.put(
-                aggKey,
-                new PercentileRanks(values.iterator().next().source(), aggKey.field(), new ArrayList<>(values),
-                    aggKey.percentilesConfig())));
+            valuesPerAggKey.forEach(
+                (aggKey, values) -> ranksPerAggKey.put(
+                    aggKey,
+                    new PercentileRanks(
+                        values.iterator().next().source(),
+                        aggKey.field(),
+                        new ArrayList<>(values),
+                        aggKey.percentilesConfig()
+                    )
+                )
+            );
 
             return p.transformExpressionsUp(PercentileRank.class, per -> {
                 PercentileRanks ranks = ranksPerAggKey.get(new PercentileKey(per));

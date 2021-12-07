@@ -52,10 +52,7 @@ public class ValidationLossTests extends AbstractBWCSerializationTestCase<Valida
     }
 
     public static ValidationLoss createRandom() {
-        return new ValidationLoss(
-            randomAlphaOfLength(10),
-            randomList(5, FoldValuesTests::createRandom)
-        );
+        return new ValidationLoss(randomAlphaOfLength(10), randomList(5, FoldValuesTests::createRandom));
     }
 
     @Override
@@ -74,14 +71,18 @@ public class ValidationLossTests extends AbstractBWCSerializationTestCase<Valida
         assertThat(
             Strings.toString(
                 validationLoss,
-                new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "false"))),
-            not(containsString(foldValuesFieldName)));
+                new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "false"))
+            ),
+            not(containsString(foldValuesFieldName))
+        );
 
         // FOR_INTERNAL_STORAGE param explicitly set to "true", fold values are outputted
         assertThat(
             Strings.toString(
                 validationLoss,
-                new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))),
-            containsString(foldValuesFieldName));
+                new ToXContent.MapParams(Collections.singletonMap(ToXContentParams.FOR_INTERNAL_STORAGE, "true"))
+            ),
+            containsString(foldValuesFieldName)
+        );
     }
 }

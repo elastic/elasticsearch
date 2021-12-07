@@ -69,8 +69,16 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         // this fails prior to the snapshot repository being recorded in the ilm metadata, the policy can just be corrected
         // and everything will pass on the subsequent retry
         if (clusterState.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY).repository(snapshotRepository) == null) {
-            throw new IllegalStateException("repository [" + snapshotRepository + "] is missing. [" + policy + "] policy for " +
-                "index [" + index.getName() + "] cannot continue until the repository is created or the policy is changed");
+            throw new IllegalStateException(
+                "repository ["
+                    + snapshotRepository
+                    + "] is missing. ["
+                    + policy
+                    + "] policy for "
+                    + "index ["
+                    + index.getName()
+                    + "] cannot continue until the repository is created or the policy is changed"
+            );
         }
 
         LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
@@ -82,8 +90,12 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
             String snapshotName = generateSnapshotName(snapshotNamePrefix);
             ActionRequestValidationException validationException = validateGeneratedSnapshotName(snapshotNamePrefix, snapshotName);
             if (validationException != null) {
-                logger.warn("unable to generate a snapshot name as part of policy [{}] for index [{}] due to [{}]",
-                    policy, index.getName(), validationException.getMessage());
+                logger.warn(
+                    "unable to generate a snapshot name as part of policy [{}] for index [{}] due to [{}]",
+                    policy,
+                    index.getName(),
+                    validationException.getMessage()
+                );
                 throw validationException;
             }
 
@@ -91,10 +103,11 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         }
 
         return ClusterState.builder(clusterState)
-            .metadata(Metadata.builder(clusterState.getMetadata())
-                .put(IndexMetadata.builder(indexMetaData)
-                    .putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap()))
-                .build(false))
+            .metadata(
+                Metadata.builder(clusterState.getMetadata())
+                    .put(IndexMetadata.builder(indexMetaData).putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap()))
+                    .build(false)
+            )
             .build();
     }
 
@@ -117,8 +130,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
             return false;
         }
         GenerateSnapshotNameStep other = (GenerateSnapshotNameStep) obj;
-        return super.equals(obj) &&
-            Objects.equals(snapshotRepository, other.snapshotRepository);
+        return super.equals(obj) && Objects.equals(snapshotRepository, other.snapshotRepository);
     }
 
     /**
@@ -155,8 +167,12 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
             err.addValidationError("invalid snapshot name [" + snapshotPrefix + "]: must be lowercase");
         }
         if (Strings.validFileName(snapshotName) == false) {
-            err.addValidationError("invalid snapshot name [" + snapshotPrefix + "]: must not contain contain the following characters " +
-                Strings.INVALID_FILENAME_CHARS);
+            err.addValidationError(
+                "invalid snapshot name ["
+                    + snapshotPrefix
+                    + "]: must not contain contain the following characters "
+                    + Strings.INVALID_FILENAME_CHARS
+            );
         }
 
         if (err.validationErrors().size() > 0) {

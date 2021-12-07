@@ -9,10 +9,10 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.core.BroadcastResponse;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -30,8 +30,13 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
     private final ByteSizeValue totalStoreSize;
     private final Map<String, DataStreamStats> dataStreams;
 
-    protected DataStreamsStatsResponse(Shards shards, int dataStreamCount, int backingIndices, ByteSizeValue totalStoreSize,
-                                       Map<String, DataStreamStats> dataStreams) {
+    protected DataStreamsStatsResponse(
+        Shards shards,
+        int dataStreamCount,
+        int backingIndices,
+        ByteSizeValue totalStoreSize,
+        Map<String, DataStreamStats> dataStreams
+    ) {
         super(shards);
         this.dataStreamCount = dataStreamCount;
         this.backingIndices = backingIndices;
@@ -49,38 +54,52 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<DataStreamsStatsResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "data_streams_stats", true, arg -> {
-        Shards shards = (Shards) arg[0];
-        Integer dataStreamCount = ((Integer) arg[1]);
-        Integer backingIndices = ((Integer) arg[2]);
-        ByteSizeValue totalStoreSize = ((ByteSizeValue) arg[3]);
-        Map<String, DataStreamStats> dataStreams = new HashMap<>();
-        for (DataStreamStats dataStreamStats : ((List<DataStreamStats>) arg[4])) {
-            dataStreams.put(dataStreamStats.dataStream, dataStreamStats);
+        "data_streams_stats",
+        true,
+        arg -> {
+            Shards shards = (Shards) arg[0];
+            Integer dataStreamCount = ((Integer) arg[1]);
+            Integer backingIndices = ((Integer) arg[2]);
+            ByteSizeValue totalStoreSize = ((ByteSizeValue) arg[3]);
+            Map<String, DataStreamStats> dataStreams = new HashMap<>();
+            for (DataStreamStats dataStreamStats : ((List<DataStreamStats>) arg[4])) {
+                dataStreams.put(dataStreamStats.dataStream, dataStreamStats);
+            }
+            return new DataStreamsStatsResponse(shards, dataStreamCount, backingIndices, totalStoreSize, dataStreams);
         }
-        return new DataStreamsStatsResponse(shards, dataStreamCount, backingIndices, totalStoreSize, dataStreams);
-    });
+    );
 
     private static final ConstructingObjectParser<DataStreamStats, Void> ENTRY_PARSER = new ConstructingObjectParser<>(
-        "data_streams_stats.entry", true, arg -> {
-        String dataStream = ((String) arg[0]);
-        Integer backingIndices = ((Integer) arg[1]);
-        ByteSizeValue storeSize = ((ByteSizeValue) arg[2]);
-        Long maximumTimestamp = ((Long) arg[3]);
-        return new DataStreamStats(dataStream, backingIndices, storeSize, maximumTimestamp);
-    });
+        "data_streams_stats.entry",
+        true,
+        arg -> {
+            String dataStream = ((String) arg[0]);
+            Integer backingIndices = ((Integer) arg[1]);
+            ByteSizeValue storeSize = ((ByteSizeValue) arg[2]);
+            Long maximumTimestamp = ((Long) arg[3]);
+            return new DataStreamStats(dataStream, backingIndices, storeSize, maximumTimestamp);
+        }
+    );
 
     static {
         declareShardsField(PARSER);
         PARSER.declareInt(constructorArg(), DATA_STREAM_COUNT);
         PARSER.declareInt(constructorArg(), BACKING_INDICES);
-        PARSER.declareField(constructorArg(), (p, c) -> new ByteSizeValue(p.longValue()), TOTAL_STORE_SIZE_BYTES,
-            ObjectParser.ValueType.VALUE);
+        PARSER.declareField(
+            constructorArg(),
+            (p, c) -> new ByteSizeValue(p.longValue()),
+            TOTAL_STORE_SIZE_BYTES,
+            ObjectParser.ValueType.VALUE
+        );
         PARSER.declareObjectArray(constructorArg(), ENTRY_PARSER, DATA_STREAMS);
         ENTRY_PARSER.declareString(constructorArg(), DATA_STREAM);
         ENTRY_PARSER.declareInt(constructorArg(), BACKING_INDICES);
-        ENTRY_PARSER.declareField(constructorArg(), (p, c) -> new ByteSizeValue(p.longValue()), STORE_SIZE_BYTES,
-            ObjectParser.ValueType.VALUE);
+        ENTRY_PARSER.declareField(
+            constructorArg(),
+            (p, c) -> new ByteSizeValue(p.longValue()),
+            STORE_SIZE_BYTES,
+            ObjectParser.ValueType.VALUE
+        );
         ENTRY_PARSER.declareLong(constructorArg(), MAXIMUM_TIMESTAMP);
     }
 
@@ -113,10 +132,10 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
             return false;
         }
         DataStreamsStatsResponse that = (DataStreamsStatsResponse) obj;
-        return dataStreamCount == that.dataStreamCount &&
-            backingIndices == that.backingIndices &&
-            Objects.equals(totalStoreSize, that.totalStoreSize) &&
-            Objects.equals(dataStreams, that.dataStreams);
+        return dataStreamCount == that.dataStreamCount
+            && backingIndices == that.backingIndices
+            && Objects.equals(totalStoreSize, that.totalStoreSize)
+            && Objects.equals(dataStreams, that.dataStreams);
     }
 
     @Override
@@ -126,12 +145,16 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
 
     @Override
     public String toString() {
-        return "DataStreamsStatsResponse{" +
-            "dataStreamCount=" + dataStreamCount +
-            ", backingIndices=" + backingIndices +
-            ", totalStoreSize=" + totalStoreSize +
-            ", dataStreams=" + dataStreams +
-            '}';
+        return "DataStreamsStatsResponse{"
+            + "dataStreamCount="
+            + dataStreamCount
+            + ", backingIndices="
+            + backingIndices
+            + ", totalStoreSize="
+            + totalStoreSize
+            + ", dataStreams="
+            + dataStreams
+            + '}';
     }
 
     public static class DataStreamStats {
@@ -173,10 +196,10 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
                 return false;
             }
             DataStreamStats that = (DataStreamStats) obj;
-            return backingIndices == that.backingIndices &&
-                maximumTimestamp == that.maximumTimestamp &&
-                Objects.equals(dataStream, that.dataStream) &&
-                Objects.equals(storeSize, that.storeSize);
+            return backingIndices == that.backingIndices
+                && maximumTimestamp == that.maximumTimestamp
+                && Objects.equals(dataStream, that.dataStream)
+                && Objects.equals(storeSize, that.storeSize);
         }
 
         @Override
@@ -186,12 +209,17 @@ public class DataStreamsStatsResponse extends BroadcastResponse {
 
         @Override
         public String toString() {
-            return "DataStreamStats{" +
-                "dataStream='" + dataStream + '\'' +
-                ", backingIndices=" + backingIndices +
-                ", storeSize=" + storeSize +
-                ", maximumTimestamp=" + maximumTimestamp +
-                '}';
+            return "DataStreamStats{"
+                + "dataStream='"
+                + dataStream
+                + '\''
+                + ", backingIndices="
+                + backingIndices
+                + ", storeSize="
+                + storeSize
+                + ", maximumTimestamp="
+                + maximumTimestamp
+                + '}';
         }
     }
 }

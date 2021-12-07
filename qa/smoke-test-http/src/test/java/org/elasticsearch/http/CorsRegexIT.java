@@ -33,12 +33,12 @@ public class CorsRegexIT extends HttpSmokeTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "/https?:\\/\\/localhost(:[0-9]+)?/")
-                .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
-                .put(SETTING_CORS_ALLOW_METHODS.getKey(), "get, options, post")
-                .put(SETTING_CORS_ENABLED.getKey(), true)
-                .build();
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(SETTING_CORS_ALLOW_ORIGIN.getKey(), "/https?:\\/\\/localhost(:[0-9]+)?/")
+            .put(SETTING_CORS_ALLOW_CREDENTIALS.getKey(), true)
+            .put(SETTING_CORS_ALLOW_METHODS.getKey(), "get, options, post")
+            .put(SETTING_CORS_ENABLED.getKey(), true)
+            .build();
     }
 
     public void testThatRegularExpressionWorksOnMatch() throws IOException {
@@ -74,7 +74,7 @@ public class CorsRegexIT extends HttpSmokeTestCase {
         try {
             getRestClient().performRequest(request);
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             Response response = e.getResponse();
             // a rejected origin gets a FORBIDDEN - 403
             assertThat(response.getStatusLine().getStatusCode(), is(403));
@@ -122,7 +122,7 @@ public class CorsRegexIT extends HttpSmokeTestCase {
         try {
             getRestClient().performRequest(request);
             fail("request should have failed");
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             Response response = e.getResponse();
             // a rejected origin gets a FORBIDDEN - 403
             assertThat(response.getStatusLine().getStatusCode(), is(403));

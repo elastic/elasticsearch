@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Properties;
+
 import javax.net.ssl.SSLContext;
 
 /**
@@ -91,24 +92,35 @@ public final class RestClientBuilder {
 
         VERSION = version;
 
-        USER_AGENT_HEADER_VALUE = String.format(Locale.ROOT, "elasticsearch-java/%s (Java/%s)",
-            VERSION.isEmpty() ? "Unknown" : VERSION, System.getProperty("java.version"));
+        USER_AGENT_HEADER_VALUE = String.format(
+            Locale.ROOT,
+            "elasticsearch-java/%s (Java/%s)",
+            VERSION.isEmpty() ? "Unknown" : VERSION,
+            System.getProperty("java.version")
+        );
 
         VersionInfo httpClientVersion = null;
         try {
-            httpClientVersion = AccessController.doPrivileged((PrivilegedAction<VersionInfo>)() ->
-                VersionInfo.loadVersionInfo("org.apache.http.nio.client", HttpAsyncClientBuilder.class.getClassLoader())
+            httpClientVersion = AccessController.doPrivileged(
+                (PrivilegedAction<VersionInfo>) () -> VersionInfo.loadVersionInfo(
+                    "org.apache.http.nio.client",
+                    HttpAsyncClientBuilder.class.getClassLoader()
+                )
             );
         } catch (Exception e) {
             // Keep unknown
         }
 
         // service, language, transport, followed by additional information
-        META_HEADER_VALUE = "es=" + VERSION +
-            ",jv=" + System.getProperty("java.specification.version") +
-            ",t=" + VERSION +
-            ",hc=" + (httpClientVersion == null ? "" : httpClientVersion.getRelease()) +
-            LanguageRuntimeVersions.getRuntimeMetadata();
+        META_HEADER_VALUE = "es="
+            + VERSION
+            + ",jv="
+            + System.getProperty("java.specification.version")
+            + ",t="
+            + VERSION
+            + ",hc="
+            + (httpClientVersion == null ? "" : httpClientVersion.getRelease())
+            + LanguageRuntimeVersions.getRuntimeMetadata();
     }
 
     /**
@@ -264,26 +276,37 @@ public final class RestClientBuilder {
             failureListener = new RestClient.FailureListener();
         }
         CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
-            (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient);
-        RestClient restClient = new RestClient(httpClient, defaultHeaders, nodes,
-                pathPrefix, failureListener, nodeSelector, strictDeprecationMode, compressionEnabled);
+            (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient
+        );
+        RestClient restClient = new RestClient(
+            httpClient,
+            defaultHeaders,
+            nodes,
+            pathPrefix,
+            failureListener,
+            nodeSelector,
+            strictDeprecationMode,
+            compressionEnabled
+        );
         httpClient.start();
         return restClient;
     }
 
     private CloseableHttpAsyncClient createHttpClient() {
-        //default timeouts are all infinite
+        // default timeouts are all infinite
         RequestConfig.Builder requestConfigBuilder = RequestConfig.custom()
-                .setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
-                .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS);
+            .setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
+            .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS);
         if (requestConfigCallback != null) {
             requestConfigBuilder = requestConfigCallback.customizeRequestConfig(requestConfigBuilder);
         }
 
         try {
-            HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create().setDefaultRequestConfig(requestConfigBuilder.build())
-                //default settings for connection pooling may be too constraining
-                .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE).setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
+            HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create()
+                .setDefaultRequestConfig(requestConfigBuilder.build())
+                // default settings for connection pooling may be too constraining
+                .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE)
+                .setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
                 .setSSLContext(SSLContext.getDefault())
                 .setUserAgent(USER_AGENT_HEADER_VALUE)
                 .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy());

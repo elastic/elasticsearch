@@ -9,14 +9,14 @@ package org.elasticsearch.xpack.ml.rest.datafeeds;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -36,7 +36,8 @@ public class RestStartDatafeedAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(POST, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_start")
-                .replaces(POST, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_start", RestApiVersion.V_7).build()
+                .replaces(POST, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_start", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -60,25 +61,26 @@ public class RestStartDatafeedAction extends BaseRestHandler {
             }
             if (restRequest.hasParam(StartDatafeedAction.TIMEOUT.getPreferredName())) {
                 TimeValue openTimeout = restRequest.paramAsTime(
-                        StartDatafeedAction.TIMEOUT.getPreferredName(), TimeValue.timeValueSeconds(20));
+                    StartDatafeedAction.TIMEOUT.getPreferredName(),
+                    TimeValue.timeValueSeconds(20)
+                );
                 datafeedParams.setTimeout(openTimeout);
             }
             jobDatafeedRequest = new StartDatafeedAction.Request(datafeedParams);
         }
         return channel -> {
-            client.execute(StartDatafeedAction.INSTANCE, jobDatafeedRequest,
-                    new RestBuilderListener<NodeAcknowledgedResponse>(channel) {
+            client.execute(StartDatafeedAction.INSTANCE, jobDatafeedRequest, new RestBuilderListener<NodeAcknowledgedResponse>(channel) {
 
-                        @Override
-                        public RestResponse buildResponse(NodeAcknowledgedResponse r, XContentBuilder builder) throws Exception {
-                            // This doesn't use the toXContent of the response object because we rename "acknowledged" to "started"
-                            builder.startObject();
-                            builder.field("started", r.isAcknowledged());
-                            builder.field(NodeAcknowledgedResponse.NODE_FIELD, r.getNode());
-                            builder.endObject();
-                            return new BytesRestResponse(RestStatus.OK, builder);
-                        }
-                    });
+                @Override
+                public RestResponse buildResponse(NodeAcknowledgedResponse r, XContentBuilder builder) throws Exception {
+                    // This doesn't use the toXContent of the response object because we rename "acknowledged" to "started"
+                    builder.startObject();
+                    builder.field("started", r.isAcknowledged());
+                    builder.field(NodeAcknowledgedResponse.NODE_FIELD, r.getNode());
+                    builder.endObject();
+                    return new BytesRestResponse(RestStatus.OK, builder);
+                }
+            });
         };
     }
 }

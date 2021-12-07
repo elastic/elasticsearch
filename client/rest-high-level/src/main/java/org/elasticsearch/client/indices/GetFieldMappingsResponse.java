@@ -8,32 +8,35 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.index.mapper.Mapper;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /** Response object for {@link GetFieldMappingsRequest} API */
 public class GetFieldMappingsResponse {
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
 
-    private static final ObjectParser<Map<String, FieldMappingMetadata>, String> PARSER =
-        new ObjectParser<>(MAPPINGS.getPreferredName(), true, HashMap::new);
+    private static final ObjectParser<Map<String, FieldMappingMetadata>, String> PARSER = new ObjectParser<>(
+        MAPPINGS.getPreferredName(),
+        true,
+        HashMap::new
+    );
 
     static {
         PARSER.declareField((p, fieldMappings, index) -> {
@@ -53,10 +56,9 @@ public class GetFieldMappingsResponse {
         this.mappings = mappings;
     }
 
-
-     /**
-     * Returns the fields mapping. The return map keys are indexes and fields (as specified in the request).
-     */
+    /**
+    * Returns the fields mapping. The return map keys are indexes and fields (as specified in the request).
+    */
     public Map<String, Map<String, FieldMappingMetadata>> mappings() {
         return mappings;
     }
@@ -74,7 +76,6 @@ public class GetFieldMappingsResponse {
         }
         return indexMapping.get(field);
     }
-
 
     public static GetFieldMappingsResponse fromXContent(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
@@ -94,20 +95,19 @@ public class GetFieldMappingsResponse {
         private static final ParseField FULL_NAME = new ParseField("full_name");
         private static final ParseField MAPPING = new ParseField("mapping");
 
-        private static final ConstructingObjectParser<FieldMappingMetadata, String> PARSER =
-            new ConstructingObjectParser<>("field_mapping_meta_data", true,
-                a -> new FieldMappingMetadata((String)a[0], (BytesReference)a[1])
-            );
+        private static final ConstructingObjectParser<FieldMappingMetadata, String> PARSER = new ConstructingObjectParser<>(
+            "field_mapping_meta_data",
+            true,
+            a -> new FieldMappingMetadata((String) a[0], (BytesReference) a[1])
+        );
 
         static {
-            PARSER.declareField(optionalConstructorArg(),
-                (p, c) -> p.text(), FULL_NAME, ObjectParser.ValueType.STRING);
-            PARSER.declareField(optionalConstructorArg(),
-                (p, c) -> {
-                    final XContentBuilder jsonBuilder = jsonBuilder().copyCurrentStructure(p);
-                    final BytesReference bytes = BytesReference.bytes(jsonBuilder);
-                    return bytes;
-                }, MAPPING, ObjectParser.ValueType.OBJECT);
+            PARSER.declareField(optionalConstructorArg(), (p, c) -> p.text(), FULL_NAME, ObjectParser.ValueType.STRING);
+            PARSER.declareField(optionalConstructorArg(), (p, c) -> {
+                final XContentBuilder jsonBuilder = jsonBuilder().copyCurrentStructure(p);
+                final BytesReference bytes = BytesReference.bytes(jsonBuilder);
+                return bytes;
+            }, MAPPING, ObjectParser.ValueType.OBJECT);
         }
 
         private String fullName;
@@ -129,7 +129,7 @@ public class GetFieldMappingsResponse {
             return XContentHelper.convertToMap(source, true, XContentType.JSON).v2();
         }
 
-        //pkg-private for testing
+        // pkg-private for testing
         BytesReference getSource() {
             return source;
         }
@@ -138,7 +138,7 @@ public class GetFieldMappingsResponse {
             return PARSER.parse(parser, null);
         }
 
-       @Override
+        @Override
         public String toString() {
             return "FieldMappingMetadata{fullName='" + fullName + '\'' + ", source=" + source + '}';
         }
@@ -157,10 +157,9 @@ public class GetFieldMappingsResponse {
         }
     }
 
-
     @Override
     public String toString() {
-        return "GetFieldMappingsResponse{" +  "mappings=" + mappings + '}';
+        return "GetFieldMappingsResponse{" + "mappings=" + mappings + '}';
     }
 
     @Override

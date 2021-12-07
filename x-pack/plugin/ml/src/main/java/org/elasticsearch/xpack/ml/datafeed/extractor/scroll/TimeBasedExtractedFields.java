@@ -29,9 +29,7 @@ public class TimeBasedExtractedFields extends ExtractedFields {
     private final ExtractedField timeField;
 
     public TimeBasedExtractedFields(ExtractedField timeField, List<ExtractedField> allFields) {
-        super(allFields,
-            Collections.emptyList(),
-            Collections.emptyMap());
+        super(allFields, Collections.emptyList(), Collections.emptyMap());
         if (allFields.contains(timeField) == false) {
             throw new IllegalArgumentException("timeField should also be contained in allFields");
         }
@@ -45,8 +43,9 @@ public class TimeBasedExtractedFields extends ExtractedFields {
     public Long timeFieldValue(SearchHit hit) {
         Object[] value = timeField.value(hit);
         if (value.length != 1) {
-            throw new RuntimeException("Time field [" + timeField.getName() + "] expected a single value; actual was: "
-                    + Arrays.toString(value));
+            throw new RuntimeException(
+                "Time field [" + timeField.getName() + "] expected a single value; actual was: " + Arrays.toString(value)
+            );
         }
         if (value[0] instanceof Long) {
             return (Long) value[0];
@@ -58,8 +57,11 @@ public class TimeBasedExtractedFields extends ExtractedFields {
         Set<String> scriptFields = datafeed.getScriptFields().stream().map(sf -> sf.fieldName()).collect(Collectors.toSet());
         Set<String> searchRuntimeFields = datafeed.getRuntimeMappings().keySet();
 
-        ExtractionMethodDetector extractionMethodDetector =
-            new ExtractionMethodDetector(scriptFields, fieldsCapabilities, searchRuntimeFields);
+        ExtractionMethodDetector extractionMethodDetector = new ExtractionMethodDetector(
+            scriptFields,
+            fieldsCapabilities,
+            searchRuntimeFields
+        );
         String timeField = job.getDataDescription().getTimeField();
         if (scriptFields.contains(timeField) == false && extractionMethodDetector.isAggregatable(timeField) == false) {
             throw new IllegalArgumentException("cannot retrieve time field [" + timeField + "] because it is not aggregatable");
@@ -74,7 +76,8 @@ public class TimeBasedExtractedFields extends ExtractedFields {
     }
 
     private static ExtractedField extractedTimeField(String timeField, Set<String> scriptFields) {
-        ExtractedField.Method method = scriptFields.contains(timeField) ? ExtractedField.Method.SCRIPT_FIELD
+        ExtractedField.Method method = scriptFields.contains(timeField)
+            ? ExtractedField.Method.SCRIPT_FIELD
             : ExtractedField.Method.DOC_VALUE;
         return ExtractedFields.newTimeField(timeField, method);
     }

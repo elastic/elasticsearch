@@ -48,16 +48,18 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
     public void testRollingRestartOfTwoNodeCluster() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(1);
         final List<String> nodes = internalCluster().startNodes(2);
-        createIndex("test",
+        createIndex(
+            "test",
             Settings.builder()
                 .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), TimeValue.ZERO) // assign shards
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2) // causes rebalancing
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .build());
+                .build()
+        );
         ensureGreen("test");
 
         final DiscoveryNodes discoveryNodes = client().admin().cluster().prepareState().clear().setNodes(true).get().getState().nodes();
-        final Map<String,String> nodeIdsByName = new HashMap<>(discoveryNodes.getSize());
+        final Map<String, String> nodeIdsByName = new HashMap<>(discoveryNodes.getSize());
         discoveryNodes.forEach(n -> nodeIdsByName.put(n.getName(), n.getId()));
 
         RestClient restClient = getRestClient();
@@ -91,7 +93,9 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
                             new Node(
                                 HttpHost.create(
                                     internalCluster().getInstance(HttpServerTransport.class, viaNode)
-                                        .boundAddress().publishAddress().toString()
+                                        .boundAddress()
+                                        .publishAddress()
+                                        .toString()
                                 )
                             )
                         )
@@ -99,7 +103,9 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
                     Response deleteResponse = restClient.performRequest(new Request("DELETE", "/_cluster/voting_config_exclusions"));
                     assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
 
-                    ClusterHealthResponse clusterHealthResponse = client(viaNode).admin().cluster().prepareHealth()
+                    ClusterHealthResponse clusterHealthResponse = client(viaNode).admin()
+                        .cluster()
+                        .prepareHealth()
                         .setWaitForEvents(Priority.LANGUID)
                         .setWaitForNodes(Integer.toString(1))
                         .setTimeout(TimeValue.timeValueSeconds(30L))
@@ -128,7 +134,8 @@ public class Zen2RestApiIT extends ESNetty4IntegTestCase {
         assertThat(response.getStatusLine().getStatusCode(), is(200));
         assertThat(response.getEntity().getContentLength(), is(0L));
         Response deleteResponse = restClient.performRequest(
-            new Request("DELETE", "/_cluster/voting_config_exclusions/?wait_for_removal=false"));
+            new Request("DELETE", "/_cluster/voting_config_exclusions/?wait_for_removal=false")
+        );
         assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
         assertThat(deleteResponse.getEntity().getContentLength(), is(0L));
     }

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,7 +40,7 @@ public class LifecycleExecutionState {
     private static final String SNAPSHOT_NAME = "snapshot_name";
     private static final String SNAPSHOT_REPOSITORY = "snapshot_repository";
     private static final String SNAPSHOT_INDEX_NAME = "snapshot_index_name";
-    private static final String SHRINK_INDEX_NAME ="shrink_index_name";
+    private static final String SHRINK_INDEX_NAME = "shrink_index_name";
     private static final String ROLLUP_INDEX_NAME = "rollup_index_name";
 
     public static final LifecycleExecutionState EMPTY_STATE = LifecycleExecutionState.builder().build();
@@ -63,10 +63,25 @@ public class LifecycleExecutionState {
     private final String snapshotIndexName;
     private final String rollupIndexName;
 
-    private LifecycleExecutionState(String phase, String action, String step, String failedStep, Boolean isAutoRetryableError,
-                                    Integer failedStepRetryCount, String stepInfo, String phaseDefinition, Long lifecycleDate,
-                                    Long phaseTime, Long actionTime, Long stepTime, String snapshotRepository, String snapshotName,
-                                    String shrinkIndexName, String snapshotIndexName, String rollupIndexName) {
+    private LifecycleExecutionState(
+        String phase,
+        String action,
+        String step,
+        String failedStep,
+        Boolean isAutoRetryableError,
+        Integer failedStepRetryCount,
+        String stepInfo,
+        String phaseDefinition,
+        Long lifecycleDate,
+        Long phaseTime,
+        Long actionTime,
+        Long stepTime,
+        String snapshotRepository,
+        String snapshotName,
+        String shrinkIndexName,
+        String snapshotIndexName,
+        String rollupIndexName
+    ) {
         this.phase = phase;
         this.action = action;
         this.step = step;
@@ -113,6 +128,7 @@ public class LifecycleExecutionState {
         // used heavily by autoscaling.
         return customData != null && TimeseriesLifecycleType.FROZEN_PHASE.equals(customData.get(PHASE));
     }
+
     /**
      * Retrieves the current {@link Step.StepKey} from the lifecycle state. Note that
      * it is illegal for the step to be set with the phase and/or action unset,
@@ -143,8 +159,7 @@ public class LifecycleExecutionState {
     }
 
     public static Builder builder(LifecycleExecutionState state) {
-        return new Builder()
-            .setPhase(state.phase)
+        return new Builder().setPhase(state.phase)
             .setAction(state.action)
             .setStep(state.step)
             .setFailedStep(state.failedStep)
@@ -214,8 +229,12 @@ public class LifecycleExecutionState {
             try {
                 builder.setIndexCreationDate(Long.parseLong(indexCreationDate));
             } catch (NumberFormatException e) {
-                throw new ElasticsearchException("Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
-                    e, INDEX_CREATION_DATE, customData.get(INDEX_CREATION_DATE));
+                throw new ElasticsearchException(
+                    "Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
+                    e,
+                    INDEX_CREATION_DATE,
+                    customData.get(INDEX_CREATION_DATE)
+                );
             }
         }
         String phaseTime = customData.get(PHASE_TIME);
@@ -223,8 +242,12 @@ public class LifecycleExecutionState {
             try {
                 builder.setPhaseTime(Long.parseLong(phaseTime));
             } catch (NumberFormatException e) {
-                throw new ElasticsearchException("Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
-                    e, PHASE_TIME, customData.get(PHASE_TIME));
+                throw new ElasticsearchException(
+                    "Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
+                    e,
+                    PHASE_TIME,
+                    customData.get(PHASE_TIME)
+                );
             }
         }
         String actionTime = customData.get(ACTION_TIME);
@@ -232,8 +255,12 @@ public class LifecycleExecutionState {
             try {
                 builder.setActionTime(Long.parseLong(actionTime));
             } catch (NumberFormatException e) {
-                throw new ElasticsearchException("Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
-                    e, ACTION_TIME, customData.get(ACTION_TIME));
+                throw new ElasticsearchException(
+                    "Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
+                    e,
+                    ACTION_TIME,
+                    customData.get(ACTION_TIME)
+                );
             }
         }
         String stepTime = customData.get(STEP_TIME);
@@ -241,8 +268,12 @@ public class LifecycleExecutionState {
             try {
                 builder.setStepTime(Long.parseLong(stepTime));
             } catch (NumberFormatException e) {
-                throw new ElasticsearchException("Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
-                    e, STEP_TIME, customData.get(STEP_TIME));
+                throw new ElasticsearchException(
+                    "Custom metadata field [{}] does not contain a valid long. Actual value: [{}]",
+                    e,
+                    STEP_TIME,
+                    customData.get(STEP_TIME)
+                );
             }
         }
         String snapshotIndexName = customData.get(SNAPSHOT_INDEX_NAME);
@@ -390,30 +421,46 @@ public class LifecycleExecutionState {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         LifecycleExecutionState that = (LifecycleExecutionState) o;
-        return Objects.equals(getLifecycleDate(), that.getLifecycleDate()) &&
-            Objects.equals(getPhaseTime(), that.getPhaseTime()) &&
-            Objects.equals(getActionTime(), that.getActionTime()) &&
-            Objects.equals(getStepTime(), that.getStepTime()) &&
-            Objects.equals(getPhase(), that.getPhase()) &&
-            Objects.equals(getAction(), that.getAction()) &&
-            Objects.equals(getStep(), that.getStep()) &&
-            Objects.equals(getFailedStep(), that.getFailedStep()) &&
-            Objects.equals(isAutoRetryableError(), that.isAutoRetryableError()) &&
-            Objects.equals(getFailedStepRetryCount(), that.getFailedStepRetryCount()) &&
-            Objects.equals(getStepInfo(), that.getStepInfo()) &&
-            Objects.equals(getSnapshotRepository(), that.getSnapshotRepository()) &&
-            Objects.equals(getSnapshotName(), that.getSnapshotName()) &&
-            Objects.equals(getSnapshotIndexName(), that.getSnapshotIndexName()) &&
-            Objects.equals(getShrinkIndexName(), that.getShrinkIndexName()) &&
-            Objects.equals(getRollupIndexName(), that.getRollupIndexName()) &&
-            Objects.equals(getPhaseDefinition(), that.getPhaseDefinition());
+        return Objects.equals(getLifecycleDate(), that.getLifecycleDate())
+            && Objects.equals(getPhaseTime(), that.getPhaseTime())
+            && Objects.equals(getActionTime(), that.getActionTime())
+            && Objects.equals(getStepTime(), that.getStepTime())
+            && Objects.equals(getPhase(), that.getPhase())
+            && Objects.equals(getAction(), that.getAction())
+            && Objects.equals(getStep(), that.getStep())
+            && Objects.equals(getFailedStep(), that.getFailedStep())
+            && Objects.equals(isAutoRetryableError(), that.isAutoRetryableError())
+            && Objects.equals(getFailedStepRetryCount(), that.getFailedStepRetryCount())
+            && Objects.equals(getStepInfo(), that.getStepInfo())
+            && Objects.equals(getSnapshotRepository(), that.getSnapshotRepository())
+            && Objects.equals(getSnapshotName(), that.getSnapshotName())
+            && Objects.equals(getSnapshotIndexName(), that.getSnapshotIndexName())
+            && Objects.equals(getShrinkIndexName(), that.getShrinkIndexName())
+            && Objects.equals(getRollupIndexName(), that.getRollupIndexName())
+            && Objects.equals(getPhaseDefinition(), that.getPhaseDefinition());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getPhase(), getAction(), getStep(), getFailedStep(), isAutoRetryableError(), getFailedStepRetryCount(),
-            getStepInfo(), getPhaseDefinition(), getLifecycleDate(), getPhaseTime(), getActionTime(), getStepTime(),
-            getSnapshotRepository(), getSnapshotName(), getSnapshotIndexName(), getShrinkIndexName(), getRollupIndexName());
+        return Objects.hash(
+            getPhase(),
+            getAction(),
+            getStep(),
+            getFailedStep(),
+            isAutoRetryableError(),
+            getFailedStepRetryCount(),
+            getStepInfo(),
+            getPhaseDefinition(),
+            getLifecycleDate(),
+            getPhaseTime(),
+            getActionTime(),
+            getStepTime(),
+            getSnapshotRepository(),
+            getSnapshotName(),
+            getSnapshotIndexName(),
+            getShrinkIndexName(),
+            getRollupIndexName()
+        );
     }
 
     @Override
@@ -526,9 +573,25 @@ public class LifecycleExecutionState {
         }
 
         public LifecycleExecutionState build() {
-            return new LifecycleExecutionState(phase, action, step, failedStep, isAutoRetryableError, failedStepRetryCount, stepInfo,
-                phaseDefinition, indexCreationDate, phaseTime, actionTime, stepTime, snapshotRepository, snapshotName, shrinkIndexName,
-                snapshotIndexName, rollupIndexName);
+            return new LifecycleExecutionState(
+                phase,
+                action,
+                step,
+                failedStep,
+                isAutoRetryableError,
+                failedStepRetryCount,
+                stepInfo,
+                phaseDefinition,
+                indexCreationDate,
+                phaseTime,
+                actionTime,
+                stepTime,
+                snapshotRepository,
+                snapshotName,
+                shrinkIndexName,
+                snapshotIndexName,
+                rollupIndexName
+            );
         }
     }
 

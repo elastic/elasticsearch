@@ -34,8 +34,15 @@ public class ClientYamlTestSection implements Comparable<ClientYamlTestSection> 
                 executableSections.add(ExecutableSection.parse(parser));
             }
             if (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                throw new IllegalArgumentException("malformed section [" + sectionName + "] expected ["
-                        + XContentParser.Token.END_OBJECT + "] but was [" + parser.currentToken() + "]");
+                throw new IllegalArgumentException(
+                    "malformed section ["
+                        + sectionName
+                        + "] expected ["
+                        + XContentParser.Token.END_OBJECT
+                        + "] but was ["
+                        + parser.currentToken()
+                        + "]"
+                );
             }
             parser.nextToken();
             return new ClientYamlTestSection(sectionLocation, sectionName, skipSection, executableSections);

@@ -36,15 +36,14 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
     }
 
     private static final String[][] testBadRequests = {
-            {null, "request body or source parameter is required"},
-            {"{}", "query is null or empty"},
-            {"{\"query\": \"\"}", "query is null or empty"},
-            {"{\"query\": \"" + validQuery + "\", \"timestamp_field\": \"\"}", "timestamp field is null or empty"},
-            {"{\"query\": \"" + validQuery + "\", \"event_category_field\": \"\"}", "event category field is null or empty"},
-            {"{\"query\": \"" + validQuery + "\", \"size\": -1}", "size must be greater than or equal to 0"},
-            {"{\"query\": \"" + validQuery + "\", \"filter\": null}", "filter doesn't support values of type: VALUE_NULL"},
-            {"{\"query\": \"" + validQuery + "\", \"filter\": {}}", "query malformed, empty clause found"}
-    };
+        { null, "request body or source parameter is required" },
+        { "{}", "query is null or empty" },
+        { "{\"query\": \"\"}", "query is null or empty" },
+        { "{\"query\": \"" + validQuery + "\", \"timestamp_field\": \"\"}", "timestamp field is null or empty" },
+        { "{\"query\": \"" + validQuery + "\", \"event_category_field\": \"\"}", "event category field is null or empty" },
+        { "{\"query\": \"" + validQuery + "\", \"size\": -1}", "size must be greater than or equal to 0" },
+        { "{\"query\": \"" + validQuery + "\", \"filter\": null}", "filter doesn't support values of type: VALUE_NULL" },
+        { "{\"query\": \"" + validQuery + "\", \"filter\": {}}", "query malformed, empty clause found" } };
 
     public void testBadRequests() throws Exception {
         createIndex(defaultValidationIndexName, (String) null);
@@ -79,9 +78,16 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
         bulkIndex(bulk.toString());
 
         String[] wildcardRequests = {
-            "test1,test2","test1*,test2","test1,test2*","test1*,test2*","test*","test1,test2,inexistent","my_alias","my_alias,test*",
-            "test2,my_alias,test1","my_al*"
-        };
+            "test1,test2",
+            "test1*,test2",
+            "test1,test2*",
+            "test1*,test2*",
+            "test*",
+            "test1,test2,inexistent",
+            "my_alias",
+            "my_alias,test*",
+            "test2,my_alias,test1",
+            "my_al*" };
 
         for (String indexPattern : wildcardRequests) {
             String endpoint = "/" + indexPattern(indexPattern) + "/_eql/search";

@@ -9,10 +9,10 @@ package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ml.job.config.Job;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -21,7 +21,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-
 
 /**
  * Request object to get {@link org.elasticsearch.client.ml.job.stats.JobStats} by their respective jobIds
@@ -35,12 +34,17 @@ public class GetJobStatsRequest implements Validatable, ToXContentObject {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetJobStatsRequest, Void> PARSER = new ConstructingObjectParser<>(
-        "get_jobs_stats_request", a -> new GetJobStatsRequest((List<String>) a[0]));
+        "get_jobs_stats_request",
+        a -> new GetJobStatsRequest((List<String>) a[0])
+    );
 
     static {
-        PARSER.declareField(ConstructingObjectParser.constructorArg(),
+        PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
             p -> Arrays.asList(Strings.commaDelimitedListToStringArray(p.text())),
-            Job.ID, ObjectParser.ValueType.STRING_ARRAY);
+            Job.ID,
+            ObjectParser.ValueType.STRING_ARRAY
+        );
         PARSER.declareBoolean(GetJobStatsRequest::setAllowNoMatch, ALLOW_NO_MATCH);
     }
 
@@ -54,7 +58,7 @@ public class GetJobStatsRequest implements Validatable, ToXContentObject {
      *
      * @return a {@link GetJobStatsRequest} for all existing jobs
      */
-    public static GetJobStatsRequest getAllJobStatsRequest(){
+    public static GetJobStatsRequest getAllJobStatsRequest() {
         return new GetJobStatsRequest(ALL_JOBS);
     }
 
@@ -112,8 +116,7 @@ public class GetJobStatsRequest implements Validatable, ToXContentObject {
         }
 
         GetJobStatsRequest that = (GetJobStatsRequest) other;
-        return Objects.equals(jobIds, that.jobIds) &&
-            Objects.equals(allowNoMatch, that.allowNoMatch);
+        return Objects.equals(jobIds, that.jobIds) && Objects.equals(allowNoMatch, that.allowNoMatch);
     }
 
     @Override

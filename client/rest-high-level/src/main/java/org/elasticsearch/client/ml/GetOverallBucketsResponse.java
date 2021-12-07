@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.job.results.OverallBucket;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -25,7 +25,10 @@ public class GetOverallBucketsResponse extends AbstractResultResponse<OverallBuc
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetOverallBucketsResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "get_overall_buckets_response", true, a -> new GetOverallBucketsResponse((List<OverallBucket>) a[0], (long) a[1]));
+        "get_overall_buckets_response",
+        true,
+        a -> new GetOverallBucketsResponse((List<OverallBucket>) a[0], (long) a[1])
+    );
 
     static {
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), OverallBucket.PARSER, OVERALL_BUCKETS);

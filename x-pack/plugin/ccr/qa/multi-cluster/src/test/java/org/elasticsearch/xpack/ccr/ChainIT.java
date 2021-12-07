@@ -22,11 +22,7 @@ public class ChainIT extends ESCCRRestTestCase {
             logger.info("Running against leader cluster");
             String mapping = "";
             if (randomBoolean()) { // randomly do source filtering on indexing
-                mapping =
-                    "\"_source\": {" +
-                    "  \"includes\": [\"field\"]," +
-                    "  \"excludes\": [\"filtered_field\"]" +
-                    "}";
+                mapping = "\"_source\": {" + "  \"includes\": [\"field\"]," + "  \"excludes\": [\"filtered_field\"]" + "}";
             }
             createIndex(leaderIndexName, Settings.EMPTY, mapping);
             for (int i = 0; i < numDocs; i++) {
@@ -72,9 +68,7 @@ public class ChainIT extends ESCCRRestTestCase {
     @Override
     protected Settings restClientSettings() {
         String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
-        return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
 }

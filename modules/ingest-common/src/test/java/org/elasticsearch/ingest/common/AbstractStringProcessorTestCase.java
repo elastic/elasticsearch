@@ -107,16 +107,23 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue(fieldName, randomInt());
         Exception e = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
-        assertThat(e.getMessage(), equalTo("field [" + fieldName +
-            "] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
+        assertThat(e.getMessage(), equalTo("field [" + fieldName + "] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
 
         List<Integer> fieldValueList = new ArrayList<>();
         int randomValue = randomInt();
         fieldValueList.add(randomValue);
         ingestDocument.setFieldValue(fieldName, fieldValueList);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getMessage(), equalTo("value [" + randomValue + "] of type [java.lang.Integer] in list field [" + fieldName +
-            "] cannot be cast to [java.lang.String]"));
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "value ["
+                    + randomValue
+                    + "] of type [java.lang.Integer] in list field ["
+                    + fieldName
+                    + "] cannot be cast to [java.lang.String]"
+            )
+        );
     }
 
     public void testNonStringValueWithIgnoreMissing() throws Exception {
@@ -125,16 +132,23 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue(fieldName, randomInt());
         Exception e = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
-        assertThat(e.getMessage(), equalTo("field [" + fieldName +
-            "] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
+        assertThat(e.getMessage(), equalTo("field [" + fieldName + "] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
 
         List<Integer> fieldValueList = new ArrayList<>();
         int randomValue = randomInt();
         fieldValueList.add(randomValue);
         ingestDocument.setFieldValue(fieldName, fieldValueList);
         Exception exception = expectThrows(Exception.class, () -> processor.execute(ingestDocument));
-        assertThat(exception.getMessage(), equalTo("value [" + randomValue + "] of type [java.lang.Integer] in list field [" + fieldName +
-            "] cannot be cast to [java.lang.String]"));
+        assertThat(
+            exception.getMessage(),
+            equalTo(
+                "value ["
+                    + randomValue
+                    + "] of type [java.lang.Integer] in list field ["
+                    + fieldName
+                    + "] cannot be cast to [java.lang.String]"
+            )
+        );
     }
 
     public void testTargetField() throws Exception {

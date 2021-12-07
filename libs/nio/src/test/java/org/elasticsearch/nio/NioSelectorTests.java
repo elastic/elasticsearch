@@ -8,9 +8,9 @@
 
 package org.elasticsearch.nio;
 
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
@@ -27,10 +27,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.isNull;
-import static org.mockito.Matchers.same;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -48,7 +48,7 @@ public class NioSelectorTests extends ESTestCase {
     private SocketChannelContext channelContext;
     private ServerChannelContext serverChannelContext;
     private BiConsumer<Void, Exception> listener;
-    private ByteBuffer[] buffers = {ByteBuffer.allocate(1)};
+    private ByteBuffer[] buffers = { ByteBuffer.allocate(1) };
     private Selector rawSelector;
 
     @Before
@@ -83,29 +83,29 @@ public class NioSelectorTests extends ESTestCase {
         }).when(eventHandler).handleTask(any());
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testQueueChannelForClosed() throws IOException {
-        NioChannel channel = mock(NioChannel.class);
+        NioChannel mockChannel = mock(NioChannel.class);
         ChannelContext context = mock(ChannelContext.class);
-        when(channel.getContext()).thenReturn(context);
+        when(mockChannel.getContext()).thenReturn(context);
         when(context.getSelector()).thenReturn(selector);
 
-        selector.queueChannelClose(channel);
+        selector.queueChannelClose(mockChannel);
 
         selector.singleLoop();
 
         verify(eventHandler).handleClose(context);
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testCloseException() throws IOException, InterruptedException {
         IOException ioException = new IOException();
-        NioChannel channel = mock(NioChannel.class);
+        NioChannel mockChannel = mock(NioChannel.class);
         ChannelContext context = mock(ChannelContext.class);
-        when(channel.getContext()).thenReturn(context);
+        when(mockChannel.getContext()).thenReturn(context);
         when(context.getSelector()).thenReturn(selector);
 
-        executeOnNewThread(() -> selector.queueChannelClose(channel));
+        executeOnNewThread(() -> selector.queueChannelClose(mockChannel));
 
         doThrow(ioException).when(eventHandler).handleClose(context);
 
@@ -128,9 +128,7 @@ public class NioSelectorTests extends ESTestCase {
     public void testTaskExceptionsAreHandled() {
         RuntimeException taskException = new RuntimeException();
         long nanoTime = System.nanoTime() - 1;
-        Runnable task = () -> {
-            throw taskException;
-        };
+        Runnable task = () -> { throw taskException; };
         selector.getTaskScheduler().scheduleAtRelativeTime(task, nanoTime);
 
         doAnswer((a) -> {
@@ -144,8 +142,7 @@ public class NioSelectorTests extends ESTestCase {
 
     public void testDefaultSelectorTimeoutIsUsedIfNoTaskSooner() throws IOException {
         long delay = new TimeValue(15, TimeUnit.MINUTES).nanos();
-        selector.getTaskScheduler().scheduleAtRelativeTime(() -> {
-        }, System.nanoTime() + delay);
+        selector.getTaskScheduler().scheduleAtRelativeTime(() -> {}, System.nanoTime() + delay);
 
         selector.singleLoop();
         verify(rawSelector).select(300);
@@ -157,8 +154,7 @@ public class NioSelectorTests extends ESTestCase {
         assertBusy(() -> {
             ArgumentCaptor<Long> captor = ArgumentCaptor.forClass(Long.class);
             long delay = new TimeValue(50, TimeUnit.MILLISECONDS).nanos();
-            selector.getTaskScheduler().scheduleAtRelativeTime(() -> {
-            }, System.nanoTime() + delay);
+            selector.getTaskScheduler().scheduleAtRelativeTime(() -> {}, System.nanoTime() + delay);
             selector.singleLoop();
             verify(rawSelector).select(captor.capture());
             assertTrue(captor.getValue() > 0);
@@ -168,7 +164,7 @@ public class NioSelectorTests extends ESTestCase {
 
     public void testSelectorClosedExceptionIsNotCaughtWhileRunning() throws IOException {
         boolean closedSelectorExceptionCaught = false;
-        when(rawSelector.select(anyInt())).thenThrow(new ClosedSelectorException());
+        when(rawSelector.select(anyLong())).thenThrow(new ClosedSelectorException());
         try {
             this.selector.singleLoop();
         } catch (ClosedSelectorException e) {
@@ -181,7 +177,7 @@ public class NioSelectorTests extends ESTestCase {
     public void testIOExceptionWhileSelect() throws IOException {
         IOException ioException = new IOException();
 
-        when(rawSelector.select(anyInt())).thenThrow(ioException);
+        when(rawSelector.select(anyLong())).thenThrow(ioException);
 
         this.selector.singleLoop();
 
@@ -305,7 +301,7 @@ public class NioSelectorTests extends ESTestCase {
             selector.close();
             selector.queueWrite(new FlushReadyWrite(channelContext, buffers, listener));
         });
-        verify(listener).accept(isNull(Void.class), any(ClosedSelectorException.class));
+        verify(listener).accept(isNull(), any(ClosedSelectorException.class));
     }
 
     public void testQueueWriteChannelIsClosed() throws Exception {
@@ -316,7 +312,7 @@ public class NioSelectorTests extends ESTestCase {
         selector.preSelect();
 
         verify(channelContext, times(0)).queueWriteOperation(writeOperation);
-        verify(listener).accept(isNull(Void.class), any(ClosedChannelException.class));
+        verify(listener).accept(isNull(), any(ClosedChannelException.class));
     }
 
     public void testQueueWriteChannelIsUnregistered() throws Exception {
@@ -327,7 +323,7 @@ public class NioSelectorTests extends ESTestCase {
         selector.preSelect();
 
         verify(channelContext, times(0)).queueWriteOperation(writeOperation);
-        verify(listener).accept(isNull(Void.class), any(IllegalStateException.class));
+        verify(listener).accept(isNull(), any(IllegalStateException.class));
     }
 
     public void testQueueWriteSuccessful() throws Exception {
@@ -488,7 +484,7 @@ public class NioSelectorTests extends ESTestCase {
 
         selector.cleanupAndCloseChannels();
 
-        verify(listener).accept(isNull(Void.class), any(ClosedSelectorException.class));
+        verify(listener).accept(isNull(), any(ClosedSelectorException.class));
         verify(eventHandler).handleClose(channelContext);
         verify(eventHandler).handleClose(unregisteredContext);
     }

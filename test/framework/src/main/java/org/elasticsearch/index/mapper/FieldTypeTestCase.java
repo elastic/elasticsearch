@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 

@@ -49,18 +49,35 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     private final Client client;
 
     @Inject
-    public DataTiersUsageTransportAction(TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, Client client) {
-        super(XPackUsageFeatureAction.DATA_TIERS.name(), transportService, clusterService,
-            threadPool, actionFilters, indexNameExpressionResolver);
+    public DataTiersUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Client client
+    ) {
+        super(
+            XPackUsageFeatureAction.DATA_TIERS.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver
+        );
         this.client = client;
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
-        client.admin().cluster().prepareNodesStats()
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
+        client.admin()
+            .cluster()
+            .prepareNodesStats()
             .all()
             .setIndices(CommonStatsFlags.ALL)
             .execute(ActionListener.wrap(nodesStatsResponse -> {
@@ -71,8 +88,11 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
                 Map<String, String> indicesToTiers = tierIndices(indices);
 
                 // Generate tier specific stats for the nodes and indices
-                Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = calculateStats(nodesStatsResponse.getNodes(),
-                    indicesToTiers, routingNodes);
+                Map<String, DataTiersFeatureSetUsage.TierSpecificStats> tierSpecificStats = calculateStats(
+                    nodesStatsResponse.getNodes(),
+                    indicesToTiers,
+                    routingNodes
+                );
 
                 listener.onResponse(new XPackUsageFeatureResponse(new DataTiersFeatureSetUsage(tierSpecificStats)));
             }, listener::onFailure));
@@ -109,9 +129,11 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     }
 
     // Visible for testing
-    static Map<String, DataTiersFeatureSetUsage.TierSpecificStats> calculateStats(List<NodeStats> nodesStats,
-                                                                                  Map<String, String> indexByTier,
-                                                                                  RoutingNodes routingNodes) {
+    static Map<String, DataTiersFeatureSetUsage.TierSpecificStats> calculateStats(
+        List<NodeStats> nodesStats,
+        Map<String, String> indexByTier,
+        RoutingNodes routingNodes
+    ) {
         Map<String, TierStatsAccumulator> statsAccumulators = new HashMap<>();
         for (NodeStats nodeStats : nodesStats) {
             aggregateDataTierNodeCounts(nodeStats, statsAccumulators);
@@ -128,7 +150,9 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
      * Determine which data tiers this node belongs to (if any), and increment the node counts for those tiers.
      */
     private static void aggregateDataTierNodeCounts(NodeStats nodeStats, Map<String, TierStatsAccumulator> tiersStats) {
-        nodeStats.getNode().getRoles().stream()
+        nodeStats.getNode()
+            .getRoles()
+            .stream()
             .map(DiscoveryNodeRole::roleName)
             .filter(DataTier::validTierName)
             .forEach(tier -> tiersStats.computeIfAbsent(tier, k -> new TierStatsAccumulator()).nodeCount++);
@@ -137,8 +161,12 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     /**
      * Locate which indices are hosted on the node specified by the NodeStats, then group and aggregate the available index stats by tier.
      */
-    private static void aggregateDataTierIndexStats(NodeStats nodeStats, RoutingNodes routingNodes, Map<String, String> indexByTier,
-                                                    Map<String, TierStatsAccumulator> accumulators) {
+    private static void aggregateDataTierIndexStats(
+        NodeStats nodeStats,
+        RoutingNodes routingNodes,
+        Map<String, String> indexByTier,
+        Map<String, TierStatsAccumulator> accumulators
+    ) {
         final RoutingNode node = routingNodes.node(nodeStats.getNode().getId());
         if (node != null) {
             StreamSupport.stream(node.spliterator(), false)
@@ -151,8 +179,13 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     /**
      * Determine which tier an index belongs in, then accumulate its stats into that tier's stats.
      */
-    private static void classifyIndexAndCollectStats(Index index, NodeStats nodeStats, Map<String, String> indexByTier,
-                                                     RoutingNode node, Map<String, TierStatsAccumulator> accumulators) {
+    private static void classifyIndexAndCollectStats(
+        Index index,
+        NodeStats nodeStats,
+        Map<String, String> indexByTier,
+        RoutingNode node,
+        Map<String, TierStatsAccumulator> accumulators
+    ) {
         // Look up which tier this index belongs to (its most preferred)
         String indexTier = indexByTier.get(index.getName());
         if (indexTier != null) {
@@ -194,9 +227,17 @@ public class DataTiersUsageTransportAction extends XPackUsageFeatureTransportAct
     private static DataTiersFeatureSetUsage.TierSpecificStats calculateFinalTierStats(TierStatsAccumulator accumulator) {
         long primaryShardSizeMedian = (long) accumulator.valueSketch.quantile(0.5);
         long primaryShardSizeMAD = computeMedianAbsoluteDeviation(accumulator.valueSketch);
-        return new DataTiersFeatureSetUsage.TierSpecificStats(accumulator.nodeCount, accumulator.indexNames.size(),
-            accumulator.totalShardCount, accumulator.primaryShardCount, accumulator.docCount,
-            accumulator.totalByteCount, accumulator.primaryByteCount, primaryShardSizeMedian, primaryShardSizeMAD);
+        return new DataTiersFeatureSetUsage.TierSpecificStats(
+            accumulator.nodeCount,
+            accumulator.indexNames.size(),
+            accumulator.totalShardCount,
+            accumulator.primaryShardCount,
+            accumulator.docCount,
+            accumulator.totalByteCount,
+            accumulator.primaryByteCount,
+            primaryShardSizeMedian,
+            primaryShardSizeMAD
+        );
     }
 
     // Visible for testing

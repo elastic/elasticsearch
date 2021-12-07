@@ -29,9 +29,9 @@ public class RestGetFiltersAction extends BaseRestHandler {
     public List<Route> routes() {
         return List.of(
             Route.builder(GET, BASE_PATH + "filters/{" + MlFilter.ID + "}")
-                .replaces(GET, PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID + "}", RestApiVersion.V_7).build(),
-            Route.builder(GET, BASE_PATH + "filters/")
-                .replaces(GET, PRE_V7_BASE_PATH + "filters/", RestApiVersion.V_7).build()
+                .replaces(GET, PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID + "}", RestApiVersion.V_7)
+                .build(),
+            Route.builder(GET, BASE_PATH + "filters/").replaces(GET, PRE_V7_BASE_PATH + "filters/", RestApiVersion.V_7).build()
         );
     }
 
@@ -49,8 +49,11 @@ public class RestGetFiltersAction extends BaseRestHandler {
         }
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
             request.setPageParams(
-                    new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+                new PageParams(
+                    restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)
+                )
+            );
         }
         return channel -> client.execute(GetFiltersAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
     }

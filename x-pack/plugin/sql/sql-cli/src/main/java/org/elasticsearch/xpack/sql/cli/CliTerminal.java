@@ -6,8 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import java.io.IOException;
 import org.elasticsearch.cli.UserException;
+
+import java.io.IOException;
 
 /**
  * Represents a terminal endpoint

@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.watcher.watch;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus;
 import org.elasticsearch.xpack.core.watcher.actions.ActionStatus.AckStatus.State;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;

@@ -14,24 +14,24 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -306,19 +306,14 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         builder.endObject();
     }
 
-
-
-    private static final ConstructingObjectParser<PinnedQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            a ->
-                {
-                    QueryBuilder organicQuery = (QueryBuilder) a[0];
-                    @SuppressWarnings("unchecked")
-                    List<String> ids = (List<String>) a[1];
-                    @SuppressWarnings("unchecked")
-                    List<Item> docs = (List<Item>) a[2];
-                    return new PinnedQueryBuilder(organicQuery, ids, docs);
-                }
-             );
+    private static final ConstructingObjectParser<PinnedQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {
+        QueryBuilder organicQuery = (QueryBuilder) a[0];
+        @SuppressWarnings("unchecked")
+        List<String> ids = (List<String>) a[1];
+        @SuppressWarnings("unchecked")
+        List<Item> docs = (List<Item>) a[2];
+        return new PinnedQueryBuilder(organicQuery, ids, docs);
+    });
     static {
         PARSER.declareObject(constructorArg(), (p, c) -> parseInnerQueryBuilder(p), ORGANIC_QUERY_FIELD);
         PARSER.declareStringArray(optionalConstructorArg(), IDS_FIELD);

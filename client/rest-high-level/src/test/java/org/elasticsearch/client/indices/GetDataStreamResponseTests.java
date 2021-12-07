@@ -9,12 +9,12 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction.Response.DataStreamInfo;
 
@@ -27,8 +27,12 @@ public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetData
 
     private static DataStreamInfo randomInstance() {
         DataStream dataStream = DataStreamTestHelper.randomInstance();
-        return new DataStreamInfo(dataStream, ClusterHealthStatus.YELLOW, randomAlphaOfLengthBetween(2, 10),
-            randomAlphaOfLengthBetween(2, 10));
+        return new DataStreamInfo(
+            dataStream,
+            ClusterHealthStatus.YELLOW,
+            randomAlphaOfLengthBetween(2, 10),
+            randomAlphaOfLengthBetween(2, 10)
+        );
     }
 
     @Override

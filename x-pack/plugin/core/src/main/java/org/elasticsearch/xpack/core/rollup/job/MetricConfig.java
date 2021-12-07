@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -58,7 +58,8 @@ public class MetricConfig implements Writeable, ToXContentObject {
     private static final ConstructingObjectParser<MetricConfig, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, args -> {
-            @SuppressWarnings("unchecked") List<String> metrics = (List<String>) args[1];
+            @SuppressWarnings("unchecked")
+            List<String> metrics = (List<String>) args[1];
             return new MetricConfig((String) args[0], metrics);
         });
         PARSER.declareString(constructorArg(), new ParseField(FIELD));
@@ -77,8 +78,9 @@ public class MetricConfig implements Writeable, ToXContentObject {
         }
         metrics.forEach(m -> {
             if (RollupField.SUPPORTED_METRICS.contains(m) == false) {
-                throw new IllegalArgumentException("Unsupported metric [" + m + "]. " +
-                    "Supported metrics include: " + RollupField.SUPPORTED_METRICS);
+                throw new IllegalArgumentException(
+                    "Unsupported metric [" + m + "]. " + "Supported metrics include: " + RollupField.SUPPORTED_METRICS
+                );
             }
         });
         this.field = field;
@@ -104,33 +106,47 @@ public class MetricConfig implements Writeable, ToXContentObject {
         return metrics;
     }
 
-    public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
-                                 ActionRequestValidationException validationException) {
+    public void validateMappings(
+        Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+        ActionRequestValidationException validationException
+    ) {
 
         Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
         if (fieldCaps != null && fieldCaps.isEmpty() == false) {
             fieldCaps.forEach((key, value) -> {
                 if (value.isAggregatable() == false) {
-                    validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
-                        "but is not.");
+                    validationException.addValidationError(
+                        "The field [" + field + "] must be aggregatable across all indices, " + "but is not."
+                    );
                 }
                 if (RollupField.NUMERIC_FIELD_MAPPER_TYPES.contains(key)) {
                     // nothing to do as all metrics are supported by SUPPORTED_NUMERIC_METRICS currently
                 } else if (RollupField.DATE_FIELD_MAPPER_TYPES.contains(key)) {
                     if (RollupField.SUPPORTED_DATE_METRICS.containsAll(metrics) == false) {
-                        validationException.addValidationError(
-                            buildSupportedMetricError(key, RollupField.SUPPORTED_DATE_METRICS));
+                        validationException.addValidationError(buildSupportedMetricError(key, RollupField.SUPPORTED_DATE_METRICS));
                     }
                 } else {
-                    validationException.addValidationError("The field referenced by a metric group must be a [numeric] or [" +
-                        Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES) + "] type, " +
-                        "but found " + fieldCaps.keySet().toString() + " for field [" + field + "]");
+                    validationException.addValidationError(
+                        "The field referenced by a metric group must be a [numeric] or ["
+                            + Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES)
+                            + "] type, "
+                            + "but found "
+                            + fieldCaps.keySet().toString()
+                            + " for field ["
+                            + field
+                            + "]"
+                    );
                 }
             });
         } else {
-            validationException.addValidationError("Could not find a [numeric] or [" +
-                Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES) +
-                "] field with name [" + field + "] in any of the " + "indices matching the index pattern.");
+            validationException.addValidationError(
+                "Could not find a [numeric] or ["
+                    + Strings.collectionToCommaDelimitedString(RollupField.DATE_FIELD_MAPPER_TYPES)
+                    + "] field with name ["
+                    + field
+                    + "] in any of the "
+                    + "indices matching the index pattern."
+            );
         }
     }
 
@@ -180,7 +196,15 @@ public class MetricConfig implements Writeable, ToXContentObject {
     private String buildSupportedMetricError(String type, List<String> supportedMetrics) {
         List<String> unsupportedMetrics = new ArrayList<>(metrics);
         unsupportedMetrics.removeAll(supportedMetrics);
-        return "Only the metrics " + supportedMetrics + " are supported for [" + type + "] types," +
-            " but unsupported metrics " + unsupportedMetrics + " supplied for field [" + field + "]";
+        return "Only the metrics "
+            + supportedMetrics
+            + " are supported for ["
+            + type
+            + "] types,"
+            + " but unsupported metrics "
+            + unsupportedMetrics
+            + " supplied for field ["
+            + field
+            + "]";
     }
 }

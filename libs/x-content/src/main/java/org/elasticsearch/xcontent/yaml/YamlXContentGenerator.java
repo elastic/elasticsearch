@@ -9,6 +9,7 @@
 package org.elasticsearch.xcontent.yaml;
 
 import com.fasterxml.jackson.core.JsonGenerator;
+
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContentGenerator;
 

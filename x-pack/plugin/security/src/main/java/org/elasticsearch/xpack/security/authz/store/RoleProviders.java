@@ -118,6 +118,7 @@ public class RoleProviders {
 
     interface ChangeListener {
         void rolesChanged(Set<String> roles);
+
         void providersChanged();
     }
 }

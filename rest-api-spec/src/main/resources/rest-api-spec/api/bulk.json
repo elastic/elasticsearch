@@ -31,23 +31,6 @@
               "description":"Default index for items which don't provide one"
             }
           }
-        },
-        {
-          "path":"/{index}/{type}/_bulk",
-          "methods":[
-            "POST",
-            "PUT"
-          ],
-          "parts":{
-            "index":{
-              "type":"string",
-              "description":"Default index for items which don't provide one"
-            },
-            "type":{
-              "type":"string",
-              "description":"Default document type for items which don't provide one"
-            }
-          }
         }
       ]
     },

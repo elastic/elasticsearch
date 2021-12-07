@@ -44,15 +44,17 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
         refresh();
 
         WatcherSearchTemplateRequest request = new WatcherSearchTemplateRequest(
-                new String[]{index}, SearchType.QUERY_THEN_FETCH,
-                WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS, new BytesArray("{}")
+            new String[] { index },
+            SearchType.QUERY_THEN_FETCH,
+            WatcherSearchTemplateRequest.DEFAULT_INDICES_OPTIONS,
+            new BytesArray("{}")
         );
-        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(watchBuilder()
-                .trigger(schedule(interval("5s")))
+        PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client(), "_id").setSource(
+            watchBuilder().trigger(schedule(interval("5s")))
                 .input(searchInput(request))
                 .condition(InternalAlwaysCondition.INSTANCE)
-                .addAction("logger", loggingAction("indexed")))
-                .get();
+                .addAction("logger", loggingAction("indexed"))
+        ).get();
 
         assertThat(putWatchResponse.isCreated(), is(true));
         timeWarp().trigger("_id");
@@ -62,11 +64,13 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
         // the action should fail as no email server is available
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
 
-        SearchResponse response = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSource(searchSource()
-                .aggregation(terms("input_search_type").field("result.input.search.request.search_type"))
-                .aggregation(terms("input_indices").field("result.input.search.request.indices"))
-                .aggregation(terms("input_body").field("result.input.search.request.body")))
-                .get();
+        SearchResponse response = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
+            .setSource(
+                searchSource().aggregation(terms("input_search_type").field("result.input.search.request.search_type"))
+                    .aggregation(terms("input_indices").field("result.input.search.request.indices"))
+                    .aggregation(terms("input_body").field("result.input.search.request.body"))
+            )
+            .get();
 
         assertThat(response, notNullValue());
         assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));

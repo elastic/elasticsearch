@@ -9,13 +9,9 @@ package org.elasticsearch.xpack.security.rest.action.saml;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -23,6 +19,10 @@ import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateResponse;
 
@@ -52,7 +52,9 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
             this.ids = ids;
         }
 
-        void setRealm(String realm) { this.realm = realm;}
+        void setRealm(String realm) {
+            this.realm = realm;
+        }
     }
 
     static final ObjectParser<Input, Void> PARSER = new ObjectParser<>("saml_authenticate", Input::new);
@@ -71,7 +73,8 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
     public List<Route> routes() {
         return List.of(
             Route.builder(POST, "/_security/saml/authenticate")
-                .replaces(POST, "/_xpack/security/saml/authenticate", RestApiVersion.V_7).build()
+                .replaces(POST, "/_xpack/security/saml/authenticate", RestApiVersion.V_7)
+                .build()
         );
     }
 
@@ -87,8 +90,9 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
             logger.trace("SAML Authenticate: [{}...] [{}]", Strings.cleanTruncate(input.content, 128), input.ids);
             return channel -> {
                 final byte[] bytes = decodeBase64(input.content);
-                final SamlAuthenticateRequestBuilder requestBuilder =
-                    new SamlAuthenticateRequestBuilder(client).saml(bytes).validRequestIds(input.ids).authenticatingRealm(input.realm);
+                final SamlAuthenticateRequestBuilder requestBuilder = new SamlAuthenticateRequestBuilder(client).saml(bytes)
+                    .validRequestIds(input.ids)
+                    .authenticatingRealm(input.realm);
                 requestBuilder.execute(new RestBuilderListener<>(channel) {
                     @Override
                     public RestResponse buildResponse(SamlAuthenticateResponse response, XContentBuilder builder) throws Exception {
@@ -98,7 +102,7 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
                         builder.field("access_token", response.getTokenString());
                         builder.field("refresh_token", response.getRefreshToken());
                         builder.field("expires_in", response.getExpiresIn().seconds());
-                        if(response.getAuthentication() != null) {
+                        if (response.getAuthentication() != null) {
                             builder.field("authentication", response.getAuthentication());
                         }
                         builder.endObject();

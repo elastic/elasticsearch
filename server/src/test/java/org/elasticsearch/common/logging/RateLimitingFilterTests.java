@@ -157,7 +157,7 @@ public class RateLimitingFilterTests extends ESTestCase {
         Message message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 0", "opaque-id 0", "msg 0");
         assertThat(filter.filter(message), equalTo(Result.ACCEPT));
 
-        // Should  be rate-limited because it was just added to the cache
+        // Should be rate-limited because it was just added to the cache
         message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 0", "opaque-id 0", "msg 0");
         assertThat(filter.filter(message), equalTo(Result.DENY));
 

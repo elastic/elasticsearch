@@ -322,8 +322,8 @@ setting limits the maximum number of open shards for a cluster. This error
 indicates an action would exceed this limit.
 
 If you're confident your changes won't destabilize the cluster, you can
-temporarily increase the limit using the <<cluster-update-settings,update
-cluster settings API>> and retry the action.
+temporarily increase the limit using the <<cluster-update-settings,cluster
+update settings API>> and retry the action.
 
 [source,console]
 ----

@@ -11,9 +11,9 @@ import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncodingTests;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncodingTests;
 import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncodingTests;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -36,12 +36,17 @@ public class RegressionTests extends AbstractXContentTestCase<Regression> {
             .setTrainingPercent(randomBoolean() ? null : randomDoubleBetween(1.0, 100.0, true))
             .setLossFunction(randomBoolean() ? null : randomFrom(Regression.LossFunction.values()))
             .setLossFunctionParameter(randomBoolean() ? null : randomDoubleBetween(1.0, Double.MAX_VALUE, true))
-            .setFeatureProcessors(randomBoolean() ? null :
-                Stream.generate(() -> randomFrom(FrequencyEncodingTests.createRandom(),
-                    OneHotEncodingTests.createRandom(),
-                    TargetMeanEncodingTests.createRandom()))
-                    .limit(randomIntBetween(1, 10))
-                    .collect(Collectors.toList()))
+            .setFeatureProcessors(
+                randomBoolean()
+                    ? null
+                    : Stream.generate(
+                        () -> randomFrom(
+                            FrequencyEncodingTests.createRandom(),
+                            OneHotEncodingTests.createRandom(),
+                            TargetMeanEncodingTests.createRandom()
+                        )
+                    ).limit(randomIntBetween(1, 10)).collect(Collectors.toList())
+            )
             .setAlpha(randomBoolean() ? null : randomDoubleBetween(0.0, Double.MAX_VALUE, true))
             .setEtaGrowthRatePerTree(randomBoolean() ? null : randomDoubleBetween(0.5, 2.0, true))
             .setSoftTreeDepthLimit(randomBoolean() ? null : randomDoubleBetween(0.0, Double.MAX_VALUE, true))

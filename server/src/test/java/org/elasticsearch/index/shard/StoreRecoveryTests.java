@@ -65,18 +65,19 @@ public class StoreRecoveryTests extends ESTestCase {
         int id = 0;
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = newFSDirectory(createTempDir());
-            IndexWriterConfig iwc = newIndexWriterConfig()
-                .setMergePolicy(NoMergePolicy.INSTANCE)
+            IndexWriterConfig iwc = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
                 .setOpenMode(IndexWriterConfig.OpenMode.CREATE);
             if (indexSort != null) {
                 iwc.setIndexSort(indexSort);
             }
             IndexWriter writer = new IndexWriter(dirs[i], iwc);
             for (int j = 0; j < numDocs; j++) {
-                writer.addDocument(Arrays.asList(
-                    new StringField("id", Integer.toString(id++), Field.Store.YES),
-                    new SortedNumericDocValuesField("num", randomLong())
-                ));
+                writer.addDocument(
+                    Arrays.asList(
+                        new StringField("id", Integer.toString(id++), Field.Store.YES),
+                        new SortedNumericDocValuesField("num", randomLong())
+                    )
+                );
             }
 
             writer.commit();
@@ -87,9 +88,10 @@ public class StoreRecoveryTests extends ESTestCase {
         Directory target = newFSDirectory(createTempDir());
         final long maxSeqNo = randomNonNegativeLong();
         final long maxUnsafeAutoIdTimestamp = randomNonNegativeLong();
-        storeRecovery.addIndices(indexStats, target, indexSort, dirs, maxSeqNo, maxUnsafeAutoIdTimestamp, null,  0, false, false);
+        storeRecovery.addIndices(indexStats, target, indexSort, dirs, maxSeqNo, maxUnsafeAutoIdTimestamp, null, 0, false, false);
         int numFiles = 0;
-        Predicate<String> filesFilter = (f) -> f.startsWith("segments") == false && f.equals("write.lock") == false
+        Predicate<String> filesFilter = (f) -> f.startsWith("segments") == false
+            && f.equals("write.lock") == false
             && f.startsWith("extra") == false;
         for (Directory d : dirs) {
             numFiles += Arrays.asList(d.listAll()).stream().filter(filesFilter).count();
@@ -110,8 +112,7 @@ public class StoreRecoveryTests extends ESTestCase {
         assertThat(userData.get(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID), equalTo(Long.toString(maxUnsafeAutoIdTimestamp)));
         assertThat(userData.get(Engine.ES_VERSION), equalTo(Version.CURRENT.toString()));
         for (SegmentCommitInfo info : segmentCommitInfos) { // check that we didn't merge
-            assertEquals("all sources must be flush",
-                info.info.getDiagnostics().get("source"), "flush");
+            assertEquals("all sources must be flush", info.info.getDiagnostics().get("source"), "flush");
             if (indexSort != null) {
                 assertEquals(indexSort, info.info.getIndexSort());
             }
@@ -132,18 +133,19 @@ public class StoreRecoveryTests extends ESTestCase {
         } else {
             indexSort = null;
         }
-        IndexWriterConfig iwc = newIndexWriterConfig()
-            .setMergePolicy(NoMergePolicy.INSTANCE)
+        IndexWriterConfig iwc = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
             .setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);
         }
         IndexWriter writer = new IndexWriter(dir, iwc);
         for (int j = 0; j < numDocs; j++) {
-            writer.addDocument(Arrays.asList(
-                new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
-                new SortedNumericDocValuesField("num", randomLong())
-            ));
+            writer.addDocument(
+                Arrays.asList(
+                    new StringField(IdFieldMapper.NAME, Uid.encodeId(Integer.toString(j)), Field.Store.YES),
+                    new SortedNumericDocValuesField("num", randomLong())
+                )
+            );
         }
 
         writer.commit();
@@ -153,16 +155,26 @@ public class StoreRecoveryTests extends ESTestCase {
         Directory target = newFSDirectory(createTempDir());
         final long maxSeqNo = randomNonNegativeLong();
         final long maxUnsafeAutoIdTimestamp = randomNonNegativeLong();
-        int numShards =  randomIntBetween(2, 10);
-        int targetShardId = randomIntBetween(0, numShards-1);
+        int numShards = randomIntBetween(2, 10);
+        int targetShardId = randomIntBetween(0, numShards - 1);
         IndexMetadata metadata = IndexMetadata.builder("test")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
             .numberOfShards(numShards)
             .setRoutingNumShards(numShards * 1000000)
-            .numberOfReplicas(0).build();
-        storeRecovery.addIndices(indexStats, target, indexSort, new Directory[] {dir}, maxSeqNo, maxUnsafeAutoIdTimestamp, metadata,
-            targetShardId, true, false);
-
+            .numberOfReplicas(0)
+            .build();
+        storeRecovery.addIndices(
+            indexStats,
+            target,
+            indexSort,
+            new Directory[] { dir },
+            maxSeqNo,
+            maxUnsafeAutoIdTimestamp,
+            metadata,
+            targetShardId,
+            true,
+            false
+        );
 
         SegmentInfos segmentCommitInfos = SegmentInfos.readLatestCommit(target);
         final Map<String, String> userData = segmentCommitInfos.getUserData();
@@ -170,16 +182,13 @@ public class StoreRecoveryTests extends ESTestCase {
         assertThat(userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY), equalTo(Long.toString(maxSeqNo)));
         assertThat(userData.get(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID), equalTo(Long.toString(maxUnsafeAutoIdTimestamp)));
         for (SegmentCommitInfo info : segmentCommitInfos) { // check that we didn't merge
-            assertEquals("all sources must be flush",
-                info.info.getDiagnostics().get("source"), "flush");
+            assertEquals("all sources must be flush", info.info.getDiagnostics().get("source"), "flush");
             if (indexSort != null) {
                 assertEquals(indexSort, info.info.getIndexSort());
             }
         }
 
-        iwc = newIndexWriterConfig()
-            .setMergePolicy(NoMergePolicy.INSTANCE)
-            .setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+        iwc = newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE).setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);
         }
@@ -194,7 +203,7 @@ public class StoreRecoveryTests extends ESTestCase {
             Terms terms = leafReader.terms(IdFieldMapper.NAME);
             TermsEnum iterator = terms.iterator();
             BytesRef ref;
-            while((ref = iterator.next()) != null) {
+            while ((ref = iterator.next()) != null) {
                 String value = ref.utf8ToString();
                 assertEquals(
                     "value has wrong shards: " + value,
@@ -228,7 +237,7 @@ public class StoreRecoveryTests extends ESTestCase {
             CodecUtil.writeHeader(output, "foo", 0);
             int numBytes = randomIntBetween(100, 20000);
             for (int i = 0; i < numBytes; i++) {
-                output.writeByte((byte)i);
+                output.writeByte((byte) i);
             }
             CodecUtil.writeFooter(output);
         }
@@ -248,8 +257,7 @@ public class StoreRecoveryTests extends ESTestCase {
             BasicFileAttributes destAttr = Files.readAttributes(path.resolve("test"), BasicFileAttributes.class);
             BasicFileAttributes sourceAttr = Files.readAttributes(path.resolve("foo.bar"), BasicFileAttributes.class);
             // we won't get here - no permission ;)
-            return destAttr.fileKey() != null
-                && destAttr.fileKey().equals(sourceAttr.fileKey());
+            return destAttr.fileKey() != null && destAttr.fileKey().equals(sourceAttr.fileKey());
         } catch (AccessControlException ex) {
             return true; // if we run into that situation we know it's supported.
         } catch (UnsupportedOperationException ex) {

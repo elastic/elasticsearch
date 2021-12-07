@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.watcher;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -34,14 +34,14 @@ public class AckWatchResponse {
     }
 
     private static final ParseField STATUS_FIELD = new ParseField("status");
-    private static final ConstructingObjectParser<AckWatchResponse, Void> PARSER =
-        new ConstructingObjectParser<>("ack_watch_response", true,
-            a -> new AckWatchResponse((WatchStatus) a[0]));
+    private static final ConstructingObjectParser<AckWatchResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "ack_watch_response",
+        true,
+        a -> new AckWatchResponse((WatchStatus) a[0])
+    );
 
     static {
-        PARSER.declareObject(ConstructingObjectParser.constructorArg(),
-            (parser, context) -> WatchStatus.parse(parser),
-            STATUS_FIELD);
+        PARSER.declareObject(ConstructingObjectParser.constructorArg(), (parser, context) -> WatchStatus.parse(parser), STATUS_FIELD);
     }
 
     public static AckWatchResponse fromXContent(XContentParser parser) throws IOException {

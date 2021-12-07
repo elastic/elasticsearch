@@ -11,7 +11,6 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
-
 public interface PreprocessorSize extends Accountable, NamedXContentObject {
     ParseField FIELD_LENGTH = new ParseField("field_length");
     ParseField FEATURE_NAME_LENGTH = new ParseField("feature_name_length");

@@ -39,7 +39,8 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
             return;
         }
 
-        List<PersistentTasksCustomMetadata.PersistentTask<?>> shardFollowTasks = persistentTasksMetadata.tasks().stream()
+        List<PersistentTasksCustomMetadata.PersistentTask<?>> shardFollowTasks = persistentTasksMetadata.tasks()
+            .stream()
             .filter(persistentTask -> ShardFollowTask.NAME.equals(persistentTask.getTaskName()))
             .filter(persistentTask -> {
                 ShardFollowTask shardFollowTask = (ShardFollowTask) persistentTask.getParams();
@@ -54,14 +55,11 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
 
         PauseFollowAction.Request request = new PauseFollowAction.Request(followerIndex);
         request.masterNodeTimeout(TimeValue.MAX_VALUE);
-        getClient().execute(PauseFollowAction.INSTANCE, request, ActionListener.wrap(
-            r -> {
-                if (r.isAcknowledged() == false) {
-                    throw new ElasticsearchException("pause follow request failed to be acknowledged");
-                }
-                listener.onResponse(null);
-            },
-            listener::onFailure
-        ));
+        getClient().execute(PauseFollowAction.INSTANCE, request, ActionListener.wrap(r -> {
+            if (r.isAcknowledged() == false) {
+                throw new ElasticsearchException("pause follow request failed to be acknowledged");
+            }
+            listener.onResponse(null);
+        }, listener::onFailure));
     }
 }

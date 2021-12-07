@@ -15,11 +15,7 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Req
 public class GetTransformStatsActionRequestTests extends AbstractWireSerializingTestCase<Request> {
     @Override
     protected Request createTestInstance() {
-        return new Request(
-            randomBoolean()
-                ? randomAlphaOfLengthBetween(1, 20)
-                : randomBoolean() ? Metadata.ALL : null
-        );
+        return new Request(randomBoolean() ? randomAlphaOfLengthBetween(1, 20) : randomBoolean() ? Metadata.ALL : null);
     }
 
     @Override

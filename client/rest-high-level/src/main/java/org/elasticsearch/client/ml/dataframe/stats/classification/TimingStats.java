@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.client.ml.dataframe.stats.classification;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -21,11 +21,14 @@ public class TimingStats implements ToXContentObject {
     public static final ParseField ELAPSED_TIME = new ParseField("elapsed_time");
     public static final ParseField ITERATION_TIME = new ParseField("iteration_time");
 
-    public static ConstructingObjectParser<TimingStats, Void> PARSER = new ConstructingObjectParser<>("classification_timing_stats", true,
+    public static ConstructingObjectParser<TimingStats, Void> PARSER = new ConstructingObjectParser<>(
+        "classification_timing_stats",
+        true,
         a -> new TimingStats(
             a[0] == null ? null : TimeValue.timeValueMillis((long) a[0]),
             a[1] == null ? null : TimeValue.timeValueMillis((long) a[1])
-        ));
+        )
+    );
 
     static {
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), ELAPSED_TIME);

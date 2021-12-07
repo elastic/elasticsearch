@@ -33,9 +33,7 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            new Route(
-                POST,
-                BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/deployment/_infer")
+            new Route(POST, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/deployment/_infer")
         );
     }
 
@@ -45,12 +43,16 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
         if (restRequest.hasContent() == false) {
             throw ExceptionsHelper.badRequestException("requires body");
         }
-        InferTrainedModelDeploymentAction.Request.Builder request =
-            InferTrainedModelDeploymentAction.Request.parseRequest(deploymentId, restRequest.contentParser());
+        InferTrainedModelDeploymentAction.Request.Builder request = InferTrainedModelDeploymentAction.Request.parseRequest(
+            deploymentId,
+            restRequest.contentParser()
+        );
 
         if (restRequest.hasParam(InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName())) {
-            TimeValue inferTimeout = restRequest.paramAsTime(InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName(),
-                InferTrainedModelDeploymentAction.Request.DEFAULT_TIMEOUT);
+            TimeValue inferTimeout = restRequest.paramAsTime(
+                InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName(),
+                InferTrainedModelDeploymentAction.Request.DEFAULT_TIMEOUT
+            );
             request.setInferenceTimeout(inferTimeout);
         }
 

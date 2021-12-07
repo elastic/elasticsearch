@@ -95,7 +95,6 @@ public class MockAction implements LifecycleAction {
             return false;
         }
         MockAction other = (MockAction) obj;
-        return Objects.equals(steps, other.steps) &&
-                Objects.equals(safe, other.safe);
+        return Objects.equals(steps, other.steps) && Objects.equals(safe, other.safe);
     }
 }

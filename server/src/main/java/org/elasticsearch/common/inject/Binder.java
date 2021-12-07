@@ -323,8 +323,7 @@ public interface Binder {
      * @param converter   converts values
      * @since 2.0
      */
-    void convertToTypes(Matcher<? super TypeLiteral<?>> typeMatcher,
-                        TypeConverter converter);
+    void convertToTypes(Matcher<? super TypeLiteral<?>> typeMatcher, TypeConverter converter);
 
     /**
      * Registers a listener for injectable types. Guice will notify the listener when it encounters
@@ -334,8 +333,7 @@ public interface Binder {
      * @param listener    for injectable types matched by typeMatcher
      * @since 2.0
      */
-    void bindListener(Matcher<? super TypeLiteral<?>> typeMatcher,
-                      TypeListener listener);
+    void bindListener(Matcher<? super TypeLiteral<?>> typeMatcher, TypeListener listener);
 
     /**
      * Returns a binder that uses {@code source} as the reference location for

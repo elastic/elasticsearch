@@ -8,10 +8,10 @@
 package org.elasticsearch.client.ml.job.config;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -27,7 +27,10 @@ public class JobUpdate implements ToXContentObject {
     public static final ParseField DETECTORS = new ParseField("detectors");
 
     public static final ConstructingObjectParser<Builder, Void> PARSER = new ConstructingObjectParser<>(
-        "job_update", true, args -> new Builder((String) args[0]));
+        "job_update",
+        true,
+        args -> new Builder((String) args[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), Job.ID);
@@ -36,19 +39,30 @@ public class JobUpdate implements ToXContentObject {
         PARSER.declareObjectArray(Builder::setDetectorUpdates, DetectorUpdate.PARSER, DETECTORS);
         PARSER.declareObject(Builder::setModelPlotConfig, ModelPlotConfig.PARSER, Job.MODEL_PLOT_CONFIG);
         PARSER.declareObject(Builder::setAnalysisLimits, AnalysisLimits.PARSER, Job.ANALYSIS_LIMITS);
-        PARSER.declareString((builder, val) -> builder.setBackgroundPersistInterval(
-                TimeValue.parseTimeValue(val, Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName())), Job.BACKGROUND_PERSIST_INTERVAL);
+        PARSER.declareString(
+            (builder, val) -> builder.setBackgroundPersistInterval(
+                TimeValue.parseTimeValue(val, Job.BACKGROUND_PERSIST_INTERVAL.getPreferredName())
+            ),
+            Job.BACKGROUND_PERSIST_INTERVAL
+        );
         PARSER.declareLong(Builder::setRenormalizationWindowDays, Job.RENORMALIZATION_WINDOW_DAYS);
         PARSER.declareLong(Builder::setResultsRetentionDays, Job.RESULTS_RETENTION_DAYS);
         PARSER.declareLong(Builder::setModelSnapshotRetentionDays, Job.MODEL_SNAPSHOT_RETENTION_DAYS);
         PARSER.declareLong(Builder::setDailyModelSnapshotRetentionAfterDays, Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS);
         PARSER.declareStringArray(Builder::setCategorizationFilters, AnalysisConfig.CATEGORIZATION_FILTERS);
-        PARSER.declareObject(Builder::setPerPartitionCategorizationConfig, PerPartitionCategorizationConfig.PARSER,
-                AnalysisConfig.PER_PARTITION_CATEGORIZATION);
+        PARSER.declareObject(
+            Builder::setPerPartitionCategorizationConfig,
+            PerPartitionCategorizationConfig.PARSER,
+            AnalysisConfig.PER_PARTITION_CATEGORIZATION
+        );
         PARSER.declareField(Builder::setCustomSettings, (p, c) -> p.map(), Job.CUSTOM_SETTINGS, ObjectParser.ValueType.OBJECT);
         PARSER.declareBoolean(Builder::setAllowLazyOpen, Job.ALLOW_LAZY_OPEN);
-        PARSER.declareString((builder, val) -> builder.setModelPruneWindow(
-            TimeValue.parseTimeValue(val, AnalysisConfig.MODEL_PRUNE_WINDOW.getPreferredName())), AnalysisConfig.MODEL_PRUNE_WINDOW);
+        PARSER.declareString(
+            (builder, val) -> builder.setModelPruneWindow(
+                TimeValue.parseTimeValue(val, AnalysisConfig.MODEL_PRUNE_WINDOW.getPreferredName())
+            ),
+            AnalysisConfig.MODEL_PRUNE_WINDOW
+        );
     }
 
     private final String jobId;
@@ -68,14 +82,24 @@ public class JobUpdate implements ToXContentObject {
     private final Boolean allowLazyOpen;
     private final TimeValue modelPruneWindow;
 
-    private JobUpdate(String jobId, @Nullable List<String> groups, @Nullable String description,
-                      @Nullable List<DetectorUpdate> detectorUpdates, @Nullable ModelPlotConfig modelPlotConfig,
-                      @Nullable AnalysisLimits analysisLimits, @Nullable TimeValue backgroundPersistInterval,
-                      @Nullable Long renormalizationWindowDays, @Nullable Long resultsRetentionDays,
-                      @Nullable Long modelSnapshotRetentionDays,
-                      @Nullable Long dailyModelSnapshotRetentionAfterDays, @Nullable List<String> categorizationFilters,
-                      @Nullable PerPartitionCategorizationConfig perPartitionCategorizationConfig,
-                      @Nullable Map<String, Object> customSettings, @Nullable Boolean allowLazyOpen, @Nullable TimeValue modelPruneWindow) {
+    private JobUpdate(
+        String jobId,
+        @Nullable List<String> groups,
+        @Nullable String description,
+        @Nullable List<DetectorUpdate> detectorUpdates,
+        @Nullable ModelPlotConfig modelPlotConfig,
+        @Nullable AnalysisLimits analysisLimits,
+        @Nullable TimeValue backgroundPersistInterval,
+        @Nullable Long renormalizationWindowDays,
+        @Nullable Long resultsRetentionDays,
+        @Nullable Long modelSnapshotRetentionDays,
+        @Nullable Long dailyModelSnapshotRetentionAfterDays,
+        @Nullable List<String> categorizationFilters,
+        @Nullable PerPartitionCategorizationConfig perPartitionCategorizationConfig,
+        @Nullable Map<String, Object> customSettings,
+        @Nullable Boolean allowLazyOpen,
+        @Nullable TimeValue modelPruneWindow
+    ) {
         this.jobId = jobId;
         this.groups = groups;
         this.description = description;
@@ -239,23 +263,42 @@ public class JobUpdate implements ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, renormalizationWindowDays,
-            backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-            categorizationFilters, perPartitionCategorizationConfig, customSettings, allowLazyOpen,
-            modelPruneWindow);
+        return Objects.hash(
+            jobId,
+            groups,
+            description,
+            detectorUpdates,
+            modelPlotConfig,
+            analysisLimits,
+            renormalizationWindowDays,
+            backgroundPersistInterval,
+            modelSnapshotRetentionDays,
+            dailyModelSnapshotRetentionAfterDays,
+            resultsRetentionDays,
+            categorizationFilters,
+            perPartitionCategorizationConfig,
+            customSettings,
+            allowLazyOpen,
+            modelPruneWindow
+        );
     }
 
     public static class DetectorUpdate implements ToXContentObject {
         @SuppressWarnings("unchecked")
-        public static final ConstructingObjectParser<DetectorUpdate, Void> PARSER =
-            new ConstructingObjectParser<>("detector_update", true, a -> new DetectorUpdate((int) a[0], (String) a[1],
-                (List<DetectionRule>) a[2]));
+        public static final ConstructingObjectParser<DetectorUpdate, Void> PARSER = new ConstructingObjectParser<>(
+            "detector_update",
+            true,
+            a -> new DetectorUpdate((int) a[0], (String) a[1], (List<DetectionRule>) a[2])
+        );
 
         static {
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), Detector.DETECTOR_INDEX);
             PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), Job.DESCRIPTION);
-            PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(), (parser, parseFieldMatcher) ->
-                DetectionRule.PARSER.apply(parser, parseFieldMatcher).build(), Detector.CUSTOM_RULES_FIELD);
+            PARSER.declareObjectArray(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (parser, parseFieldMatcher) -> DetectionRule.PARSER.apply(parser, parseFieldMatcher).build(),
+                Detector.CUSTOM_RULES_FIELD
+            );
         }
 
         private final int detectorIndex;
@@ -319,7 +362,8 @@ public class JobUpdate implements ToXContentObject {
             }
 
             DetectorUpdate that = (DetectorUpdate) other;
-            return this.detectorIndex == that.detectorIndex && Objects.equals(this.description, that.description)
+            return this.detectorIndex == that.detectorIndex
+                && Objects.equals(this.description, that.description)
                 && Objects.equals(this.rules, that.rules);
         }
     }
@@ -521,10 +565,24 @@ public class JobUpdate implements ToXContentObject {
         }
 
         public JobUpdate build() {
-            return new JobUpdate(jobId, groups, description, detectorUpdates, modelPlotConfig, analysisLimits, backgroundPersistInterval,
-                renormalizationWindowDays, resultsRetentionDays, modelSnapshotRetentionDays,
-                dailyModelSnapshotRetentionAfterDays, categorizationFilters, perPartitionCategorizationConfig, customSettings,
-                allowLazyOpen, modelPruneWindow);
+            return new JobUpdate(
+                jobId,
+                groups,
+                description,
+                detectorUpdates,
+                modelPlotConfig,
+                analysisLimits,
+                backgroundPersistInterval,
+                renormalizationWindowDays,
+                resultsRetentionDays,
+                modelSnapshotRetentionDays,
+                dailyModelSnapshotRetentionAfterDays,
+                categorizationFilters,
+                perPartitionCategorizationConfig,
+                customSettings,
+                allowLazyOpen,
+                modelPruneWindow
+            );
         }
     }
 }

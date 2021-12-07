@@ -42,11 +42,13 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
 
     private long nodeStartedTimeMillis;
 
-    public NodeTermsEnumRequest(OriginalIndices originalIndices,
-                                final String nodeId,
-                                final Set<ShardId> shardIds,
-                                TermsEnumRequest request,
-                                long taskStartTimeMillis) {
+    public NodeTermsEnumRequest(
+        OriginalIndices originalIndices,
+        final String nodeId,
+        final Set<ShardId> shardIds,
+        TermsEnumRequest request,
+        long taskStartTimeMillis
+    ) {
         this.originalIndices = originalIndices;
         this.field = request.field();
         this.string = request.string();
@@ -79,10 +81,7 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         if (in.getVersion().onOrAfter(Version.V_7_15_1)) {
             originalIndices = OriginalIndices.readOriginalIndices(in);
         } else {
-            String[] indicesNames = shardIds.stream()
-                .map(ShardId::getIndexName)
-                .distinct()
-                .toArray(String[]::new);
+            String[] indicesNames = shardIds.stream().map(ShardId::getIndexName).distinct().toArray(String[]::new);
             this.originalIndices = new OriginalIndices(indicesNames, null);
         }
     }
@@ -97,7 +96,7 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         out.writeVInt(size);
         // Adjust the amount of permitted time the shard has remaining to gather terms.
         long timeSpentSoFarInCoordinatingNode = System.currentTimeMillis() - taskStartedTimeMillis;
-        long remainingTimeForShardToUse =  (timeout - timeSpentSoFarInCoordinatingNode);
+        long remainingTimeForShardToUse = (timeout - timeSpentSoFarInCoordinatingNode);
         // TODO - if already timed out can we shortcut the trip somehow? Throw exception if remaining time < 0?
         out.writeVLong(remainingTimeForShardToUse);
         out.writeVLong(taskStartedTimeMillis);
@@ -160,6 +159,7 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
     public long timeout() {
         return timeout;
     }
+
     public String nodeId() {
         return nodeId;
     }

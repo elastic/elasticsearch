@@ -12,15 +12,15 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
@@ -37,15 +37,11 @@ public class RestEqlSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, SEARCH_PATH),
-            new Route(POST, SEARCH_PATH)
-        );
+        return List.of(new Route(GET, SEARCH_PATH), new Route(POST, SEARCH_PATH));
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client)
-        throws IOException {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
 
         EqlSearchRequest eqlRequest;
         String indices;
@@ -56,7 +52,8 @@ public class RestEqlSearchAction extends BaseRestHandler {
             eqlRequest.indicesOptions(IndicesOptions.fromRequest(request, eqlRequest.indicesOptions()));
             if (request.hasParam("wait_for_completion_timeout")) {
                 eqlRequest.waitForCompletionTimeout(
-                    request.paramAsTime("wait_for_completion_timeout", eqlRequest.waitForCompletionTimeout()));
+                    request.paramAsTime("wait_for_completion_timeout", eqlRequest.waitForCompletionTimeout())
+                );
             }
             if (request.hasParam("keep_alive")) {
                 eqlRequest.keepAlive(request.paramAsTime("keep_alive", eqlRequest.keepAlive()));

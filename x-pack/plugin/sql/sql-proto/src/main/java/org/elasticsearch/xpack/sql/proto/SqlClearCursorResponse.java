@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Objects;
@@ -20,14 +20,15 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class SqlClearCursorResponse {
 
     public static final ParseField SUCCEEDED = new ParseField("succeeded");
-    public static final ConstructingObjectParser<SqlClearCursorResponse, Void> PARSER =
-        new ConstructingObjectParser<>(SqlClearCursorResponse.class.getName(), true,
-            objects -> new SqlClearCursorResponse(objects[0] == null ? false : (boolean) objects[0]));
+    public static final ConstructingObjectParser<SqlClearCursorResponse, Void> PARSER = new ConstructingObjectParser<>(
+        SqlClearCursorResponse.class.getName(),
+        true,
+        objects -> new SqlClearCursorResponse(objects[0] == null ? false : (boolean) objects[0])
+    );
 
     static {
         PARSER.declareBoolean(optionalConstructorArg(), SUCCEEDED);
     }
-
 
     private final boolean succeeded;
 

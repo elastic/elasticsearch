@@ -7,8 +7,8 @@
  */
 package org.elasticsearch.client.ml;
 
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
-
 
 /**
  * A response acknowledging the deletion of expired data
@@ -29,9 +28,11 @@ public class DeleteExpiredDataResponse implements ToXContentObject {
         this.deleted = deleted;
     }
 
-    public static final ConstructingObjectParser<DeleteExpiredDataResponse, Void> PARSER =
-        new ConstructingObjectParser<>("delete_expired_data_response", true,
-            a -> new DeleteExpiredDataResponse((Boolean) a[0]));
+    public static final ConstructingObjectParser<DeleteExpiredDataResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "delete_expired_data_response",
+        true,
+        a -> new DeleteExpiredDataResponse((Boolean) a[0])
+    );
 
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), DELETED);

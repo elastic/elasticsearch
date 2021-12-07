@@ -25,9 +25,7 @@ public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
         int default_hash_count = 1;
         int default_bucket_size = 512;
         int default_hash_set_size = 1;
-        Settings settings = Settings.builder()
-            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-            .build();
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("min_hash");
         String source = "the quick brown fox";
@@ -36,8 +34,7 @@ public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
 
         // with_rotation is true by default, and hash_set_size is 1, so even though the source doesn't
         // have enough tokens to fill all the buckets, we still expect 512 tokens.
-        assertStreamHasNumberOfTokens(tokenFilter.create(tokenizer),
-            default_hash_count * default_bucket_size * default_hash_set_size);
+        assertStreamHasNumberOfTokens(tokenFilter.create(tokenizer), default_hash_count * default_bucket_size * default_hash_set_size);
     }
 
     public void testSettings() throws IOException {

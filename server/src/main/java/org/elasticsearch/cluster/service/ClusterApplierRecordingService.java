@@ -36,7 +36,8 @@ public final class ClusterApplierRecordingService {
 
     synchronized Stats getStats() {
         return new Stats(
-            recordedActions.entrySet().stream()
+            recordedActions.entrySet()
+                .stream()
                 .sorted(Comparator.<Map.Entry<String, MeanMetric>>comparingLong(o -> o.getValue().sum()).reversed())
                 .collect(Maps.toUnmodifiableOrderedMap(Map.Entry::getKey, v -> new Recording(v.getValue().count(), v.getValue().sum())))
         );
@@ -175,10 +176,7 @@ public final class ClusterApplierRecordingService {
 
             @Override
             public String toString() {
-                return "Recording{" +
-                    "count=" + count +
-                    ", sum=" + sum +
-                    '}';
+                return "Recording{" + "count=" + count + ", sum=" + sum + '}';
             }
         }
     }

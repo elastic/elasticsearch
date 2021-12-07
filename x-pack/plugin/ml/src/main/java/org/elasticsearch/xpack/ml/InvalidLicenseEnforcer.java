@@ -28,8 +28,12 @@ public class InvalidLicenseEnforcer implements LicenseStateListener {
 
     private volatile boolean licenseStateListenerRegistered;
 
-    InvalidLicenseEnforcer(XPackLicenseState licenseState, ThreadPool threadPool,
-                           DatafeedRunner datafeedRunner, AutodetectProcessManager autodetectProcessManager) {
+    InvalidLicenseEnforcer(
+        XPackLicenseState licenseState,
+        ThreadPool threadPool,
+        DatafeedRunner datafeedRunner,
+        AutodetectProcessManager autodetectProcessManager
+    ) {
         this.threadPool = threadPool;
         this.licenseState = licenseState;
         this.datafeedRunner = datafeedRunner;

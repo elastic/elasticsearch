@@ -10,8 +10,8 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.indices.GetFieldMappingsResponse.FieldMappingMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -27,17 +27,14 @@ public class GetFieldMappingsResponseTests extends ESTestCase {
             this::createParser,
             GetFieldMappingsResponseTests::createTestInstance,
             GetFieldMappingsResponseTests::toXContent,
-            GetFieldMappingsResponse::fromXContent)
-            .supportsUnknownFields(true)
-            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
-            .test();
+            GetFieldMappingsResponse::fromXContent
+        ).supportsUnknownFields(true).randomFieldsExcludeFilter(getRandomFieldsExcludeFilter()).test();
     }
 
     private Predicate<String> getRandomFieldsExcludeFilter() {
         // allow random fields at the level of `index` and `index.mappings.field`
         // otherwise random field could be evaluated as index name or type name
-        return s -> false == (s.matches("(?<index>[^.]+)")
-            || s.matches("(?<index>[^.]+)\\.mappings\\.(?<field>[^.]+)"));
+        return s -> false == (s.matches("(?<index>[^.]+)") || s.matches("(?<index>[^.]+)\\.mappings\\.(?<field>[^.]+)"));
     }
 
     private static GetFieldMappingsResponse createTestInstance() {

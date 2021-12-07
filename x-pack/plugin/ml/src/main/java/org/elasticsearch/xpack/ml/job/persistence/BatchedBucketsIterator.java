@@ -10,11 +10,11 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 
@@ -30,9 +30,11 @@ class BatchedBucketsIterator extends BatchedResultsIterator<Bucket> {
     @Override
     protected Result<Bucket> map(SearchHit hit) {
         BytesReference source = hit.getSourceRef();
-        try (InputStream stream = source.streamInput();
-             XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(NamedXContentRegistry.EMPTY,
-                     LoggingDeprecationHandler.INSTANCE, stream)) {
+        try (
+            InputStream stream = source.streamInput();
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+        ) {
             Bucket bucket = Bucket.LENIENT_PARSER.apply(parser, null);
             return new Result<>(hit.getIndex(), bucket);
         } catch (IOException e) {

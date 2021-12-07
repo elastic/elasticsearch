@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.watcher.notification.email.attachment;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -78,8 +78,7 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
     }
 
     @Override
-    public Attachment toAttachment(WatchExecutionContext context, Payload payload,
-                                   HttpRequestAttachment attachment) throws IOException {
+    public Attachment toAttachment(WatchExecutionContext context, Payload payload, HttpRequestAttachment attachment) throws IOException {
         Map<String, Object> model = Variables.createCtxParamsMap(context, payload);
         HttpRequest httpRequest = attachment.getRequestTemplate().render(templateEngine, model);
 
@@ -89,19 +88,35 @@ public class HttpEmailAttachementParser implements EmailAttachmentParser<HttpReq
             if (response.hasContent()) {
                 String contentType = attachment.getContentType();
                 String attachmentContentType = Strings.hasLength(contentType) ? contentType : response.contentType();
-                return new Attachment.Bytes(attachment.id(), BytesReference.toBytes(response.body()), attachmentContentType,
-                        attachment.inline());
+                return new Attachment.Bytes(
+                    attachment.id(),
+                    BytesReference.toBytes(response.body()),
+                    attachmentContentType,
+                    attachment.inline()
+                );
             } else {
-                throw new ElasticsearchException("Watch[{}] attachment[{}] HTTP empty response body host[{}], port[{}], " +
-                        "method[{}], path[{}], status[{}]",
-                        context.watch().id(), attachment.id(), httpRequest.host(), httpRequest.port(), httpRequest.method(),
-                        httpRequest.path(), response.status());
+                throw new ElasticsearchException(
+                    "Watch[{}] attachment[{}] HTTP empty response body host[{}], port[{}], " + "method[{}], path[{}], status[{}]",
+                    context.watch().id(),
+                    attachment.id(),
+                    httpRequest.host(),
+                    httpRequest.port(),
+                    httpRequest.method(),
+                    httpRequest.path(),
+                    response.status()
+                );
             }
         } else {
-            throw new ElasticsearchException("Watch[{}] attachment[{}] HTTP error status host[{}], port[{}], " +
-                    "method[{}], path[{}], status[{}]",
-                    context.watch().id(), attachment.id(), httpRequest.host(), httpRequest.port(), httpRequest.method(),
-                    httpRequest.path(), response.status());
+            throw new ElasticsearchException(
+                "Watch[{}] attachment[{}] HTTP error status host[{}], port[{}], " + "method[{}], path[{}], status[{}]",
+                context.watch().id(),
+                attachment.id(),
+                httpRequest.host(),
+                httpRequest.port(),
+                httpRequest.method(),
+                httpRequest.path(),
+                response.status()
+            );
         }
     }
 }

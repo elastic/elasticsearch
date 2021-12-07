@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.watcher.notification.pagerduty;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.support.xcontent.WatcherParams;
 import org.elasticsearch.xpack.watcher.common.http.HttpRequest;
 import org.elasticsearch.xpack.watcher.common.http.HttpResponse;
@@ -35,9 +35,11 @@ public class SentEventTests extends ESTestCase {
             sentEvent.toXContent(builder, params);
             assertThat(Strings.toString(builder), containsString(body));
 
-            try (XContentParser parser = builder.contentType().xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                            Strings.toString(builder))) {
+            try (
+                XContentParser parser = builder.contentType()
+                    .xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, Strings.toString(builder))
+            ) {
                 parser.map();
             }
         }
@@ -45,9 +47,11 @@ public class SentEventTests extends ESTestCase {
             sentEvent.toXContent(builder, ToXContent.EMPTY_PARAMS);
             assertThat(Strings.toString(builder), not(containsString(body)));
 
-            try (XContentParser parser = builder.contentType().xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                            Strings.toString(builder))) {
+            try (
+                XContentParser parser = builder.contentType()
+                    .xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, Strings.toString(builder))
+            ) {
                 parser.map();
             }
         }

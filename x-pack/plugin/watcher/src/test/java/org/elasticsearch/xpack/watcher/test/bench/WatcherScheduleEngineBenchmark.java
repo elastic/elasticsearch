@@ -12,11 +12,10 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.InternalSettingsPreparer;
@@ -29,6 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 import org.elasticsearch.xpack.core.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
@@ -61,16 +61,16 @@ import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interva
 public class WatcherScheduleEngineBenchmark {
 
     private static final Settings SETTINGS = Settings.builder()
-            .put("xpack.security.enabled", false)
-            .put("cluster.name", "bench")
-            .put("script.disable_dynamic", false)
-            .put("http.cors.enabled", true)
-            .build();
+        .put("xpack.security.enabled", false)
+        .put("cluster.name", "bench")
+        .put("script.disable_dynamic", false)
+        .put("http.cors.enabled", true)
+        .build();
 
     public static void main(String[] args) throws Exception {
         System.setProperty("es.logger.prefix", "");
 
-        String[] engines = new String[]{"ticker", "scheduler"};
+        String[] engines = new String[] { "ticker", "scheduler" };
         int numWatches = 2000;
         int benchTime = 60000;
         int interval = 1;
@@ -91,19 +91,22 @@ public class WatcherScheduleEngineBenchmark {
             }
         }
         System.out.println("Running schedule benchmark with:");
-        System.out.println("numWatches=" + numWatches + " benchTime=" + benchTime + " interval=" + interval +
-                " engines=" + Arrays.toString(engines));
+        System.out.println(
+            "numWatches=" + numWatches + " benchTime=" + benchTime + " interval=" + interval + " engines=" + Arrays.toString(engines)
+        );
         System.out.println("and heap_max=" + JvmInfo.jvmInfo().getMem().getHeapMax());
 
-
         // First clean everything and index the watcher (but not via put alert api!)
-        try (Node node = new Node(InternalSettingsPreparer.prepareEnvironment(
+        try (
+            Node node = new Node(
+                InternalSettingsPreparer.prepareEnvironment(
                     Settings.builder().put(SETTINGS).put("node.data", false).build(),
                     emptyMap(),
                     null,
-                    () -> {
-                        throw new IllegalArgumentException("settings must have [node.name]");
-                    })).start()) {
+                    () -> { throw new IllegalArgumentException("settings must have [node.name]"); }
+                )
+            ).start()
+        ) {
             try (Client client = node.client()) {
                 ClusterHealthResponse response = client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
                 if (response.getNumberOfNodes() != 2 && response.getNumberOfDataNodes() != 1) {
@@ -117,24 +120,32 @@ public class WatcherScheduleEngineBenchmark {
                 System.out.println("===============> indexing [" + numWatches + "] watches");
                 for (int i = 0; i < numWatches; i++) {
                     final String id = "_id_" + i;
-                    client.prepareIndex().setIndex(Watch.INDEX).setId(id)
-                            .setSource(new WatchSourceBuilder()
-                                            .trigger(schedule(interval(interval + "s")))
-                                            .input(searchInput(templateRequest(new SearchSourceBuilder(), "test")))
-                                            .condition(new ScriptCondition(new Script(
-                                                    ScriptType.INLINE,
-                                                    Script.DEFAULT_SCRIPT_LANG,
-                                                    "ctx.payload.hits.total.value > 0",
-                                                    emptyMap())))
-                                            .addAction("logging", ActionBuilders.loggingAction("test").setLevel(LoggingLevel.TRACE))
-                                            .buildAsBytes(XContentType.JSON), XContentType.JSON
-                            ).get();
+                    client.prepareIndex()
+                        .setIndex(Watch.INDEX)
+                        .setId(id)
+                        .setSource(
+                            new WatchSourceBuilder().trigger(schedule(interval(interval + "s")))
+                                .input(searchInput(templateRequest(new SearchSourceBuilder(), "test")))
+                                .condition(
+                                    new ScriptCondition(
+                                        new Script(
+                                            ScriptType.INLINE,
+                                            Script.DEFAULT_SCRIPT_LANG,
+                                            "ctx.payload.hits.total.value > 0",
+                                            emptyMap()
+                                        )
+                                    )
+                                )
+                                .addAction("logging", ActionBuilders.loggingAction("test").setLevel(LoggingLevel.TRACE))
+                                .buildAsBytes(XContentType.JSON),
+                            XContentType.JSON
+                        )
+                        .get();
                 }
                 client.admin().indices().prepareFlush(Watch.INDEX, "test").get();
                 System.out.println("===============> indexed [" + numWatches + "] watches");
             }
         }
-
 
         // Now for each scheduler impl run the benchmark
         Map<String, BenchStats> results = new HashMap<>();
@@ -144,10 +155,10 @@ public class WatcherScheduleEngineBenchmark {
             System.out.println("===============> testing engine [" + engine + "]");
             System.gc();
             Settings settings = Settings.builder()
-                    .put(SETTINGS)
-                    .put("xpack.watcher.trigger.schedule.engine", engine)
-                    .put("node.data", false)
-                    .build();
+                .put(SETTINGS)
+                .put("xpack.watcher.trigger.schedule.engine", engine)
+                .put("node.data", false)
+                .build();
             try (Node node = new MockNode(settings, Arrays.asList(LocalStateWatcher.class))) {
                 try (Client client = node.client()) {
                     client.admin().cluster().prepareHealth().setWaitForNodes("2").get();
@@ -155,14 +166,21 @@ public class WatcherScheduleEngineBenchmark {
                     client.admin().cluster().prepareHealth(Watch.INDEX, "test").setWaitForYellowStatus().get();
 
                     Clock clock = node.injector().getInstance(Clock.class);
-                    while (new WatcherStatsRequestBuilder(client).get().getNodes().stream()
-                            .allMatch(r -> r.getWatcherState() == WatcherState.STARTED) == false) {
+                    while (new WatcherStatsRequestBuilder(client).get()
+                        .getNodes()
+                        .stream()
+                        .allMatch(r -> r.getWatcherState() == WatcherState.STARTED) == false) {
                         Thread.sleep(100);
                     }
                     long actualLoadedWatches = new WatcherStatsRequestBuilder(client).get().getWatchesCount();
                     if (actualLoadedWatches != numWatches) {
-                        throw new IllegalStateException("Expected [" + numWatches + "] watched to be loaded, but only [" +
-                                actualLoadedWatches + "] watches were actually loaded");
+                        throw new IllegalStateException(
+                            "Expected ["
+                                + numWatches
+                                + "] watched to be loaded, but only ["
+                                + actualLoadedWatches
+                                + "] watches were actually loaded"
+                        );
                     }
                     long startTime = clock.millis();
                     System.out.println("==> watcher started, waiting [" + benchTime + "] seconds now...");
@@ -184,7 +202,7 @@ public class WatcherScheduleEngineBenchmark {
                     });
                     sampleThread.start();
                     Thread.sleep(benchTime);
-                    long endTime =  clock.millis();
+                    long endTime = clock.millis();
                     start.set(false);
                     sampleThread.join();
 
@@ -198,22 +216,17 @@ public class WatcherScheduleEngineBenchmark {
                     }
                     client.admin().indices().prepareRefresh(HistoryStoreField.DATA_STREAM + "*").get();
                     Script script = new Script(
-                            ScriptType.INLINE,
-                            Script.DEFAULT_SCRIPT_LANG,
-                            "doc['trigger_event.schedule.triggered_time'].value - doc['trigger_event.schedule.scheduled_time'].value",
-                            emptyMap());
+                        ScriptType.INLINE,
+                        Script.DEFAULT_SCRIPT_LANG,
+                        "doc['trigger_event.schedule.triggered_time'].value - doc['trigger_event.schedule.scheduled_time'].value",
+                        emptyMap()
+                    );
                     SearchResponse searchResponse = client.prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-                            .setQuery(QueryBuilders.rangeQuery("trigger_event.schedule.scheduled_time").gte(startTime).lte(endTime))
-                            .addAggregation(terms("state").field("state"))
-                            .addAggregation(histogram("delay")
-                                            .script(script)
-                                            .interval(10)
-                            )
-                            .addAggregation(percentiles("percentile_delay")
-                                            .script(script)
-                                            .percentiles(1.0, 20.0, 50.0, 80.0, 99.0)
-                            )
-                            .get();
+                        .setQuery(QueryBuilders.rangeQuery("trigger_event.schedule.scheduled_time").gte(startTime).lte(endTime))
+                        .addAggregation(terms("state").field("state"))
+                        .addAggregation(histogram("delay").script(script).interval(10))
+                        .addAggregation(percentiles("percentile_delay").script(script).percentiles(1.0, 20.0, 50.0, 80.0, 99.0))
+                        .get();
                     Terms terms = searchResponse.getAggregations().get("state");
                     stats.setStateStats(terms);
                     Histogram histogram = searchResponse.getAggregations().get("delay");
@@ -328,10 +341,12 @@ public class WatcherScheduleEngineBenchmark {
 
         public void printThreadStats() throws IOException {
             System.out.printf(
-                    Locale.ENGLISH,
-                    "%10s | %13s | %12d | %13d \n",
-                    name, new ByteSizeValue(avgHeapUsed),
-                    watcherThreadPoolStats.getRejected(), watcherThreadPoolStats.getCompleted()
+                Locale.ENGLISH,
+                "%10s | %13s | %12d | %13d \n",
+                name,
+                new ByteSizeValue(avgHeapUsed),
+                watcherThreadPoolStats.getRejected(),
+                watcherThreadPoolStats.getCompleted()
             );
         }
 
@@ -341,12 +356,13 @@ public class WatcherScheduleEngineBenchmark {
             Terms.Bucket throttled = stateStats.getBucketByKey("throttled");
             Terms.Bucket awaitsExecution = stateStats.getBucketByKey("awaits_execution");
             System.out.printf(
-                    Locale.ENGLISH,
-                    "%10s | %16d | %14d | %17d | %24d \n",
-                    name, executed != null ? executed.getDocCount() : 0,
-                    failed != null ? failed.getDocCount() : 0,
-                    throttled != null ? throttled.getDocCount() : 0,
-                    awaitsExecution != null ? awaitsExecution.getDocCount() : 0
+                Locale.ENGLISH,
+                "%10s | %16d | %14d | %17d | %24d \n",
+                name,
+                executed != null ? executed.getDocCount() : 0,
+                failed != null ? failed.getDocCount() : 0,
+                throttled != null ? throttled.getDocCount() : 0,
+                awaitsExecution != null ? awaitsExecution.getDocCount() : 0
             );
         }
 
@@ -357,9 +373,14 @@ public class WatcherScheduleEngineBenchmark {
             String _80thPercentile = String.valueOf(Math.round(delayPercentiles.percentile(80.0)));
             String _99thPercentile = String.valueOf(Math.round(delayPercentiles.percentile(99.0)));
             System.out.printf(
-                    Locale.ENGLISH,
-                    "%10s | %10s | %11s | %11s | %11s | %11s \n",
-                    name, _1thPercentile, _20thPercentile, _50thPercentile, _80thPercentile, _99thPercentile
+                Locale.ENGLISH,
+                "%10s | %10s | %11s | %11s | %11s | %11s \n",
+                name,
+                _1thPercentile,
+                _20thPercentile,
+                _50thPercentile,
+                _80thPercentile,
+                _99thPercentile
             );
         }
     }

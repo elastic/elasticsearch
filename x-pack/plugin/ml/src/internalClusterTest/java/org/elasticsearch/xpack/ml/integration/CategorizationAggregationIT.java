@@ -43,20 +43,16 @@ public class CategorizationAggregationIT extends BaseMlIntegTestCase {
             .setSize(0)
             .setTrackTotalHits(false)
             .addAggregation(
-                new CategorizeTextAggregationBuilder("categorize", "msg")
-                    .subAggregation(AggregationBuilders.max("max").field("time"))
+                new CategorizeTextAggregationBuilder("categorize", "msg").subAggregation(AggregationBuilders.max("max").field("time"))
                     .subAggregation(AggregationBuilders.min("min").field("time"))
-            ).get();
+            )
+            .get();
 
         InternalCategorizationAggregation agg = response.getAggregations().get("categorize");
         assertThat(agg.getBuckets(), hasSize(3));
 
         assertCategorizationBucket(agg.getBuckets().get(0), "Node started", 3);
-        assertCategorizationBucket(
-            agg.getBuckets().get(1),
-            "Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception",
-            2
-        );
+        assertCategorizationBucket(agg.getBuckets().get(1), "Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception", 2);
         assertCategorizationBucket(agg.getBuckets().get(2), "Node stopped", 1);
     }
 
@@ -65,11 +61,11 @@ public class CategorizationAggregationIT extends BaseMlIntegTestCase {
             .setSize(0)
             .setTrackTotalHits(false)
             .addAggregation(
-                new CategorizeTextAggregationBuilder("categorize", "msg")
-                    .size(1)
+                new CategorizeTextAggregationBuilder("categorize", "msg").size(1)
                     .subAggregation(AggregationBuilders.max("max").field("time"))
                     .subAggregation(AggregationBuilders.min("min").field("time"))
-            ).get();
+            )
+            .get();
         InternalCategorizationAggregation agg = response.getAggregations().get("categorize");
         assertThat(agg.getBuckets(), hasSize(1));
 
@@ -81,29 +77,25 @@ public class CategorizationAggregationIT extends BaseMlIntegTestCase {
             .setSize(0)
             .setTrackTotalHits(false)
             .addAggregation(
-                new CategorizeTextAggregationBuilder("categorize", "msg")
-                    .setSimilarityThreshold(11)
+                new CategorizeTextAggregationBuilder("categorize", "msg").setSimilarityThreshold(11)
                     .setMaxUniqueTokens(2)
                     .setMaxMatchedTokens(1)
                     .subAggregation(AggregationBuilders.max("max").field("time"))
                     .subAggregation(AggregationBuilders.min("min").field("time"))
-            ).get();
+            )
+            .get();
         InternalCategorizationAggregation agg = response.getAggregations().get("categorize");
         assertThat(agg.getBuckets(), hasSize(2));
 
         assertCategorizationBucket(agg.getBuckets().get(0), "Node *", 4);
-        assertCategorizationBucket(
-            agg.getBuckets().get(1),
-            "Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception",
-            2
-        );
+        assertCategorizationBucket(agg.getBuckets().get(1), "Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception", 2);
     }
 
     private void assertCategorizationBucket(InternalCategorizationAggregation.Bucket bucket, String key, long docCount) {
         assertThat(bucket.getKeyAsString(), equalTo(key));
         assertThat(bucket.getDocCount(), equalTo(docCount));
-        assertThat(((Max)bucket.getAggregations().get("max")).getValue(), not(notANumber()));
-        assertThat(((Min)bucket.getAggregations().get("min")).getValue(), not(notANumber()));
+        assertThat(((Max) bucket.getAggregations().get("max")).getValue(), not(notANumber()));
+        assertThat(((Min) bucket.getAggregations().get("min")).getValue(), not(notANumber()));
     }
 
     private void ensureStableCluster() {
@@ -111,49 +103,46 @@ public class CategorizationAggregationIT extends BaseMlIntegTestCase {
     }
 
     private void createSourceData() {
-        client().admin().indices().prepareCreate(DATA_INDEX)
-            .setMapping("time", "type=date,format=epoch_millis",
-                "msg", "type=text")
-            .get();
+        client().admin().indices().prepareCreate(DATA_INDEX).setMapping("time", "type=date,format=epoch_millis", "msg", "type=text").get();
 
         long nowMillis = System.currentTimeMillis();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         IndexRequest indexRequest = new IndexRequest(DATA_INDEX);
-        indexRequest.source("time", nowMillis - TimeValue.timeValueHours(2).millis(),
-            "msg", "Node 1 started",
-            "part", "nodes");
+        indexRequest.source("time", nowMillis - TimeValue.timeValueHours(2).millis(), "msg", "Node 1 started", "part", "nodes");
         bulkRequestBuilder.add(indexRequest);
         indexRequest = new IndexRequest(DATA_INDEX);
-        indexRequest.source("time", nowMillis - TimeValue.timeValueHours(2).millis() + 1,
-            "msg", "Failed to shutdown [error org.aaaa.bbbb.Cccc line 54 caused by foo exception]",
-            "part", "shutdowns");
+        indexRequest.source(
+            "time",
+            nowMillis - TimeValue.timeValueHours(2).millis() + 1,
+            "msg",
+            "Failed to shutdown [error org.aaaa.bbbb.Cccc line 54 caused by foo exception]",
+            "part",
+            "shutdowns"
+        );
         bulkRequestBuilder.add(indexRequest);
         indexRequest = new IndexRequest(DATA_INDEX);
-        indexRequest.source("time", nowMillis - TimeValue.timeValueHours(2).millis() + 1,
-            "msg", "Failed to shutdown [error org.aaaa.bbbb.Cccc line 55 caused by foo exception]",
-            "part", "shutdowns");
+        indexRequest.source(
+            "time",
+            nowMillis - TimeValue.timeValueHours(2).millis() + 1,
+            "msg",
+            "Failed to shutdown [error org.aaaa.bbbb.Cccc line 55 caused by foo exception]",
+            "part",
+            "shutdowns"
+        );
         bulkRequestBuilder.add(indexRequest);
         indexRequest = new IndexRequest(DATA_INDEX);
-        indexRequest.source("time", nowMillis - TimeValue.timeValueHours(1).millis(),
-            "msg", "Node 2 started",
-            "part", "nodes");
+        indexRequest.source("time", nowMillis - TimeValue.timeValueHours(1).millis(), "msg", "Node 2 started", "part", "nodes");
         bulkRequestBuilder.add(indexRequest);
         indexRequest = new IndexRequest(DATA_INDEX);
-        indexRequest.source("time", nowMillis,
-            "msg", "Node 3 started",
-            "part", "nodes");
+        indexRequest.source("time", nowMillis, "msg", "Node 3 started", "part", "nodes");
         bulkRequestBuilder.add(indexRequest);
 
         indexRequest = new IndexRequest(DATA_INDEX);
-        indexRequest.source("time", nowMillis,
-            "msg", "Node 3 stopped",
-            "part", "nodes");
+        indexRequest.source("time", nowMillis, "msg", "Node 3 stopped", "part", "nodes");
         bulkRequestBuilder.add(indexRequest);
 
-        BulkResponse bulkResponse = bulkRequestBuilder
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
+        BulkResponse bulkResponse = bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         assertThat(bulkResponse.hasFailures(), is(false));
     }
 

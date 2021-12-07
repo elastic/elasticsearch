@@ -25,8 +25,8 @@ import com.unboundid.ldap.sdk.SearchResultReference;
 import com.unboundid.ldap.sdk.SearchScope;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.SetOnce;
@@ -34,14 +34,13 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 
-import javax.naming.ldap.Rdn;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
@@ -52,6 +51,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+
+import javax.naming.ldap.Rdn;
 
 public final class LdapUtils {
 
@@ -295,9 +296,10 @@ public final class LdapUtils {
             ldapConnection = privilegedConnect(ldap::getConnection);
             final LDAPConnection finalConnection = ldapConnection;
             searchForEntry(finalConnection, baseDN, scope, filter, timeLimitSeconds, ignoreReferralErrors, ActionListener.wrap(entry -> {
-                assert isLdapConnectionThread(Thread.currentThread()) : "Expected current thread ["
-                    + Thread.currentThread()
-                    + "] to be an LDAPConnectionReader Thread. Probably the new library has changed the thread's name.";
+                assert isLdapConnectionThread(Thread.currentThread())
+                    : "Expected current thread ["
+                        + Thread.currentThread()
+                        + "] to be an LDAPConnectionReader Thread. Probably the new library has changed the thread's name.";
                 IOUtils.close(() -> ldap.releaseConnection(finalConnection));
                 listener.onResponse(entry);
             }, e -> {
@@ -357,9 +359,10 @@ public final class LdapUtils {
             ldap,
             ignoreReferralErrors,
             ActionListener.wrap(searchResult -> {
-                assert isLdapConnectionThread(Thread.currentThread()) : "Expected current thread ["
-                    + Thread.currentThread()
-                    + "] to be an LDAPConnectionReader Thread. Probably the new library has changed the thread's name.";
+                assert isLdapConnectionThread(Thread.currentThread())
+                    : "Expected current thread ["
+                        + Thread.currentThread()
+                        + "] to be an LDAPConnectionReader Thread. Probably the new library has changed the thread's name.";
                 listener.onResponse(Collections.unmodifiableList(searchResult.getSearchEntries()));
             }, listener::onFailure),
             1
@@ -611,40 +614,37 @@ public final class LdapUtils {
                 final CountDown countDown = new CountDown(referralUrls.length);
                 final List<String> referralUrlsList = new ArrayList<>(Arrays.asList(referralUrls));
 
-                ActionListener<SearchResult> referralListener = ActionListener.wrap(
-                    innerResult -> {
-                        // synchronize here since we are possibly sending out a lot of requests
-                        // and the result lists are not thread safe and this also provides us
-                        // with a consistent view
-                        synchronized (this) {
-                            if (innerResult.getSearchEntries() != null) {
-                                entryList.addAll(innerResult.getSearchEntries());
-                            }
-                            if (innerResult.getSearchReferences() != null) {
-                                referenceList.addAll(innerResult.getSearchReferences());
-                            }
+                ActionListener<SearchResult> referralListener = ActionListener.wrap(innerResult -> {
+                    // synchronize here since we are possibly sending out a lot of requests
+                    // and the result lists are not thread safe and this also provides us
+                    // with a consistent view
+                    synchronized (this) {
+                        if (innerResult.getSearchEntries() != null) {
+                            entryList.addAll(innerResult.getSearchEntries());
                         }
+                        if (innerResult.getSearchReferences() != null) {
+                            referenceList.addAll(innerResult.getSearchReferences());
+                        }
+                    }
 
-                        // count down and once all referrals have been traversed then we can
-                        // create the results
-                        if (countDown.countDown()) {
-                            SearchResult resultWithValues = new SearchResult(
-                                searchResult.getMessageID(),
-                                searchResult.getResultCode(),
-                                searchResult.getDiagnosticMessage(),
-                                searchResult.getMatchedDN(),
-                                referralUrlsList.toArray(Strings.EMPTY_ARRAY),
-                                entryList,
-                                referenceList,
-                                entryList.size(),
-                                referenceList.size(),
-                                searchResult.getResponseControls()
-                            );
-                            listener.onResponse(resultWithValues);
-                        }
-                    },
-                    listener::onFailure
-                );
+                    // count down and once all referrals have been traversed then we can
+                    // create the results
+                    if (countDown.countDown()) {
+                        SearchResult resultWithValues = new SearchResult(
+                            searchResult.getMessageID(),
+                            searchResult.getResultCode(),
+                            searchResult.getDiagnosticMessage(),
+                            searchResult.getMatchedDN(),
+                            referralUrlsList.toArray(Strings.EMPTY_ARRAY),
+                            entryList,
+                            referenceList,
+                            entryList.size(),
+                            referenceList.size(),
+                            searchResult.getResponseControls()
+                        );
+                        listener.onResponse(resultWithValues);
+                    }
+                }, listener::onFailure);
 
                 for (String referralUrl : referralUrls) {
                     try {

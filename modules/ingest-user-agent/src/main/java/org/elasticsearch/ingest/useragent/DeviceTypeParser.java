@@ -24,8 +24,8 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static org.elasticsearch.ingest.useragent.UserAgentParser.readParserConfigurations;
 import static org.elasticsearch.ingest.useragent.UserAgentParser.VersionedName;
+import static org.elasticsearch.ingest.useragent.UserAgentParser.readParserConfigurations;
 
 public class DeviceTypeParser {
 
@@ -41,8 +41,8 @@ public class DeviceTypeParser {
 
     public void init(InputStream regexStream) throws IOException {
         // EMPTY is safe here because we don't use namedObject
-        XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML).createParser(NamedXContentRegistry.EMPTY,
-            LoggingDeprecationHandler.INSTANCE, regexStream);
+        XContentParser yamlParser = XContentFactory.xContent(XContentType.YAML)
+            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, regexStream);
 
         XContentParser.Token token = yamlParser.nextToken();
 
@@ -55,8 +55,7 @@ public class DeviceTypeParser {
                     List<Map<String, String>> parserConfigurations = readParserConfigurations(yamlParser);
                     ArrayList<DeviceTypeSubPattern> subPatterns = new ArrayList<>();
                     for (Map<String, String> map : parserConfigurations) {
-                        subPatterns.add(new DeviceTypeSubPattern(Pattern.compile((map.get("regex"))),
-                            map.get("replacement")));
+                        subPatterns.add(new DeviceTypeSubPattern(Pattern.compile((map.get("regex"))), map.get("replacement")));
                     }
                     deviceTypePatterns.put(currentName, subPatterns);
                 }
@@ -115,7 +114,6 @@ public class DeviceTypeParser {
                 extractedDeviceTypes.add(deviceType);
             }
         }
-
 
         if (extractedDeviceTypes.contains(robot)) {
             return robot;

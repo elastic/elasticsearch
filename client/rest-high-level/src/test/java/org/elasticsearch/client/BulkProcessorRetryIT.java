@@ -16,9 +16,9 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Collections;
 import java.util.Iterator;
@@ -37,8 +37,11 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
     private static final String INDEX_NAME = "index";
 
     private static BulkProcessor.Builder initBulkProcessorBuilder(BulkProcessor.Listener listener) {
-        return BulkProcessor.builder((request, bulkListener)
-                -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener), listener, "BulkProcessorRetryIT");
+        return BulkProcessor.builder(
+            (request, bulkListener) -> highLevelClient().bulkAsync(request, RequestOptions.DEFAULT, bulkListener),
+            listener,
+            "BulkProcessorRetryIT"
+        );
     }
 
     public void testBulkRejectionLoadWithoutBackoff() throws Exception {
@@ -59,8 +62,7 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
 
         BulkProcessor bulkProcessor = initBulkProcessorBuilder(new BulkProcessor.Listener() {
             @Override
-            public void beforeBulk(long executionId, BulkRequest request) {
-            }
+            public void beforeBulk(long executionId, BulkRequest request) {}
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
@@ -75,10 +77,7 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
                 responses.add(failure);
                 latch.countDown();
             }
-        }).setBulkActions(1)
-            .setConcurrentRequests(randomIntBetween(0, 100))
-            .setBackoffPolicy(internalPolicy)
-            .build();
+        }).setBulkActions(1).setConcurrentRequests(randomIntBetween(0, 100)).setBackoffPolicy(internalPolicy).build();
 
         MultiGetRequest multiGetRequest = indexDocs(bulkProcessor, numberOfAsyncOps);
         latch.await(10, TimeUnit.SECONDS);
@@ -146,8 +145,10 @@ public class BulkProcessorRetryIT extends ESRestHighLevelClientTestCase {
     private static MultiGetRequest indexDocs(BulkProcessor processor, int numDocs) {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         for (int i = 1; i <= numDocs; i++) {
-            processor.add(new IndexRequest(INDEX_NAME).id(Integer.toString(i))
-                .source(XContentType.JSON, "field", randomRealisticUnicodeOfCodepointLengthBetween(1, 30)));
+            processor.add(
+                new IndexRequest(INDEX_NAME).id(Integer.toString(i))
+                    .source(XContentType.JSON, "field", randomRealisticUnicodeOfCodepointLengthBetween(1, 30))
+            );
             multiGetRequest.add(INDEX_NAME, Integer.toString(i));
         }
         return multiGetRequest;

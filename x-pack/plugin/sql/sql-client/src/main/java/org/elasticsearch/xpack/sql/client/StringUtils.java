@@ -59,8 +59,7 @@ public abstract class StringUtils {
         if (tokens.size() == 2) {
             results[0] = tokens.get(0);
             results[1] = tokens.get(1);
-        }
-        else {
+        } else {
             results[0] = nullAsEmpty(pattern);
             results[1] = EMPTY;
         }
@@ -128,8 +127,7 @@ public abstract class StringUtils {
             prefix = pathToUse.substring(0, prefixIndex + 1);
             if (prefix.contains(SLASH)) {
                 prefix = "";
-            }
-            else {
+            } else {
                 pathToUse = pathToUse.substring(prefixIndex + 1);
             }
         }
@@ -146,17 +144,14 @@ public abstract class StringUtils {
             String element = pathList.get(i);
             if (PATH_CURRENT.equals(element)) {
                 // current folder, ignore it
-            }
-            else if (PATH_TOP.equals(element)) {
+            } else if (PATH_TOP.equals(element)) {
                 // top folder, skip previous element
                 tops++;
-            }
-            else {
+            } else {
                 if (tops > 0) {
                     // should it be skipped?
                     tops--;
-                }
-                else {
+                } else {
                     pathTokens.add(0, element);
                 }
             }
@@ -190,8 +185,7 @@ public abstract class StringUtils {
         // if one string is empty, the edit distance is necessarily the length of the other
         if (n == 0) {
             return m <= threshold ? m : -1;
-        }
-        else if (m == 0) {
+        } else if (m == 0) {
             return n <= threshold ? n : -1;
         }
 
@@ -242,8 +236,7 @@ public abstract class StringUtils {
                 if (one.charAt(i - 1) == t_j) {
                     // diagonally left and up
                     d[i] = p[i - 1];
-                }
-                else {
+                } else {
                     // 1 + minimum of cell to the left, to the top, diagonally left and up
                     d[i] = 1 + Math.min(Math.min(d[i - 1], p[i]), p[i - 1]);
                 }
@@ -276,8 +269,7 @@ public abstract class StringUtils {
                     maxDistance = dist;
                     list.clear();
                     list.add(string);
-                }
-                else if (dist == maxDistance) {
+                } else if (dist == maxDistance) {
                     list.add(string);
                 }
             }
@@ -287,10 +279,13 @@ public abstract class StringUtils {
     }
 
     public static boolean parseBoolean(String input) {
-        switch(input) {
-        case "true": return true;
-        case "false": return false;
-        default: throw new IllegalArgumentException("must be [true] or [false]");
+        switch (input) {
+            case "true":
+                return true;
+            case "false":
+                return false;
+            default:
+                throw new IllegalArgumentException("must be [true] or [false]");
         }
     }
 

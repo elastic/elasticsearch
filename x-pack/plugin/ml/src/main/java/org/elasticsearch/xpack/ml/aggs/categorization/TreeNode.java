@@ -148,13 +148,13 @@ abstract class TreeNode implements Accountable {
             }
             if (textCategorizations.size() == 1) {
                 return Optional.of(
-                    new Tuple<>(textCategorizations.get(0), textCategorizations.get(0).calculateSimilarity( tokenIds).getSimilarity())
+                    new Tuple<>(textCategorizations.get(0), textCategorizations.get(0).calculateSimilarity(tokenIds).getSimilarity())
                 );
             }
             TextCategorization.Similarity maxSimilarity = null;
             TextCategorization bestGroup = null;
             for (TextCategorization textCategorization : this.textCategorizations) {
-                TextCategorization.Similarity groupSimilarity = textCategorization.calculateSimilarity( tokenIds);
+                TextCategorization.Similarity groupSimilarity = textCategorization.calculateSimilarity(tokenIds);
                 if (maxSimilarity == null || groupSimilarity.compareTo(maxSimilarity) > 0) {
                     maxSimilarity = groupSimilarity;
                     bestGroup = textCategorization;
@@ -173,8 +173,7 @@ abstract class TreeNode implements Accountable {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             LeafTreeNode that = (LeafTreeNode) o;
-            return that.similarityThreshold == similarityThreshold
-                && Objects.equals(textCategorizations, that.textCategorizations);
+            return that.similarityThreshold == similarityThreshold && Objects.equals(textCategorizations, that.textCategorizations);
         }
 
         @Override

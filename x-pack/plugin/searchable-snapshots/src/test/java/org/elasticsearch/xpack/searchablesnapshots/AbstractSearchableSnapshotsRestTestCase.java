@@ -42,14 +42,9 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
-
-    public static final String FROZEN_INDICES_WARNING = "Frozen indices are deprecated because they provide no benefit given "
-        + "improvements in heap memory utilization. They will be removed in a future release.";
 
     private static final String WRITE_REPOSITORY_NAME = "repository";
     private static final String READ_REPOSITORY_NAME = "read-repository";
@@ -179,30 +174,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         });
     }
 
-    public void testSearchResultsWhenFrozen() throws Exception {
-        runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
-            final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
-            freezeRequest.setOptions(expectWarnings(FROZEN_INDICES_WARNING));
-            assertOK(client().performRequest(freezeRequest));
-            ensureGreen(restoredIndexName);
-            assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
-            final Map<String, Object> frozenIndexSettings = indexSettings(restoredIndexName);
-            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.frozen")), equalTo(true));
-            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.search.throttled")), equalTo(true));
-            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.blocks.write")), equalTo(true));
-
-            final Request unfreezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_unfreeze");
-            unfreezeRequest.setOptions(expectWarnings(FROZEN_INDICES_WARNING));
-            assertOK(client().performRequest(unfreezeRequest));
-            ensureGreen(restoredIndexName);
-            assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
-            final Map<String, Object> unfrozenIndexSettings = indexSettings(restoredIndexName);
-            assertThat(extractValue(unfrozenIndexSettings, "index.frozen"), nullValue());
-            assertThat(extractValue(unfrozenIndexSettings, "index.search.throttled"), nullValue());
-            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.blocks.write")), equalTo(true));
-        });
-    }
-
     public void testSourceOnlyRepository() throws Exception {
         runSearchableSnapshotsTest((indexName, numDocs) -> {
             for (int i = 0; i < 10; i++) {
@@ -292,14 +263,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     public void testSnapshotOfSearchableSnapshot() throws Exception {
         runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
 
-            final boolean frozen = randomBoolean();
-            if (frozen) {
-                logger.info("--> freezing index [{}]", restoredIndexName);
-                final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
-                freezeRequest.setOptions(expectWarnings(FROZEN_INDICES_WARNING));
-                assertOK(client().performRequest(freezeRequest));
-            }
-
             if (randomBoolean()) {
                 logger.info("--> closing index [{}]", restoredIndexName);
                 final Request closeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_close");
@@ -336,8 +299,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
             assertThat(snapshotShardsStats.size(), equalTo(1));
             for (Map<String, Object> value : snapshotShardsStats.get(0).values()) {
-                assertThat(extractValue(value, "stats.total.file_count"), equalTo(1));
-                assertThat(extractValue(value, "stats.incremental.file_count"), lessThanOrEqualTo(1));
+                assertThat(extractValue(value, "stats.total.file_count"), equalTo(0));
+                assertThat(extractValue(value, "stats.incremental.file_count"), equalTo(0));
             }
 
             deleteIndex(restoredIndexName);
@@ -347,7 +310,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
             deleteSnapshot(snapshot2Name, false);
 
-            assertSearchResults(restoredIndexName, numDocs, frozen ? Boolean.FALSE : randomFrom(Boolean.TRUE, Boolean.FALSE, null));
+            assertSearchResults(restoredIndexName, numDocs, randomFrom(Boolean.TRUE, Boolean.FALSE, null));
         });
     }
 

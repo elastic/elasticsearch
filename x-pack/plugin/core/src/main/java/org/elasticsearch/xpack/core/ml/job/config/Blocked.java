@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.core.ml.job.config;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -24,7 +24,10 @@ import java.util.Objects;
 public class Blocked implements ToXContentObject, Writeable {
 
     public enum Reason {
-        NONE, DELETE, RESET, REVERT;
+        NONE,
+        DELETE,
+        RESET,
+        REVERT;
 
         public static Reason fromString(String value) {
             return Reason.valueOf(value.toUpperCase(Locale.ROOT));
@@ -43,8 +46,11 @@ public class Blocked implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<Blocked, Void> STRICT_PARSER = createParser(false);
 
     private static ConstructingObjectParser<Blocked, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<Blocked, Void> parser = new ConstructingObjectParser<>("blocked", ignoreUnknownFields,
-            a -> new Blocked((Reason) a[0], (TaskId) a[1]));
+        ConstructingObjectParser<Blocked, Void> parser = new ConstructingObjectParser<>(
+            "blocked",
+            ignoreUnknownFields,
+            a -> new Blocked((Reason) a[0], (TaskId) a[1])
+        );
         parser.declareString(ConstructingObjectParser.constructorArg(), Reason::fromString, REASON);
         parser.declareString(ConstructingObjectParser.optionalConstructorArg(), TaskId::new, TASK_ID);
         return parser;

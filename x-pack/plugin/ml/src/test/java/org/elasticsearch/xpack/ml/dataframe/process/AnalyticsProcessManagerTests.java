@@ -42,8 +42,8 @@ import java.util.concurrent.ExecutorService;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -99,57 +99,71 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         when(task.getAllocationId()).thenReturn(TASK_ALLOCATION_ID);
         when(task.getStatsHolder()).thenReturn(newStatsHolder());
         when(task.getParentTaskId()).thenReturn(new TaskId(""));
-        dataFrameAnalyticsConfig = DataFrameAnalyticsConfigTests.createRandomBuilder(CONFIG_ID,
-            false,
-            OutlierDetectionTests.createRandom()).build();
+        dataFrameAnalyticsConfig = DataFrameAnalyticsConfigTests.createRandomBuilder(CONFIG_ID, false, OutlierDetectionTests.createRandom())
+            .build();
         dataExtractor = mock(DataFrameDataExtractor.class);
         when(dataExtractor.collectDataSummary()).thenReturn(new DataFrameDataExtractor.DataSummary(NUM_ROWS, NUM_COLS));
-        when(dataExtractor.getExtractedFields()).thenReturn(new ExtractedFields(Collections.emptyList(),
-            Collections.emptyList(),
-            Collections.emptyMap()));
+        when(dataExtractor.getExtractedFields()).thenReturn(
+            new ExtractedFields(Collections.emptyList(), Collections.emptyList(), Collections.emptyMap())
+        );
         dataExtractorFactory = mock(DataFrameDataExtractorFactory.class);
         when(dataExtractorFactory.newExtractor(anyBoolean())).thenReturn(dataExtractor);
         when(dataExtractorFactory.getExtractedFields()).thenReturn(mock(ExtractedFields.class));
 
         resultsPersisterService = mock(ResultsPersisterService.class);
-        processManager = new AnalyticsProcessManager(Settings.EMPTY, client, EsExecutors.DIRECT_EXECUTOR_SERVICE, executorServiceForProcess,
-            processFactory, auditor, trainedModelProvider, resultsPersisterService, 1);
+        processManager = new AnalyticsProcessManager(
+            Settings.EMPTY,
+            client,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            executorServiceForProcess,
+            processFactory,
+            auditor,
+            trainedModelProvider,
+            resultsPersisterService,
+            1
+        );
     }
 
     private StatsHolder newStatsHolder() {
-        return new StatsHolder(ProgressTracker.fromZeroes(Collections.singletonList("analyzing"), false).report(),
+        return new StatsHolder(
+            ProgressTracker.fromZeroes(Collections.singletonList("analyzing"), false).report(),
             null,
             null,
-            new DataCounts(CONFIG_ID));
+            new DataCounts(CONFIG_ID)
+        );
     }
 
     public void testRunJob_TaskIsStopping() {
         when(task.isStopping()).thenReturn(true);
         when(task.getParams()).thenReturn(new StartDataFrameAnalyticsAction.TaskParams("data_frame_id", Version.CURRENT, false));
 
-        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory, ActionListener.wrap(
-            stepResponse -> {
-                assertThat(processManager.getProcessContextCount(), equalTo(0));
-                assertThat(stepResponse.isTaskComplete(), is(true));
+        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory, ActionListener.wrap(stepResponse -> {
+            assertThat(processManager.getProcessContextCount(), equalTo(0));
+            assertThat(stepResponse.isTaskComplete(), is(true));
 
-                InOrder inOrder = inOrder(task);
-                inOrder.verify(task).isStopping();
-                inOrder.verify(task).getParams();
-                verifyNoMoreInteractions(task);
-            },
-            e -> fail(e.getMessage())
-        ));
+            InOrder inOrder = inOrder(task);
+            inOrder.verify(task).isStopping();
+            inOrder.verify(task).getParams();
+            verifyNoMoreInteractions(task);
+        }, e -> fail(e.getMessage())));
     }
 
     public void testRunJob_ProcessContextAlreadyExists() {
-        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory, ActionListener.wrap(
-            stepResponse -> {},
-            e -> fail(e.getMessage()) // First run should not error
-        ));
+        processManager.runJob(
+            task,
+            dataFrameAnalyticsConfig,
+            dataExtractorFactory,
+            ActionListener.wrap(
+                stepResponse -> {},
+                e -> fail(e.getMessage()) // First run should not error
+            )
+        );
         assertThat(processManager.getProcessContextCount(), equalTo(1));
-        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory, ActionListener.wrap(
-            stepResponse -> fail("Expected error but listener got a response instead"),
-            e -> {
+        processManager.runJob(
+            task,
+            dataFrameAnalyticsConfig,
+            dataExtractorFactory,
+            ActionListener.wrap(stepResponse -> fail("Expected error but listener got a response instead"), e -> {
                 assertThat(processManager.getProcessContextCount(), equalTo(1));
 
                 InOrder inOrder = inOrder(task);
@@ -169,60 +183,54 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
     public void testRunJob_EmptyDataFrame() {
         when(dataExtractor.collectDataSummary()).thenReturn(new DataFrameDataExtractor.DataSummary(0, NUM_COLS));
 
-        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory, ActionListener.wrap(
-            stepResponse -> {
-                assertThat(processManager.getProcessContextCount(), equalTo(0));  // Make sure the process context did not leak
-                assertThat(stepResponse.isTaskComplete(), is(true));
+        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory, ActionListener.wrap(stepResponse -> {
+            assertThat(processManager.getProcessContextCount(), equalTo(0));  // Make sure the process context did not leak
+            assertThat(stepResponse.isTaskComplete(), is(true));
 
-                InOrder inOrder = inOrder(dataExtractor, executorServiceForProcess, process, task);
-                inOrder.verify(task).isStopping();
-                inOrder.verify(task).getAllocationId();
-                inOrder.verify(task).isStopping();
-                inOrder.verify(dataExtractor).collectDataSummary();
-                inOrder.verify(dataExtractor).getCategoricalFields(dataFrameAnalyticsConfig.getAnalysis());
-                inOrder.verify(task).getAllocationId();
-                verifyNoMoreInteractions(dataExtractor, executorServiceForProcess, process, task);
-            },
-            e -> fail(e.getMessage())
-        ));
+            InOrder inOrder = inOrder(dataExtractor, executorServiceForProcess, process, task);
+            inOrder.verify(task).isStopping();
+            inOrder.verify(task).getAllocationId();
+            inOrder.verify(task).isStopping();
+            inOrder.verify(dataExtractor).collectDataSummary();
+            inOrder.verify(dataExtractor).getCategoricalFields(dataFrameAnalyticsConfig.getAnalysis());
+            inOrder.verify(task).getAllocationId();
+            verifyNoMoreInteractions(dataExtractor, executorServiceForProcess, process, task);
+        }, e -> fail(e.getMessage())));
     }
 
     public void testRunJob_Ok() {
-        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory,
-            ActionListener.wrap(
-                stepResponse -> {
-                    assertThat(processManager.getProcessContextCount(), equalTo(1));
-                    assertThat(stepResponse.isTaskComplete(), is(true));
+        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory, ActionListener.wrap(stepResponse -> {
+            assertThat(processManager.getProcessContextCount(), equalTo(1));
+            assertThat(stepResponse.isTaskComplete(), is(true));
 
-                    InOrder inOrder = inOrder(dataExtractor, executorServiceForProcess, process, task);
-                    inOrder.verify(task).isStopping();
-                    inOrder.verify(task).getAllocationId();
-                    inOrder.verify(task).isStopping();
-                    inOrder.verify(dataExtractor).collectDataSummary();
-                    inOrder.verify(dataExtractor).getCategoricalFields(dataFrameAnalyticsConfig.getAnalysis());
-                    inOrder.verify(process).isProcessAlive();
-                    inOrder.verify(task).getParentTaskId();
-                    inOrder.verify(task).getStatsHolder();
-                    inOrder.verify(dataExtractor).getExtractedFields();
-                    inOrder.verify(executorServiceForProcess, times(2)).execute(any());  // 'processData' and 'processResults' threads
-                    verifyNoMoreInteractions(dataExtractor, executorServiceForProcess, process, task);
-                },
-                e -> fail(e.getMessage())
-        ));
+            InOrder inOrder = inOrder(dataExtractor, executorServiceForProcess, process, task);
+            inOrder.verify(task).isStopping();
+            inOrder.verify(task).getAllocationId();
+            inOrder.verify(task).isStopping();
+            inOrder.verify(dataExtractor).collectDataSummary();
+            inOrder.verify(dataExtractor).getCategoricalFields(dataFrameAnalyticsConfig.getAnalysis());
+            inOrder.verify(process).isProcessAlive();
+            inOrder.verify(task).getParentTaskId();
+            inOrder.verify(task).getStatsHolder();
+            inOrder.verify(dataExtractor).getExtractedFields();
+            inOrder.verify(executorServiceForProcess, times(2)).execute(any());  // 'processData' and 'processResults' threads
+            verifyNoMoreInteractions(dataExtractor, executorServiceForProcess, process, task);
+        }, e -> fail(e.getMessage())));
     }
 
     public void testRunJob_ProcessNotAliveAfterStart() {
         when(process.isProcessAlive()).thenReturn(false);
-        when(task.getParams()).thenReturn(
-            new StartDataFrameAnalyticsAction.TaskParams("data_frame_id", Version.CURRENT, false));
+        when(task.getParams()).thenReturn(new StartDataFrameAnalyticsAction.TaskParams("data_frame_id", Version.CURRENT, false));
 
-        processManager.runJob(task, dataFrameAnalyticsConfig, dataExtractorFactory, ActionListener.wrap(
-            stepResponse -> fail("Expected error but listener got a response instead"),
-            e -> {
+        processManager.runJob(
+            task,
+            dataFrameAnalyticsConfig,
+            dataExtractorFactory,
+            ActionListener.wrap(stepResponse -> fail("Expected error but listener got a response instead"), e -> {
                 assertThat(processManager.getProcessContextCount(), equalTo(0));
                 assertThat(e.getMessage(), equalTo("Failed to start data frame analytics process"));
-            }
-        ));
+            })
+        );
     }
 
     public void testProcessContext_GetSetFailureReason() {

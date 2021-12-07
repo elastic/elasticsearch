@@ -39,8 +39,7 @@ public class OpenIndexRequest extends AcknowledgedRequest<OpenIndexRequest> impl
         waitForActiveShards = ActiveShardCount.readFrom(in);
     }
 
-    public OpenIndexRequest() {
-    }
+    public OpenIndexRequest() {}
 
     /**
      * Constructs a new open index request for the specified index.

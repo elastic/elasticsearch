@@ -10,8 +10,8 @@ package org.elasticsearch.index.query.support;
 
 import org.apache.lucene.search.MultiTermQuery;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.ParseField;
 
 public final class QueryParsers {
 
@@ -37,9 +37,11 @@ public final class QueryParsers {
         return parseRewriteMethod(rewriteMethod, MultiTermQuery.CONSTANT_SCORE_REWRITE, deprecationHandler);
     }
 
-    public static MultiTermQuery.RewriteMethod parseRewriteMethod(@Nullable String rewriteMethod,
-                                                                  @Nullable MultiTermQuery.RewriteMethod defaultRewriteMethod,
-                                                                  DeprecationHandler deprecationHandler) {
+    public static MultiTermQuery.RewriteMethod parseRewriteMethod(
+        @Nullable String rewriteMethod,
+        @Nullable MultiTermQuery.RewriteMethod defaultRewriteMethod,
+        DeprecationHandler deprecationHandler
+    ) {
         if (rewriteMethod == null) {
             return defaultRewriteMethod;
         }

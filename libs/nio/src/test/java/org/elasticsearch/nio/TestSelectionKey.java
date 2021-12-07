@@ -15,11 +15,11 @@ import java.nio.channels.spi.AbstractSelectionKey;
 
 public class TestSelectionKey extends AbstractSelectionKey {
 
-    private int ops = 0;
+    private int interestOps = 0;
     private int readyOps;
 
     public TestSelectionKey(int ops) {
-        this.ops = ops;
+        this.interestOps = ops;
     }
 
     @Override
@@ -34,12 +34,12 @@ public class TestSelectionKey extends AbstractSelectionKey {
 
     @Override
     public int interestOps() {
-        return ops;
+        return interestOps;
     }
 
     @Override
     public SelectionKey interestOps(int ops) {
-        this.ops = ops;
+        this.interestOps = ops;
         return this;
     }
 

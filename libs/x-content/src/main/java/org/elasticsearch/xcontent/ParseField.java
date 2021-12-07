@@ -31,9 +31,13 @@ public class ParseField {
 
     private static final String[] EMPTY = new String[0];
 
-
-    private ParseField(String name, Function<RestApiVersion, Boolean> forRestApiVersion, String[] deprecatedNames,
-                       boolean fullyDeprecated, String allReplacedWith) {
+    private ParseField(
+        String name,
+        Function<RestApiVersion, Boolean> forRestApiVersion,
+        String[] deprecatedNames,
+        boolean fullyDeprecated,
+        String allReplacedWith
+    ) {
         this.name = name;
         this.fullyDeprecated = fullyDeprecated;
         this.allReplacedWith = allReplacedWith;
@@ -60,8 +64,7 @@ public class ParseField {
      *                        accepted when strict matching is used.
      */
     public ParseField(String name, String... deprecatedNames) {
-        this(name, RestApiVersion.onOrAfter(RestApiVersion.minimumSupported()) ,deprecatedNames,
-            false, null);
+        this(name, RestApiVersion.onOrAfter(RestApiVersion.minimumSupported()), deprecatedNames, false, null);
     }
 
     /**
@@ -90,14 +93,12 @@ public class ParseField {
         return new ParseField(this.name, this.forRestApiVersion, deprecatedNamesOverride, this.fullyDeprecated, this.allReplacedWith);
     }
 
-
     /**
      * Creates a new field with current name and deprecatedNames, but overrides forRestApiVersion
      * @param forRestApiVersionOverride - a boolean function indicating for what version a deprecated name is available
      */
     public ParseField forRestApiVersion(Function<RestApiVersion, Boolean> forRestApiVersionOverride) {
-        return new ParseField(this.name, forRestApiVersionOverride, this.deprecatedNames,
-            this.fullyDeprecated, this.allReplacedWith);
+        return new ParseField(this.name, forRestApiVersionOverride, this.deprecatedNames, this.fullyDeprecated, this.allReplacedWith);
     }
 
     /**
@@ -112,16 +113,20 @@ public class ParseField {
      * with {@code allReplacedWith}.
      */
     public ParseField withAllDeprecated(String allReplacedWithOverride) {
-        return new ParseField(this.name, this.forRestApiVersion, getAllNamesIncludedDeprecated(),
-            this.fullyDeprecated, allReplacedWithOverride);
+        return new ParseField(
+            this.name,
+            this.forRestApiVersion,
+            getAllNamesIncludedDeprecated(),
+            this.fullyDeprecated,
+            allReplacedWithOverride
+        );
     }
 
     /**
      * Return a new ParseField where all field names are deprecated with no replacement
      */
     public ParseField withAllDeprecated() {
-        return new ParseField(this.name, this.forRestApiVersion, getAllNamesIncludedDeprecated(),
-            true, this.allReplacedWith);
+        return new ParseField(this.name, this.forRestApiVersion, getAllNamesIncludedDeprecated(), true, this.allReplacedWith);
     }
 
     /**
@@ -155,8 +160,8 @@ public class ParseField {
         if (fullyDeprecated == false && allReplacedWith == null && fieldName.equals(name)) {
             return true;
         }
-        boolean isCompatibleDeprecation = RestApiVersion.minimumSupported().matches(forRestApiVersion) &&
-            RestApiVersion.current().matches(forRestApiVersion) == false;
+        boolean isCompatibleDeprecation = RestApiVersion.minimumSupported().matches(forRestApiVersion)
+            && RestApiVersion.current().matches(forRestApiVersion) == false;
 
         // Now try to match against one of the deprecated names. Note that if
         // the parse field is entirely deprecated (allReplacedWith != null) all
@@ -198,7 +203,6 @@ public class ParseField {
     public String[] getDeprecatedNames() {
         return deprecatedNames;
     }
-
 
     public static class CommonFields {
         public static final ParseField FIELD = new ParseField("field");

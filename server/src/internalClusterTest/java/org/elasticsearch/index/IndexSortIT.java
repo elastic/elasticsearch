@@ -13,8 +13,8 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -26,29 +26,29 @@ public class IndexSortIT extends ESIntegTestCase {
 
     private static XContentBuilder createTestMapping() {
         try {
-            return jsonBuilder()
-                .startObject()
-                    .startObject("properties")
-                        .startObject("date")
-                        .field("type", "date")
-                    .endObject()
-                    .startObject("numeric")
-                        .field("type", "integer")
-                    .field("doc_values", false)
-                    .endObject()
-                    .startObject("numeric_dv")
-                        .field("type", "integer")
-                        .field("doc_values", true)
-                    .endObject()
-                    .startObject("keyword_dv")
-                        .field("type", "keyword")
-                        .field("doc_values", true)
-                    .endObject()
-                    .startObject("keyword")
-                        .field("type", "keyword")
-                        .field("doc_values", false)
-                    .endObject()
-                .endObject().endObject();
+            return jsonBuilder().startObject()
+                .startObject("properties")
+                .startObject("date")
+                .field("type", "date")
+                .endObject()
+                .startObject("numeric")
+                .field("type", "integer")
+                .field("doc_values", false)
+                .endObject()
+                .startObject("numeric_dv")
+                .field("type", "integer")
+                .field("doc_values", true)
+                .endObject()
+                .startObject("keyword_dv")
+                .field("type", "keyword")
+                .field("doc_values", true)
+                .endObject()
+                .startObject("keyword")
+                .field("type", "keyword")
+                .field("doc_values", false)
+                .endObject()
+                .endObject()
+                .endObject();
         } catch (IOException e) {
             throw new IllegalStateException(e);
         }
@@ -62,17 +62,16 @@ public class IndexSortIT extends ESIntegTestCase {
         SortField keywordSort = new SortedSetSortField("keyword_dv", false);
         keywordSort.setMissingValue(SortField.STRING_LAST);
         Sort indexSort = new Sort(dateSort, numericSort, keywordSort);
-        prepareCreate("test")
-            .setSettings(Settings.builder()
+        prepareCreate("test").setSettings(
+            Settings.builder()
                 .put(indexSettings())
                 .put("index.number_of_shards", "1")
                 .put("index.number_of_replicas", "1")
                 .putList("index.sort.field", "date", "numeric_dv", "keyword_dv")
-            )
-            .setMapping(TEST_MAPPING)
-            .get();
+        ).setMapping(TEST_MAPPING).get();
         for (int i = 0; i < 20; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i))
+            client().prepareIndex("test")
+                .setId(Integer.toString(i))
                 .setSource("numeric_dv", randomInt(), "keyword_dv", randomAlphaOfLengthBetween(10, 20))
                 .get();
         }
@@ -82,34 +81,25 @@ public class IndexSortIT extends ESIntegTestCase {
     }
 
     public void testInvalidIndexSort() {
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-            () -> prepareCreate("test")
-                .setSettings(Settings.builder()
-                    .put(indexSettings())
-                    .putList("index.sort.field", "invalid_field")
-                )
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).putList("index.sort.field", "invalid_field"))
                 .setMapping(TEST_MAPPING)
                 .get()
         );
         assertThat(exc.getMessage(), containsString("unknown index sort field:[invalid_field]"));
 
-        exc = expectThrows(IllegalArgumentException.class,
-            () -> prepareCreate("test")
-                .setSettings(Settings.builder()
-                    .put(indexSettings())
-                    .putList("index.sort.field", "numeric")
-                )
+        exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).putList("index.sort.field", "numeric"))
                 .setMapping(TEST_MAPPING)
                 .get()
         );
         assertThat(exc.getMessage(), containsString("docvalues not found for index sort field:[numeric]"));
 
-        exc = expectThrows(IllegalArgumentException.class,
-            () -> prepareCreate("test")
-                .setSettings(Settings.builder()
-                    .put(indexSettings())
-                    .putList("index.sort.field", "keyword")
-                )
+        exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).putList("index.sort.field", "keyword"))
                 .setMapping(TEST_MAPPING)
                 .get()
         );

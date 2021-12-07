@@ -29,6 +29,8 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
@@ -2042,10 +2044,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
     }
 
-    public void testSuperusersCanExecuteOperationAgainstSecurityIndex() throws IOException {
+    public void testSuperusersCanExecuteReadOperationAgainstSecurityIndex() throws IOException {
         final User superuser = new User("custom_admin", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
-        ClusterState state = mockClusterState(
+        mockClusterState(
             Metadata.builder()
                 .put(
                     new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7).putAlias(
@@ -2062,28 +2064,6 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
 
         List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
-        requests.add(
-            new Tuple<>(DeleteAction.NAME, new DeleteRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id"))
-        );
-        requests.add(
-            new Tuple<>(
-                BulkAction.NAME + "[s]",
-                createBulkShardRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), DeleteRequest::new)
-            )
-        );
-        requests.add(
-            new Tuple<>(UpdateAction.NAME, new UpdateRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id"))
-        );
-        requests.add(new Tuple<>(IndexAction.NAME, new IndexRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7))));
-        requests.add(
-            new Tuple<>(
-                BulkAction.NAME + "[s]",
-                createBulkShardRequest(
-                    randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7),
-                    (index, id) -> new IndexRequest(index).id(id)
-                )
-            )
-        );
         requests.add(new Tuple<>(SearchAction.NAME, new SearchRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7))));
         requests.add(
             new Tuple<>(
@@ -2092,18 +2072,6 @@ public class AuthorizationServiceTests extends ESTestCase {
             )
         );
         requests.add(new Tuple<>(GetAction.NAME, new GetRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id")));
-        requests.add(
-            new Tuple<>(
-                TermVectorsAction.NAME,
-                new TermVectorsRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), "id")
-            )
-        );
-        requests.add(
-            new Tuple<>(
-                IndicesAliasesAction.NAME,
-                new IndicesAliasesRequest().addAliasAction(AliasActions.add().alias("security_alias").index(INTERNAL_SECURITY_MAIN_INDEX_7))
-            )
-        );
         requests.add(
             new Tuple<>(ClusterHealthAction.NAME, new ClusterHealthRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7)))
         );
@@ -2131,11 +2099,86 @@ public class AuthorizationServiceTests extends ESTestCase {
         }
     }
 
-    public void testSuperusersCanExecuteOperationAgainstSecurityIndexWithWildcard() throws IOException {
+    public void testSuperusersCannotExecuteWriteOperationAgainstSecurityIndex() throws IOException {
+        final User superuser = new User("custom_admin", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
+        roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        mockClusterState(
+            Metadata.builder()
+                .put(
+                    new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7).putAlias(
+                        new AliasMetadata.Builder(SECURITY_MAIN_ALIAS).build()
+                    )
+                        .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
+                        .numberOfShards(1)
+                        .numberOfReplicas(0)
+                        .build(),
+                    true
+                )
+                .build()
+        );
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+
+        List<Tuple<String, TransportRequest>> requests = new ArrayList<>();
+        requests.add(
+            new Tuple<>(
+                BulkAction.NAME + "[s]",
+                createBulkShardRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), DeleteRequest::new)
+            )
+        );
+        requests.add(
+            new Tuple<>(
+                BulkAction.NAME + "[s]",
+                createBulkShardRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7), UpdateRequest::new)
+            )
+        );
+        requests.add(
+            new Tuple<>(
+                BulkAction.NAME + "[s]",
+                createBulkShardRequest(
+                    randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7),
+                    (index, id) -> new IndexRequest(index).id(id)
+                )
+            )
+        );
+        requests.add(
+            new Tuple<>(
+                IndicesAliasesAction.NAME,
+                new IndicesAliasesRequest().addAliasAction(AliasActions.add().alias("security_alias").index(INTERNAL_SECURITY_MAIN_INDEX_7))
+            )
+        );
+        requests.add(
+            new Tuple<>(PutMappingAction.NAME, new PutMappingRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7)))
+        );
+        requests.add(
+            new Tuple<>(DeleteIndexAction.NAME, new DeleteIndexRequest(randomFrom(SECURITY_MAIN_ALIAS, INTERNAL_SECURITY_MAIN_INDEX_7)))
+        );
+        for (final Tuple<String, TransportRequest> requestTuple : requests) {
+            final String action = requestTuple.v1();
+            final TransportRequest request = requestTuple.v2();
+            try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
+                final Authentication authentication = createAuthentication(superuser);
+                assertThrowsAuthorizationException(
+                    "authentication=[" + authentication + "], action=[" + action + "], request=[" + request + "]",
+                    () -> authorize(authentication, action, request),
+                    action,
+                    superuser.principal()
+                );
+                verify(auditTrail).accessDenied(
+                    eq(requestId),
+                    eq(authentication),
+                    eq(action),
+                    eq(request),
+                    authzInfoRoles(superuser.roles())
+                );
+            }
+        }
+    }
+
+    public void testSuperusersCanExecuteReadOperationAgainstSecurityIndexWithWildcard() throws IOException {
         final User superuser = new User("custom_admin", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
         final Authentication authentication = createAuthentication(superuser);
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
-        ClusterState state = mockClusterState(
+        mockClusterState(
             Metadata.builder()
                 .put(
                     new IndexMetadata.Builder(INTERNAL_SECURITY_MAIN_INDEX_7).putAlias(

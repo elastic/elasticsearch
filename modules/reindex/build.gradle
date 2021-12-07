@@ -159,6 +159,18 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
     task.skipTest("reindex/20_validation/reindex without source gives useful error message", "exception with a type. Not much benefit adding _doc there.")
     task.skipTest("update_by_query/20_validation/update_by_query without source gives useful error message", "exception with a type. Not much benefit adding _doc there.")
+
+    // these tests are all relying on a call to refresh all indices, when they could easily be changed
+    // in 7.x to call the specific index they want to refresh.
+    // See https://github.com/elastic/elasticsearch/issues/81188
+    task.skipTest("delete_by_query/70_throttle/Rethrottle to -1 which turns off throttling", "test relies on system index being non-hidden")
+    task.skipTest("delete_by_query/80_slices/Multiple slices with rethrottle", "test relies on system index being non-hidden")
+    task.skipTest("delete_by_query/80_slices/Multiple slices with wait_for_completion=false", "test relies on system index being non-hidden")
+    task.skipTest("reindex/80_slices/Multiple slices with rethrottle", "test relies on system index being non-hidden")
+    task.skipTest("reindex/80_slices/Multiple slices with wait_for_completion=false", "test relies on system index being non-hidden")
+    task.skipTest("update_by_query/70_slices/Multiple slices with rethrottle", "test relies on system index being non-hidden")
+    task.skipTest("update_by_query/70_slices/Multiple slices with wait_for_completion=false", "test relies on system index being non-hidden")
+
     task.addAllowedWarningRegex("\\[types removal\\].*")
 }
 

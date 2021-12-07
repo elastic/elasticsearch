@@ -18,4 +18,6 @@
          #!/usr/local/bin/runbld --redirect-stderr
          $WORKSPACE/.ci/scripts/install-gradle-profiler.sh
          #!/usr/local/bin/runbld --redirect-stderr
-         $WORKSPACE/gradle-profiler/bin/gradle-profiler --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-tool-update.scenarios --project-dir . --output-dir build/profile-out
+         $WORKSPACE/.ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-tool-update.scenarios --project-dir . --output-dir profile-out
+         #!/usr/local/bin/runbld --redirect-stderr
+         tar -czf build/${BUILD_NUMBER}.tar.bz2 profile-out

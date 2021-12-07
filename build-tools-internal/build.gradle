@@ -8,7 +8,6 @@
 
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo
-import org.gradle.util.GradleVersion
 
 plugins {
   id 'java-gradle-plugin'
@@ -276,7 +275,6 @@ dependencies {
 tasks.named('test').configure {
   useJUnitPlatform()
 }
-
 tasks.register("integTest", Test) {
   inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
   systemProperty 'test.version_under_test', version

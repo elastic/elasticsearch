@@ -916,6 +916,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     ) {
 
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
+        if (searchRequest.allowPartialSearchResults() == null) {
+            // No user preference defined in search request - apply cluster service default
+            searchRequest.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
+        }
 
         // TODO: I think startTime() should become part of ActionRequest and that should be used both for index name
         // date math expressions and $now in scripts. This way all apis will deal with now in the same way instead
@@ -990,10 +994,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         if (shardIterators.size() == 1) {
             // if we only have one group, then we always want Q_T_F, no need for DFS, and no need to do THEN since we hit one shard
             searchRequest.searchType(QUERY_THEN_FETCH);
-        }
-        if (searchRequest.allowPartialSearchResults() == null) {
-            // No user preference defined in search request - apply cluster service default
-            searchRequest.allowPartialSearchResults(searchService.defaultAllowPartialSearchResults());
         }
         if (searchRequest.isSuggestOnly()) {
             // disable request cache if we have only suggest

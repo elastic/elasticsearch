@@ -38,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
@@ -289,6 +290,66 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
     }
 
+    public void testDisablePit() throws InterruptedException {
+        TransformConfig config = TransformConfigTests.randomTransformConfig();
+        boolean pitEnabled = config.getSettings().getUsePit() == null || config.getSettings().getUsePit();
+
+        try (PitMockClient client = new PitMockClient(getTestName(), true)) {
+            MockClientTransformIndexer indexer = new MockClientTransformIndexer(
+                mock(ThreadPool.class),
+                new TransformServices(
+                    mock(IndexBasedTransformConfigManager.class),
+                    mock(TransformCheckpointService.class),
+                    mock(TransformAuditor.class),
+                    mock(SchedulerEngine.class)
+                ),
+                mock(CheckpointProvider.class),
+                new AtomicReference<>(IndexerState.STOPPED),
+                null,
+                client,
+                mock(TransformIndexerStats.class),
+                config,
+                null,
+                new TransformCheckpoint(
+                    "transform",
+                    Instant.now().toEpochMilli(),
+                    0L,
+                    Collections.emptyMap(),
+                    Instant.now().toEpochMilli()
+                ),
+                new TransformCheckpoint(
+                    "transform",
+                    Instant.now().toEpochMilli(),
+                    2L,
+                    Collections.emptyMap(),
+                    Instant.now().toEpochMilli()
+                ),
+                new SeqNoPrimaryTermAndIndex(1, 1, TransformInternalIndexConstants.LATEST_INDEX_NAME),
+                mock(TransformContext.class),
+                false
+            );
+
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                if (pitEnabled) {
+                    assertEquals("the_pit_id+", response.pointInTimeId());
+                } else {
+                    assertNull(response.pointInTimeId());
+                }
+            });
+
+            // reverse the setting
+            indexer.applyNewSettings(new SettingsConfig.Builder().setUsePit(pitEnabled == false).build());
+
+            this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
+                if (pitEnabled) {
+                    assertNull(response.pointInTimeId());
+                } else {
+                    assertEquals("the_pit_id+", response.pointInTimeId());
+                }
+            });
+        }
+    }
+
     public void testHandlePitIndexNotFound() throws InterruptedException {
         // simulate a deleted index due to ILM
         try (PitMockClient client = new PitMockClient(getTestName(), true)) {
@@ -479,7 +540,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             null,
             client == null ? mock(Client.class) : client,
             mock(TransformIndexerStats.class),
-            mock(TransformConfig.class),
+            TransformConfigTests.randomTransformConfig(),
             null,
             new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 0L, Collections.emptyMap(), Instant.now().toEpochMilli()),
             new TransformCheckpoint("transform", Instant.now().toEpochMilli(), 2L, Collections.emptyMap(), Instant.now().toEpochMilli()),

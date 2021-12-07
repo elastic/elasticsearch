@@ -348,9 +348,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             {"type":"test_mapper","fixed":false,"variable":"updated","required":"value"}""");
         TestMapper merged = (TestMapper) mapper.merge(goodMerge);
 
-        assertEquals("""
-            {"field":%s}\
-            """.formatted(mapping), Strings.toString(mapper));   // original mapping is unaffected
+assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper)); // original mapping is unaffected
         assertEquals("""
             {"field":{"type":"test_mapper","fixed":false,"variable":"updated","required":"value"}}\
             """, Strings.toString(merged));

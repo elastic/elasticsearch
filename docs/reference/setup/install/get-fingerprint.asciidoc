@@ -5,8 +5,8 @@ fingerprint of the generated HTTPS CA DER-encoded certificate in the terminal.
 To connect your client to {es}, copy this fingerprint and pass it as a parameter.
 Any clients that connect to {es}, such as the 
 https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} Clients],
-{beats}, {ls}, and {fleet} can verify that any certificate in the chain
-matches the fingerprint.
+{beats}, {ls}, and {fleet} can verify that {es} is using a certificate that is signed
+by the CA certificate that matches the fingerprint
 
 If the auto-configuration process already completed, you can still obtain the 
 fingerprint of the security certificate. Run the following command on any

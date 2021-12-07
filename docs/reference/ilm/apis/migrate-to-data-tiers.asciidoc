@@ -15,7 +15,7 @@ Migrating away from custom node attributes routing can be manually performed
 as indicated in the <<migrate-index-allocation-filters, Migrate index allocation
 filters to node roles>> page.
 
-This API provides an automated way of executing three out of the four manual steps listed
+This API provides an automated way of executing four out of the five manual steps listed
 in the <<migrate-index-allocation-filters, migration guide>>:
 
 . <<stop-setting-custom-hot-attribute, Stop setting the custom hot attribute on new indices>>

@@ -933,7 +933,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 localIndices,
                 searchRequest.getLocalClusterAlias(),
                 searchContext,
-                searchRequest.pointInTimeBuilder().getKeepAlive()
+                searchRequest.pointInTimeBuilder().getKeepAlive(),
+                searchRequest.allowPartialSearchResults()
             );
         } else {
             final Index[] indices = resolveLocalIndices(localIndices, clusterState, timeProvider);
@@ -1415,7 +1416,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         OriginalIndices originalIndices,
         String localClusterAlias,
         SearchContextId searchContext,
-        TimeValue keepAlive
+        TimeValue keepAlive,
+        boolean allowPartialSearchResults
     ) {
         final List<SearchShardIterator> iterators = new ArrayList<>(searchContext.shards().size());
         for (Map.Entry<ShardId, SearchContextIdForNode> entry : searchContext.shards().entrySet()) {
@@ -1427,17 +1429,21 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 if (clusterState.nodes().nodeExists(perNode.getNode())) {
                     targetNodes.add(perNode.getNode());
                 }
-                if (perNode.getSearchContextId().getSearcherId() != null) {
-                    try {
-                        final ShardIterator shards = OperationRouting.getShards(clusterState, shardId);
+                try {
+                    final ShardIterator shards = OperationRouting.getShards(clusterState, shardId);
+                    if (perNode.getSearchContextId().getSearcherId() != null) {
                         for (ShardRouting shard : shards) {
                             if (shard.currentNodeId().equals(perNode.getNode()) == false) {
                                 targetNodes.add(shard.currentNodeId());
                             }
                         }
-                    } catch (IndexNotFoundException | ShardNotFoundException ignored) {
-                        // We can hit these exceptions if the index was deleted after creating PIT or the cluster state on
-                        // this coordinating node is outdated. It's fine to ignore these extra "retry-able" target shards.
+                    }
+                } catch (IndexNotFoundException | ShardNotFoundException e) {
+                    // We can hit these exceptions if the index was deleted after creating PIT or the cluster state on
+                    // this coordinating node is outdated. It's fine to ignore these extra "retry-able" target shards
+                    // when allowPartialSearchResults is false
+                    if (allowPartialSearchResults == false) {
+                        throw e;
                     }
                 }
                 OriginalIndices finalIndices = new OriginalIndices(

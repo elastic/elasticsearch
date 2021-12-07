@@ -52,7 +52,7 @@ public class OldLuceneVersions extends Plugin implements IndexStorePlugin {
     private static void convertToNewFormat(IndexShard indexShard) {
         indexShard.store().incRef();
         try {
-            final OldSegmentInfos oldSegmentInfos = OldSegmentInfos.readLatestCommit(indexShard.store().directory(), 0);
+            final OldSegmentInfos oldSegmentInfos = OldSegmentInfos.readLatestCommit(indexShard.store().directory(), 6);
             final SegmentInfos segmentInfos = convertToNewerLuceneVersion(oldSegmentInfos);
             // write upgraded segments file
             segmentInfos.commit(indexShard.store().directory());

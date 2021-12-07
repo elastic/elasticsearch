@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.script.field.mumur3;
+package org.elasticsearch.script.field.murmur3;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.script.field.AbstractLongDocValuesField;

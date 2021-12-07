@@ -26,7 +26,7 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.field.mumur3.Murmur3DocValueField;
+import org.elasticsearch.script.field.murmur3.Murmur3DocValueField;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.script.field.mumur3;
+package org.elasticsearch.script.field.murmur3;
 
 import org.elasticsearch.painless.spi.PainlessExtension;
 import org.elasticsearch.painless.spi.Whitelist;
@@ -29,7 +29,7 @@ public class DocValuesWhitelistExtension implements PainlessExtension {
 
     private static final Whitelist WHITELIST = WhitelistLoader.loadFromResourceFiles(
         DocValuesWhitelistExtension.class,
-        "org.elasticsearch.xpack.unsignedlong.txt"
+        "org.elasticsearch.field.murmur3.txt"
     );
 
     @Override

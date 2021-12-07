@@ -7,5 +7,5 @@
 #
 
 # subclass of AbstractLongDocValuesField
-class org.elasticsearch.script.field.mumur3.Murmur3DocValueField @dynamic_type {
+class org.elasticsearch.script.field.murmur3.Murmur3DocValueField @dynamic_type {
 }

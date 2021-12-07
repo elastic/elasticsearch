@@ -100,7 +100,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
             .get();
         assertThat(clearScrollResponse.isSucceeded(), is(true));
 
-        assertThatScrollIdsDoNotExist(scrollIds);
+        assertThatScrollIdsDoNotExist();
     }
 
     public void testThatClearingAllScrollIdsRequirePermissions() throws Exception {
@@ -120,10 +120,10 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
         assertThat(clearByIdScrollResponse.isSucceeded(), is(true));
 
         // test with each id, that they do not exist
-        assertThatScrollIdsDoNotExist(scrollIds);
+        assertThatScrollIdsDoNotExist();
     }
 
-    private void assertThatScrollIdsDoNotExist(List<String> scrollIds) {
+    private void assertThatScrollIdsDoNotExist() {
         for (String scrollId : scrollIds) {
             SearchPhaseExecutionException expectedException = expectThrows(
                 SearchPhaseExecutionException.class,

@@ -229,7 +229,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     @Override
     public List<RestHandler> getRestHandlers(
-        final Settings settings,
+        final Settings unused,
         final RestController restController,
         final ClusterSettings clusterSettings,
         final IndexScopedSettings indexScopedSettings,
@@ -290,12 +290,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     }
 
     @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
         if (transportClientMode) {
             return emptyList();
         }
 
-        FixedExecutorBuilder indexing = new FixedExecutorBuilder(settings, TASK_THREAD_POOL_NAME, 4, 4, "transform.task_thread_pool");
+        FixedExecutorBuilder indexing = new FixedExecutorBuilder(settingsToUse, TASK_THREAD_POOL_NAME, 4, 4, "transform.task_thread_pool");
 
         return Collections.singletonList(indexing);
     }

@@ -24,7 +24,7 @@ import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.profile.SearchProfileResults;
@@ -69,7 +69,7 @@ final class SearchResponseMerger {
     final int size;
     final int trackTotalHitsUpTo;
     private final SearchTimeProvider searchTimeProvider;
-    private final InternalAggregation.ReduceContextBuilder aggReduceContextBuilder;
+    private final AggregationReduceContext.Builder aggReduceContextBuilder;
     private final List<SearchResponse> searchResponses = new CopyOnWriteArrayList<>();
 
     SearchResponseMerger(
@@ -77,7 +77,7 @@ final class SearchResponseMerger {
         int size,
         int trackTotalHitsUpTo,
         SearchTimeProvider searchTimeProvider,
-        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder
+        AggregationReduceContext.Builder aggReduceContextBuilder
     ) {
         this.from = from;
         this.size = size;

@@ -566,7 +566,8 @@ public class MetadataCreateIndexService {
                 // shard id and the current timestamp
                 xContentRegistry,
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                systemIndices::isSystemName
             ),
             templates.stream().map(IndexTemplateMetadata::getName).collect(toList()),
             metadataTransformer
@@ -632,7 +633,8 @@ public class MetadataCreateIndexService {
                 xContentRegistry,
                 // the context is used ony for validation so it's fine to pass fake values for the shard id and the current timestamp
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                systemIndices::isSystemName
             ),
             Collections.singletonList(templateName),
             metadataTransformer
@@ -688,7 +690,8 @@ public class MetadataCreateIndexService {
                 aliasValidator,
                 xContentRegistry,
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                systemIndices::isSystemName
             ),
             List.of(),
             metadataTransformer
@@ -783,7 +786,8 @@ public class MetadataCreateIndexService {
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                systemIndices::isSystemName
             ),
             List.of(),
             metadataTransformer
@@ -1027,7 +1031,8 @@ public class MetadataCreateIndexService {
         AliasValidator aliasValidator,
         NamedXContentRegistry xContentRegistry,
         SearchExecutionContext searchExecutionContext,
-        Function<String, String> indexNameExpressionResolver
+        Function<String, String> indexNameExpressionResolver,
+        Predicate<String> systemNamePredicate
     ) {
 
         // Keep a separate set to facilitate searches when processing aliases from the template
@@ -1040,12 +1045,13 @@ public class MetadataCreateIndexService {
             if (Strings.hasLength(alias.filter())) {
                 aliasValidator.validateAliasFilter(alias.name(), alias.filter(), searchExecutionContext, xContentRegistry);
             }
+
             AliasMetadata aliasMetadata = AliasMetadata.builder(alias.name())
                 .filter(alias.filter())
                 .indexRouting(alias.indexRouting())
                 .searchRouting(alias.searchRouting())
                 .writeIndex(alias.writeIndex())
-                .isHidden(alias.isHidden())
+                .isHidden(systemNamePredicate.test(alias.name()) ? Boolean.TRUE : alias.isHidden())
                 .build();
             resolvedAliases.add(aliasMetadata);
             resolvedExpressions.add(new Alias(resolvedExpression));
@@ -1073,6 +1079,17 @@ public class MetadataCreateIndexService {
                 if (aliasMetadata.alias().contains("{index}")) {
                     String templatedAlias = aliasMetadata.alias().replace("{index}", index);
                     aliasMetadata = AliasMetadata.newAliasMetadata(aliasMetadata, templatedAlias);
+                }
+
+                // set system aliases from templates to hidden
+                if (systemNamePredicate.test(aliasMetadata.alias())) {
+                    aliasMetadata = AliasMetadata.builder(aliasMetadata.alias())
+                        .filter(aliasMetadata.filter())
+                        .indexRouting(aliasMetadata.indexRouting())
+                        .searchRouting(aliasMetadata.searchRouting())
+                        .writeIndex(aliasMetadata.writeIndex())
+                        .isHidden(true)
+                        .build();
                 }
 
                 aliasValidator.validateAliasMetadata(aliasMetadata, index, metadata);

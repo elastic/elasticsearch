@@ -28,19 +28,18 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         if (CLUSTER_TYPE == ClusterType.OLD) {
             String requestBody = """
                 {
-                      "index_patterns":["logs-*"],
-                      "template": {
-                        "mappings": {
-                          "properties": {
-                            "@timestamp": {
-                              "type": "date"
-                             }
-                          }
+                  "index_patterns": [ "logs-*" ],
+                  "template": {
+                    "mappings": {
+                      "properties": {
+                        "@timestamp": {
+                          "type": "date"
                         }
-                      },
-                      "data_stream":{
                       }
-                    }""";
+                    }
+                  },
+                  "data_stream": {}
+                }""";
             Request request = new Request("PUT", "/_index_template/1");
             request.setJsonEntity(requestBody);
             useIgnoreMultipleMatchingTemplatesWarningsHandler(request);

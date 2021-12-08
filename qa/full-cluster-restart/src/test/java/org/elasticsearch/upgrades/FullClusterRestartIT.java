@@ -990,7 +990,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         // Stick a routing attribute into to cluster settings so we can see it after the restore
         Request addRoutingSettings = new Request("PUT", "/_cluster/settings");
         addRoutingSettings.setJsonEntity("""
-            {"persistent": {"cluster.routing.allocation.exclude.test_attr": "%s"}}\
+            {"persistent": {"cluster.routing.allocation.exclude.test_attr": "%s"}}
             """.formatted(getOldClusterVersion()));
         client().performRequest(addRoutingSettings);
 

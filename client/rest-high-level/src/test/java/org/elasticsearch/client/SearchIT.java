@@ -508,60 +508,59 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         Request createIndex = new Request(HttpPut.METHOD_NAME, "/" + indexName);
         createIndex.setJsonEntity("""
             {
-                "mappings": {
-                    "properties" : {
-                        "qa_join_field" : {
-                            "type" : "join",
-                            "relations" : { "question" : "answer" }
-                        }
+              "mappings": {
+                "properties": {
+                  "qa_join_field": {
+                    "type": "join",
+                    "relations": {
+                      "question": "answer"
                     }
-                }}""");
+                  }
+                }
+              }
+            }""");
         client().performRequest(createIndex);
         Request questionDoc = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/1");
         questionDoc.setJsonEntity("""
             {
-                "body": "<p>I have Windows 2003 server and i bought a new Windows 2008 server...",
-                "title": "Whats the best way to file transfer my site from server to a newer one?",
-                "tags": [
-                    "windows-server-2003",
-                    "windows-server-2008",
-                    "file-transfer"
-                ],
-                "qa_join_field" : "question"
+              "body": "<p>I have Windows 2003 server and i bought a new Windows 2008 server...",
+              "title": "Whats the best way to file transfer my site from server to a newer one?",
+              "tags": [ "windows-server-2003", "windows-server-2008", "file-transfer" ],
+              "qa_join_field": "question"
             }""");
         client().performRequest(questionDoc);
         Request answerDoc1 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/2");
         answerDoc1.addParameter("routing", "1");
         answerDoc1.setJsonEntity("""
             {
-                "owner": {
-                    "location": "Norfolk, United Kingdom",
-                    "display_name": "Sam",
-                    "id": 48
-                },
-                "body": "<p>Unfortunately you're pretty much limited to FTP...",
-                "qa_join_field" : {
-                    "name" : "answer",
-                    "parent" : "1"
-                },
-                "creation_date": "2009-05-04T13:45:37.030"
+              "owner": {
+                "location": "Norfolk, United Kingdom",
+                "display_name": "Sam",
+                "id": 48
+              },
+              "body": "<p>Unfortunately you're pretty much limited to FTP...",
+              "qa_join_field": {
+                "name": "answer",
+                "parent": "1"
+              },
+              "creation_date": "2009-05-04T13:45:37.030"
             }""");
         client().performRequest(answerDoc1);
         Request answerDoc2 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/3");
         answerDoc2.addParameter("routing", "1");
         answerDoc2.setJsonEntity("""
             {
-                "owner": {
-                    "location": "Norfolk, United Kingdom",
-                    "display_name": "Troll",
-                    "id": 49
-                },
-                "body": "<p>Use Linux...",
-                "qa_join_field" : {
-                    "name" : "answer",
-                    "parent" : "1"
-                },
-                "creation_date": "2009-05-05T13:45:37.030"
+              "owner": {
+                "location": "Norfolk, United Kingdom",
+                "display_name": "Troll",
+                "id": 49
+              },
+              "body": "<p>Use Linux...",
+              "qa_join_field": {
+                "name": "answer",
+                "parent": "1"
+              },
+              "creation_date": "2009-05-05T13:45:37.030"
             }""");
         client().performRequest(answerDoc2);
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
@@ -956,7 +955,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         searchTemplateRequest.setRequest(new SearchRequest("index"));
 
         searchTemplateRequest.setScriptType(ScriptType.INLINE);
-        searchTemplateRequest.setScript("{ \"query\": { \"match\": { \"num\": {{number}} } } }");
+        searchTemplateRequest.setScript("""
+            { "query": { "match": { "num": {{number}} } } }""");
 
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("number", 10);
@@ -1045,7 +1045,8 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         SearchTemplateRequest goodRequest = new SearchTemplateRequest();
         goodRequest.setRequest(new SearchRequest("index"));
         goodRequest.setScriptType(ScriptType.INLINE);
-        goodRequest.setScript("{ \"query\": { \"match\": { \"num\": {{number}} } } }");
+        goodRequest.setScript("""
+            { "query": { "match": { "num": {{number}} } } }""");
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("number", 10);
         goodRequest.setScriptParams(scriptParams);

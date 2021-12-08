@@ -1231,14 +1231,14 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             Request createIndex = new Request("PUT", "/posts");
             createIndex.setJsonEntity("""
                 {
-                    "mappings" : {
-                        "properties" : {
-                            "message" : {
-                                "type": "text",
-                                "store": true
-                            }
-                        }
+                  "mappings": {
+                    "properties": {
+                      "message": {
+                        "type": "text",
+                        "store": true
+                      }
                     }
+                  }
                 }""");
             Response response = client().performRequest(createIndex);
             assertEquals(200, response.getStatusLine().getStatusCode());
@@ -1402,14 +1402,14 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             Request createIndex = new Request("PUT", "/posts");
             createIndex.setJsonEntity("""
                 {
-                    "mappings" : {
-                        "properties" : {
-                            "message" : {
-                                "type": "text",
-                                "store": true
-                            }
-                        }
+                  "mappings": {
+                    "properties": {
+                      "message": {
+                        "type": "text",
+                        "store": true
+                      }
                     }
+                  }
                 }""");
             Response response = client().performRequest(createIndex);
             assertEquals(200, response.getStatusLine().getStatusCode());
@@ -1852,14 +1852,14 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             Request createIndex = new Request("PUT", "/index");
             createIndex.setJsonEntity("""
                 {
-                    "mappings" : {
-                        "properties" : {
-                            "foo" : {
-                                "type": "text",
-                                "store": true
-                            }
-                        }
+                  "mappings": {
+                    "properties": {
+                      "foo": {
+                        "type": "text",
+                        "store": true
+                      }
                     }
+                  }
                 }""");
             Response response = client().performRequest(createIndex);
             assertEquals(200, response.getStatusLine().getStatusCode());

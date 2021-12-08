@@ -103,7 +103,7 @@ public class Shell {
     }
 
     public void extractZip(Path zipPath, Path destinationDir) throws Exception {
-        Platforms.onLinux(() -> run("unzip \"%s\" -d \"%s\"".formatted(zipPath, destinationDir)));
+        Platforms.onLinux(() -> run("unzip \"" + zipPath + "\" -d \"" + destinationDir + "\""));
         Platforms.onWindows(() -> run("Expand-Archive -Path \"" + zipPath + "\" -DestinationPath \"" + destinationDir + "\""));
     }
 

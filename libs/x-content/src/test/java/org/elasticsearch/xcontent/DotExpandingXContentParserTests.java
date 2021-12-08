@@ -27,30 +27,35 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testEmbeddedObject() throws IOException {
 
         assertXContentMatches("""
-            {"test":{"with":{"dots":{"field":"value"}}},"nodots":"value2"}""", """
-            {"test.with.dots":{"field":"value"},"nodots":"value2"}""");
+            {"test":{"with":{"dots":{"field":"value"}}},"nodots":"value2"}\
+            """, """
+            {"test.with.dots":{"field":"value"},"nodots":"value2"}\
+            """);
     }
 
     public void testEmbeddedArray() throws IOException {
 
         assertXContentMatches("""
-            {"test":{"with":{"dots":["field","value"]}},"nodots":"value2"}""", """
-            {"test.with.dots":["field","value"],"nodots":"value2"}""");
+            {"test":{"with":{"dots":["field","value"]}},"nodots":"value2"}\
+            """, """
+            {"test.with.dots":["field","value"],"nodots":"value2"}\
+            """);
 
     }
 
     public void testEmbeddedValue() throws IOException {
 
         assertXContentMatches("""
-            {"test":{"with":{"dots":"value"}},"nodots":"value2"}""", """
-            {"test.with.dots":"value","nodots":"value2"}""");
+            {"test":{"with":{"dots":"value"}},"nodots":"value2"}\
+            """, """
+            {"test.with.dots":"value","nodots":"value2"}\
+            """);
 
     }
 
     public void testSkipChildren() throws IOException {
-        XContentParser parser = DotExpandingXContentParser.expandDots(
-            createParser(JsonXContent.jsonXContent, "{ \"test.with.dots\" : \"value\", \"nodots\" : \"value2\" }")
-        );
+        XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
+            { "test.with.dots" : "value", "nodots" : "value2" }"""));
 
         parser.nextToken();     // start object
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -74,7 +79,9 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
     public void testNestedExpansions() throws IOException {
         assertXContentMatches("""
-            {"first":{"dot":{"second":{"dot":"value"},"third":"value"}},"nodots":"value"}""", """
-            {"first.dot":{"second.dot":"value","third":"value"},"nodots":"value"}""");
+            {"first":{"dot":{"second":{"dot":"value"},"third":"value"}},"nodots":"value"}\
+            """, """
+            {"first.dot":{"second.dot":"value","third":"value"},"nodots":"value"}\
+            """);
     }
 }

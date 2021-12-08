@@ -63,40 +63,34 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
 
     static {
         addCandidate("""
-            "match": { "keyword_field": "value"}""", new MatchQueryBuilder("keyword_field", "value"));
-        addCandidate(
-            """
-                "match": { "keyword_field": {"query": "value", "operator": "and"} }""",
-            new MatchQueryBuilder("keyword_field", "value").operator(Operator.AND)
-        );
-        addCandidate(
-            """
-                "match": { "keyword_field": {"query": "value", "analyzer": "english"} }""",
-            new MatchQueryBuilder("keyword_field", "value").analyzer("english")
-        );
-        addCandidate(
-            """
-                "match": { "keyword_field": {"query": "value", "minimum_should_match": 3} }""",
-            new MatchQueryBuilder("keyword_field", "value").minimumShouldMatch("3")
-        );
-        addCandidate(
-            """
-                "match": { "keyword_field": {"query": "value", "fuzziness": "auto"} }""",
-            new MatchQueryBuilder("keyword_field", "value").fuzziness(Fuzziness.AUTO)
-        );
+            "match": { "keyword_field": "value"}
+            """, new MatchQueryBuilder("keyword_field", "value"));
         addCandidate("""
-            "match_phrase": { "keyword_field": "value"}""", new MatchPhraseQueryBuilder("keyword_field", "value"));
-        addCandidate(
-            """
-                "match_phrase": { "keyword_field": {"query": "value", "slop": 3}}""",
-            new MatchPhraseQueryBuilder("keyword_field", "value").slop(3)
-        );
+            "match": { "keyword_field": {"query": "value", "operator": "and"} }
+            """, new MatchQueryBuilder("keyword_field", "value").operator(Operator.AND));
         addCandidate("""
-            "range": { "long_field": {"gte": 1, "lte": 9}}""", new RangeQueryBuilder("long_field").from(1).to(9));
+            "match": { "keyword_field": {"query": "value", "analyzer": "english"} }
+            """, new MatchQueryBuilder("keyword_field", "value").analyzer("english"));
+        addCandidate("""
+            "match": { "keyword_field": {"query": "value", "minimum_should_match": 3} }
+            """, new MatchQueryBuilder("keyword_field", "value").minimumShouldMatch("3"));
+        addCandidate("""
+            "match": { "keyword_field": {"query": "value", "fuzziness": "auto"} }
+            """, new MatchQueryBuilder("keyword_field", "value").fuzziness(Fuzziness.AUTO));
+        addCandidate("""
+            "match_phrase": { "keyword_field": "value"}
+            """, new MatchPhraseQueryBuilder("keyword_field", "value"));
+        addCandidate("""
+            "match_phrase": { "keyword_field": {"query": "value", "slop": 3}}
+            """, new MatchPhraseQueryBuilder("keyword_field", "value").slop(3));
+        addCandidate("""
+            "range": { "long_field": {"gte": 1, "lte": 9}}
+            """, new RangeQueryBuilder("long_field").from(1).to(9));
         addCandidate(
             """
                 "bool": { "must_not": [{"match_all": {}}], "must": [{"match_all": {}}], "filter": [{"match_all": {}}], \
-                "should": [{"match_all": {}}]}""",
+                "should": [{"match_all": {}}]}
+                """,
             new BoolQueryBuilder().mustNot(new MatchAllQueryBuilder())
                 .must(new MatchAllQueryBuilder())
                 .filter(new MatchAllQueryBuilder())
@@ -104,21 +98,21 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
         );
         addCandidate(
             """
-                "dis_max": {"queries": [{"match_all": {}},{"match_all": {}},{"match_all": {}}], "tie_breaker": 0.01}""",
+                "dis_max": {"queries": [{"match_all": {}},{"match_all": {}},{"match_all": {}}], "tie_breaker": 0.01}
+                """,
             new DisMaxQueryBuilder().add(new MatchAllQueryBuilder())
                 .add(new MatchAllQueryBuilder())
                 .add(new MatchAllQueryBuilder())
                 .tieBreaker(0.01f)
         );
-        addCandidate(
-            """
-                "constant_score": {"filter": {"match_all": {}}, "boost": 0.1}""",
-            new ConstantScoreQueryBuilder(new MatchAllQueryBuilder()).boost(0.1f)
-        );
+        addCandidate("""
+            "constant_score": {"filter": {"match_all": {}}, "boost": 0.1}
+            """, new ConstantScoreQueryBuilder(new MatchAllQueryBuilder()).boost(0.1f));
         addCandidate(
             """
                 "function_score": {"query": {"match_all": {}},"functions": [{"random_score": {}, "filter": {"match_all": {}}, \
-                "weight": 0.2}]}""",
+                "weight": 0.2}]}
+                """,
             new FunctionScoreQueryBuilder(
                 new MatchAllQueryBuilder(),
                 new FunctionScoreQueryBuilder.FilterFunctionBuilder[] {
@@ -131,7 +125,8 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
         addCandidate(
             """
                 "span_near": {"clauses": [{ "span_term": { "keyword_field": "value1" }}, \
-                { "span_term": { "keyword_field": "value2" }}]}""",
+                { "span_term": { "keyword_field": "value2" }}]}
+                """,
             new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 0).addClause(
                 new SpanTermQueryBuilder("keyword_field", "value2")
             )
@@ -139,7 +134,8 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
         addCandidate(
             """
                 "span_near": {"clauses": [{ "span_term": { "keyword_field": "value1" }}, \
-                { "span_term": { "keyword_field": "value2" }}], "slop": 2}""",
+                { "span_term": { "keyword_field": "value2" }}], "slop": 2}
+                """,
             new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 2).addClause(
                 new SpanTermQueryBuilder("keyword_field", "value2")
             )
@@ -147,7 +143,8 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
         addCandidate(
             """
                 "span_near": {"clauses": [{ "span_term": { "keyword_field": "value1" }}, \
-                { "span_term": { "keyword_field": "value2" }}], "slop": 2, "in_order": false}""",
+                { "span_term": { "keyword_field": "value2" }}], "slop": 2, "in_order": false}
+                """,
             new SpanNearQueryBuilder(new SpanTermQueryBuilder("keyword_field", "value1"), 2).addClause(
                 new SpanTermQueryBuilder("keyword_field", "value2")
             ).inOrder(false)

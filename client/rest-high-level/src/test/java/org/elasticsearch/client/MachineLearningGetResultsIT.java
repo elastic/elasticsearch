@@ -1104,24 +1104,17 @@ public class MachineLearningGetResultsIT extends ESRestHighLevelClientTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (Bucket bucket : firstBuckets) {
+            String anomalyScore = String.valueOf(bucket.getAnomalyScore() + 10.0);
             IndexRequest indexRequest = new IndexRequest(RESULTS_INDEX);
-            indexRequest.source(
-                """
-                    {
-                      "job_id": "%s",
-                      "result_type": "bucket",
-                      "timestamp": %s,
-                      "bucket_span": 3600,
-                      "is_interim": %s,
-                      "anomaly_score": %s
-                    }""".formatted(
-                    anotherJobId,
-                    bucket.getTimestamp().getTime(),
-                    bucket.isInterim(),
-                    String.valueOf(bucket.getAnomalyScore() + 10.0)
-                ),
-                XContentType.JSON
-            );
+            indexRequest.source("""
+                {
+                  "job_id": "%s",
+                  "result_type": "bucket",
+                  "timestamp": %s,
+                  "bucket_span": 3600,
+                  "is_interim": %s,
+                  "anomaly_score": %s
+                }""".formatted(anotherJobId, bucket.getTimestamp().getTime(), bucket.isInterim(), anomalyScore), XContentType.JSON);
             bulkRequest.add(indexRequest);
         }
         highLevelClient().bulk(bulkRequest, RequestOptions.DEFAULT);

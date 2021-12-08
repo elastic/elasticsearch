@@ -214,12 +214,12 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
         Request request = new Request("PUT", "/test-ro");
         request.setJsonEntity("""
             {
-               "settings": {
-                 "index": {
-                   "blocks.write": true
-                 }
-               }
-             }""");
+              "settings": {
+                "index": {
+                  "blocks.write": true
+                }
+              }
+            }""");
         Response response = client().performRequest(request);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
 

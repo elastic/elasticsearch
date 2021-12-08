@@ -111,28 +111,19 @@ public class DependenciesGraphTask extends DefaultTask {
                     "pkgs": [
                       {
                         "id": "%s@0.0.0",
-                        "info": {"name": "%s", "version": "0.0.0"}
+                        "info": {"name": "%1$s", "version": "0.0.0"}
                       },
                       %s
                     ],
                     "graph": {
-                      "rootNodeId": "%s@0.0.0",
+                      "rootNodeId": "%1$s@0.0.0",
                       "nodes": [
-                        { "nodeId": "%s@0.0.0","pkgId": "%s@0.0.0","deps": [%s] },
+                        { "nodeId": "%1$s@0.0.0","pkgId": "%1$s@0.0.0","deps": [%s] },
                         %s
                       ]
                     }
                   }
-                }""".formatted(
-                projectName,
-                projectName,
-                String.join(",", packages),
-                projectName,
-                projectName,
-                projectName,
-                String.join(",", nodeIds),
-                String.join(",", nodes)
-            );
+                }""".formatted(projectName, String.join(",", packages), String.join(",", nodeIds), String.join(",", nodes));
             getLogger().debug("Dependency Graph: " + output);
             try (CloseableHttpClient client = HttpClients.createDefault()) {
                 HttpPost postRequest = new HttpPost(url);

@@ -567,16 +567,16 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     public void testIndexTemplateWithAliasesInSource() {
         client().admin().indices().preparePutTemplate("template_1").setSource(new BytesArray("""
             {
-                "index_patterns" : "*",
-                "aliases" : {
-                    "my_alias" : {
-                        "filter" : {
-                            "term" : {
-                                "field" : "value2"
-                            }
-                        }
+              "index_patterns": "*",
+              "aliases": {
+                "my_alias": {
+                  "filter": {
+                    "term": {
+                      "field": "value2"
                     }
+                  }
                 }
+              }
             }"""), XContentType.JSON).get();
 
         assertAcked(prepareCreate("test_index"));
@@ -601,15 +601,17 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     public void testIndexTemplateWithAliasesSource() {
         client().admin().indices().preparePutTemplate("template_1").setPatterns(Collections.singletonList("te*")).setAliases("""
             {
-                "alias1" : {},
-                "alias2" : {
-                    "filter" : {
-                        "term" : {
-                            "field" : "value2"
-                        }
-                    }
-                 },
-                "alias3" : { "routing" : "1" }
+              "alias1": {},
+              "alias2": {
+                "filter": {
+                  "term": {
+                    "field": "value2"
+                  }
+                }
+              },
+              "alias3": {
+                "routing": "1"
+              }
             }
             """).get();
 
@@ -819,15 +821,15 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         // base template
         client().admin().indices().preparePutTemplate("template_1").setPatterns(Collections.singletonList("*")).setSettings("""
             {
-                "index" : {
-                    "analysis" : {
-                        "analyzer" : {
-                            "custom_1" : {
-                                "tokenizer" : "standard"
-                            }
-                        }
+              "index": {
+                "analysis": {
+                  "analyzer": {
+                    "custom_1": {
+                      "tokenizer": "standard"
                     }
-                 }
+                  }
+                }
+              }
             }
             """, XContentType.JSON).get();
 

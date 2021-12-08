@@ -86,9 +86,25 @@ public class IngestRequestConvertersTests extends ESTestCase {
             {
               "pipeline": {
                 "description": "_description",
-                "processors": [ { "set": { "field": "field2", "value": "_value" } } ]
+                "processors": [
+                  {
+                    "set": {
+                      "field": "field2",
+                      "value": "_value"
+                    }
+                  }
+                ]
               },
-              "docs": [ { "_index": "index", "_type": "_doc", "_id": "id", "_source": { "foo": "rab" } } ]
+              "docs": [
+                {
+                  "_index": "index",
+                  "_type": "_doc",
+                  "_id": "id",
+                  "_source": {
+                    "foo": "rab"
+                  }
+                }
+              ]
             }""";
         SimulatePipelineRequest request = new SimulatePipelineRequest(
             new BytesArray(json.getBytes(StandardCharsets.UTF_8)),

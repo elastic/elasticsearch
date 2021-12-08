@@ -797,13 +797,19 @@ public class GetActionIT extends ESIntegTestCase {
               },
               "mappings": {
                 "_doc": {
-                  "_source" : {"enabled" : %s},      "properties": {
+                  "_source": {
+                    "enabled": %s
+                  },
+                  "properties": {
                     "text1": {
                       "type": "text",
-                      "store": "%s"        },
+                      "store": "%s"
+                    },
                     "text2": {
                       "type": "text",
-                      "store": "%s"        }      }
+                      "store": "%s"
+                    }
+                  }
                 }
               }
             }""".formatted(sourceEnabled, storedString, storedString);

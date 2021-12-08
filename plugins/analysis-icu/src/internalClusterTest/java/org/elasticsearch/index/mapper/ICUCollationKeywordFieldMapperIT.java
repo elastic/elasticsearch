@@ -306,13 +306,12 @@ public class ICUCollationKeywordFieldMapperIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate(index).setMapping(builder));
 
-        indexRandom(true, client().prepareIndex(index).setId("1").setSource("""
-            {"id":"1","collate":"foo bar"}
-            """, XContentType.JSON), client().prepareIndex(index).setId("2").setSource("""
-            {"id":"2","collate":"foobar"}
-            """, XContentType.JSON), client().prepareIndex(index).setId("3").setSource("""
-            {"id":"3","collate":"foo-bar"}
-            """, XContentType.JSON));
+        indexRandom(
+            true,
+            client().prepareIndex(index).setId("1").setSource("{\"id\":\"1\",\"collate\":\"foo bar\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("2").setSource("{\"id\":\"2\",\"collate\":\"foobar\"}", XContentType.JSON),
+            client().prepareIndex(index).setId("3").setSource("{\"id\":\"3\",\"collate\":\"foo-bar\"}", XContentType.JSON)
+        );
 
         SearchRequest request = new SearchRequest().indices(index)
             .source(

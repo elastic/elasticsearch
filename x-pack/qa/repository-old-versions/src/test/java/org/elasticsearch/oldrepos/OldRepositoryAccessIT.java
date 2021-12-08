@@ -84,7 +84,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 Request createIndex = new Request("PUT", "/test");
                 int numberOfShards = randomIntBetween(1, 3);
                 createIndex.setJsonEntity("""
-                    {"settings":{"number_of_shards": %d}}
+                    {"settings":{"number_of_shards": %s}}
                     """.formatted(numberOfShards));
                 oldEs.performRequest(createIndex);
 

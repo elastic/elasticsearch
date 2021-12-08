@@ -110,12 +110,12 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
                             {
                               "_index": "index",
                               "_id": "id",
-                              "_source": {"%s":%s,"%s":%f,"%s":%d,"%s":"%s"}
+                              "_source": {"%s":%s,"%s":%f,"%s":%s,"%s":"%s"}
                             },
                             {
                               "_index": "index",
                               "_id": "id",
-                              "_source": {"%s":%s,"%s":%f,"%s":%d,"%s":"%s"}
+                              "_source": {"%s":%s,"%s":%f,"%s":%s,"%s":"%s"}
                             }
                           ]
                         }""",
@@ -247,7 +247,7 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
                     Locale.ROOT,
                     """
                         {"index":{}}
-                        {"%s":%s,"%s":%f,"%s":%d,"%s":"%s"}""",
+                        {"%s":%s,"%s":%f,"%s":%s,"%s":"%s"}""",
                     BOOLEAN_FIELD,
                     BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size()),
                     NUMERICAL_FIELD,

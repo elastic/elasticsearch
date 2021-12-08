@@ -115,9 +115,7 @@ public class IngestRestartIT extends ESIntegTestCase {
             }""".formatted(MockScriptEngine.NAME));
         BytesReference pipelineWithoutScript = new BytesArray("""
             {
-              "processors" : [
-                  {"set" : {"field": "y", "value": 0}}
-              ]
+              "processors": [ { "set": { "field": "y", "value": 0 } } ]
             }""");
 
         Consumer<String> checkPipelineExists = (id) -> assertThat(

@@ -946,8 +946,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             if (d.label().equals("filter")) {
                 assertEquals(Decision.Type.NO, d.type());
                 assertEquals("""
-                    node does not match index setting [index.routing.allocation.include] \
-                    filters [_name:"%s"]\
+                    node does not match index setting [index.routing.allocation.include] filters [_name:"%s"]\
                     """.formatted(primaryNodeName), d.getExplanation());
             } else {
                 assertEquals(Decision.Type.YES, d.type());

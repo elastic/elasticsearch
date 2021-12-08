@@ -24,26 +24,26 @@ public class ComposableTemplateIT extends ESIntegTestCase {
     public void testComponentTemplatesCanBeUpdatedAfterRestart() throws Exception {
         ComponentTemplate ct = new ComponentTemplate(new Template(null, new CompressedXContent("""
             {
-                  "dynamic": false,
-                  "properties": {
-                    "foo": {
-                      "type": "text"
-                    }
-                  }
-                }"""), null), 3L, Collections.singletonMap("eggplant", "potato"));
+              "dynamic": false,
+              "properties": {
+                "foo": {
+                  "type": "text"
+                }
+              }
+            }"""), null), 3L, Collections.singletonMap("eggplant", "potato"));
         client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("my-ct").componentTemplate(ct)).get();
 
         ComposableIndexTemplate cit = new ComposableIndexTemplate(
             Collections.singletonList("coleslaw"),
             new Template(null, new CompressedXContent("""
                 {
-                      "dynamic": false,
-                      "properties": {
-                        "foo": {
-                          "type": "keyword"
-                        }
-                      }
-                    }"""), null),
+                  "dynamic": false,
+                  "properties": {
+                    "foo": {
+                      "type": "keyword"
+                    }
+                  }
+                }"""), null),
             Collections.singletonList("my-ct"),
             4L,
             5L,
@@ -59,26 +59,26 @@ public class ComposableTemplateIT extends ESIntegTestCase {
 
         ComponentTemplate ct2 = new ComponentTemplate(new Template(null, new CompressedXContent("""
             {
-                  "dynamic": true,
-                  "properties": {
-                    "foo": {
-                      "type": "keyword"
-                    }
-                  }
-                }"""), null), 3L, Collections.singletonMap("eggplant", "potato"));
+              "dynamic": true,
+              "properties": {
+                "foo": {
+                  "type": "keyword"
+                }
+              }
+            }"""), null), 3L, Collections.singletonMap("eggplant", "potato"));
         client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("my-ct").componentTemplate(ct2)).get();
 
         ComposableIndexTemplate cit2 = new ComposableIndexTemplate(
             Collections.singletonList("coleslaw"),
             new Template(null, new CompressedXContent("""
                 {
-                      "dynamic": true,
-                      "properties": {
-                        "foo": {
-                          "type": "integer"
-                        }
-                      }
-                    }"""), null),
+                  "dynamic": true,
+                  "properties": {
+                    "foo": {
+                      "type": "integer"
+                    }
+                  }
+                }"""), null),
             Collections.singletonList("my-ct"),
             4L,
             5L,

@@ -737,6 +737,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return tierPreference;
     }
 
+    public LifecycleExecutionState getLifecycleExecutionState() {
+        LifecycleExecutionState state = LifecycleExecutionState.EMPTY_STATE;
+        Map<String, String> custom = customData.get(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY);
+        if (custom != null && custom.isEmpty() == false) {
+            state = LifecycleExecutionState.fromCustomMetadata(custom);
+        }
+        return state;
+    }
+
     /**
      * Return the concrete mapping for this index or {@code null} if this index has no mappings at all.
      */

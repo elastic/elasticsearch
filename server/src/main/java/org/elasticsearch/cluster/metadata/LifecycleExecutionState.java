@@ -100,19 +100,13 @@ public class LifecycleExecutionState {
     }
 
     /**
-     * Retrieves the execution state from an {@link IndexMetadata} based on the
-     * custom metadata.
+     * Retrieves the execution state from an {@link IndexMetadata}.
      * @param indexMetadata The metadata of the index to retrieve the execution
      *                      state from.
      * @return The execution state of that index.
      */
     public static LifecycleExecutionState fromIndexMetadata(IndexMetadata indexMetadata) {
-        Map<String, String> customData = indexMetadata.getCustomData(ILM_CUSTOM_METADATA_KEY);
-        if (customData != null && customData.isEmpty() == false) {
-            return fromCustomMetadata(customData);
-        } else {
-            return EMPTY_STATE;
-        }
+        return indexMetadata.getLifecycleExecutionState();
     }
 
     public static Builder builder() {

@@ -41,7 +41,7 @@ public class Task {
      */
     public static final String X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER = "X-elastic-product-origin";
 
-    public static final Set<String> HEADERS_TO_COPY = Set.of(
+    public static final Set<String> HEADERS_TO_COPY = org.elasticsearch.core.Set.of(
         X_OPAQUE_ID_HTTP_HEADER,
         TRACE_PARENT_HTTP_HEADER,
         X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER

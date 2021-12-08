@@ -163,7 +163,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
                             hasEntry(Task.TRACE_ID, "someTraceId"),
                             hasEntry(DeprecatedMessage.ELASTIC_ORIGIN_FIELD_NAME, "kibana")
-                            ),
+                        ),
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
                             hasEntry("level", "CRITICAL"),

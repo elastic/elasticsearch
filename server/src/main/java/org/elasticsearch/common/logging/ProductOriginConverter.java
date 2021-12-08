@@ -18,41 +18,41 @@ import org.elasticsearch.tasks.Task;
 import java.util.Objects;
 
 /**
- * Pattern converter to format the trace id provided in the traceparent header into JSON fields <code>trace.id</code>.
+ * Pattern converter to format the X-elastic-product-origin into plaintext logs.
  */
-@Plugin(category = PatternConverter.CATEGORY, name = "TraceIdConverter")
-@ConverterKeys({ "trace_id" })
-public final class TraceIdConverter extends LogEventPatternConverter {
+@Plugin(category = PatternConverter.CATEGORY, name = "ProductOriginConverter")
+@ConverterKeys({ "product_origin" })
+public final class ProductOriginConverter extends LogEventPatternConverter {
     /**
      * Called by log4j2 to initialize this converter.
      */
-    public static TraceIdConverter newInstance(@SuppressWarnings("unused") final String[] options) {
-        return new TraceIdConverter();
+    public static ProductOriginConverter newInstance(@SuppressWarnings("unused") final String[] options) {
+        return new ProductOriginConverter();
     }
 
-    public TraceIdConverter() {
-        super("trace_id", "trace_id");
+    public ProductOriginConverter() {
+        super("product_origin", "product_origin");
     }
 
-    public static String getTraceId() {
+    public static String getProductOrigin() {
         return HeaderWarning.THREAD_CONTEXT.stream()
-            .map(t -> t.<String>getHeader(Task.TRACE_ID))
+            .map(t -> t.<String>getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER))
             .filter(Objects::nonNull)
             .findFirst()
             .orElse(null);
     }
 
     /**
-     * Formats the trace.id into json fields.
+     * Formats the X-elastic-product-origin into plaintext logs/
      *
-     * @param event - a log event is ignored in this method  as it uses the value from ThreadContext
+     * @param event - a log event is ignored in this method as it uses the value from ThreadContext
+     *              from <code>NodeAndClusterIdStateListener</code> to format
      */
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        String traceId = getTraceId();
-        if (traceId != null) {
-            toAppendTo.append("\"trace.id\": \"" + traceId + "\"");
+        String productOrigin = getProductOrigin();
+        if (productOrigin != null) {
+            toAppendTo.append(productOrigin);
         }
     }
-
 }

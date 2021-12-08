@@ -24,7 +24,14 @@ public class DeprecatedMessage extends ESLogMessage {
     public static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
     public static final String KEY_FIELD_NAME = "key";
 
-    public DeprecatedMessage(DeprecationCategory category, String key, String xOpaqueId, String productOrigin, String messagePattern, Object... args) {
+    public DeprecatedMessage(
+        DeprecationCategory category,
+        String key,
+        String xOpaqueId,
+        String productOrigin,
+        String messagePattern,
+        Object... args
+    ) {
         super(fieldMap(category, key, xOpaqueId, productOrigin), messagePattern, args);
     }
 
@@ -43,7 +50,7 @@ public class DeprecatedMessage extends ESLogMessage {
             builder.put(X_OPAQUE_ID_FIELD_NAME, xOpaqueId);
         }
         if (Strings.isNullOrEmpty(xOpaqueId) == false) {
-            builder.put(ELASTIC_ORIGIN_FIELD_NAME, xOpaqueId);
+            builder.put(ELASTIC_ORIGIN_FIELD_NAME, productOrigin);
         }
         return builder.immutableMap();
     }

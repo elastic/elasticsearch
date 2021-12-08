@@ -54,6 +54,8 @@ cluster are secure.
 
 include::securing-communications/security-basic-setup.asciidoc[]
 
+include::securing-communications/change-passwords-native-users.asciidoc[]
+
 include::securing-communications/security-basic-setup-https.asciidoc[]
 
 include::securing-communications/enabling-cipher-suites.asciidoc[]

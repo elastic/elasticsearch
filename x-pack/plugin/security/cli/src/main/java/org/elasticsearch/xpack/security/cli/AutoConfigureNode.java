@@ -82,6 +82,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.common.ssl.PemUtils.parsePKCS8PemString;
@@ -203,8 +204,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         checkExistingConfiguration(env.settings(), inEnrollmentMode, terminal);
 
         final ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC);
-        final Path tempGeneratedTlsCertsDir = env.configFile().resolve(String.format(Locale.ROOT, TLS_GENERATED_CERTS_DIR_NAME +
-            ".%d.temp", autoConfigDate.toInstant().getEpochSecond()));
+        final Path tempGeneratedTlsCertsDir = env.configFile()
+            .resolve(String.format(Locale.ROOT, TLS_GENERATED_CERTS_DIR_NAME + ".%d.temp", autoConfigDate.toInstant().getEpochSecond()));
         try {
             // it is useful to pre-create the sub-config dir in order to check that the config dir is writable and that file owners match
             Files.createDirectory(tempGeneratedTlsCertsDir);
@@ -472,8 +473,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
         // save the existing keystore before replacing
         final Path keystoreBackupPath = env.configFile()
-            .resolve(String.format(Locale.ROOT,
-                KeyStoreWrapper.KEYSTORE_FILENAME + ".%d.orig", autoConfigDate.toInstant().getEpochSecond()));
+            .resolve(
+                String.format(Locale.ROOT, KeyStoreWrapper.KEYSTORE_FILENAME + ".%d.orig", autoConfigDate.toInstant().getEpochSecond())
+            );
         if (Files.exists(keystorePath)) {
             try {
                 Files.copy(keystorePath, keystoreBackupPath, StandardCopyOption.COPY_ATTRIBUTES);
@@ -558,8 +560,13 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             // restore keystore to revert possible keystore bootstrap
             try {
                 if (Files.exists(keystoreBackupPath)) {
-                    Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE,
-                        StandardCopyOption.COPY_ATTRIBUTES);
+                    Files.move(
+                        keystoreBackupPath,
+                        keystorePath,
+                        StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.COPY_ATTRIBUTES
+                    );
                 } else {
                     Files.deleteIfExists(keystorePath);
                 }
@@ -582,9 +589,17 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             // all certs and keys have been generated in the temp certs dir, therefore:
             // 1. backup (move) any previously existing tls certs dir
             if (Files.exists(env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME))) {
-                moveDirectory(env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME),
-                    env.configFile().resolve(String.format(Locale.ROOT, TLS_GENERATED_CERTS_DIR_NAME + ".%d.orig",
-                        autoConfigDate.toInstant().getEpochSecond())));
+                moveDirectory(
+                    env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME),
+                    env.configFile()
+                        .resolve(
+                            String.format(
+                                Locale.ROOT,
+                                TLS_GENERATED_CERTS_DIR_NAME + ".%d.orig",
+                                autoConfigDate.toInstant().getEpochSecond()
+                            )
+                        )
+                );
             }
             // 2. move the newly populated temp certs dir to its permanent name
             moveDirectory(tempGeneratedTlsCertsDir, env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME));
@@ -592,8 +607,13 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             // restore keystore to revert possible keystore bootstrap
             try {
                 if (Files.exists(keystoreBackupPath)) {
-                    Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE,
-                        StandardCopyOption.COPY_ATTRIBUTES);
+                    Files.move(
+                        keystoreBackupPath,
+                        keystorePath,
+                        StandardCopyOption.REPLACE_EXISTING,
+                        StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.COPY_ATTRIBUTES
+                    );
                 } else {
                     Files.deleteIfExists(keystorePath);
                 }
@@ -602,10 +622,27 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             }
             // revert any previously existing TLS certs
             try {
-                if (Files.exists(env.configFile().resolve(String.format(Locale.ROOT, TLS_GENERATED_CERTS_DIR_NAME + ".%d.orig",
-                    autoConfigDate.toInstant().getEpochSecond())))) {
-                    moveDirectory(env.configFile().resolve(String.format(Locale.ROOT, TLS_GENERATED_CERTS_DIR_NAME + ".%d.orig",
-                            autoConfigDate.toInstant().getEpochSecond())), env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME));
+                if (Files.exists(
+                    env.configFile()
+                        .resolve(
+                            String.format(
+                                Locale.ROOT,
+                                TLS_GENERATED_CERTS_DIR_NAME + ".%d.orig",
+                                autoConfigDate.toInstant().getEpochSecond()
+                            )
+                        )
+                )) {
+                    moveDirectory(
+                        env.configFile()
+                            .resolve(
+                                String.format(
+                                    Locale.ROOT,
+                                    TLS_GENERATED_CERTS_DIR_NAME + ".%d.orig",
+                                    autoConfigDate.toInstant().getEpochSecond()
+                                )
+                            ),
+                        env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME)
+                    );
                 }
             } catch (Exception ex) {
                 t.addSuppressed(ex);
@@ -668,16 +705,22 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     bw.write("xpack.security.transport.ssl.verification_mode: certificate");
                     bw.newLine();
                     bw.write(
-                        "xpack.security.transport.ssl.keystore.path: " + TLS_GENERATED_CERTS_DIR_NAME +
-                            System.getProperty("file.separator") + TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12"
+                        "xpack.security.transport.ssl.keystore.path: "
+                            + TLS_GENERATED_CERTS_DIR_NAME
+                            + System.getProperty("file.separator")
+                            + TRANSPORT_AUTOGENERATED_KEYSTORE_NAME
+                            + ".p12"
                     );
                     bw.newLine();
                     // we use the keystore as a truststore in order to minimize the number of auto-generated resources,
                     // and also because a single file is more idiomatic to the scheme of a shared secret between the cluster nodes
                     // no one should only need the TLS cert without the associated key for the transport layer
                     bw.write(
-                        "xpack.security.transport.ssl.truststore.path: " + TLS_GENERATED_CERTS_DIR_NAME +
-                            System.getProperty("file.separator") + TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12"
+                        "xpack.security.transport.ssl.truststore.path: "
+                            + TLS_GENERATED_CERTS_DIR_NAME
+                            + System.getProperty("file.separator")
+                            + TRANSPORT_AUTOGENERATED_KEYSTORE_NAME
+                            + ".p12"
                     );
                     bw.newLine();
 
@@ -685,9 +728,12 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     bw.write("xpack.security.http.ssl.enabled: true");
                     bw.newLine();
                     bw.write(
-                        "xpack.security.http.ssl.keystore.path: " + TLS_GENERATED_CERTS_DIR_NAME +
-                            System.getProperty("file.separator") + HTTP_AUTOGENERATED_KEYSTORE_NAME +
-                            ".p12");
+                        "xpack.security.http.ssl.keystore.path: "
+                            + TLS_GENERATED_CERTS_DIR_NAME
+                            + System.getProperty("file.separator")
+                            + HTTP_AUTOGENERATED_KEYSTORE_NAME
+                            + ".p12"
+                    );
                     bw.newLine();
                     if (inEnrollmentMode) {
                         bw.newLine();

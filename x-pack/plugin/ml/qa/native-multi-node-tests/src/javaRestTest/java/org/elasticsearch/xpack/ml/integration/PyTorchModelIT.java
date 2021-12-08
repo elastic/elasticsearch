@@ -627,6 +627,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     private void putVocabulary(List<String> vocabulary, String modelId) throws IOException {
         List<String> vocabularyWithPad = new ArrayList<>();
         vocabularyWithPad.add(BertTokenizer.PAD_TOKEN);
+        vocabularyWithPad.add(BertTokenizer.UNKNOWN_TOKEN);
         vocabularyWithPad.addAll(vocabulary);
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 

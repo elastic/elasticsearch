@@ -813,7 +813,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "function_score":{
                     "query":{
                         "bool":{
-                            "must":{"match":{"field":"value"}}             },
+                            "must":{"match":{"field":"value"}}
+                        },
                         "ignored_field_name": {
                             {"match":{"field":"value"}}
                         }

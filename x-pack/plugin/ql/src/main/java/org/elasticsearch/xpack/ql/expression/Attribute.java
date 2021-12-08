@@ -14,8 +14,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
-import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.splitQualifiedIndex;
+import static org.elasticsearch.xpack.ql.util.StringUtils.splitQualifiedIndex;
 
 /**
  * {@link Expression}s that can be materialized and describe properties of the derived table.
@@ -72,10 +71,6 @@ public abstract class Attribute extends NamedExpression {
 
     public String qualifiedName() {
         return qualifier == null ? name() : qualifier + "." + name();
-    }
-
-    public String fullyQualifiedName() {
-        return qualifier == null ? name() : buildRemoteIndexName(cluster, qualifier) + "." + name();
     }
 
     @Override

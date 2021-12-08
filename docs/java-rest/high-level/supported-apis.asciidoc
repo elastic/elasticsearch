@@ -768,3 +768,15 @@ include::enrich/delete_policy.asciidoc[]
 include::enrich/get_policy.asciidoc[]
 include::enrich/stats.asciidoc[]
 include::enrich/execute_policy.asciidoc[]
+
+[role="xpack"]
+== EQL APIs
+
+:upid: {mainid}-eql
+:doc-tests-file: {doc-tests}/EqlDocumentationIT.java
+
+The Java High Level REST Client supports the following EQL APIs:
+
+* <<{upid}-eql-search>>
+
+include::eql/search.asciidoc[]

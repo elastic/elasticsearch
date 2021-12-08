@@ -525,9 +525,8 @@ public class PyTorchModelIT extends ESRestTestCase {
         startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
 
         String input = "once twice thrice";
-        ResponseException ex = expectThrows(ResponseException.class, () -> infer("once twice thrice", modelId));
         assertThat(
-            ex.getMessage(),
+            EntityUtils.toString(infer("once twice thrice", modelId).getEntity()),
             containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
         );
 

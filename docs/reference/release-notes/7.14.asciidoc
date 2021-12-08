@@ -112,8 +112,8 @@ SQL::
 * Fix nested ORDER BY {es-pull}76277[#76277] (issues: {es-issue}75960[#75960], {es-issue}76013[#76013])
 
 Search::
-* Fix `TransportFieldCapabilitiesAction` Blocking Transport Thread {es-pull}75022[#75022]
-* Fork Building Aggregate Index Capabilities Response to Management Pool {es-pull}76333[#76333]
+* Fix field capabilities API's `TransportFieldCapabilitiesAction` blocking transport thread {es-pull}75022[#75022]
+* Fork building aggregate index capabilities response to management pool {es-pull}76333[#76333]
 
 Security::
 * Handle a edge case for validation of API key role descriptors {es-pull}76959[#76959]

@@ -23,8 +23,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.fromIndexMetadata;
-
 /**
  * This step wraps an {@link ClusterStateWaitStep} in order to be able to manipulate what the next step will be, depending on the result of
  * the wrapped {@link ClusterStateWaitStep}.
@@ -69,7 +67,7 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
             // checking the threshold after we execute the step to make sure we execute the wrapped step at least once (because time is a
             // wonderful thing)
             TimeValue retryThreshold = LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD_SETTING.get(idxMeta.getSettings());
-            LifecycleExecutionState lifecycleState = fromIndexMetadata(idxMeta);
+            LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
             if (stepToExecute.isCompletable() == false) {
                 // we may not have passed the time threshold, but the step is not completable due to a different reason
                 thresholdPassed.set(true);

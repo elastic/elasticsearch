@@ -69,9 +69,7 @@ public class UpdateRolloverLifecycleDateStep extends ClusterStateActionStep {
             newIndexTime = rolloverInfo.getTime();
         }
 
-        LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(
-            LifecycleExecutionState.fromIndexMetadata(indexMetadata)
-        );
+        LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(indexMetadata.getLifecycleExecutionState());
         newLifecycleState.setIndexCreationDate(newIndexTime);
 
         IndexMetadata.Builder newIndexMetadata = IndexMetadata.builder(indexMetadata);

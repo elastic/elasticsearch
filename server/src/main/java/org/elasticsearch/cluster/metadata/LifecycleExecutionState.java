@@ -99,16 +99,6 @@ public class LifecycleExecutionState {
         this.rollupIndexName = rollupIndexName;
     }
 
-    /**
-     * Retrieves the execution state from an {@link IndexMetadata}.
-     * @param indexMetadata The metadata of the index to retrieve the execution
-     *                      state from.
-     * @return The execution state of that index.
-     */
-    public static LifecycleExecutionState fromIndexMetadata(IndexMetadata indexMetadata) {
-        return indexMetadata.getLifecycleExecutionState();
-    }
-
     public static Builder builder() {
         return new Builder();
     }

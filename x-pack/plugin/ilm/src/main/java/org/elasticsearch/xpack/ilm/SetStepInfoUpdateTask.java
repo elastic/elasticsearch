@@ -53,7 +53,7 @@ public class SetStepInfoUpdateTask extends IndexLifecycleClusterStateUpdateTask 
             return currentState;
         }
         Settings indexSettings = idxMeta.getSettings();
-        LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(idxMeta);
+        LifecycleExecutionState indexILMData = idxMeta.getLifecycleExecutionState();
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
             && Objects.equals(currentStepKey, Step.getCurrentStepKey(indexILMData))) {
             return IndexLifecycleTransition.addStepInfoToClusterState(index, currentState, stepInfo);

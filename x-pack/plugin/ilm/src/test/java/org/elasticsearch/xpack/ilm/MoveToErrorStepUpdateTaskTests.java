@@ -90,7 +90,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
             state -> {}
         );
         ClusterState newState = task.execute(clusterState);
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetadata().index(index));
+        LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
         StepKey actualKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(actualKey, equalTo(new StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), ErrorStep.NAME)));
         assertThat(lifecycleState.getFailedStep(), equalTo(currentStepKey.getName()));
@@ -156,7 +156,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
 
     private void setStateToKey(StepKey stepKey) {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
-            LifecycleExecutionState.fromIndexMetadata(clusterState.metadata().index(index))
+            clusterState.metadata().index(index).getLifecycleExecutionState()
         );
         lifecycleState.setPhase(stepKey.getPhase());
         lifecycleState.setAction(stepKey.getAction());

@@ -306,7 +306,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
             .collect(Collectors.toList());
 
         for (IndexMetadata indexMetadata : managedIndices) {
-            LifecycleExecutionState currentExState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+            LifecycleExecutionState currentExState = indexMetadata.getLifecycleExecutionState();
 
             if (currentExState != null) {
                 Step.StepKey currentStepKey = Step.getCurrentStepKey(currentExState);

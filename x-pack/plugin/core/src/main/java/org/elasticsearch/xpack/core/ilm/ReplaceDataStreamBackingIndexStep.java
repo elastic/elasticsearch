@@ -19,8 +19,6 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.fromIndexMetadata;
-
 /**
  * This step replaces a data stream backing index with the target index, as part of the data stream's backing indices.
  * Eg. if data stream `foo-stream` is backed by indices [`foo-stream-000001`, `foo-stream-000002`] and we'd like to replace the first
@@ -70,7 +68,7 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
         }
 
         String originalIndex = index.getName();
-        String targetIndexName = targetIndexNameSupplier.apply(originalIndex, fromIndexMetadata(originalIndexMetadata));
+        String targetIndexName = targetIndexNameSupplier.apply(originalIndex, originalIndexMetadata.getLifecycleExecutionState());
         String policyName = originalIndexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         IndexAbstraction indexAbstraction = clusterState.metadata().getIndicesLookup().get(index.getName());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + index.getName() + "] was not found";

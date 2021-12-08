@@ -13,7 +13,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -280,7 +279,7 @@ public class PolicyStepsRegistry {
         }
 
         // parse phase steps from the phase definition in the index settings
-        final String phaseJson = Optional.ofNullable(LifecycleExecutionState.fromIndexMetadata(indexMetadata).getPhaseDefinition())
+        final String phaseJson = Optional.ofNullable(indexMetadata.getLifecycleExecutionState().getPhaseDefinition())
             .orElse(InitializePolicyContextStep.INITIALIZATION_PHASE);
 
         final List<Step> phaseSteps;

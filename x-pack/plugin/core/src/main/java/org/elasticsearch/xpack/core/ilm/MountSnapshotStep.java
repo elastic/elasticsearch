@@ -25,8 +25,6 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotR
 import java.util.Objects;
 import java.util.Optional;
 
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.fromIndexMetadata;
-
 /**
  * Restores the snapshot created for the designated index via the ILM policy to an index named using the provided prefix appended to the
  * designated index name.
@@ -68,7 +66,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Void> listener) {
         String indexName = indexMetadata.getIndex().getName();
 
-        LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
 
         String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         final String snapshotRepository = lifecycleState.getSnapshotRepository();

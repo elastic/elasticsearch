@@ -96,7 +96,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         ClusterState changedState = refreshPhaseDefinition(existingState, indexName, policyMetadata);
 
         IndexMetadata newIdxMeta = changedState.metadata().index(indexName);
-        LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);
+        LifecycleExecutionState afterExState = newIdxMeta.getLifecycleExecutionState();
         Map<String, String> beforeState = new HashMap<>(exState.build().asMap());
         beforeState.remove("phase_definition");
         Map<String, String> afterState = new HashMap<>(afterExState.asMap());
@@ -540,7 +540,7 @@ public class PhaseCacheManagementTests extends ESTestCase {
         updatedState = updateIndicesForPolicy(existingState, REGISTRY, client, oldPolicy, policyMetadata, null);
 
         IndexMetadata newIdxMeta = updatedState.metadata().index(index);
-        LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);
+        LifecycleExecutionState afterExState = newIdxMeta.getLifecycleExecutionState();
         Map<String, String> beforeState = new HashMap<>(exState.asMap());
         beforeState.remove("phase_definition");
         Map<String, String> afterState = new HashMap<>(afterExState.asMap());

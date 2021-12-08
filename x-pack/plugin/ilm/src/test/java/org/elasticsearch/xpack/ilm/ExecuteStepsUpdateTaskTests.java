@@ -180,7 +180,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         long now = randomNonNegativeLong();
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, null, () -> now);
         ClusterState newState = task.execute(clusterState);
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetadata().index(index));
+        LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
         StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(currentStepKey, equalTo(secondStepKey));
         assertThat(firstStep.getExecuteCount(), equalTo(1L));
@@ -197,7 +197,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         long now = randomNonNegativeLong();
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, null, () -> now);
         ClusterState newState = task.execute(clusterState);
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetadata().index(index));
+        LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
         StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(currentStepKey, equalTo(thirdStepKey));
         assertThat(firstStep.getExecuteCount(), equalTo(0L));
@@ -210,7 +210,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
     public void testExecuteInvalidStartStep() throws Exception {
         // Unset the index's phase/action/step to simulate starting from scratch
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
-            LifecycleExecutionState.fromIndexMetadata(clusterState.getMetadata().index(index))
+            clusterState.getMetadata().index(index).getLifecycleExecutionState()
         );
         lifecycleState.setPhase(null);
         lifecycleState.setAction(null);
@@ -248,7 +248,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         long now = randomNonNegativeLong();
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, null, () -> now);
         ClusterState newState = task.execute(clusterState);
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetadata().index(index));
+        LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
         StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(currentStepKey, equalTo(secondStepKey));
         assertThat(firstStep.getExecuteCount(), equalTo(0L));
@@ -267,7 +267,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         long now = randomNonNegativeLong();
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, null, () -> now);
         ClusterState newState = task.execute(clusterState);
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetadata().index(index));
+        LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
         StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(currentStepKey, equalTo(secondStepKey));
         assertThat(firstStep.getExecuteCount(), equalTo(0L));
@@ -294,7 +294,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         long now = randomNonNegativeLong();
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, null, () -> now);
         ClusterState newState = task.execute(clusterState);
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetadata().index(index));
+        LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
         StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(currentStepKey, equalTo(new StepKey(firstStepKey.getPhase(), firstStepKey.getAction(), ErrorStep.NAME)));
         assertThat(firstStep.getExecuteCount(), equalTo(1L));
@@ -314,7 +314,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
         long now = randomNonNegativeLong();
         ExecuteStepsUpdateTask task = new ExecuteStepsUpdateTask(mixedPolicyName, index, startStep, policyStepsRegistry, null, () -> now);
         ClusterState newState = task.execute(clusterState);
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.getMetadata().index(index));
+        LifecycleExecutionState lifecycleState = newState.getMetadata().index(index).getLifecycleExecutionState();
         StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
         assertThat(currentStepKey, equalTo(new StepKey(firstStepKey.getPhase(), firstStepKey.getAction(), ErrorStep.NAME)));
         assertThat(firstStep.getExecuteCount(), equalTo(1L));
@@ -327,7 +327,7 @@ public class ExecuteStepsUpdateTaskTests extends ESTestCase {
 
     private void setStateToKey(StepKey stepKey) throws IOException {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder(
-            LifecycleExecutionState.fromIndexMetadata(clusterState.getMetadata().index(index))
+            clusterState.getMetadata().index(index).getLifecycleExecutionState()
         );
         lifecycleState.setPhase(stepKey.getPhase());
         lifecycleState.setAction(stepKey.getAction());

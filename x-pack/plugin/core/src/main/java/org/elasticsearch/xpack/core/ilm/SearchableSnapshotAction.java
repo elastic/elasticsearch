@@ -216,7 +216,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
             (index, clusterState) -> {
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
-                LifecycleExecutionState lifecycleExecutionState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+                LifecycleExecutionState lifecycleExecutionState = indexMetadata.getLifecycleExecutionState();
                 if (lifecycleExecutionState.getSnapshotName() == null) {
                     // No name exists, so it must be generated
                     logger.trace(

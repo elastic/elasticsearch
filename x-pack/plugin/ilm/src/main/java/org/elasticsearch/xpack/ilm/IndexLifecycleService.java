@@ -178,7 +178,7 @@ public class IndexLifecycleService
             for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
                 if (Strings.isNullOrEmpty(policyName) == false) {
-                    final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
+                    final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                     StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
 
                     try {
@@ -374,7 +374,7 @@ public class IndexLifecycleService
         for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
             String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxMeta.getSettings());
             if (Strings.isNullOrEmpty(policyName) == false) {
-                final LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
+                final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                 StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
 
                 try {
@@ -491,14 +491,10 @@ public class IndexLifecycleService
                 indexToMetadata -> Strings.hasText(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexToMetadata.getValue().getSettings()))
             )
             // Only look at indices in the shrink action
-            .filter(
-                indexToMetadata -> ShrinkAction.NAME.equals(
-                    LifecycleExecutionState.fromIndexMetadata(indexToMetadata.getValue()).getAction()
-                )
-            )
+            .filter(indexToMetadata -> ShrinkAction.NAME.equals(indexToMetadata.getValue().getLifecycleExecutionState().getAction()))
             // Only look at indices on a step that may potentially be dangerous if we removed the node
             .filter(indexToMetadata -> {
-                String step = LifecycleExecutionState.fromIndexMetadata(indexToMetadata.getValue()).getStep();
+                String step = indexToMetadata.getValue().getLifecycleExecutionState().getStep();
                 return SetSingleNodeAllocateStep.NAME.equals(step)
                     || CheckShrinkReadyStep.NAME.equals(step)
                     || ShrinkStep.NAME.equals(step)

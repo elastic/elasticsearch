@@ -21,7 +21,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.fromIndexMetadata;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.getShrinkIndexName;
 
 /**
@@ -54,7 +53,7 @@ public class ShrunkenIndexCheckStep extends ClusterStateWaitStep {
             throw new IllegalStateException("step[" + NAME + "] is checking an un-shrunken index[" + index.getName() + "]");
         }
 
-        LifecycleExecutionState lifecycleState = fromIndexMetadata(idxMeta);
+        LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
         String targetIndexName = getShrinkIndexName(shrunkenIndexSource, lifecycleState);
         boolean isConditionMet = index.getName().equals(targetIndexName) && clusterState.metadata().index(shrunkenIndexSource) == null;
         if (isConditionMet) {

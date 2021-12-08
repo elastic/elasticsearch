@@ -85,10 +85,10 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
 
         ClusterState newClusterState = step.performAction(originalIndexMetadata.getIndex(), originalClusterState);
 
-        LifecycleExecutionState oldIndexData = LifecycleExecutionState.fromIndexMetadata(originalIndexMetadata);
-        LifecycleExecutionState newIndexData = LifecycleExecutionState.fromIndexMetadata(
-            newClusterState.metadata().index(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
-        );
+        LifecycleExecutionState oldIndexData = originalIndexMetadata.getLifecycleExecutionState();
+        LifecycleExecutionState newIndexData = newClusterState.metadata()
+            .index(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
+            .getLifecycleExecutionState();
 
         StepKey targetNextStepKey = step.getTargetNextStepKey();
         assertEquals(newIndexData.getLifecycleDate(), oldIndexData.getLifecycleDate());
@@ -119,10 +119,10 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
 
         ClusterState newClusterState = step.performAction(originalIndexMetadata.getIndex(), originalClusterState);
 
-        LifecycleExecutionState oldIndexData = LifecycleExecutionState.fromIndexMetadata(originalIndexMetadata);
-        LifecycleExecutionState newIndexData = LifecycleExecutionState.fromIndexMetadata(
-            newClusterState.metadata().index(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
-        );
+        LifecycleExecutionState oldIndexData = originalIndexMetadata.getLifecycleExecutionState();
+        LifecycleExecutionState newIndexData = newClusterState.metadata()
+            .index(step.getTargetIndexNameSupplier().apply(indexName, LifecycleExecutionState.builder().build()))
+            .getLifecycleExecutionState();
 
         Map<String, String> beforeMap = new HashMap<>(oldIndexData.asMap());
         // The target step key's StepKey is used in the new metadata, so update the "before" map with the new info so it can be compared

@@ -113,7 +113,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         NamedXContentRegistry xContentRegistry
     ) throws IOException {
         Settings idxSettings = indexMetadata.getSettings();
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
         String currentPhase = lifecycleState.getPhase();
         String stepInfo = lifecycleState.getStepInfo();

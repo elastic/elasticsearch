@@ -71,7 +71,7 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Ack
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 for (String index : request.indices()) {
                     IndexMetadata idxMeta = newState.metadata().index(index);
-                    LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
+                    LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                     StepKey retryStep = new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(), lifecycleState.getStep());
                     if (idxMeta == null) {
                         // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.

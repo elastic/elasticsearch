@@ -68,7 +68,7 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
             return clusterState;
         }
         // get target index
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         String targetIndexName = targetIndexNameSupplier.apply(index.getName(), lifecycleState);
         IndexMetadata targetIndexMetadata = clusterState.metadata().index(targetIndexName);
 

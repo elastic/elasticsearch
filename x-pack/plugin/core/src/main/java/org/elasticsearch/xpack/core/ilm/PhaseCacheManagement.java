@@ -69,7 +69,7 @@ public final class PhaseCacheManagement {
         assert eligibleToCheckForRefresh(idxMeta) : "index " + index + " is missing crucial information needed to refresh phase definition";
 
         logger.trace("[{}] updating cached phase definition for policy [{}]", index, updatedPolicy.getName());
-        LifecycleExecutionState currentExState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
+        LifecycleExecutionState currentExState = idxMeta.getLifecycleExecutionState();
 
         String currentPhase = currentExState.getPhase();
         PhaseExecutionInfo pei = new PhaseExecutionInfo(
@@ -96,7 +96,7 @@ public final class PhaseCacheManagement {
      * - Not currently in the ERROR step
      */
     public static boolean eligibleToCheckForRefresh(final IndexMetadata metadata) {
-        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(metadata);
+        LifecycleExecutionState executionState = metadata.getLifecycleExecutionState();
         if (executionState == null || executionState.getPhaseDefinition() == null) {
             return false;
         }
@@ -191,7 +191,7 @@ public final class PhaseCacheManagement {
         }
         final String policyId = newPolicy.getName();
 
-        final LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(metadata);
+        final LifecycleExecutionState executionState = metadata.getLifecycleExecutionState();
         final Step.StepKey currentStepKey = Step.getCurrentStepKey(executionState);
         final String currentPhase = currentStepKey.getPhase();
 

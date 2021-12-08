@@ -26,7 +26,6 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * Generates a unique index name prefixing the original index name with the configured
@@ -80,7 +79,7 @@ public class GenerateUniqueIndexNameStep extends ClusterStateActionStep {
 
         ClusterState.Builder newClusterStateBuilder = ClusterState.builder(clusterState);
 
-        LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
 
         Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
         String policy = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);

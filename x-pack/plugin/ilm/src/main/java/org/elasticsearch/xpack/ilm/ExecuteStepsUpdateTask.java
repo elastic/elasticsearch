@@ -210,7 +210,7 @@ public class ExecuteStepsUpdateTask extends IndexLifecycleClusterStateUpdateTask
         IndexMetadata indexMetadata = newState.metadata().index(index);
         if (indexMetadata != null) {
 
-            LifecycleExecutionState exState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+            LifecycleExecutionState exState = indexMetadata.getLifecycleExecutionState();
             if (ErrorStep.NAME.equals(exState.getStep()) && this.failure != null) {
                 lifecycleRunner.registerFailedOperation(indexMetadata, failure);
             } else {

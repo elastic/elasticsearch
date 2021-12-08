@@ -86,7 +86,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
 
         // the snapshot index name, snapshot repository, and snapshot name are generated as expected
         newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
-        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(indexName));
+        LifecycleExecutionState executionState = newClusterState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat(executionState.getSnapshotIndexName(), is(indexName));
         assertThat(
             "the " + GenerateSnapshotNameStep.NAME + " step must generate a snapshot name",
@@ -99,7 +99,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
 
         // re-running this step results in no change to the important outputs
         newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), newClusterState);
-        LifecycleExecutionState repeatedState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(indexName));
+        LifecycleExecutionState repeatedState = newClusterState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat(repeatedState.getSnapshotIndexName(), is(executionState.getSnapshotIndexName()));
         assertThat(repeatedState.getSnapshotRepository(), is(executionState.getSnapshotRepository()));
         assertThat(repeatedState.getSnapshotName(), is(executionState.getSnapshotName()));
@@ -169,7 +169,7 @@ public class GenerateSnapshotNameStepTests extends AbstractStepTestCase<Generate
 
         ClusterState newClusterState = generateSnapshotNameStep.performAction(indexMetadata.getIndex(), clusterState);
 
-        LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(newClusterState.metadata().index(indexName));
+        LifecycleExecutionState executionState = newClusterState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat(executionState.getSnapshotName(), is("snapshot-name-is-not-touched"));
         assertThat(executionState.getSnapshotRepository(), is(generateSnapshotNameStep.getSnapshotRepository()));
     }

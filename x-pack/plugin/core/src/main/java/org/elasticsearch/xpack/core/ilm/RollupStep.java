@@ -19,8 +19,6 @@ import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 
 import java.util.Objects;
 
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.fromIndexMetadata;
-
 /**
  * Rolls up index using a {@link RollupActionConfig}
  */
@@ -49,7 +47,7 @@ public class RollupStep extends AsyncActionStep {
     ) {
         final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         final String indexName = indexMetadata.getIndex().getName();
-        final LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
+        final LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         final String rollupIndexName = lifecycleState.getRollupIndexName();
         if (Strings.hasText(rollupIndexName) == false) {
             listener.onFailure(

@@ -50,7 +50,7 @@ public class ShrunkShardsAllocatedStep extends ClusterStateWaitStep {
             return new Result(false, null);
         }
 
-        LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         String shrunkenIndexName = getShrinkIndexName(indexMetadata.getIndex().getName(), lifecycleState);
 
         // We only want to make progress if all shards of the shrunk index are

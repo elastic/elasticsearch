@@ -252,7 +252,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            LifecycleExecutionState newLifecycleState = newState.metadata().index(indexName).getLifecycleExecutionState();
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 
@@ -311,7 +311,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            LifecycleExecutionState newLifecycleState = newState.metadata().index(indexName).getLifecycleExecutionState();
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 
@@ -359,7 +359,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            LifecycleExecutionState newLifecycleState = newState.metadata().index(indexName).getLifecycleExecutionState();
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 
@@ -413,7 +413,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            LifecycleExecutionState newLifecycleState = newState.metadata().index(indexName).getLifecycleExecutionState();
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 
             // expecting the phase definition to be refreshed with the index being in the set_priority action
@@ -463,7 +463,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            LifecycleExecutionState newLifecycleState = newState.metadata().index(indexName).getLifecycleExecutionState();
 
             Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
 

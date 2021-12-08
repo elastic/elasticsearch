@@ -20,8 +20,6 @@ import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
 
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.fromIndexMetadata;
-
 /**
  * Updates the lifecycle policy for the rollup index for the original/currently managed index
  */
@@ -53,7 +51,7 @@ public class UpdateRollupIndexPolicyStep extends AsyncActionStep {
     ) {
         final String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         final String indexName = indexMetadata.getIndex().getName();
-        final LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
+        final LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
         final String rollupIndexName = lifecycleState.getRollupIndexName();
         if (Strings.hasText(rollupIndexName) == false) {
             listener.onFailure(

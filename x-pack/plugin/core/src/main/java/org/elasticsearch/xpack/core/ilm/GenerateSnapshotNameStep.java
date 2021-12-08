@@ -26,7 +26,6 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * Generates a snapshot name for the given index and records it in the index metadata along with the provided snapshot repository.
@@ -64,7 +63,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         }
 
         String policy = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
-        LifecycleExecutionState lifecycleState = fromIndexMetadata(indexMetadata);
+        LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
 
         // validate that the snapshot repository exists -- because policies are refreshed on later retries, and because
         // this fails prior to the snapshot repository being recorded in the ilm metadata, the policy can just be corrected

@@ -1252,9 +1252,9 @@ class NodeDeprecationChecks {
         final XPackLicenseState licenseState
     ) {
         String detail =
-                "Remove the context-specific cache settings and set [script.max_compilations_rate] to configure the rate limit for the "
-            + "general cache. If no limit is set, the rate defaults to 150 compilations per five minutes: 150/5m. Context-specific "
-            + "caches are no longer needed to prevent system scripts from triggering rate limits.";
+            "Remove the context-specific cache settings and set [script.max_compilations_rate] to configure the rate limit for the "
+                + "general cache. If no limit is set, the rate defaults to 150 compilations per five minutes: 150/5m. Context-specific "
+                + "caches are no longer needed to prevent system scripts from triggering rate limits.";
         if (ScriptService.isUseContextCacheSet(settings)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,

@@ -40,7 +40,6 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.vectors.query.KnnVectorFieldExistsQuery;
-import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
 import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
 
 import java.io.IOException;

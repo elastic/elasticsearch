@@ -387,8 +387,11 @@ public class DeprecationHttpIT extends ESRestTestCase {
     // triggers two deprecations - endpoint and setting
     private Request deprecatedRequest(String method, String xOpaqueId) throws IOException {
         final Request getRequest = new Request(method, "/_test_cluster/deprecated_settings");
-        final RequestOptions options = getRequest.getOptions().toBuilder().addHeader("X-Opaque-Id", xOpaqueId)
-            .addHeader("traceparent","00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01").build();
+        final RequestOptions options = getRequest.getOptions()
+            .toBuilder()
+            .addHeader("X-Opaque-Id", xOpaqueId)
+            .addHeader("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+            .build();
         getRequest.setOptions(options);
         getRequest.setEntity(
             buildSettingsRequest(

@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -114,31 +112,6 @@ public class LifecycleExecutionState {
             return fromCustomMetadata(customData);
         } else {
             return EMPTY_STATE;
-        }
-    }
-
-    /**
-     * Retrieves the current {@link Step.StepKey} from the lifecycle state. Note that
-     * it is illegal for the step to be set with the phase and/or action unset,
-     * or for the step to be unset with the phase and/or action set. All three
-     * settings must be either present or missing.
-     *
-     * @param lifecycleState the index custom data to extract the {@link Step.StepKey} from.
-     */
-    @Nullable
-    public static Step.StepKey getCurrentStepKey(LifecycleExecutionState lifecycleState) {
-        Objects.requireNonNull(lifecycleState, "cannot determine current step key as lifecycle state is null");
-        String currentPhase = lifecycleState.getPhase();
-        String currentAction = lifecycleState.getAction();
-        String currentStep = lifecycleState.getStep();
-        if (Strings.isNullOrEmpty(currentStep)) {
-            assert Strings.isNullOrEmpty(currentPhase) : "Current phase is not empty: " + currentPhase;
-            assert Strings.isNullOrEmpty(currentAction) : "Current action is not empty: " + currentAction;
-            return null;
-        } else {
-            assert Strings.isNullOrEmpty(currentPhase) == false;
-            assert Strings.isNullOrEmpty(currentAction) == false;
-            return new Step.StepKey(currentPhase, currentAction, currentStep);
         }
     }
 

@@ -84,7 +84,7 @@ public final class IndexLifecycleTransition {
         }
 
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(idxMeta);
-        Step.StepKey realKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+        Step.StepKey realKey = Step.getCurrentStepKey(lifecycleState);
         if (currentStepKey != null && currentStepKey.equals(realKey) == false) {
             throw new IllegalArgumentException(
                 "index [" + indexName + "] is not on current step [" + currentStepKey + "], currently: [" + realKey + "]"
@@ -133,7 +133,7 @@ public final class IndexLifecycleTransition {
         boolean forcePhaseDefinitionRefresh
     ) {
         IndexMetadata idxMeta = state.getMetadata().index(index);
-        Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(LifecycleExecutionState.fromIndexMetadata(idxMeta));
+        Step.StepKey currentStepKey = Step.getCurrentStepKey(LifecycleExecutionState.fromIndexMetadata(idxMeta));
         validateTransition(idxMeta, currentStepKey, newStepKey, stepRegistry);
 
         Settings indexSettings = idxMeta.getSettings();
@@ -184,7 +184,7 @@ public final class IndexLifecycleTransition {
             currentStep = InitializePolicyContextStep.KEY;
         } else {
             currentStep = Objects.requireNonNull(
-                LifecycleExecutionState.getCurrentStepKey(currentState),
+                Step.getCurrentStepKey(currentState),
                 "unable to move to an error step where there is no current step, state: " + currentState
             );
         }
@@ -237,7 +237,7 @@ public final class IndexLifecycleTransition {
             throw new IllegalArgumentException("index [" + index + "] does not exist");
         }
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
-        Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+        Step.StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
         String failedStep = lifecycleState.getFailedStep();
         if (currentStepKey != null && ErrorStep.NAME.equals(currentStepKey.getName()) && Strings.isNullOrEmpty(failedStep) == false) {
             Step.StepKey nextStepKey = new Step.StepKey(currentStepKey.getPhase(), currentStepKey.getAction(), failedStep);
@@ -286,7 +286,7 @@ public final class IndexLifecycleTransition {
         LongSupplier nowSupplier,
         boolean forcePhaseDefinitionRefresh
     ) {
-        Step.StepKey currentStep = LifecycleExecutionState.getCurrentStepKey(existingState);
+        Step.StepKey currentStep = Step.getCurrentStepKey(existingState);
         long nowAsMillis = nowSupplier.getAsLong();
         LifecycleExecutionState.Builder updatedState = LifecycleExecutionState.builder(existingState);
         updatedState.setPhase(newStep.getPhase());
@@ -350,7 +350,7 @@ public final class IndexLifecycleTransition {
         XPackLicenseState licenseState
     ) {
         String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
-        Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(existingState);
+        Step.StepKey currentStepKey = Step.getCurrentStepKey(existingState);
         if (currentStepKey == null) {
             logger.warn(
                 "unable to identify what the current step is for index [{}] as part of policy [{}]. the "

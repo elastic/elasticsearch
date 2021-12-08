@@ -67,7 +67,7 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
         Settings indexSettings = idxMeta.getSettings();
         LifecycleExecutionState indexILMData = LifecycleExecutionState.fromIndexMetadata(idxMeta);
         if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-            && currentStepKey.equals(LifecycleExecutionState.getCurrentStepKey(indexILMData))) {
+            && currentStepKey.equals(Step.getCurrentStepKey(indexILMData))) {
             return IndexLifecycleTransition.moveClusterStateToErrorStep(index, currentState, cause, nowSupplier, stepLookupFunction);
         } else {
             // either the policy has changed or the step is now

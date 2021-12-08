@@ -100,7 +100,7 @@ public final class PhaseCacheManagement {
             return false;
         }
 
-        Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(executionState);
+        Step.StepKey currentStepKey = Step.getCurrentStepKey(executionState);
         if (currentStepKey == null || currentStepKey.getPhase() == null) {
             return false;
         }
@@ -191,7 +191,7 @@ public final class PhaseCacheManagement {
         final String policyId = newPolicy.getName();
 
         final LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(metadata);
-        final Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(executionState);
+        final Step.StepKey currentStepKey = Step.getCurrentStepKey(executionState);
         final String currentPhase = currentStepKey.getPhase();
 
         final Set<Step.StepKey> newStepKeys = newPolicy.toSteps(client, licenseState)

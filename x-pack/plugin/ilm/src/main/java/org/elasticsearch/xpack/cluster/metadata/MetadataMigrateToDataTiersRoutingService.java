@@ -309,7 +309,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
             LifecycleExecutionState currentExState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
 
             if (currentExState != null) {
-                Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(currentExState);
+                Step.StepKey currentStepKey = Step.getCurrentStepKey(currentExState);
                 if (currentStepKey != null && phasesWithoutAllocateAction.contains(currentStepKey.getPhase())) {
                     // the index is in a phase that doesn't contain the allocate action anymore
                     if (currentStepKey.getAction().equals(AllocateAction.NAME)) {

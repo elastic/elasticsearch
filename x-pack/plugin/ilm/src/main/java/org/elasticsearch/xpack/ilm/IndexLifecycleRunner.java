@@ -100,7 +100,7 @@ class IndexLifecycleRunner {
         IndexMetadata indexMetadata,
         LifecycleExecutionState lifecycleState
     ) {
-        StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+        StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
         logger.trace("[{}] retrieved current step key: {}", indexMetadata.getIndex().getName(), currentStepKey);
         if (currentStepKey == null) {
             return stepRegistry.getFirstStep(policy);
@@ -181,7 +181,7 @@ class IndexLifecycleRunner {
                 markPolicyDoesNotExist(policy, indexMetadata.getIndex(), lifecycleState);
                 return;
             } else {
-                Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+                Step.StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
                 if (TerminalPolicyStep.KEY.equals(currentStepKey)) {
                     // This index is a leftover from before we halted execution on the final phase
                     // instead of going to the completed phase, so it's okay to ignore this index
@@ -352,7 +352,7 @@ class IndexLifecycleRunner {
             return;
         }
         if (currentStep == null) {
-            Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+            Step.StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
             if (TerminalPolicyStep.KEY.equals(currentStepKey)) {
                 // This index is a leftover from before we halted execution on the final phase
                 // instead of going to the completed phase, so it's okay to ignore this index
@@ -420,7 +420,7 @@ class IndexLifecycleRunner {
     void runPolicyAfterStateChange(String policy, IndexMetadata indexMetadata) {
         String index = indexMetadata.getIndex().getName();
         LifecycleExecutionState lifecycleState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
-        final StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(lifecycleState);
+        final StepKey currentStepKey = Step.getCurrentStepKey(lifecycleState);
         if (busyIndices.contains(Tuple.tuple(indexMetadata.getIndex(), currentStepKey))) {
             // try later again, already doing work for this index at this step, no need to check for more work yet
             return;
@@ -583,12 +583,7 @@ class IndexLifecycleRunner {
             ),
             e
         );
-        setStepInfo(
-            index,
-            policyName,
-            LifecycleExecutionState.getCurrentStepKey(executionState),
-            new SetStepInfoUpdateTask.ExceptionWrapper(e)
-        );
+        setStepInfo(index, policyName, Step.getCurrentStepKey(executionState), new SetStepInfoUpdateTask.ExceptionWrapper(e));
     }
 
     /**

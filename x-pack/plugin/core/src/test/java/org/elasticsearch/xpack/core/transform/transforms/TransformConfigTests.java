@@ -506,8 +506,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
 
         assertNull(transformConfigRewritten.getPivotConfig().getMaxPageSearchSize());
-        assertNotNull(transformConfigRewritten.getSettings().getMaxPageSearchSize());
-        assertEquals(111L, transformConfigRewritten.getSettings().getMaxPageSearchSize().longValue());
+        assertTrue(transformConfigRewritten.getSettings().getMaxPageSearchSize().isPresent());
+        assertEquals(111L, transformConfigRewritten.getSettings().getMaxPageSearchSize().get().longValue());
         assertTrue(transformConfigRewritten.getSettings().getDatesAsEpochMillis());
         assertFalse(transformConfigRewritten.getSettings().getAlignCheckpoints());
 
@@ -581,8 +581,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
 
         assertNull(transformConfigRewritten.getPivotConfig().getMaxPageSearchSize());
-        assertNotNull(transformConfigRewritten.getSettings().getMaxPageSearchSize());
-        assertEquals(555L, transformConfigRewritten.getSettings().getMaxPageSearchSize().longValue());
+        assertTrue(transformConfigRewritten.getSettings().getMaxPageSearchSize().isPresent());
+        assertEquals(555L, transformConfigRewritten.getSettings().getMaxPageSearchSize().get().longValue());
         assertEquals(Version.CURRENT, transformConfigRewritten.getVersion());
         assertWarnings(TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED);
     }

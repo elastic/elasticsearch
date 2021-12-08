@@ -607,9 +607,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
 
             // find maxPageSearchSize value
             Integer maxPageSearchSizeDeprecated = builder.getPivotConfig().getMaxPageSearchSize();
-            Integer maxPageSearchSize = builder.getSettings().getMaxPageSearchSize() != null
-                ? builder.getSettings().getMaxPageSearchSize()
-                : maxPageSearchSizeDeprecated;
+            Integer maxPageSearchSize = builder.getSettings().getMaxPageSearchSize().orElse(maxPageSearchSizeDeprecated);
 
             // create a new pivot config but set maxPageSearchSize to null
             builder.setPivotConfig(
@@ -631,7 +629,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         if (builder.getVersion() != null && builder.getVersion().before(Version.V_7_11_0)) {
             builder.setSettings(
                 new SettingsConfig(
-                    builder.getSettings().getMaxPageSearchSize(),
+                    builder.getSettings().getMaxPageSearchSize().orElse(null),
                     builder.getSettings().getDocsPerSecond(),
                     true,
                     builder.getSettings().getAlignCheckpoints(),
@@ -644,7 +642,7 @@ public class TransformConfig extends AbstractDiffable<TransformConfig> implement
         if (builder.getVersion() != null && builder.getVersion().before(Version.V_7_15_0)) {
             builder.setSettings(
                 new SettingsConfig(
-                    builder.getSettings().getMaxPageSearchSize(),
+                    builder.getSettings().getMaxPageSearchSize().orElse(null),
                     builder.getSettings().getDocsPerSecond(),
                     builder.getSettings().getDatesAsEpochMillis(),
                     false,

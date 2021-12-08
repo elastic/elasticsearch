@@ -55,7 +55,6 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -111,7 +110,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     // position of the change collector, in flux (not yet persisted as we haven't processed changes yet)
     private Map<String, Object> nextChangeCollectorBucketPosition = null;
 
-    private volatile Integer initialConfiguredPageSize;
+    private volatile int initialConfiguredPageSize;
     private volatile int pageSize = 0;
     private volatile long logEvery = 1;
     private volatile long logCount = 0;
@@ -261,7 +260,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             try {
                 // if we haven't set the page size yet, if it is set we might have reduced it after running into an out of memory
                 if (pageSize == 0) {
-                    configurePageSize(getConfig().getSettings().getMaxPageSearchSize());
+                    configurePageSize(getConfig().getSettings().getMaxPageSearchSize().orElse(function.getInitialPageSize()));
                 }
 
                 runState = determineRunStateAtStart();
@@ -618,9 +617,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         logger.info("[{}] transform settings have been updated.", transformConfig.getId());
 
         docsPerSecond = newSettings.getDocsPerSecond() != null ? newSettings.getDocsPerSecond() : -1;
-        if (Objects.equals(newSettings.getMaxPageSearchSize(), initialConfiguredPageSize) == false) {
-            configurePageSize(newSettings.getMaxPageSearchSize());
-        }
+        configurePageSize(newSettings.getMaxPageSearchSize().orElse(function.getInitialPageSize()));
         rethrottle();
     }
 
@@ -1300,14 +1297,10 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return RunState.IDENTIFY_CHANGES;
     }
 
-    private void configurePageSize(Integer newPageSize) {
-        initialConfiguredPageSize = newPageSize;
-
-        // if the user explicitly set a page size, take it from the config, otherwise let the function decide
-        if (initialConfiguredPageSize != null && initialConfiguredPageSize > 0) {
-            pageSize = initialConfiguredPageSize;
-        } else {
-            pageSize = function.getInitialPageSize();
+    private void configurePageSize(int newPageSize) {
+        // don't reconfigure if unchanged (pageSize might got automatically reduced)
+        if (initialConfiguredPageSize != newPageSize) {
+            pageSize = initialConfiguredPageSize = newPageSize;
         }
     }
 

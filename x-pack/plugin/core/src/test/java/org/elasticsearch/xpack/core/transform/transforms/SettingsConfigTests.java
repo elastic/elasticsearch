@@ -77,9 +77,9 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
     public void testExplicitNullParsing() throws IOException {
 
         // explicit null
-        assertThat(fromString("{\"max_page_search_size\" : null}").getMaxPageSearchSize(), equalTo(-1));
+        assertThat(fromString("{\"max_page_search_size\" : null}").getMaxPageSearchSizeForUpdate(), equalTo(-1));
         // not set
-        assertNull(fromString("{}").getMaxPageSearchSize());
+        assertTrue(fromString("{}").getMaxPageSearchSize().isEmpty());
 
         assertThat(fromString("{\"docs_per_second\" : null}").getDocsPerSecond(), equalTo(-1F));
         assertNull(fromString("{}").getDocsPerSecond());
@@ -106,14 +106,14 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
         SettingsConfig.Builder builder = new SettingsConfig.Builder(config);
         builder.update(fromString("{\"max_page_search_size\" : 100}"));
 
-        assertThat(builder.build().getMaxPageSearchSize(), equalTo(100));
+        assertThat(builder.build().getMaxPageSearchSize().get(), equalTo(100));
         assertThat(builder.build().getDocsPerSecond(), equalTo(42F));
         assertThat(builder.build().getDatesAsEpochMillisForUpdate(), equalTo(1));
         assertThat(builder.build().getAlignCheckpointsForUpdate(), equalTo(0));
         assertThat(builder.build().getUsePitForUpdate(), equalTo(0));
 
         builder.update(fromString("{\"max_page_search_size\" : null}"));
-        assertNull(builder.build().getMaxPageSearchSize());
+        assertTrue(builder.build().getMaxPageSearchSize().isEmpty());
         assertThat(builder.build().getDocsPerSecond(), equalTo(42F));
         assertThat(builder.build().getDatesAsEpochMillisForUpdate(), equalTo(1));
         assertThat(builder.build().getAlignCheckpointsForUpdate(), equalTo(0));
@@ -128,7 +128,7 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
                     + "\"use_point_in_time\": null}"
             )
         );
-        assertThat(builder.build().getMaxPageSearchSize(), equalTo(77));
+        assertThat(builder.build().getMaxPageSearchSize().get(), equalTo(77));
         assertNull(builder.build().getDocsPerSecond());
         assertNull(builder.build().getDatesAsEpochMillisForUpdate());
         assertNull(builder.build().getAlignCheckpointsForUpdate());
@@ -138,13 +138,13 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
     public void testOmmitDefaultsOnWriteParser() throws IOException {
         // test that an explicit null is handled differently than not set
         SettingsConfig config = fromString("{\"max_page_search_size\" : null}");
-        assertThat(config.getMaxPageSearchSize(), equalTo(-1));
+        assertThat(config.getMaxPageSearchSizeForUpdate(), equalTo(-1));
 
         Map<String, Object> settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());
 
         SettingsConfig emptyConfig = fromString("{}");
-        assertNull(emptyConfig.getMaxPageSearchSize());
+        assertTrue(emptyConfig.getMaxPageSearchSize().isEmpty());
 
         settingsAsMap = xContentToMap(emptyConfig);
         assertTrue(settingsAsMap.isEmpty());
@@ -177,13 +177,13 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
     public void testOmmitDefaultsOnWriteBuilder() throws IOException {
         // test that an explicit null is handled differently than not set
         SettingsConfig config = new SettingsConfig.Builder().setMaxPageSearchSize(null).build();
-        assertThat(config.getMaxPageSearchSize(), equalTo(-1));
+        assertThat(config.getMaxPageSearchSizeForUpdate(), equalTo(-1));
 
         Map<String, Object> settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());
 
         SettingsConfig emptyConfig = new SettingsConfig.Builder().build();
-        assertNull(emptyConfig.getMaxPageSearchSize());
+        assertTrue(emptyConfig.getMaxPageSearchSize().isEmpty());
 
         settingsAsMap = xContentToMap(emptyConfig);
         assertTrue(settingsAsMap.isEmpty());

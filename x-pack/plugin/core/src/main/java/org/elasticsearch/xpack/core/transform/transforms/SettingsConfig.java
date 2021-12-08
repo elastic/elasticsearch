@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -51,21 +53,21 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         // this boolean requires 4 possible values: true, false, not_specified, default, therefore using a custom parser
         parser.declareField(
             optionalConstructorArg(),
-            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_DATES_AS_EPOCH_MILLIS : p.booleanValue() ? 1 : 0,
+            parseBooleanWithDefault(DEFAULT_DATES_AS_EPOCH_MILLIS),
             TransformField.DATES_AS_EPOCH_MILLIS,
             ValueType.BOOLEAN_OR_NULL
         );
         // this boolean requires 4 possible values: true, false, not_specified, default, therefore using a custom parser
         parser.declareField(
             optionalConstructorArg(),
-            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_ALIGN_CHECKPOINTS : p.booleanValue() ? 1 : 0,
+            parseBooleanWithDefault(DEFAULT_ALIGN_CHECKPOINTS),
             TransformField.ALIGN_CHECKPOINTS,
             ValueType.BOOLEAN_OR_NULL
         );
         // this boolean requires 4 possible values: true, false, not_specified, default, therefore using a custom parser
         parser.declareField(
             optionalConstructorArg(),
-            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_USE_PIT : p.booleanValue() ? 1 : 0,
+            parseBooleanWithDefault(DEFAULT_USE_PIT),
             TransformField.USE_PIT,
             ValueType.BOOLEAN_OR_NULL
         );
@@ -132,7 +134,13 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         }
     }
 
-    public Integer getMaxPageSearchSize() {
+    public Optional<Integer> getMaxPageSearchSize() {
+        return maxPageSearchSize != null && maxPageSearchSize != DEFAULT_MAX_PAGE_SEARCH_SIZE
+            ? Optional.of(maxPageSearchSize)
+            : Optional.empty();
+    }
+
+    Integer getMaxPageSearchSizeForUpdate() {
         return maxPageSearchSize;
     }
 
@@ -144,7 +152,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return datesAsEpochMillis != null ? datesAsEpochMillis > 0 : null;
     }
 
-    public Integer getDatesAsEpochMillisForUpdate() {
+    Integer getDatesAsEpochMillisForUpdate() {
         return datesAsEpochMillis;
     }
 
@@ -152,7 +160,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return alignCheckpoints != null ? (alignCheckpoints > 0) || (alignCheckpoints == DEFAULT_ALIGN_CHECKPOINTS) : null;
     }
 
-    public Integer getAlignCheckpointsForUpdate() {
+    Integer getAlignCheckpointsForUpdate() {
         return alignCheckpoints;
     }
 
@@ -160,7 +168,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return usePit != null ? (usePit > 0) || (usePit == DEFAULT_USE_PIT) : null;
     }
 
-    public Integer getUsePitForUpdate() {
+    Integer getUsePitForUpdate() {
         return usePit;
     }
 
@@ -358,10 +366,10 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             if (update.getDocsPerSecond() != null) {
                 this.docsPerSecond = update.getDocsPerSecond().equals(DEFAULT_DOCS_PER_SECOND) ? null : update.getDocsPerSecond();
             }
-            if (update.getMaxPageSearchSize() != null) {
-                this.maxPageSearchSize = update.getMaxPageSearchSize().equals(DEFAULT_MAX_PAGE_SEARCH_SIZE)
+            if (update.getMaxPageSearchSizeForUpdate() != null) {
+                this.maxPageSearchSize = update.getMaxPageSearchSizeForUpdate().equals(DEFAULT_MAX_PAGE_SEARCH_SIZE)
                     ? null
-                    : update.getMaxPageSearchSize();
+                    : update.getMaxPageSearchSize().get();
             }
             if (update.getDatesAsEpochMillisForUpdate() != null) {
                 this.datesAsEpochMillis = update.getDatesAsEpochMillisForUpdate().equals(DEFAULT_DATES_AS_EPOCH_MILLIS)
@@ -383,5 +391,9 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         public SettingsConfig build() {
             return new SettingsConfig(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints, usePit);
         }
+    }
+
+    private static CheckedFunction<XContentParser, Integer, IOException> parseBooleanWithDefault(int defaultValue) {
+        return (p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? defaultValue : p.booleanValue() ? 1 : 0);
     }
 }

@@ -223,11 +223,13 @@ public class RestCatTransformAction extends AbstractCatAction {
                 transformIndexerStats = stats.getIndexerStats();
             }
 
-            Integer maxPageSearchSize = config.getSettings() == null || config.getSettings().getMaxPageSearchSize() == null
-                ? config.getPivotConfig() == null || config.getPivotConfig().getMaxPageSearchSize() == null
-                    ? Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE
-                    : config.getPivotConfig().getMaxPageSearchSize()
-                : config.getSettings().getMaxPageSearchSize();
+            Integer maxPageSearchSize = config.getSettings()
+                .getMaxPageSearchSize()
+                .orElse(
+                    config.getPivotConfig() == null || config.getPivotConfig().getMaxPageSearchSize() == null
+                        ? Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE
+                        : config.getPivotConfig().getMaxPageSearchSize()
+                );
 
             Double progress = checkpointingInfo == null ? null
                 : checkpointingInfo.getNext().getCheckpointProgress() == null ? null

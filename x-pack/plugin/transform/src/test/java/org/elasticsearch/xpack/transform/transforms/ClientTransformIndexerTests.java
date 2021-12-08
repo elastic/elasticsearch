@@ -328,6 +328,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(TransformContext.class),
                 false
             );
+            indexer.initializeFunction();
 
             this.<SearchResponse>assertAsync(listener -> indexer.doNextSearch(0, listener), response -> {
                 if (pitEnabled) {

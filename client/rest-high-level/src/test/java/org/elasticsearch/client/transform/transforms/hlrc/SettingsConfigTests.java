@@ -33,7 +33,7 @@ public class SettingsConfigTests extends AbstractResponseTestCase<
         org.elasticsearch.xpack.core.transform.transforms.SettingsConfig serverTestInstance,
         SettingsConfig clientInstance
     ) {
-        assertEquals(serverTestInstance.getMaxPageSearchSize(), clientInstance.getMaxPageSearchSize());
+        assertEquals(serverTestInstance.getMaxPageSearchSize().orElse(null), clientInstance.getMaxPageSearchSize());
         assertEquals(serverTestInstance.getDocsPerSecond(), clientInstance.getDocsPerSecond());
         assertEquals(serverTestInstance.getDatesAsEpochMillis(), clientInstance.getDatesAsEpochMillis());
         assertEquals(serverTestInstance.getAlignCheckpoints(), clientInstance.getAlignCheckpoints());

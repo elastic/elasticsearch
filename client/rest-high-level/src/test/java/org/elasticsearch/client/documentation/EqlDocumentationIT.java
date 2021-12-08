@@ -34,7 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xcontent.XContentType.JSON;
+import static org.elasticsearch.common.xcontent.XContentType.JSON;
 
 /**
  * Documentation for EQL APIs in the high level java client.

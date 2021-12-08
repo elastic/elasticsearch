@@ -473,11 +473,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private ShardSearchFailure[] buildShardFailures() {
-        AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
-        if (shardFailures == null) {
+        AtomicArray<ShardSearchFailure> shardFailuresArray = this.shardFailures.get();
+        if (shardFailuresArray == null) {
             return ShardSearchFailure.EMPTY_ARRAY;
         }
-        return shardFailures.toArray(new ShardSearchFailure[shardFailures.length()]);
+        List<ShardSearchFailure> entries = shardFailuresArray.asList();
+        ShardSearchFailure[] failures = new ShardSearchFailure[entries.size()];
+        for (int i = 0; i < failures.length; i++) {
+            failures[i] = entries.get(i);
+        }
+        return failures;
     }
 
     private void onShardFailure(final int shardIndex, SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {

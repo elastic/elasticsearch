@@ -5,27 +5,20 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.lucene.bwc;
+package org.elasticsearch.xpack.lucene.bwc.codecs;
 
-import org.apache.lucene.backward_codecs.lucene50.Lucene50CompoundFormat;
-import org.apache.lucene.backward_codecs.lucene50.Lucene50LiveDocsFormat;
-import org.apache.lucene.backward_codecs.lucene50.Lucene50StoredFieldsFormat;
-import org.apache.lucene.backward_codecs.lucene60.Lucene60FieldInfosFormat;
-import org.apache.lucene.backward_codecs.lucene70.Lucene70SegmentInfoFormat;
+import org.apache.lucene.backward_codecs.lucene70.Lucene70Codec;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.CompoundFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.KnnVectorsFormat;
-import org.apache.lucene.codecs.LiveDocsFormat;
 import org.apache.lucene.codecs.NormsFormat;
 import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PointsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
-import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.TermVectorsFormat;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -38,44 +31,22 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.BWCLucene70Codec;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-public class BWCLucene70Codec extends Codec {
+/**
+ * Base class for older BWC codecs
+ */
+public abstract class BWCCodec extends Codec {
 
-    private final FieldInfosFormat fieldInfosFormat;
-    private final SegmentInfoFormat segmentInfosFormat;
-    private final LiveDocsFormat liveDocsFormat;
-    private final CompoundFormat compoundFormat;
-    private final PostingsFormat postingsFormat;
-    private final StoredFieldsFormat storedFieldsFormat;
+    private final PostingsFormat postingsFormat = new EmptyPostingsFormat();
 
-    public BWCLucene70Codec() {
-        super("BWCLucene70Codec");
-        fieldInfosFormat = wrap(new Lucene60FieldInfosFormat());
-        segmentInfosFormat = wrap(new Lucene70SegmentInfoFormat());
-        liveDocsFormat = new Lucene50LiveDocsFormat();
-        compoundFormat = new Lucene50CompoundFormat();
-        postingsFormat = new EmptyPostingsFormat();
-        storedFieldsFormat = new Lucene50StoredFieldsFormat(Lucene50StoredFieldsFormat.Mode.BEST_SPEED);
-    }
-
-    @Override
-    public FieldInfosFormat fieldInfosFormat() {
-        return fieldInfosFormat;
-    }
-
-    @Override
-    public SegmentInfoFormat segmentInfoFormat() {
-        return segmentInfosFormat;
-    }
-
-    @Override
-    public NormsFormat normsFormat() {
-        throw new UnsupportedOperationException();
+    protected BWCCodec(String name) {
+        super(name);
     }
 
     @Override
@@ -84,28 +55,18 @@ public class BWCLucene70Codec extends Codec {
     }
 
     @Override
+    public NormsFormat normsFormat() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public DocValuesFormat docValuesFormat() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public StoredFieldsFormat storedFieldsFormat() {
-        return storedFieldsFormat;
-    }
-
-    @Override
     public TermVectorsFormat termVectorsFormat() {
         throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public LiveDocsFormat liveDocsFormat() {
-        return liveDocsFormat;
-    }
-
-    @Override
-    public CompoundFormat compoundFormat() {
-        return compoundFormat;
     }
 
     @Override
@@ -118,11 +79,67 @@ public class BWCLucene70Codec extends Codec {
         throw new UnsupportedOperationException();
     }
 
-    private static SegmentInfoFormat wrap(SegmentInfoFormat wrapped) {
+    /**
+     * In-memory postings format that shows no postings available.
+     * TODO: Remove once https://issues.apache.org/jira/browse/LUCENE-10291 is fixed.
+     */
+    static class EmptyPostingsFormat extends PostingsFormat {
+
+        protected EmptyPostingsFormat() {
+            super("EmptyPostingsFormat");
+        }
+
+        @Override
+        public FieldsConsumer fieldsConsumer(SegmentWriteState state) {
+            return new FieldsConsumer() {
+                @Override
+                public void write(Fields fields, NormsProducer norms) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void close() {
+
+                }
+            };
+        }
+
+        @Override
+        public FieldsProducer fieldsProducer(SegmentReadState state) {
+            return new FieldsProducer() {
+                @Override
+                public void close() {
+
+                }
+
+                @Override
+                public void checkIntegrity() {
+
+                }
+
+                @Override
+                public Iterator<String> iterator() {
+                    return null;
+                }
+
+                @Override
+                public Terms terms(String field) {
+                    return null;
+                }
+
+                @Override
+                public int size() {
+                    return 0;
+                }
+            };
+        }
+    }
+
+    protected static SegmentInfoFormat wrap(SegmentInfoFormat wrapped) {
         return new SegmentInfoFormat() {
             @Override
             public SegmentInfo read(Directory directory, String segmentName, byte[] segmentID, IOContext context) throws IOException {
-                return adaptVersion(wrapped.read(directory, segmentName, segmentID, context));
+                return wrap(wrapped.read(directory, segmentName, segmentID, context));
             }
 
             @Override
@@ -132,7 +149,7 @@ public class BWCLucene70Codec extends Codec {
         };
     }
 
-    private static FieldInfosFormat wrap(FieldInfosFormat wrapped) {
+    protected static FieldInfosFormat wrap(FieldInfosFormat wrapped) {
         return new FieldInfosFormat() {
             @Override
             public FieldInfos read(Directory directory, SegmentInfo segmentInfo, String segmentSuffix, IOContext iocontext)
@@ -176,59 +193,27 @@ public class BWCLucene70Codec extends Codec {
         return newFieldInfos;
     }
 
-    private static SegmentInfo adaptVersion(SegmentInfo segmentInfo) {
-        return OldLuceneVersions.wrap(segmentInfo);
+    public static SegmentInfo wrap(SegmentInfo segmentInfo) {
+        // special handling for Lucene70Codec (which is currently bundled with Lucene)
+        // Use BWCLucene70Codec instead as that one extends BWCCodec (similar to all other older codecs)
+        final Codec codec = segmentInfo.getCodec() instanceof Lucene70Codec ? new BWCLucene70Codec() : segmentInfo.getCodec();
+        final SegmentInfo segmentInfo1 = new SegmentInfo(
+            segmentInfo.dir,
+            // Use Version.LATEST instead of original version, otherwise SegmentCommitInfo will bark when processing (N-1 limitation)
+            // TODO: perhaps store the original version information in attributes so that we can retrieve it later when needed?
+            org.apache.lucene.util.Version.LATEST,
+            org.apache.lucene.util.Version.LATEST,
+            segmentInfo.name,
+            segmentInfo.maxDoc(),
+            segmentInfo.getUseCompoundFile(),
+            codec,
+            segmentInfo.getDiagnostics(),
+            segmentInfo.getId(),
+            segmentInfo.getAttributes(),
+            segmentInfo.getIndexSort()
+        );
+        segmentInfo1.setFiles(segmentInfo.files());
+        return segmentInfo1;
     }
 
-    static class EmptyPostingsFormat extends PostingsFormat {
-
-        protected EmptyPostingsFormat() {
-            super("EmptyPostingsFormat");
-        }
-
-        @Override
-        public FieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-            return new FieldsConsumer() {
-                @Override
-                public void write(Fields fields, NormsProducer norms) throws IOException {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public void close() throws IOException {
-
-                }
-            };
-        }
-
-        @Override
-        public FieldsProducer fieldsProducer(SegmentReadState state) throws IOException {
-            return new FieldsProducer() {
-                @Override
-                public void close() throws IOException {
-
-                }
-
-                @Override
-                public void checkIntegrity() throws IOException {
-
-                }
-
-                @Override
-                public Iterator<String> iterator() {
-                    return null;
-                }
-
-                @Override
-                public Terms terms(String field) throws IOException {
-                    return null;
-                }
-
-                @Override
-                public int size() {
-                    return 0;
-                }
-            };
-        }
-    }
 }

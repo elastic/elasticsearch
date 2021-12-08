@@ -247,7 +247,7 @@ is met.
 --------------------------------------------------
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
 
-<1> The age of the index
+<1> The age of the index used for calculating when to rollover the index via the `max_age`
 <2> The policy used to manage the index
 <3> The age of the indexed used to transition to the next phase (in this case it is the same with the age of the index).
 <4> The step {ilm-init} is performing on the index

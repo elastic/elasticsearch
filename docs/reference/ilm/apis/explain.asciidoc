@@ -129,12 +129,12 @@ that the index is managed and in the `new` phase:
 --------------------------------------------------
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
 
-<1> The age of the index
+<1> The age of the index used for calculating when to rollover the index via the `max_age`
 <2> Shows if the index is being managed by {ilm-init}. If the index is not managed by
 {ilm-init} the other fields will not be shown
 <3> The name of the policy which {ilm-init} is using for this index
 <4> The timestamp used for the `min_age`
-<5> The age of the index (used for calculating when to enter the next phase)
+<5> The age of the index used for calculating when to enter the next phase
 <6> When the index entered the current phase
 <7> When the index entered the current action
 <8> When the index entered the current step
@@ -155,6 +155,7 @@ phase completes.
       "managed": true,
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
+      "lifecycle_date": "2018-10-15T13:45:21.981Z",
       "age": "25.14s",
       "phase": "hot",
       "phase_time_millis": 1538475653317,
@@ -205,6 +206,7 @@ information for the step that's being performed on the index.
       "managed": true,
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
+      "lifecycle_date": "2018-10-15T13:45:21.981Z",
       "age": "4.12m",
       "phase": "warm",
       "phase_time_millis": 1538475653317,
@@ -270,6 +272,7 @@ the case.
       "managed": true,
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
+      "lifecycle_date": "2018-10-15T13:45:21.981Z",
       "age": "50.1d",
       "phase": "hot",
       "phase_time_millis": 1538475653317,

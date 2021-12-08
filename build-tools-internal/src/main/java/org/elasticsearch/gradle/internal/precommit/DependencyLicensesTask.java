@@ -321,7 +321,8 @@ public class DependencyLicensesTask extends DefaultTask {
             final String exceptionMessage = String.format(Locale.ROOT, """
                 SHA has changed! Expected %s for %s but got %s.
                 This usually indicates a corrupt dependency cache or artifacts changed upstream.
-                Either wipe your cache, fix the upstream artifact, or delete %s and run updateShas""", expectedSha, jarName, sha, shaFile);
+                Either wipe your cache, fix the upstream artifact, or delete %s and run updateShas
+                """, expectedSha, jarName, sha, shaFile);
 
             throw new GradleException(exceptionMessage);
         }

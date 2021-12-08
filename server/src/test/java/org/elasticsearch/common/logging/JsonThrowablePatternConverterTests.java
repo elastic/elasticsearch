@@ -36,7 +36,6 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
     }
 
     public void testStacktraceWithJson() throws IOException {
-
         String json = """
             {
               "terms": {
@@ -47,7 +46,7 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
                 ],
                 "boost": 1.0
               }
-            }
+            }\
             """;
         Exception thrown = new Exception(json);
         LogEvent event = Log4jLogEvent.newBuilder().setMessage(new SimpleMessage("message")).setThrown(thrown).build();
@@ -60,7 +59,7 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("no logs parsed"));
 
-        int jsonLength = json.split(LINE_SEPARATOR).length;
+        int jsonLength = json.split("\\R").length;
         int stacktraceLength = thrown.getStackTrace().length;
         assertThat(
             "stacktrace should formatted in multiple lines. JsonLogLine= " + jsonLogLine + " result= " + result,

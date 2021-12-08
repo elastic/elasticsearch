@@ -137,7 +137,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
                         equalTo(RestStatus.BAD_REQUEST.getStatus())
                     );
                     assertThat(responseException.getMessage(), containsString("""
-                        {"error":{"root_cause":[{"type":"action_request_validation_exception"
+                        {"error":{"root_cause":[{"type":"action_request_validation_exception"\
                         """));
                     assertThat(
                         responseException.getMessage(),

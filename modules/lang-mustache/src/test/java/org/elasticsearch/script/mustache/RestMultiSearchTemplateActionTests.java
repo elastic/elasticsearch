@@ -36,8 +36,8 @@ public class RestMultiSearchTemplateActionTests extends RestActionTestCase {
 
     public void testTypeInPath() {
         String content = """
-            { "index": "some_index" }\s
-            {"source": {"query" : {"match_all" :{}}}}\s
+            { "index": "some_index" }
+            {"source": {"query" : {"match_all" :{}}}}
             """;
         BytesArray bytesContent = new BytesArray(content.getBytes(StandardCharsets.UTF_8));
 

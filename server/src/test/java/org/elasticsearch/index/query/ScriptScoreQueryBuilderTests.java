@@ -64,7 +64,7 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
               "script_score" : {
                 "query" : { "match_all" : {} },
                 "script" : {
-                  "source" : "doc['field'].value"\s
+                  "source" : "doc['field'].value"
                 },
                 "min_score" : 2.0
               }

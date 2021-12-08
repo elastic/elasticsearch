@@ -748,7 +748,7 @@ public class SecuritySystemIndices {
                         builder.startObject("properties");
                         {
                             builder.startObject("username");
-                            builder.field("type", "keyword");
+                            builder.field("type", "search_as_you_type");
                             builder.endObject();
 
                             builder.startObject("realm");
@@ -774,14 +774,15 @@ public class SecuritySystemIndices {
 
                             builder.startObject("email");
                             builder.field("type", "text");
+                            builder.field("analyzer", "email");
                             builder.endObject();
 
                             builder.startObject("full_name");
-                            builder.field("type", "text");
+                            builder.field("type", "search_as_you_type");
                             builder.endObject();
 
                             builder.startObject("display_name");
-                            builder.field("type", "text");
+                            builder.field("type", "search_as_you_type");
                             builder.endObject();
                         }
                         builder.endObject();
@@ -811,6 +812,7 @@ public class SecuritySystemIndices {
                     }
                     builder.endObject();
 
+                    // Application data, retrievable but not searchable
                     builder.startObject("application_data");
                     {
                         builder.field("type", "object");

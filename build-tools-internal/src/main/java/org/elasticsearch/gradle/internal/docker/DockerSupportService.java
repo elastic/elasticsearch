@@ -155,7 +155,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         final String message = String.format(
             Locale.ROOT,
             """
-                a problem occurred while using Docker from [%s]%s yet it is required to run the following task%s:\s
+                a problem occurred while using Docker from [%s]%s yet it is required to run the following task%s:
                 %s
                 the problem is that Docker exited with exit code [%d] with standard error output:
                 %s""",

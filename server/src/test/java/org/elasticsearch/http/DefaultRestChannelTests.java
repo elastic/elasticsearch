@@ -134,7 +134,7 @@ public class DefaultRestChannelTests extends ESTestCase {
     public void testHeadersSet() {
         Settings settings = Settings.builder().build();
         final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
-        httpRequest.getHeaders().put(Task.X_OPAQUE_ID, Collections.singletonList("abc"));
+        httpRequest.getHeaders().put(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList("abc"));
         final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 
@@ -162,7 +162,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         Map<String, List<String>> headers = httpResponse.headers();
         assertNull(headers.get("non-existent-header"));
         assertEquals(customHeaderValue, headers.get(customHeader).get(0));
-        assertEquals("abc", headers.get(Task.X_OPAQUE_ID).get(0));
+        assertEquals("abc", headers.get(Task.X_OPAQUE_ID_HTTP_HEADER).get(0));
         assertEquals(Integer.toString(resp.content().length()), headers.get(DefaultRestChannel.CONTENT_LENGTH).get(0));
         assertEquals(resp.contentType(), headers.get(DefaultRestChannel.CONTENT_TYPE).get(0));
     }
@@ -170,7 +170,7 @@ public class DefaultRestChannelTests extends ESTestCase {
     public void testCookiesSet() {
         Settings settings = Settings.builder().put(HttpTransportSettings.SETTING_HTTP_RESET_COOKIES.getKey(), true).build();
         final TestHttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/");
-        httpRequest.getHeaders().put(Task.X_OPAQUE_ID, Collections.singletonList("abc"));
+        httpRequest.getHeaders().put(Task.X_OPAQUE_ID_HTTP_HEADER, Collections.singletonList("abc"));
         final RestRequest request = RestRequest.request(parserConfig(), httpRequest, httpChannel);
         HttpHandlingSettings handlingSettings = HttpHandlingSettings.fromSettings(settings);
 

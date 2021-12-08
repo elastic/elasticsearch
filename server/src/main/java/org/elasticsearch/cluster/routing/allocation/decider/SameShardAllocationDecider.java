@@ -86,13 +86,13 @@ public class SameShardAllocationDecider extends AllocationDecider {
             return YES_AUTO_EXPAND_ALL;
         }
         if (node.node() != null) {
+            assert Strings.hasLength(node.node().getHostAddress()) : node;
             for (RoutingNode checkNode : allocation.routingNodes()) {
                 if (checkNode.node() == null) {
                     continue;
                 }
                 // check if its on the same host as the one we want to allocate to
                 assert Strings.hasLength(checkNode.node().getHostAddress()) : checkNode;
-                assert Strings.hasLength(node.node().getHostAddress()) : node;
                 if (checkNode.node().getHostAddress().equals(node.node().getHostAddress())) {
                     for (ShardRouting assignedShard : assignedShards) {
                         if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {

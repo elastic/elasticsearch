@@ -285,13 +285,13 @@ public class FrozenIndexIT extends ESIntegTestCase {
         int index1 = randomIntBetween(10, 50);
         for (int i = 0; i < index1; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("index-1").setId(id).setSource("value", i).get();
+            client().prepareIndex("_doc", "index-1").setId(id).setSource("value", i).get();
         }
 
         int index2 = randomIntBetween(10, 50);
         for (int i = 0; i < index2; i++) {
             String id = Integer.toString(i);
-            client().prepareIndex("index-2").setId(id).setSource("value", i).get();
+            client().prepareIndex("_doc", "index-2").setId(id).setSource("value", i).get();
         }
 
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index-1", "index-2")).actionGet());

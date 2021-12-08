@@ -497,7 +497,6 @@ public class PyTorchModelIT extends ESRestTestCase {
         );
     }
 
-
     public void testStopUsedDeploymentByIngestProcessor() throws IOException {
         String modelId = "test_stop_used_deployment_by_ingest_processor";
         createTrainedModel(modelId);

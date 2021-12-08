@@ -138,7 +138,7 @@ If you're using a custom index template, update it to remove the <<shard-allocat
 
 [discrete]
 [[set-tier-preference]]
-==== Set a tier preference for existing indices.
+==== Set a tier preference for existing indices
 
 {ilm-init} automatically transitions managed indices through the available
 data tiers by automatically injecting a <<ilm-migrate,migrate action>>
@@ -148,7 +148,7 @@ To enable {ilm-init} to move an _existing_ managed index
 through the data tiers, update the index settings to:
 
 . Remove the custom allocation filter by setting it to `null`.
-. Set the <<data-tier-shard-filtering,tier preference>>.
+. Set the <<tier-preference-allocation-filter,tier preference>>.
 
 For example, if your old template set the `data` attribute to `hot`
 to allocate shards to the hot tier, set the `data` attribute to `null`

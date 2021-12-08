@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -110,14 +112,15 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     public void infer(Map<String, Object> doc, InferenceConfigUpdate update, TimeValue timeout, ActionListener<InferenceResults> listener) {
         if (inferenceConfigHolder.get() == null) {
             listener.onFailure(
-                ExceptionsHelper.badRequestException("[{}] inference not possible against uninitialized model", params.getModelId())
+                ExceptionsHelper.conflictStatusException("[{}] inference not possible against uninitialized model", params.getModelId())
             );
             return;
         }
         if (update.isSupported(inferenceConfigHolder.get()) == false) {
             listener.onFailure(
-                ExceptionsHelper.badRequestException(
+                new ElasticsearchStatusException(
                     "[{}] inference not possible. Task is configured with [{}] but received update of type [{}]",
+                    RestStatus.FORBIDDEN,
                     params.getModelId(),
                     inferenceConfigHolder.get().getName(),
                     update.getName()

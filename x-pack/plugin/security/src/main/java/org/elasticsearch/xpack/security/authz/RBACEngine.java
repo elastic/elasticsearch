@@ -190,9 +190,8 @@ public class RBACEngine implements AuthorizationEngine {
                 return sameUsername;
             } else if (request instanceof GetApiKeyRequest) {
                 GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
-                if (AuthenticationType.API_KEY == authentication.getAuthenticationType()) {
-                    assert authentication.getLookedUpBy() == null : "runAs not supported for api key authentication";
-                    // if authenticated by API key then the request must also contain same API key id
+                if (authentication.isApiKey()) {
+                    // if the authentication is an API key then the request must also contain same API key id
                     String authenticatedApiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
                     if (Strings.hasText(getApiKeyRequest.getApiKeyId())) {
                         return getApiKeyRequest.getApiKeyId().equals(authenticatedApiKeyId);

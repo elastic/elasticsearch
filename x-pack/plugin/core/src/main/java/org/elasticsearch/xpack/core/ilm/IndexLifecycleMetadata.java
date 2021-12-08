@@ -122,6 +122,11 @@ public class IndexLifecycleMetadata implements Metadata.Custom {
     }
 
     @Override
+    public boolean isRestorable() {
+        return false;
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(policyMetadatas, operationMode);
     }

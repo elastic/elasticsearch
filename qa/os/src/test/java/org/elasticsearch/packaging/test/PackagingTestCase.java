@@ -734,7 +734,7 @@ public abstract class PackagingTestCase extends Assert {
         assertThat(configLines, not(contains(containsString("automatically generated in order to configure Security"))));
         Path caCert = ServerUtils.getCaCert(installation);
         if (caCert != null) {
-            assertThat(caCert.toString(), Matchers.not(Matchers.containsString("tls_auto_config")));
+            assertThat(caCert.toString(), Matchers.not(Matchers.containsString("generated_tls_certs")));
         }
     }
 
@@ -746,7 +746,7 @@ public abstract class PackagingTestCase extends Assert {
             lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
         }
         assertNotNull(lsResult.stdout);
-        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("tls_auto_config_")).findFirst();
+        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.equals("generated_tls_certs")).findFirst();
     }
 
 }

@@ -31,8 +31,8 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 == {api-description-title}
 
 The create trained model API enables you to supply a trained model that is not
-created by {dfanalytics}.
-
+created by {dfanalytics}. The trained model must be in a TorchScript
+representation for use with {stack} {ml} features.
 
 [[ml-put-trained-models-path-params]]
 == {api-path-parms-title}

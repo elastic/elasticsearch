@@ -310,11 +310,11 @@ public class HeaderWarning {
         return getSingleValue(Task.X_OPAQUE_ID_HTTP_HEADER);
     }
 
-    private static String getSingleValue(String productOrigin) {
+    private static String getSingleValue(String headerName) {
         return THREAD_CONTEXT.stream()
-            .filter(t -> t.getHeader(productOrigin) != null)
+            .filter(t -> t.getHeader(headerName) != null)
             .findFirst()
-            .map(t -> t.getHeader(productOrigin))
+            .map(t -> t.getHeader(headerName))
             .orElse("");
     }
 

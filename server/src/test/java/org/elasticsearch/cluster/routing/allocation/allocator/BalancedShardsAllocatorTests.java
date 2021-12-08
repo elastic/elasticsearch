@@ -38,8 +38,8 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         // add new index
         String index = "idx_new";
         Metadata metadata = Metadata.builder(clusterState.metadata())
-                .put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
-                .build();
+            .put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            .build();
         RoutingTable initialRoutingTable = RoutingTable.builder(clusterState.routingTable()).addAsNew(metadata.index(index)).build();
         clusterState = ClusterState.builder(clusterState).metadata(metadata).routingTable(initialRoutingTable).build();
 

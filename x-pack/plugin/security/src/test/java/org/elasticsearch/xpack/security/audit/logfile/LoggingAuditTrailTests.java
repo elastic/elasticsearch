@@ -299,7 +299,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         commonFields = new LoggingAuditTrail.EntryCommonFields(settings, localNode).commonFields;
         threadContext = new ThreadContext(Settings.EMPTY);
         if (randomBoolean()) {
-            threadContext.putHeader(Task.X_OPAQUE_ID, randomAlphaOfLengthBetween(1, 4));
+            threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, randomAlphaOfLengthBetween(1, 4));
         }
         if (randomBoolean()) {
             threadContext.putHeader(
@@ -2634,7 +2634,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     private static void opaqueId(ThreadContext threadContext, MapBuilder<String, String> checkedFields) {
-        final String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID);
+        final String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
         if (opaqueId != null) {
             checkedFields.put(LoggingAuditTrail.OPAQUE_ID_FIELD_NAME, opaqueId);
         }

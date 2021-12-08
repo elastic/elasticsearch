@@ -64,7 +64,7 @@ public class MlMetadata implements Metadata.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumIndexCompatibilityVersion();
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override
@@ -173,6 +173,11 @@ public class MlMetadata implements Metadata.Custom {
         @Override
         public String getWriteableName() {
             return TYPE;
+        }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
         }
 
         static Diff<Job> readJobDiffFrom(StreamInput in) throws IOException {

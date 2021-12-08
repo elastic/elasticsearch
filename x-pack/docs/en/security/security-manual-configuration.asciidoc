@@ -15,8 +15,10 @@ If you want to use your own Certificate Authority (CA) or would rather manually
 configure security, the following scenarios provide steps for configuring TLS
 on the transport layer, plus securing HTTPS traffic if you want it.
 
-NOTE: Make sure that you configure security _before_ you start your {es} nodes
-and the auto-configuration process will respect your security configuration.
+If you configure security manually _before_ starting your {es} nodes, the
+auto-configuration process will respect your security configuration. You can
+adjust your TLS configuration at any time, such as 
+<<update-node-certs,updating node certificates>>.
 
 image::images/elastic-security-overview.png[Elastic Security layers]
 
@@ -24,7 +26,7 @@ image::images/elastic-security-overview.png[Elastic Security layers]
 [[security-basic-overview]]
 === Basic security ({es} + {kib})
 
-This scenario configures Transport Layer Security (TLS) for communication between
+This scenario configures TLS for communication between
 nodes. This security layer requires that nodes verify security certificates,
 which prevents unauthorized nodes from joining your {es} cluster.
 
@@ -54,9 +56,9 @@ cluster are secure.
 
 include::securing-communications/security-basic-setup.asciidoc[]
 
-include::securing-communications/change-passwords-native-users.asciidoc[]
-
 include::securing-communications/security-basic-setup-https.asciidoc[]
+
+include::securing-communications/change-passwords-native-users.asciidoc[]
 
 include::securing-communications/enabling-cipher-suites.asciidoc[]
 

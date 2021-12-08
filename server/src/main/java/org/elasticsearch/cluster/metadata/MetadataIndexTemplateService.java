@@ -34,8 +34,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -48,6 +51,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -604,25 +608,7 @@ public class MetadataIndexTemplateService {
             return currentState;
         }
 
-        validate(name, finalIndexTemplate);
-        validateDataStreamsStillReferenced(currentState, name, finalIndexTemplate);
-
-        // Finally, right before adding the template, we need to ensure that the composite settings,
-        // mappings, and aliases are valid after it's been composed with the component templates
-        try {
-            validateCompositeTemplate(currentState, name, finalIndexTemplate, indicesService, xContentRegistry, systemIndices);
-        } catch (Exception e) {
-            throw new IllegalArgumentException(
-                "composable template ["
-                    + name
-                    + "] template after composition "
-                    + (finalIndexTemplate.composedOf().size() > 0
-                        ? "with component templates " + finalIndexTemplate.composedOf() + " "
-                        : "")
-                    + "is invalid",
-                e
-            );
-        }
+        validateIndexTemplateV2(name, finalIndexTemplate, currentState);
         logger.info(
             "{} index template [{}] for index patterns {}",
             existing == null ? "adding" : "updating",
@@ -630,6 +616,67 @@ public class MetadataIndexTemplateService {
             template.indexPatterns()
         );
         return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate)).build();
+    }
+
+    private void validateIndexTemplateV2(String name, ComposableIndexTemplate indexTemplate, ClusterState currentState) {
+        // Workaround for the fact that start_time and end_time are injected by the MetadataCreateDataStreamService upon creation,
+        // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
+        ComposableIndexTemplate templateToValidate = indexTemplate;
+        if (indexTemplate.getDataStreamTemplate() != null) {
+            var result = resolveIndexModeAndLookAheadTimeSetting(indexTemplate, currentState.metadata());
+            var indexMode = result.v1();
+            if (indexMode == IndexMode.TIME_SERIES) {
+                Template finalTemplate = indexTemplate.template();
+                Settings.Builder indexSettings = Settings.builder()
+                    .put(finalTemplate.settings());
+                MetadataCreateDataStreamService.prepareFirstBackingIndexForTSDB(indexSettings, System.currentTimeMillis(), result.v2());
+                templateToValidate = new ComposableIndexTemplate(
+                    indexTemplate.indexPatterns(),
+                    new Template(indexSettings.build(), finalTemplate.mappings(), finalTemplate.aliases()),
+                    indexTemplate.composedOf(),
+                    indexTemplate.priority(),
+                    indexTemplate.version(),
+                    indexTemplate.metadata(),
+                    indexTemplate.getDataStreamTemplate(),
+                    indexTemplate.getAllowAutoCreate()
+                );
+            }
+        }
+
+        validate(name, templateToValidate);
+        validateDataStreamsStillReferenced(currentState, name, templateToValidate);
+
+        // Finally, right before adding the template, we need to ensure that the composite settings,
+        // mappings, and aliases are valid after it's been composed with the component templates
+        try {
+            validateCompositeTemplate(currentState, name, templateToValidate, indicesService, xContentRegistry, systemIndices);
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                "composable template ["
+                    + name
+                    + "] template after composition "
+                    + (indexTemplate.composedOf().size() > 0
+                    ? "with component templates " + indexTemplate.composedOf() + " "
+                    : "")
+                    + "is invalid",
+                e
+            );
+        }
+    }
+
+    static Tuple<IndexMode, Duration> resolveIndexModeAndLookAheadTimeSetting(ComposableIndexTemplate indexTemplate, Metadata metadata) {
+        Settings allTemplateSettings = resolveSettings(
+            indexTemplate,
+            metadata.componentTemplates()
+        );
+        IndexMode indexMode = Optional.ofNullable(allTemplateSettings.get(IndexSettings.MODE.getKey()))
+            .map(value -> IndexMode.valueOf(value.toUpperCase(Locale.ROOT)))
+            .orElse(IndexMode.STANDARD);
+        TimeValue lookAheadTime = allTemplateSettings.getAsTime(
+            IndexSettings.LOOK_AHEAD_TIME.getKey(),
+            IndexSettings.LOOK_AHEAD_TIME.getDefault(allTemplateSettings)
+        );
+        return new Tuple<>(indexMode, Duration.ofMillis(lookAheadTime.getMillis()));
     }
 
     /**

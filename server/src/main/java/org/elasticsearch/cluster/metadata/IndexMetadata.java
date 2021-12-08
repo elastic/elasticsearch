@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -332,6 +333,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.IndexScope
     );
     public static final String SETTING_CREATION_DATE_STRING = "index.creation_date_string";
+    public static final String SETTING_TIME_SERIES_START_TIME_STRING = "index.time_series.start_time_string";
+    public static final String SETTING_TIME_SERIES_END_TIME_STRING = "index.time_series.end_time_string";
     public static final String SETTING_INDEX_UUID = "index.uuid";
     public static final String SETTING_HISTORY_UUID = "index.history.uuid";
     public static final String SETTING_DATA_PATH = "index.data_path";
@@ -1913,6 +1916,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             ZonedDateTime creationDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(creationDate), ZoneOffset.UTC);
             builder.put(SETTING_CREATION_DATE_STRING, creationDateTime.toString());
         }
+        Long timeSeriesStartTime = settings.getAsLong(IndexSettings.TIME_SERIES_START_TIME.getKey(), null);
+        Long timeSeriesEndTime = settings.getAsLong(IndexSettings.TIME_SERIES_END_TIME.getKey(), null);
+        if (timeSeriesStartTime != null && timeSeriesEndTime != null) {
+            ZonedDateTime startDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(timeSeriesStartTime), ZoneOffset.UTC);
+            builder.put(SETTING_TIME_SERIES_START_TIME_STRING, startDateTime.toString());
+            ZonedDateTime endDateTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(timeSeriesEndTime), ZoneOffset.UTC);
+            builder.put(SETTING_TIME_SERIES_END_TIME_STRING, endDateTime.toString());
+        }
+
         return builder.build();
     }
 

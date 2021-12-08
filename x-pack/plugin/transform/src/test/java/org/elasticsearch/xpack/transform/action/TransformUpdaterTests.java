@@ -148,7 +148,7 @@ public class TransformUpdaterTests extends ESTestCase {
 
         TransformConfig minCompatibleConfig = TransformConfigTests.randomTransformConfig(
             randomAlphaOfLengthBetween(1, 10),
-            TransformConfig.CONFIG_VERSION_LAST_CHANGED
+            TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED
         );
         transformConfigManager.putTransformConfiguration(minCompatibleConfig, ActionListener.wrap(r -> {}, e -> {}));
 
@@ -177,7 +177,7 @@ public class TransformUpdaterTests extends ESTestCase {
         );
         assertConfiguration(listener -> transformConfigManager.getTransformConfiguration(minCompatibleConfig.getId(), listener), config -> {
             assertNotNull(config);
-            assertEquals(TransformConfig.CONFIG_VERSION_LAST_CHANGED, config.getVersion());
+            assertEquals(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED, config.getVersion());
         });
     }
 
@@ -189,7 +189,7 @@ public class TransformUpdaterTests extends ESTestCase {
             VersionUtils.randomVersionBetween(
                 random(),
                 Version.V_7_2_0,
-                VersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_CHANGED)
+                VersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
             )
         );
 
@@ -274,7 +274,7 @@ public class TransformUpdaterTests extends ESTestCase {
             VersionUtils.randomVersionBetween(
                 random(),
                 Version.V_7_2_0,
-                VersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_CHANGED)
+                VersionUtils.getPreviousVersion(TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED)
             )
         );
 

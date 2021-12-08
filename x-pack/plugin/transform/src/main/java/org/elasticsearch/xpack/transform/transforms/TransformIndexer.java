@@ -321,8 +321,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
         }, listener::onFailure);
 
-        ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(fieldMappings -> {
-            this.fieldMappings = fieldMappings;
+        ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(mappings -> {
+            this.fieldMappings = mappings;
             configurationReadyListener.onResponse(null);
         }, listener::onFailure);
 

@@ -23,7 +23,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
@@ -53,7 +53,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
     private final AsyncExecutionId searchId;
     private final Client client;
     private final ThreadPool threadPool;
-    private final Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier;
+    private final Supplier<AggregationReduceContext> aggReduceContextSupplier;
     private final Listener progressListener;
 
     private final Map<String, String> originHeaders;
@@ -95,7 +95,7 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask {
         AsyncExecutionId searchId,
         Client client,
         ThreadPool threadPool,
-        Function<Supplier<Boolean>, Supplier<InternalAggregation.ReduceContext>> aggReduceContextSupplierFactory
+        Function<Supplier<Boolean>, Supplier<AggregationReduceContext>> aggReduceContextSupplierFactory
     ) {
         super(id, type, action, () -> "async_search{" + descriptionSupplier.get() + "}", parentTaskId, taskHeaders);
         this.expirationTimeMillis = getStartTime() + keepAlive.getMillis();

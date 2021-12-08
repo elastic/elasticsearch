@@ -145,11 +145,11 @@ public class WatcherDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::x-pack-put-watch-execute
             // you can also use the WatchSourceBuilder from org.elasticsearch.plugin:x-pack-core to create a watch programmatically
             BytesReference watch = new BytesArray("""
-                    {
-                      "trigger": { "schedule": { "interval": "10h" } },
-                      "input": { "simple": { "foo" : "bar" } },
-                      "actions": { "logme": { "logging": { "text": "{{ctx.payload}}" } } }
-                    }""");
+                {
+                  "trigger": { "schedule": { "interval": "10h" } },
+                  "input": { "simple": { "foo" : "bar" } },
+                  "actions": { "logme": { "logging": { "text": "{{ctx.payload}}" } } }
+                }""");
             PutWatchRequest request = new PutWatchRequest("my_watch_id", watch, XContentType.JSON);
             request.setActive(false); // <1>
             PutWatchResponse response = client.watcher().putWatch(request, RequestOptions.DEFAULT);

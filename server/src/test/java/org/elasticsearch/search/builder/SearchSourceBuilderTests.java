@@ -304,7 +304,8 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
                     "query" : {
                         "match": { "content": { "query": "foo bar" }}
                      },
-                    "rescore": {        "window_size": 50,
+                    "rescore": {
+                        "window_size": 50,
                         "query": {
                             "rescore_query" : {
                                 "match": { "content": { "query": "baz" } }

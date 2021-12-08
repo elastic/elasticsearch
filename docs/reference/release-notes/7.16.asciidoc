@@ -231,7 +231,7 @@ Search::
 * Add `_ignored` and `_routing` metatada fields to fields API {es-pull}78981[#78981] (issues: {es-issue}75836[#75836], {es-issue}78828[#78828])
 * Add `_index` and `_version` metatada fields to fields API {es-pull}79042[#79042] (issues: {es-issue}75836[#75836], {es-issue}78828[#78828])
 * Add ability to retrieve `_id` via fields option {es-pull}78828[#78828] (issue: {es-issue}75836[#75836])
-* Add node-level field caps requests {es-pull}79212[#79212] (issues: {es-issue}74648[#74648], {es-issue}77047[#77047], {es-issue}78647[#78647])
+* Add node-level field capabilities API requests {es-pull}79212[#79212] (issues: {es-issue}74648[#74648], {es-issue}77047[#77047], {es-issue}78647[#78647])
 * Add segment sorter for data streams {es-pull}75195[#75195]
 * Add sort optimization with after from Lucene {es-pull}64292[#64292]
 * Don't always rewrite the Lucene query in search phases {es-pull}79358[#79358]
@@ -239,7 +239,7 @@ Search::
 * Node level can match action {es-pull}78765[#78765]
 * Search - return ignored field values from fields API {es-pull}78697[#78697] (issue: {es-issue}74121[#74121])
 * Support request cache on frozen tier {es-pull}77694[#77694] (issue: {es-issue}75309[#75309])
-* Use `search_coordination` threadpool in field caps {es-pull}79378[#79378] (issue: {es-issue}79212[#79212])
+* Use `search_coordination` threadpool for field capabilities API requests {es-pull}79378[#79378] (issue: {es-issue}79212[#79212])
 * Create a sha-256 hash of the shard request cache key {es-pull}74877[#74877] (issue: {es-issue}74061[#74061])
 
 Security::

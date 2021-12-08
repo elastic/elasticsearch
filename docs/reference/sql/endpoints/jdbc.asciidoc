@@ -149,6 +149,10 @@ will be - typically the first in natural ascending order) for fields with multip
 `index.include.frozen` (default `false`):: Whether to include frozen indices in the query execution or not (default).
 
 [discrete]
+==== Cluster
+`catalog`:: The default catalog to execute the query under.
+
+[discrete]
 ==== Additional
 
 `validate.properties` (default `true`):: If disabled, it will ignore any misspellings or unrecognizable properties. When enabled, an exception

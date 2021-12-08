@@ -12,8 +12,8 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.ToScriptField;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues.GeoShapeValue;
 import org.elasticsearch.xpack.spatial.index.fielddata.LeafGeoShapeFieldData;
@@ -27,6 +27,12 @@ import static org.elasticsearch.common.geo.SphericalMercatorUtils.lonToSpherical
 
 public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoShapeFieldData {
 
+    private final ToScriptField<GeoShapeValues> toScriptField;
+
+    public AbstractAtomicGeoShapeShapeFieldData(ToScriptField<GeoShapeValues> toScriptField) {
+        this.toScriptField = toScriptField;
+    }
+
     @Override
     public final SortedBinaryDocValues getBytesValues() {
         throw new UnsupportedOperationException("scripts and term aggs are not supported by geo_shape doc values");
@@ -34,11 +40,11 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
 
     @Override
     public final DocValuesField<?> getScriptField(String name) {
-        return new DelegateDocValuesField(new GeoShapeScriptValues(new GeoShapeSupplier(getGeoShapeValues())), name);
+        return toScriptField.getScriptField(getGeoShapeValues(), name);
     }
 
-    public static LeafGeoShapeFieldData empty(final int maxDoc) {
-        return new AbstractAtomicGeoShapeShapeFieldData() {
+    public static LeafGeoShapeFieldData empty(final int maxDoc, ToScriptField<GeoShapeValues> toScriptField) {
+        return new AbstractAtomicGeoShapeShapeFieldData(toScriptField) {
 
             @Override
             public long ramBytesUsed() {
@@ -60,14 +66,14 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
         };
     }
 
-    private static final class GeoShapeSupplier implements ScriptDocValues.GeometrySupplier<GeoShapeValue> {
+    public static final class GeoShapeSupplier implements ScriptDocValues.GeometrySupplier<GeoShapeValue> {
 
         private final GeoShapeValues in;
         private final GeoPoint centroid = new GeoPoint();
         private final GeoBoundingBox boundingBox = new GeoBoundingBox(new GeoPoint(), new GeoPoint());
         private GeoShapeValues.GeoShapeValue value;
 
-        private GeoShapeSupplier(GeoShapeValues in) {
+        public GeoShapeSupplier(GeoShapeValues in) {
             this.in = in;
         }
 
@@ -98,21 +104,21 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
         }
 
         @Override
-        public GeoPoint getCentroid() {
+        public GeoPoint getInternalCentroid() {
             return centroid;
         }
 
         @Override
-        public GeoBoundingBox getBoundingBox() {
+        public GeoBoundingBox getInternalBoundingBox() {
             return boundingBox;
         }
     }
 
-    private static final class GeoShapeScriptValues extends ScriptDocValues.Geometry<GeoShapeValue> {
+    public static final class GeoShapeScriptValues extends ScriptDocValues.Geometry<GeoShapeValue> {
 
         private final GeoShapeSupplier gsSupplier;
 
-        private GeoShapeScriptValues(GeoShapeSupplier supplier) {
+        public GeoShapeScriptValues(GeoShapeSupplier supplier) {
             super(supplier);
             this.gsSupplier = supplier;
         }
@@ -124,7 +130,7 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
 
         @Override
         public GeoPoint getCentroid() {
-            return gsSupplier.getInternal() == null ? null : gsSupplier.getCentroid();
+            return gsSupplier.getInternal() == null ? null : gsSupplier.getInternalCentroid();
         }
 
         @Override
@@ -139,7 +145,7 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
 
         @Override
         public GeoBoundingBox getBoundingBox() {
-            return gsSupplier.getInternal() == null ? null : gsSupplier.getBoundingBox();
+            return gsSupplier.getInternal() == null ? null : gsSupplier.getInternalBoundingBox();
         }
 
         @Override

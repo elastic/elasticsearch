@@ -20,7 +20,7 @@ import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -46,19 +46,14 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
     @Before
     public void setup() {
-        searchPhaseController = new SearchPhaseController((t, s) -> new InternalAggregation.ReduceContextBuilder() {
+        searchPhaseController = new SearchPhaseController((t, s) -> new AggregationReduceContext.Builder() {
             @Override
-            public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(
-                    BigArrays.NON_RECYCLING_INSTANCE,
-                    null,
-                    () -> PipelineAggregator.PipelineTree.EMPTY,
-                    t
-                );
+            public AggregationReduceContext forPartialReduction() {
+                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t);
             }
 
-            public InternalAggregation.ReduceContext forFinalReduction() {
-                return InternalAggregation.ReduceContext.forFinalReduction(
+            public AggregationReduceContext forFinalReduction() {
+                return new AggregationReduceContext.ForFinal(
                     BigArrays.NON_RECYCLING_INSTANCE,
                     null,
                     b -> {},

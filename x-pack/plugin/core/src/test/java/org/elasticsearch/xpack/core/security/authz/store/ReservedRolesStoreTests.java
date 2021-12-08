@@ -2168,6 +2168,8 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertOnlyReadAllowed(role, "heardbeat-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "kibana_sample_data_-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, ".siem-signals-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".alerts-" + randomIntBetween(0, 5));
+        assertOnlyReadAllowed(role, ".preview.alerts-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5) + "-transaction-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "logs-" + randomIntBetween(0, 5));
         assertOnlyReadAllowed(role, "auditbeat-" + randomIntBetween(0, 5));
@@ -2230,6 +2232,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".lists-" + randomIntBetween(0, 5));
         assertReadWriteDocsAndMaintenanceButNotDeleteIndexAllowed(role, ".items-" + randomIntBetween(0, 5));
         assertReadWriteDocsButNotDeleteIndexAllowed(role, "observability-annotations");
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, ".alerts-" + randomIntBetween(0, 5));
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, ".internal.alerts-" + randomIntBetween(0, 5));
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, ".preview.alerts-" + randomIntBetween(0, 5));
+        assertReadWriteDocsButNotDeleteIndexAllowed(role, ".internal.preview.alerts-" + randomIntBetween(0, 5));
 
         assertNoAccessAllowed(role, RestrictedIndicesNames.RESTRICTED_NAMES);
         assertNoAccessAllowed(role, "." + randomAlphaOfLengthBetween(6, 10));

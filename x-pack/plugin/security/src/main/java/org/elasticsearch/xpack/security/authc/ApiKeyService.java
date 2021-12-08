@@ -90,7 +90,6 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
-import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -137,7 +136,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
-import static org.elasticsearch.xpack.core.security.authc.Authentication.VERSION_API_KEY_ROLES_AS_BYTES;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 
@@ -533,87 +531,7 @@ public class ApiKeyService {
         }), client::get);
     }
 
-    /**
-     * This method is kept for BWC and should only be used for authentication objects created before v7.9.0.
-     * For authentication of newer versions, use {@link #getApiKeyIdAndRoleBytes}
-     *
-     * The current request has been authenticated by an API key and this method enables the
-     * retrieval of role descriptors that are associated with the api key
-     */
-    public void getRoleForApiKey(Authentication authentication, ActionListener<ApiKeyRoleDescriptors> listener) {
-        if (authentication.getAuthenticationType() != AuthenticationType.API_KEY) {
-            throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
-        }
-        assert authentication.getVersion().before(VERSION_API_KEY_ROLES_AS_BYTES)
-            : "This method only applies to authentication objects created before v7.9.0";
-
-        final Map<String, Object> metadata = authentication.getMetadata();
-        final String apiKeyId = (String) metadata.get(AuthenticationField.API_KEY_ID_KEY);
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> roleDescriptors = (Map<String, Object>) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY);
-        @SuppressWarnings("unchecked")
-        final Map<String, Object> authnRoleDescriptors = (Map<String, Object>) metadata.get(
-            AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY
-        );
-
-        if (roleDescriptors == null && authnRoleDescriptors == null) {
-            listener.onFailure(new ElasticsearchSecurityException("no role descriptors found for API key"));
-        } else if (roleDescriptors == null || roleDescriptors.isEmpty()) {
-            final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(apiKeyId, authnRoleDescriptors);
-            listener.onResponse(new ApiKeyRoleDescriptors(apiKeyId, authnRoleDescriptorsList, null));
-        } else {
-            final List<RoleDescriptor> roleDescriptorList = parseRoleDescriptors(apiKeyId, roleDescriptors);
-            final List<RoleDescriptor> authnRoleDescriptorsList = parseRoleDescriptors(apiKeyId, authnRoleDescriptors);
-            listener.onResponse(new ApiKeyRoleDescriptors(apiKeyId, roleDescriptorList, authnRoleDescriptorsList));
-        }
-    }
-
-    public Tuple<String, BytesReference> getApiKeyIdAndRoleBytes(Authentication authentication, boolean limitedBy) {
-        if (authentication.getAuthenticationType() != AuthenticationType.API_KEY) {
-            throw new IllegalStateException("authentication type must be api key but is " + authentication.getAuthenticationType());
-        }
-        assert authentication.getVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
-            : "This method only applies to authentication objects created on or after v7.9.0";
-
-        final Map<String, Object> metadata = authentication.getMetadata();
-        final BytesReference bytesReference = (BytesReference) metadata.get(
-            limitedBy ? AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY : AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY
-        );
-        if (limitedBy && bytesReference.length() == 2 && "{}".equals(bytesReference.utf8ToString())) {
-            if (ServiceAccountSettings.REALM_NAME.equals(metadata.get(AuthenticationField.API_KEY_CREATOR_REALM_NAME))
-                && "elastic/fleet-server".equals(authentication.getUser().principal())) {
-                return new Tuple<>((String) metadata.get(AuthenticationField.API_KEY_ID_KEY), FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14);
-            }
-        }
-        return new Tuple<>((String) metadata.get(AuthenticationField.API_KEY_ID_KEY), bytesReference);
-    }
-
-    public static class ApiKeyRoleDescriptors {
-
-        private final String apiKeyId;
-        private final List<RoleDescriptor> roleDescriptors;
-        private final List<RoleDescriptor> limitedByRoleDescriptors;
-
-        public ApiKeyRoleDescriptors(String apiKeyId, List<RoleDescriptor> roleDescriptors, List<RoleDescriptor> limitedByDescriptors) {
-            this.apiKeyId = apiKeyId;
-            this.roleDescriptors = roleDescriptors;
-            this.limitedByRoleDescriptors = limitedByDescriptors;
-        }
-
-        public String getApiKeyId() {
-            return apiKeyId;
-        }
-
-        public List<RoleDescriptor> getRoleDescriptors() {
-            return roleDescriptors;
-        }
-
-        public List<RoleDescriptor> getLimitedByRoleDescriptors() {
-            return limitedByRoleDescriptors;
-        }
-    }
-
-    private List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, final Map<String, Object> roleDescriptors) {
+    public List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, final Map<String, Object> roleDescriptors) {
         if (roleDescriptors == null) {
             return null;
         }
@@ -639,7 +557,7 @@ public class ApiKeyService {
         }).collect(Collectors.toList());
     }
 
-    public List<RoleDescriptor> parseRoleDescriptors(final String apiKeyId, BytesReference bytesReference) {
+    public List<RoleDescriptor> parseRoleDescriptorsBytes(final String apiKeyId, BytesReference bytesReference) {
         if (bytesReference == null) {
             return Collections.emptyList();
         }

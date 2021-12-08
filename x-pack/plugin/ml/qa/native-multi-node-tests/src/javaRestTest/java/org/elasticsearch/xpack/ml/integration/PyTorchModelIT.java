@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.putPipeline;
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateRequest;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -465,7 +466,11 @@ public class PyTorchModelIT extends ESRestTestCase {
         String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
         assertThat(
             response,
-            containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API.")
+            allOf(
+                containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API."),
+                containsString("error"),
+                not(containsString("warning"))
+            )
         );
 
         client().performRequest(
@@ -491,6 +496,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API.")
         );
     }
+
 
     public void testStopUsedDeploymentByIngestProcessor() throws IOException {
         String modelId = "test_stop_used_deployment_by_ingest_processor";
@@ -528,6 +534,104 @@ public class PyTorchModelIT extends ESRestTestCase {
         stopDeployment(modelId, true);
     }
 
+    public void testPipelineWithBadProcessor() throws IOException {
+        String model = "deployed";
+        createTrainedModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        putModelDefinition(model);
+        startDeployment(model);
+        String source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "deployed",
+                      "inference_config": {
+                        "ner": {}
+                      }
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"input": "my words"}}]
+            }
+            """;
+
+        String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(
+            response,
+            allOf(
+                containsString("inference not possible. Task is configured with [pass_through] but received update of type [ner]"),
+                containsString("error"),
+                not(containsString("warning"))
+            )
+        );
+
+        source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "deployed"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"input": "my words"}}]
+            }
+            """;
+
+        response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(response, allOf(containsString("error"), not(containsString("warning"))));
+
+        // Missing input field is a warning
+        source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "deployed"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"something": "my words"}}]
+            }
+            """;
+
+        response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(response, containsString("warning"));
+    }
+
+    public void testDeleteModelWithDeploymentUsedByIngestProcessor() throws IOException {
+        String modelId = "test_delete_model_with_used_deployment";
+        createTrainedModel(modelId);
+        putModelDefinition(modelId);
+        putVocabulary(List.of("these", "are", "my", "words"), modelId);
+        startDeployment(modelId);
+
+        ResponseException ex = expectThrows(ResponseException.class, () -> deleteModel(modelId, false));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(409));
+        assertThat(
+            EntityUtils.toString(ex.getResponse().getEntity()),
+            containsString(
+                "Cannot delete model [test_delete_model_with_used_deployment] as it is currently deployed;"
+                    + " use force to delete the model"
+            )
+        );
+
+        deleteModel(modelId, true);
+
+        assertThatTrainedModelAllocationMetadataIsEmpty();
+    }
+
+>>>>>>> 2dec141e4585... [ML] fail inference processor more consistently on certain error types (#81475)
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
         int inferenceCount = 0;
         for (var node : nodes) {

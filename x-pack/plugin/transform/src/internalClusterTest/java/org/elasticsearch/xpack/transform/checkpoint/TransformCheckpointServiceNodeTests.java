@@ -95,12 +95,12 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         void setShardStats(ShardStats[] shardStats) {
             this.shardStats = shardStats;
 
-            Set<String> indices = new HashSet<>();
+            Set<String> indicesSet = new HashSet<>();
             for (ShardStats s : shardStats) {
-                indices.add(s.getShardRouting().getIndexName());
+                indicesSet.add(s.getShardRouting().getIndexName());
             }
 
-            this.indices = indices.toArray(new String[0]);
+            this.indices = indicesSet.toArray(new String[0]);
         }
 
         @SuppressWarnings("unchecked")

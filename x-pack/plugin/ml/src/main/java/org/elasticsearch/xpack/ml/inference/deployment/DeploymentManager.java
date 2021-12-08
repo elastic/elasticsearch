@@ -378,35 +378,31 @@ public class DeploymentManager {
 
         private void processResult(
             PyTorchResult pyTorchResult,
-            ProcessContext processContext,
+            ProcessContext context,
             TokenizationResult tokenization,
             NlpTask.ResultProcessor inferenceResultsProcessor,
-            ActionListener<InferenceResults> listener
+            ActionListener<InferenceResults> resultsListener
         ) {
             if (pyTorchResult.isError()) {
-                listener.onFailure(new ElasticsearchStatusException(pyTorchResult.getError(), RestStatus.INTERNAL_SERVER_ERROR));
+                resultsListener.onFailure(new ElasticsearchStatusException(pyTorchResult.getError(), RestStatus.INTERNAL_SERVER_ERROR));
                 return;
             }
 
-            logger.debug(
-                () -> new ParameterizedMessage("[{}] retrieved result for request [{}]", processContext.task.getModelId(), requestId)
-            );
+            logger.debug(() -> new ParameterizedMessage("[{}] retrieved result for request [{}]", context.task.getModelId(), requestId));
             if (notified.get()) {
                 // The request has timed out. No need to spend cycles processing the result.
                 logger.debug(
                     () -> new ParameterizedMessage(
                         "[{}] skipping result processing for request [{}] as the request has timed out",
-                        processContext.task.getModelId(),
+                        context.task.getModelId(),
                         requestId
                     )
                 );
                 return;
             }
             InferenceResults results = inferenceResultsProcessor.processResult(tokenization, pyTorchResult);
-            logger.debug(
-                () -> new ParameterizedMessage("[{}] processed result for request [{}]", processContext.task.getModelId(), requestId)
-            );
-            listener.onResponse(results);
+            logger.debug(() -> new ParameterizedMessage("[{}] processed result for request [{}]", context.task.getModelId(), requestId));
+            resultsListener.onResponse(results);
         }
     }
 

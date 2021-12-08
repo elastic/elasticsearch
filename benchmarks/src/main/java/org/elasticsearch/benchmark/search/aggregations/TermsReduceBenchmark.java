@@ -24,8 +24,8 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
@@ -65,29 +65,21 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Fork(value = 1)
 public class TermsReduceBenchmark {
 
-    private final SearchPhaseController controller = new SearchPhaseController(
-        (task, req) -> new InternalAggregation.ReduceContextBuilder() {
-            @Override
-            public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(null, null, () -> PipelineAggregator.PipelineTree.EMPTY, task);
-            }
-
-            @Override
-            public InternalAggregation.ReduceContext forFinalReduction() {
-                final MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
-                    Integer.MAX_VALUE,
-                    new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-                );
-                return InternalAggregation.ReduceContext.forFinalReduction(
-                    null,
-                    null,
-                    bucketConsumer,
-                    PipelineAggregator.PipelineTree.EMPTY,
-                    task
-                );
-            }
+    private final SearchPhaseController controller = new SearchPhaseController((task, req) -> new AggregationReduceContext.Builder() {
+        @Override
+        public AggregationReduceContext forPartialReduction() {
+            return new AggregationReduceContext.ForPartial(null, null, task);
         }
-    );
+
+        @Override
+        public AggregationReduceContext forFinalReduction() {
+            final MultiBucketConsumerService.MultiBucketConsumer bucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
+                Integer.MAX_VALUE,
+                new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+            );
+            return new AggregationReduceContext.ForFinal(null, null, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY, task);
+        }
+    });
 
     @State(Scope.Benchmark)
     public static class TermsList extends AbstractList<InternalAggregations> {

@@ -18,11 +18,10 @@ import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -371,12 +370,7 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             keyConverters2,
             null
         );
-        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
-            bigArrays,
-            mockScriptService,
-            () -> PipelineAggregator.PipelineTree.EMPTY,
-            () -> false
-        );
+        AggregationReduceContext context = new AggregationReduceContext.ForPartial(bigArrays, mockScriptService, () -> false);
 
         InternalMultiTerms result = (InternalMultiTerms) terms1.reduce(List.of(terms1, terms2), context);
         assertThat(result.buckets, hasSize(3));

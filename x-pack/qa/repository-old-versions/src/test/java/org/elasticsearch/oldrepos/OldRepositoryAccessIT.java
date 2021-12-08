@@ -163,8 +163,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 assertThat(snapshotStatus.getStats().getTotalSize(), greaterThan(0L));
                 assertThat(snapshotStatus.getStats().getTotalFileCount(), greaterThan(0));
 
-                // so far only added basic infrastructure for reading 6.0.0+ indices
-                if (Build.CURRENT.isSnapshot() && oldVersion.onOrAfter(Version.fromString("6.0.0"))) {
+                if (Build.CURRENT.isSnapshot()) {
                     // restore / mount and check whether searches work
                     restoreMountAndVerify(numDocs, expectedIds, client, numberOfShards);
 
@@ -173,7 +172,14 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                         client.indices().close(new CloseIndexRequest("restored_test"), RequestOptions.DEFAULT).isShardsAcknowledged()
                     );
                     assertTrue(
-                        client.indices().close(new CloseIndexRequest("mounted_test"), RequestOptions.DEFAULT).isShardsAcknowledged()
+                        client.indices()
+                            .close(new CloseIndexRequest("mounted_full_copy_test"), RequestOptions.DEFAULT)
+                            .isShardsAcknowledged()
+                    );
+                    assertTrue(
+                        client.indices()
+                            .close(new CloseIndexRequest("mounted_shared_cache_test"), RequestOptions.DEFAULT)
+                            .isShardsAcknowledged()
                     );
 
                     // restore / mount again
@@ -208,11 +214,11 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         // run a search against the index
         assertDocs("restored_test", numDocs, expectedIds, client);
 
-        // mount as searchable snapshot
+        // mount as full copy searchable snapshot
         RestoreSnapshotResponse mountSnapshotResponse = client.searchableSnapshots()
             .mountSnapshot(
                 new MountSnapshotRequest("testrepo", "snap1", "test").storage(MountSnapshotRequest.Storage.FULL_COPY)
-                    .renamedIndex("mounted_test")
+                    .renamedIndex("mounted_full_copy_test")
                     .waitForCompletion(true),
                 RequestOptions.DEFAULT
             );
@@ -221,7 +227,22 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().successfulShards());
 
         // run a search against the index
-        assertDocs("mounted_test", numDocs, expectedIds, client);
+        assertDocs("mounted_full_copy_test", numDocs, expectedIds, client);
+
+        // mount as shared cache searchable snapshot
+        mountSnapshotResponse = client.searchableSnapshots()
+            .mountSnapshot(
+                new MountSnapshotRequest("testrepo", "snap1", "test").storage(MountSnapshotRequest.Storage.SHARED_CACHE)
+                    .renamedIndex("mounted_shared_cache_test")
+                    .waitForCompletion(true),
+                RequestOptions.DEFAULT
+            );
+        assertNotNull(mountSnapshotResponse.getRestoreInfo());
+        assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().totalShards());
+        assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().successfulShards());
+
+        // run a search against the index
+        assertDocs("mounted_shared_cache_test", numDocs, expectedIds, client);
     }
 
     @SuppressWarnings("removal")

@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisPipeline;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerComponents;
 import org.elasticsearch.index.analysis.AnalyzerComponentsProvider;
@@ -138,11 +139,21 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
 
         IndexSettings settings = indexService == null ? null : indexService.getIndexSettings();
 
-        AnalysisIteratorFactory iteratorFactory = analysisRegistry.getSimpleAnalyzeIterator(request.tokenFilters());
+        /*AnalysisIteratorFactory iteratorFactory = analysisRegistry.getSimpleAnalyzeIterator(request.tokenFilters());
 
         if (iteratorFactory != null) {
             return new AnalyzeAction.Response(simpleIteratorAnalyze(request, iteratorFactory, maxTokenCount), null);
-        }
+        }*/
+
+        AnalysisPipeline pipeline = analysisRegistry.buildAnalyzerPipeline(
+            settings,
+            false,
+            request.tokenizer(),
+            request.charFilters(),
+            request.tokenFilters()
+        );
+
+        pipeline.process(request.field(), request.text(), maxTokenCount);
 
         // First, we check to see if the request requires a custom analyzer. If so, then we
         // need to build it and then close it after use.

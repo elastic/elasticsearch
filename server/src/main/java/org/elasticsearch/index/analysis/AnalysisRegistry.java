@@ -176,6 +176,10 @@ public final class AnalysisRegistry implements Closeable {
         return charFilters.getOrDefault(charFilter, this.prebuiltAnalysis.getCharFilterFactory(charFilter));
     }
 
+    private AnalysisModule.AnalysisProvider<AnalysisIteratorFactory> getAnalysisIteratorProvider(String tokenFilter) {
+        return analysisIterators.getOrDefault(tokenFilter, null);
+    }
+
     /**
      * Returns a registered {@link Analyzer} provider by name or <code>null</code> if the analyzer was not registered
      */
@@ -215,6 +219,43 @@ public final class AnalysisRegistry implements Closeable {
         return build(indexSettings, analyzerFactories, normalizerFactories, tokenizerFactories, charFilterFactories, tokenFilterFactories);
     }
 
+    private TokenFilterFactory buildTokenFilterFactory(
+        IndexSettings indexSettings,
+        boolean normalizer,
+        NameOrDefinition nod,
+        TokenizerFactory tokenizerFactory,
+        List<CharFilterFactory> charFilterFactories,
+        List<TokenFilterFactory> tokenFilterFactories
+        ) throws IOException {
+        TokenFilterFactory tff = getComponentFactory(
+            indexSettings,
+            nod,
+            "filter",
+            this::getTokenFilterProvider,
+            prebuiltAnalysis::getTokenFilterFactory,
+            this::getTokenFilterProvider
+        );
+        if (normalizer && tff instanceof NormalizingTokenFilterFactory == false) {
+            throw new IllegalArgumentException("Custom normalizer may not use filter [" + tff.name() + "]");
+        }
+        tff = tff.getChainAwareTokenFilterFactory(tokenizerFactory, charFilterFactories, tokenFilterFactories, name -> {
+            try {
+                return getComponentFactory(
+                    indexSettings,
+                    new NameOrDefinition(name),
+                    "filter",
+                    this::getTokenFilterProvider,
+                    prebuiltAnalysis::getTokenFilterFactory,
+                    this::getTokenFilterProvider
+                );
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+
+        return tff;
+    }
+
     /**
      * Creates a custom analyzer from a collection of {@link NameOrDefinition} specifications for each component
      *
@@ -252,31 +293,29 @@ public final class AnalysisRegistry implements Closeable {
 
         List<TokenFilterFactory> tokenFilterFactories = new ArrayList<>();
         for (NameOrDefinition nod : tokenFilters) {
-            TokenFilterFactory tff = getComponentFactory(
-                indexSettings,
-                nod,
-                "filter",
-                this::getTokenFilterProvider,
-                prebuiltAnalysis::getTokenFilterFactory,
-                this::getTokenFilterProvider
-            );
-            if (normalizer && tff instanceof NormalizingTokenFilterFactory == false) {
-                throw new IllegalArgumentException("Custom normalizer may not use filter [" + tff.name() + "]");
-            }
-            tff = tff.getChainAwareTokenFilterFactory(tokenizerFactory, charFilterFactories, tokenFilterFactories, name -> {
-                try {
-                    return getComponentFactory(
-                        indexSettings,
-                        new NameOrDefinition(name),
-                        "filter",
-                        this::getTokenFilterProvider,
-                        prebuiltAnalysis::getTokenFilterFactory,
-                        this::getTokenFilterProvider
-                    );
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+            // NG
+            try {
+                AnalysisIteratorFactory aif = getComponentFactory(
+                    indexSettings,
+                    nod,
+                    "filter",
+                    this::getAnalysisIteratorProvider,
+                    this::getAnalysisIteratorProvider,
+                    this::getAnalysisIteratorProvider
+                );
+                if (aif != null) {
+                    continue;
                 }
-            });
+            } catch (IllegalArgumentException okToNotFind) {}
+
+            TokenFilterFactory tff = buildTokenFilterFactory(
+                indexSettings,
+                normalizer,
+                nod,
+                tokenizerFactory,
+                charFilterFactories,
+                tokenFilterFactories
+            );
             tokenFilterFactories.add(tff);
         }
 
@@ -302,6 +341,102 @@ public final class AnalysisRegistry implements Closeable {
             }
         }, null, null, null);
 
+    }
+
+    /**
+     * Creates a custom analyzer pipeline from a collection of {@link NameOrDefinition} specifications for each component
+     *
+     */
+    public AnalysisPipeline buildAnalyzerPipeline(
+        IndexSettings indexSettings,
+        boolean normalizer,
+        NameOrDefinition tokenizer,
+        List<NameOrDefinition> charFilters,
+        List<NameOrDefinition> tokenFilters
+    ) throws IOException {
+        TokenizerFactory tokenizerFactory = getComponentFactory(
+            indexSettings,
+            tokenizer,
+            "tokenizer",
+            this::getTokenizerProvider,
+            prebuiltAnalysis::getTokenizerFactory,
+            this::getTokenizerProvider
+        );
+
+        TokenizerFactory standardTokenizerFactory = getComponentFactory(
+            indexSettings,
+            new NameOrDefinition("standard"),
+            "tokenizer",
+            this::getTokenizerProvider,
+            prebuiltAnalysis::getTokenizerFactory,
+            this::getTokenizerProvider
+        );
+
+        List<CharFilterFactory> charFilterFactories = new ArrayList<>();
+        for (NameOrDefinition nod : charFilters) {
+            charFilterFactories.add(
+                getComponentFactory(
+                    indexSettings,
+                    nod,
+                    "char_filter",
+                    this::getCharFilterProvider,
+                    prebuiltAnalysis::getCharFilterFactory,
+                    this::getCharFilterProvider
+                )
+            );
+        }
+
+        List<AnalysisPipelineStep> pipelineSteps = new ArrayList<>();
+
+        List<TokenFilterFactory> tokenFilterFactories = new ArrayList<>();
+        for (NameOrDefinition nod : tokenFilters) {
+            // NG
+            try {
+                AnalysisIteratorFactory aif = getComponentFactory(
+                    indexSettings,
+                    nod,
+                    "filter",
+                    this::getAnalysisIteratorProvider,
+                    this::getAnalysisIteratorProvider,
+                    this::getAnalysisIteratorProvider
+                );
+                if (aif != null) {
+                    CoreElasticAnalysisPipelineStep prevStep = new CoreElasticAnalysisPipelineStep(
+                        (pipelineSteps.size() > 0) ?  standardTokenizerFactory : tokenizerFactory,
+                        charFilterFactories,
+                        new ArrayList<>(tokenFilterFactories));
+
+                    PluginAnalysisPipelineStep pluginStep = new PluginAnalysisPipelineStep(aif);
+
+                    pipelineSteps.add(prevStep);
+                    pipelineSteps.add(pluginStep);
+
+                    tokenFilterFactories.clear();
+
+                    continue;
+                }
+            } catch (IllegalArgumentException okToNotFind) {}
+
+            TokenFilterFactory tff = buildTokenFilterFactory(
+                indexSettings,
+                normalizer,
+                nod,
+                tokenizerFactory,
+                charFilterFactories,
+                tokenFilterFactories
+            );
+            tokenFilterFactories.add(tff);
+        }
+
+        if (tokenFilterFactories.isEmpty() == false) {
+            pipelineSteps.add(new CoreElasticAnalysisPipelineStep(
+                (pipelineSteps.size() > 0) ?  standardTokenizerFactory : tokenizerFactory,
+                charFilterFactories,
+                tokenFilterFactories)
+            );
+        }
+
+        return new AnalysisPipeline(pipelineSteps);
     }
 
     public AnalysisIteratorFactory getSimpleAnalyzeIterator(List<NameOrDefinition> filters)
@@ -410,6 +545,18 @@ public final class AnalysisRegistry implements Closeable {
             this::getCharFilterProvider
         );
     }
+
+    private AnalysisProvider<AnalysisIteratorFactory> getAnalysisIteratorProvider(String tokenFilter, IndexSettings indexSettings) {
+        return getProvider(
+            Component.FILTER,
+            tokenFilter,
+            indexSettings,
+            "index.analysis.filter",
+            analysisIterators,
+            this::getAnalysisIteratorProvider
+        );
+    }
+
 
     private <T> AnalysisProvider<T> getProvider(
         Component componentType,

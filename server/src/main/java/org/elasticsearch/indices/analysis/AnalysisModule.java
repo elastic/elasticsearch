@@ -10,6 +10,7 @@ package org.elasticsearch.indices.analysis;
 
 import org.apache.lucene.analysis.LowerCaseFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.core.UpperCaseFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.NamedRegistry;
@@ -191,6 +192,7 @@ public final class AnalysisModule {
 
         // Add filters available in lucene-core
         preConfiguredTokenFilters.register("lowercase", PreConfiguredTokenFilter.singleton("lowercase", true, LowerCaseFilter::new));
+        preConfiguredTokenFilters.register("uppercase", PreConfiguredTokenFilter.singleton("uppercase", true, UpperCaseFilter::new));
         // Add "standard" for old indices (bwc)
         preConfiguredTokenFilters.register(
             "standard",

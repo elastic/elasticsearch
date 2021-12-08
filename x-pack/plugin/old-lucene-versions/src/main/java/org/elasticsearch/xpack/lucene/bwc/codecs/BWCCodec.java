@@ -80,7 +80,8 @@ public abstract class BWCCodec extends Codec {
     }
 
     /**
-     * In-memory postings format that shows no postings available
+     * In-memory postings format that shows no postings available.
+     * TODO: Remove once https://issues.apache.org/jira/browse/LUCENE-10291 is fixed.
      */
     static class EmptyPostingsFormat extends PostingsFormat {
 

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -87,7 +88,7 @@ public class InternalScriptedMetric extends InternalAggregation implements Scrip
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         List<Object> aggregationObjects = new ArrayList<>();
         for (InternalAggregation aggregation : aggregations) {
             InternalScriptedMetric mapReduceAggregation = (InternalScriptedMetric) aggregation;

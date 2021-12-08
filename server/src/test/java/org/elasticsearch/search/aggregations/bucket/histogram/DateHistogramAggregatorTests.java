@@ -27,9 +27,9 @@ import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -925,7 +925,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 InternalDateHistogram result = (InternalDateHistogram) agg.buildTopLevel();
                 result = (InternalDateHistogram) result.reduce(
                     List.of(result),
-                    ReduceContext.forFinalReduction(
+                    new AggregationReduceContext.ForFinal(
                         context.bigArrays(),
                         null,
                         context.multiBucketConsumer(),

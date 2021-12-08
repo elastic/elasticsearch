@@ -159,7 +159,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
             searchRequest,
             containsString(
                 "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
-                    + "{\"range\":{\"time\":{\"from\":0,\"to\":4000,\"include_lower\":true,\"include_upper\":false,"
+                    + "{\"range\":{\"time\":{\"gte\":0,\"lt\":4000,"
                     + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
             )
         );

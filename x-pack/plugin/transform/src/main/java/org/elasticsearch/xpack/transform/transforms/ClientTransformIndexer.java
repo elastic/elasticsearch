@@ -31,6 +31,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -42,6 +43,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
@@ -111,6 +113,19 @@ class ClientTransformIndexer extends TransformIndexer {
 
         // TODO: move into context constructor
         context.setShouldStopAtCheckpoint(shouldStopAtCheckpoint);
+
+        if (transformConfig.getSettings().getUsePit() != null) {
+            disablePit = transformConfig.getSettings().getUsePit() == false;
+        }
+    }
+
+    @Override
+    public void applyNewSettings(SettingsConfig newSettings) {
+        if (newSettings.getUsePit() != null) {
+            disablePit = newSettings.getUsePit() == false;
+        }
+
+        super.applyNewSettings(newSettings);
     }
 
     @Override
@@ -508,6 +523,26 @@ class ClientTransformIndexer extends TransformIndexer {
                     );
                     return;
                 }
+                if (unwrappedException instanceof IndexNotFoundException && pit != null) {
+                    /*
+                     * gh#81252 pit API search request can fail if indices get deleted (by ILM)
+                     * fall-back to normal search, the pit gets re-created (with an updated set of indices) on the next run
+                     *
+                     * Note: Due to BWC this needs to be kept until CCS support for < 8.1 is dropped
+                     */
+                    namedPits.remove(name);
+                    searchRequest.source().pointInTimeBuilder(null);
+                    ClientHelper.executeWithHeadersAsync(
+                        transformConfig.getHeaders(),
+                        ClientHelper.TRANSFORM_ORIGIN,
+                        client,
+                        SearchAction.INSTANCE,
+                        searchRequest,
+                        listener
+                    );
+                    return;
+                }
+
                 listener.onFailure(e);
             })
         );

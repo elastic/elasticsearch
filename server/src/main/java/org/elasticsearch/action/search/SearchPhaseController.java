@@ -31,8 +31,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -64,10 +63,10 @@ import java.util.stream.Collectors;
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
-    private final BiFunction<Supplier<Boolean>, SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
+    private final BiFunction<Supplier<Boolean>, SearchRequest, AggregationReduceContext.Builder> requestToAggReduceContextBuilder;
 
     public SearchPhaseController(
-        BiFunction<Supplier<Boolean>, SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder
+        BiFunction<Supplier<Boolean>, SearchRequest, AggregationReduceContext.Builder> requestToAggReduceContextBuilder
     ) {
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
     }
@@ -380,14 +379,14 @@ public final class SearchPhaseController {
      * @param queryResults a list of non-null query shard results
      */
     ReducedQueryPhase reducedScrollQueryPhase(Collection<? extends SearchPhaseResult> queryResults) {
-        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder = new InternalAggregation.ReduceContextBuilder() {
+        AggregationReduceContext.Builder aggReduceContextBuilder = new AggregationReduceContext.Builder() {
             @Override
-            public ReduceContext forPartialReduction() {
+            public AggregationReduceContext forPartialReduction() {
                 throw new UnsupportedOperationException("Scroll requests don't have aggs");
             }
 
             @Override
-            public ReduceContext forFinalReduction() {
+            public AggregationReduceContext forFinalReduction() {
                 throw new UnsupportedOperationException("Scroll requests don't have aggs");
             }
         };
@@ -423,7 +422,7 @@ public final class SearchPhaseController {
         TopDocsStats topDocsStats,
         int numReducePhases,
         boolean isScrollRequest,
-        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
+        AggregationReduceContext.Builder aggReduceContextBuilder,
         boolean performFinalReduce
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
@@ -528,7 +527,7 @@ public final class SearchPhaseController {
     }
 
     private static InternalAggregations reduceAggs(
-        InternalAggregation.ReduceContextBuilder aggReduceContextBuilder,
+        AggregationReduceContext.Builder aggReduceContextBuilder,
         boolean performFinalReduce,
         List<InternalAggregations> toReduce
     ) {
@@ -679,7 +678,7 @@ public final class SearchPhaseController {
         }
     }
 
-    InternalAggregation.ReduceContextBuilder getReduceContext(Supplier<Boolean> isCanceled, SearchRequest request) {
+    AggregationReduceContext.Builder getReduceContext(Supplier<Boolean> isCanceled, SearchRequest request) {
         return requestToAggReduceContextBuilder.apply(isCanceled, request);
     }
 

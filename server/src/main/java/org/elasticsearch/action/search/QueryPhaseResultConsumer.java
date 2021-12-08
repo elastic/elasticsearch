@@ -21,7 +21,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContextBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -57,7 +57,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private final CircuitBreaker circuitBreaker;
     private final SearchPhaseController controller;
     private final SearchProgressListener progressListener;
-    private final ReduceContextBuilder aggReduceContextBuilder;
+    private final AggregationReduceContext.Builder aggReduceContextBuilder;
 
     private final int topNSize;
     private final boolean hasTopDocs;

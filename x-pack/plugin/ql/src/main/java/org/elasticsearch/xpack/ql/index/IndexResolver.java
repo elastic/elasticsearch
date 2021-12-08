@@ -216,7 +216,7 @@ public class IndexResolver {
 
         String[] indexWildcards = Strings.commaDelimitedListToStringArray(indexWildcard);
         Set<IndexInfo> indexInfos = new HashSet<>();
-        if (retrieveAliases) {
+        if (retrieveAliases && clusterIsLocal(clusterWildcard)) {
             GetAliasesRequest aliasRequest = new GetAliasesRequest().local(true)
                 .aliases(indexWildcards)
                 .indicesOptions(IndicesOptions.lenientExpandOpen());
@@ -268,7 +268,7 @@ public class IndexResolver {
         ActionListener<Set<IndexInfo>> listener
     ) {
         if (retrieveIndices || retrieveFrozenIndices) {
-            if (clusterWildcard == null || simpleMatch(clusterWildcard, clusterName)) { // resolve local indices
+            if (clusterIsLocal(clusterWildcard)) { // resolve local indices
                 GetIndexRequest indexRequest = new GetIndexRequest().local(true)
                     .indices(indexWildcards)
                     .features(Feature.SETTINGS)
@@ -353,6 +353,10 @@ public class IndexResolver {
             }
         }
         listener.onResponse(result);
+    }
+
+    private boolean clusterIsLocal(String clusterWildcard) {
+        return clusterWildcard == null || simpleMatch(clusterWildcard, clusterName);
     }
 
     /**

@@ -591,7 +591,7 @@ public class IndexNameExpressionResolver {
      */
     public boolean hasIndexAbstraction(String indexAbstraction, ClusterState state) {
         String resolvedAliasOrIndex = DateMathExpressionResolver.resolveExpression(indexAbstraction);
-        return state.metadata().getIndicesLookup().containsKey(resolvedAliasOrIndex);
+        return state.metadata().hasIndexAbstraction(resolvedAliasOrIndex);
     }
 
     /**

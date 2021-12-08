@@ -267,7 +267,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             ScriptCompiler.NONE,
             mapperService.getIndexAnalyzers(),
             mapperService.getIndexSettings(),
-            () -> { throw new UnsupportedOperationException(); }
+            IdFieldMapper.NO_FIELD_DATA
         );
         if (fromDynamicTemplate) {
             pc = new MappingParserContext.DynamicTemplateParserContext(pc);

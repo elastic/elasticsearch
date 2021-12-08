@@ -250,7 +250,6 @@ final class TranslogDirectoryReader extends DirectoryReader {
             assert Thread.holdsLock(this);
             final ParsedDocument parsedDocs = documentParser.parseDocument(
                 new SourceToParse(
-                    shardId.getIndexName(),
                     operation.id(),
                     operation.source(),
                     XContentHelper.xContentType(operation.source()),

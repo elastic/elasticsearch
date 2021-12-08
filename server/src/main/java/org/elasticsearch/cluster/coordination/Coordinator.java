@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalClusterUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -46,7 +47,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -149,6 +149,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private final ClusterBootstrapService clusterBootstrapService;
     private final LagDetector lagDetector;
     private final ClusterFormationFailureHelper clusterFormationFailureHelper;
+    private final JoinReasonService joinReasonService;
 
     private Mode mode;
     private Optional<DiscoveryNode> lastKnownLeader;
@@ -165,7 +166,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         String nodeName,
         Settings settings,
         ClusterSettings clusterSettings,
-        BigArrays bigArrays,
         TransportService transportService,
         Client client,
         NamedWriteableRegistry namedWriteableRegistry,
@@ -187,6 +187,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.onJoinValidators = JoinTaskExecutor.addBuiltInJoinValidators(onJoinValidators);
         this.singleNodeDiscovery = DiscoveryModule.isSingleNodeDiscovery(settings);
         this.electionStrategy = electionStrategy;
+        this.joinReasonService = new JoinReasonService(transportService.getThreadPool()::relativeTimeInMillis);
         this.joinHelper = new JoinHelper(
             settings,
             allocationService,
@@ -198,7 +199,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             this::joinLeaderInTerm,
             this.onJoinValidators,
             rerouteService,
-            nodeHealthService
+            nodeHealthService,
+            joinReasonService
         );
         this.persistedStateSupplier = persistedStateSupplier;
         this.noMasterBlockService = new NoMasterBlockService(settings, clusterSettings);
@@ -224,7 +226,6 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             configuredHostsResolver
         );
         this.publicationHandler = new PublicationTransportHandler(
-            bigArrays,
             transportService,
             namedWriteableRegistry,
             this::handlePublishRequest,
@@ -303,7 +304,22 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     new NodeRemovalClusterStateTaskExecutor.Task(discoveryNode, reason),
                     ClusterStateTaskConfig.build(Priority.IMMEDIATE),
                     nodeRemovalExecutor,
-                    nodeRemovalExecutor
+                    new ClusterStateTaskListener() {
+                        @Override
+                        public void onFailure(final String source, final Exception e) {
+                            logger.error(() -> new ParameterizedMessage("unexpected failure during [{}]", source), e);
+                        }
+
+                        @Override
+                        public void onNoLongerMaster(String source) {
+                            logger.debug("no longer master while processing node removal [{}]", source);
+                        }
+
+                        @Override
+                        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                            joinReasonService.onNodeRemoved(discoveryNode, reason);
+                        }
+                    }
                 );
             }
         }
@@ -363,6 +379,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             || Thread.currentThread().getName().startsWith("TEST-") : Thread.currentThread().getName();
         if (getMode() != Mode.CANDIDATE) {
             joinHelper.onClusterStateApplied();
+        }
+        if (getLocalNode().isMasterNode()) {
+            joinReasonService.onClusterStateApplied(applierState.nodes());
         }
     }
 

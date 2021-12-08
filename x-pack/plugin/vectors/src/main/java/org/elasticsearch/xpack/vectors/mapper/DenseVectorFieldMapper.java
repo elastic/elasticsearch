@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParser;
 import org.elasticsearch.index.mapper.PerFieldKnnVectorsFormatFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
@@ -492,6 +493,13 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexCreatedVersion).init(this);
+    }
+
+    @Override
+    public void doValidate(MappingLookup mappers) {
+        if (indexed && mappers.getNestedParent(name()) != null) {
+            throw new IllegalArgumentException("[" + CONTENT_TYPE + "] fields cannot be indexed if they're" + " within [nested] mappings");
+        }
     }
 
     private static IndexOptions parseIndexOptions(String fieldName, Object propNode) {

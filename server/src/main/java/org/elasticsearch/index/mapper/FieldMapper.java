@@ -438,7 +438,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         builder.field("type", contentType());
         getMergeBuilder().toXContent(builder, params);
         multiFields.toXContent(builder, params);
-        copyTo.toXContent(builder, params);
+        copyTo.toXContent(builder);
     }
 
     protected abstract String contentType();
@@ -512,27 +512,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 return;
             }
 
-            context = context.createMultiFieldContext();
-
             context.path().add(mainField.simpleName());
             for (FieldMapper mapper : mappers.values()) {
                 mapper.parse(context);
             }
             context.path().remove();
-        }
-
-        public MultiFields merge(MultiFields mergeWith) {
-            Map<String, FieldMapper> newMappers = new HashMap<>();
-            for (FieldMapper mapper : mergeWith.mappers.values()) {
-                FieldMapper mergeIntoMapper = mappers.get(mapper.simpleName());
-                if (mergeIntoMapper == null) {
-                    newMappers.put(mapper.simpleName(), mapper);
-                } else {
-                    FieldMapper merged = mergeIntoMapper.merge(mapper);
-                    newMappers.put(merged.simpleName(), merged); // override previous definition
-                }
-            }
-            return new MultiFields(Collections.unmodifiableMap(newMappers));
         }
 
         @Override
@@ -573,7 +557,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             this.copyToFields = copyToFields;
         }
 
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder) throws IOException {
             if (copyToFields.isEmpty() == false) {
                 builder.startArray("copy_to");
                 for (String field : copyToFields) {
@@ -898,38 +882,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 (n, c, o) -> new Explicit<>(XContentMapValues.nodeBooleanValue(o), true),
                 initializer
             ).setSerializer((b, n, v) -> b.field(n, v.value()), v -> Boolean.toString(v.value()));
-        }
-
-        /**
-         * Defines a parameter that takes a double value
-         * @param name          the parameter name
-         * @param updateable    whether the parameter can be changed by a mapping update
-         * @param initializer   a function that reads the parameter value from an existing mapper
-         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
-         */
-        public static Parameter<Double> doubleParam(
-            String name,
-            boolean updateable,
-            Function<FieldMapper, Double> initializer,
-            double defaultValue
-        ) {
-            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeDoubleValue(o), initializer);
-        }
-
-        /**
-         * Defines a parameter that takes a float value
-         * @param name          the parameter name
-         * @param updateable    whether the parameter can be changed by a mapping update
-         * @param initializer   a function that reads the parameter value from an existing mapper
-         * @param defaultValue  the default value, to be used if the parameter is undefined in a mapping
-         */
-        public static Parameter<Float> floatParam(
-            String name,
-            boolean updateable,
-            Function<FieldMapper, Float> initializer,
-            float defaultValue
-        ) {
-            return new Parameter<>(name, updateable, () -> defaultValue, (n, c, o) -> XContentMapValues.nodeFloatValue(o), initializer);
         }
 
         /**

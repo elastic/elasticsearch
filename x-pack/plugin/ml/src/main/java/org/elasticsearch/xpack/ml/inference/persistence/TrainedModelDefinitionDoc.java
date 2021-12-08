@@ -77,6 +77,25 @@ public class TrainedModelDefinitionDoc implements ToXContentObject {
         return NAME + "-" + modelId + "-" + docNum;
     }
 
+    /**
+     * Return the document number as represented in the docId
+     * @param modelId The model Id
+     * @param docId the document ID
+     * @return the document number or -1 if not found (invalid)
+     */
+    public static int docNum(String modelId, String docId) {
+        String prefix = NAME + "-" + modelId + "-";
+        if (prefix.length() >= docId.length()) {
+            return -1;
+        }
+        String numString = docId.substring(prefix.length());
+        try {
+            return Integer.parseInt(numString);
+        } catch (NumberFormatException _ex) {
+            return -1;
+        }
+    }
+
     private final BytesReference binaryData;
     private final String modelId;
     private final int docNum;

@@ -84,7 +84,7 @@ public class AppendProcessorFactoryTests extends ESTestCase {
     }
 
     public void testInvalidMustacheTemplate() throws Exception {
-        AppendProcessor.Factory factory = new AppendProcessor.Factory(TestTemplateService.instance(true));
+        factory = new AppendProcessor.Factory(TestTemplateService.instance(true));
         Map<String, Object> config = new HashMap<>();
         config.put("field", "{{field1}}");
         config.put("value", "value1");

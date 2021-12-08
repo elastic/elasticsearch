@@ -80,6 +80,7 @@ tasks.named("yamlRestTestV7CompatTest").configure {
             'unsigned_long/50_script_values/Scripted sort values',
             'unsigned_long/50_script_values/script_score query',
             'unsigned_long/50_script_values/Script query',
+            'data_stream/140_data_stream_aliases/Fix IndexNotFoundException error when handling remove alias action',
     ].join(',')
 }
 
@@ -112,10 +113,6 @@ tasks.named("yamlRestTestV7CompatTransform").configure{ task ->
   task.skipTest("indices.freeze/20_stats/Translog stats on frozen indices", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("indices.freeze/10_basic/Basic", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("indices.freeze/10_basic/Test index options", "#70192 -- the freeze index API is removed from 8.0")
-  task.skipTest("ml/categorization_agg/Test categorization aggregation with poor settings", "https://github.com/elastic/elasticsearch/pull/79586")
-  task.skipTest("data_stream/50_delete_backing_indices/Delete backing index on data stream", "pending backport of https://github.com/elastic/elasticsearch/pull/79916")
-  task.skipTest("data_stream/170_modify_data_stream/Modify a data stream", "pending backport of https://github.com/elastic/elasticsearch/pull/79916")
-  task.skipTest("service_accounts/10_basic/Test service account tokens", "mute till we decide whether to make the changes in 7.16")
 
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")

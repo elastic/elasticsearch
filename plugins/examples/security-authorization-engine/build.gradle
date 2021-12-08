@@ -10,30 +10,18 @@ esplugin {
   noticeFile rootProject.file('NOTICE.txt')
 }
 
-sourceSets {
-  javaRestTest {
-    // let the javaRestTest see the classpath of main
-    compileClasspath += sourceSets.main.output
-    runtimeClasspath += sourceSets.main.output
-  }
-}
-
-if (!gradle.includedBuilds) {
-  configurations.all {
-    resolutionStrategy.dependencySubstitution {
-      // Temporary workaround for https://github.com/elastic/elasticsearch/issues/77602
-      substitute module('org.elasticsearch:server') using module("org.elasticsearch:elasticsearch:${elasticsearchVersion}")
-      substitute module('org.elasticsearch.client:rest') using module("org.elasticsearch.client:elasticsearch-rest-client:${elasticsearchVersion}")
-    }
-  }
-}
-
 dependencies {
   compileOnly "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
+  testImplementation "org.apache.logging.log4j:log4j-core:2.11.1"
+  testImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
   javaRestTestImplementation "org.elasticsearch.plugin:x-pack-core:${elasticsearchVersion}"
-  javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-high-level-client:${elasticsearchVersion}"
+  javaRestTestImplementation "org.apache.logging.log4j:log4j-core:2.11.1"
+  javaRestTestImplementation("co.elastic.clients:elasticsearch-java:${elasticsearchVersion}") {
+    // See: https://github.com/elastic/elasticsearch-java/issues/47
+    exclude module: 'jakarta.json-api'
+  }
   javaRestTestImplementation "org.elasticsearch.client:elasticsearch-rest-client:${elasticsearchVersion}"
-  javaRestTestImplementation "org.elasticsearch:elasticsearch:${elasticsearchVersion}"
+  javaRestTestImplementation 'com.fasterxml.jackson.core:jackson-databind:2.12.3'
   javaRestTestImplementation "org.elasticsearch.test:framework:${elasticsearchVersion}"
 }
 

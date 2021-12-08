@@ -33,7 +33,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -324,7 +323,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         commonFields = entryCommonFields.commonFields;
         threadContext = new ThreadContext(Settings.EMPTY);
         if (randomBoolean()) {
-            threadContext.putHeader(Task.X_OPAQUE_ID, randomAlphaOfLengthBetween(1, 4));
+            threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, randomAlphaOfLengthBetween(1, 4));
         }
         if (randomBoolean()) {
             threadContext.putHeader(
@@ -2562,9 +2561,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         MockRequest(ThreadContext threadContext) throws IOException {
             if (randomBoolean()) {
                 if (randomBoolean()) {
-                    remoteAddress(buildNewFakeTransportAddress());
+                    remoteAddress(buildNewFakeTransportAddress().address());
                 } else {
-                    remoteAddress(new TransportAddress(InetAddress.getLoopbackAddress(), 1234));
+                    remoteAddress(new InetSocketAddress(InetAddress.getLoopbackAddress(), 1234));
                 }
             }
             if (randomBoolean()) {
@@ -2584,7 +2583,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                 randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4))
             );
             if (randomBoolean()) {
-                remoteAddress(buildNewFakeTransportAddress());
+                remoteAddress(buildNewFakeTransportAddress().address());
             }
             if (randomBoolean()) {
                 RemoteHostHeader.putRestRemoteAddress(threadContext, new InetSocketAddress(forge("localhost", "127.0.0.1"), 1234));
@@ -2614,10 +2613,10 @@ public class LoggingAuditTrailTests extends ESTestCase {
             checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.REST_ORIGIN_FIELD_VALUE)
                 .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
         } else {
-            final TransportAddress address = request.remoteAddress();
+            final InetSocketAddress address = request.remoteAddress();
             if (address != null) {
                 checkedFields.put(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
-                    .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address.address()));
+                    .put(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
             }
         }
     }
@@ -2659,7 +2658,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
     }
 
     private static void opaqueId(ThreadContext threadContext, MapBuilder<String, String> checkedFields) {
-        final String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID);
+        final String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
         if (opaqueId != null) {
             checkedFields.put(LoggingAuditTrail.OPAQUE_ID_FIELD_NAME, opaqueId);
         }

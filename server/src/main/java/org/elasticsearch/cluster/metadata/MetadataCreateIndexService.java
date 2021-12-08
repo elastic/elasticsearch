@@ -51,6 +51,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -100,7 +101,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_CREATION_
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.resolveSettings;
 import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
@@ -566,7 +566,8 @@ public class MetadataCreateIndexService {
                 // shard id and the current timestamp
                 xContentRegistry,
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                systemIndices::isSystemName
             ),
             templates.stream().map(IndexTemplateMetadata::getName).collect(toList()),
             metadataTransformer
@@ -632,7 +633,8 @@ public class MetadataCreateIndexService {
                 xContentRegistry,
                 // the context is used ony for validation so it's fine to pass fake values for the shard id and the current timestamp
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                systemIndices::isSystemName
             ),
             Collections.singletonList(templateName),
             metadataTransformer
@@ -688,7 +690,8 @@ public class MetadataCreateIndexService {
                 aliasValidator,
                 xContentRegistry,
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                systemIndices::isSystemName
             ),
             List.of(),
             metadataTransformer
@@ -783,7 +786,8 @@ public class MetadataCreateIndexService {
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                systemIndices::isSystemName
             ),
             List.of(),
             metadataTransformer
@@ -1027,7 +1031,8 @@ public class MetadataCreateIndexService {
         AliasValidator aliasValidator,
         NamedXContentRegistry xContentRegistry,
         SearchExecutionContext searchExecutionContext,
-        Function<String, String> indexNameExpressionResolver
+        Function<String, String> indexNameExpressionResolver,
+        Predicate<String> systemNamePredicate
     ) {
 
         // Keep a separate set to facilitate searches when processing aliases from the template
@@ -1040,12 +1045,13 @@ public class MetadataCreateIndexService {
             if (Strings.hasLength(alias.filter())) {
                 aliasValidator.validateAliasFilter(alias.name(), alias.filter(), searchExecutionContext, xContentRegistry);
             }
+
             AliasMetadata aliasMetadata = AliasMetadata.builder(alias.name())
                 .filter(alias.filter())
                 .indexRouting(alias.indexRouting())
                 .searchRouting(alias.searchRouting())
                 .writeIndex(alias.writeIndex())
-                .isHidden(alias.isHidden())
+                .isHidden(systemNamePredicate.test(alias.name()) ? Boolean.TRUE : alias.isHidden())
                 .build();
             resolvedAliases.add(aliasMetadata);
             resolvedExpressions.add(new Alias(resolvedExpression));
@@ -1073,6 +1079,17 @@ public class MetadataCreateIndexService {
                 if (aliasMetadata.alias().contains("{index}")) {
                     String templatedAlias = aliasMetadata.alias().replace("{index}", index);
                     aliasMetadata = AliasMetadata.newAliasMetadata(aliasMetadata, templatedAlias);
+                }
+
+                // set system aliases from templates to hidden
+                if (systemNamePredicate.test(aliasMetadata.alias())) {
+                    aliasMetadata = AliasMetadata.builder(aliasMetadata.alias())
+                        .filter(aliasMetadata.filter())
+                        .indexRouting(aliasMetadata.indexRouting())
+                        .searchRouting(aliasMetadata.searchRouting())
+                        .writeIndex(aliasMetadata.writeIndex())
+                        .isHidden(true)
+                        .build();
                 }
 
                 aliasValidator.validateAliasMetadata(aliasMetadata, index, metadata);
@@ -1195,18 +1212,23 @@ public class MetadataCreateIndexService {
         return blocksBuilder;
     }
 
-    private static void updateIndexMappingsAndBuildSortOrder(
+    private void updateIndexMappingsAndBuildSortOrder(
         IndexService indexService,
         CreateIndexClusterStateUpdateRequest request,
         List<Map<String, Object>> mappings,
         @Nullable IndexMetadata sourceMetadata
     ) throws IOException {
         MapperService mapperService = indexService.mapperService();
-        for (Map<String, Object> mapping : mappings) {
+        IndexMode indexMode = indexService.getIndexSettings() != null ? indexService.getIndexSettings().getMode() : IndexMode.STANDARD;
+        List<Map<String, Object>> mergedMappings = new ArrayList<>(1 + mappings.size());
+        mergedMappings.add(indexMode.getDefaultMapping());
+        mergedMappings.addAll(mappings);
+        for (Map<String, Object> mapping : mergedMappings) {
             if (mapping.isEmpty() == false) {
                 mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
             }
         }
+        indexMode.validateTimestampFieldMapping(request.dataStreamName() != null, mapperService.mappingLookup());
 
         if (sourceMetadata == null) {
             // now that the mapping is merged we can validate the index sort.
@@ -1214,9 +1236,6 @@ public class MetadataCreateIndexService {
             // at this point. The validation will take place later in the process
             // (when all shards are copied in a single place).
             indexService.getIndexSortSupplier().get();
-        }
-        if (request.dataStreamName() != null) {
-            validateTimestampFieldMapping(mapperService.mappingLookup());
         }
     }
 

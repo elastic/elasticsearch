@@ -121,6 +121,23 @@ public class Docker {
     }
 
     /**
+     * Runs an Elasticsearch Docker container without removing any existing containers first,
+     * and checks that it has started up successfully.
+     *
+     * @param distribution details about the docker image being tested
+     * @param builder the command to run
+     * @return an installation that models the running container
+     */
+    public static Installation runAdditionalContainer(Distribution distribution, DockerRun builder) {
+        // TODO Maybe revisit this as part of https://github.com/elastic/elasticsearch/issues/79688
+        final String command = builder.distribution(distribution).build();
+        logger.info("Running command: " + command);
+        containerId = sh.run(command).stdout.trim();
+        waitForElasticsearchToStart();
+        return Installation.ofContainer(dockerShell, distribution);
+    }
+
+    /**
      * Similar to {@link #runContainer(Distribution, DockerRun)} in that it runs an Elasticsearch Docker
      * container, expect that the container expecting it to exit e.g. due to configuration problem.
      *
@@ -195,7 +212,7 @@ public class Docker {
         do {
             try {
                 // Give the container a chance to exit out
-                Thread.sleep(1000);
+                Thread.sleep(2000);
 
                 if (sh.run("docker ps --quiet --no-trunc").stdout.contains(containerId) == false) {
                     isElasticsearchRunning = false;
@@ -204,7 +221,7 @@ public class Docker {
             } catch (Exception e) {
                 logger.warn("Caught exception while waiting for ES to exit", e);
             }
-        } while (attempt++ < 8);
+        } while (attempt++ < 60);
 
         if (isElasticsearchRunning) {
             final Shell.Result dockerLogs = getContainerLogs();
@@ -213,31 +230,39 @@ public class Docker {
     }
 
     /**
+     * Removes the container with a given id
+     */
+    public static void removeContainer(String containerId) {
+        if (containerId != null) {
+            // Remove the container, forcibly killing it if necessary
+            logger.debug("Removing container " + containerId);
+            final String command = "docker rm -f " + containerId;
+            final Shell.Result result = sh.runIgnoreExitCode(command);
+
+            if (result.isSuccess() == false) {
+                boolean isErrorAcceptable = result.stderr.contains("removal of container " + containerId + " is already in progress")
+                    || result.stderr.contains("Error: No such container: " + containerId);
+
+                // I'm not sure why we're already removing this container, but that's OK.
+                if (isErrorAcceptable == false) {
+                    throw new RuntimeException("Command was not successful: [" + command + "] result: " + result);
+                }
+            }
+
+        }
+    }
+
+    /**
      * Removes the currently running container.
      */
     public static void removeContainer() {
-        if (containerId != null) {
-            try {
-                // Remove the container, forcibly killing it if necessary
-                logger.debug("Removing container " + containerId);
-                final String command = "docker rm -f " + containerId;
-                final Shell.Result result = sh.runIgnoreExitCode(command);
-
-                if (result.isSuccess() == false) {
-                    boolean isErrorAcceptable = result.stderr.contains("removal of container " + containerId + " is already in progress")
-                        || result.stderr.contains("Error: No such container: " + containerId);
-
-                    // I'm not sure why we're already removing this container, but that's OK.
-                    if (isErrorAcceptable == false) {
-                        throw new RuntimeException("Command was not successful: [" + command + "] result: " + result);
-                    }
-                }
-            } finally {
-                // Null out the containerId under all circumstances, so that even if the remove command fails
-                // for some reason, the other tests will still proceed. Otherwise they can get stuck, continually
-                // trying to remove a non-existent container ID.
-                containerId = null;
-            }
+        try {
+            removeContainer(containerId);
+        } finally {
+            // Null out the containerId under all circumstances, so that even if the remove command fails
+            // for some reason, the other tests will still proceed. Otherwise they can get stuck, continually
+            // trying to remove a non-existent container ID.
+            containerId = null;
         }
     }
 
@@ -462,8 +487,6 @@ public class Docker {
     }
 
     private static void verifyCloudContainerInstallation(Installation es) {
-        assertThat(Path.of("/opt/plugins/plugin-wrapper.sh"), file("root", "root", p555));
-
         final String pluginArchive = "/opt/plugins/archive";
         final List<String> plugins = listContents(pluginArchive);
 
@@ -482,6 +505,15 @@ public class Docker {
         } else {
             assertThat("Cloud image should not have any plugins in " + pluginArchive, plugins, empty());
         }
+
+        // Cloud uses `wget` to install plugins / bundles.
+        Stream.of("wget")
+            .forEach(
+                cliBinary -> assertTrue(
+                    cliBinary + " ought to be available.",
+                    dockerShell.runIgnoreExitCode("bash -c  'hash " + cliBinary + "'").isSuccess()
+                )
+            );
     }
 
     public static void waitForElasticsearch(Installation installation) throws Exception {

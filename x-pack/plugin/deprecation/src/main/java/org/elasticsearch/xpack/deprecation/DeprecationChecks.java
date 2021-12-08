@@ -36,9 +36,7 @@ public class DeprecationChecks {
 
     private DeprecationChecks() {}
 
-    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = List.of(
-        ClusterDeprecationChecks::checkTransientSettingsExistence
-    );
+    static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS = Collections.emptyList();
 
     static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS = List.of(
         NodeDeprecationChecks::checkSharedDataPathSetting,

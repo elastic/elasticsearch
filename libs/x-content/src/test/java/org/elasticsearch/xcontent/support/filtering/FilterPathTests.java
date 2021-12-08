@@ -10,20 +10,19 @@ package org.elasticsearch.xcontent.support.filtering;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.emptyString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class FilterPathTests extends ESTestCase {
-
     public void testSimpleFilterPath() {
         final String input = "test";
 
@@ -31,16 +30,10 @@ public class FilterPathTests extends ESTestCase {
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(1));
 
+        List<FilterPath> nextFilters = new ArrayList<>();
         FilterPath filterPath = filterPaths[0];
-        assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("test"));
-
-        FilterPath next = filterPath.getNext();
-        assertNotNull(next);
-        assertThat(next.matches(), is(true));
-        assertThat(next.getSegment(), is(emptyString()));
-        assertSame(next, FilterPath.EMPTY);
+        assertThat(filterPath.matches("test", nextFilters), is(true));
+        assertEquals(nextFilters.size(), 0);
     }
 
     public void testFilterPathWithSubField() {
@@ -50,21 +43,16 @@ public class FilterPathTests extends ESTestCase {
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(1));
 
+        List<FilterPath> nextFilters = new ArrayList<>();
         FilterPath filterPath = filterPaths[0];
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("foo"));
+        assertThat(filterPath.matches("foo", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 1);
 
-        filterPath = filterPath.getNext();
+        filterPath = nextFilters.get(0);
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("bar"));
-
-        filterPath = filterPath.getNext();
-        assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), is(emptyString()));
-        assertSame(filterPath, FilterPath.EMPTY);
+        assertThat(filterPath.matches("bar", nextFilters), is(true));
+        assertEquals(nextFilters.size(), 1);
     }
 
     public void testFilterPathWithSubFields() {
@@ -74,38 +62,34 @@ public class FilterPathTests extends ESTestCase {
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(1));
 
+        List<FilterPath> nextFilters = new ArrayList<>();
         FilterPath filterPath = filterPaths[0];
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("foo"));
+        assertThat(filterPath.matches("foo", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 1);
 
-        filterPath = filterPath.getNext();
+        filterPath = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("bar"));
+        assertThat(filterPath.matches("bar", nextFilters), is(false));
 
-        filterPath = filterPath.getNext();
+        filterPath = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("quz"));
-
-        filterPath = filterPath.getNext();
-        assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), is(emptyString()));
-        assertSame(filterPath, FilterPath.EMPTY);
+        assertThat(filterPath.matches("quz", nextFilters), is(true));
+        assertEquals(nextFilters.size(), 0);
     }
 
     public void testEmptyFilterPath() {
         FilterPath[] filterPaths = FilterPath.compile(singleton(""));
         assertNotNull(filterPaths);
-        assertThat(filterPaths, arrayWithSize(0));
+        assertThat(filterPaths, arrayWithSize(1));
     }
 
     public void testNullFilterPath() {
         FilterPath[] filterPaths = FilterPath.compile(singleton(null));
         assertNotNull(filterPaths);
-        assertThat(filterPaths, arrayWithSize(0));
+        assertThat(filterPaths, arrayWithSize(1));
     }
 
     public void testFilterPathWithEscapedDots() {
@@ -115,31 +99,29 @@ public class FilterPathTests extends ESTestCase {
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(1));
 
+        List<FilterPath> nextFilters = new ArrayList<>();
         FilterPath filterPath = filterPaths[0];
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("w"));
+        assertThat(filterPath.matches("w", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 1);
 
-        filterPath = filterPath.getNext();
+        filterPath = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("0"));
+        assertThat(filterPath.matches("0", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 1);
 
-        filterPath = filterPath.getNext();
+        filterPath = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("0"));
+        assertThat(filterPath.matches("0", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 1);
 
-        filterPath = filterPath.getNext();
+        filterPath = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("t"));
-
-        filterPath = filterPath.getNext();
-        assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), is(emptyString()));
-        assertSame(filterPath, FilterPath.EMPTY);
+        assertThat(filterPath.matches("t", nextFilters), is(true));
+        assertEquals(nextFilters.size(), 0);
 
         input = "w\\.0\\.0\\.t";
 
@@ -147,16 +129,10 @@ public class FilterPathTests extends ESTestCase {
         assertNotNull(filterPaths);
         assertThat(filterPaths, arrayWithSize(1));
 
+        nextFilters = new ArrayList<>();
         filterPath = filterPaths[0];
-        assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("w.0.0.t"));
-
-        filterPath = filterPath.getNext();
-        assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), is(emptyString()));
-        assertSame(filterPath, FilterPath.EMPTY);
+        assertTrue(filterPath.matches("w.0.0.t", nextFilters));
+        assertEquals(nextFilters.size(), 0);
 
         input = "w\\.0.0\\.t";
 
@@ -165,19 +141,16 @@ public class FilterPathTests extends ESTestCase {
         assertThat(filterPaths, arrayWithSize(1));
 
         filterPath = filterPaths[0];
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("w.0"));
-
-        filterPath = filterPath.getNext();
+        nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("0.t"));
+        assertThat(filterPath.matches("w.0", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 1);
 
-        filterPath = filterPath.getNext();
+        filterPath = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), is(emptyString()));
-        assertSame(filterPath, FilterPath.EMPTY);
+        assertThat(filterPath.matches("0.t", nextFilters), is(true));
+        assertEquals(nextFilters.size(), 0);
     }
 
     public void testSimpleWildcardFilterPath() {
@@ -186,14 +159,10 @@ public class FilterPathTests extends ESTestCase {
         assertThat(filterPaths, arrayWithSize(1));
 
         FilterPath filterPath = filterPaths[0];
+        List<FilterPath> nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.isSimpleWildcard(), is(true));
-        assertThat(filterPath.getSegment(), equalTo("*"));
-
-        FilterPath next = filterPath.matchProperty(randomAlphaOfLength(2));
-        assertNotNull(next);
-        assertSame(next, FilterPath.EMPTY);
+        assertThat(filterPath.matches("foo", nextFilters), is(true));
+        assertEquals(nextFilters.size(), 0);
     }
 
     public void testWildcardInNameFilterPath() {
@@ -204,24 +173,22 @@ public class FilterPathTests extends ESTestCase {
         assertThat(filterPaths, arrayWithSize(1));
 
         FilterPath filterPath = filterPaths[0];
+        List<FilterPath> nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("f*o"));
-        assertThat(filterPath.matchProperty("foo"), notNullValue());
-        assertThat(filterPath.matchProperty("flo"), notNullValue());
-        assertThat(filterPath.matchProperty("foooo"), notNullValue());
-        assertThat(filterPath.matchProperty("boo"), nullValue());
+        assertThat(filterPath.matches("foo", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 1);
+        assertThat(filterPath.matches("flo", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 2);
+        assertThat(filterPath.matches("foooo", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 3);
+        assertThat(filterPath.matches("boo", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 3);
 
-        filterPath = filterPath.getNext();
+        filterPath = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("bar"));
-
-        filterPath = filterPath.getNext();
-        assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), is(emptyString()));
-        assertSame(filterPath, FilterPath.EMPTY);
+        assertThat(filterPath.matches("bar", nextFilters), is(true));
+        assertEquals(nextFilters.size(), 0);
     }
 
     public void testDoubleWildcardFilterPath() {
@@ -230,14 +197,11 @@ public class FilterPathTests extends ESTestCase {
         assertThat(filterPaths, arrayWithSize(1));
 
         FilterPath filterPath = filterPaths[0];
+        List<FilterPath> nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.isDoubleWildcard(), is(true));
-        assertThat(filterPath.getSegment(), equalTo("**"));
-
-        FilterPath next = filterPath.matchProperty(randomAlphaOfLength(2));
-        assertNotNull(next);
-        assertSame(next, FilterPath.EMPTY);
+        assertThat(filterPath.matches("foo", nextFilters), is(true));
+        assertThat(filterPath.hasDoubleWildcard(), is(true));
+        assertEquals(nextFilters.size(), 0);
     }
 
     public void testStartsWithDoubleWildcardFilterPath() {
@@ -248,20 +212,16 @@ public class FilterPathTests extends ESTestCase {
         assertThat(filterPaths, arrayWithSize(1));
 
         FilterPath filterPath = filterPaths[0];
+        List<FilterPath> nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("**"));
+        assertThat(filterPath.matches("foo", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 1);
 
-        FilterPath next = filterPath.matchProperty(randomAlphaOfLength(2));
-        assertNotNull(next);
-        assertThat(next.matches(), is(false));
-        assertThat(next.getSegment(), equalTo("bar"));
-
-        next = next.getNext();
-        assertNotNull(next);
-        assertThat(next.matches(), is(true));
-        assertThat(next.getSegment(), is(emptyString()));
-        assertSame(next, FilterPath.EMPTY);
+        filterPath = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
+        assertNotNull(filterPath);
+        assertThat(filterPath.matches("bar", nextFilters), is(true));
+        assertEquals(nextFilters.size(), 0);
     }
 
     public void testContainsDoubleWildcardFilterPath() {
@@ -272,26 +232,22 @@ public class FilterPathTests extends ESTestCase {
         assertThat(filterPaths, arrayWithSize(1));
 
         FilterPath filterPath = filterPaths[0];
+        List<FilterPath> nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("foo"));
+        assertThat(filterPath.matches("foo", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 1);
 
-        filterPath = filterPath.getNext();
+        filterPath = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.isDoubleWildcard(), equalTo(true));
-        assertThat(filterPath.getSegment(), equalTo("**"));
+        assertThat(filterPath.matches("test", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 1);
 
-        filterPath = filterPath.getNext();
+        filterPath = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("bar"));
-
-        filterPath = filterPath.getNext();
-        assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), is(emptyString()));
-        assertSame(filterPath, FilterPath.EMPTY);
+        assertThat(filterPath.matches("bar", nextFilters), is(true));
+        assertEquals(nextFilters.size(), 0);
     }
 
     public void testMultipleFilterPaths() {
@@ -299,51 +255,87 @@ public class FilterPathTests extends ESTestCase {
 
         FilterPath[] filterPaths = FilterPath.compile(inputs);
         assertNotNull(filterPaths);
-        assertThat(filterPaths, arrayWithSize(2));
+        assertThat(filterPaths, arrayWithSize(1));
 
         // foo.**.bar.*
         FilterPath filterPath = filterPaths[0];
+        List<FilterPath> nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("foo"));
+        assertThat(filterPath.matches("foo", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 1);
 
-        filterPath = filterPath.getNext();
+        filterPath = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.isDoubleWildcard(), equalTo(true));
-        assertThat(filterPath.getSegment(), equalTo("**"));
+        assertThat(filterPath.matches("test", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 1);
 
-        filterPath = filterPath.getNext();
+        filterPath = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("bar"));
+        assertThat(filterPath.matches("bar", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 2);
 
-        filterPath = filterPath.getNext();
+        filterPath = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.isSimpleWildcard(), equalTo(true));
-        assertThat(filterPath.getSegment(), equalTo("*"));
-
-        filterPath = filterPath.getNext();
-        assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), is(emptyString()));
-        assertSame(filterPath, FilterPath.EMPTY);
+        assertThat(filterPath.matches("test2", nextFilters), is(true));
+        assertEquals(nextFilters.size(), 0);
 
         // test.dot\.ted
-        filterPath = filterPaths[1];
+        filterPath = filterPaths[0];
+        nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("test"));
+        assertThat(filterPath.matches("test", nextFilters), is(false));
+        assertEquals(nextFilters.size(), 1);
 
-        filterPath = filterPath.getNext();
+        filterPath = nextFilters.get(0);
+        nextFilters = new ArrayList<>();
         assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(false));
-        assertThat(filterPath.getSegment(), equalTo("dot.ted"));
+        assertThat(filterPath.matches("dot.ted", nextFilters), is(true));
+        assertEquals(nextFilters.size(), 0);
+    }
 
-        filterPath = filterPath.getNext();
-        assertNotNull(filterPath);
-        assertThat(filterPath.matches(), is(true));
-        assertThat(filterPath.getSegment(), is(emptyString()));
-        assertSame(filterPath, FilterPath.EMPTY);
+    public void testHasNoDoubleWildcard() {
+        Set<String> filters = new HashSet<>();
+        for (int i = 0; i < randomIntBetween(5, 10); i++) {
+            String item = randomList(1, 5, () -> randomAlphaOfLength(5)).stream().collect(Collectors.joining("."));
+            filters.add(item);
+        }
+
+        FilterPath[] filterPaths = FilterPath.compile(filters);
+        assertEquals(filterPaths.length, 1);
+        assertFalse(filterPaths[0].hasDoubleWildcard());
+    }
+
+    public void testHasDoubleWildcard() {
+        Set<String> filters = new HashSet<>();
+        for (int i = 0; i < randomIntBetween(5, 10); i++) {
+            String item = randomList(1, 5, () -> randomAlphaOfLength(5)).stream().collect(Collectors.joining("."));
+            filters.add(item);
+        }
+
+        String item = randomList(1, 5, () -> randomAlphaOfLength(5)).stream().collect(Collectors.joining("."));
+        filters.add(item + ".test**doubleWildcard");
+
+        FilterPath[] filterPaths = FilterPath.compile(filters);
+        assertEquals(filterPaths.length, 1);
+        assertTrue(filterPaths[0].hasDoubleWildcard());
+    }
+
+    public void testNoMatchesFilter() {
+        Set<String> filters = new HashSet<>();
+        for (int i = 0; i < randomIntBetween(5, 10); i++) {
+            String item = randomList(1, 5, () -> randomAlphaOfLength(5)).stream().collect(Collectors.joining("."));
+            filters.add(item);
+        }
+
+        FilterPath[] filterPaths = FilterPath.compile(filters);
+        assertEquals(filterPaths.length, 1);
+
+        List<FilterPath> nextFilters = new ArrayList<>();
+        FilterPath filterPath = filterPaths[0];
+        assertFalse(filterPath.matches(randomAlphaOfLength(10), nextFilters));
+        assertEquals(nextFilters.size(), 0);
     }
 }

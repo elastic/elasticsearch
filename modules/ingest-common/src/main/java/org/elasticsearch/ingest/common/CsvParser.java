@@ -47,9 +47,9 @@ final class CsvParser {
         this.emptyValue = emptyValue;
     }
 
-    void process(String line) {
-        this.line = line;
-        length = line.length();
+    void process(String lineValue) {
+        this.line = lineValue;
+        length = lineValue.length();
         for (currentIndex = 0; currentIndex < length; currentIndex++) {
             switch (state) {
                 case START:

@@ -28,41 +28,9 @@ error occurs.
 A {dfeed} must be started in order to retrieve data from {es}.
 A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
-When you start a {dfeed}, you can specify a start time. This enables you to
-include a training period, providing you have this data available in {es}.
-If you want to analyze from the beginning of a dataset, you can specify any date
-earlier than that beginning date.
-
-If you do not specify a start time and the {dfeed} is associated with a new
-{anomaly-job}, the analysis starts from the earliest time for which data is
-available.
-
-When you start a {dfeed}, you can also specify an end time. If you do so, the
-job analyzes data from the start time until the end time, at which point the
-analysis stops. This scenario is useful for a one-off batch analysis. If you
-do not specify an end time, the {dfeed} runs continuously.
-
-The `start` and `end` times can be specified by using one of the
-following formats: +
-
-- ISO 8601 format with milliseconds, for example `2017-01-22T06:00:00.000Z`
-- ISO 8601 format without milliseconds, for example `2017-01-22T06:00:00+00:00`
-- Milliseconds since the epoch, for example `1485061200000`
-
-Date-time arguments using either of the ISO 8601 formats must have a time zone
-designator, where Z is accepted as an abbreviation for UTC time.
-
-NOTE: When a URL is expected (for example, in browsers), the `+` used in time
-zone designators must be encoded as `%2B`.
-
-If the system restarts, any jobs that had {dfeeds} running are also restarted.
-
-When a stopped {dfeed} is restarted, it continues processing input data from
-the next millisecond after it was stopped. If new data was indexed for that
+If you restart a stopped {dfeed}, by default it continues processing input data
+from the next millisecond after it was stopped. If new data was indexed for that
 exact millisecond between stopping and starting, it will be ignored.
-If you specify a `start` value that is earlier than the timestamp of the latest
-processed record, the {dfeed} continues from 1 millisecond after the timestamp
-of the latest processed record.
 
 IMPORTANT: When {es} {security-features} are enabled, your {dfeed} remembers
 which roles the last user to create or update it had at the time of
@@ -81,39 +49,54 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 == {api-query-parms-title}
 
 `end`::
-  (Optional, string) The time that the {dfeed} should end. This value is
-  exclusive. The default value is an empty string.
+(Optional, string) The time that the {dfeed} should end, which can be
+specified by using one of the following formats:
++
+--
+* ISO 8601 format with milliseconds, for example `2017-01-22T06:00:00.000Z`
+* ISO 8601 format without milliseconds, for example `2017-01-22T06:00:00+00:00`
+* Milliseconds since the epoch, for example `1485061200000`
+ 
+Date-time arguments using either of the ISO 8601 formats must have a time zone
+designator, where `Z` is accepted as an abbreviation for UTC time.
+  
+NOTE: When a URL is expected (for example, in browsers), the `+` used in time
+zone designators must be encoded as `%2B`.
+  
+This value is exclusive. If you do not specify an end time, the {dfeed} runs
+continuously.
+--
 
 `start`::
-  (Optional, string) The time that the {dfeed} should begin. This value is
-  inclusive. The default value is an empty string.
+(Optional, string) The time that the {dfeed} should begin, which can be
+specified by using the same formats as the `end` parameter. This value is
+inclusive.
++
+If you do not specify a start time and the {dfeed} is associated with a new
+{anomaly-job}, the analysis starts from the earliest time for which data is
+available.
++
+If you restart a stopped {dfeed} and specify a `start` value that is earlier
+than the timestamp of the latest processed record, the {dfeed} continues from
+1 millisecond after the timestamp of the latest processed record.
 
 `timeout`::
-  (Optional, time) Controls the amount of time to wait until a {dfeed} starts.
-  The default value is 20 seconds.
+(Optional, time) Specifies the amount of time to wait until a {dfeed} starts.
+The default value is 20 seconds.
 
 [[ml-start-datafeed-request-body]]
 == {api-request-body-title}
 
-`end`::
-  (Optional, string) The time that the {dfeed} should end. This value is
-  exclusive. The default value is an empty string.
-
-`start`::
-  (Optional, string) The time that the {dfeed} should begin. This value is
-  inclusive. The default value is an empty string.
-
-`timeout`::
-  (Optional, time) Controls the amount of time to wait until a {dfeed} starts.
-  The default value is 20 seconds.
+You can also specify the query parameters (such as `end` and `start`)
+in the request body.
 
 [[ml-start-datafeed-response-body]]
 == {api-response-body-title}
 
 `node`::
-  (string) The ID of the node that the {dfeed} was started on.
-If the {dfeed} is allowed to open lazily and has not yet been
-  assigned to a node, this value is an empty string.
+  (string) The ID of the node that the {dfeed} was started on. If the {dfeed} is
+  allowed to open lazily and has not yet been assigned to a node, this value is
+  an empty string.
 
 `started`::
   (Boolean) For a successful response, this value is always `true`. On failure, an

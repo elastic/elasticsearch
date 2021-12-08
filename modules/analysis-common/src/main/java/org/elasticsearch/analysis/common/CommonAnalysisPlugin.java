@@ -148,7 +148,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(CommonAnalysisPlugin.class);
 
-    private final SetOnce<ScriptService> scriptService = new SetOnce<>();
+    private final SetOnce<ScriptService> scriptServiceHolder = new SetOnce<>();
 
     @Override
     public Collection<Object> createComponents(
@@ -164,7 +164,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         IndexNameExpressionResolver expressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        this.scriptService.set(scriptService);
+        this.scriptServiceHolder.set(scriptService);
         return Collections.emptyList();
     }
 
@@ -236,7 +236,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("common_grams", requiresAnalysisSettings(CommonGramsTokenFilterFactory::new));
         filters.put(
             "condition",
-            requiresAnalysisSettings((i, e, n, s) -> new ScriptedConditionTokenFilterFactory(i, n, s, scriptService.get()))
+            requiresAnalysisSettings((i, e, n, s) -> new ScriptedConditionTokenFilterFactory(i, n, s, scriptServiceHolder.get()))
         );
         filters.put("decimal_digit", DecimalDigitFilterFactory::new);
         filters.put("delimited_payload", DelimitedPayloadTokenFilterFactory::new);
@@ -312,7 +312,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("porter_stem", PorterStemTokenFilterFactory::new);
         filters.put(
             "predicate_token_filter",
-            requiresAnalysisSettings((i, e, n, s) -> new PredicateTokenFilterScriptFactory(i, n, s, scriptService.get()))
+            requiresAnalysisSettings((i, e, n, s) -> new PredicateTokenFilterScriptFactory(i, n, s, scriptServiceHolder.get()))
         );
         filters.put("remove_duplicates", RemoveDuplicatesTokenFilterFactory::new);
         filters.put("reverse", ReverseTokenFilterFactory::new);

@@ -49,7 +49,7 @@ public class NodesCachesStatsIntegTests extends BaseFrozenSearchableSnapshotsInt
         createIndex(index, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build());
 
         final int nbDocs = randomIntBetween(1_000, 10_000);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), nbDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), nbDocs)) {
             waitForDocs(nbDocs, indexer);
         }
         refresh(index);

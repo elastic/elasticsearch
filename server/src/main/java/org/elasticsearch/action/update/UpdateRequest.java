@@ -832,6 +832,11 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     @Override
+    public void process() {
+        // Nothing to do
+    }
+
+    @Override
     public int route(IndexRouting indexRouting) {
         return indexRouting.updateShard(id, routing);
     }

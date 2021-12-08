@@ -16,8 +16,10 @@ import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.plugins.PluginsManager;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.filesystem.FileSystemNatives;
@@ -173,6 +175,11 @@ final class Bootstrap {
             throw new BootstrapException(e);
         }
 
+        try {
+            environment.validateNativesConfig(); // temporary directories are important for JNA
+        } catch (IOException e) {
+            throw new BootstrapException(e);
+        }
         initializeNatives(
             environment.tmpFile(),
             BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
@@ -333,6 +340,20 @@ final class Bootstrap {
             // initialized as we do not want to grant the runtime permission
             // setDefaultUncaughtExceptionHandler
             Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler());
+
+            if (PluginsManager.configExists(environment)) {
+                if (Build.CURRENT.type() == Build.Type.DOCKER) {
+                    try {
+                        PluginsManager.syncPlugins(environment);
+                    } catch (Exception e) {
+                        throw new BootstrapException(e);
+                    }
+                } else {
+                    throw new BootstrapException(
+                        new ElasticsearchException("Can only use [elasticsearch-plugins.yml] config file with distribution type [docker]")
+                    );
+                }
+            }
 
             INSTANCE.setup(true, environment);
 

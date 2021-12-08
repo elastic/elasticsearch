@@ -11,9 +11,9 @@ information about the latest snapshot attempts.
 [[slm-api-get-request]]
 ==== {api-request-title}
 
-`GET /_slm/policy/<policy-id>`
+`GET _slm/policy/<policy-id>`
 
-`GET /_slm/policy`
+`GET _slm/policy`
 
 [[slm-api-get-lifecycle-prereqs]]
 ==== {api-prereq-title}
@@ -44,44 +44,44 @@ Comma-separated list of snapshot lifecycle policy IDs.
 
 ////
 [source,console]
---------------------------------------------------
-PUT /_slm/policy/daily-snapshots
+----
+PUT _slm/policy/daily-snapshots
 {
-  "schedule": "0 30 1 * * ?", <1>
-  "name": "<daily-snap-{now/d}>", <2>
-  "repository": "my_repository", <3>
-  "config": { <4>
-    "indices": ["data-*", "important"], <5>
+  "schedule": "0 30 1 * * ?",
+  "name": "<daily-snap-{now/d}>",
+  "repository": "my_repository",
+  "config": {
+    "indices": ["data-*", "important"],
     "ignore_unavailable": false,
     "include_global_state": false
   },
-  "retention": { <6>
-    "expire_after": "30d", <7>
-    "min_count": 5, <8>
-    "max_count": 50 <9>
+  "retention": {
+    "expire_after": "30d",
+    "min_count": 5,
+    "max_count": 50
   }
 }
---------------------------------------------------
+----
 // TEST[setup:setup-repository]
 ////
 
 Get the `daily-snapshots` policy:
 
 [source,console]
---------------------------------------------------
-GET /_slm/policy/daily-snapshots?human
---------------------------------------------------
+----
+GET _slm/policy/daily-snapshots?human
+----
 // TEST[continued]
 
 This request returns the following response:
 
 [source,console-result]
---------------------------------------------------
+----
 {
-  "daily-snapshots" : {
-    "version": 1, <1>
-    "modified_date": "2019-04-23T01:30:00.000Z", <2>
-    "modified_date_millis": 1556048137314,
+  "daily-snapshots": {
+    "version": 1,                                 <1>
+    "modified_date": "2099-05-06T01:30:00.000Z",  <2>
+    "modified_date_millis": 4081757400000,
     "policy" : {
       "schedule": "0 30 1 * * ?",
       "name": "<daily-snap-{now/d}>",
@@ -104,12 +104,16 @@ This request returns the following response:
       "snapshots_deleted": 0,
       "snapshot_deletion_failures": 0
     },
-    "next_execution": "2019-04-24T01:30:00.000Z", <3>
-    "next_execution_millis": 1556048160000
+    "next_execution": "2099-05-07T01:30:00.000Z", <3>
+    "next_execution_millis": 4081843800000
   }
 }
---------------------------------------------------
-// TESTRESPONSE[s/"modified_date": "2019-04-23T01:30:00.000Z"/"modified_date": $body.daily-snapshots.modified_date/ s/"modified_date_millis": 1556048137314/"modified_date_millis": $body.daily-snapshots.modified_date_millis/ s/"next_execution": "2019-04-24T01:30:00.000Z"/"next_execution": $body.daily-snapshots.next_execution/ s/"next_execution_millis": 1556048160000/"next_execution_millis": $body.daily-snapshots.next_execution_millis/]
+----
+// TESTRESPONSE[s/"version": 1/"version": $body.daily-snapshots.version/]
+// TESTRESPONSE[s/"modified_date": "2099-05-06T01:30:00.000Z"/"modified_date": $body.daily-snapshots.modified_date/]
+// TESTRESPONSE[s/"modified_date_millis": 4081757400000/"modified_date_millis": $body.daily-snapshots.modified_date_millis/]
+// TESTRESPONSE[s/"next_execution": "2099-05-07T01:30:00.000Z"/"next_execution": $body.daily-snapshots.next_execution/]
+// TESTRESPONSE[s/"next_execution_millis": 4081843800000/"next_execution_millis": $body.daily-snapshots.next_execution_millis/]
 <1> The version of the snapshot policy, only the latest version is stored and incremented when the policy is updated
 <2> The last time this policy was modified.
 <3> The next time this policy will be executed.
@@ -119,7 +123,7 @@ This request returns the following response:
 ===== Get all policies
 
 [source,console]
---------------------------------------------------
-GET /_slm/policy
---------------------------------------------------
+----
+GET _slm/policy
+----
 // TEST[continued]

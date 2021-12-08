@@ -12,6 +12,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
@@ -230,7 +231,7 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
     }
 
     @Override
-    public InternalAggregation doReduce(Aggregations aggregations, InternalAggregation.ReduceContext context) {
+    public InternalAggregation doReduce(Aggregations aggregations, AggregationReduceContext context) {
         Optional<MlAggsHelper.DoubleBucketValues> maybeBucketsValue = extractDoubleBucketedValues(bucketsPaths()[0], aggregations).map(
             bucketValue -> {
                 double[] values = new double[bucketValue.getValues().length + 1];
@@ -248,7 +249,7 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
             );
         }
         final MlAggsHelper.DoubleBucketValues bucketsValue = maybeBucketsValue.get();
-        double[] fractions = this.fractions == null
+        double[] fractionsArr = this.fractions == null
             ? DoubleStream.concat(
                 DoubleStream.of(0.0),
                 Stream.generate(() -> 1.0 / (bucketsValue.getDocCounts().length - 1))
@@ -258,6 +259,6 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
             // We prepend zero to the fractions as we prepend 0 to the doc counts and we want them to be the same length when
             // we create the monotonically increasing values for distribution comparison.
             : DoubleStream.concat(DoubleStream.of(0.0), Arrays.stream(this.fractions)).toArray();
-        return new InternalKSTestAggregation(name(), metadata(), ksTest(fractions, bucketsValue, alternatives, samplingMethod));
+        return new InternalKSTestAggregation(name(), metadata(), ksTest(fractionsArr, bucketsValue, alternatives, samplingMethod));
     }
 }

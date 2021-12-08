@@ -43,6 +43,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING;
+import static org.elasticsearch.discovery.DiscoveryModule.SINGLE_NODE_DISCOVERY_TYPE;
 import static org.elasticsearch.license.LicenseService.LICENSE_EXPIRATION_WARNING_PERIOD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -138,7 +140,7 @@ public class LicenseServiceTests extends ESTestCase {
         final Settings settings = Settings.builder()
             .put(baseSettings)
             .put("path.home", createTempDir())
-            .put("discovery.type", "single-node") // So we skip TLS checks
+            .put(DISCOVERY_TYPE_SETTING.getKey(), SINGLE_NODE_DISCOVERY_TYPE) // So we skip TLS checks
             .build();
 
         final ClusterState clusterState = mock(ClusterState.class);

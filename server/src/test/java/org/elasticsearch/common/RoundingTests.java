@@ -1010,6 +1010,29 @@ public class RoundingTests extends ESTestCase {
         assertThat(rounding.round(time("1982-11-10T02:51:22.662Z")), isDate(time("1982-03-23T05:00:00Z"), tz));
     }
 
+    public void testHugeTimeInterval() {
+        ZoneId tz = ZoneId.of("Asia/Tehran");
+        Rounding rounding = Rounding.builder(TimeValue.timeValueDays(80000)).timeZone(tz).build();
+        assertThat(rounding.round(time("2078-11-10T02:51:22.662Z")), isDate(time("1970-01-01T00:00:00+03:30"), tz));
+    }
+
+    public void testHugeTimeFewAttempts() {
+        ZoneId tz = ZoneId.of("Asia/Tehran");
+        Rounding.TimeIntervalRounding.JavaTimeRounding prepared = (Rounding.TimeIntervalRounding.JavaTimeRounding) Rounding.builder(
+            TimeValue.timeValueDays(80000)
+        ).timeZone(tz).build().prepareJavaTime();
+        Exception e = expectThrows(IllegalArgumentException.class, () -> prepared.round(time("2178-11-10T02:51:22.662Z"), 200));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Rounding["
+                    + TimeValue.timeValueDays(80000).millis()
+                    + " in Asia/Tehran][java.time] failed to round 3446656199999 down: "
+                    + "transitioned backwards through too many daylight savings time transitions"
+            )
+        );
+    }
+
     public void testFixedIntervalRoundingSize() {
         Rounding unitRounding = Rounding.builder(TimeValue.timeValueHours(10)).build();
         Rounding.Prepared prepared = unitRounding.prepare(time("2010-01-01T00:00:00.000Z"), time("2020-01-01T00:00:00.000Z"));

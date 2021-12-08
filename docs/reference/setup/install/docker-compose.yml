@@ -3,7 +3,7 @@ version: "2.2"
 services:
   es01:
     container_name: es01
-    image: { docker-image }
+    image: {docker-repo}:{version}
     environment:
       - node.name=es01
       - discovery.seed_hosts=es02,es03
@@ -31,7 +31,7 @@ services:
 
   es02:
     container_name: es02
-    image: { docker-image }
+    image: {docker-repo}:{version}
     environment:
       - node.name=es02
       - discovery.seed_hosts=es01,es03
@@ -53,7 +53,7 @@ services:
 
   es03:
     container_name: es03
-    image: { docker-image }
+    image: {docker-repo}:{version}
     environment:
       - node.name=es03
       - discovery.seed_hosts=es01,es02
@@ -74,7 +74,7 @@ services:
     volumes: ["data03:/usr/share/elasticsearch/data", "certs:$CERTS_DIR"]
 
   wait_until_ready:
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.15.1
+    image: {docker-repo}:{version}
     command: /usr/bin/true
     depends_on: { "es01": { "condition": "service_healthy" } }
 

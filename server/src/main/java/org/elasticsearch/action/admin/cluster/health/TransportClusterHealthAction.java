@@ -411,8 +411,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 numberOfPendingTasks,
                 numberOfInFlightFetch,
                 UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
-                pendingTaskTimeInQueue,
-                request.doesReturn200ForClusterHealthTimeout()
+                pendingTaskTimeInQueue
             );
             response.setStatus(ClusterHealthStatus.RED);
             return response;
@@ -425,8 +424,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             numberOfPendingTasks,
             numberOfInFlightFetch,
             UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
-            pendingTaskTimeInQueue,
-            request.doesReturn200ForClusterHealthTimeout()
+            pendingTaskTimeInQueue
         );
     }
 }

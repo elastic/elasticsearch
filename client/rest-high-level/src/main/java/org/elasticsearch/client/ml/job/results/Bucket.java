@@ -174,8 +174,8 @@ public class Bucket implements ToXContentObject {
         return isInterim;
     }
 
-    void setInterim(boolean isInterim) {
-        this.isInterim = isInterim;
+    void setInterim(boolean interim) {
+        this.isInterim = interim;
     }
 
     public long getProcessingTimeMs() {

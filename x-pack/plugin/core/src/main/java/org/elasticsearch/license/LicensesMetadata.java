@@ -52,7 +52,7 @@ public class LicensesMetadata extends AbstractNamedDiffable<Metadata.Custom>
         .expiryDate(0)
         .build();
 
-    private License license;
+    private final License license;
 
     // This field describes the version of x-pack for which this cluster has exercised a trial. If the field
     // is null, then no trial has been exercised. We keep the version to leave open the possibility that we

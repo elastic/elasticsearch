@@ -50,8 +50,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
   recent bucket or all buckets within the latency period.
 
 `end`::
-  (string) Optional. When used in conjunction with `calc_interim`, specifies the
-  range of buckets on which to calculate interim results.
+  (string) Optional. When used in conjunction with `calc_interim` and `start`,
+  specifies the range of buckets on which to calculate interim results.
 
 `skip_time`::
   (string) Optional. Specifies to skip to a particular time value. Results are
@@ -61,6 +61,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 `start`::
   (string) Optional. When used in conjunction with `calc_interim`, specifies the
   range of buckets on which to calculate interim results.
+
+[[ml-flush-job-request-body]]
+== {api-request-body-title}
+
+You can also specify the query parameters (such as `advance_time` and
+`calc_interim`) in the request body.
 
 [[ml-flush-job-example]]
 == {api-examples-title}

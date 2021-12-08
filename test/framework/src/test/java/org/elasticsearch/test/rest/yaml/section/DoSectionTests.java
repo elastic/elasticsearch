@@ -13,7 +13,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
@@ -52,10 +51,10 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
             section.checkWarningHeaders(emptyList());
         }
 
-        final String testHeader = HeaderWarning.formatWarning(DeprecationLogger.CRITICAL, "test");
-        final String anotherHeader = HeaderWarning.formatWarning(DeprecationLogger.CRITICAL, "another \"with quotes and \\ backslashes\"");
-        final String someMoreHeader = HeaderWarning.formatWarning(DeprecationLogger.CRITICAL, "some more");
-        final String catHeader = HeaderWarning.formatWarning(DeprecationLogger.CRITICAL, "cat");
+        final String testHeader = HeaderWarning.formatWarning("test");
+        final String anotherHeader = HeaderWarning.formatWarning("another \"with quotes and \\ backslashes\"");
+        final String someMoreHeader = HeaderWarning.formatWarning("some more");
+        final String catHeader = HeaderWarning.formatWarning("cat");
         // Any warning headers fail
         {
             final DoSection section = new DoSection(new XContentLocation(1, 1));
@@ -135,17 +134,13 @@ public class DoSectionTests extends AbstractClientYamlTestFragmentParserTestCase
 
     public void testWarningHeadersRegex() {
 
-        final String testHeader = HeaderWarning.formatWarning(DeprecationLogger.CRITICAL, "test");
+        final String testHeader = HeaderWarning.formatWarning("test");
         final String realisticTestHeader = HeaderWarning.formatWarning(
-            DeprecationLogger.CRITICAL,
             "index template [my-it] has index "
                 + "patterns [test-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template "
                 + "[my-it] will take precedence during new index creation"
         );
-        final String testHeaderWithQuotesAndBackslashes = HeaderWarning.formatWarning(
-            DeprecationLogger.CRITICAL,
-            "test \"with quotes and \\ backslashes\""
-        );
+        final String testHeaderWithQuotesAndBackslashes = HeaderWarning.formatWarning("test \"with quotes and \\ backslashes\"");
 
         // require header and it matches (basic example)
         DoSection section = new DoSection(new XContentLocation(1, 1));

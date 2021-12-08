@@ -34,8 +34,9 @@ You can delete a forecast by using the
 [NOTE]
 ===============================
 
-* If you use an `over_field_name` property in your job, you cannot create a
-forecast. For more information about this property, see <<ml-put-job>>.
+* Forecasts are not supported for jobs that perform population analysis; an
+error occurs if you try to create a forecast for a job that has an
+`over_field_name` property in its configuration.
 * The job must be open when you create a forecast. Otherwise, an error occurs.
 ===============================
 
@@ -46,8 +47,8 @@ forecast. For more information about this property, see <<ml-put-job>>.
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
-[[ml-forecast-request-body]]
-== {api-request-body-title}
+[[ml-forecast-query-parms]]
+== {api-query-parms-title}
 
 `duration`::
   (Optional, <<time-units, time units>>) A period of time that indicates how far 
@@ -67,6 +68,12 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
   disk. Default is 20mb, maximum is 500mb and minimum is 1mb. If set to 40% or
   more of the job's configured memory limit, it is automatically reduced to
   below that amount.
+
+[[ml-forecast-request-body]]
+== {api-request-body-title}
+
+You can also specify the query parameters (such as `duration` and
+`expires_in`) in the request body.
 
 [[ml-forecast-example]]
 == {api-examples-title}

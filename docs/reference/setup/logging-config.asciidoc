@@ -1,8 +1,6 @@
 [[logging]]
 === Logging
 
-include::{es-repo-dir}/tab-widgets/code.asciidoc[]
-
 You can use {es}'s application logs to monitor your cluster and diagnose issues.
 If you run {es} as a service, the default location of the logs varies based on
 your platform and installation method:

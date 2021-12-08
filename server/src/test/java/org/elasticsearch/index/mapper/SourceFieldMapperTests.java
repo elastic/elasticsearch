@@ -32,7 +32,16 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
     @Override
     protected void registerParameters(ParameterChecker checker) throws IOException {
-        checker.registerConflictCheck("enabled", b -> b.field("enabled", false));
+        checker.registerConflictCheck(
+            "enabled",
+            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", false).endObject()),
+            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", true).endObject())
+        );
+        checker.registerUpdateCheck(
+            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", true).endObject()),
+            topMapping(b -> b.startObject(SourceFieldMapper.NAME).field("enabled", false).endObject()),
+            dm -> assertFalse(dm.metadataMapper(SourceFieldMapper.class).enabled())
+        );
         checker.registerConflictCheck("includes", b -> b.array("includes", "foo*"));
         checker.registerConflictCheck("excludes", b -> b.array("excludes", "foo*"));
     }
@@ -42,7 +51,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         DocumentMapper documentMapper = createDocumentMapper(topMapping(b -> b.startObject("_source").endObject()));
         ParsedDocument doc = documentMapper.parse(
             new SourceToParse(
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
                 XContentType.JSON
@@ -53,7 +61,6 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
 
         doc = documentMapper.parse(
             new SourceToParse(
-                "_doc",
                 "1",
                 BytesReference.bytes(XContentFactory.smileBuilder().startObject().field("field", "value").endObject()),
                 XContentType.SMILE
@@ -126,7 +133,7 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         MapperParsingException exception = expectThrows(
             MapperParsingException.class,
             // extra end object (invalid JSON))
-            () -> documentMapper.parse(new SourceToParse("test", "1", new BytesArray("{}}"), XContentType.JSON))
+            () -> documentMapper.parse(new SourceToParse("1", new BytesArray("{}}"), XContentType.JSON))
         );
         assertNotNull(exception.getRootCause());
         assertThat(exception.getRootCause().getMessage(), containsString("Unexpected close marker '}'"));

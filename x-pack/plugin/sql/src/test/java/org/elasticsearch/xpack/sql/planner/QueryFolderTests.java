@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.sql.querydsl.container.GroupByRef;
+import org.elasticsearch.xpack.sql.querydsl.container.PivotColumnRef;
 import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
@@ -550,6 +552,57 @@ public class QueryFolderTests extends ESTestCase {
         assertThat(a, containsString("\"terms\":{\"field\":\"bool\""));
         assertThat(a, containsString("\"terms\":{\"field\":\"keyword\""));
         assertThat(a, containsString("{\"avg\":{\"field\":\"int\"}"));
+    }
+
+    public void testFoldingOfPivotWithPivotedColumnFirst() {
+        PhysicalPlan p = plan(
+            "SELECT a, bool FROM (SELECT int, keyword, bool FROM test) PIVOT(AVG(int) FOR keyword IN ('A' AS a, 'B' AS b))"
+        );
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+
+        assertEquals(asList("a", "bool"), Expressions.names(ee.output()));
+
+        List<QueryContainer.FieldInfo> fields = ee.queryContainer().fields();
+        assertEquals(3, fields.size());
+        assertEquals(PivotColumnRef.class, fields.get(0).extraction().getClass());
+        assertEquals("A", ((PivotColumnRef) fields.get(0).extraction()).value());
+        assertEquals(GroupByRef.class, fields.get(1).extraction().getClass());
+        assertEquals(PivotColumnRef.class, fields.get(2).extraction().getClass());
+        assertEquals("B", ((PivotColumnRef) fields.get(2).extraction()).value());
+    }
+
+    public void testFoldingOfPivotWithPivotedColumnDuplicated() {
+        PhysicalPlan p = plan(
+            "SELECT a as c1, a as c2 FROM (SELECT int, keyword, bool FROM test) PIVOT(AVG(int) FOR keyword IN ('A' AS a, 'B' AS b))"
+        );
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+
+        assertEquals(asList("c1", "c2"), Expressions.names(ee.output()));
+
+        List<QueryContainer.FieldInfo> fields = ee.queryContainer().fields();
+        assertEquals(4, fields.size());
+        assertEquals(PivotColumnRef.class, fields.get(0).extraction().getClass());
+        assertEquals("A", ((PivotColumnRef) fields.get(0).extraction()).value());
+        assertEquals(PivotColumnRef.class, fields.get(1).extraction().getClass());
+        assertEquals("A", ((PivotColumnRef) fields.get(1).extraction()).value());
+        assertEquals(GroupByRef.class, fields.get(2).extraction().getClass());
+        assertEquals(PivotColumnRef.class, fields.get(3).extraction().getClass());
+        assertEquals("B", ((PivotColumnRef) fields.get(3).extraction()).value());
+    }
+
+    public void testFoldingOfPivotDroppingPivotedColumn() {
+        PhysicalPlan p = plan("SELECT bool FROM (SELECT int, keyword, bool FROM test) PIVOT(AVG(int) FOR keyword IN ('A' AS a, 'B' AS b))");
+
+        assertEquals(EsQueryExec.class, p.getClass());
+        EsQueryExec ee = (EsQueryExec) p;
+
+        assertEquals(asList("bool"), Expressions.names(ee.output()));
+
+        List<QueryContainer.FieldInfo> fields = ee.queryContainer().fields();
+        assertEquals(1, fields.size());
+        assertEquals(GroupByRef.class, fields.get(0).extraction().getClass());
     }
 
     public void testPivotHasSameQueryAsGroupBy() {

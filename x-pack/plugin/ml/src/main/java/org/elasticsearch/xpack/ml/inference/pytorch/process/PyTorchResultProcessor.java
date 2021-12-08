@@ -22,6 +22,8 @@ import java.util.concurrent.ConcurrentMap;
 
 public class PyTorchResultProcessor {
 
+    public record ResultStats(LongSummaryStatistics timingStats, int errorCount, int numberOfPendingResults, Instant lastUsed) {}
+
     private static final Logger logger = LogManager.getLogger(PyTorchResultProcessor.class);
 
     private final ConcurrentMap<String, PendingResult> pendingResults = new ConcurrentHashMap<>();
@@ -29,6 +31,7 @@ public class PyTorchResultProcessor {
     private final String deploymentId;
     private volatile boolean isStopping;
     private final LongSummaryStatistics timingStats;
+    private int errorCount;
     private Instant lastUsed;
 
     public PyTorchResultProcessor(String deploymentId) {
@@ -93,23 +96,22 @@ public class PyTorchResultProcessor {
         logger.debug(() -> new ParameterizedMessage("[{}] Results processing finished", deploymentId));
     }
 
-    public synchronized LongSummaryStatistics getTimingStats() {
-        return new LongSummaryStatistics(timingStats.getCount(), timingStats.getMin(), timingStats.getMax(), timingStats.getSum());
+    public synchronized ResultStats getResultStats() {
+        return new ResultStats(
+            new LongSummaryStatistics(timingStats.getCount(), timingStats.getMin(), timingStats.getMax(), timingStats.getSum()),
+            errorCount,
+            pendingResults.size(),
+            lastUsed
+        );
     }
 
     private synchronized void processResult(PyTorchResult result) {
         if (result.isError() == false) {
             timingStats.accept(result.getTimeMs());
             lastUsed = Instant.now();
+        } else {
+            errorCount++;
         }
-    }
-
-    public synchronized Instant getLastUsed() {
-        return lastUsed;
-    }
-
-    public int numberOfPendingResults() {
-        return pendingResults.size();
     }
 
     public void stop() {

@@ -12,9 +12,11 @@ import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsStatsAction.Response;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStatsTests;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -91,6 +93,52 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                     RESULTS_FIELD
                 )
             );
+        } else if (version.before(Version.V_8_1_0)) {
+            List<Response.TrainedModelStats> bwcStats = new ArrayList<>();
+            for (var trainedModelStats : instance.getResources().results()) {
+                var deploymentStats = trainedModelStats.getDeploymentStats();
+                if (deploymentStats != null) {
+                    var newNodeStats = deploymentStats.getNodeStats()
+                        .stream()
+                        .map(
+                            nodeStats -> new AllocationStats.NodeStats(
+                                nodeStats.getNode(),
+                                nodeStats.getInferenceCount().orElse(null),
+                                nodeStats.getAvgInferenceTime().orElse(null),
+                                nodeStats.getLastAccess(),
+                                nodeStats.getPendingCount().orElse(null),
+                                null,
+                                nodeStats.getRoutingState(),
+                                nodeStats.getStartTime()
+                            )
+                        )
+                        .collect(Collectors.toList());
+
+                    var newDeploymentStats = new AllocationStats(
+                        deploymentStats.getModelId(),
+                        deploymentStats.getModelSize(),
+                        deploymentStats.getInferenceThreads(),
+                        deploymentStats.getModelThreads(),
+                        deploymentStats.getQueueCapacity(),
+                        deploymentStats.getStartTime(),
+                        newNodeStats
+                    );
+
+                    bwcStats.add(
+                        new Response.TrainedModelStats(
+                            trainedModelStats.getModelId(),
+                            trainedModelStats.getIngestStats(),
+                            trainedModelStats.getPipelineCount(),
+                            trainedModelStats.getInferenceStats(),
+                            newDeploymentStats
+                        )
+                    );
+                } else {
+                    bwcStats.add(trainedModelStats);
+                }
+            }
+
+            return new Response(new QueryPage<>(bwcStats, instance.getResources().count(), RESULTS_FIELD));
         }
         return instance;
     }

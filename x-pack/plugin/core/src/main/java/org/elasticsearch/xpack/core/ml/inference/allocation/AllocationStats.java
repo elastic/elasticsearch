@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.inference.allocation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,6 +32,7 @@ public class AllocationStats implements ToXContentObject, Writeable {
         private final Double avgInferenceTime;
         private final Instant lastAccess;
         private final Integer pendingCount;
+        private final Integer errorCount;
         private final RoutingStateAndReason routingState;
         private final Instant startTime;
 
@@ -39,6 +41,7 @@ public class AllocationStats implements ToXContentObject, Writeable {
             long inferenceCount,
             Double avgInferenceTime,
             int pendingCount,
+            int errorCount,
             Instant lastAccess,
             Instant startTime
         ) {
@@ -48,21 +51,23 @@ public class AllocationStats implements ToXContentObject, Writeable {
                 avgInferenceTime,
                 lastAccess,
                 pendingCount,
+                errorCount,
                 new RoutingStateAndReason(RoutingState.STARTED, null),
                 Objects.requireNonNull(startTime)
             );
         }
 
         public static AllocationStats.NodeStats forNotStartedState(DiscoveryNode node, RoutingState state, String reason) {
-            return new AllocationStats.NodeStats(node, null, null, null, null, new RoutingStateAndReason(state, reason), null);
+            return new AllocationStats.NodeStats(node, null, null, null, null, null, new RoutingStateAndReason(state, reason), null);
         }
 
-        private NodeStats(
+        public NodeStats(
             DiscoveryNode node,
             Long inferenceCount,
             Double avgInferenceTime,
             Instant lastAccess,
             Integer pendingCount,
+            Integer errorCount,
             RoutingStateAndReason routingState,
             @Nullable Instant startTime
         ) {
@@ -71,11 +76,12 @@ public class AllocationStats implements ToXContentObject, Writeable {
             this.avgInferenceTime = avgInferenceTime;
             this.lastAccess = lastAccess;
             this.pendingCount = pendingCount;
+            this.errorCount = errorCount;
             this.routingState = routingState;
             this.startTime = startTime;
 
             // if lastAccess time is null there have been no inferences
-            assert this.lastAccess != null || (inferenceCount == null || inferenceCount == 0);
+            assert this.lastAccess != null || ((inferenceCount == null || inferenceCount == 0) || (errorCount == null || errorCount == 0));
         }
 
         public NodeStats(StreamInput in) throws IOException {
@@ -86,6 +92,11 @@ public class AllocationStats implements ToXContentObject, Writeable {
             this.pendingCount = in.readOptionalVInt();
             this.routingState = in.readOptionalWriteable(RoutingStateAndReason::new);
             this.startTime = in.readOptionalInstant();
+            if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+                this.errorCount = in.readOptionalVInt();
+            } else {
+                errorCount = null;
+            }
         }
 
         public DiscoveryNode getNode() {
@@ -102,6 +113,22 @@ public class AllocationStats implements ToXContentObject, Writeable {
 
         public Optional<Double> getAvgInferenceTime() {
             return Optional.ofNullable(avgInferenceTime);
+        }
+
+        public Optional<Integer> getErrorCount() {
+            return Optional.ofNullable(errorCount);
+        }
+
+        public Optional<Integer> getPendingCount() {
+            return Optional.ofNullable(pendingCount);
+        }
+
+        public Instant getLastAccess() {
+            return lastAccess;
+        }
+
+        public Instant getStartTime() {
+            return startTime;
         }
 
         @Override
@@ -125,6 +152,9 @@ public class AllocationStats implements ToXContentObject, Writeable {
             if (pendingCount != null) {
                 builder.field("number_of_pending_requests", pendingCount);
             }
+            if (errorCount != null) {
+                builder.field("error_count", errorCount);
+            }
             if (startTime != null) {
                 builder.timeField("start_time", "start_time_string", startTime.toEpochMilli());
             }
@@ -141,6 +171,9 @@ public class AllocationStats implements ToXContentObject, Writeable {
             out.writeOptionalVInt(pendingCount);
             out.writeOptionalWriteable(routingState);
             out.writeOptionalInstant(startTime);
+            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                out.writeOptionalVInt(errorCount);
+            }
         }
 
         @Override
@@ -153,13 +186,14 @@ public class AllocationStats implements ToXContentObject, Writeable {
                 && Objects.equals(node, that.node)
                 && Objects.equals(lastAccess, that.lastAccess)
                 && Objects.equals(pendingCount, that.pendingCount)
+                && Objects.equals(errorCount, that.errorCount)
                 && Objects.equals(routingState, that.routingState)
                 && Objects.equals(startTime, that.startTime);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(node, inferenceCount, avgInferenceTime, lastAccess, pendingCount, routingState, startTime);
+            return Objects.hash(node, inferenceCount, avgInferenceTime, lastAccess, pendingCount, errorCount, routingState, startTime);
         }
     }
 

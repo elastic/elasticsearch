@@ -302,6 +302,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                     // avoid reporting the average time as 0 if count < 1
                     (stats.get().getTimingStats().getCount() > 0) ? stats.get().getTimingStats().getAverage() : null,
                     stats.get().getPendingCount(),
+                    stats.get().getErrorCount() > 0 ? stats.get().getErrorCount() : null,
                     stats.get().getLastUsed(),
                     stats.get().getStartTime()
                 )

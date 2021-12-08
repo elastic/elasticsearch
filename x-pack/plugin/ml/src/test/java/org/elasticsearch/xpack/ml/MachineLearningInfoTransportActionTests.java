@@ -356,6 +356,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 5,
                                 42.0,
                                 0,
+                                0,
                                 Instant.now(),
                                 Instant.now()
                             ),
@@ -363,6 +364,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                 new DiscoveryNode("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3), Version.CURRENT),
                                 4,
                                 50.0,
+                                0,
                                 0,
                                 Instant.now(),
                                 Instant.now()

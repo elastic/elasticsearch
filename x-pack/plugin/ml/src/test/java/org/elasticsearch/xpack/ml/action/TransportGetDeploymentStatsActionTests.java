@@ -81,6 +81,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomDoubleBetween(0.0, 100.0, true),
                 randomIntBetween(1, 100),
+                randomIntBetween(0, 100),
                 Instant.now(),
                 Instant.now()
             )
@@ -91,6 +92,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomDoubleBetween(0.0, 100.0, true),
                 randomIntBetween(1, 100),
+                randomIntBetween(0, 100),
                 Instant.now(),
                 Instant.now()
             )
@@ -135,6 +137,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomDoubleBetween(0.0, 100.0, true),
                 randomIntBetween(1, 100),
+                randomIntBetween(0, 100),
                 Instant.now(),
                 Instant.now()
             )
@@ -145,6 +148,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomDoubleBetween(0.0, 100.0, true),
                 randomIntBetween(1, 100),
+                randomIntBetween(0, 100),
                 Instant.now(),
                 Instant.now()
             )
@@ -200,6 +204,7 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
                         randomNonNegativeLong(),
                         randomDoubleBetween(0.0, 100.0, true),
                         randomIntBetween(1, 100),
+                        randomIntBetween(0, 100),
                         Instant.now(),
                         Instant.now()
                     )

@@ -16,12 +16,14 @@ public class ModelStats {
     private final LongSummaryStatistics timingStats;
     private final Instant lastUsed;
     private final int pendingCount;
+    private final int errorCount;
 
-    ModelStats(Instant startTime, LongSummaryStatistics timingStats, Instant lastUsed, int pendingCount) {
+    ModelStats(Instant startTime, LongSummaryStatistics timingStats, Instant lastUsed, int pendingCount, int errorCount) {
         this.startTime = startTime;
         this.timingStats = timingStats;
         this.lastUsed = lastUsed;
         this.pendingCount = pendingCount;
+        this.errorCount = errorCount;
     }
 
     public Instant getStartTime() {
@@ -38,5 +40,9 @@ public class ModelStats {
 
     public int getPendingCount() {
         return pendingCount;
+    }
+
+    public int getErrorCount() {
+        return errorCount;
     }
 }

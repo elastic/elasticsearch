@@ -195,6 +195,7 @@ public class AsyncTwoPhaseIndexerTests extends ESTestCase {
             this.maxDocsPerSecond = maxDocsPerSecond;
         }
 
+        @SuppressWarnings("HiddenField")
         public void rethrottle(float maxDocsPerSecond) {
             this.maxDocsPerSecond = maxDocsPerSecond;
             rethrottle();

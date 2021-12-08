@@ -56,6 +56,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -1032,7 +1033,7 @@ public class DataStreamIT extends ESIntegTestCase {
         Map<?, ?> expectedMapping = Map.of(
             "properties",
             Map.of("@timestamp", Map.of("type", "date")),
-            "_data_stream_timestamp",
+            DataStreamTimestampFieldMapper.NAME,
             Map.of("enabled", true)
         );
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("logs-foobar").get();
@@ -1043,7 +1044,7 @@ public class DataStreamIT extends ESIntegTestCase {
         expectedMapping = Map.of(
             "properties",
             Map.of("@timestamp", Map.of("type", "date"), "my_field", Map.of("type", "keyword")),
-            "_data_stream_timestamp",
+            DataStreamTimestampFieldMapper.NAME,
             Map.of("enabled", true)
         );
         client().admin()

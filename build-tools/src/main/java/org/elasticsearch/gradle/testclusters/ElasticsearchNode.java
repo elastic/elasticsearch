@@ -725,8 +725,20 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         Map<String, String> cred = new LinkedHashMap<>();
         cred.put("useradd", userSpec.getOrDefault("username", "test_user"));
         cred.put("-p", userSpec.getOrDefault("password", "x-pack-test-password"));
-        cred.put("-r", userSpec.getOrDefault("role", "superuser"));
+
+       final String role = userSpec.getOrDefault("role", "_es_test_root");
+        if (role.equals("_es_test_root")) {
+            if (extraConfigFiles.containsKey("roles.yml") == false) {
+                final File rolesYml = getBuildPluginFile("/roles.yml");
+                extraConfigFile("roles.yml", rolesYml);
+            }
+        }
+        cred.put("-r", role);
         credentials.add(cred);
+    }
+
+    private File getBuildPluginFile(String name) {
+        return project.getRootProject().file("build-tools/src/main/resources/" + name);
     }
 
     private void runElasticsearchBinScriptWithInput(String input, String tool, CharSequence... args) {

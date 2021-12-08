@@ -27,7 +27,8 @@ testClusters.register("runTask") {
       }
       setting 'xpack.security.enabled', 'true'
       keystore 'bootstrap.password', 'password'
-      user username: 'elastic-admin', password: 'elastic-password', role: 'superuser'
+      user username: 'elastic-admin', password: 'elastic-password', role: '_root'
+      extraConfigFile 'roles.yml', file('src/main/resources/roles.yml')
     }
 }
 

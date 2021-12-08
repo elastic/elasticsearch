@@ -59,8 +59,29 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     public static final String TEST_USER_NAME = "test_user";
     public static final Hasher HASHER = getFastStoredHashAlgoForTests();
     public static final String TEST_PASSWORD_HASHED = new String(HASHER.hash(new SecureString(TEST_PASSWORD.toCharArray())));
+
     public static final String TEST_ROLE = "user";
-    public static final String TEST_SUPERUSER = "test_superuser";
+    private static final String TEST_ROLE_YML = """
+        user:
+          cluster: [ ALL ]
+          indices:
+            - names: '*'
+              allow_restricted_indices: true
+              privileges: [ ALL ]
+        """;
+
+    public static final String TEST_UNRESTRICTED_USER = "test_root_user";
+    public static final String UNRESTRICTED_ROLE = "_root";
+    private static final String UNRESTRICTED_ROLE_YML = """
+        _root:
+          cluster: [ ALL ]
+          indices:
+            - names: '*'
+              allow_restricted_indices: true
+              privileges: [ ALL ]
+          run_as: [ '*' ]
+        """;
+
     public static final RequestOptions SECURITY_REQUEST_OPTIONS = RequestOptions.DEFAULT.toBuilder()
         .addHeader(
             "Authorization",
@@ -79,7 +100,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         + ":"
         + TEST_PASSWORD_HASHED
         + "\n"
-        + TEST_SUPERUSER
+        + TEST_UNRESTRICTED_USER
         + ":"
         + TEST_PASSWORD_HASHED
         + "\n";
@@ -89,22 +110,11 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         + TEST_USER_NAME
         + ","
         + DEFAULT_TRANSPORT_CLIENT_USER_NAME
-        + "\n"
-        + DEFAULT_TRANSPORT_CLIENT_ROLE
-        + ":"
-        + DEFAULT_TRANSPORT_CLIENT_USER_NAME
-        + "\n"
-        + "superuser:"
-        + TEST_SUPERUSER
-        + "\n";
+        + "\n" //
+        + (DEFAULT_TRANSPORT_CLIENT_ROLE + ":" + DEFAULT_TRANSPORT_CLIENT_USER_NAME + "\n") //
+        + (UNRESTRICTED_ROLE + ":" + TEST_UNRESTRICTED_USER + "\n");
 
-    public static final String CONFIG_ROLE_ALLOW_ALL = TEST_ROLE
-        + ":\n"
-        + "  cluster: [ ALL ]\n"
-        + "  indices:\n"
-        + "    - names: '*'\n"
-        + "      allow_restricted_indices: true\n"
-        + "      privileges: [ ALL ]\n";
+    public static final String CONTIF_STANDARD_ROLES_YML = TEST_ROLE_YML + UNRESTRICTED_ROLE_YML;
 
     private final Path parentFolder;
     private final String subfolderPrefix;
@@ -203,7 +213,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
     }
 
     protected String configRoles() {
-        return CONFIG_ROLE_ALLOW_ALL;
+        return CONTIF_STANDARD_ROLES_YML;
     }
 
     protected String configOperatorUsers() {

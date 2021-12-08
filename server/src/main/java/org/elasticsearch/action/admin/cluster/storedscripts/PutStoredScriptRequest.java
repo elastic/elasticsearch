@@ -131,13 +131,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
             // ignore
         }
 
-        return "put stored script {id ["
-            + id
-            + "]"
-            + (context != null ? ", context [" + context + "]" : "")
-            + ", content ["
-            + json
-            + "]}";
+        return "put stored script {id [" + id + "]" + (context != null ? ", context [" + context + "]" : "") + ", content [" + json + "]}";
     }
 
     @Override

@@ -82,11 +82,7 @@ public class ActionWrapperTests extends ESTestCase {
 
     public void testThatMultipleResultsCanBeReturned() throws Exception {
         final LoggingAction loggingAction = new LoggingAction(new TextTemplate("{{key}}"), null, null);
-        final ExecutableAction<LoggingAction> action = new ExecutableLoggingAction(
-            loggingAction,
-            logger,
-            new MockTextTemplateEngine()
-        );
+        final ExecutableAction<LoggingAction> action = new ExecutableLoggingAction(loggingAction, logger, new MockTextTemplateEngine());
         ActionWrapper wrapper = new ActionWrapper(
             "_action",
             null,

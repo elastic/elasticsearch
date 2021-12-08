@@ -627,8 +627,7 @@ public class MetadataIndexTemplateService {
             var indexMode = result.v1();
             if (indexMode == IndexMode.TIME_SERIES) {
                 Template finalTemplate = indexTemplate.template();
-                Settings.Builder indexSettings = Settings.builder()
-                    .put(finalTemplate.settings());
+                Settings.Builder indexSettings = Settings.builder().put(finalTemplate.settings());
                 MetadataCreateDataStreamService.prepareFirstBackingIndexForTSDB(indexSettings, System.currentTimeMillis(), result.v2());
                 templateToValidate = new ComposableIndexTemplate(
                     indexTemplate.indexPatterns(),
@@ -655,9 +654,7 @@ public class MetadataIndexTemplateService {
                 "composable template ["
                     + name
                     + "] template after composition "
-                    + (indexTemplate.composedOf().size() > 0
-                    ? "with component templates " + indexTemplate.composedOf() + " "
-                    : "")
+                    + (indexTemplate.composedOf().size() > 0 ? "with component templates " + indexTemplate.composedOf() + " " : "")
                     + "is invalid",
                 e
             );
@@ -665,10 +662,7 @@ public class MetadataIndexTemplateService {
     }
 
     static Tuple<IndexMode, Duration> resolveIndexModeAndLookAheadTimeSetting(ComposableIndexTemplate indexTemplate, Metadata metadata) {
-        Settings allTemplateSettings = resolveSettings(
-            indexTemplate,
-            metadata.componentTemplates()
-        );
+        Settings allTemplateSettings = resolveSettings(indexTemplate, metadata.componentTemplates());
         IndexMode indexMode = Optional.ofNullable(allTemplateSettings.get(IndexSettings.MODE.getKey()))
             .map(value -> IndexMode.valueOf(value.toUpperCase(Locale.ROOT)))
             .orElse(IndexMode.STANDARD);

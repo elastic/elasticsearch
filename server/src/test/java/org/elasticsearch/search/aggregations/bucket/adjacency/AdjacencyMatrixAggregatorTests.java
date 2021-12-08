@@ -39,11 +39,7 @@ public class AdjacencyMatrixAggregatorTests extends AggregatorTestCase {
         assertThat(
             ex.getMessage(),
             equalTo(
-                "Number of filters is too large, must be less than or equal to: ["
-                    + maxFilters
-                    + "] but was ["
-                    + maxFiltersPlusOne
-                    + "]."
+                "Number of filters is too large, must be less than or equal to: [" + maxFilters + "] but was [" + maxFiltersPlusOne + "]."
             )
         );
     }

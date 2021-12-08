@@ -603,8 +603,9 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         });
         assertThat(
             ExceptionsHelper.unwrap(e, IllegalArgumentException.class).getMessage(),
-            containsString("field expansion matches too many fields, limit: " +
-                IndexSearcher.getMaxClauseCount() + ", got: " + exceedingFieldCount)
+            containsString(
+                "field expansion matches too many fields, limit: " + IndexSearcher.getMaxClauseCount() + ", got: " + exceedingFieldCount
+            )
         );
     }
 

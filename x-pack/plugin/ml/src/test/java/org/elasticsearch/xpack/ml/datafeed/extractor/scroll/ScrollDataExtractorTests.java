@@ -199,7 +199,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
             searchRequest,
             containsString(
                 "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
-                    + "{\"range\":{\"time\":{\"from\":1000,\"to\":2000,\"include_lower\":true,\"include_upper\":false,"
+                    + "{\"range\":{\"time\":{\"gte\":1000,\"lt\":2000,"
                     + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
             )
         );
@@ -248,7 +248,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
             searchRequest1,
             containsString(
                 "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
-                    + "{\"range\":{\"time\":{\"from\":1000,\"to\":10000,\"include_lower\":true,\"include_upper\":false,"
+                    + "{\"range\":{\"time\":{\"gte\":1000,\"lt\":10000,"
                     + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
             )
         );
@@ -477,7 +477,7 @@ public class ScrollDataExtractorTests extends ESTestCase {
             searchRequest,
             containsString(
                 "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
-                    + "{\"range\":{\"time\":{\"from\":1000,\"to\":2000,\"include_lower\":true,\"include_upper\":false,"
+                    + "{\"range\":{\"time\":{\"gte\":1000,\"lt\":2000,"
                     + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
             )
         );

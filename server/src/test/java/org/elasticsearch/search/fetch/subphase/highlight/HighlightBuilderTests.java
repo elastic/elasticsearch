@@ -216,7 +216,6 @@ public class HighlightBuilderTests extends ESTestCase {
             XContentParseException e = expectParseThrows(XContentParseException.class, """
                 {
                     "bad_fieldname" :  { "field" : "value" }
-                \s
                 }
                 """);
             assertEquals("[2:5] [highlight] unknown field [bad_fieldname]", e.getMessage());

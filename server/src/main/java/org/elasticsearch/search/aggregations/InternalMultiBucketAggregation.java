@@ -63,7 +63,7 @@ public abstract class InternalMultiBucketAggregation<
      * Reduce a list of same-keyed buckets (from multiple shards) to a single bucket. This
      * requires all buckets to have the same key.
      */
-    protected abstract B reduceBucket(List<B> buckets, ReduceContext context);
+    protected abstract B reduceBucket(List<B> buckets, AggregationReduceContext context);
 
     @Override
     public abstract List<B> getBuckets();
@@ -141,7 +141,7 @@ public abstract class InternalMultiBucketAggregation<
     @Override
     public final InternalAggregation reducePipelines(
         InternalAggregation reducedAggs,
-        ReduceContext reduceContext,
+        AggregationReduceContext reduceContext,
         PipelineTree pipelineTree
     ) {
         assert reduceContext.isFinalReduce();
@@ -182,7 +182,7 @@ public abstract class InternalMultiBucketAggregation<
         }
     }
 
-    private List<B> reducePipelineBuckets(ReduceContext reduceContext, PipelineTree pipelineTree) {
+    private List<B> reducePipelineBuckets(AggregationReduceContext reduceContext, PipelineTree pipelineTree) {
         List<B> reducedBuckets = new ArrayList<>();
         for (B bucket : getBuckets()) {
             List<InternalAggregation> aggs = new ArrayList<>();

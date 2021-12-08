@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms.heuristic;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -53,7 +53,7 @@ public abstract class SignificanceHeuristic implements NamedWriteable, ToXConten
      * @param reduceContext the reduce context on the coordinating node
      * @return a version of this heuristic suitable for execution
      */
-    public SignificanceHeuristic rewrite(InternalAggregation.ReduceContext reduceContext) {
+    public SignificanceHeuristic rewrite(AggregationReduceContext reduceContext) {
         return this;
     }
 

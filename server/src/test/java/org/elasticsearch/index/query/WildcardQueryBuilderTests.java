@@ -96,10 +96,16 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
     }
 
     public void testFromJson() throws IOException {
-        String json = "{    \"wildcard\" : { \"user\" : { \"wildcard\" : \"ki*y\","
-            + " \"case_insensitive\" : true,\n"
-            + " \"boost\" : 2.0"
-            + " } }}";
+        String json = """
+            {
+              "wildcard": {
+                "user": {
+                  "wildcard": "ki*y",
+                  "case_insensitive": true,
+                  "boost": 2
+                }
+              }
+            }""";
         WildcardQueryBuilder parsed = (WildcardQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, "ki*y", parsed.value());

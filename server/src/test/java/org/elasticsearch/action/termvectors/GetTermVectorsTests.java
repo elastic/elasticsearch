@@ -191,12 +191,12 @@ public class GetTermVectorsTests extends ESSingleNodeTestCase {
             for (int k = 0; k < docsAndPositions.freq(); k++) {
                 docsAndPositions.nextPosition();
                 if (docsAndPositions.getPayload() != null) {
-                    String infoString = "\nterm: "
-                        + term
-                        + " has payload \n"
-                        + docsAndPositions.getPayload().toString()
-                        + "\n but should have payload \n"
-                        + curPayloads.get(k).toString();
+                    String infoString = """
+
+                        term: %s has payload\s
+                        %s
+                         but should have payload\s
+                        %s""".formatted(term, docsAndPositions.getPayload().toString(), curPayloads.get(k).toString());
                     assertThat(infoString, docsAndPositions.getPayload(), equalTo(curPayloads.get(k)));
                 } else {
                     String infoString = "\nterm: " + term + " has no payload but should have payload \n" + curPayloads.get(k).toString();

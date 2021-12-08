@@ -2728,24 +2728,26 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             putTrainedModel(modelId);
         }
 
-        String regressionPipeline = "{"
-            + "    \"processors\": [\n"
-            + "      {\n"
-            + "        \"inference\": {\n"
-            + "          \"target_field\": \"regression_value\",\n"
-            + "          \"model_id\": \""
-            + modelIdPrefix
-            + 0
-            + "\",\n"
-            + "          \"inference_config\": {\"regression\": {}},\n"
-            + "          \"field_map\": {\n"
-            + "            \"col1\": \"col1\",\n"
-            + "            \"col2\": \"col2\",\n"
-            + "            \"col3\": \"col3\",\n"
-            + "            \"col4\": \"col4\"\n"
-            + "          }\n"
-            + "        }\n"
-            + "      }]}\n";
+        String regressionPipeline = """
+            {
+              "processors": [
+                {
+                  "inference": {
+                    "target_field": "regression_value",
+                    "model_id": "%s%s",
+                    "inference_config": {
+                      "regression": {}
+                    },
+                    "field_map": {
+                      "col1": "col1",
+                      "col2": "col2",
+                      "col3": "col3",
+                      "col4": "col4"
+                    }
+                  }
+                }
+              ]
+            }""".formatted(modelIdPrefix, "0");
         String pipelineId = "regression-stats-pipeline";
 
         highLevelClient().ingest()

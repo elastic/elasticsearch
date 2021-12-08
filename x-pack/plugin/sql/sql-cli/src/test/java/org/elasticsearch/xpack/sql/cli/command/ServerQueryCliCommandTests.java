@@ -48,7 +48,11 @@ public class ServerQueryCliCommandTests extends SqlCliTestCase {
         when(client.basicQuery("test query", 10)).thenReturn(fakeResponse("", true, "foo"));
         ServerQueryCliCommand cliCommand = new ServerQueryCliCommand();
         assertTrue(cliCommand.handle(testTerminal, cliSession, "test query"));
-        assertEquals("     field     \n---------------\nfoo            \n<flush/>", testTerminal.toString());
+        assertEquals("""
+                 field    \s
+            ---------------
+            foo           \s
+            <flush/>""", testTerminal.toString());
         verify(client, times(1)).basicQuery(eq("test query"), eq(10));
         verifyNoMoreInteractions(client);
     }

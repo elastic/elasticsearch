@@ -32,7 +32,10 @@ import static org.mockito.Mockito.mock;
 
 public class XContentRecordReaderTests extends ESTestCase {
     public void testRead() throws JsonParseException, IOException {
-        String data = "{\"a\":10, \"b\":20, \"c\":30}\n{\"b\":21, \"a\":11, \"c\":31}\n";
+        String data = """
+            {"a":10, "b":20, "c":30}
+            {"b":21, "a":11, "c":31}
+            """;
         XContentParser parser = createParser(data);
         Map<String, Integer> fieldMap = createFieldMap();
 
@@ -184,7 +187,9 @@ public class XContentRecordReaderTests extends ESTestCase {
 
     public void testRead_HitParseErrorsLimit() throws JsonParseException, IOException {
         // missing a ':'
-        String format = "{\"a\":1%1$d, \"b\"2%1$d, \"c\":3%1$d}\n";
+        String format = """
+            {"a":1%1$d, "b"2%1$d, "c":3%1$d}
+            """;
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < XContentRecordReader.PARSE_ERRORS_LIMIT; i++) {
             builder.append(String.format(Locale.ROOT, format, i));

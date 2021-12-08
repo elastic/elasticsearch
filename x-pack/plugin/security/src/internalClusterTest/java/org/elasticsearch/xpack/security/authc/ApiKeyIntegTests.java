@@ -163,10 +163,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     @Override
     public String configUsersRoles() {
-        return super.configUsersRoles()
-            + "no_api_key_role:user_with_no_api_key_role\n"
-            + "manage_api_key_role:user_with_manage_api_key_role\n"
-            + "manage_own_api_key_role:user_with_manage_own_api_key_role\n";
+        return super.configUsersRoles() + """
+            no_api_key_role:user_with_no_api_key_role
+            manage_api_key_role:user_with_manage_api_key_role
+            manage_own_api_key_role:user_with_manage_own_api_key_role
+            """;
     }
 
     private void awaitApiKeysRemoverCompletion() throws Exception {

@@ -125,26 +125,23 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             rangeQueryBuilder.to(randomIntBetween(101, 200));
         }
 
-        String query = "{\n"
-            + "    \"range\":{\n"
-            + "        \""
-            + INT_FIELD_NAME
-            + "\": {\n"
-            + "            \"include_lower\":"
-            + rangeQueryBuilder.includeLower()
-            + ",\n"
-            + "            \"include_upper\":"
-            + rangeQueryBuilder.includeUpper()
-            + ",\n"
-            + "            \"from\":"
-            + rangeQueryBuilder.from()
-            + ",\n"
-            + "            \"to\":"
-            + rangeQueryBuilder.to()
-            + "\n"
-            + "        }\n"
-            + "    }\n"
-            + "}";
+        String query = """
+            {
+                "range":{
+                    "%s": {
+                        "include_lower":%s,
+                        "include_upper":%s,
+                        "from":%s,
+                        "to":%s
+                    }
+                }
+            }""".formatted(
+            INT_FIELD_NAME,
+            rangeQueryBuilder.includeLower(),
+            rangeQueryBuilder.includeUpper(),
+            rangeQueryBuilder.from(),
+            rangeQueryBuilder.to()
+        );
         alternateVersions.put(query, rangeQueryBuilder);
         return alternateVersions;
     }
@@ -398,16 +395,17 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n"
-            + "  \"range\" : {\n"
-            + "    \"timestamp\" : {\n"
-            + "      \"gte\" : \"2015-01-01 00:00:00\",\n"
-            + "      \"lte\" : \"now\",\n"
-            + "      \"time_zone\" : \"+01:00\",\n"
-            + "      \"boost\" : 1.0\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "range" : {
+                "timestamp" : {
+                  "gte" : "2015-01-01 00:00:00",
+                  "lte" : "now",
+                  "time_zone" : "+01:00",
+                  "boost" : 1.0
+                }
+              }
+            }""";
 
         RangeQueryBuilder parsed = (RangeQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

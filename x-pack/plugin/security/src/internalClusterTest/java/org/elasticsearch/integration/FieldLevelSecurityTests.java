@@ -144,76 +144,78 @@ public class FieldLevelSecurityTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles()
-            + "role1:user1\n"
-            + "role2:user1,user7,user8\n"
-            + "role3:user2,user7,user8\n"
-            + "role4:user3,user7\n"
-            + "role5:user4,user7\n"
-            + "role6:user5,user7\n"
-            + "role7:user6\n"
-            + "role8:user9";
+        return super.configUsersRoles() + """
+            role1:user1
+            role2:user1,user7,user8
+            role3:user2,user7,user8
+            role4:user3,user7
+            role5:user4,user7
+            role6:user5,user7
+            role7:user6
+            role8:user9""";
     }
 
     @Override
     protected String configRoles() {
-        return super.configRoles()
-            + "\nrole1:\n"
-            + "  cluster: [ none ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ none ]\n"
-            + "role2:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "      - names: '*'\n"
-            + "        privileges: [ ALL ]\n"
-            + "        field_security:\n"
-            + "           grant: [ field1, join_field*, vector ]\n"
-            + "role3:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "      - names: '*'\n"
-            + "        privileges: [ ALL ]\n"
-            + "        field_security:\n"
-            + "           grant: [ field2, query* ]\n"
-            + "role4:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "     - names: '*'\n"
-            + "       privileges: [ ALL ]\n"
-            + "       field_security:\n"
-            + "           grant: [ field1, field2]\n"
-            + "role5:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "      - names: '*'\n"
-            + "        privileges: [ ALL ]\n"
-            + "        field_security:\n"
-            + "           grant: [ ]\n"
-            + "role6:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "     - names: '*'\n"
-            + "       privileges: [ALL]\n"
-            + "role7:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "      - names: '*'\n"
-            + "        privileges: [ ALL ]\n"
-            + "        field_security:\n"
-            + "           grant: [ 'field*' ]\n"
-            + "role8:\n"
-            + "  indices:\n"
-            + "      - names: 'doc_index'\n"
-            + "        privileges: [ ALL ]\n"
-            + "        field_security:\n"
-            + "           grant: [ 'field*' ]\n"
-            + "           except: [ 'field2' ]\n"
-            + "      - names: 'query_index'\n"
-            + "        privileges: [ ALL ]\n"
-            + "        field_security:\n"
-            + "           grant: [ 'field*', 'query' ]\n";
+        return super.configRoles() + """
+            %s
+            role1:
+              cluster: [ none ]
+              indices:
+                - names: '*'
+                  privileges: [ none ]
+            role2:
+              cluster: [ all ]
+              indices:
+                  - names: '*'
+                    privileges: [ ALL ]
+                    field_security:
+                       grant: [ field1, join_field*, vector ]
+            role3:
+              cluster: [ all ]
+              indices:
+                  - names: '*'
+                    privileges: [ ALL ]
+                    field_security:
+                       grant: [ field2, query* ]
+            role4:
+              cluster: [ all ]
+              indices:
+                 - names: '*'
+                   privileges: [ ALL ]
+                   field_security:
+                       grant: [ field1, field2]
+            role5:
+              cluster: [ all ]
+              indices:
+                  - names: '*'
+                    privileges: [ ALL ]
+                    field_security:
+                       grant: [ ]
+            role6:
+              cluster: [ all ]
+              indices:
+                 - names: '*'
+                   privileges: [ALL]
+            role7:
+              cluster: [ all ]
+              indices:
+                  - names: '*'
+                    privileges: [ ALL ]
+                    field_security:
+                       grant: [ 'field*' ]
+            role8:
+              indices:
+                  - names: 'doc_index'
+                    privileges: [ ALL ]
+                    field_security:
+                       grant: [ 'field*' ]
+                       except: [ 'field2' ]
+                  - names: 'query_index'
+                    privileges: [ ALL ]
+                    field_security:
+                       grant: [ 'field*', 'query' ]
+            """;
     }
 
     @Override

@@ -105,6 +105,10 @@ public abstract class AbstractAtomicGeoShapeShapeFieldData implements LeafGeoSha
             return gsSupplier.getInternal(0);
         }
 
+        public GeoShapeValues.GeoShapeValue getValue() {
+            return gsSupplier.getInternal(0);
+        }
+
         @Override
         public int size() {
             return supplier.size();

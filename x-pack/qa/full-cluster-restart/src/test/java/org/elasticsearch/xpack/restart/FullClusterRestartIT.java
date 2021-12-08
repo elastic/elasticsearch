@@ -865,5 +865,4 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         createIndexTemplateRequest.setEntity(templateJSON);
         client.performRequest(createIndexTemplateRequest);
     }
-
 }

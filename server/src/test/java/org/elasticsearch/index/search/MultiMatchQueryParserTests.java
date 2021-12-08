@@ -67,23 +67,28 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
         MapperService mapperService = indexService.mapperService();
         String mapping = """
             {
-                "person":{
-                    "properties":{
-                        "name":{
-                              "properties":{
-                                    "first": {
-                                        "type":"text",
-                                        "analyzer":"standard"
-                                    },                        "last": {
-                                        "type":"text",
-                                        "analyzer":"standard"
-                                    },                        "nickname": {
-                                        "type":"text",
-                                        "analyzer":"whitespace"
-                                    }                   }            }
+                "person": {
+                    "properties": {
+                        "name": {
+                            "properties": {
+                                "first": {
+                                    "type": "text",
+                                    "analyzer": "standard"
+                                },
+                                "last": {
+                                    "type": "text",
+                                    "analyzer": "standard"
+                                },
+                                "nickname": {
+                                    "type": "text",
+                                    "analyzer": "whitespace"
+                                }
+                            }
+                        }
                     }
                 }
-            }""";
+            }
+            """;
         mapperService.merge("person", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         this.indexService = indexService;
     }

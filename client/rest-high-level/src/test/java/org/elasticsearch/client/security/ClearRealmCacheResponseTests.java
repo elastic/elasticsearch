@@ -53,8 +53,13 @@ public class ClearRealmCacheResponseTests extends ESTestCase {
             XContentParser parser = JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY,
                 DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                "{" + nodesHeader + clusterName + """
-                    "nodes" : { "id1": { "name": "a"}, "id2": { "name": "b"}}}"""
+                """
+                    {
+                      %s,
+                      %s,
+                      "nodes" : { "id1": { "name": "a"}, "id2": { "name": "b"}}
+                    }
+                    """.formatted(nodesHeader, clusterName)
             )
         ) {
 

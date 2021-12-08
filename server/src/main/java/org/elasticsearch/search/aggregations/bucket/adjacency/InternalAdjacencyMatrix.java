@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.adjacency;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -167,7 +168,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         Map<String, List<InternalBucket>> bucketsMap = new HashMap<>();
         for (InternalAggregation aggregation : aggregations) {
             InternalAdjacencyMatrix filters = (InternalAdjacencyMatrix) aggregation;
@@ -197,7 +198,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
     }
 
     @Override
-    protected InternalBucket reduceBucket(List<InternalBucket> buckets, ReduceContext context) {
+    protected InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
         InternalBucket reduced = null;
         List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());

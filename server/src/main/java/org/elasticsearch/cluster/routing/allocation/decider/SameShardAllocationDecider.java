@@ -100,7 +100,6 @@ public class SameShardAllocationDecider extends AllocationDecider {
                         }
                     }
                 }
-
             }
         }
         return YES_NONE_HOLD_COPY;

@@ -449,6 +449,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
             settingsKeys.addAll(fullKeys(SCRIPT_MAX_COMPILATIONS_RATE_SETTING, compilationContexts));
             settingsKeys.addAll(fullKeys(SCRIPT_CACHE_SIZE_SETTING, sizeContexts));
             settingsKeys.addAll(fullKeys(SCRIPT_CACHE_EXPIRE_SETTING, expireContexts));
+            settingsKeys.sort(Comparator.naturalOrder());
             return "Implicitly using the script context cache is deprecated, remove settings "
                 + "["
                 + String.join(", ", settingsKeys)

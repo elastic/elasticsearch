@@ -513,7 +513,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "Implicitly using the script context cache is deprecated, remove settings "
-                        + "[script.context.update.max_compilations_rate, script.context.filter.cache_max_size] "
+                        + "[script.context.filter.cache_max_size, script.context.update.max_compilations_rate] "
                         + "to use the script general cache.",
                     "https://ela.st/es-deprecation-7-script-context-cache",
                     "Remove the context-specific cache settings and set [script.max_compilations_rate] to configure the rate limit for "
@@ -524,7 +524,6 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 )
             )
         );
-
 
         assertWarnings(
             "[script.context.update.max_compilations_rate] setting was deprecated in Elasticsearch and will be"

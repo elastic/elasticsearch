@@ -508,8 +508,8 @@ public class ScriptServiceTests extends ESTestCase {
             );
         });
         assertEquals(
-            "Context cache setting [script.context.field.cache_max_size] is incompatible with [script.max_compilations_rate]"
-                + " set to non-default value [10/1m]. Either remove the incompatible setting (recommended) or set"
+            "Context cache settings [script.context.field.cache_max_size] are incompatible with [script.max_compilations_rate]"
+                + " set to non-default value [10/1m]. Either remove the incompatible settings (recommended) or set"
                 + " [script.max_compilations_rate] to [use-context] to use per-context settings",
             illegal.getMessage()
         );
@@ -522,8 +522,8 @@ public class ScriptServiceTests extends ESTestCase {
         });
 
         assertEquals(
-            "Context cache setting [script.context.ingest.cache_expire] is incompatible with [script.max_compilations_rate]"
-                + " set to non-default value [10/1m]. Either remove the incompatible setting (recommended) or set"
+            "Context cache settings [script.context.ingest.cache_expire] are incompatible with [script.max_compilations_rate]"
+                + " set to non-default value [10/1m]. Either remove the incompatible settings (recommended) or set"
                 + " [script.max_compilations_rate] to [use-context] to use per-context settings",
             illegal.getMessage()
         );
@@ -536,8 +536,8 @@ public class ScriptServiceTests extends ESTestCase {
         });
 
         assertEquals(
-            "Context cache setting [script.context.score.max_compilations_rate] is incompatible with [script.max_compilations_rate]"
-                + " set to non-default value [10/1m]. Either remove the incompatible setting (recommended) or set"
+            "Context cache settings [script.context.score.max_compilations_rate] are incompatible with [script.max_compilations_rate]"
+                + " set to non-default value [10/1m]. Either remove the incompatible settings (recommended) or set"
                 + " [script.max_compilations_rate] to [use-context] to use per-context settings",
             illegal.getMessage()
         );
@@ -688,8 +688,10 @@ public class ScriptServiceTests extends ESTestCase {
         assertNotNull(scriptService.cacheHolder.get().contextCache);
         assertEquals(contexts.keySet(), scriptService.cacheHolder.get().contextCache.keySet());
 
-        assertEquals(TimeValue.parseTimeValue("20m", aSetting.getKey()),
-            scriptService.cacheHolder.get().contextCache.get(a).get().cacheExpire);
+        assertEquals(
+            TimeValue.parseTimeValue("20m", aSetting.getKey()),
+            scriptService.cacheHolder.get().contextCache.get(a).get().cacheExpire
+        );
         assertEquals(bSize, scriptService.cacheHolder.get().contextCache.get(b).get().cacheSize);
         assertSettingDeprecationsAndWarnings(
             new Setting<?>[] { aSetting, bSetting },

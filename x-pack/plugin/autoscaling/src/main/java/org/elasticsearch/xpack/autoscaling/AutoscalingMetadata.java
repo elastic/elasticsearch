@@ -171,5 +171,10 @@ public class AutoscalingMetadata implements Metadata.Custom {
         static Diff<AutoscalingPolicyMetadata> readFrom(final StreamInput in) throws IOException {
             return AbstractDiffable.readDiffFrom(AutoscalingPolicyMetadata::new, in);
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_7_8_0;
+        }
     }
 }

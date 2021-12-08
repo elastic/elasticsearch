@@ -8,14 +8,13 @@
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix;
 import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrix.Bucket;
@@ -280,7 +279,7 @@ public class AdjacencyMatrixIT extends ESIntegTestCase {
 
         // Create more filters than is permitted by Lucene Bool clause settings.
         MapBuilder filtersMap = new MapBuilder();
-        int maxFilters = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(Settings.EMPTY);
+        int maxFilters = IndexSearcher.getMaxClauseCount();
         for (int i = 0; i <= maxFilters; i++) {
             filtersMap.add("tag" + i, termQuery("tag", "tag" + i));
         }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.query;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -17,12 +18,10 @@ import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,26 +41,11 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class QueryStringIT extends ESIntegTestCase {
 
-    private static int CLUSTER_MAX_CLAUSE_COUNT;
-
-    @BeforeClass
-    public static void createRandomClusterSetting() {
-        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(50, 100);
-    }
-
     @Before
     public void setup() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
-    }
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT)
-            .build();
     }
 
     public void testBasicAllQuery() throws Exception {
@@ -256,7 +240,7 @@ public class QueryStringIT extends ESIntegTestCase {
         builder.startObject();
         builder.startObject("_doc");
         builder.startObject("properties");
-        for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT; i++) {
+        for (int i = 0; i < IndexSearcher.getMaxClauseCount() - 100; i++) {
             builder.startObject("field" + i).field("type", "text").endObject();
         }
         builder.endObject(); // properties
@@ -276,6 +260,9 @@ public class QueryStringIT extends ESIntegTestCase {
     }
 
     public void testLimitOnExpandedFields() throws Exception {
+
+        final int maxClauseCount = randomIntBetween(50, 100);
+
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         {
@@ -283,7 +270,7 @@ public class QueryStringIT extends ESIntegTestCase {
             {
                 builder.startObject("properties");
                 {
-                    for (int i = 0; i < CLUSTER_MAX_CLAUSE_COUNT; i++) {
+                    for (int i = 0; i < maxClauseCount; i++) {
                         builder.startObject("field_A" + i).field("type", "text").endObject();
                         builder.startObject("field_B" + i).field("type", "text").endObject();
                     }
@@ -296,25 +283,34 @@ public class QueryStringIT extends ESIntegTestCase {
 
         assertAcked(
             prepareCreate("testindex").setSettings(
-                Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT + 100)
+                Settings.builder().put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), maxClauseCount + 100)
             ).setMapping(builder)
         );
 
         client().prepareIndex("testindex").setId("1").setSource("field_A0", "foo bar baz").get();
         refresh();
 
-        // single field shouldn't trigger the limit
-        doAssertOneHitForQueryString("field_A0:foo");
-        // expanding to the limit should work
-        doAssertOneHitForQueryString("field_A\\*:foo");
+        int originalMaxClauses = IndexSearcher.getMaxClauseCount();
+        try {
 
-        // adding a non-existing field on top shouldn't overshoot the limit
-        doAssertOneHitForQueryString("field_A\\*:foo unmapped:something");
+            IndexSearcher.setMaxClauseCount(maxClauseCount);
 
-        // the following should exceed the limit
-        doAssertLimitExceededException("foo", CLUSTER_MAX_CLAUSE_COUNT * 2, "*");
-        doAssertLimitExceededException("*:foo", CLUSTER_MAX_CLAUSE_COUNT * 2, "*");
-        doAssertLimitExceededException("field_\\*:foo", CLUSTER_MAX_CLAUSE_COUNT * 2, "field_*");
+            // single field shouldn't trigger the limit
+            doAssertOneHitForQueryString("field_A0:foo");
+            // expanding to the limit should work
+            doAssertOneHitForQueryString("field_A\\*:foo");
+
+            // adding a non-existing field on top shouldn't overshoot the limit
+            doAssertOneHitForQueryString("field_A\\*:foo unmapped:something");
+
+            // the following should exceed the limit
+            doAssertLimitExceededException("foo", IndexSearcher.getMaxClauseCount() * 2, "*");
+            doAssertLimitExceededException("*:foo", IndexSearcher.getMaxClauseCount() * 2, "*");
+            doAssertLimitExceededException("field_\\*:foo", IndexSearcher.getMaxClauseCount() * 2, "field_*");
+
+        } finally {
+            IndexSearcher.setMaxClauseCount(originalMaxClauses);
+        }
     }
 
     private void doAssertOneHitForQueryString(String queryString) {
@@ -340,7 +336,7 @@ public class QueryStringIT extends ESIntegTestCase {
                 "field expansion for ["
                     + inputFieldPattern
                     + "] matches too many fields, limit: "
-                    + CLUSTER_MAX_CLAUSE_COUNT
+                    + IndexSearcher.getMaxClauseCount()
                     + ", got: "
                     + exceedingFieldCount
             )

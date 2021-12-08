@@ -10,9 +10,13 @@ package org.elasticsearch.xpack.security.profile;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
 
@@ -39,6 +43,13 @@ public class ProfileSingleNodeTests extends SecuritySingleNodeTestCase {
     @Override
     protected String configUsersRoles() {
         return super.configUsersRoles() + "rac_role:" + RAC_USER_NAME + "\n";
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        final ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
+        plugins.add(MapperExtrasPlugin.class);
+        return plugins;
     }
 
     public void testProfileIndexAutoCreation() {

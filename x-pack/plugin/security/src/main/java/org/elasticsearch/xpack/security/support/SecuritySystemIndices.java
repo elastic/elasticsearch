@@ -719,6 +719,11 @@ public class SecuritySystemIndices {
             .put(IndexMetadata.SETTING_PRIORITY, 1000)
             .put("index.refresh_interval", "1s")
             .put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), INTERNAL_PROFILE_INDEX_FORMAT)
+            .put("analysis.filter.email.type", "pattern_capture")
+            .put("analysis.filter.email.preserve_original", true)
+            .putList("analysis.filter.email.patterns", List.of("([^@]+)", "(\\p{L}+)", "(\\d+)", "@(.+)"))
+            .put("analysis.analyzer.email.tokenizer", "uax_url_email")
+            .putList("analysis.analyzer.email.filter", List.of("email", "lowercase", "unique"))
             .build();
     }
 

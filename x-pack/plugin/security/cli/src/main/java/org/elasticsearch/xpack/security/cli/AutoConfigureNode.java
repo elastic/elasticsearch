@@ -82,7 +82,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.common.ssl.PemUtils.parsePKCS8PemString;
@@ -117,7 +116,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
     private static final int HTTP_CA_KEY_SIZE = 4096;
     private static final int HTTP_CERTIFICATE_DAYS = 2 * 365;
     private static final int HTTP_KEY_SIZE = 4096;
-    static final String TLS_CONFIG_DIR_NAME_PREFIX = "tls_auto_config_";
+    static final String TLS_GENERATED_CERTS_DIR_NAME = "generated_tls_certs";
     static final String AUTO_CONFIGURATION_START_MARKER =
         "#----------------------- Security auto configuration start -----------------------#";
     static final String AUTO_CONFIGURATION_END_MARKER =
@@ -160,7 +159,6 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
         // pre-flight checks for the files that are going to be changed
         final Path ymlPath = env.configFile().resolve("elasticsearch.yml");
-        final Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
         // it is odd for the `elasticsearch.yml` file to be missing or not be a regular (the node won't start)
         // but auto configuration should not be concerned with fixing it (by creating the file) and let the node startup fail
         if (false == Files.exists(ymlPath) || false == Files.isRegularFile(ymlPath, LinkOption.NOFOLLOW_LINKS)) {
@@ -181,6 +179,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             );
             notifyOfFailure(inEnrollmentMode, terminal, Terminal.Verbosity.NORMAL, ExitCodes.NOOP, msg);
         }
+        final Path keystorePath = KeyStoreWrapper.keystorePath(env.configFile());
         // Inform that auto-configuration will not run if keystore cannot be read.
         if (Files.exists(keystorePath)
             && (false == Files.isRegularFile(keystorePath, LinkOption.NOFOLLOW_LINKS) || false == Files.isReadable(keystorePath))) {
@@ -194,7 +193,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
         if (options.has(reconfigure)) {
             if (false == inEnrollmentMode) {
-                throw new UserException(ExitCodes.USAGE, "enrollment-token is a mandatory parameter.");
+                throw new UserException(ExitCodes.USAGE, "enrollment-token is a mandatory parameter when reconfiguring the node");
             }
             env = possibleReconfigureNode(env, terminal);
         }
@@ -204,20 +203,20 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         checkExistingConfiguration(env.settings(), inEnrollmentMode, terminal);
 
         final ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC);
-        final String instantAutoConfigName = TLS_CONFIG_DIR_NAME_PREFIX + autoConfigDate.toInstant().getEpochSecond();
-        final Path instantAutoConfigDir = env.configFile().resolve(instantAutoConfigName);
+        final Path tempGeneratedTlsCertsDir = env.configFile().resolve(String.format(Locale.ROOT, TLS_GENERATED_CERTS_DIR_NAME +
+            ".%d.temp", autoConfigDate.toInstant().getEpochSecond()));
         try {
             // it is useful to pre-create the sub-config dir in order to check that the config dir is writable and that file owners match
-            Files.createDirectory(instantAutoConfigDir);
+            Files.createDirectory(tempGeneratedTlsCertsDir);
             // set permissions to 750, don't rely on umask, we assume auto configuration preserves ownership so we don't have to
             // grant "group" or "other" permissions
-            PosixFileAttributeView view = Files.getFileAttributeView(instantAutoConfigDir, PosixFileAttributeView.class);
+            PosixFileAttributeView view = Files.getFileAttributeView(tempGeneratedTlsCertsDir, PosixFileAttributeView.class);
             if (view != null) {
                 view.setPermissions(PosixFilePermissions.fromString("rwxr-x---"));
             }
         } catch (Throwable t) {
             try {
-                deleteDirectory(instantAutoConfigDir);
+                deleteDirectory(tempGeneratedTlsCertsDir);
             } catch (Exception ex) {
                 t.addSuppressed(ex);
             }
@@ -232,17 +231,22 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         // This is a sort of sanity check.
         // If the node process works OK given the owner of the config dir, it should also tolerate the auto-created config dir,
         // provided that they both have the same owner and permissions.
-        final UserPrincipal newFileOwner = Files.getOwner(instantAutoConfigDir, LinkOption.NOFOLLOW_LINKS);
+        final UserPrincipal newFileOwner = Files.getOwner(tempGeneratedTlsCertsDir, LinkOption.NOFOLLOW_LINKS);
         if (false == newFileOwner.equals(Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS))) {
-            deleteDirectory(instantAutoConfigDir);
             // the following is only printed once, if the node starts successfully
-            throw new UserException(
+            UserException userException = new UserException(
                 ExitCodes.CONFIG,
                 "Aborting auto configuration because of config dir ownership mismatch. Config dir is owned by "
                     + Files.getOwner(env.configFile(), LinkOption.NOFOLLOW_LINKS).getName()
                     + " but auto-configuration directory would be owned by "
                     + newFileOwner.getName()
             );
+            try {
+                deleteDirectory(tempGeneratedTlsCertsDir);
+            } catch (Exception ex) {
+                userException.addSuppressed(ex);
+            }
+            throw userException;
         }
         final X509Certificate transportCaCert;
         final PrivateKey transportKey;
@@ -263,7 +267,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 enrollmentToken = EnrollmentToken.decodeFromString(enrollmentTokenParam.value(options));
             } catch (Exception e) {
                 try {
-                    deleteDirectory(instantAutoConfigDir);
+                    deleteDirectory(tempGeneratedTlsCertsDir);
                 } catch (Exception ex) {
                     e.addSuppressed(ex);
                 }
@@ -303,22 +307,32 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 }
             }
             if (enrollResponse == null || enrollResponse.getHttpStatus() != 200) {
-                deleteDirectory(instantAutoConfigDir);
-                throw new UserException(
+                UserException userException = new UserException(
                     ExitCodes.UNAVAILABLE,
                     "Aborting enrolling to cluster. "
                         + "Could not communicate with the node on any of the addresses from the enrollment token. All of "
                         + enrollmentToken.getBoundAddress()
                         + " were attempted."
                 );
+                try {
+                    deleteDirectory(tempGeneratedTlsCertsDir);
+                } catch (Exception ex) {
+                    userException.addSuppressed(ex);
+                }
+                throw userException;
             }
             final Map<String, Object> responseMap = enrollResponse.getResponseBody();
             if (responseMap == null) {
-                deleteDirectory(instantAutoConfigDir);
-                throw new UserException(
+                UserException userException = new UserException(
                     ExitCodes.DATA_ERROR,
                     "Aborting enrolling to cluster. Empty response when calling the enroll node API (" + enrollNodeUrl + ")"
                 );
+                try {
+                    deleteDirectory(tempGeneratedTlsCertsDir);
+                } catch (Exception ex) {
+                    userException.addSuppressed(ex);
+                }
+                throw userException;
             }
             final List<String> missingFields = new ArrayList<>();
             final String httpCaKeyPem = (String) responseMap.get("http_ca_key");
@@ -346,8 +360,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 missingFields.add("nodes_addresses");
             }
             if (false == missingFields.isEmpty()) {
-                deleteDirectory(instantAutoConfigDir);
-                throw new UserException(
+                UserException userException = new UserException(
                     ExitCodes.DATA_ERROR,
                     "Aborting enrolling to cluster. Invalid response when calling the enroll node API ("
                         + enrollNodeUrl
@@ -355,6 +368,12 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         + "The following fields were empty or missing : "
                         + missingFields
                 );
+                try {
+                    deleteDirectory(tempGeneratedTlsCertsDir);
+                } catch (Exception ex) {
+                    userException.addSuppressed(ex);
+                }
+                throw userException;
             }
             transportCaCert = parseCertificateFromPem(transportCaCertPem, terminal);
             httpCaKey = parseKeyFromPem(httpCaKeyPem, terminal);
@@ -406,7 +425,11 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     SIGNATURE_ALGORITHM
                 );
             } catch (Throwable t) {
-                deleteDirectory(instantAutoConfigDir);
+                try {
+                    deleteDirectory(tempGeneratedTlsCertsDir);
+                } catch (Exception ex) {
+                    t.addSuppressed(ex);
+                }
                 // this is an error which mustn't be ignored during node startup
                 // the exit code for unhandled Exceptions is "1"
                 throw t;
@@ -429,7 +452,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
             // the HTTP CA PEM file is provided "just in case". The node doesn't use it, but clients (configured manually, outside of the
             // enrollment process) might indeed need it, and it is currently impossible to retrieve it
-            fullyWriteFile(instantAutoConfigDir, HTTP_AUTOGENERATED_CA_NAME + ".crt", false, stream -> {
+            fullyWriteFile(tempGeneratedTlsCertsDir, HTTP_AUTOGENERATED_CA_NAME + ".crt", false, stream -> {
                 try (
                     JcaPEMWriter pemWriter = new JcaPEMWriter(new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8)))
                 ) {
@@ -437,21 +460,26 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 }
             });
         } catch (Throwable t) {
-            deleteDirectory(instantAutoConfigDir);
+            try {
+                deleteDirectory(tempGeneratedTlsCertsDir);
+            } catch (Exception ex) {
+                t.addSuppressed(ex);
+            }
             // this is an error which mustn't be ignored during node startup
             // the exit code for unhandled Exceptions is "1"
             throw t;
         }
 
-        // save original keystore before updating (replacing)
+        // save the existing keystore before replacing
         final Path keystoreBackupPath = env.configFile()
-            .resolve(KeyStoreWrapper.KEYSTORE_FILENAME + "." + autoConfigDate.toInstant().getEpochSecond() + ".orig");
+            .resolve(String.format(Locale.ROOT,
+                KeyStoreWrapper.KEYSTORE_FILENAME + ".%d.orig", autoConfigDate.toInstant().getEpochSecond()));
         if (Files.exists(keystorePath)) {
             try {
                 Files.copy(keystorePath, keystoreBackupPath, StandardCopyOption.COPY_ATTRIBUTES);
             } catch (Throwable t) {
                 try {
-                    deleteDirectory(instantAutoConfigDir);
+                    deleteDirectory(tempGeneratedTlsCertsDir);
                 } catch (Exception ex) {
                     t.addSuppressed(ex);
                 }
@@ -465,7 +493,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             return nodeKeystorePassword.get().clone();
         })) {
             // do not overwrite keystore entries
-            // instead expect the user to manually remove them herself
+            // instead expect the admin to manually remove them herself
             if (nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.keystore.secure_password")
                 || nodeKeystore.getSettingNames().contains("xpack.security.transport.ssl.truststore.secure_password")
                 || nodeKeystore.getSettingNames().contains("xpack.security.http.ssl.keystore.secure_password")) {
@@ -490,7 +518,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 );
                 transportKeystore.setCertificateEntry(TRANSPORT_AUTOGENERATED_CERT_ALIAS, transportCaCert);
                 fullyWriteFile(
-                    instantAutoConfigDir,
+                    tempGeneratedTlsCertsDir,
                     TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12",
                     false,
                     stream -> transportKeystore.store(stream, transportKeystorePassword.getChars())
@@ -517,7 +545,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     new Certificate[] { httpCert, httpCaCert }
                 );
                 fullyWriteFile(
-                    instantAutoConfigDir,
+                    tempGeneratedTlsCertsDir,
                     HTTP_AUTOGENERATED_KEYSTORE_NAME + ".p12",
                     false,
                     stream -> httpKeystore.store(stream, httpKeystorePassword.getChars())
@@ -530,7 +558,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             // restore keystore to revert possible keystore bootstrap
             try {
                 if (Files.exists(keystoreBackupPath)) {
-                    Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                    Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.COPY_ATTRIBUTES);
                 } else {
                     Files.deleteIfExists(keystorePath);
                 }
@@ -538,7 +567,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 t.addSuppressed(ex);
             }
             try {
-                deleteDirectory(instantAutoConfigDir);
+                deleteDirectory(tempGeneratedTlsCertsDir);
             } catch (Exception ex) {
                 t.addSuppressed(ex);
             }
@@ -547,6 +576,46 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             if (nodeKeystorePassword.get() != null) {
                 nodeKeystorePassword.get().close();
             }
+        }
+
+        try {
+            // all certs and keys have been generated in the temp certs dir, therefore:
+            // 1. backup (move) any previously existing tls certs dir
+            if (Files.exists(env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME))) {
+                moveDirectory(env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME),
+                    env.configFile().resolve(String.format(Locale.ROOT, TLS_GENERATED_CERTS_DIR_NAME + ".%d.orig",
+                        autoConfigDate.toInstant().getEpochSecond())));
+            }
+            // 2. move the newly populated temp certs dir to its permanent name
+            moveDirectory(tempGeneratedTlsCertsDir, env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME));
+        } catch (Throwable t) {
+            // restore keystore to revert possible keystore bootstrap
+            try {
+                if (Files.exists(keystoreBackupPath)) {
+                    Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE,
+                        StandardCopyOption.COPY_ATTRIBUTES);
+                } else {
+                    Files.deleteIfExists(keystorePath);
+                }
+            } catch (Exception ex) {
+                t.addSuppressed(ex);
+            }
+            // revert any previously existing TLS certs
+            try {
+                if (Files.exists(env.configFile().resolve(String.format(Locale.ROOT, TLS_GENERATED_CERTS_DIR_NAME + ".%d.orig",
+                    autoConfigDate.toInstant().getEpochSecond())))) {
+                    moveDirectory(env.configFile().resolve(String.format(Locale.ROOT, TLS_GENERATED_CERTS_DIR_NAME + ".%d.orig",
+                            autoConfigDate.toInstant().getEpochSecond())), env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME));
+                }
+            } catch (Exception ex) {
+                t.addSuppressed(ex);
+            }
+            try {
+                deleteDirectory(tempGeneratedTlsCertsDir);
+            } catch (Exception ex) {
+                t.addSuppressed(ex);
+            }
+            throw t;
         }
 
         try {
@@ -599,16 +668,16 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     bw.write("xpack.security.transport.ssl.verification_mode: certificate");
                     bw.newLine();
                     bw.write(
-                        "xpack.security.transport.ssl.keystore.path: "
-                            + instantAutoConfigDir.resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12")
+                        "xpack.security.transport.ssl.keystore.path: " + TLS_GENERATED_CERTS_DIR_NAME +
+                            System.getProperty("file.separator") + TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12"
                     );
                     bw.newLine();
                     // we use the keystore as a truststore in order to minimize the number of auto-generated resources,
                     // and also because a single file is more idiomatic to the scheme of a shared secret between the cluster nodes
                     // no one should only need the TLS cert without the associated key for the transport layer
                     bw.write(
-                        "xpack.security.transport.ssl.truststore.path: "
-                            + instantAutoConfigDir.resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12")
+                        "xpack.security.transport.ssl.truststore.path: " + TLS_GENERATED_CERTS_DIR_NAME +
+                            System.getProperty("file.separator") + TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12"
                     );
                     bw.newLine();
 
@@ -616,8 +685,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     bw.write("xpack.security.http.ssl.enabled: true");
                     bw.newLine();
                     bw.write(
-                        "xpack.security.http.ssl.keystore.path: " + instantAutoConfigDir.resolve(HTTP_AUTOGENERATED_KEYSTORE_NAME + ".p12")
-                    );
+                        "xpack.security.http.ssl.keystore.path: " + TLS_GENERATED_CERTS_DIR_NAME +
+                            System.getProperty("file.separator") + HTTP_AUTOGENERATED_KEYSTORE_NAME +
+                            ".p12");
                     bw.newLine();
                     if (inEnrollmentMode) {
                         bw.newLine();
@@ -690,14 +760,13 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 t.addSuppressed(ex);
             }
             try {
-                deleteDirectory(instantAutoConfigDir);
+                deleteDirectory(tempGeneratedTlsCertsDir);
             } catch (Exception ex) {
                 t.addSuppressed(ex);
             }
             throw t;
         }
-        // only delete the backed up file if all went well
-        Files.deleteIfExists(keystoreBackupPath);
+        // do not delete the backup files
     }
 
     private String initialMasterNodesSettingValue(Environment environment) {
@@ -719,7 +788,6 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         // We remove the existing auto-configuration stanza from elasticsearch.yml, the elastisearch.keystore and
         // the directory with the auto-configured TLS key material, and then proceed as if elasticsearch is started
         // with --enrolment-token token, in the first place.
-        final String autoConfigDirName = getAutoConfigDirName(env);
         final List<String> existingConfigLines;
         try {
             existingConfigLines = Files.readAllLines(env.configFile().resolve("elasticsearch.yml"), StandardCharsets.UTF_8);
@@ -733,7 +801,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             terminal.println("This node will be reconfigured to join an existing cluster, using the enrollment token that you provided.");
             terminal.println("This operation will overwrite the existing configuration. Specifically: ");
             terminal.println("  - Security auto configuration will be removed from elasticsearch.yml");
-            terminal.println("  - The " + autoConfigDirName + " directory will be removed");
+            terminal.println("  - The " + TLS_GENERATED_CERTS_DIR_NAME + " directory will be removed");
             terminal.println("  - Security auto configuration related secure settings will be removed from the elasticsearch.keystore");
             final boolean shouldContinue = terminal.promptYesNo("Do you want to continue with the reconfiguration process", false);
             if (shouldContinue == false) {
@@ -749,7 +817,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         }
                     }
                 });
-                deleteDirectory(env.configFile().resolve(autoConfigDirName));
+                deleteDirectory(env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME));
             } catch (Throwable t) {
                 throw new UserException(
                     ExitCodes.IO_ERROR,
@@ -778,9 +846,14 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
     }
 
-    @SuppressForbidden(reason = "Uses File API because the commons io library does, which is useful for file manipulation")
+    @SuppressForbidden(reason = "Commons IO lib uses the File API")
     private void deleteDirectory(Path directory) throws IOException {
         FileUtils.deleteDirectory(directory.toFile());
+    }
+
+    @SuppressForbidden(reason = "Commons IO lib uses the File API")
+    private void moveDirectory(Path srcDir, Path dstDir) throws IOException {
+        FileUtils.moveDirectory(srcDir.toFile(), dstDir.toFile());
     }
 
     private GeneralNames getSubjectAltNames() throws IOException {
@@ -817,7 +890,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
         // Skip security auto configuration when Security is already configured.
         // Security is enabled implicitly, but if the admin chooses to enable it explicitly then
-        // skip the TLS auto-configuration, as this is a sign that the admin is opting for the default behavior
+        // skip the TLS auto-configuration, as this is a sign that the admin is opting for the default 7.x behavior
         if (XPackSettings.SECURITY_ENABLED.exists(settings)) {
             // do not try to validate, correct or fill in any incomplete security configuration,
             // instead rely on the regular node startup to do this validation
@@ -990,38 +1063,6 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
     @SuppressWarnings("unchecked")
     private List<String> getTransportAddresses(Map<String, Object> responseMap) {
         return (List<String>) responseMap.get("nodes_addresses");
-    }
-
-    private String getAutoConfigDirName(Environment env) throws UserException {
-        final List<String> autoConfigDirNameList;
-        try {
-            autoConfigDirNameList = Files.list(env.configFile())
-                .map(Path::getFileName)
-                .map(Path::toString)
-                .filter(name -> name.startsWith(TLS_CONFIG_DIR_NAME_PREFIX))
-                .collect(Collectors.toList());
-        } catch (IOException e) {
-            throw new UserException(
-                ExitCodes.USAGE,
-                "Aborting enrolling to cluster. Error attempting to find the directory with generated keys and certificates for TLS",
-                e
-            );
-        }
-        if (autoConfigDirNameList.isEmpty()) {
-            throw new UserException(
-                ExitCodes.USAGE,
-                "Aborting enrolling to cluster. This node doesn't appear to be auto-configured for security. "
-                    + "The directory with generated keys and certificates for TLS is missing."
-            );
-        } else if (autoConfigDirNameList.size() > 1) {
-            throw new UserException(
-                ExitCodes.USAGE,
-                "Aborting enrolling to cluster. Multiple directories with generated keys and certificates for TLS found: "
-                    + autoConfigDirNameList
-            );
-        } else {
-            return autoConfigDirNameList.get(0);
-        }
     }
 
     /**

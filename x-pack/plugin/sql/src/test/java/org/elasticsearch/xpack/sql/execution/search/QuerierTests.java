@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.sql.SqlTestUtils;
 import org.elasticsearch.xpack.sql.execution.search.Querier.AggSortingQueue;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
-import org.elasticsearch.xpack.sql.session.SqlSession;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -260,8 +259,7 @@ public class QuerierTests extends ESTestCase {
             }
         };
 
-        SqlSession session = new SqlSession(SqlTestUtils.TEST_CFG, null, null, null, null, null, null, null, null);
-        Querier querier = new Querier(session);
+        Querier querier = new Querier(null, null, SqlTestUtils.TEST_CFG);
         Querier.LocalAggregationSorterListener localSorter = querier.new LocalAggregationSorterListener(listener, emptyList(), -1);
         localSorter.onResponse(page);
 

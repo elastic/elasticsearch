@@ -59,8 +59,10 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
 
     private Map<String, Integer> baseMetrics = new HashMap<String, Integer>();
     private Integer baseClientTypeTotalQueries = 0;
+    private Integer baseClientTypePagingQueries = 0;
     private Integer baseClientTypeFailedQueries = 0;
     private Integer baseAllTotalQueries = 0;
+    private Integer baseAllPagingQueries = 0;
     private Integer baseAllFailedQueries = 0;
     private Integer baseTranslateRequests = 0;
     private String clientType;
@@ -96,8 +98,10 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
 
             // initialize the "base" metric values with whatever values are already recorded on ES
             baseClientTypeTotalQueries = ((Map<String, Integer>) queriesMetrics.get(clientType)).get("total");
+            baseClientTypePagingQueries = ((Map<String, Integer>) queriesMetrics.get(clientType)).get("paging");
             baseClientTypeFailedQueries = ((Map<String, Integer>) queriesMetrics.get(clientType)).get("failed");
             baseAllTotalQueries = ((Map<String, Integer>) queriesMetrics.get("_all")).get("total");
+            baseAllPagingQueries = ((Map<String, Integer>) queriesMetrics.get("_all")).get("paging");
             baseAllFailedQueries = ((Map<String, Integer>) queriesMetrics.get("_all")).get("failed");
             baseTranslateRequests = ((Map<String, Integer>) queriesMetrics.get("translate")).get("count");
         }
@@ -224,6 +228,19 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         assertClientTypeAndAllQueryMetrics(clientTypeTotalQueries, allTotalQueries, responseAsMap);
     }
 
+    // test for bug https://github.com/elastic/elasticsearch/issues/81502
+    public void testUsageOfQuerySortedByAggregationResult() throws IOException {
+        index(testData);
+
+        runSql("SELECT SUM(page_count), name FROM library GROUP BY 2 ORDER BY 1", 1);
+
+        Map<String, Object> responseAsMap = getStats();
+        assertClientTypeQueryMetric(baseClientTypeTotalQueries + 1, responseAsMap, "total");
+        assertClientTypeQueryMetric(baseClientTypePagingQueries, responseAsMap, "paging");
+        assertAllQueryMetric(baseAllTotalQueries + 1, responseAsMap, "total");
+        assertAllQueryMetric(baseAllPagingQueries, responseAsMap, "paging");
+    }
+
     private void assertClientTypeAndAllQueryMetrics(int clientTypeTotalQueries, int allTotalQueries, Map<String, Object> responseAsMap)
         throws IOException {
         assertClientTypeQueryMetric(clientTypeTotalQueries, responseAsMap, "total");
@@ -278,6 +295,10 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     }
 
     private void runSql(String sql) throws IOException {
+        runSql(sql, null);
+    }
+
+    private void runSql(String sql, Integer fetchSize) throws IOException {
         Mode mode = Mode.PLAIN;
         if (clientType.equals(ClientType.JDBC.toString())) {
             mode = Mode.JDBC;
@@ -287,7 +308,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
             mode = Mode.CLI;
         }
 
-        runSql(mode.toString(), clientType, sql);
+        runSql(mode.toString(), clientType, sql, fetchSize);
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -302,7 +323,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         assertEquals(expected, actualMetricValue);
     }
 
-    private void runSql(String mode, String restClient, String sql) throws IOException {
+    private void runSql(String mode, String restClient, String sql, Integer fetchSize) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability
@@ -318,7 +339,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         }
         request.setEntity(
             new StringEntity(
-                query(sql).mode(mode).clientId(ignoreClientType ? StringUtils.EMPTY : restClient).toString(),
+                query(sql).fetchSize(fetchSize).mode(mode).clientId(ignoreClientType ? StringUtils.EMPTY : restClient).toString(),
                 ContentType.APPLICATION_JSON
             )
         );

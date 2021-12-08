@@ -15,11 +15,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -43,7 +42,6 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
-import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.CompositeKeyExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.MetricAggExtractor;
@@ -67,7 +65,6 @@ import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
-import org.elasticsearch.xpack.sql.session.SqlSession;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -91,24 +88,19 @@ import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.INTROD
 public class Querier {
     private static final Logger log = LogManager.getLogger(Querier.class);
 
-    private final PlanExecutor planExecutor;
+    private final NamedWriteableRegistry writeableRegistry;
     private final SqlConfiguration cfg;
-    private final int size;
     private final Client client;
-    @Nullable
-    private final QueryBuilder filter;
 
-    public Querier(SqlSession sqlSession) {
-        this.planExecutor = sqlSession.planExecutor();
-        this.client = sqlSession.client();
-        this.cfg = sqlSession.configuration();
-        this.filter = cfg.filter();
-        this.size = cfg.pageSize();
+    public Querier(Client client, NamedWriteableRegistry writeableRegistry, SqlConfiguration cfg) {
+        this.client = client;
+        this.writeableRegistry = writeableRegistry;
+        this.cfg = cfg;
     }
 
     public void query(List<Attribute> output, QueryContainer query, String index, ActionListener<Page> listener) {
         // prepare the request
-        SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, filter, size);
+        SearchSourceBuilder sourceBuilder = SourceGenerator.sourceBuilder(query, cfg.filter(), cfg.pageSize());
 
         if (this.cfg.runtimeMappings() != null) {
             sourceBuilder.runtimeMappings(this.cfg.runtimeMappings());
@@ -245,7 +237,7 @@ public class Querier {
             // 1a. trigger a next call if there's still data
             if (cursor != Cursor.EMPTY) {
                 // trigger a next call
-                planExecutor.nextPage(cfg, cursor, this);
+                cursor.nextPage(cfg, client, writeableRegistry, this);
                 // make sure to bail out afterwards as we'll get called by a different thread
                 return;
             }

@@ -55,7 +55,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.hamcrest.Matchers.startsWithIgnoringCase;
 
 @LuceneTestCase.SuppressFileSystems("DisableFsyncFS") // required by {@link testCacheFileCreatedAsSparseFile()}
 public class CacheFileTests extends ESTestCase {

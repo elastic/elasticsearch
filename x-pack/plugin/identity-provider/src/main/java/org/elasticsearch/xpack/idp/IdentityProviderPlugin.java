@@ -148,7 +148,7 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
+        Settings unused,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -170,16 +170,16 @@ public class IdentityProviderPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        List<Setting<?>> settings = new ArrayList<>();
-        settings.add(ENABLED_SETTING);
-        settings.addAll(SamlIdentityProviderBuilder.getSettings());
-        settings.addAll(ServiceProviderCacheSettings.getSettings());
-        settings.addAll(ServiceProviderDefaults.getSettings());
-        settings.addAll(WildcardServiceProviderResolver.getSettings());
-        settings.addAll(ApplicationActionsResolver.getSettings());
-        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getEnabledSettings());
-        settings.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getEnabledSettings());
-        return Collections.unmodifiableList(settings);
+        List<Setting<?>> settingList = new ArrayList<>();
+        settingList.add(ENABLED_SETTING);
+        settingList.addAll(SamlIdentityProviderBuilder.getSettings());
+        settingList.addAll(ServiceProviderCacheSettings.getSettings());
+        settingList.addAll(ServiceProviderDefaults.getSettings());
+        settingList.addAll(WildcardServiceProviderResolver.getSettings());
+        settingList.addAll(ApplicationActionsResolver.getSettings());
+        settingList.addAll(X509KeyPairSettings.withPrefix("xpack.idp.signing.", false).getEnabledSettings());
+        settingList.addAll(X509KeyPairSettings.withPrefix("xpack.idp.metadata_signing.", false).getEnabledSettings());
+        return Collections.unmodifiableList(settingList);
     }
 
     protected XPackLicenseState getLicenseState() {

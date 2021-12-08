@@ -15,7 +15,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -42,6 +41,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.elasticsearch.xpack.ql.type.Schema;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.CompositeKeyExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.FieldHitExtractor;
 import org.elasticsearch.xpack.sql.execution.search.extractor.MetricAggExtractor;
@@ -88,13 +88,13 @@ import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.INTROD
 public class Querier {
     private static final Logger log = LogManager.getLogger(Querier.class);
 
-    private final NamedWriteableRegistry writeableRegistry;
     private final SqlConfiguration cfg;
     private final Client client;
+    private final PlanExecutor planExecutor;
 
-    public Querier(Client client, NamedWriteableRegistry writeableRegistry, SqlConfiguration cfg) {
+    public Querier(Client client, PlanExecutor planExecutor, SqlConfiguration cfg) {
         this.client = client;
-        this.writeableRegistry = writeableRegistry;
+        this.planExecutor = planExecutor;
         this.cfg = cfg;
     }
 
@@ -237,7 +237,7 @@ public class Querier {
             // 1a. trigger a next call if there's still data
             if (cursor != Cursor.EMPTY) {
                 // trigger a next call
-                cursor.nextPage(cfg, client, writeableRegistry, this);
+                planExecutor.nextPageInternal(cfg, cursor, this);
                 // make sure to bail out afterwards as we'll get called by a different thread
                 return;
             }

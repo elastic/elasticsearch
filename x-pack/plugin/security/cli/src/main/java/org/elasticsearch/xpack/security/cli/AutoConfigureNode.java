@@ -294,6 +294,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         () -> null,
                         CommandLineHttpClient::responseBuilder
                     );
+                    break;
                 } catch (Exception e) {
                     terminal.errorPrint(
                         Terminal.Verbosity.NORMAL,

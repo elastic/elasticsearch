@@ -485,7 +485,7 @@ public class CacheFileTests extends ESTestCase {
                     assertThat(
                         "Non default block size only used in test executed with encryption at rest",
                         file.toAbsolutePath().toString(),
-                        startsWithIgnoringCase("/mnt/secret")
+                        containsString("/mnt/secret")
                     );
                 }
             }

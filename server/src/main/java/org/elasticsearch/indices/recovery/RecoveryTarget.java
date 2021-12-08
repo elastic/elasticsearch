@@ -50,6 +50,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
+
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
  * this class are created through {@link RecoveriesCollection}.
@@ -486,7 +488,11 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
             final Store store = store();
             store.incRef();
             try {
-                store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
+                if (isSearchableSnapshotStore(indexShard.indexSettings().getSettings())) {
+                    indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
+                } else {
+                    store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
+                }
                 final String translogUUID = Translog.createEmptyTranslog(
                     indexShard.shardPath().resolveTranslog(),
                     globalCheckpoint,

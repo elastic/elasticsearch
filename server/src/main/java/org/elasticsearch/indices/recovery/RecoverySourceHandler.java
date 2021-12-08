@@ -93,6 +93,7 @@ import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
+import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * RecoverySourceHandler handles the three phases of shard recovery, which is
@@ -210,7 +211,8 @@ public class RecoverySourceHandler {
             final Closeable retentionLock = shard.acquireHistoryRetentionLock();
             resources.add(retentionLock);
             final long startingSeqNo;
-            final boolean isSequenceNumberBasedRecovery = request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+            final boolean isSequenceNumberBasedRecovery =
+                request.startingSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
                 && isTargetSameHistory()
                 && shard.hasCompleteHistoryOperations("peer-recovery", request.startingSeqNo())
                 && ((retentionLeaseRef.get() == null && shard.useRetentionLeasesInPeerRecovery() == false)
@@ -559,11 +561,13 @@ public class RecoverySourceHandler {
             if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
                 cancellableThreads.checkForCancel();
                 final boolean canUseSnapshots = useSnapshots && request.canDownloadSnapshotFiles();
+                Store.MetadataSnapshot targetMetadata = isSearchableSnapshotStore(shard.indexSettings().getSettings()) ?
+                    recoverySourceMetadata : request.metadataSnapshot();
                 recoveryPlannerService.computeRecoveryPlan(
                     shard.shardId(),
                     shardStateIdentifier,
                     recoverySourceMetadata,
-                    request.metadataSnapshot(),
+                    targetMetadata,
                     startingSeqNo,
                     translogOps.getAsInt(),
                     getRequest().targetNode().getVersion(),

@@ -296,7 +296,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     protected Explicit<Boolean> enabled;
     protected volatile Dynamic dynamic;
 
-    protected final Map<String, Mapper> mappers;
+    protected Map<String, Mapper> mappers;
 
     ObjectMapper(String name, String fullPath, Explicit<Boolean> enabled, Dynamic dynamic, Map<String, Mapper> mappers) {
         super(name);
@@ -321,6 +321,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         } catch (CloneNotSupportedException e) {
             throw new RuntimeException(e);
         }
+        clone.mappers = new HashMap<>(clone.mappers);
         return clone;
     }
 

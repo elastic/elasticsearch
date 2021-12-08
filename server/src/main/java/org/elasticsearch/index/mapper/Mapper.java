@@ -69,6 +69,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     @Override
     public String toString() {
-        return name() + ":" + Strings.toString(this);
+        return Strings.toString(this);
     }
 }

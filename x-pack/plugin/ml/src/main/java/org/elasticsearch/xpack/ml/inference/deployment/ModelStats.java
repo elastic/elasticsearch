@@ -15,6 +15,7 @@ public record ModelStats(
     LongSummaryStatistics timingStats,
     Instant lastUsed,
     int pendingCount,
+    int errorCount,
     Integer inferenceThreads,
     Integer modelThreads
 ) {}

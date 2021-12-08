@@ -126,6 +126,7 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                                                     nodeStats.getAvgInferenceTime().orElse(null),
                                                     nodeStats.getLastAccess(),
                                                     nodeStats.getPendingCount(),
+                                                    null,
                                                     nodeStats.getRoutingState(),
                                                     nodeStats.getStartTime(),
                                                     null,

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.inference;
 
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -49,8 +50,7 @@ public class InferencePipelineAggregator extends PipelineAggregator {
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, InternalAggregation.ReduceContext reduceContext) {
-
+    public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
         try (model) {
             InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;

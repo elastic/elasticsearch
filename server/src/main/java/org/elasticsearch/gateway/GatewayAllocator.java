@@ -247,7 +247,7 @@ public class GatewayAllocator implements ExistingShardsAllocator {
 
         @Override
         protected AsyncShardFetch.FetchResult<NodeGatewayStartedShards> fetchData(ShardRouting shard, RoutingAllocation allocation) {
-            // explicitely type lister, some IDEs (Eclipse) are not able to correctly infer the function type
+            // explicitly type lister, some IDEs (Eclipse) are not able to correctly infer the function type
             Lister<BaseNodesResponse<NodeGatewayStartedShards>, NodeGatewayStartedShards> lister = this::listStartedShards;
             AsyncShardFetch<NodeGatewayStartedShards> fetch = asyncFetchStarted.computeIfAbsent(
                 shard.shardId(),

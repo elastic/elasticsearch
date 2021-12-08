@@ -120,7 +120,10 @@ public class ClientTransformIndexerTests extends ESTestCase {
     }
 
     public void testPitInjection() throws InterruptedException {
-        TransformConfig config = TransformConfigTests.randomTransformConfig();
+        // pit must be enabled, otherwise take a random config
+        TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setSettings(
+            new SettingsConfig.Builder().setUsePit(true).build()
+        ).build();
 
         try (PitMockClient client = new PitMockClient(getTestName(), true)) {
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(
@@ -217,7 +220,10 @@ public class ClientTransformIndexerTests extends ESTestCase {
     }
 
     public void testPitInjectionIfPitNotSupported() throws InterruptedException {
-        TransformConfig config = TransformConfigTests.randomTransformConfig();
+        // pit must be enabled, otherwise take a random config
+        TransformConfig config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setSettings(
+            new SettingsConfig.Builder().setUsePit(true).build()
+        ).build();
 
         try (PitMockClient client = new PitMockClient(getTestName(), false)) {
             MockClientTransformIndexer indexer = new MockClientTransformIndexer(

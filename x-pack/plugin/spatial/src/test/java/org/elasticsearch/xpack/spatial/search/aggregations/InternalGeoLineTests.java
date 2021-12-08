@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGeoLine> {
 
@@ -106,7 +108,7 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
     }
 
     @Override
-    protected List<InternalGeoLine> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalGeoLine> randomResultsToReduce(String name, int size) {
         SortOrder sortOrder = randomFrom(SortOrder.values());
         int maxLineLength = randomIntBetween(10, GeoLineAggregationBuilder.MAX_PATH_SIZE);
         List<InternalGeoLine> instances = new ArrayList<>(size);
@@ -114,7 +116,7 @@ public class InternalGeoLineTests extends InternalAggregationTestCase<InternalGe
             // use the magicDecimal to have absolute ordering between heap-sort and testing array sorting
             instances.add(randomInstance(name, null, maxLineLength, sortOrder, ((double) i) / size));
         }
-        return instances;
+        return new BuilderAndToReduce<>(mock(AggregationBuilder.class), instances);
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
@@ -34,6 +35,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+
+import static org.mockito.Mockito.mock;
 
 public class InternalMatrixStatsTests extends InternalAggregationTestCase<InternalMatrixStats> {
 
@@ -157,9 +160,10 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
         AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
+            () -> false,
+            mock(AggregationBuilder.class),
             b -> {},
-            PipelineTree.EMPTY,
-            () -> false
+            PipelineTree.EMPTY
         );
         InternalMatrixStats reduced = (InternalMatrixStats) shardResults.get(0).reduce(shardResults, context);
         multiPassStats.assertNearlyEqual(reduced.getResults());

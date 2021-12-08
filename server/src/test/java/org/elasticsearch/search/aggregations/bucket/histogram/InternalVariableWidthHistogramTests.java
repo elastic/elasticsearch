@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -27,6 +28,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.mockito.Mockito.mock;
 
 public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggregationTestCase<InternalVariableWidthHistogram> {
 
@@ -157,9 +160,10 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
         AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
+            () -> false,
+            mock(AggregationBuilder.class),
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY,
-            () -> false
+            PipelineAggregator.PipelineTree.EMPTY
         );
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
@@ -211,9 +215,10 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
         AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
+            () -> false,
+            mock(AggregationBuilder.class),
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY,
-            () -> false
+            PipelineAggregator.PipelineTree.EMPTY
         );
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
@@ -301,9 +306,10 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
         AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
+            () -> false,
+            mock(AggregationBuilder.class),
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY,
-            () -> false
+            PipelineAggregator.PipelineTree.EMPTY
         );
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
@@ -357,9 +363,10 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
         AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
+            () -> false,
+            mock(AggregationBuilder.class),
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY,
-            () -> false
+            PipelineAggregator.PipelineTree.EMPTY
         );
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
@@ -418,9 +425,10 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
         AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
+            () -> false,
+            mock(AggregationBuilder.class),
             bucketConsumer,
-            PipelineAggregator.PipelineTree.EMPTY,
-            () -> false
+            PipelineAggregator.PipelineTree.EMPTY
         );
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();

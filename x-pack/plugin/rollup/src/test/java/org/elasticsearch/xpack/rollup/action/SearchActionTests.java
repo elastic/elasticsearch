@@ -687,7 +687,7 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse r = TransportRollupSearchAction.processResponses(
             result,
             msearchResponse,
-            InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction()
+            InternalAggregationTestCase.emptyReduceContextBuilder()
         );
         assertThat(r, equalTo(response));
     }
@@ -749,7 +749,7 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse r = TransportRollupSearchAction.processResponses(
             result,
             msearchResponse,
-            InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction()
+            InternalAggregationTestCase.emptyReduceContextBuilder()
         );
 
         assertNotNull(r);
@@ -804,7 +804,7 @@ public class SearchActionTests extends ESTestCase {
             () -> TransportRollupSearchAction.processResponses(
                 result,
                 msearchResponse,
-                InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction()
+                InternalAggregationTestCase.emptyReduceContextBuilder()
             )
         );
         assertThat(e.getMessage(), equalTo("MSearch response was empty, cannot unroll RollupSearch results"));
@@ -889,7 +889,7 @@ public class SearchActionTests extends ESTestCase {
         SearchResponse response = TransportRollupSearchAction.processResponses(
             separateIndices,
             msearchResponse,
-            InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction()
+            InternalAggregationTestCase.emptyReduceContextBuilder()
         );
 
         assertNotNull(response);

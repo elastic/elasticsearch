@@ -543,9 +543,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     new AggregationReduceContext.ForFinal(
                         context.bigArrays(),
                         getMockScriptService(),
+                        () -> false,
+                        builder,
                         b -> {},
-                        PipelineTree.EMPTY,
-                        () -> false
+                        PipelineTree.EMPTY
                     )
                 );
                 InternalFilters filters = (InternalFilters) result;

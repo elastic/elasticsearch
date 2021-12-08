@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -52,6 +53,7 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toList;
+import static org.mockito.Mockito.mock;
 
 public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTopHits> {
     @Override
@@ -70,7 +72,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
     }
 
     @Override
-    protected List<InternalTopHits> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalTopHits> randomResultsToReduce(String name, int size) {
         /*
          * Make sure all scores are unique so we can get
          * deterministic test results.
@@ -95,7 +97,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         } else {
             supplier = () -> createTestInstanceSortedScore(name, requestedSize, null, scoreSupplier);
         }
-        return Stream.generate(supplier).limit(size).collect(toList());
+        return new BuilderAndToReduce<>(mock(AggregationBuilder.class), Stream.generate(supplier).limit(size).collect(toList()));
     }
 
     private InternalTopHits createTestInstanceSortedByFields(

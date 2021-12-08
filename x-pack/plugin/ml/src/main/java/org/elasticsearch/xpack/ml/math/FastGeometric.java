@@ -81,7 +81,6 @@ public class FastGeometric {
         rngRange = PERMITTED_SAMPLE_RANGES[pos];
         log2RngRange = fastLog2(PERMITTED_SAMPLE_RANGES[pos]);
         bias = BIASES[pos];
-
     }
 
     /**

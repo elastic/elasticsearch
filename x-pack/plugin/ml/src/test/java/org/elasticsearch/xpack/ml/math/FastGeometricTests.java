@@ -14,11 +14,13 @@ import static org.hamcrest.Matchers.closeTo;
 public class FastGeometricTests extends ESTestCase {
 
     private static final int N = 10_000_000;
-    private static final double[] PROBABILITIES = new double[] { 0.5, 0.1, 0.01, 0.001 };
+    private static final double[] PROBABILITIES = new double[] { 0.5, 0.1, 0.01, 0.001, 0.0001, 0.00001 };
+    private static final double[] ERROR_RATES = new double[] { 0.5, 1, 2, 3, 10, 50};
 
     public void testGeometricSeries() {
-        final PCG rng = new PCG(randomLong());
+        int count = 0;
         for (double p : PROBABILITIES) {
+            final PCG rng = new PCG(randomLong());
             final int size = 32;
 
             double[] expected = new double[size];
@@ -28,11 +30,13 @@ public class FastGeometricTests extends ESTestCase {
 
             FastGeometric geometric = new FastGeometric(rng::nextInt, p);
             int[] counts = new int[size];
+            double mean = 0.0;
             for (int i = 0; i < N; ++i) {
                 int sample = geometric.next();
                 if (sample < counts.length) {
                     counts[sample]++;
                 }
+                mean += sample;
             }
             double[] fractions = new double[counts.length];
             for (int i = 0; i < counts.length; ++i) {
@@ -41,6 +45,9 @@ public class FastGeometricTests extends ESTestCase {
             for (int i = 0; i < size; i++) {
                 assertThat("inaccurate geometric sampling at probability [" + p + "]", fractions[i], closeTo(expected[i], 1e-2));
             }
+            mean /= N;
+            double expectedMean = (1 - p)/p;
+            assertThat(mean, closeTo(expectedMean, ERROR_RATES[count++]));
         }
     }
 

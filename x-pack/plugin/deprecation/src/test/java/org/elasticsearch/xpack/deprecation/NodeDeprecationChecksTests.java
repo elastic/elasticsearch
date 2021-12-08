@@ -1615,6 +1615,33 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         );
     }
 
+    public void testImplicitScriptContextCacheSetting() {
+        List<String> contexts = org.elasticsearch.core.List.of("update", "filter");
+        Settings settings = Settings.builder()
+            .put(ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING.getConcreteSettingForNamespace(contexts.get(0)).getKey(), "123/5m")
+            .put(ScriptService.SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(contexts.get(1)).getKey(), "2453")
+            .build();
+
+        assertThat(
+            NodeDeprecationChecks.checkScriptContextCache(settings, null, null, null),
+            equalTo(
+                new DeprecationIssue(
+                    DeprecationIssue.Level.WARNING,
+                    "Implicitly using the script context cache is deprecated, remove settings "
+                        + "[script.context.update.max_compilations_rate, script.context.filter.cache_max_size] "
+                        + "to use the script general cache.",
+                    "https://ela.st/es-deprecation-7-script-context-cache",
+                    "Remove the context-specific cache settings and set [script.max_compilations_rate] to configure the rate limit for "
+                        + "the general cache. If no limit is set, the rate defaults to 150 compilations per five minutes: 150/5m. "
+                        + "Context-specific caches are no longer needed to prevent system scripts from triggering rate limits.",
+                    false,
+                    null
+                )
+            )
+        );
+
+    }
+
     public void testScriptContextCompilationsRateLimitSetting() {
         List<String> contexts = org.elasticsearch.core.List.of("field", "score");
         Settings settings = Settings.builder()

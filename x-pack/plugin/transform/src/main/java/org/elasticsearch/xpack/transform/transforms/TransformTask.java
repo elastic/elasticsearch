@@ -582,15 +582,15 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             return null;
         }
         // Task ids are unique
-        assert (transformTasks.size() == 1);
+        assert (transformTasks.size() == 1) : "There were 2 or more transform tasks with the same id";
         PersistentTask<?> pTask = transformTasks.iterator().next();
         if (pTask.getParams() instanceof TransformTaskParams) {
             return pTask;
         }
         throw new ElasticsearchStatusException(
-            "Found transform persistent task [" + transformId + "] with incorrect params",
-            RestStatus.INTERNAL_SERVER_ERROR
-        );
+            "Found transform persistent task [{}] with incorrect params",
+            RestStatus.INTERNAL_SERVER_ERROR,
+            transformId);
     }
 
     public static Collection<PersistentTask<?>> findAllTransformTasks(ClusterState clusterState) {

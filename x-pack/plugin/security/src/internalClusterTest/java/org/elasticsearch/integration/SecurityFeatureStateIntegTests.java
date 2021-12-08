@@ -149,7 +149,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
 
     private Response performSuperuserRequest(Request request) throws Exception {
         String token = UsernamePasswordToken.basicAuthHeaderValue(
-                TEST_UNRESTRICTED_USER,
+            TEST_UNRESTRICTED_USER,
             new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
         );
         return performAuthenticatedRequest(request, token);

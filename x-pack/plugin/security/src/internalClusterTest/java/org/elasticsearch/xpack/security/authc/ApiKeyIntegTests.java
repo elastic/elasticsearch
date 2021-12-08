@@ -292,7 +292,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             Collections.singletonMap("Authorization", basicAuthHeaderValue(TEST_UNRESTRICTED_USER, TEST_PASSWORD_SECURE_STRING))
         );
         PlainActionFuture<InvalidateApiKeyResponse> listener = new PlainActionFuture<>();
-        client.execute(InvalidateApiKeyAction.INSTANCE, InvalidateApiKeyRequest.usingRealmAndUserName("file", TEST_UNRESTRICTED_USER), listener);
+        client.execute(
+            InvalidateApiKeyAction.INSTANCE,
+            InvalidateApiKeyRequest.usingRealmAndUserName("file", TEST_UNRESTRICTED_USER),
+            listener
+        );
         InvalidateApiKeyResponse invalidateResponse = listener.get();
         verifyInvalidateResponse(1, responses, invalidateResponse);
     }
@@ -903,7 +907,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             .flatMap(List::stream)
             .collect(Collectors.toList());
         verifyGetResponse(
-            new String[] {TEST_UNRESTRICTED_USER, "user_with_manage_api_key_role", "user_with_manage_own_api_key_role" },
+            new String[] { TEST_UNRESTRICTED_USER, "user_with_manage_api_key_role", "user_with_manage_own_api_key_role" },
             totalApiKeys,
             allApiKeys,
             metadatas,
@@ -1036,7 +1040,12 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
     public void testApiKeyAuthorizationApiKeyMustBeAbleToRetrieveItsOwnInformationButNotAnyOtherKeysCreatedBySameOwner()
         throws InterruptedException, ExecutionException {
-        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple = createApiKeys(TEST_UNRESTRICTED_USER, 2, null, (String[]) null);
+        final Tuple<List<CreateApiKeyResponse>, List<Map<String, Object>>> tuple = createApiKeys(
+            TEST_UNRESTRICTED_USER,
+            2,
+            null,
+            (String[]) null
+        );
         List<CreateApiKeyResponse> responses = tuple.v1();
         final String base64ApiKeyKeyValue = Base64.getEncoder()
             .encodeToString((responses.get(0).getId() + ":" + responses.get(0).getKey().toString()).getBytes(StandardCharsets.UTF_8));
@@ -1386,7 +1395,15 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         Set<String> validApiKeyIds,
         List<String> invalidatedApiKeyIds
     ) {
-        verifyGetResponse(TEST_UNRESTRICTED_USER, expectedNumberOfApiKeys, responses, metadatas, response, validApiKeyIds, invalidatedApiKeyIds);
+        verifyGetResponse(
+            TEST_UNRESTRICTED_USER,
+            expectedNumberOfApiKeys,
+            responses,
+            metadatas,
+            response,
+            validApiKeyIds,
+            invalidatedApiKeyIds
+        );
     }
 
     private void verifyGetResponse(

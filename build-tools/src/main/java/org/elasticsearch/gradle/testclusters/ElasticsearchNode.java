@@ -726,7 +726,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         cred.put("useradd", userSpec.getOrDefault("username", "test_user"));
         cred.put("-p", userSpec.getOrDefault("password", "x-pack-test-password"));
 
-       final String role = userSpec.getOrDefault("role", "_es_test_root");
+        final String role = userSpec.getOrDefault("role", "_es_test_root");
         if (role.equals("_es_test_root")) {
             if (extraConfigFiles.containsKey("roles.yml") == false) {
                 final File rolesYml = getBuildPluginFile("/roles.yml");

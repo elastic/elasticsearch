@@ -125,35 +125,37 @@ public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<Cre
     }
 
     public void testAlias() throws IOException {
-        XContentBuilder aliases1 = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder aliases1 = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("aliases")
-                .startObject("filtered-data")
-                    .startObject("bool")
-                        .startObject("filter")
-                            .startObject("term")
-                            .field("a", "b")
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject()
+            .startObject("filtered-data")
+            .startObject("bool")
+            .startObject("filter")
+            .startObject("term")
+            .field("a", "b")
             .endObject()
-        .endObject();
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new CreateIndexRequest().source(aliases1));
         assertThat(e.getMessage(), containsString("Unknown field [bool] in alias [filtered-data]"));
 
-        XContentBuilder aliases2 = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder aliases2 = XContentFactory.jsonBuilder()
+            .startObject()
             .startObject("aliases")
-                .startObject("filtered-data")
-                    .startArray("filter")
-                        .startObject()
-                            .startObject("term")
-                            .field("a", "b")
-                            .endObject()
-                        .endObject()
-                    .endArray()
-                .endObject()
+            .startObject("filtered-data")
+            .startArray("filter")
+            .startObject()
+            .startObject("term")
+            .field("a", "b")
             .endObject()
-        .endObject();
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject();
         e = expectThrows(IllegalArgumentException.class, () -> new CreateIndexRequest().source(aliases2));
         assertThat(e.getMessage(), containsString("Unknown token [START_ARRAY] in alias [filtered-data]"));
     }

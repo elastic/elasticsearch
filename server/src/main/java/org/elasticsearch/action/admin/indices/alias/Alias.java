@@ -233,9 +233,14 @@ public class Alias implements Writeable, ToXContentFragment {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 // check if there are any unknown fields
-                Set<String> knownFieldNames = Set.of(FILTER.getPreferredName(), ROUTING.getPreferredName(),
-                    INDEX_ROUTING.getPreferredName(), SEARCH_ROUTING.getPreferredName(), IS_WRITE_INDEX.getPreferredName(),
-                    IS_HIDDEN.getPreferredName());
+                Set<String> knownFieldNames = Set.of(
+                    FILTER.getPreferredName(),
+                    ROUTING.getPreferredName(),
+                    INDEX_ROUTING.getPreferredName(),
+                    SEARCH_ROUTING.getPreferredName(),
+                    IS_WRITE_INDEX.getPreferredName(),
+                    IS_HIDDEN.getPreferredName()
+                );
                 if (knownFieldNames.contains(currentFieldName) == false) {
                     throw new IllegalArgumentException("Unknown field [" + currentFieldName + "] in alias [" + alias.name + "]");
                 }

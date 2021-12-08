@@ -69,8 +69,8 @@ heap memory.
 
 Every mapped field also carries some overhead in terms of memory usage and disk
 space. By default {es} will automatically create a mapping for every field in
-every document it indexes, but you can switch off this behaviour to take
-control of your mappings.
+every document it indexes, but you can switch off this behaviour to
+<<explicit-mapping,take control of your mappings>>.
 
 [discrete]
 [[shard-auto-balance]]
@@ -243,12 +243,12 @@ in any searches or aggregations. Use <<explicit-mapping>> instead of dynamic
 mapping to avoid creating fields that are never used. If a collection of fields
 are typically used together, consider using <<copy-to>> to consolidate them at
 index time. If a field is only rarely used, it may be better to make it a
-<<runtime>> instead.
+<<runtime,Runtime field>> instead.
 
 You can get information about which fields are being used with the
-<<field-usage-stats>>, and you can analyze the disk usage of mapped fields
-using the <<indices-disk-usage>>. Note however that unnecessary mapped fields
-also carry some memory overhead as well as their disk usage.
+<<field-usage-stats>> API, and you can analyze the disk usage of mapped fields
+using the <<indices-disk-usage>> API. Note however that unnecessary mapped
+fields also carry some memory overhead as well as their disk usage.
 
 [discrete]
 [[reduce-cluster-shard-count]]

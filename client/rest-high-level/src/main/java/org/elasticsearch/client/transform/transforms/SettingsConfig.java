@@ -26,6 +26,7 @@ public class SettingsConfig implements ToXContentObject {
     private static final ParseField DOCS_PER_SECOND = new ParseField("docs_per_second");
     private static final ParseField DATES_AS_EPOCH_MILLIS = new ParseField("dates_as_epoch_millis");
     private static final ParseField ALIGN_CHECKPOINTS = new ParseField("align_checkpoints");
+    private static final ParseField USE_PIT = new ParseField("use_point_in_time");
     private static final int DEFAULT_MAX_PAGE_SEARCH_SIZE = -1;
     private static final float DEFAULT_DOCS_PER_SECOND = -1F;
 
@@ -35,15 +36,19 @@ public class SettingsConfig implements ToXContentObject {
     // use an integer as we need to code 4 states: true, false, null (unchanged), default (defined server side)
     private static final int DEFAULT_ALIGN_CHECKPOINTS = -1;
 
+    // use an integer as we need to code 4 states: true, false, null (unchanged), default (defined server side)
+    private static final int DEFAULT_USE_PIT = -1;
+
     private final Integer maxPageSearchSize;
     private final Float docsPerSecond;
     private final Integer datesAsEpochMillis;
     private final Integer alignCheckpoints;
+    private final Integer usePit;
 
     private static final ConstructingObjectParser<SettingsConfig, Void> PARSER = new ConstructingObjectParser<>(
         "settings_config",
         true,
-        args -> new SettingsConfig((Integer) args[0], (Float) args[1], (Integer) args[2], (Integer) args[3])
+        args -> new SettingsConfig((Integer) args[0], (Float) args[1], (Integer) args[2], (Integer) args[3], (Integer) args[4])
     );
 
     static {
@@ -63,17 +68,25 @@ public class SettingsConfig implements ToXContentObject {
             ALIGN_CHECKPOINTS,
             ValueType.BOOLEAN_OR_NULL
         );
+        // this boolean requires 4 possible values: true, false, not_specified, default, therefore using a custom parser
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_USE_PIT : p.booleanValue() ? 1 : 0,
+            USE_PIT,
+            ValueType.BOOLEAN_OR_NULL
+        );
     }
 
     public static SettingsConfig fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond, Integer datesAsEpochMillis, Integer alignCheckpoints) {
+    SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond, Integer datesAsEpochMillis, Integer alignCheckpoints, Integer usePit) {
         this.maxPageSearchSize = maxPageSearchSize;
         this.docsPerSecond = docsPerSecond;
         this.datesAsEpochMillis = datesAsEpochMillis;
         this.alignCheckpoints = alignCheckpoints;
+        this.usePit = usePit;
     }
 
     @Override
@@ -107,6 +120,13 @@ public class SettingsConfig implements ToXContentObject {
                 builder.field(ALIGN_CHECKPOINTS.getPreferredName(), alignCheckpoints > 0 ? true : false);
             }
         }
+        if (usePit != null) {
+            if (usePit.equals(DEFAULT_USE_PIT)) {
+                builder.field(USE_PIT.getPreferredName(), (Boolean) null);
+            } else {
+                builder.field(USE_PIT.getPreferredName(), usePit > 0 ? true : false);
+            }
+        }
         builder.endObject();
         return builder;
     }
@@ -127,6 +147,10 @@ public class SettingsConfig implements ToXContentObject {
         return alignCheckpoints != null ? alignCheckpoints > 0 : null;
     }
 
+    public Boolean getUsePit() {
+        return usePit != null ? usePit > 0 : null;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (other == this) {
@@ -140,12 +164,13 @@ public class SettingsConfig implements ToXContentObject {
         return Objects.equals(maxPageSearchSize, that.maxPageSearchSize)
             && Objects.equals(docsPerSecond, that.docsPerSecond)
             && Objects.equals(datesAsEpochMillis, that.datesAsEpochMillis)
-            && Objects.equals(alignCheckpoints, that.alignCheckpoints);
+            && Objects.equals(alignCheckpoints, that.alignCheckpoints)
+            && Objects.equals(usePit, that.usePit);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints);
+        return Objects.hash(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints, usePit);
     }
 
     public static Builder builder() {
@@ -157,6 +182,7 @@ public class SettingsConfig implements ToXContentObject {
         private Float docsPerSecond;
         private Integer datesAsEpochMillis;
         private Integer alignCheckpoints;
+        private Integer usePit;
 
         /**
          * Sets the paging maximum paging maxPageSearchSize that transform can use when
@@ -215,8 +241,23 @@ public class SettingsConfig implements ToXContentObject {
             return this;
         }
 
+        /**
+         * Whether the point in time API should be used for search.
+         * Point in time is a more resource friendly way to query. It is used by default. In case of problems
+         * you can disable the point in time API usage with this setting.
+         *
+         * An explicit `null` resets to default.
+         *
+         * @param usePit true if the point in time API should be used.
+         * @return the {@link Builder} with usePit set.
+         */
+        public Builder setUsePit(Boolean usePit) {
+            this.usePit = usePit == null ? DEFAULT_USE_PIT : usePit ? 1 : 0;
+            return this;
+        }
+
         public SettingsConfig build() {
-            return new SettingsConfig(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints);
+            return new SettingsConfig(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints, usePit);
         }
     }
 }

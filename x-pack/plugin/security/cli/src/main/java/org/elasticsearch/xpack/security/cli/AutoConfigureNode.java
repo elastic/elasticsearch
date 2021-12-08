@@ -307,9 +307,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 throw new UserException(
                     ExitCodes.UNAVAILABLE,
                     "Aborting enrolling to cluster. "
-                        + "Could not communicate with the initial node in any of the addresses from the enrollment token. All of "
+                        + "Could not communicate with the node on any of the addresses from the enrollment token. All of "
                         + enrollmentToken.getBoundAddress()
-                        + "where attempted."
+                        + " were attempted."
                 );
             }
             final Map<String, Object> responseMap = enrollResponse.getResponseBody();

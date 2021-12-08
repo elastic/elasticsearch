@@ -631,7 +631,6 @@ public class PyTorchModelIT extends ESRestTestCase {
         assertThatTrainedModelAllocationMetadataIsEmpty();
     }
 
->>>>>>> 2dec141e4585... [ML] fail inference processor more consistently on certain error types (#81475)
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {
         int inferenceCount = 0;
         for (var node : nodes) {

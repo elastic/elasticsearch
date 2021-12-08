@@ -524,6 +524,14 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 )
             )
         );
+
+
+        assertWarnings(
+            "[script.context.update.max_compilations_rate] setting was deprecated in Elasticsearch and will be"
+                + " removed in a future release! See the breaking changes documentation for the next major version.",
+            "[script.context.filter.cache_max_size] setting was deprecated in Elasticsearch and will be removed in a future"
+                + " release! See the breaking changes documentation for the next major version."
+        );
     }
 
     public void testScriptContextCacheSizeSetting() {

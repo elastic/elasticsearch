@@ -674,6 +674,29 @@ public class ScriptServiceTests extends ESTestCase {
         );
     }
 
+    public void testImplicitContextCacheWithoutCompilationRate() throws IOException {
+        String a = randomFrom(rateLimitedContexts.keySet());
+        String b = randomValueOtherThan(a, () -> randomFrom(rateLimitedContexts.keySet()));
+        String aExpire = "20m";
+        int bSize = 2000;
+
+        Setting<?> aSetting = SCRIPT_CACHE_EXPIRE_SETTING.getConcreteSettingForNamespace(a);
+        Setting<?> bSetting = SCRIPT_CACHE_SIZE_SETTING.getConcreteSettingForNamespace(b);
+        buildScriptService(Settings.builder().put(aSetting.getKey(), aExpire).put(bSetting.getKey(), bSize).build());
+
+        assertNull(scriptService.cacheHolder.get().general);
+        assertNotNull(scriptService.cacheHolder.get().contextCache);
+        assertEquals(contexts.keySet(), scriptService.cacheHolder.get().contextCache.keySet());
+
+        assertEquals(TimeValue.parseTimeValue("20m", aSetting.getKey()),
+            scriptService.cacheHolder.get().contextCache.get(a).get().cacheExpire);
+        assertEquals(bSize, scriptService.cacheHolder.get().contextCache.get(b).get().cacheSize);
+        assertSettingDeprecationsAndWarnings(
+            new Setting<?>[] { aSetting, bSetting },
+            new DeprecationWarning(Level.WARN, implicitContextCacheMessage(aSetting.getKey(), bSetting.getKey()))
+        );
+    }
+
     public void testCompilationRateUnlimitedContextOnly() throws IOException {
         IllegalArgumentException illegal = expectThrows(IllegalArgumentException.class, () -> {
             buildScriptService(

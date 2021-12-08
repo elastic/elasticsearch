@@ -482,10 +482,9 @@ public class DataCounts implements ToXContentObject, Writeable {
         this.latestEmptyBucketTimeStamp = latestEmptyBucketTimeStamp;
     }
 
-    public void updateLatestEmptyBucketTimeStamp(Date latestEmptyBucketTimeStamp) {
-        if (latestEmptyBucketTimeStamp != null
-            && (this.latestEmptyBucketTimeStamp == null || latestEmptyBucketTimeStamp.after(this.latestEmptyBucketTimeStamp))) {
-            this.latestEmptyBucketTimeStamp = latestEmptyBucketTimeStamp;
+    public void updateLatestEmptyBucketTimeStamp(Date timestamp) {
+        if (timestamp != null && (this.latestEmptyBucketTimeStamp == null || timestamp.after(this.latestEmptyBucketTimeStamp))) {
+            this.latestEmptyBucketTimeStamp = timestamp;
         }
     }
 
@@ -502,10 +501,9 @@ public class DataCounts implements ToXContentObject, Writeable {
         this.latestSparseBucketTimeStamp = latestSparseBucketTimeStamp;
     }
 
-    public void updateLatestSparseBucketTimeStamp(Date latestSparseBucketTimeStamp) {
-        if (latestSparseBucketTimeStamp != null
-            && (this.latestSparseBucketTimeStamp == null || latestSparseBucketTimeStamp.after(this.latestSparseBucketTimeStamp))) {
-            this.latestSparseBucketTimeStamp = latestSparseBucketTimeStamp;
+    public void updateLatestSparseBucketTimeStamp(Date timestamp) {
+        if (timestamp != null && (this.latestSparseBucketTimeStamp == null || timestamp.after(this.latestSparseBucketTimeStamp))) {
+            this.latestSparseBucketTimeStamp = timestamp;
         }
     }
 

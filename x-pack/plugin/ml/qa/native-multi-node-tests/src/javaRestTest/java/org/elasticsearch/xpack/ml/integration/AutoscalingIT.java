@@ -137,8 +137,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             .collect(Collectors.toList());
         NativeMemoryCapacity currentScale = MlAutoscalingDeciderService.currentScale(mlNodes, 30, false);
         expectedTierBytes = (long) Math.ceil(
-            (ByteSizeValue.ofMb(50_000 + BASIC_REQUIREMENT_MB + 60_000 + BASELINE_OVERHEAD_MB).getBytes() + currentScale.getTier()) * 100
-                / 30.0
+            (ByteSizeValue.ofMb(50_000 + BASIC_REQUIREMENT_MB + 60_000 + BASELINE_OVERHEAD_MB).getBytes() + currentScale
+                .getTierMlNativeMemoryRequirement()) * 100 / 30.0
         );
         expectedNodeBytes = (long) (ByteSizeValue.ofMb(60_000 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
 
@@ -215,7 +215,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             .collect(Collectors.toList());
         NativeMemoryCapacity currentScale = MlAutoscalingDeciderService.currentScale(mlNodes, 30, false);
         expectedTierBytes = (long) Math.ceil(
-            (ByteSizeValue.ofMb(50_000 + BASIC_REQUIREMENT_MB).getBytes() + currentScale.getTier()) * 100 / 30.0
+            (ByteSizeValue.ofMb(50_000 + BASIC_REQUIREMENT_MB).getBytes() + currentScale.getTierMlNativeMemoryRequirement()) * 100 / 30.0
         );
         expectedNodeBytes = (long) (ByteSizeValue.ofMb(50_000 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
 

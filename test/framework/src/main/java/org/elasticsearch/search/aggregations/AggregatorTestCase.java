@@ -106,7 +106,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
@@ -581,10 +580,9 @@ public abstract class AggregatorTestCase extends ESTestCase {
             Collections.shuffle(aggs, random());
             int r = randomIntBetween(1, toReduceSize);
             List<InternalAggregation> toReduce = aggs.subList(0, r);
-            InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forPartialReduction(
+            AggregationReduceContext reduceContext = new AggregationReduceContext.ForPartial(
                 context.bigArrays(),
                 getMockScriptService(),
-                () -> PipelineAggregator.PipelineTree.EMPTY,
                 () -> false
             );
             A reduced = (A) aggs.get(0).reduce(toReduce, reduceContext);
@@ -598,7 +596,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             maxBucket,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
         );
-        InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
+        AggregationReduceContext reduceContext = new AggregationReduceContext.ForFinal(
             context.bigArrays(),
             getMockScriptService(),
             reduceBucketConsumer,
@@ -732,7 +730,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         InternalAggregation r = aggregator.buildTopLevel();
         r = r.reduce(
             List.of(r),
-            ReduceContext.forFinalReduction(
+            new AggregationReduceContext.ForFinal(
                 context.bigArrays(),
                 getMockScriptService(),
                 context.multiBucketConsumer(),
@@ -1325,7 +1323,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
             aggregations.forEach(ia -> { assertThat(((InternalAggCardinalityUpperBound) ia).cardinality, equalTo(cardinality)); });
             return new InternalAggCardinalityUpperBound(name, cardinality, metadata);
         }

@@ -26,11 +26,11 @@ import org.elasticsearch.index.query.TypeQueryV7Builder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
 import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregationBuilder;
@@ -588,7 +588,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+        public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
             return null;
         }
     }

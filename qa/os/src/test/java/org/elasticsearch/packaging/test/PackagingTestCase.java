@@ -746,7 +746,7 @@ public abstract class PackagingTestCase extends Assert {
             lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
         }
         assertNotNull(lsResult.stdout);
-        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.equals("generated_tls_certs")).findFirst();
+        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("generated_tls_certs")).findFirst();
     }
 
 }

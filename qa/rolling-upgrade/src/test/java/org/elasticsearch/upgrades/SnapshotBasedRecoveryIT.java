@@ -10,7 +10,6 @@ package org.elasticsearch.upgrades;
 
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -19,7 +18,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
@@ -27,6 +25,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -47,7 +46,6 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
         final int numDocs = 200;
         switch (CLUSTER_TYPE) {
             case OLD:
-                disableRebalancing();
                 Settings.Builder settings = Settings.builder()
                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
@@ -77,10 +75,8 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
             case UPGRADED:
                 if (FIRST_MIXED_ROUND) {
                     String upgradedNodeId = getUpgradedNodeId();
-
-                    if (upgradedNodeId != null) {
-                        updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.exclude._id", upgradedNodeId));
-                    }
+                    updateIndexSettings(indexName, Settings.builder().put("index.routing.allocation.exclude._id", upgradedNodeId));
+                    ensureGreen(indexName);
 
                     String primaryNodeId = getPrimaryNodeIdOfShard(indexName, 0);
                     Version primaryNodeVersion = getNodeVersion(primaryNodeId);
@@ -114,37 +110,20 @@ public class SnapshotBasedRecoveryIT extends AbstractRollingTestCase {
         }
     }
 
-    private void disableRebalancing() throws IOException {
-        try (XContentBuilder builder = jsonBuilder()) {
-            builder.startObject();
-            {
-                builder.startObject("persistent");
-                builder.field("cluster.routing.rebalance.enable", "none");
-                builder.endObject();
-            }
-            builder.endObject();
-
-            Request request = new Request(HttpPut.METHOD_NAME, "_cluster/settings");
-            request.setJsonEntity(Strings.toString(builder));
-
-            Response response = client().performRequest(request);
-            assertOK(response);
-        }
-    }
-
-    @Nullable
     private String getUpgradedNodeId() throws IOException {
         Request request = new Request(HttpGet.METHOD_NAME, "_nodes/_all");
         Response response = client().performRequest(request);
         Map<String, Object> responseMap = responseAsMap(response);
         Map<String, Map<String, Object>> nodes = extractValue(responseMap, "nodes");
+        List<String> upgradedNodes = new ArrayList<>();
         for (Map.Entry<String, Map<String, Object>> nodeInfoEntry : nodes.entrySet()) {
             Version nodeVersion = Version.fromString(extractValue(nodeInfoEntry.getValue(), "version"));
             if (nodeVersion.after(UPGRADE_FROM_VERSION)) {
-                return nodeInfoEntry.getKey();
+                upgradedNodes.add(nodeInfoEntry.getKey());
             }
         }
-        return null;
+        assertThat(upgradedNodes.size(), is(equalTo(1)));
+        return upgradedNodes.get(0);
     }
 
     private Version getNodeVersion(String primaryNodeId) throws IOException {

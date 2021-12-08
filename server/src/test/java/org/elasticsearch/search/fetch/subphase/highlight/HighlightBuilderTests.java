@@ -252,8 +252,7 @@ public class HighlightBuilderTests extends ESTestCase {
     public void testNoFieldsInObjectInFieldsArray() throws IOException {
         XContentParseException e = expectParseThrows(XContentParseException.class, """
             {
-              "fields" : [ {
-               }]\s
+              "fields" : [ { } ]
             }
             """);
         assertThat(e.getMessage(), containsString("[highlight] failed to parse field [fields]"));

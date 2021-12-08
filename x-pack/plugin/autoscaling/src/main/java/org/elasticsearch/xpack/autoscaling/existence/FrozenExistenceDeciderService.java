@@ -19,14 +19,16 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
-import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
+
+import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * This decider looks at all indices and ensures a minimum capacity is available if any indices are in the frozen ILM phase, since that
@@ -63,7 +65,7 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
     }
 
     boolean needsTier(IndexMetadata idxMeta) {
-        return LifecycleExecutionState.isFrozenPhase(idxMeta);
+        return isFrozenPhase(idxMeta);
     }
 
     @Override
@@ -128,4 +130,21 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
         }
     }
 
+    // these are only here to support isFrozenPhase, LifecycleExecutionState.PHASE and TimeseriesLifecycleType.FROZEN_PHASE are the
+    // canonical sources for these constants
+    private static String PHASE = "phase";
+    static String FROZEN_PHASE = "frozen"; // visible for testing
+
+    /**
+     * Return true if this index is in the frozen phase, false if not controlled by ILM or not in frozen.
+     * @param indexMetadata the metadata of the index to retrieve phase from.
+     * @return true if frozen phase, false otherwise.
+     */
+    // visible for testing
+    static boolean isFrozenPhase(IndexMetadata indexMetadata) {
+        Map<String, String> customData = indexMetadata.getCustomData(ILM_CUSTOM_METADATA_KEY);
+        // deliberately do not parse out the entire `LifeCycleExecutionState` to avoid the extra work involved since this method is
+        // used heavily by autoscaling.
+        return customData != null && FROZEN_PHASE.equals(customData.get(PHASE));
+    }
 }

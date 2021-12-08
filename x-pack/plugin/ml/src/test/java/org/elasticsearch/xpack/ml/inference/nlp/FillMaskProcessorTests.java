@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
@@ -88,7 +89,7 @@ public class FillMaskProcessorTests extends ESTestCase {
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null, null, null);
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.validateInputs(input));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> processor.validateInputs(input));
         assertThat(e.getMessage(), containsString("no [MASK] token could be found"));
     }
 
@@ -98,7 +99,7 @@ public class FillMaskProcessorTests extends ESTestCase {
         FillMaskConfig config = new FillMaskConfig(new VocabularyConfig("test-index"), null, null, null);
         FillMaskProcessor processor = new FillMaskProcessor(mock(BertTokenizer.class), config);
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.validateInputs(input));
+        ElasticsearchStatusException e = expectThrows(ElasticsearchStatusException.class, () -> processor.validateInputs(input));
         assertThat(e.getMessage(), containsString("only one [MASK] token should exist in the input"));
     }
 }

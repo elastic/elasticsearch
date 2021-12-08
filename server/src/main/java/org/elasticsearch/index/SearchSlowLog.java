@@ -214,7 +214,7 @@ public final class SearchSlowLog implements SearchOperationListener {
                 messageFields.put("source", "{}");
             }
 
-            messageFields.put("id", context.getTask().getHeader(Task.X_OPAQUE_ID));
+            messageFields.put("id", context.getTask().getHeader(Task.X_OPAQUE_ID_HTTP_HEADER));
             return messageFields;
         }
 

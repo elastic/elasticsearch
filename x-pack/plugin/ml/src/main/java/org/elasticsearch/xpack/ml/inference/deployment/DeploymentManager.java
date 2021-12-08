@@ -262,7 +262,7 @@ public class DeploymentManager {
         }
     }
 
-    static class InferenceAction extends AbstractRunnable {
+    static class InferenceAction extends AbstractRunnable implements ActionListener<InferenceResults> {
         private final String modelId;
         private final long requestId;
         private final TimeValue timeout;
@@ -271,7 +271,6 @@ public class DeploymentManager {
         private final InferenceConfig config;
         private final Map<String, Object> doc;
         private final ActionListener<InferenceResults> listener;
-        private final ActionListener<InferenceResults> wrappedListener;
         private final AtomicBoolean notified = new AtomicBoolean();
 
         InferenceAction(
@@ -291,7 +290,6 @@ public class DeploymentManager {
             this.config = config;
             this.doc = doc;
             this.listener = listener;
-            this.wrappedListener = ActionListener.wrap(this::onSuccess, this::onFailure);
             this.timeoutHandler = threadPool.schedule(
                 this::onTimeout,
                 ExceptionsHelper.requireNonNull(timeout, "timeout"),
@@ -308,6 +306,11 @@ public class DeploymentManager {
                 return;
             }
             logger.debug("[{}] request [{}] received timeout after [{}] but listener already alerted", modelId, requestId, timeout);
+        }
+
+        @Override
+        public void onResponse(InferenceResults inferenceResults) {
+            onSuccess(inferenceResults);
         }
 
         void onSuccess(InferenceResults inferenceResults) {
@@ -368,7 +371,7 @@ public class DeploymentManager {
                                 processContext,
                                 request.tokenization,
                                 processor.getResultProcessor((NlpConfig) config),
-                                ActionListener.wrap(this::onSuccess, f -> handleFailure(f, wrappedListener))
+                                ActionListener.wrap(this::onSuccess, f -> handleFailure(f, this))
                             ),
                             this::onFailure
                         )
@@ -376,9 +379,9 @@ public class DeploymentManager {
                 processContext.process.get().writeInferenceRequest(request.processInput);
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.task.getModelId()), e);
-                handleFailure(ExceptionsHelper.serverError("error writing to process", e), wrappedListener);
+                handleFailure(ExceptionsHelper.serverError("error writing to process", e), this);
             } catch (Exception e) {
-                handleFailure(e, wrappedListener);
+                handleFailure(e, this);
             }
         }
 

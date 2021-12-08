@@ -295,13 +295,13 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
 
         @Override
         public Query termQuery(Object value, SearchExecutionContext context) {
-            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support queries");
+            throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
         public KnnVectorQuery createKnnQuery(float[] queryVector, int numCands) {
             if (isSearchable() == false) {
                 throw new IllegalArgumentException(
-                    "[" + KnnVectorQueryBuilder.NAME + "] " + "queries are not supported if [index] is disabled"
+                    "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
 

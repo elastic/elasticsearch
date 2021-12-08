@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.ParseField;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -82,22 +84,60 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
 
     public static class Response extends AbstractGetResourcesResponse<TransformConfig> implements ToXContentObject {
 
+        public static class Error implements Writeable, ToXContentObject {
+            private static final ParseField TYPE = new ParseField("type");
+            private static final ParseField REASON = new ParseField("reason");
+
+            private final String type;
+            private final String reason;
+
+            public Error(String type, String reason) {
+                this.type = Objects.requireNonNull(type);
+                this.reason = Objects.requireNonNull(reason);
+            }
+
+            public Error(StreamInput in) throws IOException {
+                this.type = in.readString();
+                this.reason = in.readString();
+            }
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+                builder.startObject();
+                builder.field(TYPE.getPreferredName(), type);
+                builder.field(REASON.getPreferredName(), reason);
+                builder.endObject();
+                return builder;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                out.writeString(type);
+                out.writeString(reason);
+            }
+        }
+
         public static final String INVALID_TRANSFORMS_DEPRECATION_WARNING = "Found [{}] invalid transforms";
         private static final ParseField INVALID_TRANSFORMS = new ParseField("invalid_transforms");
+        private static final ParseField ERRORS = new ParseField("errors");
 
-        private final List<String> transformsWithoutConfig;
+        private final List<Error> errors;
 
-        public Response(List<TransformConfig> transformConfigs, long count, List<String> transformsWithoutConfig) {
+        public Response(List<TransformConfig> transformConfigs, long count, List<Error> errors) {
             super(new QueryPage<>(transformConfigs, count, TransformField.TRANSFORMS));
-            this.transformsWithoutConfig = transformsWithoutConfig;
+            this.errors = errors;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
-                this.transformsWithoutConfig = in.readOptionalStringList();
+                if (in.readBoolean()) {
+                    this.errors = in.readList(Error::new);
+                } else {
+                    this.errors = null;
+                }
             } else {
-                this.transformsWithoutConfig = null;
+                this.errors = null;
             }
         }
 
@@ -109,8 +149,8 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
             return getResources().count();
         }
 
-        public List<String> getTransformsWithoutConfig() {
-            return transformsWithoutConfig;
+        public List<Error> getErrors() {
+            return errors;
         }
 
         @Override
@@ -128,9 +168,6 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
                     invalidTransforms.add(configResponse.getId());
                 }
             }
-            if (transformsWithoutConfig != null) {
-                invalidTransforms.addAll(transformsWithoutConfig);
-            }
             builder.endArray();
             if (invalidTransforms.isEmpty() == false) {
                 builder.startObject(INVALID_TRANSFORMS.getPreferredName());
@@ -144,6 +181,9 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
                     invalidTransforms.size()
                 );
             }
+            if (errors != null) {
+                builder.field(ERRORS.getPreferredName(), errors);
+            }
             builder.endObject();
             return builder;
         }
@@ -152,7 +192,12 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
-                out.writeOptionalStringCollection(transformsWithoutConfig);
+                if (errors != null) {
+                    out.writeBoolean(true);
+                    out.writeList(errors);
+                } else {
+                    out.writeBoolean(false);
+                }
             }
         }
 

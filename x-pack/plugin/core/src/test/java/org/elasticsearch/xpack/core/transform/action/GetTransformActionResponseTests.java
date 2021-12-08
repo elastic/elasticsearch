@@ -24,13 +24,18 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class GetTransformActionResponseTests extends AbstractWireSerializingTransformTestCase<Response> {
 
     public static Response randomTransformResponse() {
         List<TransformConfig> configs = randomList(0, 10, () -> TransformConfigTests.randomTransformConfig());
-        List<String> transformsWithoutConfig = randomBoolean() ? randomList(1, 5, () -> randomAlphaOfLengthBetween(1, 10)) : null;
-        return new Response(configs, randomNonNegativeLong(), transformsWithoutConfig);
+        List<Response.Error> errors = randomBoolean() ? randomList(1, 5, () -> randomError()) : null;
+        return new Response(configs, randomNonNegativeLong(), errors);
+    }
+
+    private static Response.Error randomError() {
+        return new Response.Error(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 20));
     }
 
     public void testInvalidTransforms() throws IOException {
@@ -51,35 +56,63 @@ public class GetTransformActionResponseTests extends AbstractWireSerializingTran
         assertWarnings(LoggerMessageFormat.format(Response.INVALID_TRANSFORMS_DEPRECATION_WARNING, 2));
     }
 
-    public void testTransformsWithoutConfig() throws IOException {
-        List<String> transformsWithoutConfig = List.of("transform-1", "transform-2", "transform-3");
+    public void testErrors() throws IOException {
+        List<Response.Error> errors = List.of(
+            new Response.Error("error-type-1", "error-message-1"),
+            new Response.Error("error-type-2", "error-message-2"),
+            new Response.Error("error-type-3", "error-message-3")
+        );
 
-        Response r = new Response(List.of(), 0, transformsWithoutConfig);
+        Response r = new Response(List.of(), 0, errors);
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         r.toXContent(builder, XContent.EMPTY_PARAMS);
         Map<String, Object> responseAsMap = createParser(builder).map();
-        assertThat(XContentMapValues.extractValue("invalid_transforms.count", responseAsMap), is(equalTo(3)));
+        assertThat(XContentMapValues.extractValue("invalid_transforms", responseAsMap), is(nullValue()));
         assertThat(
-            XContentMapValues.extractValue("invalid_transforms.transforms", responseAsMap),
-            is(equalTo(List.of("transform-1", "transform-2", "transform-3")))
+            XContentMapValues.extractValue("errors", responseAsMap),
+            is(
+                equalTo(
+                    List.of(
+                        Map.of("type", "error-type-1", "reason", "error-message-1"),
+                        Map.of("type", "error-type-2", "reason", "error-message-2"),
+                        Map.of("type", "error-type-3", "reason", "error-message-3")
+                    )
+                )
+            )
         );
-        assertWarnings(LoggerMessageFormat.format(Response.INVALID_TRANSFORMS_DEPRECATION_WARNING, 3));
+        ensureNoWarnings();
     }
 
-    public void testBothInvalidConfigsAndTransformsWithoutConfig() throws IOException {
+    public void testBothInvalidConfigsAndErrors() throws IOException {
         List<TransformConfig> transforms = List.of(TransformConfigTests.randomInvalidTransformConfig("invalid-transform-7"));
-        List<String> transformsWithoutConfig = List.of("transform-1", "transform-2", "transform-3");
+        List<Response.Error> errors = List.of(
+            new Response.Error("error-type-1", "error-message-1"),
+            new Response.Error("error-type-2", "error-message-2"),
+            new Response.Error("error-type-3", "error-message-3")
+        );
 
-        Response r = new Response(transforms, transforms.size(), transformsWithoutConfig);
+        Response r = new Response(transforms, transforms.size(), errors);
         XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         r.toXContent(builder, XContent.EMPTY_PARAMS);
         Map<String, Object> responseAsMap = createParser(builder).map();
-        assertThat(XContentMapValues.extractValue("invalid_transforms.count", responseAsMap), is(equalTo(4)));
+        assertThat(XContentMapValues.extractValue("invalid_transforms.count", responseAsMap), is(equalTo(1)));
         assertThat(
             XContentMapValues.extractValue("invalid_transforms.transforms", responseAsMap),
-            is(equalTo(List.of("invalid-transform-7", "transform-1", "transform-2", "transform-3")))
+            is(equalTo(List.of("invalid-transform-7")))
         );
-        assertWarnings(LoggerMessageFormat.format(Response.INVALID_TRANSFORMS_DEPRECATION_WARNING, 4));
+        assertThat(
+            XContentMapValues.extractValue("errors", responseAsMap),
+            is(
+                equalTo(
+                    List.of(
+                        Map.of("type", "error-type-1", "reason", "error-message-1"),
+                        Map.of("type", "error-type-2", "reason", "error-message-2"),
+                        Map.of("type", "error-type-3", "reason", "error-message-3")
+                    )
+                )
+            )
+        );
+        assertWarnings(LoggerMessageFormat.format(Response.INVALID_TRANSFORMS_DEPRECATION_WARNING, 1));
     }
 
     @SuppressWarnings("unchecked")

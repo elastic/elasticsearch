@@ -590,7 +590,8 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         throw new ElasticsearchStatusException(
             "Found transform persistent task [{}] with incorrect params",
             RestStatus.INTERNAL_SERVER_ERROR,
-            transformId);
+            transformId
+        );
     }
 
     public static Collection<PersistentTask<?>> findAllTransformTasks(ClusterState clusterState) {

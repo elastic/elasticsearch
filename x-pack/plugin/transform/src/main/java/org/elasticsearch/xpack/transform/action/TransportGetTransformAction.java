@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.action;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -48,6 +49,9 @@ import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TY
 
 public class TransportGetTransformAction extends AbstractTransportGetResourcesAction<TransformConfig, Request, Response> {
 
+    private static final String DANGLING_TASK_ERROR_MESSAGE_FORMAT =
+        "Found task for transform [{}], but no configuration for it. To delete this transform use DELETE with force=true.";
+
     private final ClusterService clusterService;
 
     @Inject
@@ -74,11 +78,17 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
                 request.getId(),
                 state
             );
-            List<String> transformWithoutConfigIds = transformTasks.stream()
+            List<Response.Error> errors = transformTasks.stream()
                 .map(PersistentTasksCustomMetadata.PersistentTask::getId)
                 .filter(not(transformConfigIds::contains))
+                .map(
+                    transformId -> new Response.Error(
+                        "dangling_task",
+                        new ParameterizedMessage(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId).getFormattedMessage()
+                    )
+                )
                 .collect(toList());
-            listener.onResponse(new Response(r.results(), r.count(), transformWithoutConfigIds));
+            listener.onResponse(new Response(r.results(), r.count(), errors.isEmpty() ? null : errors));
         }, listener::onFailure);
 
         // Step 1: Search for all the transform configs matching the request.

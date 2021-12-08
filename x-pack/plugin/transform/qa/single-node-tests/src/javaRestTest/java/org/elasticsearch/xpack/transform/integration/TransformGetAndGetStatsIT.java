@@ -52,7 +52,6 @@ import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
@@ -69,6 +68,8 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
     private static final String BASIC_AUTH_VALUE_TRANSFORM_USER = basicAuthHeaderValue(TEST_USER_NAME, TEST_PASSWORD_SECURE_STRING);
     private static final String TEST_ADMIN_USER_NAME = "transform_admin";
     private static final String BASIC_AUTH_VALUE_TRANSFORM_ADMIN = basicAuthHeaderValue(TEST_ADMIN_USER_NAME, TEST_PASSWORD_SECURE_STRING);
+    private static final String DANGLING_TASK_ERROR_MESSAGE =
+        "Found task for transform [pivot_continuous], but no configuration for it. To delete this transform use DELETE with force=true.";
 
     private static boolean indicesCreated = false;
 
@@ -211,10 +212,11 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         }
 
         // Check all the different ways to retrieve transforms
-        verifyGetResponse(getTransformEndpoint(), 2, List.of("pivot_continuous"));
-        verifyGetResponse(getTransformEndpoint() + "_all", 2, List.of("pivot_continuous"));
-        verifyGetResponse(getTransformEndpoint() + "*", 2, List.of("pivot_continuous"));
-        verifyGetResponse(getTransformEndpoint() + "pivot_*", 2, List.of("pivot_continuous"));
+        List<Map<String, String>> expectedErrors = List.of(Map.of("type", "dangling_task", "reason", DANGLING_TASK_ERROR_MESSAGE));
+        verifyGetResponse(getTransformEndpoint(), 2, expectedErrors);
+        verifyGetResponse(getTransformEndpoint() + "_all", 2, expectedErrors);
+        verifyGetResponse(getTransformEndpoint() + "*", 2, expectedErrors);
+        verifyGetResponse(getTransformEndpoint() + "pivot_*", 2, expectedErrors);
         verifyGetResponse(getTransformEndpoint() + "pivot_1,pivot_2", 2, null);
         verifyGetResponse(getTransformEndpoint() + "pivot_1", 1, null);
         verifyGetResponse(getTransformEndpoint() + "pivot_2", 1, null);
@@ -267,10 +269,11 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         }
 
         // Check all the different ways to retrieve transforms
-        verifyGetResponse(getTransformEndpoint(), 0, List.of("pivot_continuous"));
-        verifyGetResponse(getTransformEndpoint() + "_all", 0, List.of("pivot_continuous"));
-        verifyGetResponse(getTransformEndpoint() + "*", 0, List.of("pivot_continuous"));
-        verifyGetResponse(getTransformEndpoint() + "pivot_*", 0, List.of("pivot_continuous"));
+        List<Map<String, String>> expectedErrors = List.of(Map.of("type", "dangling_task", "reason", DANGLING_TASK_ERROR_MESSAGE));
+        verifyGetResponse(getTransformEndpoint(), 0, expectedErrors);
+        verifyGetResponse(getTransformEndpoint() + "_all", 0, expectedErrors);
+        verifyGetResponse(getTransformEndpoint() + "*", 0, expectedErrors);
+        verifyGetResponse(getTransformEndpoint() + "pivot_*", 0, expectedErrors);
         {
             Request getRequest = createRequestWithAuth("GET", getTransformEndpoint() + "pivot_1,pivot_2", BASIC_AUTH_VALUE_TRANSFORM_USER);
             ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(getRequest));
@@ -306,7 +309,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         stopTransform("pivot_continuous", true);
     }
 
-    private void verifyGetResponse(String path, int expectedCount, List<String> expectedInvalidTransforms) throws IOException {
+    private void verifyGetResponse(String path, int expectedCount, List<Map<String, String>> expectedErrors) throws IOException {
         // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
         String authHeader = randomFrom(BASIC_AUTH_VALUE_TRANSFORM_USER, BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
 
@@ -315,16 +318,7 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         Response response = client().performRequest(request);
         Map<String, Object> transforms = entityAsMap(response);
         assertThat(XContentMapValues.extractValue("count", transforms), is(equalTo(expectedCount)));
-        if (expectedInvalidTransforms != null) {
-            assertThat(response.getWarnings(), contains("Found [1] invalid transforms"));
-            assertThat(
-                XContentMapValues.extractValue("invalid_transforms.count", transforms),
-                is(equalTo(expectedInvalidTransforms.size()))
-            );
-            assertThat(XContentMapValues.extractValue("invalid_transforms.transforms", transforms), is(equalTo(expectedInvalidTransforms)));
-        } else {
-            assertThat(XContentMapValues.extractValue("invalid_transforms", transforms), is(nullValue()));
-        }
+        assertThat(XContentMapValues.extractValue("errors", transforms), is(equalTo(expectedErrors)));
     }
 
     @SuppressWarnings("unchecked")

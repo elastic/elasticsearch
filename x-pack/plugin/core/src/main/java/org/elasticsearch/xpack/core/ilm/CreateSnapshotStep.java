@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -21,7 +22,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * Creates a snapshot of the managed index into the configured repository and snapshot name. The repository and snapshot names are expected

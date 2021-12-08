@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.Index;
 
@@ -18,7 +19,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.fromIndexMetadata;
 
 /**
  * This step replaces a data stream backing index with the target index, as part of the data stream's backing indices.

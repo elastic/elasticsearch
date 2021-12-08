@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 

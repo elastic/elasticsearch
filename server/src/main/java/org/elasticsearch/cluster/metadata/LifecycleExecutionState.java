@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
-package org.elasticsearch.xpack.core.ilm;
+package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -139,7 +139,7 @@ public class LifecycleExecutionState {
             .setStepTime(state.stepTime);
     }
 
-    static LifecycleExecutionState fromCustomMetadata(Map<String, String> customData) {
+    public static LifecycleExecutionState fromCustomMetadata(Map<String, String> customData) {
         Builder builder = builder();
         String phase = customData.get(PHASE);
         if (phase != null) {

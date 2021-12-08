@@ -102,7 +102,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
                 "user": {
                   "wildcard": "ki*y",
                   "case_insensitive": true,
-                  "boost": 2
+                  "boost": 2.0
                 }
               }
             }""";

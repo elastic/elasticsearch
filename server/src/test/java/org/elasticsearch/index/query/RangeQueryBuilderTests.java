@@ -46,13 +46,14 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     @Override
     protected RangeQueryBuilder doCreateTestQueryBuilder() {
         RangeQueryBuilder query;
+        Object lower, upper;
         // switch between numeric and date ranges
         switch (randomIntBetween(0, 2)) {
             case 0:
                 // use mapped integer field for numeric range queries
                 query = new RangeQueryBuilder(randomFrom(INT_FIELD_NAME, INT_RANGE_FIELD_NAME, INT_ALIAS_FIELD_NAME));
-                query.from(randomIntBetween(1, 100));
-                query.to(randomIntBetween(101, 200));
+                lower = randomIntBetween(1, 100);
+                upper = randomIntBetween(101, 200);
                 break;
             case 1:
                 // use mapped date field, using date string representation
@@ -60,8 +61,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 ZonedDateTime start = now.minusMillis(randomIntBetween(0, 1000000)).atZone(ZoneOffset.UTC);
                 ZonedDateTime end = now.plusMillis(randomIntBetween(0, 1000000)).atZone(ZoneOffset.UTC);
                 query = new RangeQueryBuilder(randomFrom(DATE_FIELD_NAME, DATE_RANGE_FIELD_NAME, DATE_ALIAS_FIELD_NAME));
-                query.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start));
-                query.to(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end));
+                lower = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(start);
+                upper = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.format(end);
                 // Create timestamp option only then we have a date mapper,
                 // otherwise we could trigger exception.
                 if (createSearchExecutionContext().getFieldType(DATE_FIELD_NAME) != null) {
@@ -77,17 +78,29 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             case 2:
             default:
                 query = new RangeQueryBuilder(randomFrom(TEXT_FIELD_NAME, TEXT_ALIAS_FIELD_NAME));
-                query.from("a" + randomAlphaOfLengthBetween(1, 10));
-                query.to("z" + randomAlphaOfLengthBetween(1, 10));
+                lower = "a" + randomAlphaOfLengthBetween(1, 10);
+                upper = "z" + randomAlphaOfLengthBetween(1, 10);
                 break;
         }
-        query.includeLower(randomBoolean()).includeUpper(randomBoolean());
+
+        // Update query builder with lower bound, sometimes leaving it unset
         if (randomBoolean()) {
-            query.from(null);
+            if (randomBoolean()) {
+                query.gte(lower);
+            } else {
+                query.gt(lower);
+            }
         }
+
+        // Update query builder with upper bound, sometimes leaving it unset
         if (randomBoolean()) {
-            query.to(null);
+            if (randomBoolean()) {
+                query.lte(upper);
+            } else {
+                query.lt(upper);
+            }
         }
+
         if (query.fieldName().equals(INT_RANGE_FIELD_NAME) || query.fieldName().equals(DATE_RANGE_FIELD_NAME)) {
             query.relation(
                 randomFrom(ShapeRelation.CONTAINS.toString(), ShapeRelation.INTERSECTS.toString(), ShapeRelation.WITHIN.toString())
@@ -100,22 +113,33 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     protected Map<String, RangeQueryBuilder> getAlternateVersions() {
         Map<String, RangeQueryBuilder> alternateVersions = new HashMap<>();
         RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(INT_FIELD_NAME);
-        rangeQueryBuilder.from(randomIntBetween(1, 100)).to(randomIntBetween(101, 200));
+
         rangeQueryBuilder.includeLower(randomBoolean());
         rangeQueryBuilder.includeUpper(randomBoolean());
+
+        if (randomBoolean()) {
+            rangeQueryBuilder.from(randomIntBetween(1, 100));
+        }
+
+        if (randomBoolean()) {
+            rangeQueryBuilder.to(randomIntBetween(101, 200));
+        }
+
         String query = "{\n"
             + "    \"range\":{\n"
             + "        \""
             + INT_FIELD_NAME
             + "\": {\n"
-            + "            \""
-            + (rangeQueryBuilder.includeLower() ? "gte" : "gt")
-            + "\": "
+            + "            \"include_lower\":"
+            + rangeQueryBuilder.includeLower()
+            + ",\n"
+            + "            \"include_upper\":"
+            + rangeQueryBuilder.includeUpper()
+            + ",\n"
+            + "            \"from\":"
             + rangeQueryBuilder.from()
             + ",\n"
-            + "            \""
-            + (rangeQueryBuilder.includeUpper() ? "lte" : "lt")
-            + "\": "
+            + "            \"to\":"
             + rangeQueryBuilder.to()
             + "\n"
             + "        }\n"
@@ -244,11 +268,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     }
 
     public void testToQueryNumericField() throws IOException {
-        Query parsedQuery = rangeQuery(INT_FIELD_NAME).from(23)
-            .to(54)
-            .includeLower(true)
-            .includeUpper(false)
-            .toQuery(createSearchExecutionContext());
+        Query parsedQuery = rangeQuery(INT_FIELD_NAME).gte(23).lt(54).toQuery(createSearchExecutionContext());
         // since age is automatically registered in data, we encode it as numeric
         assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
         parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
@@ -386,10 +406,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         String json = "{\n"
             + "  \"range\" : {\n"
             + "    \"timestamp\" : {\n"
-            + "      \"from\" : \"2015-01-01 00:00:00\",\n"
-            + "      \"to\" : \"now\",\n"
-            + "      \"include_lower\" : true,\n"
-            + "      \"include_upper\" : true,\n"
+            + "      \"gte\" : \"2015-01-01 00:00:00\",\n"
+            + "      \"lte\" : \"now\",\n"
             + "      \"time_zone\" : \"+01:00\",\n"
             + "      \"boost\" : 1.0\n"
             + "    }\n"
@@ -427,8 +445,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         };
         ZonedDateTime queryFromValue = ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         ZonedDateTime queryToValue = ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-        query.from(queryFromValue);
-        query.to(queryToValue);
+        query.gte(queryFromValue);
+        query.lte(queryToValue);
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         QueryBuilder rewritten = query.rewrite(searchExecutionContext);
         assertThat(rewritten, instanceOf(RangeQueryBuilder.class));
@@ -462,8 +480,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         };
         ZonedDateTime queryFromValue = ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         ZonedDateTime queryToValue = ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-        query.from(queryFromValue);
-        query.to(queryToValue);
+        query.gte(queryFromValue);
+        query.lte(queryToValue);
         query.timeZone(randomZone().getId());
         query.format("yyyy-MM-dd");
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
@@ -487,8 +505,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         };
         ZonedDateTime queryFromValue = ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         ZonedDateTime queryToValue = ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-        query.from(queryFromValue);
-        query.to(queryToValue);
+        query.gte(queryFromValue);
+        query.lte(queryToValue);
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         QueryBuilder rewritten = query.rewrite(searchExecutionContext);
         assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
@@ -504,8 +522,8 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         };
         ZonedDateTime queryFromValue = ZonedDateTime.of(2015, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
         ZonedDateTime queryToValue = ZonedDateTime.of(2016, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC);
-        query.from(queryFromValue);
-        query.to(queryToValue);
+        query.gte(queryFromValue);
+        query.lte(queryToValue);
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         QueryBuilder rewritten = query.rewrite(searchExecutionContext);
         assertThat(rewritten, sameInstance(query));

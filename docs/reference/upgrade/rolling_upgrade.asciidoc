@@ -18,7 +18,7 @@ nodes configured with `node.master: false`.
 attributes, you should upgrade the nodes tier-by-tier, completing the upgrade
 of each tier before starting the next. Upgrade the frozen tier first, then the
 cold tier, then the warm tier, and finally the hot tier.  This is to ensure ILM
-can continue to move between the phases and ensure version
+can continue to move shards between phases and ensure version
 compatibility. You can get the list of nodes from specific tiers by `GET 
 /_nodes/data_frozen:true/_none`, `GET /_nodes/data_cold:true/_none` etc.
 

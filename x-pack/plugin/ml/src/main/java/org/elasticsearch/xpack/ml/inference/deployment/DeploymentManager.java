@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
@@ -59,6 +60,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -270,6 +272,7 @@ public class DeploymentManager {
         private final InferenceConfig config;
         private final Map<String, Object> doc;
         private final ActionListener<InferenceResults> listener;
+        private final ActionListener<InferenceResults> wrappedListener;
         private final AtomicBoolean notified = new AtomicBoolean();
 
         InferenceAction(
@@ -289,6 +292,7 @@ public class DeploymentManager {
             this.config = config;
             this.doc = doc;
             this.listener = listener;
+            this.wrappedListener = ActionListener.wrap(this::onSuccess, this::onFailure);
             this.timeoutHandler = threadPool.schedule(
                 this::onTimeout,
                 ExceptionsHelper.requireNonNull(timeout, "timeout"),
@@ -365,7 +369,7 @@ public class DeploymentManager {
                                 processContext,
                                 request.tokenization,
                                 processor.getResultProcessor((NlpConfig) config),
-                                ActionListener.wrap(this::onSuccess, this::onFailure)
+                                ActionListener.wrap(this::onSuccess, f -> handleFailure(f, wrappedListener))
                             ),
                             this::onFailure
                         )
@@ -373,11 +377,24 @@ public class DeploymentManager {
                 processContext.process.get().writeInferenceRequest(request.processInput);
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.task.getModelId()), e);
-                onFailure(ExceptionsHelper.serverError("error writing to process", e));
-            } catch (IllegalArgumentException | ElasticsearchException e) {
-                onFailure(e);
+                handleFailure(ExceptionsHelper.serverError("error writing to process", e), wrappedListener);
             } catch (Exception e) {
-                onFailure(new ElasticsearchException(e));
+                handleFailure(e, wrappedListener);
+            }
+        }
+
+        private static void handleFailure(Exception e, ActionListener<InferenceResults> listener) {
+            Throwable unwrapped = org.elasticsearch.ExceptionsHelper.unwrapCause(e);
+            if (unwrapped instanceof ElasticsearchException ex) {
+                if (ex.status() == RestStatus.BAD_REQUEST) {
+                    listener.onResponse(new WarningInferenceResults(ex.getMessage()));
+                } else {
+                    listener.onFailure(ex);
+                }
+            } else if (unwrapped instanceof IllegalArgumentException) {
+                listener.onResponse(new WarningInferenceResults(e.getMessage()));
+            } else {
+                listener.onFailure(e);
             }
         }
 

@@ -636,6 +636,26 @@ public class PyTorchModelIT extends ESRestTestCase {
 
         response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
         assertThat(response, allOf(containsString("error"), not(containsString("warning"))));
+
+        // Missing input field is a warning
+        source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "deployed"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"something": "my words"}}]
+            }
+            """;
+
+        response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(response, containsString("warning"));
     }
 
     public void testDeleteModelWithDeploymentUsedByIngestProcessor() throws IOException {

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -594,8 +592,8 @@ public class MetadataIndexStateService {
             final AtomicArray<ShardResult> results = new AtomicArray<>(shards.size());
             final CountDown countDown = new CountDown(shards.size());
 
-            for (IntObjectCursor<IndexShardRoutingTable> shard : shards) {
-                final IndexShardRoutingTable shardRoutingTable = shard.value;
+            for (Map.Entry<Integer, IndexShardRoutingTable> shard : shards.entrySet()) {
+                final IndexShardRoutingTable shardRoutingTable = shard.getValue();
                 final int shardId = shardRoutingTable.shardId().id();
                 sendVerifyShardBeforeCloseRequest(shardRoutingTable, closingBlock, new NotifyOnceListener<ReplicationResponse>() {
                     @Override
@@ -725,8 +723,8 @@ public class MetadataIndexStateService {
             final AtomicArray<AddBlockShardResult> results = new AtomicArray<>(shards.size());
             final CountDown countDown = new CountDown(shards.size());
 
-            for (IntObjectCursor<IndexShardRoutingTable> shard : shards) {
-                final IndexShardRoutingTable shardRoutingTable = shard.value;
+            for (Map.Entry<Integer, IndexShardRoutingTable> shard : shards.entrySet()) {
+                final IndexShardRoutingTable shardRoutingTable = shard.getValue();
                 final int shardId = shardRoutingTable.shardId().id();
                 sendVerifyShardBlockRequest(shardRoutingTable, clusterBlock, new NotifyOnceListener<ReplicationResponse>() {
                     @Override

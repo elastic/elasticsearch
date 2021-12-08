@@ -56,7 +56,8 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
             threadPool::relativeTimeInMillis,
             transport.getInflightBreaker(),
             requestHandlers::getHandler,
-            transport::inboundMessage
+            transport::inboundMessage,
+            false
         );
     }
 

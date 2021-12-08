@@ -152,6 +152,11 @@ public final class IngestMetadata implements Metadata.Custom {
         public String getWriteableName() {
             return TYPE;
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
+        }
     }
 
     @Override

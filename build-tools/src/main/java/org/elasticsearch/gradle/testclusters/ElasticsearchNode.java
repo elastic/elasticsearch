@@ -1169,13 +1169,17 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                         throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
                     }
                 } else {
+                    // Ignore these files that are sometimes let behind by the JVM
+                    if (relativeDestination.toFile().getName().startsWith(".attach_pid")) {
+                        return;
+                    }
+
                     try {
                         Files.createDirectories(destination.getParent());
                     } catch (IOException e) {
                         throw new UncheckedIOException("Can't create directory " + destination.getParent(), e);
                     }
                     syncMethod.accept(destination, source);
-
                 }
             });
         } catch (IOException e) {

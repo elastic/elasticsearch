@@ -25,6 +25,7 @@
           sudo cryptsetup open --key-file key.secret "$LOOP" secret --verbose
           sudo mkfs.ext2 /dev/mapper/secret
           sudo mkdir /mnt/secret
+          # Change /mnt/secret with care (at least a test makes assertion based on this name)
           sudo mount /dev/mapper/secret /mnt/secret
           sudo chown -R jenkins /mnt/secret
           cp -r "$WORKSPACE" /mnt/secret

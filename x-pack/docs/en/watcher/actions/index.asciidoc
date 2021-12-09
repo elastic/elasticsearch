@@ -37,7 +37,7 @@ The following snippet shows a simple `index` action definition:
 |======
 |Name                     |Required    | Default    | Description
 
-| `index`                 | yes        | -          | The Elasticsearch index to index into.
+| `index`                 | yes (not always, see `Multi-document support` )       | -          | The Elasticsearch index to index into.
 
 
 | `doc_id`                | no         | -          | The optional `_id` of the document.

@@ -60,6 +60,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
     // which is different than ES JSON used for log files - ES JSON fields are in DeprecatedMessage#KEY_FIELD_NAME
     String KEY_FIELD_NAME = "event.code";
     String X_OPAQUE_ID_FIELD_NAME = "elasticsearch.http.request.x_opaque_id";
+    String ELASTIC_ORIGIN_FIELD_NAME = "elasticsearch.elastic_product_origin";
 
     @Before
     public void assertIndexingIsEnabled() throws Exception {
@@ -391,6 +392,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             .toBuilder()
             .addHeader("X-Opaque-Id", xOpaqueId)
             .addHeader("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+            .addHeader("x-elastic-product-origin", "es-test-origin")
             .build();
         getRequest.setOptions(options);
         getRequest.setEntity(
@@ -425,6 +427,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         hasKey("elasticsearch.cluster.uuid"),
                         hasEntry(X_OPAQUE_ID_FIELD_NAME, "xOpaqueId-testDeprecationMessagesCanBeIndexed"),
                         hasEntry(Task.TRACE_ID, "0af7651916cd43dd8448eb211c80319c"),
+                        hasEntry(ELASTIC_ORIGIN_FIELD_NAME, "es-test-origin"),
                         hasEntry("elasticsearch.event.category", "settings"),
                         hasKey("elasticsearch.node.id"),
                         hasKey("elasticsearch.node.name"),
@@ -444,6 +447,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         hasKey("elasticsearch.cluster.uuid"),
                         hasEntry(X_OPAQUE_ID_FIELD_NAME, "xOpaqueId-testDeprecationMessagesCanBeIndexed"),
                         hasEntry(Task.TRACE_ID, "0af7651916cd43dd8448eb211c80319c"),
+                        hasEntry(ELASTIC_ORIGIN_FIELD_NAME, "es-test-origin"),
                         hasEntry("elasticsearch.event.category", "api"),
                         hasKey("elasticsearch.node.id"),
                         hasKey("elasticsearch.node.name"),
@@ -473,6 +477,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             .toBuilder()
             .addHeader("X-Opaque-Id", "xOpaqueId-testDeprecationWarnMessagesCanBeIndexed")
             .addHeader("traceparent", "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01")
+            .addHeader("x-elastic-product-origin", "es-test-origin")
             .build();
         request.setOptions(options);
         request.setEntity(
@@ -498,6 +503,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         hasKey("elasticsearch.cluster.uuid"),
                         hasEntry(X_OPAQUE_ID_FIELD_NAME, "xOpaqueId-testDeprecationWarnMessagesCanBeIndexed"),
                         hasEntry(Task.TRACE_ID, "0af7651916cd43dd8448eb211c80319c"),
+                        hasEntry(ELASTIC_ORIGIN_FIELD_NAME, "es-test-origin"),
                         hasEntry("elasticsearch.event.category", "settings"),
                         hasKey("elasticsearch.node.id"),
                         hasKey("elasticsearch.node.name"),
@@ -517,6 +523,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         hasKey("elasticsearch.cluster.uuid"),
                         hasEntry(X_OPAQUE_ID_FIELD_NAME, "xOpaqueId-testDeprecationWarnMessagesCanBeIndexed"),
                         hasEntry(Task.TRACE_ID, "0af7651916cd43dd8448eb211c80319c"),
+                        hasEntry(ELASTIC_ORIGIN_FIELD_NAME, "es-test-origin"),
                         hasEntry("elasticsearch.event.category", "api"),
                         hasKey("elasticsearch.node.id"),
                         hasKey("elasticsearch.node.name"),

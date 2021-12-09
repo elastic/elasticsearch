@@ -73,7 +73,7 @@ public class DeprecationIndexingComponent extends AbstractLifecycleComponent imp
 
         final EcsJsonLayout ecsLayout = EcsJsonLayout.newBuilder()
             .setDataset("deprecation.elasticsearch")
-            .setESMessageFields("category,key,x-opaque-id")
+            .setESMessageFields("category,key,x-opaque-id,elasticsearch.elastic_product_origin")
             .setConfiguration(configuration)
             .build();
 

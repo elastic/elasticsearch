@@ -180,7 +180,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         String opaqueId = randomAlphaOfLength(10);
         logger.trace("Starting async search");
-        SqlQueryResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
+        SqlQueryResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId))
             .execute(SqlQueryAction.INSTANCE, builder.request())
             .get();
         assertThat(response.isRunning(), is(true));
@@ -234,7 +234,7 @@ public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
         String opaqueId = randomAlphaOfLength(10);
         logger.trace("Starting async search");
-        SqlQueryResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
+        SqlQueryResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID_HTTP_HEADER, opaqueId))
             .execute(SqlQueryAction.INSTANCE, builder.request())
             .get();
         assertThat(response.isRunning(), is(true));

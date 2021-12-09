@@ -92,7 +92,9 @@ public class DeprecationLogger {
     }
 
     private DeprecationLogger logDeprecation(Level level, DeprecationCategory category, String key, String msg, Object[] params) {
-        ESLogMessage deprecationMessage = new DeprecatedMessage(category, key, HeaderWarning.getXOpaqueId(), msg, params);
+        String opaqueId = HeaderWarning.getXOpaqueId();
+        String productOrigin = HeaderWarning.getProductOrigin();
+        ESLogMessage deprecationMessage = new DeprecatedMessage(category, key, opaqueId, productOrigin, msg, params);
         logger.log(level, deprecationMessage);
         return this;
     }

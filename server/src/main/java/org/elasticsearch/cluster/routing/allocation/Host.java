@@ -28,4 +28,8 @@ public final class Host implements Iterable<RoutingNode> {
     public Iterator<RoutingNode> iterator() {
         return nodes.iterator();
     }
+
+    public int getNodeSize() {
+        return nodes.size();
+    }
 }

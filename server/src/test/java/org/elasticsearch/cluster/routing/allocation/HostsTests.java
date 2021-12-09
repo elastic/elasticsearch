@@ -14,81 +14,64 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
-import static org.hamcrest.CoreMatchers.anyOf;
-import static org.hamcrest.CoreMatchers.equalTo;
 
 public class HostsTests extends ESTestCase {
 
     public void testBuildHosts() {
-        DiscoveryNode dn1 = new DiscoveryNode(
-            "node1",
-            "node1",
-            "node1",
-            "host1",
-            "host1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
+        final int nodeSize = randomIntBetween(2, 20);
+        List<RoutingNode> nodes = new ArrayList<>(nodeSize);
+        int nodeSizeOnHost = randomIntBetween(1, 3);
+        int nodeCountOnHost = 0;
+        int hostId = 0;
+        Map<Integer, Set<String>> host2NodesMap = new HashMap<>();
+        Map<Integer, Integer> node2HostMap = new HashMap<>();
 
-        DiscoveryNode dn2 = new DiscoveryNode(
-            "node2",
-            "node2",
-            "node2",
-            "host1",
-            "host1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
-
-        List<RoutingNode> nodes = List.of(new RoutingNode(dn1.getId(), dn1), new RoutingNode(dn2.getId(), dn2));
-        Hosts hosts = new Hosts(nodes);
-        assertNotNull(hosts.getHost("node1"));
-        int nodeCount = 0;
-        for (RoutingNode node : hosts.getHost("node1")) {
-            nodeCount++;
-            assertThat(node.nodeId(), anyOf(equalTo("node1"), equalTo("node2")));
+        for (int nodeId = 0; nodeId < nodeSize; nodeId++) {
+            String nodeName = "node" + nodeId;
+            String hostName = "host" + hostId;
+            String hostAddress = "0.0.0." + hostId;
+            DiscoveryNode dn = new DiscoveryNode(
+                nodeName,
+                nodeName,
+                nodeName,
+                hostName,
+                hostAddress,
+                buildNewFakeTransportAddress(),
+                emptyMap(),
+                Set.of(DiscoveryNodeRole.DATA_ROLE),
+                Version.CURRENT
+            );
+            RoutingNode rn = new RoutingNode(dn.getId(), dn);
+            nodes.add(rn);
+            nodeCountOnHost++;
+            node2HostMap.put(nodeId, hostId);
+            host2NodesMap.computeIfAbsent(hostId, k -> new HashSet<>()).add(nodeName);
+            if (nodeCountOnHost == nodeSizeOnHost) {
+                nodeCountOnHost = 0;
+                nodeSizeOnHost = randomIntBetween(1, 3);
+            }
         }
-        assertEquals(2, nodeCount);
-        assertEquals(1, hosts.getHostCount());
-    }
 
-    public void testBuildHostsWithoutAddressAndName() {
-        DiscoveryNode dn1 = new DiscoveryNode(
-            "node1",
-            "node1",
-            "node1",
-            "",
-            "",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
-
-        DiscoveryNode dn2 = new DiscoveryNode(
-            "node2",
-            "node2",
-            "node2",
-            "",
-            "",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            Set.of(DiscoveryNodeRole.DATA_ROLE),
-            Version.CURRENT
-        );
-
-        List<RoutingNode> nodes = List.of(new RoutingNode(dn1.getId(), dn1), new RoutingNode(dn2.getId(), dn2));
         Hosts hosts = new Hosts(nodes);
-        assertNull(hosts.getHost("node1"));
-        assertEquals(0, hosts.getHostCount());
+        assertEquals(host2NodesMap.size(), hosts.getHostCount());
+        for (int nodeId = 0; nodeId < nodeSize; nodeId++) {
+            Host host = hosts.getHost("node" + nodeId);
+            int checkHostId = node2HostMap.get(nodeId);
+            assertNotNull(host);
+            Set<String> nodeSet = host2NodesMap.get(checkHostId);
+            assertEquals(nodeSet.size(), host.getNodeSize());
+            for (RoutingNode node : host) {
+                nodeSet.contains(node.nodeId());
+            }
+        }
     }
 
 }

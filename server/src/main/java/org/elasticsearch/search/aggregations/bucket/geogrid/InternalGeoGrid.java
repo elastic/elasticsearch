@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -69,7 +70,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
     }
 
     @Override
-    public InternalGeoGrid<B> reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalGeoGrid<B> reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         LongObjectPagedHashMap<List<InternalGeoGridBucket>> buckets = null;
         for (InternalAggregation aggregation : aggregations) {
             @SuppressWarnings("unchecked")
@@ -104,7 +105,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
     }
 
     @Override
-    protected InternalGeoGridBucket reduceBucket(List<InternalGeoGridBucket> buckets, ReduceContext context) {
+    protected InternalGeoGridBucket reduceBucket(List<InternalGeoGridBucket> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
         List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
         long docCount = 0;

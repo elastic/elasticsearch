@@ -49,9 +49,9 @@ class LatLonShapeDocValuesQuery extends Query {
     }
 
     @Override
-    public String toString(String field) {
+    public String toString(String otherField) {
         StringBuilder sb = new StringBuilder();
-        if (this.field.equals(field) == false) {
+        if (this.field.equals(otherField) == false) {
             sb.append(this.field);
             sb.append(':');
             sb.append(relation);

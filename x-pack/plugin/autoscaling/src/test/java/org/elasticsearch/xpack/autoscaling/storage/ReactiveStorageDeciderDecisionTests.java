@@ -557,6 +557,10 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         public AutoscalingMemoryInfo autoscalingMemoryInfo() {
             return null;
         }
+
+        public void ensureNotCancelled() {
+
+        }
     }
 
     private static ClusterInfo createClusterInfo(ClusterState state) {

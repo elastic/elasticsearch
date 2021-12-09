@@ -245,5 +245,10 @@ public class DedicatedMasterNodesDeciderServiceTests extends AutoscalingTestCase
         public AutoscalingMemoryInfo autoscalingMemoryInfo() {
             return autoscalingMemoryInfo;
         }
+
+        @Override
+        public void ensureNotCancelled() {
+
+        }
     }
 }

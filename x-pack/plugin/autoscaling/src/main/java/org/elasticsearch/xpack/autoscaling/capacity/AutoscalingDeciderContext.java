@@ -53,4 +53,6 @@ public interface AutoscalingDeciderContext {
      * Provides a service to fetch nodes memory
      */
     AutoscalingMemoryInfo autoscalingMemoryInfo();
+
+    void ensureNotCancelled();
 }

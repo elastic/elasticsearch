@@ -1198,6 +1198,10 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         public AutoscalingMemoryInfo autoscalingMemoryInfo() {
             return null;
         }
+
+        public void ensureNotCancelled() {
+
+        }
     }
 
     private static long autoBytesForMl(Long nodeSize, Long jvmSize) {

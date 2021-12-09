@@ -130,6 +130,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             public AutoscalingMemoryInfo autoscalingMemoryInfo() {
                 return null;
             }
+
+            public void ensureNotCancelled() {}
         };
         AutoscalingDeciderResult deciderResult = service.scale(Settings.EMPTY, context);
 

@@ -20,48 +20,49 @@ specified using the `source_content_type` query string parameter.
 sent with a request. Responses are also UTF-8 encoded.
 
 [discrete]
-=== X-Opaque-id requirements
-`X-opaque-id` - a header used by elasticsearch to allow identify and correlate
-the origin of the request with the {es} logs. It is emitted in deprecation
-logs as `elasticsearch.x-opaque-id` (both JSON log file and indexed logs)
-and is used together with `key` of the deprecation to deduplicate deprecation logs.
+[[x-opaque-id]]
+=== `X-Opaque-Id` HTTP header
 
-See link:./server/src/main/java/org/elasticsearch/common/logging/RateLimitingFilter.java[RateLimitingFilter]
-which is used for both indexing deprecation logs and writing to a file.
+You can pass an `X-Opaque-Id` HTTP header to track the origin of a request in
+{es} logs and tasks. If provided, {es} surfaces the `X-Opaque-Id` value in the:
 
-The use of `x-opaque-id` in deduplication can be turned off for indexed
-deprecation logs with the use of `cluster.deprecation_indexing.x_opaque_id_used.enabled`.
-This is intended to be used for small clusters which are limited in resources.
+* Response of any request that includes the header
+* <<_identifying_running_tasks,Task management API>> response
+* <<_identifying_search_slow_log_origin,Slow logs>>
+* <<deprecation-logging,Deprecation logs>>
 
-This setting will not affect writing deprecation logs to file.
+For the deprecation logs, {es} also uses the `X-Opaque-Id` value to throttle
+and deduplicate deprecation warnings. See <<_deprecation_logs_throttling>>.
 
-It is emitted also in search slow logs as an `id` field and in audit logs as `opaque_id`.
-The value is also present in <<_identifying_running_tasks, `task api`>>.
-
-This header can contain any value, but should be from a finite set.
-If there is a lot of different `x-opaque-id` values, it will prevent deduplication from working
+The `X-Opaque-Id` header accepts any arbitrary value. However, we recommend you
+limit these values to a finite set, such as an ID per client. Don't generate a
+unique `X-Opaque-Id` header for every request. Too many unique `X-Opaque-Id`
+values can prevent {es} from deduplicating warnings in the deprecation logs.
 
 [discrete]
-=== traceparent requirements
-`traceparent` - a header used by ES to allow tracing capabilities across the stack.
-This field has a structure that has to be followed.
+[[traceparent]]
+=== `traceparent` HTTP header
 
-ES uses the `trace-id field from that header.
-https://www.w3.org/TR/trace-context/#traceparent-header
+{es} also supports a `traceparent` HTTP header using the
+https://www.w3.org/TR/trace-context/#traceparent-header[official W3C trace
+context spec]. You can use the `traceparent` header to trace requests across
+Elastic products and other services. Because it's only used for traces, you can
+safely generate a unique `traceparent` header for each request.
 
-Example:
+If provided, {es} surfaces the header's `trace-id` value as `trace.id` in the:
+
+* <<logging,JSON {es} server logs>>
+* <<_identifying_search_slow_log_origin,Slow logs>>
+* <<deprecation-logging,Deprecation logs>>
+
+For example, the following `traceparent` value would produce the following
+`trade.id` value in the above logs.
+
 [source,txt]
-------------------------------
-`transparent`: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
+----
+`traceparent`: 00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01
 `trace.id`: 0af7651916cd43dd8448eb211c80319c
-------------------------------
-
-`trace-id` is emitted as `trace.id` in  ES’s JSON logs - server.json,
-search slow log, indexing slow log, deprecation logs
-and indexed deprecation logs.
-
-It is not used for deduplicating deprecation logs and can be a generated
-value per each request.
+----
 
 [discrete]
 [[get-requests]]

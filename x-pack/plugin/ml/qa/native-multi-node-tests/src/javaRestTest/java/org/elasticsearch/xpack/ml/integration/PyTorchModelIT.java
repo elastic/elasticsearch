@@ -485,11 +485,17 @@ public class PyTorchModelIT extends ESRestTestCase {
         Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
         request.setJsonEntity(
             """
-                {      "description": "simple model for testing",
+                {
+                    "description": "simple model for testing",
                     "model_type": "pytorch",
                     "inference_config": {
                         "pass_through": {
-                            "tokenization": {              "bert": {                "with_special_tokens": false,                "truncate": "none",                "max_sequence_length": 2              }
+                            "tokenization": {
+                                "bert": {
+                                    "with_special_tokens": false,
+                                    "truncate": "none",
+                                    "max_sequence_length": 2
+                                }
                             }
                         }
                     }

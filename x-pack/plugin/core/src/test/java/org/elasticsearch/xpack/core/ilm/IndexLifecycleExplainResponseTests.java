@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -27,6 +28,10 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestCase<IndexLifecycleExplainResponse> {
@@ -94,6 +99,21 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
         );
         assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));
         assertThat(exception.getMessage(), containsString("=null"));
+    }
+
+    public void testIndexCreationAge() {
+        IndexLifecycleExplainResponse unmanagedExplainResponse = randomUnmanagedIndexExplainResponse();
+        assertThat(unmanagedExplainResponse.getIndexCreationDate(), is(nullValue()));
+        assertThat(unmanagedExplainResponse.getIndexAge(System::currentTimeMillis), is(nullValue()));
+
+        IndexLifecycleExplainResponse managedExplainResponse = randomManagedIndexExplainResponse();
+        assertThat(managedExplainResponse.getIndexCreationDate(), is(notNullValue()));
+        Long now = System.currentTimeMillis();
+        assertThat(managedExplainResponse.getIndexAge(() -> now), is(notNullValue()));
+        assertThat(
+            managedExplainResponse.getIndexAge(() -> now),
+            is(equalTo(TimeValue.timeValueMillis(now - managedExplainResponse.getIndexCreationDate())))
+        );
     }
 
     @Override

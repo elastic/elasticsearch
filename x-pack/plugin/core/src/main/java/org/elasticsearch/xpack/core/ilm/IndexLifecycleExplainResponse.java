@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 public class IndexLifecycleExplainResponse implements ToXContentObject, Writeable {
@@ -349,7 +350,9 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             out.writeOptionalString(repositoryName);
             out.writeOptionalString(snapshotName);
             out.writeOptionalString(shrinkIndexName);
-            out.writeOptionalLong(indexCreationDate);
+            if (out.getVersion().onOrAfter(Version.V_8_1_0)) {
+                out.writeOptionalLong(indexCreationDate);
+            }
         }
     }
 
@@ -361,11 +364,11 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         return indexCreationDate;
     }
 
-    public TimeValue getIndexAge() {
+    public TimeValue getIndexAge(Supplier<Long> now) {
         if (indexCreationDate == null) {
-            return TimeValue.MINUS_ONE;
+            return null;
         } else {
-            return TimeValue.timeValueMillis(System.currentTimeMillis() - indexCreationDate);
+            return TimeValue.timeValueMillis(now.get() - indexCreationDate);
         }
     }
 
@@ -425,11 +428,11 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         return failedStepRetryCount;
     }
 
-    public TimeValue getAge() {
+    public TimeValue getAge(Supplier<Long> now) {
         if (lifecycleDate == null) {
             return TimeValue.MINUS_ONE;
         } else {
-            return TimeValue.timeValueMillis(System.currentTimeMillis() - lifecycleDate);
+            return TimeValue.timeValueMillis(now.get() - lifecycleDate);
         }
     }
 
@@ -458,11 +461,11 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                     INDEX_CREATION_DATE_FIELD.getPreferredName(),
                     indexCreationDate
                 );
-                builder.field(INDEX_AGE_FIELD.getPreferredName(), getIndexAge().toHumanReadableString(2));
+                builder.field(INDEX_AGE_FIELD.getPreferredName(), getIndexAge(System::currentTimeMillis).toHumanReadableString(2));
             }
             if (lifecycleDate != null) {
                 builder.timeField(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);
-                builder.field(AGE_FIELD.getPreferredName(), getAge().toHumanReadableString(2));
+                builder.field(AGE_FIELD.getPreferredName(), getAge(System::currentTimeMillis).toHumanReadableString(2));
             }
             if (phase != null) {
                 builder.field(PHASE_FIELD.getPreferredName(), phase);

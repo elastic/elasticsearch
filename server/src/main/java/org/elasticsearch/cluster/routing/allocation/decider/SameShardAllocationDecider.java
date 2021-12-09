@@ -10,8 +10,6 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.Host;
-import org.elasticsearch.cluster.routing.allocation.Hosts;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -86,12 +84,13 @@ public class SameShardAllocationDecider extends AllocationDecider {
             .expandToAllNodes()) {
             return YES_AUTO_EXPAND_ALL;
         }
-        Hosts hosts = allocation.getHosts();
-        Host host = hosts.getHost(node.nodeId());
-        // return yes if can not find the host info of candidate node(no host name & address)
-        if (node.node() != null && host != null) {
+        if (node.node() != null) {
             for (ShardRouting assignedShard : assignedShards) {
-                if (hosts.getHost(assignedShard.currentNodeId()) == host) {
+                if (allocation.nodes()
+                    .getDataNodes()
+                    .get(assignedShard.currentNodeId())
+                    .getHostAddress()
+                    .equals(node.node().getHostAddress())) {
                     return allocation.debugDecision() ? debugNoAlreadyAllocatedToHost(node, allocation) : Decision.NO;
                 }
             }

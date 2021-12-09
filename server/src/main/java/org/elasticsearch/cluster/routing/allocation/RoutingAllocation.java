@@ -44,8 +44,6 @@ public class RoutingAllocation {
 
     private final RoutingNodes routingNodes;
 
-    private Hosts hosts;
-
     private final Metadata metadata;
 
     private final RoutingTable routingTable;
@@ -141,13 +139,6 @@ public class RoutingAllocation {
      */
     public RoutingNodes routingNodes() {
         return routingNodes;
-    }
-
-    public Hosts getHosts() {
-        if (hosts == null) {
-            hosts = new Hosts(routingNodes);
-        }
-        return hosts;
     }
 
     /**

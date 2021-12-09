@@ -267,6 +267,90 @@ public class IndexDeprecationChecks {
             && JodaDeprecationPatterns.isDeprecatedPattern((String) property.get("format"));
     }
 
+    static DeprecationIssue boostMappingCheck(IndexMetadata indexMetadata) {
+        List<String> issues = new ArrayList<>();
+        fieldLevelMappingIssue(
+            indexMetadata,
+            ((mappingMetadata, sourceAsMap) -> issues.addAll(
+                findInPropertiesRecursively(
+                    mappingMetadata.type(),
+                    sourceAsMap,
+                    IndexDeprecationChecks::containsBoostedFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                )
+            ))
+        );
+        if (issues.size() > 0) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Configuring boost values in field mappings is deprecated",
+                "https://ela.st/es-deprecation-7-boost-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove boost fields from the \"%s\" mapping%s. Configuring a boost value on mapping fields "
+                        + "is not supported in 8.0.",
+                    issues.stream().collect(Collectors.joining(",")),
+                    issues.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    static DeprecationIssue boostDynamicTemplateCheck(IndexMetadata indexMetadata) {
+        List<String> issues = new ArrayList<>();
+        fieldLevelMappingIssue(
+            indexMetadata,
+            ((mappingMetadata, sourceAsMap) -> issues.addAll(
+                findInDynamicTemplates(
+                    mappingMetadata.type(),
+                    sourceAsMap,
+                    IndexDeprecationChecks::containsMappingWithBoostedFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                )
+            ))
+        );
+        if (issues.size() > 0) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Configuring boost values in field mappings is deprecated",
+                "https://ela.st/es-deprecation-7-boost-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove boost fields from the \"%s\" dynamic template%s. Configuring a boost value on mapping fields "
+                        + "is not supported in 8.0.",
+                    issues.stream().collect(Collectors.joining(",")),
+                    issues.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Predicate for dynamic templates that contain `boost` fields
+     * @param property A dynamic mapping template body
+     */
+    static boolean containsMappingWithBoostedFields(Map<?, ?> property) {
+        if (property.containsKey("mapping")) {
+            Map<?, ?> mappings = (Map<?, ?>) property.get("mapping");
+            return containsBoostedFields(mappings);
+        }
+        return false;
+    }
+
+    static boolean containsBoostedFields(Map<?, ?> property) {
+        return property.containsKey("boost");
+    }
+
     static DeprecationIssue chainedMultiFieldsCheck(IndexMetadata indexMetadata) {
         List<String> issues = new ArrayList<>();
         fieldLevelMappingIssue(

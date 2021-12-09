@@ -1237,4 +1237,420 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         );
         assertEquals(singletonList(expected), issues);
     }
+
+    public void testTemplateWithBoostedField() throws IOException {
+        String boostedFieldTemplate = randomAlphaOfLength(5);
+        String goodTemplateName = randomAlphaOfLength(7);
+
+        // A template with boosted field
+        XContentBuilder badMappingBuilder = jsonBuilder();
+        badMappingBuilder.startObject();
+        {
+            badMappingBuilder.startObject("_doc");
+            {
+                badMappingBuilder.startObject("properties");
+                {
+                    badMappingBuilder.startObject("data");
+                    {
+                        badMappingBuilder.field("type", "text");
+                        badMappingBuilder.field("boost", 5.0);
+                    }
+                    badMappingBuilder.endObject();
+                }
+                badMappingBuilder.endObject();
+            }
+            badMappingBuilder.endObject();
+        }
+        badMappingBuilder.endObject();
+
+        XContentBuilder goodMappingBuilder = jsonBuilder();
+        goodMappingBuilder.startObject();
+        {
+            goodMappingBuilder.startObject("_doc");
+            {
+                goodMappingBuilder.startObject("properties");
+                {
+                    goodMappingBuilder.startObject("data");
+                    {
+                        goodMappingBuilder.field("type", "text");
+                    }
+                    goodMappingBuilder.endObject();
+                }
+                goodMappingBuilder.endObject();
+            }
+            goodMappingBuilder.endObject();
+        }
+        goodMappingBuilder.endObject();
+
+        final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
+            .metadata(
+                Metadata.builder()
+                    .put(
+                        IndexTemplateMetadata.builder(boostedFieldTemplate)
+                            .patterns(Collections.singletonList(randomAlphaOfLength(5)))
+                            .putMapping("_doc", Strings.toString(badMappingBuilder))
+                            .build()
+                    )
+                    .put(
+                        IndexTemplateMetadata.builder(goodTemplateName)
+                            .patterns(Collections.singletonList(randomAlphaOfLength(5)))
+                            .putMapping("_doc", Strings.toString(goodMappingBuilder))
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state));
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Defining boosted fields on index template mappings is deprecated",
+            "https://ela.st/es-deprecation-7-boost-fields",
+            "Remove boost fields from the \""
+                + boostedFieldTemplate
+                + "\" template. Configuring a boost value on mapping fields is not supported in 8.0.",
+            false,
+            null
+        );
+        assertEquals(singletonList(expected), issues);
+    }
+
+    public void testTemplateWithBoostedFieldDynamicTemplate() throws IOException {
+        String boostedFieldTemplate = randomAlphaOfLength(5);
+        String dynamicTemplateName = randomAlphaOfLength(6);
+        String goodTemplateName = randomAlphaOfLength(7);
+
+        // A template with boosted fields
+        XContentBuilder badMappingBuilder = jsonBuilder();
+        badMappingBuilder.startObject();
+        {
+            badMappingBuilder.startObject("_doc");
+            {
+                badMappingBuilder.startObject("properties");
+                {
+                    badMappingBuilder.startObject("data");
+                    {
+                        badMappingBuilder.field("type", "text");
+                    }
+                    badMappingBuilder.endObject();
+                }
+                badMappingBuilder.endObject();
+                badMappingBuilder.startArray("dynamic_templates");
+                {
+                    badMappingBuilder.startObject();
+                    {
+                        badMappingBuilder.startObject(dynamicTemplateName);
+                        {
+                            badMappingBuilder.field("match_mapping_type", "long");
+                            badMappingBuilder.startObject("mapping");
+                            {
+                                badMappingBuilder.field("type", "long");
+                                badMappingBuilder.field("boost", 5.0);
+                            }
+                            badMappingBuilder.endObject();
+                        }
+                        badMappingBuilder.endObject();
+                    }
+                    badMappingBuilder.endObject();
+                }
+                badMappingBuilder.endArray();
+            }
+            badMappingBuilder.endObject();
+        }
+        badMappingBuilder.endObject();
+
+        XContentBuilder goodMappingBuilder = jsonBuilder();
+        goodMappingBuilder.startObject();
+        {
+            goodMappingBuilder.startObject("_doc");
+            {
+                goodMappingBuilder.startObject("properties");
+                {
+                    goodMappingBuilder.startObject("data");
+                    {
+                        goodMappingBuilder.field("type", "text");
+                    }
+                    goodMappingBuilder.endObject();
+                }
+                goodMappingBuilder.endObject();
+                goodMappingBuilder.startArray("dynamic_templates");
+                {
+                    goodMappingBuilder.startObject();
+                    {
+                        goodMappingBuilder.startObject(dynamicTemplateName);
+                        {
+                            goodMappingBuilder.field("match_mapping_type", "long");
+                            goodMappingBuilder.startObject("mapping");
+                            {
+                                goodMappingBuilder.field("type", "long");
+                            }
+                            goodMappingBuilder.endObject();
+                        }
+                        goodMappingBuilder.endObject();
+                    }
+                    goodMappingBuilder.endObject();
+                }
+                goodMappingBuilder.endArray();
+            }
+            goodMappingBuilder.endObject();
+        }
+        goodMappingBuilder.endObject();
+
+        final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
+            .metadata(
+                Metadata.builder()
+                    .put(
+                        IndexTemplateMetadata.builder(boostedFieldTemplate)
+                            .patterns(Collections.singletonList(randomAlphaOfLength(5)))
+                            .putMapping("_doc", Strings.toString(badMappingBuilder))
+                            .build()
+                    )
+                    .put(
+                        IndexTemplateMetadata.builder(goodTemplateName)
+                            .patterns(Collections.singletonList(randomAlphaOfLength(5)))
+                            .putMapping("_doc", Strings.toString(goodMappingBuilder))
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state));
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Defining boosted fields on index template dynamic_templates is deprecated",
+            "https://ela.st/es-deprecation-7-boost-fields",
+            "Remove boost fields from the \""
+                + boostedFieldTemplate
+                + "\" template. Configuring a boost value on mapping fields is not supported in 8.0.",
+            false,
+            null
+        );
+        assertEquals(singletonList(expected), issues);
+    }
+
+    public void testComponentTemplateWithBoostedField() throws IOException {
+        String boostedFieldTemplate = randomAlphaOfLength(5);
+        String goodTemplateName = randomAlphaOfLength(7);
+
+        // A template with boosted fields
+        XContentBuilder badMappingBuilder = jsonBuilder();
+        badMappingBuilder.startObject();
+        {
+            badMappingBuilder.startObject("_doc");
+            {
+                badMappingBuilder.startObject("properties");
+                {
+                    badMappingBuilder.startObject("data");
+                    {
+                        badMappingBuilder.field("type", "text");
+                        badMappingBuilder.field("boost", 5.0);
+                    }
+                    badMappingBuilder.endObject();
+                }
+                badMappingBuilder.endObject();
+            }
+            badMappingBuilder.endObject();
+        }
+        badMappingBuilder.endObject();
+
+        XContentBuilder goodMappingBuilder = jsonBuilder();
+        goodMappingBuilder.startObject();
+        {
+            goodMappingBuilder.startObject("_doc");
+            {
+                goodMappingBuilder.startObject("properties");
+                {
+                    goodMappingBuilder.startObject("data");
+                    {
+                        goodMappingBuilder.field("type", "text");
+                    }
+                    goodMappingBuilder.endObject();
+                }
+                goodMappingBuilder.endObject();
+            }
+            goodMappingBuilder.endObject();
+        }
+        goodMappingBuilder.endObject();
+
+        badMappingBuilder.flush();
+        goodMappingBuilder.flush();
+
+        final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
+            .metadata(
+                Metadata.builder()
+                    .put(
+                        boostedFieldTemplate,
+                        new ComponentTemplate(
+                            new Template(
+                                null,
+                                new CompressedXContent(((ByteArrayOutputStream) badMappingBuilder.getOutputStream()).toByteArray()),
+                                null
+                            ),
+                            null,
+                            null
+                        )
+                    )
+                    .put(
+                        goodTemplateName,
+                        new ComponentTemplate(
+                            new Template(
+                                null,
+                                new CompressedXContent(((ByteArrayOutputStream) goodMappingBuilder.getOutputStream()).toByteArray()),
+                                null
+                            ),
+                            null,
+                            null
+                        )
+                    )
+                    .build()
+            )
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state));
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Defining boosted fields on component templates is deprecated",
+            "https://ela.st/es-deprecation-7-boost-fields",
+            "Remove boost fields from the \""
+                + boostedFieldTemplate
+                + "\" component template. Configuring a boost value on mapping fields is not supported in 8.0.",
+            false,
+            null
+        );
+        assertEquals(singletonList(expected), issues);
+    }
+
+    public void testComponentTemplateWithBoostedFieldDynamicTemplate() throws IOException {
+        String boostedFieldTemplate = randomAlphaOfLength(5);
+        String dynamicTemplateName = randomAlphaOfLength(6);
+        String goodTemplateName = randomAlphaOfLength(7);
+
+        // A template with boosted fields
+        XContentBuilder badMappingBuilder = jsonBuilder();
+        badMappingBuilder.startObject();
+        {
+            badMappingBuilder.startObject("_doc");
+            {
+                badMappingBuilder.startObject("properties");
+                {
+                    badMappingBuilder.startObject("data");
+                    {
+                        badMappingBuilder.field("type", "text");
+                    }
+                    badMappingBuilder.endObject();
+                }
+                badMappingBuilder.endObject();
+                badMappingBuilder.startArray("dynamic_templates");
+                {
+                    badMappingBuilder.startObject();
+                    {
+                        badMappingBuilder.startObject(dynamicTemplateName);
+                        {
+                            badMappingBuilder.field("match_mapping_type", "long");
+                            badMappingBuilder.startObject("mapping");
+                            {
+                                badMappingBuilder.field("type", "long");
+                                badMappingBuilder.field("boost", 5.0);
+                            }
+                            badMappingBuilder.endObject();
+                        }
+                        badMappingBuilder.endObject();
+                    }
+                    badMappingBuilder.endObject();
+                }
+                badMappingBuilder.endArray();
+            }
+            badMappingBuilder.endObject();
+        }
+        badMappingBuilder.endObject();
+
+        XContentBuilder goodMappingBuilder = jsonBuilder();
+        goodMappingBuilder.startObject();
+        {
+            goodMappingBuilder.startObject("_doc");
+            {
+                goodMappingBuilder.startObject("properties");
+                {
+                    goodMappingBuilder.startObject("data");
+                    {
+                        goodMappingBuilder.field("type", "text");
+                    }
+                    goodMappingBuilder.endObject();
+                }
+                goodMappingBuilder.endObject();
+                goodMappingBuilder.startArray("dynamic_templates");
+                {
+                    goodMappingBuilder.startObject();
+                    {
+                        goodMappingBuilder.startObject(dynamicTemplateName);
+                        {
+                            goodMappingBuilder.field("match_mapping_type", "long");
+                            goodMappingBuilder.startObject("mapping");
+                            {
+                                goodMappingBuilder.field("type", "long");
+                            }
+                            goodMappingBuilder.endObject();
+                        }
+                        goodMappingBuilder.endObject();
+                    }
+                    goodMappingBuilder.endObject();
+                }
+                goodMappingBuilder.endArray();
+            }
+            goodMappingBuilder.endObject();
+        }
+        goodMappingBuilder.endObject();
+
+        badMappingBuilder.flush();
+        goodMappingBuilder.flush();
+
+        final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(5)))
+            .metadata(
+                Metadata.builder()
+                    .put(
+                        boostedFieldTemplate,
+                        new ComponentTemplate(
+                            new Template(
+                                null,
+                                new CompressedXContent(((ByteArrayOutputStream) badMappingBuilder.getOutputStream()).toByteArray()),
+                                null
+                            ),
+                            null,
+                            null
+                        )
+                    )
+                    .put(
+                        goodTemplateName,
+                        new ComponentTemplate(
+                            new Template(
+                                null,
+                                new CompressedXContent(((ByteArrayOutputStream) goodMappingBuilder.getOutputStream()).toByteArray()),
+                                null
+                            ),
+                            null,
+                            null
+                        )
+                    )
+                    .build()
+            )
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(state));
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Defining boosted fields on component template dynamic_templates is deprecated",
+            "https://ela.st/es-deprecation-7-boost-fields",
+            "Remove boost fields from the \""
+                + boostedFieldTemplate
+                + "\" component template. Configuring a boost value on mapping fields is not supported in 8.0.",
+            false,
+            null
+        );
+        assertEquals(singletonList(expected), issues);
+    }
 }

@@ -696,19 +696,28 @@ public abstract class PackagingTestCase extends Assert {
             configLines,
             hasItem(
                 "xpack.security.transport.ssl.keystore.path: "
-                    + es.config(autoConfigDirName.get()).resolve("transport_keystore_all_nodes.p12")
+                    + autoConfigDirName.get()
+                    + System.getProperty("line.separator")
+                    + "transport_keystore_all_nodes.p12"
             )
         );
         assertThat(
             configLines,
             hasItem(
                 "xpack.security.transport.ssl.truststore.path: "
-                    + es.config(autoConfigDirName.get()).resolve("transport_keystore_all_nodes.p12")
+                    + autoConfigDirName.get()
+                    + System.getProperty("line.separator")
+                    + "transport_keystore_all_nodes.p12"
             )
         );
         assertThat(
             configLines,
-            hasItem("xpack.security.http.ssl.keystore.path: " + es.config(autoConfigDirName.get()).resolve("http_keystore_local_node.p12"))
+            hasItem(
+                "xpack.security.http.ssl.keystore.path: "
+                    + autoConfigDirName.get()
+                    + System.getProperty("line.separator")
+                    + "http_keystore_local_node.p12"
+            )
         );
         if (es.distribution.isDocker() == false) {
             assertThat(configLines, hasItem("http.host: [_local_, _site_]"));

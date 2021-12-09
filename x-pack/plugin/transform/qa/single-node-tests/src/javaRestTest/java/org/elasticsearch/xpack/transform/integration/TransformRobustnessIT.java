@@ -22,6 +22,10 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class TransformRobustnessIT extends TransformRestTestCase {
 
+    private static final String DANGLING_TASK_ERROR_MESSAGE =
+        "Found task for transform [simple_continuous_pivot], but no configuration for it. "
+            + "To delete this transform use DELETE with force=true.";
+
     public void testTaskRemovalAfterInternalIndexGotDeleted() throws Exception {
         String indexName = "continuous_reviews";
         createReviewsIndex(indexName);
@@ -70,19 +74,7 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         // delete the transform index
         beEvilAndDeleteTheTransformIndex();
         // transform is gone
-        assertEquals(
-            0,
-            getTransforms(
-                List.of(
-                    Map.of(
-                        "type",
-                        "dangling_task",
-                        "reason",
-                        "Found task for transform [simple_continuous_pivot], but no configuration for it. To delete this transform use DELETE with force=true."
-                    )
-                )
-            ).size()
-        );
+        assertEquals(0, getTransforms(List.of(Map.of("type", "dangling_task", "reason", DANGLING_TASK_ERROR_MESSAGE))).size());
         // but the task is still there
         assertEquals(1, getNumberOfTransformTasks());
 

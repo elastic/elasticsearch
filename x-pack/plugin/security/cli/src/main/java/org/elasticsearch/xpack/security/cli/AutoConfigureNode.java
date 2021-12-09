@@ -203,7 +203,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
         final ZonedDateTime autoConfigDate = ZonedDateTime.now(ZoneOffset.UTC);
         final Path tempGeneratedTlsCertsDir = env.configFile()
-            .resolve(String.format(Locale.ROOT, TLS_GENERATED_CERTS_DIR_NAME + ".%d.temp", autoConfigDate.toInstant().getEpochSecond()));
+            .resolve(String.format(Locale.ROOT, TLS_GENERATED_CERTS_DIR_NAME + ".%d.tmp", autoConfigDate.toInstant().getEpochSecond()));
         try {
             // it is useful to pre-create the sub-config dir in order to check that the config dir is writable and that file owners match
             Files.createDirectory(tempGeneratedTlsCertsDir);
@@ -575,7 +575,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
         try {
             // all certs and keys have been generated in the temp certs dir, therefore:
-            // 1. backup (move) any previously existing tls certs dir
+            // 1. backup (move) any previously existing tls certs dir (this backup is NOT removed when auto-conf finishes)
             if (Files.exists(env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME))) {
                 moveDirectory(
                     env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME),
@@ -589,7 +589,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         )
                 );
             }
-            // 2. move the newly populated temp certs dir to its permanent name
+            // 2. move the newly populated temp certs dir to its permanent static dir name
             moveDirectory(tempGeneratedTlsCertsDir, env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME));
         } catch (Throwable t) {
             // restore keystore to revert possible keystore bootstrap
@@ -782,19 +782,35 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 if (Files.exists(keystoreBackupPath)) {
                     Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
                 } else {
+                    // this removes a file with static name, so it is potentially dangerous
                     Files.deleteIfExists(keystorePath);
                 }
             } catch (Exception ex) {
                 t.addSuppressed(ex);
             }
             try {
-                deleteDirectory(tempGeneratedTlsCertsDir);
+                // this removes a directory with static name, so it is potentially dangerous
+                deleteDirectory(env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME));
             } catch (Exception ex) {
                 t.addSuppressed(ex);
             }
+            Path backupCertsDir = env.configFile()
+                .resolve(
+                    String.format(
+                        Locale.ROOT,
+                        TLS_GENERATED_CERTS_DIR_NAME + ".%d.orig",
+                        autoConfigDate.toInstant().getEpochSecond()
+                    )
+                );
+            if (Files.exists(backupCertsDir)) {
+                moveDirectory(
+                    backupCertsDir,
+                    env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME));
+            }
             throw t;
         }
-        // do not delete the backup files
+        // only delete the backed-up keystore file if all went well, because the new keystore contains its entries
+        Files.delete(keystoreBackupPath);
     }
 
     private String initialMasterNodesSettingValue(Environment environment) {

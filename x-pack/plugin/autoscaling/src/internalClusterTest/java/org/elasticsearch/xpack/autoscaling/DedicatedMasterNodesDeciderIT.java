@@ -306,6 +306,12 @@ public class DedicatedMasterNodesDeciderIT extends ESIntegTestCase {
         ) {
             assertThat(action, sameInstance(NodesStatsAction.INSTANCE));
             NodesStatsRequest nodesStatsRequest = (NodesStatsRequest) request;
+            // Temporary logging
+            logger.info(
+                "--> request received {} /{}",
+                nodesStatsRequest.nodesIds(),
+                Arrays.toString(Thread.currentThread().getStackTrace())
+            );
             assertThat(nodeStatsFakeResponder, notNullValue());
             @SuppressWarnings("unchecked")
             ActionListener<NodesStatsResponse> statsListener = (ActionListener<NodesStatsResponse>) listener;

@@ -37,11 +37,12 @@ public class ScriptCompilationSettingsIT extends AbstractUpgradeTestCase {
             request.setOptions(expectWarnings(WARNING));
             Response response = client().performRequest(request);
             assertEquals(expectedSetting, EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
-
+            System.out.println("OLDDDDDD");
         } else if (CLUSTER_TYPE.equals(ClusterType.MIXED)) {
             Request request = new Request("GET", "_cluster/settings");
             Response response = client().performRequest(request);
             assertEquals(expectedSetting, EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+            System.out.println("MIXXXED");
         }
     }
 
@@ -57,10 +58,5 @@ public class ScriptCompilationSettingsIT extends AbstractUpgradeTestCase {
             .endObject()
             .endObject();
         return Strings.toString(builder);
-    }
-
-    @Override
-    protected boolean preserveClusterSettings() {
-        return true;
     }
 }

@@ -414,37 +414,41 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void assertRollupIndex(RollupActionConfig config, String sourceIndex, String rollupIndex) {
+    private void assertRollupIndex(RollupActionConfig config, String sourceIndex, String rollupIndexName) {
         final CompositeAggregationBuilder aggregation = buildCompositeAggs("resp", config);
         long numBuckets = 0;
         InternalComposite origResp = client().prepareSearch(sourceIndex).addAggregation(aggregation).get().getAggregations().get("resp");
-        InternalComposite rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
+        InternalComposite rollupResp = client().prepareSearch(rollupIndexName)
+            .addAggregation(aggregation)
+            .get()
+            .getAggregations()
+            .get("resp");
         while (origResp.afterKey() != null) {
             numBuckets += origResp.getBuckets().size();
             assertThat(origResp, equalTo(rollupResp));
             aggregation.aggregateAfter(origResp.afterKey());
             origResp = client().prepareSearch(sourceIndex).addAggregation(aggregation).get().getAggregations().get("resp");
-            rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
+            rollupResp = client().prepareSearch(rollupIndexName).addAggregation(aggregation).get().getAggregations().get("resp");
         }
         assertThat(origResp, equalTo(rollupResp));
 
-        SearchResponse resp = client().prepareSearch(rollupIndex).setTrackTotalHits(true).get();
+        SearchResponse resp = client().prepareSearch(rollupIndexName).setTrackTotalHits(true).get();
         assertThat(resp.getHits().getTotalHits().value, equalTo(numBuckets));
 
-        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
+        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndexName).get();
         // Assert rollup metadata are set in index settings
         assertEquals(
             indexSettingsResp.getSetting(sourceIndex, "index.uuid"),
-            indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.uuid")
+            indexSettingsResp.getSetting(rollupIndexName, "index.rollup.source.uuid")
         );
         assertEquals(
             indexSettingsResp.getSetting(sourceIndex, "index.provided_name"),
-            indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.name")
+            indexSettingsResp.getSetting(rollupIndexName, "index.rollup.source.name")
         );
 
         // Assert field mappings
         Map<String, Map<String, Object>> mappings = (Map<String, Map<String, Object>>) indexSettingsResp.getMappings()
-            .get(rollupIndex)
+            .get(rollupIndexName)
             .getSourceAsMap()
             .get("properties");
 
@@ -485,7 +489,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         // Assert that temporary index was removed
         expectThrows(
             IndexNotFoundException.class,
-            () -> client().admin().indices().prepareGetIndex().addIndices(".rolluptmp-" + rollupIndex).get()
+            () -> client().admin().indices().prepareGetIndex().addIndices(".rolluptmp-" + rollupIndexName).get()
         );
     }
 

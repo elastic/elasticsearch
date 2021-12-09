@@ -743,7 +743,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 aliasValidator,
                 xContentRegistry(),
                 searchExecutionContext,
-                indexNameExpressionResolver::resolveDateMathExpression
+                indexNameExpressionResolver::resolveDateMathExpression,
+                m -> false
             )
         );
     }
@@ -761,7 +762,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             aliasValidator,
             xContentRegistry(),
             searchExecutionContext,
-            indexNameExpressionResolver::resolveDateMathExpression
+            indexNameExpressionResolver::resolveDateMathExpression,
+            m -> false
         );
 
         assertEquals("date-math-based-2021-01-01", aliasMetadata.get(0).alias());
@@ -795,7 +797,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             aliasValidator,
             xContentRegistry(),
             searchExecutionContext,
-            indexNameExpressionResolver::resolveDateMathExpression
+            indexNameExpressionResolver::resolveDateMathExpression,
+            m -> false
         );
 
         Settings aggregatedIndexSettings = aggregateIndexSettings(
@@ -891,7 +894,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             aliasValidator,
             xContentRegistry(),
             searchExecutionContext,
-            indexNameExpressionResolver::resolveDateMathExpression
+            indexNameExpressionResolver::resolveDateMathExpression,
+            m -> false
         );
 
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("12"));
@@ -932,7 +936,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             aliasValidator,
             xContentRegistry(),
             searchExecutionContext,
-            indexNameExpressionResolver::resolveDateMathExpression
+            indexNameExpressionResolver::resolveDateMathExpression,
+            m -> false
         );
 
         assertThat(resolvedAliases.get(0).alias(), equalTo("jan-2021-01-01"));

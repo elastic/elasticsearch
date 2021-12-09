@@ -241,8 +241,10 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
     }
 
     void updateAutoFollowers(ClusterState followerClusterState) {
-        final AutoFollowMetadata autoFollowMetadata = followerClusterState.getMetadata().custom(AutoFollowMetadata.TYPE);
-        if (autoFollowMetadata == null) {
+        final AutoFollowMetadata autoFollowMetadata = followerClusterState.getMetadata()
+            .custom(AutoFollowMetadata.TYPE, AutoFollowMetadata.EMPTY);
+
+        if (autoFollowMetadata.getPatterns().isEmpty() && this.autoFollowers.isEmpty()) {
             return;
         }
 

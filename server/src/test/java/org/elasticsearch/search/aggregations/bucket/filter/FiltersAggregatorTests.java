@@ -57,6 +57,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -540,7 +541,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 InternalAggregation result = aggregator.buildTopLevel();
                 result = result.reduce(
                     List.of(result),
-                    InternalAggregation.ReduceContext.forFinalReduction(
+                    new AggregationReduceContext.ForFinal(
                         context.bigArrays(),
                         getMockScriptService(),
                         b -> {},

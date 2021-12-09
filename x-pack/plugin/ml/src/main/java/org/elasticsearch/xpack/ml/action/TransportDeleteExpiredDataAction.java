@@ -132,10 +132,10 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         BooleanSupplier isTimedOutSupplier = () -> Instant.now(clock).isAfter(timeoutTime);
-        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client, clusterService);
+        AnomalyDetectionAuditor anomalyDetectionAuditor = new AnomalyDetectionAuditor(client, clusterService);
 
         if (Strings.isNullOrEmpty(request.getJobId()) || Strings.isAllOrWildcard(request.getJobId())) {
-            List<MlDataRemover> dataRemovers = createDataRemovers(client, taskId, auditor);
+            List<MlDataRemover> dataRemovers = createDataRemovers(client, taskId, anomalyDetectionAuditor);
             threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
                 .execute(() -> deleteExpiredData(request, dataRemovers, listener, isTimedOutSupplier));
         } else {
@@ -144,7 +144,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
                     List<Job> jobs = jobBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
                     String[] jobIds = jobs.stream().map(Job::getId).toArray(String[]::new);
                     request.setExpandedJobIds(jobIds);
-                    List<MlDataRemover> dataRemovers = createDataRemovers(jobs, taskId, auditor);
+                    List<MlDataRemover> dataRemovers = createDataRemovers(jobs, taskId, anomalyDetectionAuditor);
                     deleteExpiredData(request, dataRemovers, listener, isTimedOutSupplier);
                 });
             }, listener::onFailure));
@@ -232,40 +232,44 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
         }
     }
 
-    private List<MlDataRemover> createDataRemovers(OriginSettingClient client, TaskId parentTaskId, AnomalyDetectionAuditor auditor) {
+    private List<MlDataRemover> createDataRemovers(
+        OriginSettingClient originClient,
+        TaskId parentTaskId,
+        AnomalyDetectionAuditor anomalyDetectionAuditor
+    ) {
         return Arrays.asList(
             new ExpiredResultsRemover(
-                client,
-                new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(client)),
+                originClient,
+                new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(originClient)),
                 parentTaskId,
-                auditor,
+                anomalyDetectionAuditor,
                 threadPool
             ),
-            new ExpiredForecastsRemover(client, threadPool, parentTaskId),
+            new ExpiredForecastsRemover(originClient, threadPool, parentTaskId),
             new ExpiredModelSnapshotsRemover(
-                client,
-                new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(client)),
+                originClient,
+                new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(originClient)),
                 threadPool,
                 parentTaskId,
                 jobResultsProvider,
-                auditor
+                anomalyDetectionAuditor
             ),
-            new UnusedStateRemover(client, parentTaskId),
-            new EmptyStateIndexRemover(client, parentTaskId),
-            new UnusedStatsRemover(client, parentTaskId),
+            new UnusedStateRemover(originClient, parentTaskId),
+            new EmptyStateIndexRemover(originClient, parentTaskId),
+            new UnusedStatsRemover(originClient, parentTaskId),
             new ExpiredAnnotationsRemover(
-                client,
-                new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(client)),
+                originClient,
+                new WrappedBatchedJobsIterator(new SearchAfterJobsIterator(originClient)),
                 parentTaskId,
-                auditor,
+                anomalyDetectionAuditor,
                 threadPool
             )
         );
     }
 
-    private List<MlDataRemover> createDataRemovers(List<Job> jobs, TaskId parentTaskId, AnomalyDetectionAuditor auditor) {
+    private List<MlDataRemover> createDataRemovers(List<Job> jobs, TaskId parentTaskId, AnomalyDetectionAuditor anomalyDetectionAuditor) {
         return Arrays.asList(
-            new ExpiredResultsRemover(client, new VolatileCursorIterator<>(jobs), parentTaskId, auditor, threadPool),
+            new ExpiredResultsRemover(client, new VolatileCursorIterator<>(jobs), parentTaskId, anomalyDetectionAuditor, threadPool),
             new ExpiredForecastsRemover(client, threadPool, parentTaskId),
             new ExpiredModelSnapshotsRemover(
                 client,
@@ -273,12 +277,12 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
                 threadPool,
                 parentTaskId,
                 jobResultsProvider,
-                auditor
+                anomalyDetectionAuditor
             ),
             new UnusedStateRemover(client, parentTaskId),
             new EmptyStateIndexRemover(client, parentTaskId),
             new UnusedStatsRemover(client, parentTaskId),
-            new ExpiredAnnotationsRemover(client, new VolatileCursorIterator<>(jobs), parentTaskId, auditor, threadPool)
+            new ExpiredAnnotationsRemover(client, new VolatileCursorIterator<>(jobs), parentTaskId, anomalyDetectionAuditor, threadPool)
         );
     }
 

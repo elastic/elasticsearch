@@ -70,7 +70,7 @@ public class PyTorchResultProcessor {
                 logger.error(new ParameterizedMessage("[{}] Error processing results", deploymentId), e);
             }
             pendingResults.forEach(
-                (id, pendingResults) -> pendingResults.listener.onResponse(
+                (id, pendingResult) -> pendingResult.listener.onResponse(
                     new PyTorchResult(
                         id,
                         null,
@@ -84,7 +84,7 @@ public class PyTorchResultProcessor {
             pendingResults.clear();
         } finally {
             pendingResults.forEach(
-                (id, pendingResults) -> pendingResults.listener.onResponse(
+                (id, pendingResult) -> pendingResult.listener.onResponse(
                     new PyTorchResult(id, null, null, "inference canceled as process is stopping")
                 )
             );

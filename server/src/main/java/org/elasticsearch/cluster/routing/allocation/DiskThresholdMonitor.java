@@ -8,9 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.ObjectLookupContainer;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -137,7 +134,8 @@ public class DiskThresholdMonitor {
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
 
         // Clean up nodes that have been removed from the cluster
-        final ObjectLookupContainer<String> nodes = usages.keys();
+        final Set<String> nodes = new HashSet<>(usages.size());
+        usages.keys().iterator().forEachRemaining(item -> nodes.add(item.value));
         cleanUpRemovedNodes(nodes, nodesOverLowThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThresholdAndRelocating);
@@ -150,9 +148,9 @@ public class DiskThresholdMonitor {
 
         final List<DiskUsage> usagesOverHighThreshold = new ArrayList<>();
 
-        for (final ObjectObjectCursor<String, DiskUsage> entry : usages) {
-            final String node = entry.key;
-            final DiskUsage usage = entry.value;
+        for (final Map.Entry<String, DiskUsage> entry : usages.entrySet()) {
+            final String node = entry.getKey();
+            final DiskUsage usage = entry.getValue();
             final RoutingNode routingNode = routingNodes.node(node);
 
             if (isDedicatedFrozenNode(routingNode)) {
@@ -453,10 +451,11 @@ public class DiskThresholdMonitor {
             .indices()
             .prepareUpdateSettings(indicesToUpdate.toArray(Strings.EMPTY_ARRAY))
             .setSettings(readOnlySettings)
+            .origin("disk-threshold-monitor")
             .execute(wrappedListener.map(r -> null));
     }
 
-    private static void cleanUpRemovedNodes(ObjectLookupContainer<String> nodesToKeep, Set<String> nodesToCleanUp) {
+    private static void cleanUpRemovedNodes(Set<String> nodesToKeep, Set<String> nodesToCleanUp) {
         for (String node : nodesToCleanUp) {
             if (nodesToKeep.contains(node) == false) {
                 nodesToCleanUp.remove(node);

@@ -58,8 +58,8 @@ public class DataTiersFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
-        for (Map.Entry<String, TierSpecificStats> tierStats : tierStats.entrySet()) {
-            builder.field(tierStats.getKey(), tierStats.getValue());
+        for (Map.Entry<String, TierSpecificStats> entry : tierStats.entrySet()) {
+            builder.field(entry.getKey(), entry.getValue());
         }
     }
 

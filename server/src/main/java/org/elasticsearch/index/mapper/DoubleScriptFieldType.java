@@ -16,6 +16,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.fielddata.DoubleScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Doubles;
+import org.elasticsearch.index.fielddata.ScriptDocValues.DoublesSupplier;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -103,7 +104,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         return new DoubleScriptFieldData.Builder(
             name(),
             leafFactory(searchLookup.get()),
-            (dv, n) -> new DelegateDocValuesField(new Doubles(dv), n)
+            (dv, n) -> new DelegateDocValuesField(new Doubles(new DoublesSupplier(dv)), n)
         );
     }
 

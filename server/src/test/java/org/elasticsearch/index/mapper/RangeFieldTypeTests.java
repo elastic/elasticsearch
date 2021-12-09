@@ -14,7 +14,6 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.document.InetAddressRange;
 import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongRange;
-import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -31,6 +30,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.Before;
 

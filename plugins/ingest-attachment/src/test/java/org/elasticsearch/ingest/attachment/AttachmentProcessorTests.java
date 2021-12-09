@@ -68,9 +68,20 @@ public class AttachmentProcessorTests extends ESTestCase {
     }
 
     public void testHtmlDocumentWithRandomFields() throws Exception {
-        // date is not present in the html doc
+        // some metadata are not present in the html doc
+        // "date", "metadata_date", "comments", "modified", "modifier", "print_date", "relation", "creator_tool", "altitude"
+        // "identifier", "longitude", "publisher", "description", "latitude", "format", "source", "coverage"
+        // "rating", "type", "contributor", "rights"
+        // we are only trying with content, title, author, keywords, content_type and content_length.
         ArrayList<AttachmentProcessor.Property> fieldsList = new ArrayList<>(
-            EnumSet.complementOf(EnumSet.of(AttachmentProcessor.Property.DATE))
+            EnumSet.of(
+                AttachmentProcessor.Property.CONTENT,
+                AttachmentProcessor.Property.TITLE,
+                AttachmentProcessor.Property.AUTHOR,
+                AttachmentProcessor.Property.KEYWORDS,
+                AttachmentProcessor.Property.CONTENT_TYPE,
+                AttachmentProcessor.Property.CONTENT_LENGTH
+            )
         );
         Set<AttachmentProcessor.Property> selectedProperties = new HashSet<>();
 
@@ -128,7 +139,20 @@ public class AttachmentProcessorTests extends ESTestCase {
     public void testWordDocument() throws Exception {
         Map<String, Object> attachmentData = parseDocument("issue-104.docx", processor);
 
-        assertThat(attachmentData.keySet(), containsInAnyOrder("content", "language", "date", "author", "content_type", "content_length"));
+        assertThat(
+            attachmentData.keySet(),
+            containsInAnyOrder(
+                "content",
+                "language",
+                "date",
+                "author",
+                "content_type",
+                "content_length",
+                "modifier",
+                "modified",
+                "publisher"
+            )
+        );
         assertThat(attachmentData.get("content"), is(notNullValue()));
         assertThat(attachmentData.get("language"), is("en"));
         assertThat(attachmentData.get("date"), is("2012-10-12T11:17:00Z"));
@@ -138,12 +162,28 @@ public class AttachmentProcessorTests extends ESTestCase {
             attachmentData.get("content_type").toString(),
             is("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         );
+        assertThat(attachmentData.get("modifier").toString(), is("Luka Lampret"));
+        assertThat(attachmentData.get("modified").toString(), is("2015-02-20T11:36:00Z"));
+        assertThat(attachmentData.get("publisher").toString(), is("JDI"));
     }
 
     public void testWordDocumentWithVisioSchema() throws Exception {
         Map<String, Object> attachmentData = parseDocument("issue-22077.docx", processor);
 
-        assertThat(attachmentData.keySet(), containsInAnyOrder("content", "language", "date", "author", "content_type", "content_length"));
+        assertThat(
+            attachmentData.keySet(),
+            containsInAnyOrder(
+                "content",
+                "language",
+                "date",
+                "author",
+                "content_type",
+                "content_length",
+                "modifier",
+                "modified",
+                "print_date"
+            )
+        );
         assertThat(attachmentData.get("content").toString(), containsString("Table of Contents"));
         assertThat(attachmentData.get("language"), is("en"));
         assertThat(attachmentData.get("date"), is("2015-01-06T18:07:00Z"));
@@ -153,18 +193,37 @@ public class AttachmentProcessorTests extends ESTestCase {
             attachmentData.get("content_type").toString(),
             is("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
         );
+        assertThat(attachmentData.get("modifier").toString(), is("Chris Dufour"));
+        assertThat(attachmentData.get("modified").toString(), is("2016-12-04T16:58:00Z"));
+        assertThat(attachmentData.get("print_date").toString(), is("2015-01-05T19:12:00Z"));
     }
 
     public void testLegacyWordDocumentWithVisioSchema() throws Exception {
         Map<String, Object> attachmentData = parseDocument("issue-22077.doc", processor);
 
-        assertThat(attachmentData.keySet(), containsInAnyOrder("content", "language", "date", "author", "content_type", "content_length"));
+        assertThat(
+            attachmentData.keySet(),
+            containsInAnyOrder(
+                "content",
+                "language",
+                "date",
+                "author",
+                "content_type",
+                "content_length",
+                "modifier",
+                "modified",
+                "print_date"
+            )
+        );
         assertThat(attachmentData.get("content").toString(), containsString("Table of Contents"));
         assertThat(attachmentData.get("language"), is("en"));
         assertThat(attachmentData.get("date"), is("2016-12-16T15:04:00Z"));
         assertThat(attachmentData.get("author"), is(notNullValue()));
         assertThat(attachmentData.get("content_length"), is(notNullValue()));
         assertThat(attachmentData.get("content_type").toString(), is("application/msword"));
+        assertThat(attachmentData.get("modifier").toString(), is("David Pilato"));
+        assertThat(attachmentData.get("modified").toString(), is("2016-12-16T15:04:00Z"));
+        assertThat(attachmentData.get("print_date").toString(), is("2015-01-05T19:12:00Z"));
     }
 
     public void testPdf() throws Exception {
@@ -217,9 +276,26 @@ public class AttachmentProcessorTests extends ESTestCase {
 
         assertThat(
             attachmentData.keySet(),
-            containsInAnyOrder("language", "content", "author", "title", "content_type", "content_length", "date", "keywords")
+            containsInAnyOrder(
+                "language",
+                "content",
+                "author",
+                "title",
+                "content_type",
+                "content_length",
+                "date",
+                "keywords",
+                "identifier",
+                "contributor",
+                "publisher",
+                "description"
+            )
         );
         assertThat(attachmentData.get("content_type").toString(), containsString("application/epub+zip"));
+        assertThat(attachmentData.get("identifier").toString(), is("1234567890"));
+        assertThat(attachmentData.get("contributor").toString(), is("no-one"));
+        assertThat(attachmentData.get("publisher").toString(), is("Apache"));
+        assertThat(attachmentData.get("description").toString(), is("This is an ePub test publication for Tika."));
     }
 
     // no real detection, just rudimentary

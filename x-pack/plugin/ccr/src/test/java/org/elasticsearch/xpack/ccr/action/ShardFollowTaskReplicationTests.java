@@ -504,11 +504,11 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
             }
 
             @Override
-            protected synchronized void recoverPrimary(IndexShard primary) {
+            protected synchronized void recoverPrimary(IndexShard primaryShard) {
                 DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
                 Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
                 ShardRouting routing = ShardRoutingHelper.newWithRestoreSource(
-                    primary.routingEntry(),
+                    primaryShard.routingEntry(),
                     new RecoverySource.SnapshotRecoverySource(
                         UUIDs.randomBase64UUID(),
                         snapshot,
@@ -516,9 +516,9 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                         new IndexId("test", UUIDs.randomBase64UUID(random()))
                     )
                 );
-                primary.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
+                primaryShard.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
                 final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-                primary.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
+                primaryShard.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
                     @Override
                     public void restoreShard(
                         Store store,
@@ -530,11 +530,11 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     ) {
                         ActionListener.completeWith(listener, () -> {
                             IndexShard leader = leaderGroup.getPrimary();
-                            Lucene.cleanLuceneIndex(primary.store().directory());
+                            Lucene.cleanLuceneIndex(primaryShard.store().directory());
                             try (Engine.IndexCommitRef sourceCommit = leader.acquireSafeIndexCommit()) {
                                 Store.MetadataSnapshot sourceSnapshot = leader.store().getMetadata(sourceCommit.getIndexCommit());
                                 for (StoreFileMetadata md : sourceSnapshot) {
-                                    primary.store()
+                                    primaryShard.store()
                                         .directory()
                                         .copyFrom(leader.store().directory(), md.name(), md.name(), IOContext.DEFAULT);
                                 }

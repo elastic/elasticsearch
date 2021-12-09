@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -113,8 +114,7 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
 
     private static void assertFieldCaps(FieldCapabilitiesResponse fieldCapabilitiesResponse, Collection<String> expectedFields) {
         Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>(fieldCapabilitiesResponse.get());
-        Set<String> builtInMetadataFields = IndicesModule.getBuiltInMetadataFields();
-        for (String field : builtInMetadataFields) {
+        for (String field : builtInMetadataFields()) {
             Map<String, FieldCapabilities> remove = responseMap.remove(field);
             assertNotNull(" expected field [" + field + "] not found", remove);
         }
@@ -125,13 +125,19 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
         assertEquals("Some unexpected fields were returned: " + responseMap.keySet(), 0, responseMap.size());
     }
 
+    private static Set<String> builtInMetadataFields() {
+        Set<String> builtInMetadataFields = new HashSet<>(IndicesModule.getBuiltInMetadataFields());
+        // Index is not a time-series index, and it will not contain a _tsid field
+        builtInMetadataFields.remove(TimeSeriesIdFieldMapper.NAME);
+        return builtInMetadataFields;
+    }
+
     private static void assertFieldMappings(
         Map<String, GetFieldMappingsResponse.FieldMappingMetadata> actual,
         Collection<String> expectedFields
     ) {
-        Set<String> builtInMetadataFields = IndicesModule.getBuiltInMetadataFields();
         Map<String, GetFieldMappingsResponse.FieldMappingMetadata> fields = new HashMap<>(actual);
-        for (String field : builtInMetadataFields) {
+        for (String field : builtInMetadataFields()) {
             GetFieldMappingsResponse.FieldMappingMetadata fieldMappingMetadata = fields.remove(field);
             assertNotNull(" expected field [" + field + "] not found", fieldMappingMetadata);
         }

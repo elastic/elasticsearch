@@ -64,7 +64,7 @@ public class MlMetadata implements Metadata.Custom {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumIndexCompatibilityVersion();
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override
@@ -175,6 +175,11 @@ public class MlMetadata implements Metadata.Custom {
             return TYPE;
         }
 
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
+        }
+
         static Diff<Job> readJobDiffFrom(StreamInput in) throws IOException {
             return AbstractDiffable.readDiffFrom(Job::new, in);
         }
@@ -220,13 +225,13 @@ public class MlMetadata implements Metadata.Custom {
             }
         }
 
-        public Builder isUpgradeMode(boolean upgradeMode) {
-            this.upgradeMode = upgradeMode;
+        public Builder isUpgradeMode(boolean isUpgradeMode) {
+            this.upgradeMode = isUpgradeMode;
             return this;
         }
 
-        public Builder isResetMode(boolean resetMode) {
-            this.resetMode = resetMode;
+        public Builder isResetMode(boolean isResetMode) {
+            this.resetMode = isResetMode;
             return this;
         }
 

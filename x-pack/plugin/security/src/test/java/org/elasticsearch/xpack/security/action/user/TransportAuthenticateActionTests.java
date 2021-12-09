@@ -34,7 +34,8 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.core.security.authc.Authentication.*;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
+import static org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_TYPE;

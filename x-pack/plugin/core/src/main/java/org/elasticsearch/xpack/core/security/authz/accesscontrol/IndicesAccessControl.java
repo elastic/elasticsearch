@@ -182,7 +182,7 @@ public class IndicesAccessControl {
         }
 
         /**
-         * Returns a instance of {@link IndexAccessControl}, where the privileges for {@code this} object are constrained by the privileges
+         * Returns an instance of {@link IndexAccessControl}, where the privileges for {@code this} object are constrained by the privileges
          * contained in the provided parameter.<br>
          * Allowed fields for this index permission would be an intersection of allowed fields.<br>
          * Allowed documents for this index permission would be an intersection of allowed documents.<br>
@@ -193,17 +193,19 @@ public class IndicesAccessControl {
          * @see DocumentPermissions#limitDocumentPermissions(DocumentPermissions)
          */
         public IndexAccessControl limitIndexAccessControl(IndexAccessControl limitedByIndexAccessControl) {
-            final boolean granted;
+            final boolean isGranted;
             if (this.granted == limitedByIndexAccessControl.granted) {
-                granted = this.granted;
+                isGranted = this.granted;
             } else {
-                granted = false;
+                isGranted = false;
             }
-            FieldPermissions fieldPermissions = getFieldPermissions().limitFieldPermissions(limitedByIndexAccessControl.fieldPermissions);
-            DocumentPermissions documentPermissions = getDocumentPermissions().limitDocumentPermissions(
+            FieldPermissions constrainedFieldPermissions = getFieldPermissions().limitFieldPermissions(
+                limitedByIndexAccessControl.fieldPermissions
+            );
+            DocumentPermissions constrainedDocumentPermissions = getDocumentPermissions().limitDocumentPermissions(
                 limitedByIndexAccessControl.getDocumentPermissions()
             );
-            return new IndexAccessControl(granted, fieldPermissions, documentPermissions);
+            return new IndexAccessControl(isGranted, constrainedFieldPermissions, constrainedDocumentPermissions);
         }
 
         @Override
@@ -264,23 +266,23 @@ public class IndicesAccessControl {
             return this;
         }
 
-        final boolean granted;
+        final boolean isGranted;
         if (this.granted == limitedByIndicesAccessControl.granted) {
-            granted = this.granted;
+            isGranted = this.granted;
         } else {
-            granted = false;
+            isGranted = false;
         }
         Set<String> indexes = indexPermissions.keySet();
         Set<String> otherIndexes = limitedByIndicesAccessControl.indexPermissions.keySet();
         Set<String> commonIndexes = Sets.intersection(indexes, otherIndexes);
 
-        Map<String, IndexAccessControl> indexPermissions = new HashMap<>(commonIndexes.size());
+        Map<String, IndexAccessControl> indexPermissionsMap = new HashMap<>(commonIndexes.size());
         for (String index : commonIndexes) {
             IndexAccessControl indexAccessControl = getIndexPermissions(index);
             IndexAccessControl limitedByIndexAccessControl = limitedByIndicesAccessControl.getIndexPermissions(index);
-            indexPermissions.put(index, indexAccessControl.limitIndexAccessControl(limitedByIndexAccessControl));
+            indexPermissionsMap.put(index, indexAccessControl.limitIndexAccessControl(limitedByIndexAccessControl));
         }
-        return new IndicesAccessControl(granted, indexPermissions);
+        return new IndicesAccessControl(isGranted, indexPermissionsMap);
     }
 
     @Override

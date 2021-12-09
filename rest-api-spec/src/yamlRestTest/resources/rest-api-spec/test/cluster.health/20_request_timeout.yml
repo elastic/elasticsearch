@@ -1,9 +1,7 @@
 ---
 "cluster health request timeout on waiting for nodes":
-  - skip:
-      version: " - 8.0.99"
-      reason: "Set for 7.99.99 when back-ported to 8.0"
   - do:
+      catch: request_timeout
       cluster.health:
         wait_for_nodes: 10
         timeout: 1ms
@@ -21,38 +19,11 @@
 
 ---
 "cluster health request timeout waiting for active shards":
-  - skip:
-      version: " - 8.0.99"
-      reason: "Set for 7.99.99 when back-ported to 8.0"
   - do:
+      catch: request_timeout
       cluster.health:
         timeout: 1ms
         wait_for_active_shards: 5
-
-  - is_true:   cluster_name
-  - is_true:   timed_out
-  - gte:       { number_of_nodes:         1 }
-  - gte:       { number_of_data_nodes:    1 }
-  - match:     { active_primary_shards:   0 }
-  - match:     { active_shards:           0 }
-  - match:     { relocating_shards:       0 }
-  - match:     { initializing_shards:     0 }
-  - match:     { unassigned_shards:       0 }
-  - gte:       { number_of_pending_tasks: 0 }
-
----
-"cluster health request timeout with 200 response code":
-  - skip:
-      version: " - 7.15.99"
-      reason: "return_200_for_cluster_health_timeout was added in 7.16"
-      features: [ "allowed_warnings" ]
-  - do:
-      allowed_warnings:
-        - 'the [return_200_for_cluster_health_timeout] parameter is deprecated and will be removed in a future release.'
-      cluster.health:
-        timeout: 1ms
-        wait_for_active_shards: 5
-        return_200_for_cluster_health_timeout: true
 
   - is_true:   cluster_name
   - is_true:   timed_out

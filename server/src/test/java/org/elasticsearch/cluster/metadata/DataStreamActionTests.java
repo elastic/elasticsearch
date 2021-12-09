@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 
-import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamActionTests extends ESTestCase {
 

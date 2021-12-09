@@ -437,14 +437,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return snapshotInfo;
     }
 
-    protected SnapshotInfo createSnapshot(String repositoryName, String snapshot, List<String> indices) {
+    protected SnapshotInfo createSnapshot(String repositoryName, String snapshot, List<String> indices, List<String> featureStates) {
         logger.info("--> creating snapshot [{}] of {} in [{}]", snapshot, indices, repositoryName);
         final CreateSnapshotResponse response = client().admin()
             .cluster()
             .prepareCreateSnapshot(repositoryName, snapshot)
             .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
             .setWaitForCompletion(true)
-            .setFeatureStates(NO_FEATURE_STATES_VALUE) // Exclude all feature states to ensure only specified indices are included
+            .setFeatureStates(featureStates.toArray(Strings.EMPTY_ARRAY))
             .get();
 
         final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
@@ -452,6 +452,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.failedShards(), equalTo(0));
         return snapshotInfo;
+    }
+
+    protected SnapshotInfo createSnapshot(String repositoryName, String snapshot, List<String> indices) {
+        return createSnapshot(repositoryName, snapshot, indices, Collections.singletonList(NO_FEATURE_STATES_VALUE));
     }
 
     protected void createIndexWithRandomDocs(String indexName, int docCount) throws InterruptedException {

@@ -141,6 +141,7 @@ include::systemd.asciidoc[]
 [[rpm-check-running]]
 
 :os-dir:       /etc/elasticsearch
+:slash:        /
 
 include::check-running.asciidoc[]
 

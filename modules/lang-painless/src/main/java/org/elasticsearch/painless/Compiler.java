@@ -167,12 +167,12 @@ final class Compiler {
     Compiler(Class<?> scriptClass, Class<?> factoryClass, Class<?> statefulFactoryClass, PainlessLookup painlessLookup) {
         this.scriptClass = scriptClass;
         this.painlessLookup = painlessLookup;
-        Map<String, Class<?>> additionalClasses = new HashMap<>();
-        additionalClasses.put(scriptClass.getName(), scriptClass);
-        addFactoryMethod(additionalClasses, factoryClass, "newInstance");
-        addFactoryMethod(additionalClasses, statefulFactoryClass, "newFactory");
-        addFactoryMethod(additionalClasses, statefulFactoryClass, "newInstance");
-        this.additionalClasses = Collections.unmodifiableMap(additionalClasses);
+        Map<String, Class<?>> additionalClassMap = new HashMap<>();
+        additionalClassMap.put(scriptClass.getName(), scriptClass);
+        addFactoryMethod(additionalClassMap, factoryClass, "newInstance");
+        addFactoryMethod(additionalClassMap, statefulFactoryClass, "newFactory");
+        addFactoryMethod(additionalClassMap, statefulFactoryClass, "newInstance");
+        this.additionalClasses = Collections.unmodifiableMap(additionalClassMap);
     }
 
     private static void addFactoryMethod(Map<String, Class<?>> additionalClasses, Class<?> factoryClass, String methodName) {

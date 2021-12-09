@@ -42,13 +42,12 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -121,10 +120,9 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
         MultiSearchRequest msearch = createMSearchRequest(request, registry, rollupSearchContext);
 
         client.multiSearch(msearch, ActionListener.wrap(msearchResponse -> {
-            InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
+            AggregationReduceContext context = new AggregationReduceContext.ForPartial(
                 bigArrays,
                 scriptService,
-                () -> PipelineAggregator.PipelineTree.EMPTY,
                 ((CancellableTask) task)::isCancelled
             );
             listener.onResponse(processResponses(rollupSearchContext, msearchResponse, context));
@@ -134,7 +132,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     static SearchResponse processResponses(
         RollupSearchContext rollupContext,
         MultiSearchResponse msearchResponse,
-        InternalAggregation.ReduceContext reduceContext
+        AggregationReduceContext reduceContext
     ) throws Exception {
         if (rollupContext.hasLiveIndices() && rollupContext.hasRollupIndices()) {
             // Both

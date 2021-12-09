@@ -428,7 +428,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Find tasks with common parent
         listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setParentTaskId(new TaskId(parentNode, parentTaskId));
+        listTasksRequest.setTargetParentTaskId(new TaskId(parentNode, parentTaskId));
         response = ActionTestUtils.executeBlocking(testNode.transportListTasksAction, listTasksRequest);
         assertEquals(testNodes.length, response.getTasks().size());
         for (TaskInfo task : response.getTasks()) {
@@ -506,7 +506,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         // Try to cancel main task using id
         request = new CancelTasksRequest();
         request.setReason("Testing Cancellation");
-        request.setTaskId(new TaskId(testNodes[0].getNodeId(), task.getId()));
+        request.setTargetTaskId(new TaskId(testNodes[0].getNodeId(), task.getId()));
         response = ActionTestUtils.executeBlocking(
             testNodes[randomIntBetween(0, testNodes.length - 1)].transportCancelTasksAction,
             request

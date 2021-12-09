@@ -16,9 +16,9 @@ plugins {
 
 group = "org.elasticsearch"
 
-def minRuntimeJava = JavaVersion.toVersion(file('../build-tools-internal/src/main/resources/minimumRuntimeVersion').text)
-targetCompatibility = minRuntimeJava
-sourceCompatibility = minRuntimeJava
+// This project contains Checkstyle rule implementations used by IDEs which use a Java 11 runtime
+targetCompatibility = 11
+sourceCompatibility = 11
 
 gradlePlugin {
     // We already configure publication and we don't need or want the one that comes

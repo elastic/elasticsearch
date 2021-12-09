@@ -348,6 +348,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     }
 
     static void prohibitAppendWritesInBackingIndices(DocWriteRequest<?> writeRequest, Metadata metadata) {
+        DocWriteRequest.OpType opType = writeRequest.opType();
+        if ((opType == OpType.CREATE || opType == OpType.INDEX) == false) {
+            // op type not create or index, then bail early
+            return;
+        }
         IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(writeRequest.index());
         if (indexAbstraction == null) {
             return;
@@ -365,7 +370,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         // so checking if write op is append-only and if so fail.
         // (Updates and deletes are allowed to target a backing index)
 
-        DocWriteRequest.OpType opType = writeRequest.opType();
         // CREATE op_type is considered append-only and
         // INDEX op_type is considered append-only when no if_primary_term and if_seq_no is specified.
         // (the latter maybe an update, but at this stage we can't determine that. In order to determine
@@ -507,7 +511,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (addFailureIfRequiresAliasAndAliasIsMissing(docWriteRequest, i, metadata)) {
                     continue;
                 }
-                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices, metadata)) {
+                if (addFailureIfIndexIsUnavailable(docWriteRequest, i, concreteIndices)) {
                     continue;
                 }
                 Index concreteIndex = concreteIndices.resolveIfAbsent(docWriteRequest);
@@ -524,10 +528,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         throw new IllegalArgumentException("only write ops with an op_type of create are allowed in data streams");
                     }
 
-                    if (docWriteRequest.opType() == OpType.CREATE || docWriteRequest.opType() == OpType.INDEX) {
-                        prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
-                        prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
-                    }
+                    prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
+                    prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
                     docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
                     docWriteRequest.process();
 
@@ -589,7 +591,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     public void onFailure(Exception e) {
                         // create failures for all relevant requests
                         for (BulkItemRequest request : requests) {
-                            final String indexName = concreteIndices.getConcreteIndex(request.index()).getName();
+                            final String indexName = request.index();
                             DocWriteRequest<?> docWriteRequest = request.request();
                             BulkItemResponse.Failure failure = new BulkItemResponse.Failure(indexName, docWriteRequest.id(), e);
                             responses.set(request.id(), BulkItemResponse.failure(request.id(), docWriteRequest.opType(), failure));
@@ -676,29 +678,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             return false;
         }
 
-        private boolean addFailureIfIndexIsUnavailable(
-            DocWriteRequest<?> request,
-            int idx,
-            final ConcreteIndices concreteIndices,
-            final Metadata metadata
-        ) {
+        private boolean addFailureIfIndexIsUnavailable(DocWriteRequest<?> request, int idx, final ConcreteIndices concreteIndices) {
             IndexNotFoundException cannotCreate = indicesThatCannotBeCreated.get(request.index());
             if (cannotCreate != null) {
                 addFailure(request, idx, cannotCreate);
                 return true;
             }
-            Index concreteIndex = concreteIndices.getConcreteIndex(request.index());
-            if (concreteIndex == null) {
-                try {
-                    concreteIndex = concreteIndices.resolveIfAbsent(request);
-                } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
-                    addFailure(request, idx, ex);
-                    return true;
-                }
-            }
-            IndexMetadata indexMetadata = metadata.getIndexSafe(concreteIndex);
-            if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
-                addFailure(request, idx, new IndexClosedException(concreteIndex));
+            try {
+                assert request.indicesOptions().forbidClosedIndices() : "only open indices can be resolved";
+                Index concreteIndex = concreteIndices.resolveIfAbsent(request);
+                assert concreteIndex != null;
+            } catch (IndexClosedException | IndexNotFoundException | IllegalArgumentException ex) {
+                addFailure(request, idx, ex);
                 return true;
             }
             return false;
@@ -734,10 +725,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ConcreteIndices(ClusterState state, IndexNameExpressionResolver indexNameExpressionResolver) {
             this.state = state;
             this.indexNameExpressionResolver = indexNameExpressionResolver;
-        }
-
-        Index getConcreteIndex(String indexOrAlias) {
-            return indices.get(indexOrAlias);
         }
 
         Index resolveIfAbsent(DocWriteRequest<?> request) {

@@ -64,10 +64,7 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Stat
  */
 public class SecurityIndexManager implements ClusterStateListener {
 
-    public static final int INTERNAL_MAIN_INDEX_FORMAT = 6;
-    public static final int INTERNAL_TOKENS_INDEX_FORMAT = 7;
     public static final String SECURITY_VERSION_STRING = "security-version";
-    public static final String TEMPLATE_VERSION_VARIABLE = "security.template.version";
 
     private static final Logger logger = LogManager.getLogger(SecurityIndexManager.class);
 

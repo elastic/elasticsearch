@@ -355,16 +355,17 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      */
     public void incomingRequest(final HttpRequest httpRequest, final HttpChannel httpChannel) {
         httpClientStatsTracker.updateClientStats(httpRequest, httpChannel);
-        final long startTime = threadPool.relativeTimeInMillis();
+        final long startTime = threadPool.rawRelativeTimeInMillis();
         try {
             handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
         } finally {
-            final long took = threadPool.relativeTimeInMillis() - startTime;
+            final long took = threadPool.rawRelativeTimeInMillis() - startTime;
+            networkService.getHandlingTimeTracker().addHandlingTime(took);
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
                 logger.warn(
                     "handling request [{}][{}][{}][{}] took [{}ms] which is above the warn threshold of [{}ms]",
-                    httpRequest.header(Task.X_OPAQUE_ID),
+                    httpRequest.header(Task.X_OPAQUE_ID_HTTP_HEADER),
                     httpRequest.method(),
                     httpRequest.uri(),
                     httpChannel,

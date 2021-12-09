@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Stats.Re
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.http.HttpStats;
@@ -47,6 +48,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -238,6 +240,14 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(nodeStats.getTransport().getServerOpen(), deserializedNodeStats.getTransport().getServerOpen());
                     assertEquals(nodeStats.getTransport().getTxCount(), deserializedNodeStats.getTransport().getTxCount());
                     assertEquals(nodeStats.getTransport().getTxSize(), deserializedNodeStats.getTransport().getTxSize());
+                    assertArrayEquals(
+                        nodeStats.getTransport().getInboundHandlingTimeBucketFrequencies(),
+                        deserializedNodeStats.getTransport().getInboundHandlingTimeBucketFrequencies()
+                    );
+                    assertArrayEquals(
+                        nodeStats.getTransport().getOutboundHandlingTimeBucketFrequencies(),
+                        deserializedNodeStats.getTransport().getOutboundHandlingTimeBucketFrequencies()
+                    );
                 }
                 if (nodeStats.getHttp() == null) {
                     assertNull(deserializedNodeStats.getHttp());
@@ -672,7 +682,9 @@ public class NodeStatsTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
-                randomNonNegativeLong()
+                randomNonNegativeLong(),
+                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
+                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray()
             )
             : null;
         HttpStats httpStats = null;

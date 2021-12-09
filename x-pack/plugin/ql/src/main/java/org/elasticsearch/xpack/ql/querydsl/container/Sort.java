@@ -63,17 +63,17 @@ public abstract class Sort {
         /**
          * Preferred order of null values in non-aggregation queries.
          */
-        public String searchOrder(Direction direction) {
+        public String searchOrder(Direction fallbackDirection) {
             if (searchOrder != null) {
                 return searchOrder;
             } else {
-                switch (direction) {
+                switch (fallbackDirection) {
                     case ASC:
                         return LAST.searchOrder;
                     case DESC:
                         return FIRST.searchOrder;
                     default:
-                        throw new IllegalArgumentException("Unknown direction [" + direction + "]");
+                        throw new IllegalArgumentException("Unknown direction [" + fallbackDirection + "]");
                 }
             }
         }

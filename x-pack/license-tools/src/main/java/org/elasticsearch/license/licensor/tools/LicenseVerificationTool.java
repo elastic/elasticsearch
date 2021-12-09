@@ -10,13 +10,14 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.cli.LoggingAwareCommand;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.license.CryptUtils;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseVerifier;
 import org.elasticsearch.xcontent.ToXContent;
@@ -70,7 +71,7 @@ public class LicenseVerificationTool extends LoggingAwareCommand {
         }
 
         // verify
-        if (LicenseVerifier.verifyLicense(licenseSpec, Files.readAllBytes(publicKeyPath)) == false) {
+        if (LicenseVerifier.verifyLicense(licenseSpec, CryptUtils.readPublicKey(Files.readAllBytes(publicKeyPath))) == false) {
             throw new UserException(ExitCodes.DATA_ERROR, "Invalid License!");
         }
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);

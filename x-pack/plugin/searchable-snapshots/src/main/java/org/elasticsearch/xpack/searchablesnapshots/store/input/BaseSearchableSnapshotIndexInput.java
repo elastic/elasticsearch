@@ -155,8 +155,8 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         return success;
     }
 
-    protected ByteRange rangeToReadFromBlobCache(long position, int length) {
-        final long end = position + length;
+    protected ByteRange rangeToReadFromBlobCache(long position, int readLength) {
+        final long end = position + readLength;
         if (headerBlobCacheByteRange.contains(position, end)) {
             return headerBlobCacheByteRange;
         } else if (footerBlobCacheByteRange.contains(position, end)) {
@@ -170,23 +170,23 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
      * spans multiple blobs then this stream will request them in turn.
      *
      * @param position The start of the range of bytes to read, relative to the start of the corresponding Lucene file.
-     * @param length The number of bytes to read
+     * @param readLength The number of bytes to read
      */
-    protected InputStream openInputStreamFromBlobStore(final long position, final long length) throws IOException {
+    protected InputStream openInputStreamFromBlobStore(final long position, final long readLength) throws IOException {
         assert assertCurrentThreadMayAccessBlobStore();
         if (fileInfo.numberOfParts() == 1L) {
-            assert position + length <= fileInfo.partBytes(0)
-                : "cannot read [" + position + "-" + (position + length) + "] from [" + fileInfo + "]";
-            stats.addBlobStoreBytesRequested(length);
-            return blobContainer.readBlob(fileInfo.partName(0), position, length);
+            assert position + readLength <= fileInfo.partBytes(0)
+                : "cannot read [" + position + "-" + (position + readLength) + "] from [" + fileInfo + "]";
+            stats.addBlobStoreBytesRequested(readLength);
+            return blobContainer.readBlob(fileInfo.partName(0), position, readLength);
         } else {
             final int startPart = getPartNumberForPosition(position);
-            final int endPart = getPartNumberForPosition(position + length - 1);
+            final int endPart = getPartNumberForPosition(position + readLength - 1);
 
             for (int currentPart = startPart; currentPart <= endPart; currentPart++) {
                 final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
                 final long endInPart = (currentPart == endPart)
-                    ? getRelativePositionInPart(position + length - 1) + 1
+                    ? getRelativePositionInPart(position + readLength - 1) + 1
                     : getLengthOfPart(currentPart);
                 stats.addBlobStoreBytesRequested(endInPart - startInPart);
             }
@@ -197,7 +197,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
                     final int currentPart = startPart + slice;
                     final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
                     final long endInPart = (currentPart == endPart)
-                        ? getRelativePositionInPart(position + length - 1) + 1
+                        ? getRelativePositionInPart(position + readLength - 1) + 1
                         : getLengthOfPart(currentPart);
                     return blobContainer.readBlob(fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
                 }
@@ -210,7 +210,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
      */
     private int getPartNumberForPosition(long position) {
         ensureValidPosition(position);
-        final int part = Math.toIntExact(position / fileInfo.partSize().getBytes());
+        final int part = fileInfo.numberOfParts() == 1 ? 0 : Math.toIntExact(position / fileInfo.partSize().getBytes());
         assert part <= fileInfo.numberOfParts() : "part number [" + part + "] exceeds number of parts: " + fileInfo.numberOfParts();
         assert part >= 0 : "part number [" + part + "] is negative";
         return part;

@@ -206,9 +206,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (existingMapper == null) {
             for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
                 MetadataFieldMapper metadataFieldMapper = parser.getDefault(parserContext());
-                metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
+                // A MetadataFieldMapper may choose to not be added to the metadata mappers
+                // of an index (eg TimeSeriesIdFieldMapper is only added to time series indices)
+                // In this case its TypeParser will return null instead of the MetadataFieldMapper
+                // instance.
+                if (metadataFieldMapper != null) {
+                    metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
+                }
             }
-
         } else {
             metadataMappers.putAll(existingMapper.mapping().getMetadataMappersMap());
         }

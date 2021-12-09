@@ -121,7 +121,7 @@ public class TestSearchContext extends SearchContext {
     public void preProcess() {}
 
     @Override
-    public Query buildFilteredQuery(Query query) {
+    public Query buildFilteredQuery(Query q) {
         return null;
     }
 
@@ -166,8 +166,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext aggregations(SearchContextAggregations aggregations) {
-        this.aggregations = aggregations;
+    public SearchContext aggregations(SearchContextAggregations searchContextAggregations) {
+        this.aggregations = searchContextAggregations;
         return this;
     }
 
@@ -302,8 +302,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext sort(SortAndFormats sort) {
-        this.sort = sort;
+    public SearchContext sort(SortAndFormats sortAndFormats) {
+        this.sort = sortAndFormats;
         return this;
     }
 
@@ -313,8 +313,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext trackScores(boolean trackScores) {
-        this.trackScores = trackScores;
+    public SearchContext trackScores(boolean shouldTrackScores) {
+        this.trackScores = shouldTrackScores;
         return this;
     }
 
@@ -324,8 +324,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext trackTotalHitsUpTo(int trackTotalHitsUpTo) {
-        this.trackTotalHitsUpTo = trackTotalHitsUpTo;
+    public SearchContext trackTotalHitsUpTo(int trackTotalHitsUpToValue) {
+        this.trackTotalHitsUpTo = trackTotalHitsUpToValue;
         return this;
     }
 
@@ -335,8 +335,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext searchAfter(FieldDoc searchAfter) {
-        this.searchAfter = searchAfter;
+    public SearchContext searchAfter(FieldDoc searchAfterDoc) {
+        this.searchAfter = searchAfterDoc;
         return this;
     }
 
@@ -356,8 +356,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext parsedPostFilter(ParsedQuery postFilter) {
-        this.postFilter = postFilter;
+    public SearchContext parsedPostFilter(ParsedQuery postFilterQuery) {
+        this.postFilter = postFilterQuery;
         return this;
     }
 
@@ -367,9 +367,9 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext parsedQuery(ParsedQuery query) {
-        this.originalQuery = query;
-        this.query = query.query();
+    public SearchContext parsedQuery(ParsedQuery parsedQuery) {
+        this.originalQuery = parsedQuery;
+        this.query = parsedQuery.query();
         return this;
     }
 
@@ -389,8 +389,8 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext from(int from) {
-        this.from = from;
+    public SearchContext from(int fromValue) {
+        this.from = fromValue;
         return this;
     }
 
@@ -404,7 +404,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContext size(int size) {
+    public SearchContext size(int sizeValue) {
         return null;
     }
 

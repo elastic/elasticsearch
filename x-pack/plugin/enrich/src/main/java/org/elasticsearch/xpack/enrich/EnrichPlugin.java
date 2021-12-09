@@ -168,7 +168,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
+        Settings unused,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -260,7 +260,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     }
 
     @Override
-    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings unused) {
         return Collections.singletonList(
             new SystemIndexDescriptor(ENRICH_INDEX_PATTERN, "Contains data to support enrich ingest processors.")
         );

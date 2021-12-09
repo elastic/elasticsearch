@@ -554,7 +554,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         try {
             // final Environment to be used in the lambda below
             final Environment localFinalEnv = env;
-            final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy-HH:mm:ss z");
+            final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
             List<String> existingConfigLines = Files.readAllLines(ymlPath, StandardCharsets.UTF_8);
             fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
                 try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
@@ -579,7 +579,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     bw.write("# --------------------------------------------------------------------------------");
                     bw.newLine();
                     bw.newLine();
-                    bw.write("# Security features are enabled");
+                    bw.write("# Enable security features");
                     bw.newLine();
                     bw.write(XPackSettings.SECURITY_ENABLED.getKey() + ": true");
                     bw.newLine();

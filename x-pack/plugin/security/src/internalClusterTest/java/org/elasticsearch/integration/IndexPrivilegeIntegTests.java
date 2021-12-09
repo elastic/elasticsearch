@@ -130,38 +130,22 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
         final String usersPasswdHashed = new String(passwdHasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
 
         return super.configUsers() + """
-            admin:%s
-            u1:%s
-            u2:%s
-            u3:%s
-            u4:%s
-            u5:%s
-            u6:%s
-            u7:%s
-            u8:%s
-            u9:%s
-            u11:%s
-            u12:%s
-            u13:%s
-            u14:%s
-            u15:%s
-            """.formatted(
-            usersPasswdHashed,
-            usersPasswdHashed,
-            usersPasswdHashed,
-            usersPasswdHashed,
-            usersPasswdHashed,
-            usersPasswdHashed,
-            usersPasswdHashed,
-            usersPasswdHashed,
-            usersPasswdHashed,
-            usersPasswdHashed,
-            usersPasswdHashed,
-            usersPasswdHashed,
-            usersPasswdHashed,
-            usersPasswdHashed,
-            usersPasswdHashed
-        );
+            admin:%1$s
+            u1:%1$s
+            u2:%1$s
+            u3:%1$s
+            u4:%1$s
+            u5:%1$s
+            u6:%1$s
+            u7:%1$s
+            u8:%1$s
+            u9:%1$s
+            u11:%1$s
+            u12:%1$s
+            u13:%1$s
+            u14:%1$s
+            u15:%1$s
+            """.formatted(usersPasswdHashed);
     }
 
     @Override

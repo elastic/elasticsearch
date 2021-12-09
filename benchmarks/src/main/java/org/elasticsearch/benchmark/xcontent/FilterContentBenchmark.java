@@ -132,14 +132,6 @@ public class FilterContentBenchmark {
     }
 
     @Benchmark
-    public BytesReference filterSourceLookupWithMap() throws IOException {
-        SourceLookup lookup = new SourceLookup();
-        lookup.setSource(source);
-        Object value = lookup.filter(fetchContext);
-        return FetchSourcePhase.objectToBytes(value, XContentType.JSON, Math.min(1024, lookup.internalSourceRef().length()));
-    }
-
-    @Benchmark
     public BytesReference filterWithMap() throws IOException {
         Map<String, Object> sourceMap = XContentHelper.convertToMap(source, false).v2();
         String[] includes;
@@ -152,11 +144,7 @@ public class FilterContentBenchmark {
             excludes = filters.toArray(Strings.EMPTY_ARRAY);
         }
         Map<String, Object> filterMap = XContentMapValues.filter(sourceMap, includes, excludes);
-        try (BytesStreamOutput os = new BytesStreamOutput()) {
-            XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), os);
-            builder.map(filterMap);
-            return BytesReference.bytes(builder);
-        }
+        return FetchSourcePhase.objectToBytes(filterMap, XContentType.JSON, Math.min(1024, source.length()));
     }
 
     @Benchmark
@@ -166,9 +154,9 @@ public class FilterContentBenchmark {
         Set<String> excludes;
         if (inclusive) {
             includes = filters;
-            excludes = null;
+            excludes = Set.of();
         } else {
-            includes = null;
+            includes = Set.of();
             excludes = filters;
         }
         XContentBuilder builder = new XContentBuilder(

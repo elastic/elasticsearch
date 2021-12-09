@@ -247,6 +247,7 @@ public class PolicyUtilTests extends ESTestCase {
         "javax.management.MBeanPermission * setAttribute",
         "javax.management.MBeanPermission * unregisterMBean",
         "javax.management.MBeanServerPermission *",
+        "javax.management.MBeanTrustPermission register",
         "javax.security.auth.AuthPermission doAs",
         "javax.security.auth.AuthPermission doAsPrivileged",
         "javax.security.auth.AuthPermission getSubject",

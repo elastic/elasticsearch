@@ -40,6 +40,7 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_V
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_VALID_WARM_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_COLD_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_FROZEN_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_HOT_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_WARM_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
@@ -171,6 +172,30 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("invalid action [" + invalidAction.getWriteableName() + "] defined in phase [cold]"));
         } else {
             TimeseriesLifecycleType.INSTANCE.validate(coldPhase.values());
+        }
+    }
+
+    public void testValidateFrozenPhase() {
+        LifecycleAction invalidAction = null;
+        Map<String, LifecycleAction> actions = randomSubsetOf(VALID_FROZEN_ACTIONS).stream()
+            .map(this::getTestAction)
+            .collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
+        // regardless of the randomised actions, we must have a SearchableSnapshotAction in frozen
+        actions.put(SearchableSnapshotAction.NAME, getTestAction(SearchableSnapshotAction.NAME));
+        if (randomBoolean()) {
+            invalidAction = getTestAction(randomFrom("rollover", "delete", "forcemerge", "shrink"));
+            actions.put(invalidAction.getWriteableName(), invalidAction);
+        }
+        Map<String, Phase> frozenPhase = Collections.singletonMap("frozen", new Phase("frozen", TimeValue.ZERO, actions));
+
+        if (invalidAction != null) {
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> TimeseriesLifecycleType.INSTANCE.validate(frozenPhase.values())
+            );
+            assertThat(e.getMessage(), equalTo("invalid action [" + invalidAction.getWriteableName() + "] defined in phase [frozen]"));
+        } else {
+            TimeseriesLifecycleType.INSTANCE.validate(frozenPhase.values());
         }
     }
 
@@ -358,6 +383,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     public void testUnfollowInjections() {
         assertTrue(isUnfollowInjected("hot", RolloverAction.NAME));
         assertTrue(isUnfollowInjected("warm", ShrinkAction.NAME));
+        assertTrue(isUnfollowInjected("cold", SearchableSnapshotAction.NAME));
+        assertTrue(isUnfollowInjected("frozen", SearchableSnapshotAction.NAME));
 
         assertFalse(isUnfollowInjected("hot", SetPriorityAction.NAME));
         assertFalse(isUnfollowInjected("warm", SetPriorityAction.NAME));

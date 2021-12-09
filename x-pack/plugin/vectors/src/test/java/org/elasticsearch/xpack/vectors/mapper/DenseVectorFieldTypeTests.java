@@ -73,7 +73,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             IllegalArgumentException.class,
             () -> unindexedField.createKnnQuery(new float[] { 0.3f, 0.1f, 1.0f }, 10)
         );
-        assertThat(e.getMessage(), containsString("[knn] queries are not supported if [index] is disabled"));
+        assertThat(e.getMessage(), containsString("to perform knn search on field [f], its mapping must have [index] set to [true]"));
 
         DenseVectorFieldType dotProductField = new DenseVectorFieldType(
             "f",

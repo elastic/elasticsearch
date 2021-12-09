@@ -210,7 +210,7 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
      */
     private int getPartNumberForPosition(long position) {
         ensureValidPosition(position);
-        final int part = Math.toIntExact(position / fileInfo.partSize().getBytes());
+        final int part = fileInfo.numberOfParts() == 1 ? 0 : Math.toIntExact(position / fileInfo.partSize().getBytes());
         assert part <= fileInfo.numberOfParts() : "part number [" + part + "] exceeds number of parts: " + fileInfo.numberOfParts();
         assert part >= 0 : "part number [" + part + "] is negative";
         return part;

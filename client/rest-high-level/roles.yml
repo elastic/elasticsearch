@@ -10,3 +10,11 @@ admin:
     - application: '*'
       privileges: [ '*' ]
       resources: [ '*' ]
+
+_es_test_root:
+  cluster: [ "ALL" ]
+  indices:
+    - names: [ "*" ]
+      allow_restricted_indices: true
+      privileges: [ "ALL" ]
+  run_as: [ "*" ]

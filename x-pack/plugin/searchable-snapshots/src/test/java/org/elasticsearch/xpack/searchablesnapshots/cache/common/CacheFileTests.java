@@ -51,7 +51,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -468,19 +467,7 @@ public class CacheFileTests extends ESTestCase {
                         equalTo(expectedSize)
                     );
                 } else {
-                    // block size other than usual default block size of 4KB indicates that a special filesystem may be at use; in this
-                    // case we verify that the allocated size for the file stays within some upper limit of an extra block of 4096L bytes
-                    assertThat(
-                        "Cache file size mismatches with non default block size (block size: "
-                            + blockSize
-                            + ", number of blocks: "
-                            + nbBlocks
-                            + ", file length: "
-                            + cacheFile.getLength()
-                            + ')',
-                        sizeOnDisk.getAsLong(),
-                        allOf(greaterThanOrEqualTo(expectedSize), lessThanOrEqualTo(expectedSize + fourKb))
-                    );
+                    // block size other than usual default block size indicates that a special filesystem may be at use, let's verify this
                     assertThat(
                         "Non default block size only used in test executed with encryption at rest",
                         file.toAbsolutePath().toString(),

@@ -62,6 +62,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 @ESIntegTestCase.ClusterScope(autoManageMasterNodes = false, numDataNodes = 0)
 public class DedicatedMasterNodesDeciderIT extends ESIntegTestCase {
@@ -303,9 +304,10 @@ public class DedicatedMasterNodesDeciderIT extends ESIntegTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-            Assert.assertThat(action, Matchers.sameInstance(NodesStatsAction.INSTANCE));
+            assertThat(action, sameInstance(NodesStatsAction.INSTANCE));
             NodesStatsRequest nodesStatsRequest = (NodesStatsRequest) request;
-            Assert.assertThat(nodeStatsFakeResponder, notNullValue());
+            logger.info("--> Request {} / {}", nodesStatsRequest, nodesStatsRequest.nodesIds());
+            assertThat(nodeStatsFakeResponder, notNullValue());
             @SuppressWarnings("unchecked")
             ActionListener<NodesStatsResponse> statsListener = (ActionListener<NodesStatsResponse>) listener;
             if (nodeStatsFakeResponder.accept(nodesStatsRequest, statsListener)) {

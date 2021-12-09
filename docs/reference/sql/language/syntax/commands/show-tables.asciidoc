@@ -7,7 +7,7 @@
 ----
 SHOW TABLES
     [CATALOG [catalog_identifier | <1>
-              LIKE pattern]]?       <2>
+              LIKE pattern]]?      <2>
     [INCLUDE FROZEN]?              <3>
     [table_identifier |            <4>
      LIKE pattern]                 <5>

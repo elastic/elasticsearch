@@ -150,7 +150,8 @@ will be - typically the first in natural ascending order) for fields with multip
 
 [discrete]
 ==== Cluster
-`catalog`:: The default catalog to execute the query under.
+`catalog`:: Default catalog (cluster) for queries. If unspecified, the
+queries execute on the data in the local cluster only.
 
 [discrete]
 ==== Additional

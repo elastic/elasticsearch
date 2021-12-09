@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilege;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -65,6 +66,10 @@ public final class LimitedRole extends Role {
     @Override
     public boolean hasFieldOrDocumentLevelSecurity() {
         return super.hasFieldOrDocumentLevelSecurity() || limitedBy.hasFieldOrDocumentLevelSecurity();
+    }
+
+    public List<IndicesPermission> getIndicesPermissions() {
+        return List.of(super.indices(), limitedBy.indices());
     }
 
     @Override

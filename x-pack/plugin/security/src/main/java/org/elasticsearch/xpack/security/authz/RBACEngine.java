@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.delete.DeleteAction;
@@ -29,6 +30,7 @@ import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
@@ -63,6 +65,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.LimitedRole;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivilegesMap;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -459,9 +462,41 @@ public class RBACEngine implements AuthorizationEngine {
         Map<String, IndexAbstraction> indicesLookup,
         ActionListener<Set<String>> listener
     ) {
+        throw new UnsupportedOperationException();
+    }
+
+    private final ResultDeduplicator<AuthorizedIndicesCacheKey, Set<String>> authorizedIndicesDeduplicator = new ResultDeduplicator<>();
+
+    @Override
+    public void loadAuthorizedIndices(
+        RequestInfo requestInfo,
+        AuthorizationInfo authorizationInfo,
+        Metadata metadata,
+        ActionListener<Set<String>> listener
+    ) {
+
         if (authorizationInfo instanceof RBACAuthorizationInfo) {
             final Role role = ((RBACAuthorizationInfo) authorizationInfo).getRole();
-            listener.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo, indicesLookup));
+            final TransportRequest request = requestInfo.getRequest();
+            final List<IndicesPermission> indicesPermissions;
+            if (role instanceof LimitedRole limitedRole) {
+                indicesPermissions = limitedRole.getIndicesPermissions();
+            } else {
+                indicesPermissions = List.of(role.indices());
+            }
+            final boolean includeDataStreams = (request instanceof IndicesRequest) && ((IndicesRequest) request).includeDataStreams();
+            final AuthorizedIndicesCacheKey cacheKey = new AuthorizedIndicesCacheKey(
+                metadata.version(),
+                requestInfo.getAction(),
+                includeDataStreams,
+                indicesPermissions
+            );
+
+            authorizedIndicesDeduplicator.executeOnce(
+                cacheKey,
+                listener,
+                (r, l) -> { l.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo, metadata.getIndicesLookup())); }
+            );
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())
@@ -815,5 +850,40 @@ public class RBACEngine implements AuthorizationEngine {
             || action.equals(DeleteAsyncResultAction.NAME)
             || action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME)
             || action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
+    }
+
+    static class AuthorizedIndicesCacheKey {
+        private final long metadataVersion;
+        private final String action;
+        private final boolean includeDataStreams;
+        private final List<IndicesPermission> indicesPermissions;
+
+        AuthorizedIndicesCacheKey(
+            long metadataVersion,
+            String action,
+            boolean includeDataStreams,
+            List<IndicesPermission> indicesPermissions
+        ) {
+            this.metadataVersion = metadataVersion;
+            this.action = action;
+            this.includeDataStreams = includeDataStreams;
+            this.indicesPermissions = indicesPermissions;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            AuthorizedIndicesCacheKey that = (AuthorizedIndicesCacheKey) o;
+            return metadataVersion == that.metadataVersion
+                && includeDataStreams == that.includeDataStreams
+                && action.equals(that.action)
+                && indicesPermissions.equals(that.indicesPermissions);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(metadataVersion, action, includeDataStreams, indicesPermissions);
+        }
     }
 }

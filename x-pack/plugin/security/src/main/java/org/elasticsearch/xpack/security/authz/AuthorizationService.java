@@ -407,15 +407,10 @@ public class AuthorizationService {
             final Metadata metadata = clusterService.state().metadata();
             final AsyncSupplier<Set<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(authzIndicesListener -> {
                 LoadAuthorizedIndiciesTimeChecker timeChecker = LoadAuthorizedIndiciesTimeChecker.start(requestInfo, authzInfo);
-                authzEngine.loadAuthorizedIndices(
-                    requestInfo,
-                    authzInfo,
-                    metadata.getIndicesLookup(),
-                    authzIndicesListener.map(authzIndices -> {
-                        timeChecker.done(authzIndices);
-                        return authzIndices;
-                    })
-                );
+                authzEngine.loadAuthorizedIndices(requestInfo, authzInfo, metadata, authzIndicesListener.map(authzIndices -> {
+                    timeChecker.done(authzIndices);
+                    return authzIndices;
+                }));
             });
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
                 final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);

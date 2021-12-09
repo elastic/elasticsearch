@@ -243,7 +243,7 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
     public void testScrollUsage() throws IOException {
         index(testData);
 
-        String cursor = runSql("SELECT page_count, name FROM library ORDER BY page_count", 1);
+        String cursor = runSql("SELECT page_count, name FROM library ORDER BY page_count", randomIntBetween(1, testData.size()));
         int scrollRequests = 0;
 
         while (cursor != null) {

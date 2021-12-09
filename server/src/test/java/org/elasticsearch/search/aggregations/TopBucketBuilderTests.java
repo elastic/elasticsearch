@@ -11,10 +11,10 @@ package org.elasticsearch.search.aggregations;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation.InternalBucket;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -23,12 +23,11 @@ import java.util.Locale;
 import static org.elasticsearch.search.aggregations.DelayedBucketTests.mockReduce;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.mockito.Mockito.mock;
 
 public class TopBucketBuilderTests extends ESTestCase {
     public void testSizeOne() {
         int count = between(1, 1000);
-        ReduceContext context = mock(ReduceContext.class);
+        AggregationReduceContext context = InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction();
         List<String> nonCompetitive = new ArrayList<>();
         TopBucketBuilder<InternalBucket> builder = TopBucketBuilder.build(1, BucketOrder.key(true), b -> nonCompetitive.add(b.toString()));
 
@@ -48,7 +47,7 @@ public class TopBucketBuilderTests extends ESTestCase {
     public void testAllCompetitive() {
         int size = between(3, 1000);
         int count = between(1, size);
-        ReduceContext context = mock(ReduceContext.class);
+        AggregationReduceContext context = InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction();
         TopBucketBuilder<InternalBucket> builder = TopBucketBuilder.build(
             size,
             BucketOrder.key(true),
@@ -69,7 +68,7 @@ public class TopBucketBuilderTests extends ESTestCase {
 
     public void someNonCompetitiveTestCase(int size) {
         int count = between(size + 1, size * 30);
-        ReduceContext context = mock(ReduceContext.class);
+        AggregationReduceContext context = InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction();
         List<String> nonCompetitive = new ArrayList<>();
         TopBucketBuilder<InternalBucket> builder = TopBucketBuilder.build(
             size,
@@ -103,7 +102,7 @@ public class TopBucketBuilderTests extends ESTestCase {
 
     public void testHuge() {
         int count = between(1, 1000);
-        ReduceContext context = mock(ReduceContext.class);
+        AggregationReduceContext context = InternalAggregationTestCase.emptyReduceContextBuilder().forFinalReduction();
         TopBucketBuilder<InternalBucket> builder = TopBucketBuilder.build(
             Integer.MAX_VALUE,
             BucketOrder.key(true),

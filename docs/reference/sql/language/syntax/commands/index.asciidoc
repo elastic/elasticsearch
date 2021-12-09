@@ -13,6 +13,7 @@ This section contains the list of SQL commands supported by {es-sql} along with 
 
 include::describe-table.asciidoc[]
 include::select.asciidoc[]
+include::show-catalogs.asciidoc[]
 include::show-columns.asciidoc[]
 include::show-functions.asciidoc[]
 include::show-tables.asciidoc[]

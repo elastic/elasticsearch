@@ -656,12 +656,12 @@ public abstract class PackagingTestCase extends Assert {
             // We chown the installation on Windows to Administrators so that we can auto-configure it.
             String owner = Platforms.WINDOWS ? "BUILTIN\\Administrators" : "elasticsearch";
             assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, owner, owner, p750));
-            Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
+            Stream.of("http.p12", "http_ca.crt", "transport.p12")
                 .forEach(file -> assertThat(es.config(autoConfigDirName.get()).resolve(file), FileMatcher.file(File, owner, owner, p660)));
             configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         } else if (es.distribution.isDocker()) {
             assertThat(es.config(autoConfigDirName.get()), DockerFileMatcher.file(Directory, "elasticsearch", "root", p750));
-            Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
+            Stream.of("http.p12", "http_ca.crt", "transport.p12")
                 .forEach(
                     file -> assertThat(
                         es.config(autoConfigDirName.get()).resolve(file),
@@ -676,7 +676,7 @@ public abstract class PackagingTestCase extends Assert {
         } else {
             assert es.distribution.isPackage();
             assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, "root", "elasticsearch", p750));
-            Stream.of("http_keystore_local_node.p12", "http_ca.crt", "transport_keystore_all_nodes.p12")
+            Stream.of("http.p12", "http_ca.crt", "transport.p12")
                 .forEach(
                     file -> assertThat(
                         es.config(autoConfigDirName.get()).resolve(file),
@@ -692,15 +692,9 @@ public abstract class PackagingTestCase extends Assert {
 
         assertThat(configLines, hasItem("xpack.security.enrollment.enabled: true"));
         assertThat(configLines, hasItem("xpack.security.transport.ssl.verification_mode: certificate"));
-        assertThat(
-            configLines,
-            hasItem("xpack.security.transport.ssl.keystore.path: generated_tls_certs/transport_keystore_all_nodes.p12")
-        );
-        assertThat(
-            configLines,
-            hasItem("xpack.security.transport.ssl.truststore.path: generated_tls_certs/transport_keystore_all_nodes.p12")
-        );
-        assertThat(configLines, hasItem("xpack.security.http.ssl.keystore.path: generated_tls_certs/http_keystore_local_node.p12"));
+        assertThat(configLines, hasItem("xpack.security.transport.ssl.keystore.path: certs/transport.p12"));
+        assertThat(configLines, hasItem("xpack.security.transport.ssl.truststore.path: certs/transport.p12"));
+        assertThat(configLines, hasItem("xpack.security.http.ssl.keystore.path: certs/http.p12"));
         if (es.distribution.isDocker() == false) {
             assertThat(configLines, hasItem("http.host: [_local_, _site_]"));
         }
@@ -725,7 +719,7 @@ public abstract class PackagingTestCase extends Assert {
         assertThat(configLines, not(contains(containsString("automatically generated in order to configure Security"))));
         Path caCert = ServerUtils.getCaCert(installation);
         if (caCert != null) {
-            assertThat(caCert.toString(), Matchers.not(Matchers.containsString("generated_tls_certs")));
+            assertThat(caCert.toString(), Matchers.not(Matchers.containsString("certs")));
         }
     }
 
@@ -737,7 +731,7 @@ public abstract class PackagingTestCase extends Assert {
             lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
         }
         assertNotNull(lsResult.stdout);
-        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("generated_tls_certs")).findFirst();
+        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("certs")).findFirst();
     }
 
 }

@@ -173,7 +173,7 @@ public class ServerUtils {
     public static Path getCaCert(Installation installation) throws IOException {
         if (installation.distribution.isDocker()) {
             final Path tempDir = PackagingTestCase.createTempDir("docker-ssl");
-            final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"generated_tls_certs\"");
+            final Path autoConfigurationDir = findInContainer(installation.config, "d", "\"certs\"");
             if (autoConfigurationDir != null) {
                 final Path hostHttpCaCert = tempDir.resolve("http_ca.crt");
                 copyFromContainer(autoConfigurationDir.resolve("http_ca.crt"), hostHttpCaCert);
@@ -199,7 +199,7 @@ public class ServerUtils {
         }
         if (enrollmentEnabled && httpSslEnabled) {
             assert Files.exists(caCert) == false;
-            List<Path> allAutoconfTLS = FileUtils.lsGlob(configPath, "generated_tls_certs*");
+            List<Path> allAutoconfTLS = FileUtils.lsGlob(configPath, "certs*");
             assertThat(allAutoconfTLS.size(), is(1));
             Path autoconfTLSDir = allAutoconfTLS.get(0);
             caCert = autoconfTLSDir.resolve("http_ca.crt");

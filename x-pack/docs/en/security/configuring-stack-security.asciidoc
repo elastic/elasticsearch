@@ -13,9 +13,9 @@ generated for the transport and HTTP layers.
 * An enrollment token is generated for {kib}.
 
 You can then start {kib} and enter the enrollment token, which is valid for 30
-minutes. This token automatically applies the security settings from your {es} 
-cluster, authenticates to {es} with the built-in `kibana` service account, and writes the 
-security configuration to `kibana.yml`. 
+minutes. This token automatically applies the security settings from your {es}
+cluster, authenticates to {es} with the built-in `kibana` service account, and writes the
+security configuration to `kibana.yml`.
 
 [discrete]
 === Prerequisites
@@ -30,7 +30,7 @@ the `kibana 8.0.0-beta` package distribution for your environment.
 [[stack-start-with-security]]
 === Start {es} and enroll {kib} with security enabled
 
-. From the installation directory, start {es}. A password is generated for the 
+. From the installation directory, start {es}. A password is generated for the
 `elastic` user and output to the terminal, plus an enrollment token for
 enrolling {kib}.
 +
@@ -54,19 +54,15 @@ To generate new enrollment tokens for {kib} or {es} nodes, run the
 These tools are available in the {es} `bin` directory.
 ====
 
-. (Optional) Open a new terminal and verify that you can connect to your {es} 
-cluster by making an authenticated call. Enter the password for the `elastic` 
+. (Optional) Open a new terminal and verify that you can connect to your {es}
+cluster by making an authenticated call. Enter the password for the `elastic`
 user when prompted:
 +
 [source,shell]
 ----
-curl --cacert config/tls_auto_config_<timestamp>/http_ca.crt \
--u elastic https://localhost:9200
+curl --cacert config/certs/http_ca.crt -u elastic https://localhost:9200
 ----
 // NOTCONSOLE
-+
-`<timestamp>`:: The timestamp of when the auto-configuration process created
-the security files directory in your Docker container.
 
 . From the directory where you installed {kib}, start {kib}.
 +
@@ -105,7 +101,7 @@ can <<encrypt-kibana-browser,encrypt traffic between your browser and {kib}>>.
 === Security certificates and keys
 
 When you start {es} for the first time, the following certificates and keys are
-generated in the `config/tls_auto_config_<timestamp>` directory,
+generated in the `config/certs` directory,
 which are used to connect a {kib} instance to your secured {es} cluster and
 to encrypt internode communication. The files are listed here for reference.
 
@@ -113,10 +109,10 @@ to encrypt internode communication. The files are listed here for reference.
 The CA certificate that is used to sign the certificates for the HTTP layer of
 this {es} cluster.
 
-`http_keystore_local_node.p12`::
+`http.p12`::
 Keystore that contains the key and certificate for the HTTP layer for this node.
 
-`transport_keystore_all_nodes.p12`::
+`transport.p12`::
 Keystore that contains the key and certificate for the transport layer for all
 the nodes in your cluster.
 

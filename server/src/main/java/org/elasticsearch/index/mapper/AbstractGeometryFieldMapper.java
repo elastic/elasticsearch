@@ -54,11 +54,18 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
         private void fetchFromSource(Object sourceMap, Consumer<T> consumer) {
             try (XContentParser parser = MapXContentParser.wrapObject(sourceMap)) {
-                parse(parser, v -> consumer.accept(v), e -> {}); /* ignore malformed */
+                parse(parser, v -> consumer.accept(normalizeFromSource(v)), e -> {}); /* ignore malformed */
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         }
+
+        /**
+         * Normalize a geometry when reading from source. When reading from source we can skip
+         * some expensive steps as the geometry has already been indexed.
+         */
+        // TODO: move geometry normalization to the geometry parser.
+        public abstract T normalizeFromSource(T geometry);
 
     }
 

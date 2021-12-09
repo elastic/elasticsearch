@@ -94,7 +94,9 @@ public class DeprecationLogger {
     private DeprecationLogger logDeprecation(Level level, DeprecationCategory category, String key, String msg, Object[] params) {
         assert category != DeprecationCategory.COMPATIBLE_API
             : "DeprecationCategory.COMPATIBLE_API should be logged with compatibleApiWarning method";
-        ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, HeaderWarning.getXOpaqueId(), msg, params);
+        String opaqueId = HeaderWarning.getXOpaqueId();
+        String productOrigin = HeaderWarning.getProductOrigin();
+        ESLogMessage deprecationMessage = DeprecatedMessage.of(category, key, opaqueId, productOrigin, msg, params);
         logger.log(level, deprecationMessage);
         return this;
     }
@@ -119,7 +121,8 @@ public class DeprecationLogger {
      */
     public DeprecationLogger compatible(final Level level, final String key, final String msg, final Object... params) {
         String opaqueId = HeaderWarning.getXOpaqueId();
-        ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(key, opaqueId, msg, params);
+        String productOrigin = HeaderWarning.getProductOrigin();
+        ESLogMessage deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(key, opaqueId, productOrigin, msg, params);
         logger.log(level, deprecationMessage);
         return this;
     }

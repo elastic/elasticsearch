@@ -174,7 +174,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
                 if (t.getTypeName().contains("ClusterHealthResponse")) {
                     ActionListener<ClusterHealthResponse> listener = (ActionListener<ClusterHealthResponse>) l;
                     listener.onResponse(
-                        new ClusterHealthResponse("test", new String[0], ClusterState.EMPTY_STATE, 0, 0, 0, TimeValue.ZERO, false)
+                        new ClusterHealthResponse("test", new String[0], ClusterState.EMPTY_STATE, 0, 0, 0, TimeValue.ZERO)
                     );
                     return null;
                 }

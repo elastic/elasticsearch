@@ -132,9 +132,9 @@ public class ContextApiSpecGenerator {
                     return new FileInputStream(classPath.toFile());
                 } else {
                     String packageName = className.substring(0, className.lastIndexOf("."));
-                    Path root = pkgRoots.get(packageName);
-                    if (root != null) {
-                        Path classPath = root.resolve(className.substring(className.lastIndexOf(".") + 1) + ".java");
+                    Path packageRoot = pkgRoots.get(packageName);
+                    if (packageRoot != null) {
+                        Path classPath = packageRoot.resolve(className.substring(className.lastIndexOf(".") + 1) + ".java");
                         return new FileInputStream(classPath.toFile());
                     }
                 }

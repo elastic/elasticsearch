@@ -437,7 +437,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             } catch (ResponseException e) {
                 fail("expected snapshot to exist but it does not: " + EntityUtils.toString(e.getResponse().getEntity()));
             }
-        });
+        }, 60, TimeUnit.SECONDS);
 
         // Run retention every second
         ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest();

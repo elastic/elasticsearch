@@ -3,7 +3,7 @@ version: "2.2"
 services:
   create_certs:
     container_name: create_certs
-    image: docker.elastic.co/elasticsearch/elasticsearch:7.15.1
+    image: docker.elastic.co/elasticsearch/elasticsearch:{version}
     command: >
       bash -c '
         if [[ ! -f /certs/bundle.zip ]]; then

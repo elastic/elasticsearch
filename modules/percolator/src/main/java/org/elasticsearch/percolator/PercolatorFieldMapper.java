@@ -362,7 +362,7 @@ public class PercolatorFieldMapper extends FieldMapper {
 
     @Override
     public void parse(DocumentParserContext context) throws IOException {
-        SearchExecutionContext searchExecutionContext = this.searchExecutionContext.get();
+        SearchExecutionContext executionContext = this.searchExecutionContext.get();
         if (context.doc().getField(queryBuilderField.name()) != null) {
             // If a percolator query has been defined in an array object then multiple percolator queries
             // could be provided. In order to prevent this we fail if we try to parse more than one query
@@ -370,21 +370,21 @@ public class PercolatorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("a document can only contain one percolator query");
         }
 
-        configureContext(searchExecutionContext, isMapUnmappedFieldAsText());
+        configureContext(executionContext, isMapUnmappedFieldAsText());
 
         XContentParser parser = context.parser();
         QueryBuilder queryBuilder = parseQueryBuilder(parser, parser.getTokenLocation());
         verifyQuery(queryBuilder);
         // Fetching of terms, shapes and indexed scripts happen during this rewrite:
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
-        Rewriteable.rewriteAndFetch(queryBuilder, searchExecutionContext, future);
+        Rewriteable.rewriteAndFetch(queryBuilder, executionContext, future);
         queryBuilder = future.actionGet();
 
         Version indexVersion = context.indexSettings().getIndexVersionCreated();
         createQueryBuilderField(indexVersion, queryBuilderField, queryBuilder, context);
 
-        QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new SearchExecutionContext(searchExecutionContext));
-        Query query = queryBuilderForProcessing.toQuery(searchExecutionContext);
+        QueryBuilder queryBuilderForProcessing = queryBuilder.rewrite(new SearchExecutionContext(executionContext));
+        Query query = queryBuilderForProcessing.toQuery(executionContext);
         processQuery(query, context);
     }
 

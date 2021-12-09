@@ -291,15 +291,15 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     void installPlugins(final List<PluginDescriptor> plugins, final Path home, final InstallPluginAction action) throws Exception {
-        final Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
-        action.setEnvironment(env);
+        final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
+        action.setEnvironment(environment);
         action.execute(plugins);
     }
 
-    void assertPlugin(String name, Path original, Environment env) throws IOException {
-        assertPluginInternal(name, env.pluginsFile(), original);
-        assertConfigAndBin(name, original, env);
-        assertInstallCleaned(env);
+    void assertPlugin(String name, Path original, Environment environment) throws IOException {
+        assertPluginInternal(name, environment.pluginsFile(), original);
+        assertConfigAndBin(name, original, environment);
+        assertInstallCleaned(environment);
     }
 
     void assertPluginInternal(String name, Path pluginsFile, Path originalPlugin) throws IOException {
@@ -331,9 +331,9 @@ public class InstallPluginActionTests extends ESTestCase {
         assertFalse("config was not copied", Files.exists(got.resolve("config")));
     }
 
-    void assertConfigAndBin(String name, Path original, Environment env) throws IOException {
+    void assertConfigAndBin(String name, Path original, Environment environment) throws IOException {
         if (Files.exists(original.resolve("bin"))) {
-            Path binDir = env.binFile().resolve(name);
+            Path binDir = environment.binFile().resolve(name);
             assertTrue("bin dir exists", Files.exists(binDir));
             assertTrue("bin is a dir", Files.isDirectory(binDir));
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(binDir)) {
@@ -347,7 +347,7 @@ public class InstallPluginActionTests extends ESTestCase {
             }
         }
         if (Files.exists(original.resolve("config"))) {
-            Path configDir = env.configFile().resolve(name);
+            Path configDir = environment.configFile().resolve(name);
             assertTrue("config dir exists", Files.exists(configDir));
             assertTrue("config is a dir", Files.isDirectory(configDir));
 
@@ -355,7 +355,7 @@ public class InstallPluginActionTests extends ESTestCase {
             GroupPrincipal group = null;
 
             if (isPosix) {
-                PosixFileAttributes configAttributes = Files.getFileAttributeView(env.configFile(), PosixFileAttributeView.class)
+                PosixFileAttributes configAttributes = Files.getFileAttributeView(environment.configFile(), PosixFileAttributeView.class)
                     .readAttributes();
                 user = configAttributes.owner();
                 group = configAttributes.group();
@@ -383,8 +383,8 @@ public class InstallPluginActionTests extends ESTestCase {
         }
     }
 
-    void assertInstallCleaned(Environment env) throws IOException {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(env.pluginsFile())) {
+    void assertInstallCleaned(Environment environment) throws IOException {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
             for (Path file : stream) {
                 if (file.getFileName().toString().startsWith(".installing")) {
                     fail("Installation dir still exists, " + file);
@@ -598,22 +598,22 @@ public class InstallPluginActionTests extends ESTestCase {
     public void testPluginPermissions() throws Exception {
         assumeTrue("posix filesystem", isPosix);
 
-        final Path pluginDir = createPluginDir(temp);
-        final Path resourcesDir = pluginDir.resolve("resources");
-        final Path platformDir = pluginDir.resolve("platform");
+        final Path tempPluginDir = createPluginDir(temp);
+        final Path resourcesDir = tempPluginDir.resolve("resources");
+        final Path platformDir = tempPluginDir.resolve("platform");
         final Path platformNameDir = platformDir.resolve("linux-x86_64");
         final Path platformBinDir = platformNameDir.resolve("bin");
         Files.createDirectories(platformBinDir);
 
-        Files.createFile(pluginDir.resolve("fake-" + Version.CURRENT.toString() + ".jar"));
+        Files.createFile(tempPluginDir.resolve("fake-" + Version.CURRENT.toString() + ".jar"));
         Files.createFile(platformBinDir.resolve("fake_executable"));
         Files.createDirectory(resourcesDir);
         Files.createFile(resourcesDir.resolve("resource"));
 
-        final PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
+        final PluginDescriptor pluginZip = createPluginZip("fake", tempPluginDir);
 
         installPlugin(pluginZip);
-        assertPlugin("fake", pluginDir, env.v2());
+        assertPlugin("fake", tempPluginDir, env.v2());
 
         final Path fake = env.v2().pluginsFile().resolve("fake");
         final Path resources = fake.resolve("resources");
@@ -729,9 +729,9 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testOfficialPluginsHelpSortedAndMissingObviouslyWrongPlugins() throws Exception {
-        MockTerminal terminal = new MockTerminal();
-        new MockInstallPluginCommand().main(new String[] { "--help" }, terminal);
-        try (BufferedReader reader = new BufferedReader(new StringReader(terminal.getOutput()))) {
+        MockTerminal mockTerminal = new MockTerminal();
+        new MockInstallPluginCommand().main(new String[] { "--help" }, mockTerminal);
+        try (BufferedReader reader = new BufferedReader(new StringReader(mockTerminal.getOutput()))) {
             String line = reader.readLine();
 
             // first find the beginning of our list of official plugins
@@ -1360,7 +1360,8 @@ public class InstallPluginActionTests extends ESTestCase {
 
     // checks the plugin requires a policy confirmation, and does not install when that is rejected by the user
     // the plugin is installed after this method completes
-    private void assertPolicyConfirmation(Tuple<Path, Environment> env, PluginDescriptor pluginZip, String... warnings) throws Exception {
+    private void assertPolicyConfirmation(Tuple<Path, Environment> pathEnvironmentTuple, PluginDescriptor pluginZip, String... warnings)
+        throws Exception {
         for (int i = 0; i < warnings.length; ++i) {
             String warning = warnings[i];
             for (int j = 0; j < i; ++j) {
@@ -1372,7 +1373,7 @@ public class InstallPluginActionTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("installation aborted by user"));
 
             assertThat(terminal.getErrorOutput(), containsString("WARNING: " + warning));
-            try (Stream<Path> fileStream = Files.list(env.v2().pluginsFile())) {
+            try (Stream<Path> fileStream = Files.list(pathEnvironmentTuple.v2().pluginsFile())) {
                 assertThat(fileStream.collect(Collectors.toList()), empty());
             }
 
@@ -1385,7 +1386,7 @@ public class InstallPluginActionTests extends ESTestCase {
             e = expectThrows(UserException.class, () -> installPlugin(pluginZip));
             assertThat(e.getMessage(), containsString("installation aborted by user"));
             assertThat(terminal.getErrorOutput(), containsString("WARNING: " + warning));
-            try (Stream<Path> fileStream = Files.list(env.v2().pluginsFile())) {
+            try (Stream<Path> fileStream = Files.list(pathEnvironmentTuple.v2().pluginsFile())) {
                 assertThat(fileStream.collect(Collectors.toList()), empty());
             }
         }

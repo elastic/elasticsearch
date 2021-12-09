@@ -184,7 +184,7 @@ public class InboundPipelineTests extends ESTestCase {
                 }
 
                 for (ReleasableBytesReference released : toRelease) {
-                    assertEquals(0, released.refCount());
+                    assertFalse(released.hasReferences());
                 }
             }
 

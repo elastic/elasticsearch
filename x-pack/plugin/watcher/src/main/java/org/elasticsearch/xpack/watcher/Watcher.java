@@ -716,6 +716,11 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return map -> {
             map.keySet().removeIf(name -> name.startsWith("watch_history_"));
+            // watcher migrated to using system indices so these legacy templates are not needed anymore
+            map.remove(".watches");
+            map.remove(".triggered_watches");
+            // post 7.x we moved to typeless watch-history-10
+            map.remove(".watch-history-9");
             return map;
         };
     }

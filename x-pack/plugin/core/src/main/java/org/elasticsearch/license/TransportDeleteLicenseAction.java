@@ -61,7 +61,6 @@ public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNod
         final ActionListener<AcknowledgedResponse> listener
     ) throws ElasticsearchException {
         licenseService.removeLicense(
-            request,
             listener.delegateFailure(
                 (l, postStartBasicResponse) -> l.onResponse(AcknowledgedResponse.of(postStartBasicResponse.isAcknowledged()))
             )

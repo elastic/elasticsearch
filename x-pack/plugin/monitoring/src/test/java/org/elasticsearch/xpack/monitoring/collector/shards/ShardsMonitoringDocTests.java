@@ -90,28 +90,28 @@ public class ShardsMonitoringDocTests extends BaseFilteredMonitoringDocTestCase<
     }
 
     public void testIdWithPrimaryShardAssigned() {
-        final ShardRouting shardRouting = newShardRouting("_index_0", 123, "_node_0", randomAlphaOfLength(5), true, INITIALIZING);
+        shardRouting = newShardRouting("_index_0", 123, "_node_0", randomAlphaOfLength(5), true, INITIALIZING);
         assertEquals("_state_uuid_0:_node_0:_index_0:123:p", ShardMonitoringDoc.id("_state_uuid_0", shardRouting));
     }
 
     public void testIdWithReplicaShardAssigned() {
-        final ShardRouting shardRouting = newShardRouting("_index_1", 456, "_node_1", randomAlphaOfLength(5), false, INITIALIZING);
+        shardRouting = newShardRouting("_index_1", 456, "_node_1", randomAlphaOfLength(5), false, INITIALIZING);
         assertEquals("_state_uuid_1:_node_1:_index_1:456:r", ShardMonitoringDoc.id("_state_uuid_1", shardRouting));
     }
 
     public void testIdWithPrimaryShardUnassigned() {
-        final ShardRouting shardRouting = newShardRouting("_index_2", 789, null, randomAlphaOfLength(5), true, UNASSIGNED);
+        shardRouting = newShardRouting("_index_2", 789, null, randomAlphaOfLength(5), true, UNASSIGNED);
         assertEquals("_state_uuid_2:_na:_index_2:789:p", ShardMonitoringDoc.id("_state_uuid_2", shardRouting));
     }
 
     public void testIdWithReplicaShardUnassigned() {
-        final ShardRouting shardRouting = newShardRouting("_index_3", 159, null, randomAlphaOfLength(5), false, UNASSIGNED);
+        shardRouting = newShardRouting("_index_3", 159, null, randomAlphaOfLength(5), false, UNASSIGNED);
         assertEquals("_state_uuid_3:_na:_index_3:159:r", ShardMonitoringDoc.id("_state_uuid_3", shardRouting));
     }
 
     @Override
     public void testToXContent() throws IOException {
-        final ShardRouting shardRouting = newShardRouting("_index", 1, "_index_uuid", "_node_uuid", true, INITIALIZING);
+        shardRouting = newShardRouting("_index", 1, "_index_uuid", "_node_uuid", true, INITIALIZING);
         final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
         final ShardMonitoringDoc doc = new ShardMonitoringDoc(
             "_cluster",

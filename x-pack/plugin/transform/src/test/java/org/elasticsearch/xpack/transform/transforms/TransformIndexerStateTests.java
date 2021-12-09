@@ -506,7 +506,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(null, Float.valueOf(1.0f), (Boolean) null, (Boolean) null),
+            new SettingsConfig(null, Float.valueOf(1.0f), (Boolean) null, (Boolean) null, null),
             null,
             null,
             null,
@@ -614,7 +614,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         AtomicReference<IndexerState> state,
         Consumer<String> failureConsumer,
         ThreadPool threadPool,
-        TransformAuditor auditor,
+        TransformAuditor transformAuditor,
         TransformIndexerPosition initialPosition,
         TransformIndexerStats jobStats,
         TransformContext context
@@ -624,7 +624,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         TransformServices transformServices = new TransformServices(
             transformConfigManager,
             mock(TransformCheckpointService.class),
-            auditor,
+            transformAuditor,
             mock(SchedulerEngine.class)
         );
 

@@ -17,11 +17,12 @@ import org.hamcrest.Matchers;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class JsonThrowablePatternConverterTests extends ESTestCase {
-    private static final String LINE_SEPARATOR = System.lineSeparator();
+    private static final Pattern NEWLINE = Pattern.compile("\\R");
     private JsonThrowablePatternConverter converter = JsonThrowablePatternConverter.newInstance(null, null);
 
     public void testNoStacktrace() throws IOException {
@@ -59,7 +60,7 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("no logs parsed"));
 
-        int jsonLength = json.split("\\R").length;
+        int jsonLength = NEWLINE.split(json).length;
         int stacktraceLength = thrown.getStackTrace().length;
         assertThat(
             "stacktrace should formatted in multiple lines. JsonLogLine= " + jsonLogLine + " result= " + result,

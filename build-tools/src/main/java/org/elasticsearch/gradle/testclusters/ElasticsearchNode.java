@@ -105,7 +105,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static final List<String> OVERRIDABLE_SETTINGS = Arrays.asList(
         "path.repo",
         "discovery.seed_providers",
-        "cluster.deprecation_indexing.enabled"
+        "cluster.deprecation_indexing.enabled",
+        "script.disable_max_compilations_rate"
 
     );
 

@@ -28,12 +28,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.either;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class ScriptCompilationSettingsIT extends AbstractUpgradeTestCase {
-    private static final Version UPGRADE_FROM_VERSION = Version.fromString(System.getProperty("tests.upgrade_from_version"));
     private static final String WARNING =
         "[script.max_compilations_rate] setting was deprecated in Elasticsearch and will be removed in a future release! " +
             "See the breaking changes documentation for the next major version.";
@@ -41,15 +42,42 @@ public class ScriptCompilationSettingsIT extends AbstractUpgradeTestCase {
         assumeTrue("default changed in v7.16", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_15_0) && UPGRADE_FROM_VERSION.before(Version.V_7_16_0));
         if (CLUSTER_TYPE.equals(ClusterType.OLD)) {
             Request request = new Request("PUT", "_cluster/settings");
-            request.setJsonEntity("{\"persistent\" : { \"script.max_compilations_rate\": \"use-context\" } }");
+            request.setJsonEntity("{\"persistent\" : { \"script.context.template.max_compilations_rate\": \"5000/5m\" } }");
             request.setOptions(expectWarnings(WARNING));
+            /*
+            request.setOptions(expectVersionSpecificWarnings(consumer -> {
+                consumer.compatible(WARNING);
+                consumer.current(WARNING);
+            }));
+             */
             Response response = client().performRequest(request);
-            assertEquals("{\"acknowledged\":true,\"persistent\":{\"script\":{\"max_compilations_rate\":\"use-context\"}},\"transient\":{}}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
-            allowedWarnings(WARNING);
-        } /*else if (CLUSTER_TYPE.equals(ClusterType.MIXED)) {
+            assertEquals("{\"acknowledged\":true," +
+                    "\"persistent\":{" +
+                    "\"script\":{\"context\":{\"template\":{\"max_compilations_rate\":\"5000/5m\"}}}" +
+                    "}," +
+                    "\"transient\":{}}",
+                EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+
+            /*
+            Request waitForYellow = new Request("GET", "/_cluster/health");
+            waitForYellow.addParameter("wait_for_nodes", "3");
+            waitForYellow.addParameter("wait_for_status", "yellow");
+            client().performRequest(waitForYellow);
+            assertThat(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8),
+                either(equalTo("{\"acknowledged\":true,\"persistent\":{\"script\":{\"max_compilations_rate\":\"use-context\"}},\"transient\":{}}"))
+                    .or(equalTo("{\"acknowledged\":true,\"persistent\":{},\"transient\":{}}"))
+                );
+             */
+        } else if (CLUSTER_TYPE.equals(ClusterType.MIXED)) {
             Request request = new Request("GET", "_cluster/settings");
             Response response = client().performRequest(request);
-            assertEquals("{\"persistent\" : { \"script.max_compilations_rate\": \"use-context\" } }", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
-        } */
+            assertEquals("{\"persistent\":{\"script\":{\"max_compilations_rate\":\"use-context\"}},\"transient\":{}}",
+                EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+        }
+    }
+
+    @Override
+    protected boolean preserveClusterSettings() {
+        return true;
     }
 }

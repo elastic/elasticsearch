@@ -139,7 +139,8 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     public static final Setting<Boolean> SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING = Setting.boolSetting(
         "script.disable_max_compilations_rate",
         false,
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Dynamic
     );
 
     public static final String ALLOW_NONE = "none";
@@ -312,7 +313,8 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
                 SCRIPT_MAX_COMPILATIONS_RATE_SETTING,
                 SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING,
                 SCRIPT_CACHE_EXPIRE_SETTING,
-                SCRIPT_CACHE_SIZE_SETTING
+                SCRIPT_CACHE_SIZE_SETTING,
+                SCRIPT_DISABLE_MAX_COMPILATIONS_RATE_SETTING
             ),
             this::validateCacheSettings
         );

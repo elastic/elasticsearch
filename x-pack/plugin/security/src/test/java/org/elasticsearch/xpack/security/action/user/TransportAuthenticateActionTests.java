@@ -261,12 +261,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        return new TransportAuthenticateAction(
-            transportService,
-            mock(ActionFilters.class),
-            securityContext,
-            anonymousUser
-        );
+        return new TransportAuthenticateAction(transportService, mock(ActionFilters.class), securityContext, anonymousUser);
     }
 
     private AnonymousUser prepareAnonymousUser() {

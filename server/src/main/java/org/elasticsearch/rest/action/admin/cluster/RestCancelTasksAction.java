@@ -49,10 +49,10 @@ public class RestCancelTasksAction extends BaseRestHandler {
         final String groupBy = request.param("group_by", "nodes");
 
         CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
-        cancelTasksRequest.setTaskId(taskId);
+        cancelTasksRequest.setTargetTaskId(taskId);
         cancelTasksRequest.setNodes(nodesIds);
         cancelTasksRequest.setActions(actions);
-        cancelTasksRequest.setParentTaskId(parentTaskId);
+        cancelTasksRequest.setTargetParentTaskId(parentTaskId);
         cancelTasksRequest.setWaitForCompletion(request.paramAsBoolean("wait_for_completion", cancelTasksRequest.waitForCompletion()));
         return channel -> client.admin()
             .cluster()

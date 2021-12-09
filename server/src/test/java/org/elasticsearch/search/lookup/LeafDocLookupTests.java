@@ -18,6 +18,7 @@ import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.function.Function;
 
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
@@ -64,7 +65,7 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(docValues, fetchedDocValues);
     }
 
-    public void testFlattenedField() {
+    public void testFlattenedField() throws IOException {
         ScriptDocValues<?> docValues1 = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData1 = createFieldData(docValues1, "flattened.key1");
 
@@ -95,8 +96,13 @@ public class LeafDocLookupTests extends ESTestCase {
         assertEquals(docValues2, docLookup.get("flattened.key2"));
     }
 
-    private IndexFieldData<?> createFieldData(ScriptDocValues<?> scriptDocValues, String name) {
-        DelegateDocValuesField delegateDocValuesField = new DelegateDocValuesField(scriptDocValues, name);
+    private IndexFieldData<?> createFieldData(ScriptDocValues<?> scriptDocValues, String name) throws IOException {
+        DelegateDocValuesField delegateDocValuesField = new DelegateDocValuesField(scriptDocValues, name) {
+            @Override
+            public void setNextDocId(int id) {
+                // do nothing
+            }
+        };
         LeafFieldData leafFieldData = mock(LeafFieldData.class);
         doReturn(delegateDocValuesField).when(leafFieldData).getScriptField(name);
 

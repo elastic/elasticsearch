@@ -98,6 +98,40 @@ The document's `attachment` object contains extracted properties for the file:
 NOTE: Keeping the binary as a field within the document might consume a lot of resources. It is highly recommended
       to remove that field from the document. Set `remove_binary` to `true` to automatically remove the field.
 
+[[ingest-attachment-fields]]
+==== Exported fields
+
+The fields which might be extracted from a document are:
+
+* `content`,
+* `title`,
+* `author`,
+* `keywords`,
+* `date`,
+* `content_type`,
+* `content_length`,
+* `language`,
+* `modified`,
+* `format`,
+* `identifier`,
+* `contributor`,
+* `coverage`,
+* `modifier`,
+* `creator_tool`,
+* `publisher`,
+* `relation`,
+* `rights`,
+* `source`,
+* `type`,
+* `description`,
+* `print_date`,
+* `metadata_date`,
+* `latitude`,
+* `longitude`,
+* `altitude`,
+* `rating`,
+* `comments`
+
 To extract only certain `attachment` fields, specify the `properties` array:
 
 [source,console]

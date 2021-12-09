@@ -77,6 +77,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -1268,7 +1269,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 }
                 dir.close();
             }
-            InternalAggregation.ReduceContext ctx = InternalAggregation.ReduceContext.forFinalReduction(
+            AggregationReduceContext ctx = new AggregationReduceContext.ForFinal(
                 new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
                 null,
                 b -> {},
@@ -2197,7 +2198,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             Integer.MAX_VALUE,
             new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
         );
-        InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             getMockScriptService(),
             reduceBucketConsumer,

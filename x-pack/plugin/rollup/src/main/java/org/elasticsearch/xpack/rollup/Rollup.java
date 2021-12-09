@@ -119,7 +119,7 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
+        Settings unused,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -173,9 +173,9 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     }
 
     @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settingsToUse) {
         FixedExecutorBuilder indexing = new FixedExecutorBuilder(
-            settings,
+            settingsToUse,
             Rollup.TASK_THREAD_POOL_NAME,
             1,
             -1,

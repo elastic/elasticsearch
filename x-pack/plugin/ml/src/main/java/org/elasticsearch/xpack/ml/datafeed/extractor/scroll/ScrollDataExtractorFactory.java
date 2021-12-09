@@ -77,12 +77,20 @@ public class ScrollDataExtractorFactory implements DataExtractorFactory {
         ActionListener<DataExtractorFactory> listener
     ) {
 
-        // Step 2. Contruct the factory and notify listener
+        // Step 2. Construct the factory and notify listener
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(fieldCapabilitiesResponse -> {
-            TimeBasedExtractedFields extractedFields = TimeBasedExtractedFields.build(job, datafeed, fieldCapabilitiesResponse);
-            listener.onResponse(
-                new ScrollDataExtractorFactory(client, datafeed, job, extractedFields, xContentRegistry, timingStatsReporter)
-            );
+            if (fieldCapabilitiesResponse.getIndices().length == 0) {
+                listener.onFailure(
+                    ExceptionsHelper.badRequestException(
+                        "datafeed [{}] cannot retrieve data because no index matches datafeed's indices {}",
+                        datafeed.getId(),
+                        datafeed.getIndices()
+                    )
+                );
+                return;
+            }
+            TimeBasedExtractedFields fields = TimeBasedExtractedFields.build(job, datafeed, fieldCapabilitiesResponse);
+            listener.onResponse(new ScrollDataExtractorFactory(client, datafeed, job, fields, xContentRegistry, timingStatsReporter));
         }, e -> {
             Throwable cause = ExceptionsHelper.unwrapCause(e);
             if (cause instanceof IndexNotFoundException) {

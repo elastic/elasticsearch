@@ -242,6 +242,30 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         );
     }
 
+    public void testMigrateIndexWithWriteBlock() throws Exception {
+        createSystemIndexForDescriptor(INTERNAL_UNMANAGED);
+
+        String indexName = Optional.ofNullable(INTERNAL_UNMANAGED.getPrimaryIndex())
+            .orElse(INTERNAL_UNMANAGED.getIndexPattern().replace("*", "old"));
+        client().admin().indices().prepareUpdateSettings(indexName).setSettings(Settings.builder().put("index.blocks.write", true)).get();
+
+        TestPlugin.preMigrationHook.set((state) -> Collections.emptyMap());
+        TestPlugin.postMigrationHook.set((state, metadata) -> {});
+
+        ensureGreen();
+
+        client().execute(PostFeatureUpgradeAction.INSTANCE, new PostFeatureUpgradeRequest()).get();
+
+        assertBusy(() -> {
+            GetFeatureUpgradeStatusResponse statusResp = client().execute(
+                GetFeatureUpgradeStatusAction.INSTANCE,
+                new GetFeatureUpgradeStatusRequest()
+            ).get();
+            logger.info(Strings.toString(statusResp));
+            assertThat(statusResp.getUpgradeStatus(), equalTo(GetFeatureUpgradeStatusResponse.UpgradeStatus.NO_MIGRATION_NEEDED));
+        });
+    }
+
     public void assertIndexHasCorrectProperties(
         Metadata metadata,
         String indexName,
@@ -275,19 +299,21 @@ public class FeatureMigrationIT extends ESIntegTestCase {
         String indexName = Optional.ofNullable(descriptor.getPrimaryIndex()).orElse(descriptor.getIndexPattern().replace("*", "old"));
         CreateIndexRequestBuilder createRequest = prepareCreate(indexName);
         createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
-        if (descriptor.getSettings() != null) {
-            createRequest.setSettings(
-                Settings.builder()
-                    .put("index.version.created", Version.CURRENT)
-                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                    .build()
-            );
-        } else {
+        if (SystemIndexDescriptor.DEFAULT_SETTINGS.equals(descriptor.getSettings())) {
+            // unmanaged
             createRequest.setSettings(
                 createSimpleSettings(
                     NEEDS_UPGRADE_VERSION,
                     descriptor.isInternal() ? INTERNAL_UNMANAGED_FLAG_VALUE : EXTERNAL_UNMANAGED_FLAG_VALUE
                 )
+            );
+        } else {
+            // managed
+            createRequest.setSettings(
+                Settings.builder()
+                    .put("index.version.created", Version.CURRENT)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+                    .build()
             );
         }
         if (descriptor.getMappings() == null) {

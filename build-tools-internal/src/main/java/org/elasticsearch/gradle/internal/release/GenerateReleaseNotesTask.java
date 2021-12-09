@@ -14,6 +14,8 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.Directory;
+import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.file.RegularFileProperty;
@@ -22,6 +24,7 @@ import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.process.ExecOperations;
@@ -55,11 +58,13 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     private final RegularFileProperty releaseNotesTemplate;
     private final RegularFileProperty releaseHighlightsTemplate;
     private final RegularFileProperty breakingChangesTemplate;
+    private final RegularFileProperty breakingChangesAreaTemplate;
 
     private final RegularFileProperty releaseNotesIndexFile;
     private final RegularFileProperty releaseNotesFile;
     private final RegularFileProperty releaseHighlightsFile;
-    private final RegularFileProperty breakingChangesFile;
+    private final RegularFileProperty breakingChangesIndexFile;
+    private final DirectoryProperty breakingChangesDirectory;
 
     private final GitWrapper gitWrapper;
 
@@ -71,11 +76,13 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         releaseNotesTemplate = objectFactory.fileProperty();
         releaseHighlightsTemplate = objectFactory.fileProperty();
         breakingChangesTemplate = objectFactory.fileProperty();
+        breakingChangesAreaTemplate = objectFactory.fileProperty();
 
         releaseNotesIndexFile = objectFactory.fileProperty();
         releaseNotesFile = objectFactory.fileProperty();
         releaseHighlightsFile = objectFactory.fileProperty();
-        breakingChangesFile = objectFactory.fileProperty();
+        breakingChangesIndexFile = objectFactory.fileProperty();
+        breakingChangesDirectory = objectFactory.directoryProperty();
 
         gitWrapper = new GitWrapper(execOperations);
     }
@@ -129,7 +136,9 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         LOGGER.info("Generating breaking changes / deprecations notes...");
         BreakingChangesGenerator.update(
             this.breakingChangesTemplate.get().getAsFile(),
-            this.breakingChangesFile.get().getAsFile(),
+            this.breakingChangesIndexFile.get().getAsFile(),
+            this.breakingChangesDirectory.get().getAsFile(),
+            this.breakingChangesAreaTemplate.get().getAsFile(),
             entries
         );
     }
@@ -339,11 +348,29 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     }
 
     @OutputFile
-    public RegularFileProperty getBreakingChangesFile() {
-        return breakingChangesFile;
+    public RegularFileProperty getBreakingChangesIndexFile() {
+        return breakingChangesIndexFile;
     }
 
-    public void setBreakingChangesFile(RegularFile file) {
-        this.breakingChangesFile.set(file);
+    public void setBreakingChangesIndexFile(RegularFile file) {
+        this.breakingChangesIndexFile.set(file);
+    }
+
+    public void setBreakingChangesDirectory(Directory breakingChangesDirectory) {
+        this.breakingChangesDirectory.set(breakingChangesDirectory);
+    }
+
+    @OutputDirectory
+    public DirectoryProperty getBreakingChangesDirectory() {
+        return breakingChangesDirectory;
+    }
+
+    @InputFile
+    public RegularFileProperty getBreakingChangesAreaTemplate() {
+        return breakingChangesAreaTemplate;
+    }
+
+    public void setBreakingChangesAreaTemplate(RegularFile file) {
+        this.breakingChangesAreaTemplate.set(file);
     }
 }

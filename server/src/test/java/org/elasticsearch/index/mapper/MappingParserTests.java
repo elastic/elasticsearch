@@ -50,10 +50,11 @@ public class MappingParserTests extends MapperServiceTestCase {
             indexSettings.getIndexVersionCreated()
         );
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-        metadataMapperParsers.values()
-            .stream()
-            .map(parser -> parser.getDefault(parserContextSupplier.get()))
-            .forEach(m -> metadataMappers.put(m.getClass(), m));
+        metadataMapperParsers.values().stream().map(parser -> parser.getDefault(parserContextSupplier.get())).forEach(m -> {
+            if (m != null) {
+                metadataMappers.put(m.getClass(), m);
+            }
+        });
         return new MappingParser(
             parserContextSupplier,
             metadataMapperParsers,

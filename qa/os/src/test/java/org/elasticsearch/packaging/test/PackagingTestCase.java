@@ -696,8 +696,8 @@ public abstract class PackagingTestCase extends Assert {
             configLines,
             hasItem(
                 "xpack.security.transport.ssl.keystore.path: "
-                    + autoConfigDirName.get()
-                    + System.getProperty("line.separator")
+                    + "generated_tls_certs"
+                    + System.getProperty("path.separator")
                     + "transport_keystore_all_nodes.p12"
             )
         );
@@ -705,8 +705,8 @@ public abstract class PackagingTestCase extends Assert {
             configLines,
             hasItem(
                 "xpack.security.transport.ssl.truststore.path: "
-                    + autoConfigDirName.get()
-                    + System.getProperty("line.separator")
+                    + "generated_tls_certs"
+                    + System.getProperty("path.separator")
                     + "transport_keystore_all_nodes.p12"
             )
         );
@@ -714,8 +714,8 @@ public abstract class PackagingTestCase extends Assert {
             configLines,
             hasItem(
                 "xpack.security.http.ssl.keystore.path: "
-                    + autoConfigDirName.get()
-                    + System.getProperty("line.separator")
+                    + "generated_tls_certs"
+                    + System.getProperty("path.separator")
                     + "http_keystore_local_node.p12"
             )
         );

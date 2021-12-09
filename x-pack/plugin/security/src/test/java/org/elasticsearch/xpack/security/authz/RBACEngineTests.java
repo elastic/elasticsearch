@@ -98,7 +98,6 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1507,13 +1506,18 @@ public class RBACEngineTests extends ESTestCase {
 
         // Simulate 5 concurrent requests that result into the same set of authorizedIndices
         final List<PlainActionFuture<Set<String>>> futures = new ArrayList<>();
-        for (int i = 0; i < 5; i++) {
+        final int nthreads = 5;
+        for (int i = 0; i < nthreads; i++) {
             final PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
             futures.add(future);
             new Thread(() -> engine.loadAuthorizedIndices(requestInfo, new RBACAuthorizationInfo(role, role), metadata, future)).start();
         }
-        // Ensure requests are being processed
-        assertBusy(() -> assertThat(engine.authorizedIndicesDeduplicator.size(), greaterThan(0)));
+        // Ensure all requests made reasonable progress
+        assertBusy(() -> verify(metadata, times(nthreads)).version());
+        // Ensure the first request is in the cache
+        assertBusy(() -> assertThat(engine.authorizedIndicesDeduplicator.size(), equalTo(1)));
+        // And wait another 500 ms ...
+        Thread.sleep(500);
         latch.countDown();
 
         // All threads should receive the same result

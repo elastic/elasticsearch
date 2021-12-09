@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -53,10 +54,12 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -81,6 +84,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -91,6 +98,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.instanceOf;
@@ -1455,6 +1463,74 @@ public class RBACEngineTests extends ESTestCase {
         // No assertion is needed, the test is successful as long as hashCode calls do not throw error
         new RBACAuthorizationInfo(role, Role.builder(RESTRICTED_INDICES_AUTOMATON, "authenticated_role").build()).hashCode();
         new RBACAuthorizationInfo(role, null).hashCode();
+    }
+
+    public void testDeduplicationForLoadAuthorizedIndices() throws Exception {
+        final Metadata metadata = mock(Metadata.class);
+        when(metadata.version()).thenReturn(42L);
+        final TreeMap<String, IndexAbstraction> indicesLookup = new TreeMap<>(
+            Map.of(
+                "index1",
+                mockIndexAbstraction("index1"),
+                "index2",
+                mockIndexAbstraction("index2"),
+                "index3",
+                mockIndexAbstraction("index3")
+            )
+        );
+        when(metadata.getIndicesLookup()).thenReturn(indicesLookup);
+
+        final TransportRequest transportRequest = mock(TransportRequest.class);
+        final String action = "indices:some-action";
+        final AuthorizationEngine.RequestInfo requestInfo = new AuthorizationEngine.RequestInfo(
+            mock(Authentication.class),
+            transportRequest,
+            action,
+            null
+        );
+        final Role role = mock(Role.class);
+        // For the test, it does not matter exactly what the permission does
+        when(role.indices()).thenReturn(IndicesPermission.NONE);
+
+        final AtomicInteger numInvocation = new AtomicInteger(0);
+        final CountDownLatch latch = new CountDownLatch(1);
+        final Predicate<IndexAbstraction> allowedIndicesMatcher = indexAbstraction -> {
+            numInvocation.incrementAndGet();
+            try {
+                latch.await(10, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+            return true;
+        };
+        when(role.allowedIndicesMatcher(action)).thenReturn(allowedIndicesMatcher);
+
+        // Simulate 5 concurrent requests that result into the same set of authorizedIndices
+        final List<PlainActionFuture<Set<String>>> futures = new ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            final PlainActionFuture<Set<String>> future = new PlainActionFuture<>();
+            futures.add(future);
+            new Thread(() -> engine.loadAuthorizedIndices(requestInfo, new RBACAuthorizationInfo(role, role), metadata, future)).start();
+        }
+        // Ensure requests are being processed
+        assertBusy(() -> assertThat(engine.authorizedIndicesDeduplicator.size(), greaterThan(0)));
+        latch.countDown();
+
+        // All threads should receive the same result
+        futures.forEach(future -> assertThat(future.actionGet(), equalTo(Set.of("index1", "index2", "index3"))));
+
+        // The predicate is only invoked by one of the threads against all indices (3 of them)
+        assertThat(numInvocation.get(), equalTo(3));
+
+        // The deduplicator cache should be cleared after requests are processed
+        assertThat(engine.authorizedIndicesDeduplicator.size(), equalTo(0));
+    }
+
+    private IndexAbstraction mockIndexAbstraction(String indexName) {
+        final IndexAbstraction indexAbstraction = mock(IndexAbstraction.class);
+        when(indexAbstraction.getName()).thenReturn(indexName);
+        when(indexAbstraction.getType()).thenReturn(IndexAbstraction.Type.CONCRETE_INDEX);
+        return indexAbstraction;
     }
 
     private GetUserPrivilegesResponse.Indices findIndexPrivilege(Set<GetUserPrivilegesResponse.Indices> indices, String name) {

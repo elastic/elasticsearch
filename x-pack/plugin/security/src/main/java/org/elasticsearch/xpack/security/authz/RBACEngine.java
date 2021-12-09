@@ -465,7 +465,8 @@ public class RBACEngine implements AuthorizationEngine {
         throw new UnsupportedOperationException();
     }
 
-    private final ResultDeduplicator<AuthorizedIndicesCacheKey, Set<String>> authorizedIndicesDeduplicator = new ResultDeduplicator<>();
+    // package private for testing
+    final ResultDeduplicator<AuthorizedIndicesCacheKey, Set<String>> authorizedIndicesDeduplicator = new ResultDeduplicator<>();
 
     @Override
     public void loadAuthorizedIndices(
@@ -495,7 +496,7 @@ public class RBACEngine implements AuthorizationEngine {
             authorizedIndicesDeduplicator.executeOnce(
                 cacheKey,
                 listener,
-                (r, l) -> { l.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo, metadata.getIndicesLookup())); }
+                (r, l) -> l.onResponse(resolveAuthorizedIndicesFromRole(role, requestInfo, metadata.getIndicesLookup()))
             );
         } else {
             listener.onFailure(

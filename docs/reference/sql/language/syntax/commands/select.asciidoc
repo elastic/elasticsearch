@@ -126,7 +126,7 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[fromTablePatternQuoted]
 The index name or expression can also be qualified with a cluster name or wildcard, resulting in a <<modules-cross-cluster-search, cross cluster search>>.
 [source, sql]
 ----
-include-tagged::{sql-specs}/multi-cluster-with-security/docs.csv-spec[fromQualifiedTableQuoted]
+include-tagged::{sql-specs}/multi-cluster-with-security/multi-cluster-docs.csv-spec[fromQualifiedTableQuoted]
 ----
 
 `alias`::

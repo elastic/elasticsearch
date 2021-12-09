@@ -124,6 +124,9 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             public SnapshotShardSizeInfo snapshotShardSizeInfo() {
                 return null;
             }
+
+            @Override
+            public void ensureNotCancelled() {}
         };
         AutoscalingDeciderResult deciderResult = service.scale(Settings.EMPTY, context);
 

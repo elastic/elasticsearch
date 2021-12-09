@@ -694,31 +694,13 @@ public abstract class PackagingTestCase extends Assert {
         assertThat(configLines, hasItem("xpack.security.transport.ssl.verification_mode: certificate"));
         assertThat(
             configLines,
-            hasItem(
-                "xpack.security.transport.ssl.keystore.path: "
-                    + "generated_tls_certs"
-                    + System.getProperty("path.separator")
-                    + "transport_keystore_all_nodes.p12"
-            )
+            hasItem("xpack.security.transport.ssl.keystore.path: generated_tls_certs/transport_keystore_all_nodes.p12")
         );
         assertThat(
             configLines,
-            hasItem(
-                "xpack.security.transport.ssl.truststore.path: "
-                    + "generated_tls_certs"
-                    + System.getProperty("path.separator")
-                    + "transport_keystore_all_nodes.p12"
-            )
+            hasItem("xpack.security.transport.ssl.truststore.path: generated_tls_certs/transport_keystore_all_nodes.p12")
         );
-        assertThat(
-            configLines,
-            hasItem(
-                "xpack.security.http.ssl.keystore.path: "
-                    + "generated_tls_certs"
-                    + System.getProperty("path.separator")
-                    + "http_keystore_local_node.p12"
-            )
-        );
+        assertThat(configLines, hasItem("xpack.security.http.ssl.keystore.path: generated_tls_certs/http_keystore_local_node.p12"));
         if (es.distribution.isDocker() == false) {
             assertThat(configLines, hasItem("http.host: [_local_, _site_]"));
         }

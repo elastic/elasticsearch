@@ -1,12 +1,13 @@
 ==== Connect clients to {es}
 
-When you start {es} for the first time, it generates a hex-coded SHA-256
-fingerprint of the generated HTTPS CA DER-encoded certificate in the terminal.
-To connect your client to {es}, copy this fingerprint and pass it as a parameter.
-Any clients that connect to {es}, such as the 
+When you start {es} for the first time, TLS is configured automatically for the 
+HTTP layer. A CA certificate is generated and stored on disk, and the hex-coded 
+SHA-256 fingerprint of this certificate is also output to the terminal. Any 
+clients that connect to {es}, such as the 
 https://www.elastic.co/guide/en/elasticsearch/client/index.html[{es} Clients],
-{beats}, {ls}, and {fleet} can verify that {es} is using a certificate that is signed
-by the CA certificate that matches the fingerprint
+{beats}, {ls}, and {fleet} must validate that they trust the certificate that
+{es} uses for HTTPS. Clients can establish trust by using either the fingerprint
+of the CA certificate or the CA certificate itself.
 
 If the auto-configuration process already completed, you can still obtain the 
 fingerprint of the security certificate. You can also copy the CA certificate
@@ -15,8 +16,13 @@ to your machine and configure your client to use it.
 [discrete]
 ===== Use the CA fingerprint
 
-Run the following command to obtain the CA fingerprint. The path is to the
-auto-generated CA certificate for the HTTP layer.
+Copy the fingerprint value that's output to your terminal when {es} starts, and
+configure your client to use this fingerprint to establish trust when it
+connects to {es}.
+
+If the auto-configuration process already completed, you can still obtain the
+fingerprint of the security certificate by running the following command. The 
+path is to the auto-generated CA certificate for the HTTP layer.
 
 [source,sh]
 ----

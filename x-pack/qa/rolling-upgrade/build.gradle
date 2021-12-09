@@ -52,7 +52,7 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
     setting 'xpack.security.audit.enabled', 'true'
     setting 'xpack.security.transport.ssl.key', 'testnode.pem'
     setting 'xpack.security.transport.ssl.certificate', 'testnode.crt'
-    setting 'script.disable_max_compilations_rate', 'false'
+    // setting 'script.disable_max_compilations_rate', 'false'
     keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 
     if (bwcVersion.onOrAfter('7.0.0')) {

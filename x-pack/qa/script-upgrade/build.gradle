@@ -1,0 +1,24 @@
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+
+apply plugin: 'elasticsearch.internal-testclusters'
+apply plugin: 'elasticsearch.standalone-rest-test'
+apply plugin: 'elasticsearch.bwc-test'
+apply plugin: 'elasticsearch.rest-resources'
+
+dependencies {
+  testImplementation project(':x-pack:qa')
+  testImplementation project(':client:rest-high-level')
+  testImplementation(testArtifact(project(':x-pack:qa:rolling-upgrade')))
+}
+
+BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
+  def baseCluster = testClusters.register(baseName) {
+     setting 'script.disable_max_compilations_rate', 'false'
+  }
+
+  tasks.register(bwcTaskName(bwcVersion)) {
+    dependsOn "${baseName}#:x-pack:qa:rolling-upgrade:upgradedClusterTest"
+  }
+}

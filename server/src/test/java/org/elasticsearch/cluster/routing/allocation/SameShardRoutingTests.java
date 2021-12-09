@@ -34,6 +34,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyMap;
@@ -160,7 +161,9 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             .routingTable(routingTable)
             .build();
 
-        logger.info("--> adding two nodes with the same host");
+        String host1 = randomFrom("test1", "test2");
+        String host2 = randomFrom("test1", "test2");
+        logger.info("--> adding two nodes");
         clusterState = ClusterState.builder(clusterState)
             .nodes(
                 DiscoveryNodes.builder()
@@ -169,8 +172,8 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                             "node1",
                             "node1",
                             "node1",
-                            "test1",
-                            "test1",
+                            host1,
+                            host1,
                             buildNewFakeTransportAddress(),
                             emptyMap(),
                             MASTER_DATA_ROLES,
@@ -182,8 +185,8 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
                             "node2",
                             "node2",
                             "node2",
-                            "test1",
-                            "test1",
+                            host2,
+                            host2,
                             buildNewFakeTransportAddress(),
                             emptyMap(),
                             MASTER_DATA_ROLES,
@@ -194,43 +197,50 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
             .build();
         clusterState = applyStartedShardsUntilNoChange(clusterState, strategy);
 
-        final ShardRouting unassignedShard = shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED).get(0);
+        List<ShardRouting> unassignedShards = shardsWithState(clusterState.getRoutingNodes(), UNASSIGNED);
+        if (host1.equals(host2) == false) {
+            logger.info("Two nodes on the different host");
+            assertThat(0, equalTo(unassignedShards.size()));
+        } else {
+            final ShardRouting unassignedShard = unassignedShards.get(0);
 
-        final SameShardAllocationDecider decider = new SameShardAllocationDecider(
-            sameHostSetting,
-            new ClusterSettings(sameHostSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-        );
+            final SameShardAllocationDecider decider = new SameShardAllocationDecider(
+                sameHostSetting,
+                new ClusterSettings(sameHostSetting, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            );
 
-        final RoutingNode emptyNode = StreamSupport.stream(clusterState.getRoutingNodes().spliterator(), false)
-            .filter(node -> node.getByShardId(unassignedShard.shardId()) == null)
-            .findFirst()
-            .orElseThrow(AssertionError::new);
+            final RoutingNode emptyNode = StreamSupport.stream(clusterState.getRoutingNodes().spliterator(), false)
+                .filter(node -> node.getByShardId(unassignedShard.shardId()) == null)
+                .findFirst()
+                .orElseThrow(AssertionError::new);
 
-        final RoutingAllocation routingAllocation = new RoutingAllocation(
-            new AllocationDeciders(singletonList(decider)),
-            clusterState.getRoutingNodes(),
-            clusterState,
-            null,
-            null,
-            0L
-        );
-        routingAllocation.debugDecision(true);
+            final RoutingAllocation routingAllocation = new RoutingAllocation(
+                new AllocationDeciders(singletonList(decider)),
+                clusterState.getRoutingNodes(),
+                clusterState,
+                null,
+                null,
+                0L
+            );
+            routingAllocation.debugDecision(true);
 
-        final Decision decision = decider.canAllocate(unassignedShard, emptyNode, routingAllocation);
-        assertThat(decision.type(), equalTo(Decision.Type.NO));
-        assertThat(
-            decision.getExplanation(),
-            equalTo(
-                String.format(
-                    "a copy of this shard is already allocated to host %s [%s], on node [%s], and [%s] is [true] which "
-                        + "forbids more than one node on this host from holding a copy of this shard",
-                    "address",
-                    "test1",
-                    emptyNode.nodeId(),
-                    SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey()
+            final Decision decision = decider.canAllocate(unassignedShard, emptyNode, routingAllocation);
+            logger.info("Two nodes on the same host");
+            assertThat(decision.type(), equalTo(Decision.Type.NO));
+            assertThat(
+                decision.getExplanation(),
+                equalTo(
+                    String.format(
+                        "a copy of this shard is already allocated to host %s [%s], on node [%s], and [%s] is [true] which "
+                            + "forbids more than one node on this host from holding a copy of this shard",
+                        "address",
+                        "test1",
+                        emptyNode.nodeId(),
+                        SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey()
+                    )
                 )
-            )
-        );
+            );
+        }
     }
 
     public void testSameHostCheckDisabledByAutoExpandReplicas() {

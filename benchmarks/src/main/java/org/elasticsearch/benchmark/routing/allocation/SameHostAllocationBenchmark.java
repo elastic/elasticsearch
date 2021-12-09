@@ -55,7 +55,6 @@ public class SameHostAllocationBenchmark extends AllocationBenchmark {
     )
     public String indicesShardsReplicasNodes = "10|1|0|1";
 
-    public int numTags = 2;
     public int nodePerHost = 2;
 
     @Setup
@@ -67,12 +66,7 @@ public class SameHostAllocationBenchmark extends AllocationBenchmark {
         int numReplicas = toInt(params[2]);
         int numNodes = toInt(params[3]);
 
-        strategy = Allocators.createAllocationService(
-            Settings.builder()
-                .put("cluster.routing.allocation.awareness.attributes", "tag")
-                .put("cluster.routing.allocation.same_shard.host", true)
-                .build()
-        );
+        strategy = Allocators.createAllocationService(Settings.builder().put("cluster.routing.allocation.same_shard.host", true).build());
 
         Metadata.Builder mb = Metadata.builder();
         for (int i = 1; i <= numIndices; i++) {
@@ -92,7 +86,7 @@ public class SameHostAllocationBenchmark extends AllocationBenchmark {
         DiscoveryNodes.Builder nb = DiscoveryNodes.builder();
         for (int i = 1; i <= numNodes; i++) {
             String hostId = "host" + (int) Math.ceil(i / nodePerHost);
-            nb.add(Allocators.newNodeWithHostInfo("node" + i, Collections.singletonMap("tag", "tag_" + (i % numTags)), hostId));
+            nb.add(Allocators.newNodeWithHostInfo("node" + i, Collections.emptyMap(), hostId));
         }
         initialClusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)

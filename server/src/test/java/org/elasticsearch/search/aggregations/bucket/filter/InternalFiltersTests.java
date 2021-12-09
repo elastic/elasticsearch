@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters.InternalBucket;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
@@ -124,7 +124,7 @@ public class InternalFiltersTests extends InternalMultiBucketAggregationTestCase
         InternalFilters test = createTestInstance("test", emptyMap(), sub);
         PipelineAggregator mockPipeline = new PipelineAggregator(null, null, null) {
             @Override
-            public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+            public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
                 return dummy;
             }
         };

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.index.engine.frozen;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -46,6 +47,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -269,6 +271,51 @@ public class FrozenIndexIT extends ESIntegTestCase {
             assertHitCount(resp, numDocs);
         } finally {
             assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName).setFreeze(false)).actionGet());
+            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
+        }
+    }
+
+    public void testPointInTimeWithDeletedIndices() {
+        createIndex("index-1");
+        createIndex("index-2");
+
+        int index1 = randomIntBetween(10, 50);
+        for (int i = 0; i < index1; i++) {
+            String id = Integer.toString(i);
+            client().prepareIndex("index-1").setId(id).setSource("value", i).get();
+        }
+
+        int index2 = randomIntBetween(10, 50);
+        for (int i = 0; i < index2; i++) {
+            String id = Integer.toString(i);
+            client().prepareIndex("index-2").setId(id).setSource("value", i).get();
+        }
+
+        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index-1", "index-2")).actionGet());
+        final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest("index-*").indicesOptions(
+            IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED
+        ).keepAlive(TimeValue.timeValueMinutes(2));
+
+        final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
+        try {
+            client().admin().indices().prepareDelete("index-1").get();
+            // Return partial results if allow partial search result is allowed
+            SearchResponse resp = client().prepareSearch()
+                .setPreference(null)
+                .setAllowPartialSearchResults(true)
+                .setPointInTime(new PointInTimeBuilder(pitId))
+                .get();
+            assertFailures(resp);
+            assertHitCount(resp, index2);
+            // Fails if allow partial search result is not allowed
+            expectThrows(
+                ElasticsearchException.class,
+                client().prepareSearch()
+                    .setPreference(null)
+                    .setAllowPartialSearchResults(false)
+                    .setPointInTime(new PointInTimeBuilder(pitId))::get
+            );
+        } finally {
             client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
         }
     }

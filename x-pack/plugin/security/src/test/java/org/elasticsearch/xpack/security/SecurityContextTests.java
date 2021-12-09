@@ -125,7 +125,7 @@ public class SecurityContextTests extends ESTestCase {
             randomAlphaOfLengthBetween(3, 10),
             randomAlphaOfLengthBetween(3, 8),
             randomAlphaOfLengthBetween(3, 8),
-            Task.X_OPAQUE_ID,
+            Task.X_OPAQUE_ID_HTTP_HEADER,
             randomAlphaOfLength(10),
             Task.TRACE_ID,
             randomAlphaOfLength(20)

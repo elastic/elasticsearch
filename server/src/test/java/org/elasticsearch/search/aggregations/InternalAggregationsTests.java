@@ -43,8 +43,8 @@ public class InternalAggregationsTests extends ESTestCase {
 
     public void testReduceEmptyAggs() {
         List<InternalAggregations> aggs = Collections.emptyList();
-        InternalAggregation.ReduceContextBuilder builder = InternalAggregationTestCase.emptyReduceContextBuilder();
-        InternalAggregation.ReduceContext reduceContext = randomBoolean() ? builder.forFinalReduction() : builder.forPartialReduction();
+        AggregationReduceContext.Builder builder = InternalAggregationTestCase.emptyReduceContextBuilder();
+        AggregationReduceContext reduceContext = randomBoolean() ? builder.forFinalReduction() : builder.forPartialReduction();
         assertNull(InternalAggregations.reduce(aggs, reduceContext));
     }
 
@@ -92,7 +92,7 @@ public class InternalAggregationsTests extends ESTestCase {
         assertEquals(2, reducedAggs.aggregations.size());
     }
 
-    private InternalAggregation.ReduceContextBuilder maxBucketReduceContext() {
+    private AggregationReduceContext.Builder maxBucketReduceContext() {
         MaxBucketPipelineAggregationBuilder maxBucketPipelineAggregationBuilder = new MaxBucketPipelineAggregationBuilder("test", "test");
         PipelineAggregator.PipelineTree tree = new PipelineAggregator.PipelineTree(
             emptyMap(),

@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -304,7 +305,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     @SuppressWarnings("unchecked")
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         reduceContext.consumeBucketsAndMaybeBreak(ranges.size());
         @SuppressWarnings("rawtypes")
         List<B>[] rangeList = new List[ranges.size()];
@@ -327,7 +328,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     }
 
     @Override
-    protected B reduceBucket(List<B> buckets, ReduceContext context) {
+    protected B reduceBucket(List<B> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
         long docCount = 0;
         List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());

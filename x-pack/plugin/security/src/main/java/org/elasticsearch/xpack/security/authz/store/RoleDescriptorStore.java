@@ -81,10 +81,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         final Set<String> roleNames = Set.copyOf(new HashSet<>(List.of(namedRoleReference.getRoleNames())));
         if (roleNames.isEmpty()) {
-            assert false : "empty role names should have short circuited earlier";
             listener.onResponse(RolesRetrievalResult.EMPTY);
         } else if (roleNames.contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName())) {
-            assert false : "superuser role should have short circuited earlier";
             listener.onResponse(RolesRetrievalResult.SUPERUSER);
         } else {
             resolveRoleNames(roleNames, listener);

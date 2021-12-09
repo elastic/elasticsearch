@@ -46,7 +46,7 @@ public class PyTorchResultProcessor {
      *
      * @param requestId The request ID that is no longer being waited on
      */
-    public void ignoreResposeWithoutNotifying(String requestId) {
+    public void ignoreResponseWithoutNotifying(String requestId) {
         pendingResults.remove(requestId);
     }
 

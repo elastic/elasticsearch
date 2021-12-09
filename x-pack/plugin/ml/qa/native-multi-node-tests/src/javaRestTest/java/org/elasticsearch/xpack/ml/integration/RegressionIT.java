@@ -564,16 +564,19 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         String mapping = """
             {
-                  "properties": {
+                "properties": {
                     "field_1": {
-                      "type": "integer"
-                    },        "field_2": {
-                      "type": "integer"
-                    },        "field_1_alias": {
-                      "type": "alias",
-                      "path": "field_1"
-                    }      }
-                }""";
+                        "type": "integer"
+                    },
+                    "field_2": {
+                        "type": "integer"
+                    },
+                    "field_1_alias": {
+                        "type": "alias",
+                        "path": "field_1"
+                    }
+                }
+            }""";
         client().admin().indices().prepareCreate(sourceIndex).setMapping(mapping).get();
 
         int totalDocCount = 300;

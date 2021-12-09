@@ -16,7 +16,6 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.packaging.util.Distribution;
-import org.elasticsearch.packaging.util.Distribution.Packaging;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.ServerUtils;
@@ -35,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
@@ -50,9 +48,7 @@ import static org.elasticsearch.packaging.util.docker.DockerFileMatcher.file;
 import static org.elasticsearch.packaging.util.docker.DockerRun.getImageName;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -422,47 +418,6 @@ public class Docker {
         // tar is required in some k8s situations: https://github.com/kubernetes/kubernetes/issues/58512
         // zip/unzip are installed to help users who are working with certificates.
         Stream.of("nc", "tar", "unzip", "zip")
-            .forEach(
-                cliBinary -> assertTrue(
-                    cliBinary + " ought to be available.",
-                    dockerShell.runIgnoreExitCode("bash -c  'hash " + cliBinary + "'").isSuccess()
-                )
-            );
-
-        if (es.distribution.packaging == Packaging.DOCKER_CLOUD || es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
-            verifyCloudContainerInstallation(es);
-        }
-    }
-
-    private static void verifyCloudContainerInstallation(Installation es) {
-        final String pluginArchive = "/opt/plugins/archive";
-        final List<String> plugins = listContents(pluginArchive);
-
-        logger.info("Contents of [" + pluginArchive + "] : " + plugins);
-
-        if (es.distribution.packaging == Packaging.DOCKER_CLOUD_ESS) {
-            assertThat("ESS image should come with plugins in " + pluginArchive, plugins, not(empty()));
-
-            final List<String> repositoryPlugins = plugins.stream()
-                .filter(p -> p.matches("^repository-(?:s3|gcs|azure)$"))
-                .collect(Collectors.toList());
-            // Assert on equality to that the error reports the unexpected values.
-            assertThat(
-                "ESS image should not have repository plugins in " + pluginArchive,
-                repositoryPlugins,
-                equalTo(Collections.emptyList())
-            );
-        } else {
-            List<String> pluginsCopy = new ArrayList<>(plugins);
-            if (pluginsCopy.isEmpty() == false) {
-                logger.warn("plugins (and pluginsCopy) should be empty, but: " + plugins + " / " + pluginsCopy);
-                logger.warn("Contents of [" + pluginArchive + "] : " + dockerShell.run("ls -1 --color=never " + pluginArchive).stdout);
-            }
-            assertThat("Cloud image should not have any plugins in " + pluginArchive, pluginsCopy, empty());
-        }
-
-        // Cloud uses `wget` to install plugins / bundles.
-        Stream.of("wget")
             .forEach(
                 cliBinary -> assertTrue(
                     cliBinary + " ought to be available.",

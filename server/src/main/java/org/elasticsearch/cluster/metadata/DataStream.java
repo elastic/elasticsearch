@@ -138,6 +138,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
         this.indices = Collections.unmodifiableList(indices);
         this.generation = generation;
         this.metadata = metadata;
+        assert system == false || hidden; // system indices must be hidden
         this.hidden = hidden;
         this.replicated = replicated;
         this.timeProvider = timeProvider;

@@ -95,7 +95,7 @@ when you started {es}.
 include::enroll-nodes.asciidoc[]
 
 [discrete]
-include::{es-ref-dir}/setup/install/get-fingerprint.asciidoc[leveloffset=-1]
+include::{es-ref-dir}/setup/install/connect-clients.asciidoc[leveloffset=-1]
 
 [discrete]
 === What's next?

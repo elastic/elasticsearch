@@ -796,16 +796,10 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             }
             Path backupCertsDir = env.configFile()
                 .resolve(
-                    String.format(
-                        Locale.ROOT,
-                        TLS_GENERATED_CERTS_DIR_NAME + ".%d.orig",
-                        autoConfigDate.toInstant().getEpochSecond()
-                    )
+                    String.format(Locale.ROOT, TLS_GENERATED_CERTS_DIR_NAME + ".%d.orig", autoConfigDate.toInstant().getEpochSecond())
                 );
             if (Files.exists(backupCertsDir)) {
-                moveDirectory(
-                    backupCertsDir,
-                    env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME));
+                moveDirectory(backupCertsDir, env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME));
             }
             throw t;
         }

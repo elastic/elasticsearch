@@ -220,6 +220,11 @@ public class TrainedModelAllocationMetadata implements Metadata.Custom {
         }
 
         @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.V_8_0_0;
+        }
+
+        @Override
         public void writeTo(StreamOutput out) throws IOException {
             modelRoutingEntries.writeTo(out);
         }

@@ -52,6 +52,7 @@ import java.util.stream.Collectors;
 
 import javax.management.MBeanPermission;
 import javax.management.MBeanServerPermission;
+import javax.management.MBeanTrustPermission;
 import javax.management.ObjectName;
 import javax.security.auth.AuthPermission;
 import javax.security.auth.PrivateCredentialPermission;
@@ -138,7 +139,8 @@ public class PolicyUtil {
                 "addNotificationListener,getAttribute,getDomains,getMBeanInfo,getObjectInstance,instantiate,invoke,"
                     + "isInstanceOf,queryMBeans,queryNames,registerMBean,removeNotificationListener,setAttribute,unregisterMBean"
             ),
-            new MBeanServerPermission("*")
+            new MBeanServerPermission("*"),
+            new MBeanTrustPermission("register")
         );
         // While it would be ideal to represent all allowed permissions with concrete instances so that we can
         // use the builtin implies method to match them against the parsed policy, this does not work in all

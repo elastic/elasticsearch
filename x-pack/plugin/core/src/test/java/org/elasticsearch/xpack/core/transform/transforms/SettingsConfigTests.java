@@ -34,12 +34,19 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
             randomBoolean() ? null : randomIntBetween(10, 10_000),
             randomBoolean() ? null : randomFloat(),
             randomBoolean() ? null : randomIntBetween(0, 1),
+            randomBoolean() ? null : randomIntBetween(0, 1),
             randomBoolean() ? null : randomIntBetween(0, 1)
         );
     }
 
     public static SettingsConfig randomNonEmptySettingsConfig() {
-        return new SettingsConfig(randomIntBetween(10, 10_000), randomFloat(), randomIntBetween(0, 1), randomIntBetween(0, 1));
+        return new SettingsConfig(
+            randomIntBetween(10, 10_000),
+            randomFloat(),
+            randomIntBetween(0, 1),
+            randomIntBetween(0, 1),
+            randomIntBetween(0, 1)
+        );
     }
 
     @Before
@@ -82,6 +89,9 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         assertThat(fromString("{\"align_checkpoints\" : null}").getAlignCheckpointsForUpdate(), equalTo(-1));
         assertNull(fromString("{}").getAlignCheckpointsForUpdate());
+
+        assertThat(fromString("{\"use_point_in_time\" : null}").getUsePitForUpdate(), equalTo(-1));
+        assertNull(fromString("{}").getUsePitForUpdate());
     }
 
     public void testUpdateUsingBuilder() throws IOException {
@@ -89,7 +99,8 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
             "{\"max_page_search_size\" : 10000, "
                 + "\"docs_per_second\" :42, "
                 + "\"dates_as_epoch_millis\": true, "
-                + "\"align_checkpoints\": false}"
+                + "\"align_checkpoints\": false,"
+                + "\"use_point_in_time\": false}"
         );
 
         SettingsConfig.Builder builder = new SettingsConfig.Builder(config);
@@ -99,25 +110,29 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
         assertThat(builder.build().getDocsPerSecond(), equalTo(42F));
         assertThat(builder.build().getDatesAsEpochMillisForUpdate(), equalTo(1));
         assertThat(builder.build().getAlignCheckpointsForUpdate(), equalTo(0));
+        assertThat(builder.build().getUsePitForUpdate(), equalTo(0));
 
         builder.update(fromString("{\"max_page_search_size\" : null}"));
         assertNull(builder.build().getMaxPageSearchSize());
         assertThat(builder.build().getDocsPerSecond(), equalTo(42F));
         assertThat(builder.build().getDatesAsEpochMillisForUpdate(), equalTo(1));
         assertThat(builder.build().getAlignCheckpointsForUpdate(), equalTo(0));
+        assertThat(builder.build().getUsePitForUpdate(), equalTo(0));
 
         builder.update(
             fromString(
                 "{\"max_page_search_size\" : 77, "
                     + "\"docs_per_second\" :null, "
                     + "\"dates_as_epoch_millis\": null, "
-                    + "\"align_checkpoints\": null}"
+                    + "\"align_checkpoints\": null,"
+                    + "\"use_point_in_time\": null}"
             )
         );
         assertThat(builder.build().getMaxPageSearchSize(), equalTo(77));
         assertNull(builder.build().getDocsPerSecond());
         assertNull(builder.build().getDatesAsEpochMillisForUpdate());
         assertNull(builder.build().getAlignCheckpointsForUpdate());
+        assertNull(builder.build().getUsePitForUpdate());
     }
 
     public void testOmmitDefaultsOnWriteParser() throws IOException {
@@ -151,6 +166,12 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());
+
+        config = fromString("{\"use_point_in_time\" : null}");
+        assertThat(config.getUsePitForUpdate(), equalTo(-1));
+
+        settingsAsMap = xContentToMap(config);
+        assertTrue(settingsAsMap.isEmpty());
     }
 
     public void testOmmitDefaultsOnWriteBuilder() throws IOException {
@@ -181,6 +202,12 @@ public class SettingsConfigTests extends AbstractSerializingTransformTestCase<Se
 
         config = new SettingsConfig.Builder().setAlignCheckpoints(null).build();
         assertThat(config.getAlignCheckpointsForUpdate(), equalTo(-1));
+
+        settingsAsMap = xContentToMap(config);
+        assertTrue(settingsAsMap.isEmpty());
+
+        config = new SettingsConfig.Builder().setUsePit(null).build();
+        assertThat(config.getUsePitForUpdate(), equalTo(-1));
 
         settingsAsMap = xContentToMap(config);
         assertTrue(settingsAsMap.isEmpty());

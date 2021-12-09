@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.execution.search.AggRef;
-import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -17,6 +16,7 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NameId;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -143,9 +143,17 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 AttributeMap.Builder<Expression> aliases = AttributeMap.<Expression>builder().putAll(queryC.aliases());
                 AttributeMap.Builder<Pipe> processors = AttributeMap.<Pipe>builder().putAll(queryC.scalarFunctions());
 
+                // recreate the query container's fields such that they appear in order of the projection and with hidden fields
+                // last. This is mostly needed for PIVOT queries where we have to fold projections on aggregations because they cannot be
+                // optimized away. Most (all) other queries usually prune nested projections in earlier steps.
+                List<QueryContainer.FieldInfo> fields = new ArrayList<>(queryC.fields().size());
+                List<QueryContainer.FieldInfo> hiddenFields = new ArrayList<>(queryC.fields());
+
                 for (NamedExpression pj : project.projections()) {
+                    Attribute attr = pj.toAttribute();
+                    NameId attributeId = attr.id();
+
                     if (pj instanceof Alias) {
-                        Attribute attr = pj.toAttribute();
                         Expression e = ((Alias) pj).child();
 
                         // track all aliases (to determine their reference later on)
@@ -155,13 +163,27 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         if (e instanceof ScalarFunction) {
                             processors.put(attr, ((ScalarFunction) e).asPipe());
                         }
+
+                        if (e instanceof NamedExpression) {
+                            attributeId = ((NamedExpression) e).toAttribute().id();
+                        }
+                    }
+
+                    for (QueryContainer.FieldInfo field : queryC.fields()) {
+                        if (field.attribute().id().equals(attributeId)) {
+                            fields.add(field);
+                            hiddenFields.remove(field);
+                            break;
+                        }
                     }
                 }
+
+                fields.addAll(hiddenFields);
 
                 QueryContainer clone = new QueryContainer(
                     queryC.query(),
                     queryC.aggs(),
-                    queryC.fields(),
+                    fields,
                     aliases.build(),
                     queryC.pseudoFunctions(),
                     processors.build(),
@@ -574,7 +596,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         }
 
                         // add the computed column
-                        queryC = qC.get().addColumn(new ComputedRef(proc), id);
+                        queryC = qC.get().addColumn(new ComputedRef(proc), id, ne.toAttribute());
                     }
 
                     // apply the same logic above (for function inputs) to non-scalar functions with small variations:
@@ -588,11 +610,19 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         // attributes can only refer to declared groups
                         if (target instanceof Attribute) {
                             Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(target));
-                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, isDateBased(target.dataType())), id);
+                            queryC = queryC.addColumn(
+                                new GroupByRef(matchingGroup.id(), null, isDateBased(target.dataType())),
+                                id,
+                                ne.toAttribute()
+                            );
                         }
                         // handle histogram
                         else if (target instanceof GroupingFunction) {
-                            queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, isDateBased(target.dataType())), id);
+                            queryC = queryC.addColumn(
+                                new GroupByRef(matchingGroup.id(), null, isDateBased(target.dataType())),
+                                id,
+                                ne.toAttribute()
+                            );
                         }
                         // handle literal
                         else if (target.foldable()) {
@@ -609,7 +639,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                             AggregateFunction af = (AggregateFunction) target;
                             Tuple<QueryContainer, AggPathInput> withAgg = addAggFunction(matchingGroup, af, compoundAggMap, queryC);
                             // make sure to add the inner id (to handle compound aggs)
-                            queryC = withAgg.v1().addColumn(withAgg.v2().context(), id);
+                            queryC = withAgg.v1().addColumn(withAgg.v2().context(), id, ne.toAttribute());
                         }
                     }
 
@@ -623,7 +653,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                         matchingGroup = groupingContext.groupFor(target);
                         Check.notNull(matchingGroup, "Cannot find group [{}]", Expressions.name(ne));
 
-                        queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, isDateBased(ne.dataType())), id);
+                        queryC = queryC.addColumn(
+                            new GroupByRef(matchingGroup.id(), null, isDateBased(ne.dataType())),
+                            id,
+                            ne.toAttribute()
+                        );
                     }
                     // fallback
                     else {
@@ -636,7 +670,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             if (a.aggregates().stream().allMatch(e -> e.anyMatch(Expression::foldable))) {
                 for (Expression grouping : a.groupings()) {
                     GroupByKey matchingGroup = groupingContext.groupFor(grouping);
-                    queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, false), id);
+                    queryC = queryC.addColumn(new GroupByRef(matchingGroup.id(), null, false), id, null);
                 }
             }
             return new EsQueryExec(exec.source(), exec.index(), a.output(), queryC);
@@ -842,19 +876,20 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
                 // due to the Pivot structure - the column is the last entry in the grouping set
                 QueryContainer query = fold.queryContainer();
 
-                List<Tuple<FieldExtraction, String>> fields = new ArrayList<>(query.fields());
+                List<QueryContainer.FieldInfo> fields = new ArrayList<>(query.fields());
                 int startingIndex = fields.size() - p.aggregates().size() - 1;
                 // pivot grouping
-                Tuple<FieldExtraction, String> groupTuple = fields.remove(startingIndex);
+                QueryContainer.FieldInfo groupField = fields.remove(startingIndex);
                 AttributeMap<Literal> values = p.valuesToLiterals();
 
                 for (int i = startingIndex; i < fields.size(); i++) {
-                    Tuple<FieldExtraction, String> tuple = fields.remove(i);
+                    QueryContainer.FieldInfo field = fields.remove(i);
                     for (Map.Entry<Attribute, Literal> entry : values.entrySet()) {
                         fields.add(
-                            new Tuple<>(
-                                new PivotColumnRef(groupTuple.v1(), tuple.v1(), entry.getValue().value()),
-                                Expressions.id(entry.getKey())
+                            new QueryContainer.FieldInfo(
+                                new PivotColumnRef(groupField.extraction(), field.extraction(), entry.getValue().value()),
+                                Expressions.id(entry.getKey()),
+                                entry.getKey()
                             )
                         );
                     }

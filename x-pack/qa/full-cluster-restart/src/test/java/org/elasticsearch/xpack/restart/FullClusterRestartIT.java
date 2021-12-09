@@ -96,6 +96,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(toStr(client().performRequest(getRequest)), containsString(doc));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/81411")
     public void testSecurityNativeRealm() throws Exception {
         if (isRunningAgainstOldCluster()) {
             createUser(true);

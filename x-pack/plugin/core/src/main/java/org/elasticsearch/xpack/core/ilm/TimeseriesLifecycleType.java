@@ -80,7 +80,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         FreezeAction.NAME,
         RollupV2.isEnabled() ? RollupILMAction.NAME : null
     ).filter(Objects::nonNull).collect(toList());
-    static final List<String> ORDERED_VALID_FROZEN_ACTIONS = Arrays.asList(SearchableSnapshotAction.NAME);
+    static final List<String> ORDERED_VALID_FROZEN_ACTIONS = Arrays.asList(UnfollowAction.NAME, SearchableSnapshotAction.NAME);
     static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(WaitForSnapshotAction.NAME, DeleteAction.NAME);
 
     static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);

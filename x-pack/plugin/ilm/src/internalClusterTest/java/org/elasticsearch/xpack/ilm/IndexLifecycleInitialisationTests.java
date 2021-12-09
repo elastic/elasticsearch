@@ -94,17 +94,17 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
-        settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
-        settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
-        settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
-        settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
-        settings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
+        Settings.Builder nodeSettings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
+        nodeSettings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
+        nodeSettings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
+        nodeSettings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
+        nodeSettings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
+        nodeSettings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
 
         // This is necessary to prevent ILM and SLM installing a lifecycle policy, these tests assume a blank slate
-        settings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false);
-        settings.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
-        return settings.build();
+        nodeSettings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false);
+        nodeSettings.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
+        return nodeSettings.build();
     }
 
     @Override

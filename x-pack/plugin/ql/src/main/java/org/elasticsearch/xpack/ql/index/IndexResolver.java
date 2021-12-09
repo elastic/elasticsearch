@@ -73,8 +73,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
-import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.qualifyAndJoinIndices;
-import static org.elasticsearch.xpack.ql.util.RemoteClusterUtils.splitQualifiedIndex;
+import static org.elasticsearch.xpack.ql.util.StringUtils.qualifyAndJoinIndices;
+import static org.elasticsearch.xpack.ql.util.StringUtils.splitQualifiedIndex;
 
 public class IndexResolver {
 
@@ -216,7 +216,7 @@ public class IndexResolver {
 
         String[] indexWildcards = Strings.commaDelimitedListToStringArray(indexWildcard);
         Set<IndexInfo> indexInfos = new HashSet<>();
-        if (retrieveAliases) {
+        if (retrieveAliases && clusterIsLocal(clusterWildcard)) {
             GetAliasesRequest aliasRequest = new GetAliasesRequest().local(true)
                 .aliases(indexWildcards)
                 .indicesOptions(IndicesOptions.lenientExpandOpen());
@@ -268,7 +268,7 @@ public class IndexResolver {
         ActionListener<Set<IndexInfo>> listener
     ) {
         if (retrieveIndices || retrieveFrozenIndices) {
-            if (clusterWildcard == null || simpleMatch(clusterWildcard, clusterName)) { // resolve local indices
+            if (clusterIsLocal(clusterWildcard)) { // resolve local indices
                 GetIndexRequest indexRequest = new GetIndexRequest().local(true)
                     .indices(indexWildcards)
                     .features(Feature.SETTINGS)
@@ -353,6 +353,10 @@ public class IndexResolver {
             }
         }
         listener.onResponse(result);
+    }
+
+    private boolean clusterIsLocal(String clusterWildcard) {
+        return clusterWildcard == null || simpleMatch(clusterWildcard, clusterName);
     }
 
     /**

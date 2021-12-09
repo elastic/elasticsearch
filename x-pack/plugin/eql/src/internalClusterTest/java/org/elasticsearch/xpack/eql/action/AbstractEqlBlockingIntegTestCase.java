@@ -247,7 +247,7 @@ public abstract class AbstractEqlBlockingIntegTestCase extends AbstractEqlIntegT
     protected TaskInfo getTaskInfoWithXOpaqueId(String id, String action) {
         ListTasksResponse tasks = client().admin().cluster().prepareListTasks().setActions(action).get();
         for (TaskInfo task : tasks.getTasks()) {
-            if (id.equals(task.getHeaders().get(Task.X_OPAQUE_ID))) {
+            if (id.equals(task.getHeaders().get(Task.X_OPAQUE_ID_HTTP_HEADER))) {
                 return task;
             }
         }

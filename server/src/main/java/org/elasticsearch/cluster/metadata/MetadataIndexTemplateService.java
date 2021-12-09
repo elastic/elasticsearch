@@ -7,9 +7,6 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
@@ -47,6 +44,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -116,6 +114,7 @@ public class MetadataIndexTemplateService {
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
     private final NamedXContentRegistry xContentRegistry;
+    private final SystemIndices systemIndices;
 
     @Inject
     public MetadataIndexTemplateService(
@@ -124,7 +123,8 @@ public class MetadataIndexTemplateService {
         AliasValidator aliasValidator,
         IndicesService indicesService,
         IndexScopedSettings indexScopedSettings,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        SystemIndices systemIndices
     ) {
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
@@ -132,6 +132,7 @@ public class MetadataIndexTemplateService {
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
         this.xContentRegistry = xContentRegistry;
+        this.systemIndices = systemIndices;
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
@@ -147,8 +148,8 @@ public class MetadataIndexTemplateService {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     Set<String> templateNames = new HashSet<>();
-                    for (ObjectCursor<String> cursor : currentState.metadata().templates().keys()) {
-                        String templateName = cursor.value;
+                    for (Map.Entry<String, IndexTemplateMetadata> cursor : currentState.metadata().templates().entrySet()) {
+                        String templateName = cursor.getKey();
                         if (Regex.simpleMatch(request.name, templateName)) {
                             templateNames.add(templateName);
                         }
@@ -294,7 +295,8 @@ public class MetadataIndexTemplateService {
                         composableTemplateName,
                         composableTemplate,
                         indicesService,
-                        xContentRegistry
+                        xContentRegistry,
+                        systemIndices
                     );
                 } catch (Exception e) {
                     if (validationFailure == null) {
@@ -608,7 +610,7 @@ public class MetadataIndexTemplateService {
         // Finally, right before adding the template, we need to ensure that the composite settings,
         // mappings, and aliases are valid after it's been composed with the component templates
         try {
-            validateCompositeTemplate(currentState, name, finalIndexTemplate, indicesService, xContentRegistry);
+            validateCompositeTemplate(currentState, name, finalIndexTemplate, indicesService, xContentRegistry, systemIndices);
         } catch (Exception e) {
             throw new IllegalArgumentException(
                 "composable template ["
@@ -696,9 +698,9 @@ public class MetadataIndexTemplateService {
     ) {
         Automaton v2automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
-        for (ObjectObjectCursor<String, IndexTemplateMetadata> cursor : state.metadata().templates()) {
-            String name = cursor.key;
-            IndexTemplateMetadata template = cursor.value;
+        for (Map.Entry<String, IndexTemplateMetadata> cursor : state.metadata().templates().entrySet()) {
+            String name = cursor.getKey();
+            IndexTemplateMetadata template = cursor.getValue();
             Automaton v1automaton = Regex.simpleMatchToAutomaton(template.patterns().toArray(Strings.EMPTY_ARRAY));
             if (Operations.isEmpty(Operations.intersection(v2automaton, v1automaton)) == false) {
                 logger.debug(
@@ -1244,8 +1246,8 @@ public class MetadataIndexTemplateService {
         templates.forEach(template -> {
             if (template.aliases() != null) {
                 Map<String, AliasMetadata> aliasMeta = new HashMap<>();
-                for (ObjectObjectCursor<String, AliasMetadata> cursor : template.aliases()) {
-                    aliasMeta.put(cursor.key, cursor.value);
+                for (Map.Entry<String, AliasMetadata> cursor : template.aliases().entrySet()) {
+                    aliasMeta.put(cursor.getKey(), cursor.getValue());
                 }
                 resolvedAliases.add(aliasMeta);
             }
@@ -1312,7 +1314,8 @@ public class MetadataIndexTemplateService {
         final String templateName,
         final ComposableIndexTemplate template,
         final IndicesService indicesService,
-        final NamedXContentRegistry xContentRegistry
+        final NamedXContentRegistry xContentRegistry,
+        final SystemIndices systemIndices
     ) throws Exception {
         final ClusterState stateWithTemplate = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata()).put(templateName, template))
@@ -1359,7 +1362,8 @@ public class MetadataIndexTemplateService {
                 // shard id and the current timestamp
                 xContentRegistry,
                 tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                tempIndexService.dateMathExpressionResolverAt(System.currentTimeMillis())
+                tempIndexService.dateMathExpressionResolverAt(System.currentTimeMillis()),
+                systemIndices::isSystemName
             );
 
             // triggers inclusion of _timestamp field and its validation:

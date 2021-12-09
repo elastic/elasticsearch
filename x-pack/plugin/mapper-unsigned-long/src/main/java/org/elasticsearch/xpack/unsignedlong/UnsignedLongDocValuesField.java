@@ -102,18 +102,18 @@ public class UnsignedLongDocValuesField implements DocValuesField<Long>, ScriptD
             return Collections.emptyList();
         }
 
-        List<Long> values = new ArrayList<>(count);
+        List<Long> longValues = new ArrayList<>(count);
 
         for (int index = 0; index < count; ++index) {
-            values.add(toFormatted(index));
+            longValues.add(toFormatted(index));
         }
 
-        return values;
+        return longValues;
     }
 
     /** Returns the 0th index value as an {@code long} if it exists, otherwise {@code defaultValue}. */
     public long get(long defaultValue) {
-        return getValue(0, defaultValue);
+        return get(0, defaultValue);
     }
 
     /** Returns the value at {@code index} as an {@code long} if it exists, otherwise {@code defaultValue}. */
@@ -171,13 +171,13 @@ public class UnsignedLongDocValuesField implements DocValuesField<Long>, ScriptD
             return Collections.emptyList();
         }
 
-        List<BigInteger> values = new ArrayList<>(count);
+        List<BigInteger> bigIntegerValues = new ArrayList<>(count);
 
         for (int index = 0; index < count; ++index) {
-            values.add(toBigInteger(index));
+            bigIntegerValues.add(toBigInteger(index));
         }
 
-        return values;
+        return bigIntegerValues;
     }
 
     /** Returns the 0th index value as a {@code BigInteger} if it exists, otherwise {@code defaultValue}. */

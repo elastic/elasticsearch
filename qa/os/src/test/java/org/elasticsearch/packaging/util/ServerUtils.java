@@ -24,7 +24,9 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.packaging.test.PackagingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -193,9 +195,9 @@ public class ServerUtils {
         Path configFilePath = configPath.resolve("elasticsearch.yml");
         if (Files.exists(configFilePath)) {
             // In docker we might not even have a file, and if we do it's not in the host's FS
-            String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
-            enrollmentEnabled = configFile.contains("xpack.security.enrollment.enabled: true");
-            httpSslEnabled = configFile.contains("xpack.security.http.ssl.enabled: true");
+            Settings settings = Settings.builder().loadFromPath(configFilePath).build();
+            enrollmentEnabled = settings.get("xpack.security.enrollment.enabled").equals("true");
+            httpSslEnabled = settings.get("xpack.security.http.ssl.enabled").equals("true");
         }
         if (enrollmentEnabled && httpSslEnabled) {
             assert Files.exists(caCert) == false;

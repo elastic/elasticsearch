@@ -22,6 +22,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
+// TODO: extract a Role interface so limitedRole can be more than 2 levels
 /**
  * A {@link Role} limited by another role.<br>
  * The effective permissions returned on {@link #authorize(String, Set, Map, FieldPermissionsCache)} call would be limited by the

@@ -70,9 +70,8 @@ import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
@@ -1591,25 +1590,20 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     /**
-     * Returns a builder for {@link InternalAggregation.ReduceContext}. This
+     * Returns a builder for {@link AggregationReduceContext}. This
      * builder retains a reference to the provided {@link SearchRequest}.
      */
-    public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(Supplier<Boolean> isCanceled, SearchRequest request) {
-        return new InternalAggregation.ReduceContextBuilder() {
+    public AggregationReduceContext.Builder aggReduceContextBuilder(Supplier<Boolean> isCanceled, SearchRequest request) {
+        return new AggregationReduceContext.Builder() {
             @Override
-            public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(
-                    bigArrays,
-                    scriptService,
-                    () -> requestToPipelineTree(request),
-                    isCanceled
-                );
+            public AggregationReduceContext forPartialReduction() {
+                return new AggregationReduceContext.ForPartial(bigArrays, scriptService, isCanceled);
             }
 
             @Override
-            public ReduceContext forFinalReduction() {
+            public AggregationReduceContext forFinalReduction() {
                 PipelineTree pipelineTree = requestToPipelineTree(request);
-                return InternalAggregation.ReduceContext.forFinalReduction(
+                return new AggregationReduceContext.ForFinal(
                     bigArrays,
                     scriptService,
                     multiBucketConsumerService.create(),

@@ -163,9 +163,14 @@ public class ServiceAccountService {
         findIndexTokens(accountId, listener);
     }
 
+    // TODO: remove since authentication is dealt centrally by AuthenticationContext and freinds
     public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
         assert authentication.isAuthenticatedWithServiceAccount() : "authentication is not for service account: " + authentication;
         final String principal = authentication.getUser().principal();
+        getRoleDescriptorForPrincipal(principal, listener);
+    }
+
+    public void getRoleDescriptorForPrincipal(String principal, ActionListener<RoleDescriptor> listener) {
         final ServiceAccount account = ACCOUNTS.get(principal);
         if (account == null) {
             listener.onFailure(

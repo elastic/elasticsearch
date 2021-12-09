@@ -686,30 +686,13 @@ public abstract class PackagingTestCase extends Assert {
             assertThat(sh.run(es.executables().keystoreTool + " list").stdout, Matchers.containsString("autoconfiguration.password_hash"));
             configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         }
+        assertThat(configLines, hasItem("#----------------------- Security auto configuration start -----------------------"));
+        assertThat(configLines, hasItem("#----------------------- Security auto configuration end -------------------------"));
         assertThat(configLines, hasItem("xpack.security.enabled: true"));
-        assertThat(configLines, hasItem("xpack.security.http.ssl.enabled: true"));
-        assertThat(configLines, hasItem("xpack.security.transport.ssl.enabled: true"));
+        assertThat(configLines, hasItem("# Enable encryption for HTTP API client connections, such as Kibana, Logstash, and Agents"));
+        assertThat(configLines, hasItem("# Enable encryption and mutual authentication between cluster nodes"));
 
         assertThat(configLines, hasItem("xpack.security.enrollment.enabled: true"));
-        assertThat(configLines, hasItem("xpack.security.transport.ssl.verification_mode: certificate"));
-        assertThat(
-            configLines,
-            hasItem(
-                "xpack.security.transport.ssl.keystore.path: "
-                    + es.config(autoConfigDirName.get()).resolve("transport_keystore_all_nodes.p12")
-            )
-        );
-        assertThat(
-            configLines,
-            hasItem(
-                "xpack.security.transport.ssl.truststore.path: "
-                    + es.config(autoConfigDirName.get()).resolve("transport_keystore_all_nodes.p12")
-            )
-        );
-        assertThat(
-            configLines,
-            hasItem("xpack.security.http.ssl.keystore.path: " + es.config(autoConfigDirName.get()).resolve("http_keystore_local_node.p12"))
-        );
         if (es.distribution.isDocker() == false) {
             assertThat(configLines, hasItem("http.host: [_local_, _site_]"));
         }
@@ -731,7 +714,10 @@ public abstract class PackagingTestCase extends Assert {
             }
         }
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
-        assertThat(configLines, not(contains(containsString("automatically generated in order to configure Security"))));
+        assertThat(
+            configLines,
+            not(contains(containsString("#----------------------- Security auto configuration start -----------------------")))
+        );
         Path caCert = ServerUtils.getCaCert(installation);
         if (caCert != null) {
             assertThat(caCert.toString(), Matchers.not(Matchers.containsString("tls_auto_config")));

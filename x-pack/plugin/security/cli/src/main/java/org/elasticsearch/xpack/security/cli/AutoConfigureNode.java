@@ -37,6 +37,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
@@ -68,6 +69,7 @@ import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
@@ -119,9 +121,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
     private static final int HTTP_KEY_SIZE = 4096;
     static final String TLS_CONFIG_DIR_NAME_PREFIX = "tls_auto_config_";
     static final String AUTO_CONFIGURATION_START_MARKER =
-        "#----------------------- Security auto configuration start -----------------------#";
+        "#----------------------- Security auto configuration start -----------------------";
     static final String AUTO_CONFIGURATION_END_MARKER =
-        "#----------------------- Security auto configuration end -------------------------#";
+        "#----------------------- Security auto configuration end -------------------------";
 
     private final OptionSpec<String> enrollmentTokenParam = parser.accepts("enrollment-token", "The enrollment token to use")
         .withRequiredArg();
@@ -552,6 +554,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         try {
             // final Environment to be used in the lambda below
             final Environment localFinalEnv = env;
+            final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy-HH:mm:ss z");
             List<String> existingConfigLines = Files.readAllLines(ymlPath, StandardCharsets.UTF_8);
             fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
                 try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {
@@ -563,43 +566,45 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     bw.newLine();
                     bw.write(AUTO_CONFIGURATION_START_MARKER);
                     bw.newLine();
-                    bw.write("###################################################################################");
+                    bw.write("#");
                     bw.newLine();
-                    bw.write("# The following settings, and associated TLS certificates and keys configuration, #");
+                    bw.write("# The following settings, TLS certificates, and keys have been automatically      ");
                     bw.newLine();
-                    bw.write("# have been automatically generated in order to configure Security.               #");
+                    bw.write("# generated to configure Elasticsearch security features on ");
+                    bw.write(autoConfigDate.format(dateTimeFormatter));
                     bw.newLine();
-                    bw.write("# These have been generated the first time that the new node was started, only    #");
-                    bw.newLine();
-                    bw.write("# if Security had not been explicitly configured beforehand.                      #");
-                    bw.newLine();
-                    bw.write(String.format(Locale.ROOT, "# %-79s #", ""));
-                    bw.newLine();
-                    bw.write(String.format(Locale.ROOT, "# %-79s #", autoConfigDate));
+                    bw.write("#");
                     // TODO add link to docs
                     bw.newLine();
-                    bw.write("###################################################################################");
+                    bw.write("# --------------------------------------------------------------------------------");
                     bw.newLine();
+                    bw.newLine();
+                    bw.write("# Security features are enabled");
                     bw.newLine();
                     bw.write(XPackSettings.SECURITY_ENABLED.getKey() + ": true");
                     bw.newLine();
                     bw.newLine();
-                    // Set enrollment mode to true unless user explicitly set it to false themselves
-                    if (false == (localFinalEnv.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())
-                        && false == XPackSettings.ENROLLMENT_ENABLED.get(localFinalEnv.settings()))) {
-                        bw.write(XPackSettings.ENROLLMENT_ENABLED.getKey() + ": true");
-                        bw.newLine();
-                        bw.newLine();
-                    }
-
-                    bw.write("xpack.security.transport.ssl.enabled: true");
+                    bw.write("# Enable encryption for HTTP API client connections, such as Kibana, Logstash, and Agents");
                     bw.newLine();
-                    bw.write("# All the nodes use the same key and certificate on the inter-node connection");
+                    bw.write("xpack.security.http.ssl:");
                     bw.newLine();
-                    bw.write("xpack.security.transport.ssl.verification_mode: certificate");
+                    bw.write("  enabled: true");
                     bw.newLine();
                     bw.write(
-                        "xpack.security.transport.ssl.keystore.path: "
+                        "  keystore.path: " + instantAutoConfigDir.resolve(HTTP_AUTOGENERATED_KEYSTORE_NAME + ".p12")
+                    );
+                    bw.newLine();
+                    bw.newLine();
+                    bw.write("# Enable encryption and mutual authentication between cluster nodes");
+                    bw.newLine();
+                    bw.write("xpack.security.transport.ssl:");
+                    bw.newLine();
+                    bw.write("  enabled: true");
+                    bw.newLine();
+                    bw.write("  verification_mode: certificate");
+                    bw.newLine();
+                    bw.write(
+                        "  keystore.path: "
                             + instantAutoConfigDir.resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12")
                     );
                     bw.newLine();
@@ -607,21 +612,25 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                     // and also because a single file is more idiomatic to the scheme of a shared secret between the cluster nodes
                     // no one should only need the TLS cert without the associated key for the transport layer
                     bw.write(
-                        "xpack.security.transport.ssl.truststore.path: "
+                        "  truststore.path: "
                             + instantAutoConfigDir.resolve(TRANSPORT_AUTOGENERATED_KEYSTORE_NAME + ".p12")
                     );
                     bw.newLine();
+                    bw.newLine();
+                    // Set enrollment mode to true unless user explicitly set it to false themselves
+                    if (false == (localFinalEnv.settings().hasValue(XPackSettings.ENROLLMENT_ENABLED.getKey())
+                        && false == XPackSettings.ENROLLMENT_ENABLED.get(localFinalEnv.settings()))) {
+                        bw.write("# Enable enrollment of new cluster nodes and Kibana instances");
+                        bw.newLine();
+                        bw.write("# Use the elasticsearch-create-enrollment-token tool to generate enrollment tokens");
+                        bw.newLine();
+                        bw.write(XPackSettings.ENROLLMENT_ENABLED.getKey() + ": true");
+                        bw.newLine();
+                    }
 
-                    bw.newLine();
-                    bw.write("xpack.security.http.ssl.enabled: true");
-                    bw.newLine();
-                    bw.write(
-                        "xpack.security.http.ssl.keystore.path: " + instantAutoConfigDir.resolve(HTTP_AUTOGENERATED_KEYSTORE_NAME + ".p12")
-                    );
-                    bw.newLine();
                     if (inEnrollmentMode) {
                         bw.newLine();
-                        bw.write("# We set seed.hosts so that the node can actually discover the existing nodes in the cluster");
+                        bw.write("# Discover existing nodes in the cluster");
                         bw.newLine();
                         bw.write(
                             DISCOVERY_SEED_HOSTS_SETTING.getKey()
@@ -637,9 +646,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         if (false == DiscoveryModule.isSingleNodeDiscovery(localFinalEnv.settings())
                             && false == ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.exists(localFinalEnv.settings())) {
                             bw.newLine();
-                            bw.write("# The initial node with security auto-configured must form a cluster on its own,");
+                            bw.write("# Create a new cluster with the current node only");
                             bw.newLine();
-                            bw.write("# and all the subsequent nodes should be added via the node enrollment flow");
+                            bw.write("# Additional nodes can still join the cluster later");
                             bw.newLine();
                             bw.write(
                                 ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey()
@@ -659,16 +668,32 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                         || localFinalEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.getKey())
                         || localFinalEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey()))) {
                         bw.newLine();
-                        bw.write(
-                            "# With security now configured, which includes user authentication over HTTPs, "
-                                + "it's reasonable to serve requests on the local network too"
-                        );
+                        bw.write("# Allow HTTP API connections from localhost and local networks");
+                        bw.newLine();
+                        bw.write("# Connections are encrypted and require user authentication");
                         bw.newLine();
                         bw.write(
-                            HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": " + httpHostSettingValue(NetworkUtils.getAllAddresses())
+                            HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": " + hostSettingValue(NetworkUtils.getAllAddresses())
                         );
                         bw.newLine();
                     }
+                    if (false == (localFinalEnv.settings().hasValue(TransportSettings.HOST.getKey())
+                        || localFinalEnv.settings().hasValue(TransportSettings.BIND_HOST.getKey())
+                        || localFinalEnv.settings().hasValue(TransportSettings.PUBLISH_HOST.getKey())
+                        || localFinalEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_HOST_SETTING.getKey())
+                        || localFinalEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_BIND_HOST_SETTING.getKey())
+                        || localFinalEnv.settings().hasValue(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey()))) {
+                        bw.newLine();
+                        bw.write("# Allow other nodes to join the cluster from localhost and local networks");
+                        bw.newLine();
+                        bw.write("# Connections are encrypted and mutually authenticated");
+                        bw.newLine();
+                        bw.write(
+                             "#" + TransportSettings.HOST.getKey() + ": " + hostSettingValue(NetworkUtils.getAllAddresses())
+                        );
+                        bw.newLine();
+                    }
+                    bw.newLine();
                     bw.write(AUTO_CONFIGURATION_END_MARKER);
                     bw.newLine();
                 }
@@ -707,7 +732,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         return "[\"${HOSTNAME}\"]";
     }
 
-    protected String httpHostSettingValue(InetAddress[] allAddresses) {
+    protected String hostSettingValue(InetAddress[] allAddresses) {
         if (Arrays.stream(allAddresses).anyMatch(InetAddress::isSiteLocalAddress)) {
             return "[_local_, _site_]";
         } else {

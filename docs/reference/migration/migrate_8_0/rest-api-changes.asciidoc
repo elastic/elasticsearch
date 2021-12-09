@@ -800,6 +800,44 @@ Assign users with the `kibana_user` role to the `kibana_admin` role.
 Discontinue use of the `kibana_user` role.
 ====
 
+[[snapshot-resolve-system-indices]]
+.For snapshot and {slm-init} APIs, the `indices` parameter no longer resolves to system indices or system data streams.
+[%collapsible]
+====
+*Details* +
+For snapshot and {slm-init} APIs, the `indices` parameter no longer resolves to
+system indices or system data streams.
+{ref}/snapshot-restore.html#feature-state[Feature states] are now the only way
+to back up and restore system indices or system data streams from a snapshot.
+
+You can no longer use the `indices` parameter for the
+{ref}/slm-api-put-policy.html[create {slm-init} policy API] or the
+{ref}/create-snapshot-api.html[create snapshot API] to include a system index in
+a snapshot. To back up a system index, use the `include_global_state` and
+`feature_states` parameters to include the corresponding feature state instead.
+By default, the `include_global_state` and `feature_states` parameters include
+all system indices.
+
+Similarly, you can no longer use the {ref}/restore-snapshot-api.html[restore snapshot
+API]'s `indices` parameter to restore a system index from a snapshot. To restore
+a system index, use the `include_global_state` and `feature_states` parameters
+to restore the corresponding feature state instead. By default, the
+`include_global_state` and `feature_states` parameters don't restore any system
+indices.
+
+*Impact* +
+If you previously used the `indices` parameter to back up or restore system
+indices, update your {slm-init} policies and application to use the
+`include_global_state` and `feature_states` parameters instead.
+
+An {slm-init} policy that explicitly specifies a system index in the `indices`
+parameter will fail to create snapshots. Similarly, a create snapshot API or
+restore snapshot API request that explicitly specifies a system index in the
+`indices` parameter will fail and return an error. If the `indices` value
+includes a wildcard (`*`) pattern, the pattern will no longer match system
+indices.
+====
+
 .Snapshots compress metadata files by default.
 [%collapsible]
 ====

@@ -98,7 +98,7 @@ public class JobResultsProviderTests extends ESTestCase {
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
         String queryString = query.toString();
-        assertTrue(queryString.matches("(?s).*anomaly_score[^}]*from. : 1\\.0.*must_not[^}]*term[^}]*is_interim.*value. : true" + ".*"));
+        assertTrue(queryString.matches("(?s).*anomaly_score[^}]*gte. : 1\\.0.*must_not[^}]*term[^}]*is_interim.*value. : true" + ".*"));
     }
 
     public void testBuckets_OneBucketInterim() throws IOException {
@@ -128,7 +128,7 @@ public class JobResultsProviderTests extends ESTestCase {
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
         String queryString = query.toString();
-        assertTrue(queryString.matches("(?s).*anomaly_score[^}]*from. : 5\\.1.*"));
+        assertTrue(queryString.matches("(?s).*anomaly_score[^}]*gte. : 5\\.1.*"));
         assertFalse(queryString.matches("(?s).*is_interim.*"));
     }
 
@@ -163,7 +163,7 @@ public class JobResultsProviderTests extends ESTestCase {
         assertEquals(1L, buckets.count());
         QueryBuilder query = queryBuilderHolder[0];
         String queryString = query.toString();
-        assertTrue(queryString.matches("(?s).*anomaly_score[^}]*from. : 5\\.1.*"));
+        assertTrue(queryString.matches("(?s).*anomaly_score[^}]*gte. : 5\\.1.*"));
         assertFalse(queryString.matches("(?s).*is_interim.*"));
     }
 

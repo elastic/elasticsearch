@@ -819,9 +819,7 @@ public abstract class AbstractScopedSettings {
                 if (isFinalSetting(key)) {
                     throw new IllegalArgumentException("final " + type + " setting [" + key + "], not updateable");
                 } else {
-                    throw new IllegalArgumentException(type + " setting [" + key + "], not dynamically updateable" +
-                        "[isFinalSetting(key)=" + isFinalSetting(key) + "], [onlyDynamic=" + onlyDynamic + "], [get(key)="+get(key)+"], " +
-                        "[isDynamicSetting(key)=" + isDynamicSetting(key) + "]");
+                    throw new IllegalArgumentException(type + " setting [" + key + "], not dynamically updateable");
                 }
             }
         }

@@ -804,7 +804,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             throw t;
         }
         // only delete the backed-up keystore file if all went well, because the new keystore contains its entries
-        Files.delete(keystoreBackupPath);
+        if (Files.exists(keystoreBackupPath)) {
+            Files.delete(keystoreBackupPath);
+        }
     }
 
     private String initialMasterNodesSettingValue(Environment environment) {

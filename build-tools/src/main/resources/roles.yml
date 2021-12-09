@@ -5,3 +5,7 @@ _es_test_root:
       allow_restricted_indices: true
       privileges: [ "ALL" ]
   run_as: [ "*" ]
+  applications:
+    - application: "*"
+      privileges: [ "*" ]
+      resources: [ "*" ]

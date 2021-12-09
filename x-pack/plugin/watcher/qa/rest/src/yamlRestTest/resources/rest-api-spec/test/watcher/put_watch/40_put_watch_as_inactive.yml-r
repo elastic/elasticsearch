@@ -1,0 +1,55 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+teardown:
+  - do:
+      watcher.delete_watch:
+        id: "my_watch"
+        ignore: 404
+
+---
+"Test put inactive watch":
+  - do:
+      watcher.put_watch:
+        id: "my_watch"
+        active: false
+        body:  >
+          {
+            "trigger": {
+              "schedule": {
+                "hourly": {
+                  "minute": [ 0, 5 ]
+                  }
+                }
+            },
+            "input": {
+              "simple": {
+                "payload": {
+                  "send": "yes"
+                }
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "test_index": {
+                "index": {
+                  "index": "test"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_watch" }
+
+  - do:
+      watcher.get_watch:
+        id: "my_watch"
+
+  - match: { found : true }
+  - match: { _id: "my_watch" }
+  - match: { status.state.active: false }

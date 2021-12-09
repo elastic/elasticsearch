@@ -1,0 +1,31 @@
+---
+"Continue scroll after upgrade":
+  - do:
+      get:
+        index: scroll_index
+        id: 1
+
+  - set: {_source.value: scroll_id}
+
+  - do:
+      scroll:
+        rest_total_hits_as_int: true
+        scroll_id: $scroll_id
+        scroll: 1m
+
+  - match: {hits.total:      2    }
+  - length: {hits.hits:      1    }
+  - match: {hits.hits.0._id: "43" }
+
+  - do:
+      scroll:
+        rest_total_hits_as_int: true
+        scroll_id: $scroll_id
+        scroll: 1m
+
+  - match: {hits.total:      2    }
+  - length: {hits.hits:      0    }
+
+  - do:
+      clear_scroll:
+        scroll_id: $scroll_id

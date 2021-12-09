@@ -1,0 +1,117 @@
+# tag::rest
+rest_minimal:
+  indices:
+    - names: test
+      privileges: [read, "indices:admin/get"]
+    - names: bort
+      privileges: [read, "indices:admin/get"]
+# end::rest
+
+# tag::cli_drivers
+cli_or_drivers_minimal:
+  cluster:
+    - "cluster:monitor/main"
+  indices:
+    - names: test
+      privileges: [read, "indices:admin/get"]
+    - names: bort
+      privileges: [read, "indices:admin/get"]
+# end::cli_drivers
+
+read_nothing:
+  cluster:
+    - "cluster:monitor/main"
+
+read_something_else:
+  cluster:
+    - "cluster:monitor/main"
+  indices:
+    - names: something_that_isnt_test
+      privileges: [read, "indices:admin/get"]
+
+read_test_a:
+  cluster:
+    - "cluster:monitor/main"
+  indices:
+    - names: test
+      privileges: [read, "indices:admin/get"]
+      field_security:
+        grant: [a]
+
+read_test_a_and_b:
+  cluster:
+    - "cluster:monitor/main"
+  indices:
+    - names: test
+      privileges: [read, "indices:admin/get"]
+      field_security:
+        grant: ["*"]
+        except: [c]
+
+read_test_without_c_3:
+  cluster:
+    - "cluster:monitor/main"
+  indices:
+    - names: test
+      privileges: [read, "indices:admin/get"]
+      query: |
+        {
+          "bool": {
+            "must_not": [
+              {
+                "match": {
+                  "c": 3
+                }
+              }
+            ]
+          }
+        }
+
+read_bort:
+  cluster:
+    - "cluster:monitor/main"
+  indices:
+    - names: bort
+      privileges: [read, "indices:admin/get"]
+
+no_monitor_main:
+  indices:
+    - names: test
+      privileges: [read, "indices:admin/get"]
+    - names: bort
+      privileges: [read, "indices:admin/get"]
+
+no_get_index:
+  cluster:
+    - "cluster:monitor/main"
+  indices:
+    - names: test
+      privileges: [monitor]
+    - names: bort
+      privileges: [monitor]
+
+user1:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: ['index-user1', 'index' ]
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+
+user2:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: [ 'index-user2', 'index' ]
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+
+manage_user:
+  cluster:
+    - manage

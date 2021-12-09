@@ -1,0 +1,121 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+teardown:
+  - do:
+      watcher.delete_watch:
+        id: "test_watch"
+        ignore: 404
+
+---
+"Test execute watch api works with throttling":
+  - do:
+      watcher.put_watch:
+        id: "test_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "simple": {
+                "foo": "bar"
+              }
+            },
+            "condition": {
+              "never": {}
+            },
+            "actions": {
+              "logging" : {
+                "logging" : {
+                  "text" : "logging text from test: execute_watch/30_throttled.yml"
+                }
+              }
+            }
+          }
+  - match: { _id: "test_watch" }
+  - match: { created: true }
+
+  - do:
+      watcher.execute_watch:
+        id: "test_watch"
+        body: >
+          {
+            "trigger_data" : {
+              "triggered_time" : "2012-12-12T12:12:12.120Z",
+              "scheduled_time" : "2000-12-12T12:12:12.120Z"
+            }
+          }
+
+  - match: { watch_record.watch_id: "test_watch" }
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.trigger_event.triggered_time: "2012-12-12T12:12:12.120Z" }
+  - match: { watch_record.trigger_event.manual.schedule.scheduled_time: "2000-12-12T12:12:12.120Z" }
+  - match: { watch_record.state: "execution_not_needed" }
+  - match: { watch_record.status.execution_state: "execution_not_needed" }
+  - match: { watch_record.status.state.active: true }
+
+  - do:
+      watcher.put_watch:
+        id: "test_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "simple": {
+                "foo": "bar"
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "throttle_period" : "1h",
+            "actions": {
+              "logging" : {
+                "logging" : {
+                  "text" : "logging text from test: execute_watch/30_throttled.yml"
+                }
+              }
+            }
+          }
+  - match: { _id: "test_watch" }
+
+  - do:
+      watcher.execute_watch:
+        id: "test_watch"
+        body: >
+          {
+            "trigger_data" : {
+              "triggered_time" : "2012-12-12T12:12:12.120Z",
+              "scheduled_time" : "2000-12-12T12:12:12.120Z"
+            },
+            "record_execution": true
+          }
+
+  - match: { watch_record.watch_id: "test_watch" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
+
+  - do:
+      watcher.execute_watch:
+        id: "test_watch"
+        body: >
+          {
+            "trigger_data" : {
+              "triggered_time" : "2012-12-12T12:12:12.120Z",
+              "scheduled_time" : "2000-12-12T12:12:12.120Z"
+            },
+            "record_execution": true
+          }
+
+  - match: { watch_record.watch_id: "test_watch" }
+  - match: { watch_record.state: "throttled" }
+  - match: { watch_record.status.execution_state: "throttled" }
+
+

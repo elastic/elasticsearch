@@ -1,0 +1,299 @@
+---
+setup:
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"timestamp": "2017-01-01T05:00:00Z", "s": 1, "v1": 3.1415, "v2": 2.1415, "str": "a"}'
+          - '{"index": {}}'
+          - '{"timestamp": "2017-01-01T05:00:00Z", "s": 2, "v1": 1.0, "v2": 2.0, "str": "a"}'
+          - '{"index": {}}'
+          - '{"timestamp": "2017-01-01T05:00:00Z", "s": 3, "v1": 2.71828, "v2": 3.71828, "str": "b"}'
+
+---
+"Usage stats on analytics indices":
+  - skip:
+      version: " - 7.99.99"
+      reason:  "stats is not working in earlier versions at the moment"
+
+  - do: {xpack.usage: {}}
+  - match: { analytics.available: true }
+  - match: { analytics.enabled: true }
+  - set: {analytics.stats.boxplot_usage: boxplot_usage}
+  - set: {analytics.stats.top_metrics_usage: top_metrics_usage}
+  - set: {analytics.stats.cumulative_cardinality_usage: cumulative_cardinality_usage}
+  - set: {analytics.stats.t_test_usage: t_test_usage}
+  - set: {analytics.stats.string_stats_usage: string_stats_usage}
+  - set: {analytics.stats.moving_percentiles_usage: moving_percentiles_usage}
+  - set: { analytics.stats.normalize_usage: normalize_usage }
+  - set: { analytics.stats.rate_usage: rate_usage }
+  - set: { analytics.stats.multi_terms_usage: multi_terms_usage }
+
+  # use boxplot agg
+  - do:
+      search:
+        index: "test"
+        body:
+          size: 0
+          aggs:
+            plot:
+              boxplot:
+                field: "s"
+
+  - match: { aggregations.plot.q2: 2.0 }
+
+
+  - do: {xpack.usage: {}}
+  - match: { analytics.available: true }
+  - match: { analytics.enabled: true }
+  - gt: { analytics.stats.boxplot_usage: $boxplot_usage }
+  - set: {analytics.stats.boxplot_usage: boxplot_usage}
+  - match: {analytics.stats.top_metrics_usage: $top_metrics_usage}
+  - match: {analytics.stats.cumulative_cardinality_usage: $cumulative_cardinality_usage}
+  - match: {analytics.stats.t_test_usage: $t_test_usage}
+  - match: {analytics.stats.string_stats_usage: $string_stats_usage}
+  - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
+  - match: { analytics.stats.normalize_usage: $normalize_usage }
+  - match: { analytics.stats.rate_usage: $rate_usage }
+  - match: { analytics.stats.multi_terms_usage: $multi_terms_usage }
+
+  # use top_metrics agg
+  - do:
+      search:
+        index: "test"
+        size: 0
+        body:
+          aggs:
+            tm:
+              top_metrics:
+                metrics:
+                  field: v1
+                sort:
+                  s: desc
+  - match: { aggregations.tm.top.0.metrics.v1: 2.718280076980591 }
+  - match: { aggregations.tm.top.0.sort: [3] }
+
+
+  - do: {xpack.usage: {}}
+  - match: { analytics.available: true }
+  - match: { analytics.enabled: true }
+  - match: {analytics.stats.boxplot_usage: $boxplot_usage}
+  - gt: { analytics.stats.top_metrics_usage: $top_metrics_usage }
+  - set: {analytics.stats.top_metrics_usage: top_metrics_usage}
+  - match: {analytics.stats.cumulative_cardinality_usage: $cumulative_cardinality_usage}
+  - match: {analytics.stats.t_test_usage: $t_test_usage}
+  - match: {analytics.stats.string_stats_usage: $string_stats_usage}
+  - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
+  - match: { analytics.stats.normalize_usage: $normalize_usage }
+  - match: { analytics.stats.rate_usage: $rate_usage }
+  - match: { analytics.stats.multi_terms_usage: $multi_terms_usage }
+
+  # use cumulative_cardinality agg
+  - do:
+      search:
+        index: "test"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                calendar_interval: "day"
+              aggs:
+                distinct_s:
+                  cardinality:
+                    field: "s"
+                total_users:
+                  cumulative_cardinality:
+                    buckets_path: "distinct_s"
+
+  - length: { aggregations.histo.buckets: 1 }
+
+  - do: {xpack.usage: {}}
+  - match: { analytics.available: true }
+  - match: { analytics.enabled: true }
+  - match: {analytics.stats.boxplot_usage: $boxplot_usage}
+  - match: {analytics.stats.top_metrics_usage: $top_metrics_usage}
+  - gt: { analytics.stats.cumulative_cardinality_usage: $cumulative_cardinality_usage }
+  - set: {analytics.stats.cumulative_cardinality_usage: cumulative_cardinality_usage}
+  - match: {analytics.stats.t_test_usage: $t_test_usage}
+  - match: {analytics.stats.string_stats_usage: $string_stats_usage}
+  - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
+  - match: { analytics.stats.normalize_usage: $normalize_usage }
+  - match: { analytics.stats.rate_usage: $rate_usage }
+  - match: { analytics.stats.multi_terms_usage: $multi_terms_usage }
+
+  # use t-test agg
+  - do:
+      search:
+        size: 0
+        index: "test"
+        body:
+          aggs:
+            ttest:
+              t_test:
+                a:
+                  field: v1
+                b:
+                  field: v2
+  - match: { aggregations.ttest.value: 0.7172402682151968 }
+
+  - do: {xpack.usage: {}}
+  - match: { analytics.available: true }
+  - match: { analytics.enabled: true }
+  - match: {analytics.stats.boxplot_usage: $boxplot_usage}
+  - match: {analytics.stats.top_metrics_usage: $top_metrics_usage}
+  - match: {analytics.stats.cumulative_cardinality_usage: $cumulative_cardinality_usage}
+  - gt: { analytics.stats.t_test_usage: $t_test_usage }
+  - set: {analytics.stats.t_test_usage: t_test_usage}
+  - match: {analytics.stats.string_stats_usage: $string_stats_usage}
+  - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
+  - match: { analytics.stats.normalize_usage: $normalize_usage }
+  - match: { analytics.stats.rate_usage: $rate_usage }
+  - match: { analytics.stats.multi_terms_usage: $multi_terms_usage }
+
+  - do:
+      search:
+        size: 0
+        index: "test"
+        body:
+          aggs:
+            my_agg:
+              string_stats:
+                field: str.keyword
+  - match: { aggregations.my_agg.count: 3 }
+
+  - do: {xpack.usage: {}}
+  - match: { analytics.available: true }
+  - match: { analytics.enabled: true }
+  - match: {analytics.stats.boxplot_usage: $boxplot_usage}
+  - match: {analytics.stats.top_metrics_usage: $top_metrics_usage}
+  - match: {analytics.stats.cumulative_cardinality_usage: $cumulative_cardinality_usage}
+  - match: {analytics.stats.t_test_usage: $t_test_usage}
+  - gt: { analytics.stats.string_stats_usage: $string_stats_usage }
+  - set: {analytics.stats.string_stats_usage: string_stats_usage}
+  - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
+  - match: { analytics.stats.normalize_usage: $normalize_usage }
+  - match: { analytics.stats.rate_usage: $rate_usage }
+  - match: { analytics.stats.multi_terms_usage: $multi_terms_usage }
+
+  # use moving_percentile agg
+  - do:
+      search:
+        index: "test"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                calendar_interval: "day"
+              aggs:
+                percentiles:
+                  percentiles:
+                    field: "v1"
+                moving_percentiles:
+                  moving_percentiles:
+                    buckets_path: "percentiles"
+                    window: 2
+
+  - length: { aggregations.histo.buckets: 1 }
+
+  - do: {xpack.usage: {}}
+  - match: { analytics.available: true }
+  - match: { analytics.enabled: true }
+  - match: {analytics.stats.boxplot_usage: $boxplot_usage}
+  - match: {analytics.stats.top_metrics_usage: $top_metrics_usage}
+  - match: { analytics.stats.cumulative_cardinality_usage: $cumulative_cardinality_usage }
+  - match: {analytics.stats.t_test_usage: $t_test_usage}
+  - match: {analytics.stats.string_stats_usage: $string_stats_usage}
+  - gt: { analytics.stats.moving_percentiles_usage: $moving_percentiles_usage }
+  - set: {analytics.stats.moving_percentiles_usage: moving_percentiles_usage}
+  - match: { analytics.stats.normalize_usage: $normalize_usage }
+  - match: { analytics.stats.rate_usage: $rate_usage }
+  - match: { analytics.stats.multi_terms_usage: $multi_terms_usage }
+
+  # use normalize agg
+  - do:
+      search:
+        index: "test"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                calendar_interval: "day"
+              aggs:
+                total_users:
+                  sum:
+                    field: "s"
+                percent_of_total_users:
+                  normalize:
+                    buckets_path: "total_users"
+                    method: "percent_of_sum"
+
+  - length: { aggregations.histo.buckets: 1 }
+
+  - do: {xpack.usage: {}}
+  - match: { analytics.available: true }
+  - match: { analytics.enabled: true }
+  - match: {analytics.stats.boxplot_usage: $boxplot_usage}
+  - match: {analytics.stats.top_metrics_usage: $top_metrics_usage}
+  - match: {analytics.stats.cumulative_cardinality_usage: $cumulative_cardinality_usage}
+  - match: {analytics.stats.t_test_usage: $t_test_usage}
+  - match: {analytics.stats.string_stats_usage: $string_stats_usage}
+  - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
+  - gt: { analytics.stats.normalize_usage: $normalize_usage }
+  - set: {analytics.stats.normalize_usage: normalize_usage}
+  - match: { analytics.stats.rate_usage: $rate_usage }
+  - match: { analytics.stats.multi_terms_usage: $multi_terms_usage }
+
+  # use rate agg
+  - do:
+      search:
+        index: "test"
+        body:
+          size: 0
+          aggs:
+            histo:
+              date_histogram:
+                field: "timestamp"
+                calendar_interval: "day"
+              aggs:
+                avg_users:
+                  rate:
+                    field: "s"
+                    unit: "hour"
+
+  - length: { aggregations.histo.buckets: 1 }
+
+  - do: {xpack.usage: {}}
+  - match: { analytics.available: true }
+  - match: { analytics.enabled: true }
+  - match: {analytics.stats.boxplot_usage: $boxplot_usage}
+  - match: {analytics.stats.top_metrics_usage: $top_metrics_usage}
+  - match: {analytics.stats.cumulative_cardinality_usage: $cumulative_cardinality_usage}
+  - match: {analytics.stats.t_test_usage: $t_test_usage}
+  - match: {analytics.stats.string_stats_usage: $string_stats_usage}
+  - match: {analytics.stats.moving_percentiles_usage: $moving_percentiles_usage}
+  - gt: { analytics.stats.rate_usage: $rate_usage }
+  - set: {analytics.stats.rate_usage: rate_usage}
+  - match: { analytics.stats.multi_terms_usage: $multi_terms_usage }
+
+  # use multi_terms agg
+  - do:
+      search:
+        size: 0
+        index: "test"
+        body:
+          aggs:
+            m_terms:
+              multi_terms:
+                terms:
+                  - field: timestamp
+                  - field: str.keyword
+
+  - length: { aggregations.m_terms.buckets: 2 }

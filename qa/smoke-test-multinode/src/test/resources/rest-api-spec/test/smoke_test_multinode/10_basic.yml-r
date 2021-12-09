@@ -1,0 +1,13 @@
+# Integration tests for smoke testing multi-node IT
+# If the local machine which is running the test is low on disk space
+# We can have one unassigned shard
+---
+"cluster health basic test, wait for both nodes to join":
+  - do:
+      cluster.health:
+        wait_for_nodes: 2
+
+  - is_true:   cluster_name
+  - is_false:  timed_out
+  - gte:       { number_of_nodes:         2 }
+  - gte:       { number_of_data_nodes:    2 }

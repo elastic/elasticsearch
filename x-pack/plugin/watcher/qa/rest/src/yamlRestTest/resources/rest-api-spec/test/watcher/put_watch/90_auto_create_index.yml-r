@@ -1,0 +1,52 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            action.auto_create_index: false
+
+---
+teardown:
+  - do:
+      watcher.delete_watch:
+        id: "test_watch"
+        ignore: 404
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            action.auto_create_index: null
+
+---
+"Ensure watch is created even when auto_create_index is disabled":
+  - do:
+      watcher.put_watch:
+        id: "test_watch"
+        body:  >
+          {
+            "trigger": {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input": {
+              "simple": {
+                "foo": "bar"
+              }
+            },
+            "condition": {
+              "always": {}
+            },
+            "actions": {
+              "indexme" : {
+                "index" : {
+                  "index" : "my_test_index",
+                  "doc_id": "my-id"
+                }
+              }
+            }
+          }
+  - match: { _id: "test_watch" }
+  - match: { created: true }

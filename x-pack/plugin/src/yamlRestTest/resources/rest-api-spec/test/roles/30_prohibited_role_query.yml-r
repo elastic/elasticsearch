@@ -1,0 +1,30 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+---
+"Test use prohibited query inside role query":
+
+  - do:
+      catch:  /terms query with terms lookup isn't supported as part of a role query/
+      security.put_role:
+        name: "role"
+        body:  >
+            {
+              "cluster": ["all"],
+              "indices": [
+                {
+                  "names": "index",
+                  "privileges": ["all"],
+                  "query" : {
+                    "terms" : { "field" : { "index" : "_index", "id" : "_id", "path" : "_path"} }
+                  }
+                }
+              ]
+            }
+

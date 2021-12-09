@@ -1,0 +1,49 @@
+# remove this test from core-tests-with-security as soon as we can
+# pull in rest test from modules in core
+---
+"Basic Rankeval test":
+  - do:
+     indices.create:
+         index: foo
+         body:
+           settings:
+             index:
+               number_of_shards: 1
+  - do:
+      index:
+        index:   foo
+        id:      doc1
+        body:    { "text": "berlin" }
+
+  - do:
+      index:
+        index:  foo
+        id:     doc2
+        body:   { "text": "amsterdam" }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      rank_eval:
+        body: {
+          "requests" : [
+            {
+                "id": "amsterdam_query",
+                "request": { "query": { "match" : {"text" : "amsterdam" }}},
+                "ratings": [
+                    {"_index": "foo", "_id": "doc1", "rating": 0},
+                    {"_index": "foo", "_id": "doc2", "rating": 1}
+                 ]
+            },
+            {
+                "id" : "berlin_query",
+                "request": { "query": { "match" : { "text" : "berlin" } }, "size" : 10 },
+                "ratings": [{"_index": "foo", "_id": "doc1", "rating": 1}]
+            }
+          ],
+          "metric" : { "precision": { "ignore_unlabeled" : true }}
+        }
+
+  - match: { metric_score: 1 }
+

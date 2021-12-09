@@ -1,0 +1,111 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+---
+"Test execute watch api with foreach action":
+  - do:
+      watcher.execute_watch:
+        body:  >
+          {
+            "watch" : {
+              "trigger": {
+                "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+              },
+              "input": {
+                "simple" : {
+                  "hits" : {
+                    "hits" : [
+                    { "key" : "first" },
+                    { "key" : "second" },
+                    { "key" : "third" }
+                    ]
+                  }
+                }
+              },
+              "actions": {
+                "log_hits" : {
+                  "foreach" : "ctx.payload.hits.hits",
+                  "logging" : {
+                    "text" : "Logging {{ctx.payload.key}}"
+                  }
+                }
+              }
+            }
+          }
+
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
+  - match: { watch_record.result.actions.0.foreach.0.logging.logged_text: "Logging first" }
+  - match: { watch_record.result.actions.0.foreach.1.logging.logged_text: "Logging second" }
+  - match: { watch_record.result.actions.0.foreach.2.logging.logged_text: "Logging third" }
+
+
+---
+"Test execute watch api with foreach action using an array":
+  - do:
+      watcher.execute_watch:
+        body:  >
+          {
+            "watch" : {
+              "trigger": {
+                "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+              },
+              "input": {
+                "simple" : {
+                  "values" : [1, 2, 3]
+                }
+              },
+              "actions": {
+                "log_hits" : {
+                  "foreach" : "ctx.payload.values",
+                  "logging" : {
+                    "text" : "Logging {{ctx.payload._value}}"
+                  }
+                }
+              }
+            }
+          }
+
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
+  - match: { watch_record.result.actions.0.foreach.0.logging.logged_text: "Logging 1" }
+  - match: { watch_record.result.actions.0.foreach.1.logging.logged_text: "Logging 2" }
+  - match: { watch_record.result.actions.0.foreach.2.logging.logged_text: "Logging 3" }
+
+---
+"Test execute watch api with foreach action using an array of arrays":
+  - do:
+      watcher.execute_watch:
+        body:  >
+          {
+            "watch" : {
+              "trigger": {
+                "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+              },
+              "input": {
+                "simple" : {
+                  "values" : [[1, 2], [2, 3], [3, 4]]
+                }
+              },
+              "actions": {
+                "log_hits" : {
+                  "foreach" : "ctx.payload.values",
+                  "logging" : {
+                    "text" : "Logging {{ctx.payload._value.1}}"
+                  }
+                }
+              }
+            }
+          }
+
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
+  - match: { watch_record.result.actions.0.foreach.0.logging.logged_text: "Logging 2" }
+  - match: { watch_record.result.actions.0.foreach.1.logging.logged_text: "Logging 3" }
+  - match: { watch_record.result.actions.0.foreach.2.logging.logged_text: "Logging 4" }

@@ -1,0 +1,16 @@
+# Integration tests for the expert scoring script example plugin
+#
+"Plugin loaded":
+    - skip:
+        reason: "contains is a newly added assertion"
+        features: contains
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - contains:  { nodes.$master.plugins: { name: example-rescore } }

@@ -1,0 +1,46 @@
+---
+"Modify a document":
+  - do:
+      ingest.put_pipeline:
+        id: "test_ingest"
+        body:  >
+          {
+            "description": "tests reindex with ingest",
+            "processors": [
+              {
+                "append" : {
+                  "field" : "new_field",
+                  "value": "cat"
+                }
+              }
+            ]
+          }
+  - do:
+      index:
+        index:  twitter
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            index: twitter
+          dest:
+            index: new_twitter
+            pipeline: test_ingest
+  - match: {created: 1}
+  - match: {noops: 0}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: new_twitter
+        body:
+          query:
+            match:
+              new_field: cat
+  - match: { hits.total: 1 }

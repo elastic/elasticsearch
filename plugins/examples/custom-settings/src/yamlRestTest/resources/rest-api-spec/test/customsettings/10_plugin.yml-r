@@ -1,0 +1,10 @@
+"Test that the custom-settings plugin is loaded in Elasticsearch":
+
+  # Use the Cat Plugins API to retrieve the list of plugins
+  - do:
+      cat.plugins:
+        local: true
+        h: component
+
+  - match:
+      $body: /^custom-settings\n$/

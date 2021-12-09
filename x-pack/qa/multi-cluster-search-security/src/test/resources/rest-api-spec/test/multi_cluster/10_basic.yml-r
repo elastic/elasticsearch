@@ -1,0 +1,354 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+  - do:
+      security.put_user:
+        username: "joe"
+        body:  >
+            {
+              "password": "s3krit-password",
+              "roles" : [ "x_cluster_role" ]
+            }
+  - do:
+      security.put_role:
+        name: "x_cluster_role"
+        body:  >
+            {
+              "cluster": [],
+              "indices": [
+                {
+                  "names": ["local_index"],
+                  "privileges": ["read"]
+                }
+              ]
+            }
+
+  - do:
+      security.put_user:
+        username: "remote"
+        body:  >
+            {
+              "password": "s3krit-password",
+              "roles" : [ "remote_ccs" ]
+            }
+  - do:
+      security.put_role:
+        name: "remote_ccs"
+        body:  >
+            {
+            }
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "joe"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "x_cluster_role"
+        ignore: 404
+---
+"Index data and search on the mixed cluster":
+
+  - do:
+      indices.create:
+        index: local_index
+        body:
+          settings:
+            index:
+              number_of_shards: 2
+              number_of_replicas: 0
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "local_index"}}'
+            - '{"f1": "local_cluster", "filter_field": 0}'
+            - '{"index": {"_index": "local_index"}}'
+            - '{"f1": "local_cluster", "filter_field": 1}'
+            - '{"index": {"_index": "local_index"}}'
+            - '{"f1": "local_cluster", "filter_field": 0}'
+            - '{"index": {"_index": "local_index"}}'
+            - '{"f1": "local_cluster", "filter_field": 1}'
+            - '{"index": {"_index": "local_index"}}'
+            - '{"f1": "local_cluster", "filter_field": 0}'
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        index: local_index,my_remote_cluster:test_index
+        body:
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+
+  - match: { _shards.total: 5 }
+  - match: { hits.total: 11 }
+  - length: { aggregations.cluster.buckets: 2 }
+  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+  - match: { aggregations.cluster.buckets.1.key: "local_cluster" }
+  - match: { aggregations.cluster.buckets.1.doc_count: 5 }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        index: local_index,my_remote_cluster:test_index
+        body:
+          query:
+            term:
+              f1: remote_cluster
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+
+  - match: {_clusters.total: 2}
+  - match: {_clusters.successful: 2}
+  - match: {_clusters.skipped: 0}
+  - match: { _shards.total: 5 }
+  - match: { hits.total: 6}
+  - match: { hits.hits.0._index: "my_remote_cluster:test_index"}
+  - length: { aggregations.cluster.buckets: 1 }
+  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      async_search.submit:
+        index: local_index,my_remote_cluster:test_index
+        wait_for_completion_timeout: 10s
+        keep_on_completion: true
+        body:
+          query:
+            term:
+              f1: remote_cluster
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+
+  - set:  { id: id }
+  - match: { is_partial: false }
+  - match: { response._clusters.total: 2}
+  - match: { response._clusters.successful: 2}
+  - match: { response._clusters.skipped: 0}
+  - match: { response._shards.total: 5 }
+  - match: { response.hits.total.value: 6}
+  - match: { response.hits.total.relation: eq}
+  - match: { response.hits.hits.0._index: "my_remote_cluster:test_index"}
+  - length: { response.aggregations.cluster.buckets: 1 }
+  - match: { response.aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { response.aggregations.cluster.buckets.0.doc_count: 6 }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      async_search.get:
+        id: "$id"
+
+  - match: { is_partial: false }
+  - match: { response._clusters.total: 2}
+  - match: { response._clusters.successful: 2}
+  - match: { response._clusters.skipped: 0}
+  - match: { response._shards.total: 5 }
+  - match: { response.hits.total.value: 6}
+  - match: { response.hits.total.relation: eq}
+  - match: { response.hits.hits.0._index: "my_remote_cluster:test_index"}
+  - length: { response.aggregations.cluster.buckets: 1 }
+  - match: { response.aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { response.aggregations.cluster.buckets.0.doc_count: 6 }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      async_search.delete:
+        id: "$id"
+
+  - match: { acknowledged:   true }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        index: my_remote_cluster:test_index
+        body:
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 6}
+  - match: { hits.hits.0._index: "my_remote_cluster:test_index"}
+  - length: { aggregations.cluster.buckets: 1 }
+  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+
+  # Test wildcard in cluster name
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        index: "my_*:test_index"
+        body:
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 6}
+  - match: { hits.hits.0._index: "my_remote_cluster:test_index"}
+  - length: { aggregations.cluster.buckets: 1 }
+  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        index: local_index
+        body:
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+
+  - is_false: _clusters
+  - match: { _shards.total: 2 }
+  - match: { hits.total: 5}
+  - match: { hits.hits.0._index: "local_index"}
+  - length: { aggregations.cluster.buckets: 1 }
+  - match: { aggregations.cluster.buckets.0.key: "local_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 5 }
+
+---
+"Add persistent remote cluster based on the preset cluster":
+  - do:
+      cluster.get_settings:
+        include_defaults: true
+
+  - set: { defaults.cluster.remote.my_remote_cluster.seeds.0: remote_ip }
+
+  - do:
+      cluster.put_settings:
+        flat_settings: true
+        body:
+          persistent:
+            cluster.remote.test_remote_cluster.seeds: $remote_ip
+
+  - match: {persistent: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
+
+  - do:
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        index: test_remote_cluster:test_index
+
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 6 }
+  - match: { hits.hits.0._index: "test_remote_cluster:test_index" }
+
+  # Test wildcard that matches multiple (two) cluster names
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        index: "*_remote_cluster:test_ind*"
+
+  - match: {_clusters.total: 2}
+  - match: {_clusters.successful: 2}
+  - match: {_clusters.skipped: 0}
+  - match: { _shards.total: 6 }
+  - match: { hits.total: 12 }
+
+---
+"Search an filtered alias on the remote cluster":
+
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        index: my_remote_cluster:aliased_test_index
+
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.filter_field: 1 }
+  - match: { hits.hits.0._index: "my_remote_cluster:test_index" }
+
+---
+"Search across clusters via a secured alias":
+
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
+      search:
+        rest_total_hits_as_int: true
+        index: my_remote_cluster:secure_alias # TODO make this a wildcard once
+
+  - match: {_clusters.total: 1}
+  - match: {_clusters.successful: 1}
+  - match: {_clusters.skipped: 0}
+  - match: { _shards.total: 2 }
+  - match: { hits.total: 1 }
+  - is_true: hits.hits.0._source.secure
+  - match: { hits.hits.0._index: "my_remote_cluster:secured_via_alias" }
+
+---
+"Async search against filtered alias on the remote cluster":
+
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
+      async_search.submit:
+        index: my_remote_cluster:aliased_test_index
+        wait_for_completion_timeout: 10s
+        keep_on_completion: true
+
+  - set:  { id: id }
+  - match: { is_partial: false }
+  - match: { response._clusters.total: 1}
+  - match: { response._clusters.successful: 1}
+  - match: { response._shards.total: 3 }
+  - length: { response.hits.hits: 2 }
+  - match: { response.hits.hits.0._source.filter_field: 1 }
+  - match: { response.hits.hits.0._index: "my_remote_cluster:test_index" }
+
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
+      async_search.get:
+        id: "$id"
+
+  - match: { is_partial: false }
+  - is_true: response._clusters
+  - match: { response._shards.total: 3 }
+  - length: { response.hits.hits: 2 }
+  - match: { response.hits.hits.0._source.filter_field: 1 }
+  - match: { response.hits.hits.0._index: "my_remote_cluster:test_index" }
+
+  - do:
+      headers: { Authorization: "Basic cmVtb3RlOnMza3JpdC1wYXNzd29yZA==" }
+      async_search.delete:
+        id: "$id"
+
+  - match: { acknowledged:   true }
+
+

@@ -1,0 +1,66 @@
+---
+setup:
+
+  - do:
+        indices.create:
+          index: test_index
+          body:
+              mappings:
+                properties:
+                  text:
+                    type:     text
+
+---
+"Get field mapping with no index":
+
+  - do:
+      indices.get_field_mapping:
+        fields: text
+
+  - match: {test_index.mappings.text.mapping.text.type:     text}
+
+---
+"Get field mapping by index only":
+  - do:
+      indices.get_field_mapping:
+        index: test_index
+        fields: text
+
+  - match: {test_index.mappings.text.mapping.text.type:     text}
+
+---
+"Get field mapping by field, with another field that doesn't exist":
+
+  - do:
+      indices.get_field_mapping:
+        index: test_index
+        fields: [ text , text1 ]
+
+  - match: {test_index.mappings.text.mapping.text.type:     text}
+  - is_false: test_index.mappings.test_type.text1
+
+---
+"Get field mapping with include_defaults":
+
+  - do:
+      indices.get_field_mapping:
+        index: test_index
+        fields: text
+        include_defaults: true
+
+  - match: {test_index.mappings.text.mapping.text.type:     text}
+  - match: {test_index.mappings.text.mapping.text.analyzer: default}
+
+---
+"Get field mapping with local parameter should fail":
+
+  - skip:
+      features: ["warnings", "node_selector"]
+
+  - do:
+      catch: bad_request
+      node_selector:
+        version: "8.0.0 - "
+      indices.get_field_mapping:
+        fields: text
+        local: true

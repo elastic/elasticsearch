@@ -1,0 +1,224 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: test_index1
+
+  - do:
+      indices.create:
+        index: test_index2
+
+  - do:
+      indices.create:
+        index: foo
+
+  - do:
+      indices.put_alias:
+        name:  alias1
+        index:
+          - test_index1
+          - foo
+        body:
+          routing: "routing value"
+  - do:
+      indices.put_alias:
+        name:  alias2
+        index:
+          - test_index2
+          - foo
+        body:
+          routing: "routing value"
+
+---
+"check setup":
+  - do:
+      indices.get_alias:
+        name: alias1
+
+  - match: {test_index1.aliases.alias1.search_routing: "routing value"}
+  - match: {foo.aliases.alias1.search_routing: "routing value"}
+
+  - do:
+      indices.get_alias:
+        name: alias2
+
+  - match: {test_index2.aliases.alias2.search_routing: "routing value"}
+  - match: {foo.aliases.alias2.search_routing: "routing value"}
+
+---
+"check delete with _all index":
+  - do:
+      indices.delete_alias:
+        index: _all
+        name: alias1
+
+  - do:
+      catch: missing
+      indices.get_alias:
+        name:  alias1
+  - do:
+      indices.get_alias:
+        name: alias2
+
+  - match: {test_index2.aliases.alias2.search_routing: "routing value"}
+  - match: {foo.aliases.alias2.search_routing: "routing value"}
+
+---
+"check delete with * index":
+  - do:
+      indices.delete_alias:
+        index: "*"
+        name: alias1
+
+  - do:
+      catch: missing
+      indices.get_alias:
+        name:  alias1
+  - do:
+      indices.get_alias:
+        name: alias2
+
+  - match: {test_index2.aliases.alias2.search_routing: "routing value"}
+  - match: {foo.aliases.alias2.search_routing: "routing value"}
+
+---
+"check delete with index list":
+  - do:
+      indices.delete_alias:
+        index: "test_index1,test_index2"
+        name: alias1
+
+  - do:
+      indices.get_alias:
+        name:  alias1
+
+  - match: {foo.aliases.alias1.search_routing: "routing value"}
+  - is_false: test_index1
+  - is_false: test_index2
+
+  - do:
+      indices.get_alias:
+        name: alias2
+
+  - match: {test_index2.aliases.alias2.search_routing: "routing value"}
+  - match: {foo.aliases.alias2.search_routing: "routing value"}
+
+---
+"check delete with prefix* index":
+  - do:
+      indices.delete_alias:
+        index: "test_*"
+        name: alias1
+
+  - do:
+      indices.get_alias:
+        name:  alias1
+
+  - match: {foo.aliases.alias1.search_routing: "routing value"}
+  - is_false: test_index1
+  - is_false: test_index2
+
+  - do:
+      indices.get_alias:
+        name: alias2
+
+  - match: {test_index2.aliases.alias2.search_routing: "routing value"}
+  - match: {foo.aliases.alias2.search_routing: "routing value"}
+
+
+---
+"check delete with index list and * aliases":
+  - do:
+      indices.delete_alias:
+        index: "test_index1,test_index2"
+        name: "*"
+
+  - do:
+      indices.get_alias:
+        name:  alias1
+
+  - match: {foo.aliases.alias1.search_routing: "routing value"}
+  - is_false: test_index1
+  - is_false: test_index2
+
+  - do:
+      indices.get_alias:
+        name:  alias2
+
+  - match: {foo.aliases.alias2.search_routing: "routing value"}
+  - is_false: test_index1
+  - is_false: test_index2
+
+---
+"check delete with index list and _all aliases":
+  - do:
+      indices.delete_alias:
+        index: "test_index1,test_index2"
+        name: _all
+
+  - do:
+      indices.get_alias:
+        name:  alias1
+
+  - match: {foo.aliases.alias1.search_routing: "routing value"}
+  - is_false: test_index1
+  - is_false: test_index2
+
+  - do:
+      indices.get_alias:
+        name:  alias2
+
+  - match: {foo.aliases.alias2.search_routing: "routing value"}
+  - is_false: test_index1
+  - is_false: test_index2
+
+---
+"check delete with index list and wildcard aliases":
+  - do:
+      indices.delete_alias:
+        index: "test_index1,test_index2"
+        name: "*1"
+
+  - do:
+      indices.get_alias:
+        name:  alias1
+
+  - match: {foo.aliases.alias1.search_routing: "routing value"}
+  - is_false: test_index1
+  - is_false: test_index2
+
+  - do:
+      indices.get_alias:
+        name:  alias2
+
+  - match: {test_index2.aliases.alias2.search_routing: "routing value"}
+  - match: {foo.aliases.alias2.search_routing: "routing value"}
+
+---
+"check 404 on no matching alias":
+  - do:
+      catch: missing
+      indices.delete_alias:
+        index: "*"
+        name: "non_existent"
+
+  - do:
+      catch: missing
+      indices.delete_alias:
+        index: "non_existent"
+        name: "alias1"
+
+
+---
+"check delete with blank index and blank alias":
+  - do:
+      catch: param
+      indices.delete_alias:
+        name: "alias1"
+
+  - do:
+      catch: param
+      indices.delete_alias:
+        index: "test_index1"
+

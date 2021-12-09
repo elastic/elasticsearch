@@ -1,0 +1,80 @@
+role1:
+  cluster:
+    - ALL
+  indices:
+    - names:
+        - idx1
+        - idx2
+      privileges:
+        - READ
+    - names: idx3
+      privileges:
+        - READ
+        - WRITE
+
+role1.ab:
+  cluster:
+    - ALL
+
+role2:
+  cluster:
+    - ALL
+    - MONITOR
+
+role3:
+  indices:
+    - names: '/.*_.*/'
+      privileges:
+        - READ
+        - WRITE
+
+# role with run_as permissions only
+role_run_as:
+  run_as:
+    - user1
+    - user2
+
+# role with more than run_as
+role_run_as1:
+  run_as: [user1, user2]
+
+role_fields:
+  indices:
+    - names:
+      #23456789ohbh
+        - 'field_idx'
+      privileges:
+        - READ
+      field_security:
+        grant:
+          - foo
+          - boo
+
+role_query:
+  indices:
+    - names:
+        - 'query_idx'
+      privileges:
+        - READ
+      query: '{ "match_all": {} }'
+
+role_query_fields:
+  indices:
+    - names:
+        - 'query_fields_idx'
+      privileges:
+        - READ
+      query:
+        match_all: {}
+      field_security:
+        grant:
+          - foo
+          - boo
+
+role_query_invalid:
+  indices:
+    - names:
+        - 'query_idx'
+      privileges:
+        - READ
+      query: '{ "unknown": {} }'

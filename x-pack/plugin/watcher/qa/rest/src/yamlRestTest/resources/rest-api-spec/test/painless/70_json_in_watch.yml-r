@@ -1,0 +1,58 @@
+---
+"Test json in watch":
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      watcher.put_watch:
+        id: "my_json_watch"
+        body:  >
+          {
+            "trigger" : {
+              "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+            },
+            "input" : {
+              "simple" : {
+                "count" : 1
+              }
+            },
+            "condition" : {
+              "script" : {
+                "source" : "String s = Json.dump(ctx.payload); Map m = Json.load(s); m.count == 1;",
+                "lang" : "painless"
+              }
+            },
+            "transform" : {
+              "script": "String s = Json.dump(ctx.payload); Map m = Json.load(s); return ['test': m];"
+            },
+            "actions" : {
+              "logging" : {
+                "logging" : {
+                  "text" : "{{ctx.payload.test.count}}"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_json_watch" }
+
+  - do:
+      watcher.execute_watch:
+        id: "my_json_watch"
+
+  - match: { "watch_record.watch_id": "my_json_watch" }
+  - match: { "watch_record.state": "executed" }
+  - match: { "watch_record.result.input.type": "simple" }
+  - match: { "watch_record.result.input.status": "success" }
+  - match: { "watch_record.result.input.payload.count": 1 }
+  - match: { "watch_record.result.condition.type": "script" }
+  - match: { "watch_record.result.condition.status": "success" }
+  - match: { "watch_record.result.condition.met": true }
+  - match: { "watch_record.result.transform.type": "script" }
+  - match: { "watch_record.result.transform.status": "success" }
+  - match: { "watch_record.result.transform.payload.test.count": 1 }
+  - match: { "watch_record.result.actions.0.id" : "logging" }
+  - match: { "watch_record.result.actions.0.type" : "logging" }
+  - match: { "watch_record.result.actions.0.status" : "success" }
+  - match: { "watch_record.result.actions.0.logging.logged_text" : "1" }

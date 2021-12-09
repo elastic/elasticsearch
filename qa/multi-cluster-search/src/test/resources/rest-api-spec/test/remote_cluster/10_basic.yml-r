@@ -1,0 +1,220 @@
+---
+"Index data and search on the remote cluster":
+  - skip:
+      features: allowed_warnings
+
+  - do:
+      indices.create:
+        index: single_doc_index
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              created_at:
+                 type: date
+                 format: "yyyy-MM-dd"
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "single_doc_index"}}'
+            - '{"f1": "remote_cluster", "sort_field": 1, "created_at" : "2016-01-01"}'
+  - do:
+        indices.create:
+          index: field_caps_empty_index
+          body:
+            settings:
+              index:
+                number_of_shards: 1
+                number_of_replicas: 0
+
+  - do:
+        indices.create:
+          index: field_caps_index_1
+          body:
+              mappings:
+                properties:
+                  created_at:
+                    type:     date
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     double
+                  geo:
+                    type:     geo_point
+                  object:
+                    type: object
+                    properties:
+                      nested1 :
+                        type : text
+                        index: false
+                      nested2:
+                        type: float
+                        doc_values: false
+  - do:
+        indices.create:
+          index: field_caps_index_3
+          body:
+              mappings:
+                properties:
+                  created_at:
+                    type:     date
+                  text:
+                    type:     text
+                  keyword:
+                    type:     keyword
+                  number:
+                    type:     long
+                  geo:
+                    type:     keyword
+                  object:
+                    type: object
+                    properties:
+                      nested1 :
+                        type : long
+                        index: false
+                      nested2:
+                        type: keyword
+                        doc_values: false
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              number_of_shards: 3
+              number_of_replicas: 0
+          aliases:
+            aliased_test_index: # we use this alias in the multi cluster test to very filtered aliases work
+              filter:
+                term:
+                  filter_field : 1
+
+  - do:
+      bulk:
+         refresh: true
+         body:
+           - '{"index": {"_index": "test_index"}}'
+           - '{"f1": "remote_cluster", "animal": "pig", "filter_field": 0}'
+           - '{"index": {"_index": "test_index"}}'
+           - '{"f1": "remote_cluster", "animal": "pig", "filter_field": 1}'
+           - '{"index": {"_index": "test_index"}}'
+           - '{"f1": "remote_cluster", "animal": "chicken", "filter_field": 0}'
+           - '{"index": {"_index": "test_index"}}'
+           - '{"f1": "remote_cluster", "animal": "chicken", "filter_field": 1}'
+           - '{"index": {"_index": "test_index"}}'
+           - '{"f1": "remote_cluster", "animal": "chicken", "filter_field": 0}'
+           - '{"index": {"_index": "test_index"}}'
+           - '{"f1": "remote_cluster", "animal": "chicken", "filter_field": 0}'
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          # Force all documents to be in the same shard (same routing)
+          - '{"index": {"_index": "field_caps_index_1", "routing": "foo"}}'
+          - '{"created_at": "2018-01-05"}'
+          - '{"index": {"_index": "field_caps_index_1", "routing": "foo"}}'
+          - '{"created_at": "2017-12-01"}'
+          - '{"index": {"_index": "field_caps_index_3"}}'
+          - '{"created_at": "2019-10-01"}'
+          - '{"index": {"_index": "field_caps_index_3"}}'
+          - '{"created_at": "2020-01-01"}'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          aggs:
+            cluster:
+              terms:
+                field: f1.keyword
+
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 6 }
+  - length: { aggregations.cluster.buckets: 1 }
+  - match: { aggregations.cluster.buckets.0.key: "remote_cluster" }
+  - match: { aggregations.cluster.buckets.0.doc_count: 6 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: aliased_test_index
+
+  - match: { _shards.total: 3 }
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.filter_field: 1 }
+  - match: { hits.hits.0._index: "test_index" }
+
+---
+tsdb:
+  - skip:
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
+
+  - do:
+      indices.create:
+        index: tsdb
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset, k8s.pod.uid]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      ip:
+                        type: ip
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                          rx:
+                            type: long
+
+  - do:
+      bulk:
+        refresh: true
+        index: tsdb
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'

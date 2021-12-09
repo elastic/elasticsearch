@@ -1,0 +1,30 @@
+---
+"Verify user and role in mixed cluster":
+  - do:
+      security.get_user:
+        username: "native_user"
+  - match: { native_user.username:  "native_user" }
+  - match: { native_user.roles.0:  "native_role" }
+
+  - do:
+      security.get_role:
+        name: "native_role"
+  - match: { native_role.cluster.0:  "all" }
+  - match: { native_role.indices.0.names.0: "test_index" }
+  - match: { native_role.indices.0.privileges.0:  "all" }
+
+  - do:
+      security.clear_cached_roles:
+        name: "native_role"
+
+  - do:
+      security.clear_cached_realms:
+        realms: "_all"
+
+---
+"verify users for default password migration in mixed cluster":
+  - do:
+      security.get_user:
+        username: "kibana,logstash_system"
+  - match: { kibana.enabled: false }
+  - match: { logstash_system.enabled: true }

@@ -1,0 +1,35 @@
+---
+- job:
+    name: elastic+elasticsearch+%BRANCH%+periodic+third-party-tests
+    display-name: "elastic / elasticsearch # %BRANCH% - third party tests"
+    description: "Testing of the Elasticsearch %BRANCH% branch against third-party service integrations.\n"
+    project-type: multijob
+    node: master
+    vault: []
+    scm:
+      - git:
+          wipe-workspace: false
+    builders:
+      - multijob:
+          name: Third party repository compatibility tests
+          projects:
+            - name: elastic+elasticsearch+%BRANCH%+multijob+third-party-tests-azure
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true
+            - name: elastic+elasticsearch+%BRANCH%+multijob+third-party-tests-azure-sas
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true
+            - name: elastic+elasticsearch+%BRANCH%+multijob+third-party-tests-gcs
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true
+            - name: elastic+elasticsearch+%BRANCH%+multijob+third-party-tests-s3
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true
+            - name: elastic+elasticsearch+%BRANCH%+multijob+third-party-tests-geoip
+              kill-phase-on: NEVER
+              current-parameters: true
+              git-revision: true

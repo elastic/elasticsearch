@@ -837,7 +837,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
         final List<String> existingConfigWithoutAutoconfiguration = removePreviousAutoconfiguration(existingConfigLines);
         if (false == existingConfigLines.equals(existingConfigWithoutAutoconfiguration)
-            || false == Files.exists(env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME))) {
+            && Files.exists(env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME))) {
             terminal.println("");
             terminal.println("This node will be reconfigured to join an existing cluster, using the enrollment token that you provided.");
             terminal.println("This operation will overwrite the existing configuration. Specifically: ");

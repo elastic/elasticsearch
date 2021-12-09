@@ -782,14 +782,14 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 if (Files.exists(keystoreBackupPath)) {
                     Files.move(keystoreBackupPath, keystorePath, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
                 } else {
-                    // this removes a file with static name, so it is potentially dangerous
+                    // this removes a statically named file, so it is potentially dangerous
                     Files.deleteIfExists(keystorePath);
                 }
             } catch (Exception ex) {
                 t.addSuppressed(ex);
             }
             try {
-                // this removes a directory with static name, so it is potentially dangerous
+                // this removes a statically named directory, so it is potentially dangerous
                 deleteDirectory(env.configFile().resolve(TLS_GENERATED_CERTS_DIR_NAME));
             } catch (Exception ex) {
                 t.addSuppressed(ex);
@@ -840,7 +840,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             terminal.println("This node will be reconfigured to join an existing cluster, using the enrollment token that you provided.");
             terminal.println("This operation will overwrite the existing configuration. Specifically: ");
             terminal.println("  - Security auto configuration will be removed from elasticsearch.yml");
-            terminal.println("  - The " + TLS_GENERATED_CERTS_DIR_NAME + " directory will be removed");
+            terminal.println("  - The [" + TLS_GENERATED_CERTS_DIR_NAME + "] config directory will be removed");
             terminal.println("  - Security auto configuration related secure settings will be removed from the elasticsearch.keystore");
             final boolean shouldContinue = terminal.promptYesNo("Do you want to continue with the reconfiguration process", false);
             if (shouldContinue == false) {

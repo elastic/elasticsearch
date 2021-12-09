@@ -6,6 +6,7 @@ This section contains the list of SQL commands supported by {es-sql} along with 
 
 <<sql-syntax-describe-table>>:: Describe a table.
 <<sql-syntax-select>>:: Retrieve rows from zero or more tables.
+<<sql-syntax-show-catalogs>>:: List available catalogs.
 <<sql-syntax-show-columns>>:: List columns in table.
 <<sql-syntax-show-functions>>:: List supported functions.
 <<sql-syntax-show-tables>>:: List tables available.

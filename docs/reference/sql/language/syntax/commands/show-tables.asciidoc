@@ -6,7 +6,7 @@
 [source, sql]
 ----
 SHOW TABLES
-    [CATALOG [catalog identifier | <1>
+    [CATALOG [catalog_identifier | <1>
               LIKE patter]]?       <2>
     [INCLUDE FROZEN]?              <3>
     [table_identifier |            <4>

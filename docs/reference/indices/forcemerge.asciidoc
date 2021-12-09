@@ -64,7 +64,7 @@ until the ongoing force merge is complete.
 If the request contains `wait_for_completion=false`, {es}
 performs some preflight checks, launches the request, and returns a
 <<tasks,`task`>> you can use to get the status of the task. However, you can
-not cancel this task for force merge task is not cancelable. {es}
+not cancel this task as the force merge task is not cancelable. {es}
 creates a record of this task as a document at `_tasks/<task_id>`. When you
 are done with a task, you should delete the task document so {es}
 can reclaim the space.

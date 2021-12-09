@@ -42,38 +42,26 @@ public class ScriptCompilationSettingsIT extends AbstractUpgradeTestCase {
         assumeTrue("default changed in v7.16", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_15_0) && UPGRADE_FROM_VERSION.before(Version.V_7_16_0));
         if (CLUSTER_TYPE.equals(ClusterType.OLD)) {
             Request request = new Request("PUT", "_cluster/settings");
-            request.setJsonEntity("{\"persistent\" : { \"script.context.template.max_compilations_rate\": \"5000/5m\", \"script.max_compilations_rate\": \"use-context\" } }");
+            request.setJsonEntity("{\"persistent\" : { \"script.context.template.max_compilations_rate\": \"5000/5m\"" +
+                // ", \"script.max_compilations_rate\": \"use-context\" " +
+                "} }");
             request.setOptions(expectWarnings(WARNING));
-            /*
-            request.setOptions(expectVersionSpecificWarnings(consumer -> {
-                consumer.compatible(WARNING);
-                consumer.current(WARNING);
-            }));
-             */
             Response response = client().performRequest(request);
             assertEquals("{\"acknowledged\":true," +
                     "\"persistent\":{" +
                     "\"script\":{" +
-                        "\"context\":{\"template\":{\"max_compilations_rate\":\"5000/5m\"}},\"max_compilations_rate\":\"use-context\"" +
+                        "\"context\":{\"template\":{\"max_compilations_rate\":\"5000/5m\"}}" +
+                        //",\"max_compilations_rate\":\"use-context\"" +
                     "}}," +
                     "\"transient\":{}}",
                 EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
 
-            /*
-            Request waitForYellow = new Request("GET", "/_cluster/health");
-            waitForYellow.addParameter("wait_for_nodes", "3");
-            waitForYellow.addParameter("wait_for_status", "yellow");
-            client().performRequest(waitForYellow);
-            assertThat(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8),
-                either(equalTo("{\"acknowledged\":true,\"persistent\":{\"script\":{\"max_compilations_rate\":\"use-context\"}},\"transient\":{}}"))
-                    .or(equalTo("{\"acknowledged\":true,\"persistent\":{},\"transient\":{}}"))
-                );
-             */
         } else if (CLUSTER_TYPE.equals(ClusterType.MIXED)) {
             Request request = new Request("GET", "_cluster/settings");
             Response response = client().performRequest(request);
             assertEquals("{\"persistent\":{\"script\":{" +
-                    "\"context\":{\"template\":{\"max_compilations_rate\":\"5000/5m\"}},\"max_compilations_rate\":\"use-context\"" +
+                    "\"context\":{\"template\":{\"max_compilations_rate\":\"5000/5m\"}}" +
+                    //",\"max_compilations_rate\":\"use-context\"" +
                     "}},\"transient\":{}}",
                 EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
         }

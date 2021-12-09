@@ -436,13 +436,9 @@ public class CacheFileTests extends ESTestCase {
                 allOf(greaterThan(0L), lessThan(oneMb))
             );
 
-            final long blockSize;
-            if (Constants.LINUX) {
-                // on Linux we can infer the filesystem's block size if only 1 byte was written
-                blockSize = sizeOnDisk.getAsLong();
-            } else {
-                blockSize = 0L;
-            }
+            // on Linux we can infer the filesystem's block size if only 1 byte was written,
+            // but this is not always right with encryption at rest using dmcrypt
+            final long blockSize = Constants.LINUX ? sizeOnDisk.getAsLong() : 0L;
 
             fill(fileChannel, 0, Math.toIntExact(cacheFile.getLength()));
             fileChannel.force(false);
@@ -455,13 +451,29 @@ public class CacheFileTests extends ESTestCase {
                 greaterThanOrEqualTo(cacheFile.getLength())
             );
 
-            if (Constants.LINUX) {
+            if (blockSize > 0L) {
                 final long nbBlocks = (cacheFile.getLength() + blockSize - 1) / blockSize; // ceil(cacheFile.getLength() / blockSize)
-                assertThat(
-                    "Cache file size mismatches (block size: " + blockSize + ", number of blocks: " + nbBlocks + ')',
-                    sizeOnDisk.getAsLong(),
-                    equalTo(nbBlocks * blockSize)
-                );
+                final long expectedSize = nbBlocks * blockSize;
+                if (blockSize == fourKb) {
+                    assertThat(
+                        "Cache file size mismatches (block size: "
+                            + blockSize
+                            + ", number of blocks: "
+                            + nbBlocks
+                            + ", file length: "
+                            + cacheFile.getLength()
+                            + ')',
+                        sizeOnDisk.getAsLong(),
+                        equalTo(expectedSize)
+                    );
+                } else {
+                    // block size other than usual default block size indicates that a special filesystem may be at use, let's verify this
+                    assertThat(
+                        "Non default block size only used in test executed with encryption at rest",
+                        file.toAbsolutePath().toString(),
+                        containsString("/mnt/secret")
+                    );
+                }
             }
         } finally {
             cacheFile.release(listener);

@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 
 public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<CreateIndexRequest> {
 
@@ -121,6 +122,42 @@ public class CreateIndexRequestTests extends AbstractWireSerializingTestCase<Cre
         CreateIndexRequest parsedCreateIndexRequest = new CreateIndexRequest();
         ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class, () -> parsedCreateIndexRequest.source(builder));
         assertThat(e.getMessage(), equalTo("key [settings] must be an object"));
+    }
+
+    public void testAlias() throws IOException {
+        XContentBuilder aliases1 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("aliases")
+            .startObject("filtered-data")
+            .startObject("bool")
+            .startObject("filter")
+            .startObject("term")
+            .field("a", "b")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new CreateIndexRequest().source(aliases1));
+        assertThat(e.getMessage(), containsString("Unknown field [bool] in alias [filtered-data]"));
+
+        XContentBuilder aliases2 = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("aliases")
+            .startObject("filtered-data")
+            .startArray("filter")
+            .startObject()
+            .startObject("term")
+            .field("a", "b")
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject();
+        e = expectThrows(IllegalArgumentException.class, () -> new CreateIndexRequest().source(aliases2));
+        assertThat(e.getMessage(), containsString("Unknown token [START_ARRAY] in alias [filtered-data]"));
     }
 
     public static void assertMappingsEqual(Map<String, String> expected, Map<String, String> actual) throws IOException {

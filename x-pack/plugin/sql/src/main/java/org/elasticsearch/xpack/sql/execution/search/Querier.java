@@ -65,6 +65,7 @@ import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
 import org.elasticsearch.xpack.sql.session.SqlConfiguration;
+import org.elasticsearch.xpack.sql.session.SqlSession;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -92,10 +93,10 @@ public class Querier {
     private final Client client;
     private final PlanExecutor planExecutor;
 
-    public Querier(Client client, PlanExecutor planExecutor, SqlConfiguration cfg) {
-        this.client = client;
-        this.planExecutor = planExecutor;
-        this.cfg = cfg;
+    public Querier(SqlSession session) {
+        this.client = session.client();
+        this.planExecutor = session.planExecutor();
+        this.cfg = session.configuration();
     }
 
     public void query(List<Attribute> output, QueryContainer query, String index, ActionListener<Page> listener) {

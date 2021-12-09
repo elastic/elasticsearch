@@ -32,6 +32,10 @@
 
 ---
 "Force merge with wait_for_completion parameter":
+  - skip:
+      version: " - 8.0.99"
+      reason: wait_for_completion is introduced since 8.1
+
   - do:
       indices.create:
         index: test_index

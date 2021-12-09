@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -39,10 +40,8 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResults;
 import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryInfoService;
 import org.elasticsearch.xpack.autoscaling.master.DedicatedMasterNodesDeciderService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
-import org.junit.Assert;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -221,6 +220,7 @@ public class DedicatedMasterNodesDeciderIT extends ESIntegTestCase {
                     NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
                     Arrays.stream(roles).map(DiscoveryNodeRole::roleName).collect(Collectors.toList())
                 )
+                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
                 .build()
         );
     }
@@ -306,7 +306,6 @@ public class DedicatedMasterNodesDeciderIT extends ESIntegTestCase {
         ) {
             assertThat(action, sameInstance(NodesStatsAction.INSTANCE));
             NodesStatsRequest nodesStatsRequest = (NodesStatsRequest) request;
-            logger.info("--> Request {} / {}", nodesStatsRequest, nodesStatsRequest.nodesIds());
             assertThat(nodeStatsFakeResponder, notNullValue());
             @SuppressWarnings("unchecked")
             ActionListener<NodesStatsResponse> statsListener = (ActionListener<NodesStatsResponse>) listener;

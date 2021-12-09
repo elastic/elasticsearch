@@ -181,8 +181,8 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             listener.onResponse(infoBuilder.build());
         }, listener::onFailure);
 
-        ClientTransformIndexer indexer = getIndexer();
-        if (indexer == null) {
+        ClientTransformIndexer transformIndexer = getIndexer();
+        if (transformIndexer == null) {
             transformsCheckpointService.getCheckpointingInfo(
                 parentTaskClient,
                 transform.getId(),
@@ -193,12 +193,12 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             );
             return;
         }
-        indexer.getCheckpointProvider()
+        transformIndexer.getCheckpointProvider()
             .getCheckpointingInfo(
-                indexer.getLastCheckpoint(),
-                indexer.getNextCheckpoint(),
-                indexer.getPosition(),
-                indexer.getProgress(),
+                transformIndexer.getLastCheckpoint(),
+                transformIndexer.getNextCheckpoint(),
+                transformIndexer.getPosition(),
+                transformIndexer.getProgress(),
                 checkPointInfoListener
             );
     }

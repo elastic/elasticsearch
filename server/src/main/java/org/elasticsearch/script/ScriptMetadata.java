@@ -125,6 +125,11 @@ public final class ScriptMetadata implements Metadata.Custom, Writeable, ToXCont
         public void writeTo(StreamOutput out) throws IOException {
             pipelines.writeTo(out);
         }
+
+        @Override
+        public Version getMinimalSupportedVersion() {
+            return Version.CURRENT.minimumCompatibilityVersion();
+        }
     }
 
     /**

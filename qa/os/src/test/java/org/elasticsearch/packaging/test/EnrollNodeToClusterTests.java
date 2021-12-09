@@ -63,7 +63,23 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
         verifySecurityNotAutoConfigured(installation);
     }
 
-    public void test40EnrollmentFailsForConfiguredNode() throws Exception {
+    public void test40EnrollToClusterWithInvalidAddress() throws Exception {
+        Shell.Result result = Archives.runElasticsearchStartCommand(
+            installation,
+            sh,
+            null,
+            List.of("--enrollment-token", generateMockEnrollmentToken()),
+            false
+        );
+        // something in our tests wrap the error code to 1 on windows
+        // TODO investigate this and remove this guard
+        if (distribution.platform != Distribution.Platform.WINDOWS) {
+            assertThat(result.exitCode, equalTo(ExitCodes.UNAVAILABLE));
+        }
+        verifySecurityNotAutoConfigured(installation);
+    }
+
+    public void test50EnrollmentFailsForConfiguredNode() throws Exception {
         // auto-config requires that the archive owner and the process user be the same,
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         startElasticsearch();
@@ -84,7 +100,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
         Platforms.onWindows(() -> sh.chown(installation.config));
     }
 
-    public void test50MultipleValuesForEnrollmentToken() throws Exception {
+    public void test60MultipleValuesForEnrollmentToken() throws Exception {
         // if invoked with --enrollment-token tokenA tokenB tokenC, only tokenA is read
         Shell.Result result = Archives.runElasticsearchStartCommand(
             installation,
@@ -101,7 +117,7 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
         }
     }
 
-    public void test60MultipleParametersForEnrollmentTokenAreNotAllowed() throws Exception {
+    public void test70MultipleParametersForEnrollmentTokenAreNotAllowed() throws Exception {
         // if invoked with --enrollment-token tokenA --enrollment-token tokenB --enrollment-token tokenC, we exit
         Shell.Result result = Archives.runElasticsearchStartCommand(
             installation,

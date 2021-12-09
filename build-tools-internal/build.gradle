@@ -216,13 +216,13 @@ dependencies {
   // for our ide tweaking
   api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.7'
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
-  api 'de.thetaphi:forbiddenapis:3.1'
+  api 'de.thetaphi:forbiddenapis:3.2'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.0'
   api 'org.apache.maven:maven-model:3.6.2'
   api 'com.networknt:json-schema-validator:1.0.36'
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.getProperty('jackson')}"
-  api 'org.ow2.asm:asm:9.0'
-  api 'org.ow2.asm:asm-tree:9.0'
+  api 'org.ow2.asm:asm:9.2'
+  api 'org.ow2.asm:asm-tree:9.2'
   api "org.apache.httpcomponents:httpclient:${versions.getProperty('httpclient')}"
   api "org.apache.httpcomponents:httpcore:${versions.getProperty('httpcore')}"
   compileOnly "com.puppycrawl.tools:checkstyle:${versions.getProperty('checkstyle')}"
@@ -253,16 +253,18 @@ dependencies {
     because 'allows tests to run from IDEs that bundle older version of launcher'
   }
 
-  testImplementation platform("org.spockframework:spock-bom:2.0-M5-groovy-3.0")
+  testImplementation platform("org.spockframework:spock-bom:2.0-groovy-3.0")
   testImplementation("org.spockframework:spock-core") {
     exclude module: "groovy"
   }
-  integTestImplementation platform("org.spockframework:spock-bom:2.0-M5-groovy-3.0")
+  integTestImplementation platform("org.spockframework:spock-bom:2.0-groovy-3.0")
   integTestImplementation("org.spockframework:spock-core") {
     exclude module: "groovy"
   }
   // required as we rely on junit4 rules
-  integTestImplementation "org.spockframework:spock-junit4"
+  integTestImplementation("org.spockframework:spock-junit4") {
+    exclude module: "groovy"
+  }
   testImplementation "org.spockframework:spock-junit4"
   integTestImplementation "org.xmlunit:xmlunit-core:2.8.2"
 }

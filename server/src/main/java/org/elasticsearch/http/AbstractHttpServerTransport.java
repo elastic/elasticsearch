@@ -365,7 +365,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             if (logThreshold > 0 && took > logThreshold) {
                 logger.warn(
                     "handling request [{}][{}][{}][{}] took [{}ms] which is above the warn threshold of [{}ms]",
-                    httpRequest.header(Task.X_OPAQUE_ID),
+                    httpRequest.header(Task.X_OPAQUE_ID_HTTP_HEADER),
                     httpRequest.method(),
                     httpRequest.uri(),
                     httpChannel,

@@ -42,7 +42,7 @@ public class ScriptCompilationSettingsIT extends AbstractUpgradeTestCase {
         assumeTrue("default changed in v7.16", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_15_0) && UPGRADE_FROM_VERSION.before(Version.V_7_16_0));
         if (CLUSTER_TYPE.equals(ClusterType.OLD)) {
             Request request = new Request("PUT", "_cluster/settings");
-            request.setJsonEntity("{\"persistent\" : { \"script.context.template.max_compilations_rate\": \"5000/5m\" } }");
+            request.setJsonEntity("{\"persistent\" : { \"script.context.template.max_compilations_rate\": \"5000/5m\", \"script.max_compilations_rate\": \"use-context\" } }");
             request.setOptions(expectWarnings(WARNING));
             /*
             request.setOptions(expectVersionSpecificWarnings(consumer -> {
@@ -53,8 +53,9 @@ public class ScriptCompilationSettingsIT extends AbstractUpgradeTestCase {
             Response response = client().performRequest(request);
             assertEquals("{\"acknowledged\":true," +
                     "\"persistent\":{" +
-                    "\"script\":{\"context\":{\"template\":{\"max_compilations_rate\":\"5000/5m\"}}}" +
-                    "}," +
+                    "\"script\":{" +
+                        "\"context\":{\"template\":{\"max_compilations_rate\":\"5000/5m\"}},\"max_compilations_rate\":\"use-context\"" +
+                    "}}," +
                     "\"transient\":{}}",
                 EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
 
@@ -71,7 +72,9 @@ public class ScriptCompilationSettingsIT extends AbstractUpgradeTestCase {
         } else if (CLUSTER_TYPE.equals(ClusterType.MIXED)) {
             Request request = new Request("GET", "_cluster/settings");
             Response response = client().performRequest(request);
-            assertEquals("{\"persistent\":{\"script\":{\"max_compilations_rate\":\"use-context\"}},\"transient\":{}}",
+            assertEquals("{\"persistent\":{\"script\":{" +
+                    "\"context\":{\"template\":{\"max_compilations_rate\":\"5000/5m\"}},\"max_compilations_rate\":\"use-context\"" +
+                    "}},\"transient\":{}}",
                 EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
         }
     }

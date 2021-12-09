@@ -112,7 +112,7 @@ that the index is managed and in the `new` phase:
     "my-index-000001": {
       "index": "my-index-000001",
       "index_creation_date_millis": 1538475653281,
-      "index_age": "15s",                       <1>
+      "time_since_index_creation": "15s",       <1>
       "managed": true,                          <2>
       "policy": "my_policy",                    <3>
       "lifecycle_date_millis": 1538475653281,   <4>
@@ -129,12 +129,12 @@ that the index is managed and in the `new` phase:
 --------------------------------------------------
 // TESTRESPONSE[skip:no way to know if we will get this response immediately]
 
-<1> The age of the index used for calculating when to rollover the index via the `max_age`
+<1> The time since the index creation (used for calculating when to rollover the index via the `max_age`)
 <2> Shows if the index is being managed by {ilm-init}. If the index is not managed by
 {ilm-init} the other fields will not be shown
 <3> The name of the policy which {ilm-init} is using for this index
 <4> The timestamp used for the `min_age`
-<5> The age of the index used for calculating when to enter the next phase
+<5> The age of the index (used for calculating when to enter the next phase)
 <6> When the index entered the current phase
 <7> When the index entered the current action
 <8> When the index entered the current step
@@ -151,7 +151,7 @@ phase completes.
     "test-000069": {
       "index": "test-000069",
       "index_creation_date_millis": 1538475653281,
-      "index_age": "25.14s",
+      "time_since_index_creation": "25.14s",
       "managed": true,
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
@@ -202,7 +202,7 @@ information for the step that's being performed on the index.
     "test-000020": {
       "index": "test-000020",
       "index_creation_date_millis": 1538475653281,
-      "index_age": "4.12m",
+      "time_since_index_creation": "4.12m",
       "managed": true,
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,
@@ -268,7 +268,7 @@ the case.
     "test-000056": {
       "index": "test-000056",
       "index_creation_date_millis": 1538475653281,
-      "index_age": "50.1d",
+      "time_since_index_creation": "50.1d",
       "managed": true,
       "policy": "my_lifecycle3",
       "lifecycle_date_millis": 1538475653281,

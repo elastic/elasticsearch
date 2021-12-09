@@ -101,17 +101,17 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
         assertThat(exception.getMessage(), containsString("=null"));
     }
 
-    public void testIndexCreationAge() {
+    public void testTimeSinceIndexCreation() {
         IndexLifecycleExplainResponse unmanagedExplainResponse = randomUnmanagedIndexExplainResponse();
         assertThat(unmanagedExplainResponse.getIndexCreationDate(), is(nullValue()));
-        assertThat(unmanagedExplainResponse.getIndexAge(System::currentTimeMillis), is(nullValue()));
+        assertThat(unmanagedExplainResponse.getTimeSinceIndexCreation(System::currentTimeMillis), is(nullValue()));
 
         IndexLifecycleExplainResponse managedExplainResponse = randomManagedIndexExplainResponse();
         assertThat(managedExplainResponse.getIndexCreationDate(), is(notNullValue()));
         Long now = System.currentTimeMillis();
-        assertThat(managedExplainResponse.getIndexAge(() -> now), is(notNullValue()));
+        assertThat(managedExplainResponse.getTimeSinceIndexCreation(() -> now), is(notNullValue()));
         assertThat(
-            managedExplainResponse.getIndexAge(() -> now),
+            managedExplainResponse.getTimeSinceIndexCreation(() -> now),
             is(equalTo(TimeValue.timeValueMillis(now - managedExplainResponse.getIndexCreationDate())))
         );
     }

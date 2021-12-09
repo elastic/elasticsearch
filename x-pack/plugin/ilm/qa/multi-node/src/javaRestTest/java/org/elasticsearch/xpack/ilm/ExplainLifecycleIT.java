@@ -209,7 +209,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
 
     private void assertUnmanagedIndex(Map<String, Object> explainIndexMap) {
         assertThat(explainIndexMap.get("managed"), is(false));
-        assertThat(explainIndexMap.get("index_age"), is(nullValue()));
+        assertThat(explainIndexMap.get("time_since_index_creation"), is(nullValue()));
         assertThat(explainIndexMap.get("index_creation_date_millis"), is(nullValue()));
         assertThat(explainIndexMap.get("policy"), is(nullValue()));
         assertThat(explainIndexMap.get("phase"), is(nullValue()));
@@ -222,7 +222,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
 
     private void assertManagedIndex(Map<String, Object> explainIndexMap) {
         assertThat(explainIndexMap.get("managed"), is(true));
-        assertThat(explainIndexMap.get("index_age"), is(notNullValue()));
+        assertThat(explainIndexMap.get("time_since_index_creation"), is(notNullValue()));
         assertThat(explainIndexMap.get("index_creation_date_millis"), is(notNullValue()));
         assertThat(explainIndexMap.get("policy"), is(policy));
         assertThat(explainIndexMap.get("phase"), is("new"));

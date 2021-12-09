@@ -216,7 +216,7 @@ is met.
     ".ds-timeseries-2099.03.07-000001": {
       "index": ".ds-timeseries-2099.03.07-000001",
       "index_creation_date_millis": 1538475653281,
-      "index_age": "30s",                        <1>
+      "time_since_index_creation": "30s",        <1>
       "managed": true,
       "policy": "timeseries_policy",             <2>
       "lifecycle_date_millis": 1538475653281,

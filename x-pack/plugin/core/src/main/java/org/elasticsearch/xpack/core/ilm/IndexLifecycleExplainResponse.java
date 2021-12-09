@@ -50,7 +50,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
     private static final ParseField STEP_INFO_FIELD = new ParseField("step_info");
     private static final ParseField PHASE_EXECUTION_INFO = new ParseField("phase_execution");
     private static final ParseField AGE_FIELD = new ParseField("age");
-    private static final ParseField INDEX_AGE_FIELD = new ParseField("index_age");
+    private static final ParseField TIME_SINCE_INDEX_CREATION_FIELD = new ParseField("time_since_index_creation");
     private static final ParseField REPOSITORY_NAME = new ParseField("repository_name");
     private static final ParseField SHRINK_INDEX_NAME = new ParseField("shrink_index_name");
     private static final ParseField SNAPSHOT_NAME = new ParseField("snapshot_name");
@@ -78,7 +78,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             (BytesReference) a[11],
             (PhaseExecutionInfo) a[12]
             // a[13] == "age"
-            // a[20] == "index_age"
+            // a[20] == "time_since_index_creation"
         )
     );
     static {
@@ -110,7 +110,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), SNAPSHOT_NAME);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), SHRINK_INDEX_NAME);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), INDEX_CREATION_DATE_MILLIS_FIELD);
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), INDEX_AGE_FIELD);
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), TIME_SINCE_INDEX_CREATION_FIELD);
     }
 
     private final String index;
@@ -364,7 +364,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         return indexCreationDate;
     }
 
-    public TimeValue getIndexAge(Supplier<Long> now) {
+    public TimeValue getTimeSinceIndexCreation(Supplier<Long> now) {
         if (indexCreationDate == null) {
             return null;
         } else {
@@ -461,7 +461,10 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
                     INDEX_CREATION_DATE_FIELD.getPreferredName(),
                     indexCreationDate
                 );
-                builder.field(INDEX_AGE_FIELD.getPreferredName(), getIndexAge(System::currentTimeMillis).toHumanReadableString(2));
+                builder.field(
+                    TIME_SINCE_INDEX_CREATION_FIELD.getPreferredName(),
+                    getTimeSinceIndexCreation(System::currentTimeMillis).toHumanReadableString(2)
+                );
             }
             if (lifecycleDate != null) {
                 builder.timeField(LIFECYCLE_DATE_MILLIS_FIELD.getPreferredName(), LIFECYCLE_DATE_FIELD.getPreferredName(), lifecycleDate);

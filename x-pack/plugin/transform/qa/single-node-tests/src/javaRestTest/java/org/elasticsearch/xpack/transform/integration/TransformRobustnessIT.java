@@ -13,11 +13,10 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -53,7 +52,7 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-        assertEquals(1, getTransforms(emptyList()).size());
+        assertEquals(1, getTransforms(null).size());
         // there shouldn't be a task yet
         assertEquals(0, getNumberOfTransformTasks());
         startAndWaitForContinuousTransform(transformId, transformIndex, null);
@@ -66,12 +65,24 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         assertOnePivotValue(transformIndex + "/_search?q=reviewer:user_5", 3.72);
         assertNotNull(getTransformState(transformId));
 
-        assertEquals(1, getTransforms(emptyList()).size());
+        assertEquals(1, getTransforms(null).size());
 
         // delete the transform index
         beEvilAndDeleteTheTransformIndex();
         // transform is gone
-        assertEquals(0, getTransforms(singletonList("Found [1] invalid transforms")).size());
+        assertEquals(
+            0,
+            getTransforms(
+                List.of(
+                    Map.of(
+                        "type",
+                        "dangling_task",
+                        "reason",
+                        "Found task for transform [simple_continuous_pivot], but no configuration for it. To delete this transform use DELETE with force=true."
+                    )
+                )
+            ).size()
+        );
         // but the task is still there
         assertEquals(1, getNumberOfTransformTasks());
 

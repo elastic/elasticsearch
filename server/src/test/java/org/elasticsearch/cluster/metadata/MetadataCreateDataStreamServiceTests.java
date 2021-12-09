@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.Create
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemDataStreamDescriptor.Type;
@@ -24,6 +25,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.Feature;
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -296,6 +298,47 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             e.getMessage(),
             equalTo("matching index template [template] for data stream [my-data-stream] has no data stream template")
         );
+    }
+
+    public void testCreateDataStreamTSDBStyle() throws Exception {
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        final String dataStreamName = "my-tsdb-data-stream";
+        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
+            .template(new Template(Settings.builder().put("index.mode", "time_series").build(), null, null))
+            .dataStreamTemplate(new DataStreamTemplate())
+            .build();
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .metadata(Metadata.builder().put("template", template).build())
+            .build();
+
+        CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
+        ClusterState newState = MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
+        assertThat(newState.metadata().dataStreams().size(), equalTo(1));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).isSystem(), is(false));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).isHidden(), is(false));
+        assertThat(newState.metadata().dataStreams().get(dataStreamName).isReplicated(), is(false));
+
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        IndexMetadata indexMetadata = newState.metadata().index(backingIndexName);
+        assertThat(indexMetadata, notNullValue());
+        assertThat(indexMetadata.getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(indexMetadata.getSettings().get("index.time_series.start_time"), equalTo("1"));
+        assertThat(indexMetadata.getSettings().get("index.time_series.end_time"), notNullValue());
+        assertThat(indexMetadata.isHidden(), is(true));
+        assertThat(indexMetadata.isSystem(), is(false));
+    }
+
+    public void testPrepareFirstBackingIndexForTSDB() {
+        Settings.Builder settings = Settings.builder();
+        long currentTime = System.currentTimeMillis();
+        Duration duration = Duration.ofMillis(randomNonNegativeLong());
+
+        MetadataCreateDataStreamService.prepareFirstBackingIndexForTSDB(settings, currentTime, duration);
+        Settings result = settings.build();
+        assertThat(result.size(), equalTo(2));
+        assertThat(result.get(IndexSettings.TIME_SERIES_START_TIME.getKey()), equalTo("1"));
+        assertThat(result.get(IndexSettings.TIME_SERIES_END_TIME.getKey()), equalTo(Long.toString(currentTime + duration.toMillis())));
     }
 
     public static ClusterState createDataStream(final String dataStreamName) throws Exception {

@@ -1,0 +1,5 @@
+pr: 81395
+summary: Add a geo point field for the scripting fields api
+area: Infra/Scripting
+type: enhancement
+issues: []

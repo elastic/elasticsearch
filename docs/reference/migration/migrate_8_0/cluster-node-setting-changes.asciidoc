@@ -198,6 +198,7 @@ All settings under the `discovery.zen` namespace are no longer supported. They e
 - `discovery.zen.master_election.wait_for_joins_timeout`
 - `discovery.zen.master_election.ignore_non_master_pings`
 - `discovery.zen.publish.max_pending_cluster_states`
+- `discovery.zen.bwc_ping_timeout`
 
 *Impact* +
 Remove the `discovery.zen` settings from `elasticsearch.yml`. Specifying these settings will result in an error on startup.

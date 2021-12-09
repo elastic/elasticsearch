@@ -109,10 +109,10 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
             return;
         }
 
-        final List<String> hiddenSystemIndexViolations = checkForHidingSystemIndex(concreteIndices, request);
-        if (hiddenSystemIndexViolations.isEmpty() == false) {
-            final String message = "Cannot set [index.hidden] to 'true' on system indices: "
-                + hiddenSystemIndexViolations.stream().map(entry -> "[" + entry + "]").collect(Collectors.joining(", "));
+        final List<String> unhiddenSystemIndexViolations = checkForUnhidingSystemIndex(concreteIndices, request);
+        if (unhiddenSystemIndexViolations.isEmpty() == false) {
+            final String message = "Cannot set [index.hidden] to 'false' on system indices: "
+                + unhiddenSystemIndexViolations.stream().map(entry -> "[" + entry + "]").collect(Collectors.joining(", "));
             logger.warn(message);
             listener.onFailure(new IllegalStateException(message));
             return;
@@ -174,17 +174,17 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
     }
 
     /**
-     * Checks that the request isn't trying to add the "hidden" setting to a system
+     * Checks that the request isn't trying to remove the "hidden" setting on a system
      * index
      *
      * @param concreteIndices the indices being updated
      * @param request the update request
-     * @return a list of system indexes that this request would set to hidden
+     * @return a list of system indexes that this request would make visible
      */
-    private List<String> checkForHidingSystemIndex(Index[] concreteIndices, UpdateSettingsRequest request) {
+    private List<String> checkForUnhidingSystemIndex(Index[] concreteIndices, UpdateSettingsRequest request) {
         // Requests that a cluster generates itself are permitted to have a difference in settings
         // so that rolling upgrade scenarios still work. We check this via the request's origin.
-        if (request.settings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false) == false) {
+        if (request.settings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, true)) {
             return List.of();
         }
 

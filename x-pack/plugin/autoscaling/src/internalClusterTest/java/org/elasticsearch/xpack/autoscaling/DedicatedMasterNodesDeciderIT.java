@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -42,6 +41,7 @@ import org.elasticsearch.xpack.autoscaling.master.DedicatedMasterNodesDeciderSer
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -77,9 +77,17 @@ public class DedicatedMasterNodesDeciderIT extends ESIntegTestCase {
         nodeStatsTestClient.close();
     }
 
+    @Before
+    public void setUpClient() {
+        nodeStatsTestClient.unsetFailingClient();
+    }
+
     @After
-    public void ensureResponderIsNull() {
-        nodeStatsTestClient.assertResponderIsNull();
+    public void ensureClientFails() {
+        // When we tear down the cluster, the master moves to another node
+        // and tries to request node stats. Ensure that these request do not
+        // trip assertions.
+        nodeStatsTestClient.setFailingClient();
     }
 
     public static class DedicatedMasterAutoscalingTestPlugin extends LocalStateCompositeXPackPlugin {
@@ -167,14 +175,20 @@ public class DedicatedMasterNodesDeciderIT extends ESIntegTestCase {
     }
 
     public void testDoesNotScaleDownOnceTheClusterHasDedicatedMasters() throws Exception {
+        int numHotContentNodes = 6;
         final ActionFuture<Void> nodeStatsRequestedForAllNodes = nodeStatsTestClient.respond(
             (req, listener) -> respondWithFakeNodeMemory(req, ByteSizeValue.ofGb(64), listener),
-            6
+            numHotContentNodes
         );
 
         internalCluster().setBootstrapMasterNodeIndex(0);
-        startNodes(6, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE, DiscoveryNodeRole.MASTER_ROLE);
-        ensureStableCluster(6);
+        startNodes(
+            numHotContentNodes,
+            DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
+            DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
+            DiscoveryNodeRole.MASTER_ROLE
+        );
+        ensureStableCluster(numHotContentNodes);
 
         putAutoscalingPolicy(Settings.EMPTY);
         nodeStatsRequestedForAllNodes.get();
@@ -196,7 +210,7 @@ public class DedicatedMasterNodesDeciderIT extends ESIntegTestCase {
 
         internalCluster().stopRandomNonMasterNode();
 
-        ensureStableCluster(5 + numMasterNodes);
+        ensureStableCluster(numHotContentNodes - 1 + numMasterNodes);
 
         assertAutoscalingDeciderResults(deciderResults -> {
             assertThat(deciderResults.requiredCapacity().node().memory(), equalTo(ByteSizeValue.ofGb(1)));
@@ -220,7 +234,6 @@ public class DedicatedMasterNodesDeciderIT extends ESIntegTestCase {
                     NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
                     Arrays.stream(roles).map(DiscoveryNodeRole::roleName).collect(Collectors.toList())
                 )
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
                 .build()
         );
     }
@@ -282,6 +295,7 @@ public class DedicatedMasterNodesDeciderIT extends ESIntegTestCase {
 
     public static class NodeStatsTestClient extends NoOpClient {
         private NodeStatsFakeResponder nodeStatsFakeResponder;
+        private volatile boolean failingClient;
 
         public NodeStatsTestClient(String name) {
             super(name);
@@ -304,14 +318,12 @@ public class DedicatedMasterNodesDeciderIT extends ESIntegTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
+            if (failingClient) {
+                listener.onFailure(new RuntimeException());
+                return;
+            }
             assertThat(action, sameInstance(NodesStatsAction.INSTANCE));
             NodesStatsRequest nodesStatsRequest = (NodesStatsRequest) request;
-            // Temporary logging
-            logger.info(
-                "--> request received {} /{}",
-                nodesStatsRequest.nodesIds(),
-                Arrays.toString(Thread.currentThread().getStackTrace())
-            );
             assertThat(nodeStatsFakeResponder, notNullValue());
             @SuppressWarnings("unchecked")
             ActionListener<NodesStatsResponse> statsListener = (ActionListener<NodesStatsResponse>) listener;
@@ -320,8 +332,12 @@ public class DedicatedMasterNodesDeciderIT extends ESIntegTestCase {
             }
         }
 
-        public void assertResponderIsNull() {
-            assertThat(nodeStatsFakeResponder, is(nullValue()));
+        public void setFailingClient() {
+            failingClient = true;
+        }
+
+        public void unsetFailingClient() {
+            failingClient = false;
         }
     }
 

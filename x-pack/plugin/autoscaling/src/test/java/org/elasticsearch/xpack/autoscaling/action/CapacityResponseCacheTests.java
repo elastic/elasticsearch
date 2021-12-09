@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.autoscaling.action;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
@@ -30,7 +32,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -97,22 +101,30 @@ public class CapacityResponseCacheTests extends AutoscalingTestCase {
             return 0;
         });
 
-        PlainActionFuture<Integer> blockingFuture = new PlainActionFuture<>();
-        cache.get(() -> false, blockingFuture);
-        await(barrier);
+        List<Future<?>> spawned = new ArrayList<>();
+        Consumer<Runnable> maybeSpawn = (runnable) -> {
+            // by randomly not spawning, we check that it is non-blocking.
+            if (randomBoolean()) {
+                spawned.add(threadPool.generic().submit(runnable));
+            } else {
+                runnable.run();
+            }
+        };
 
         int count = between(1, 10);
+        List<PlainActionFuture<Integer>> blockingFutures = new ArrayList<>(count + 1);
+        for (int i = 0; i < count; ++i) {
+            PlainActionFuture<Integer> blockingFuture = new PlainActionFuture<>();
+            maybeSpawn.accept(() -> cache.get(() -> false, blockingFuture));
+            blockingFutures.add(blockingFuture);
+        }
+        await(barrier);
+
         List<PlainActionFuture<Integer>> supersededFutures = new ArrayList<>(count + 1);
-        List<Future<?>> getFutures = new ArrayList<>();
         for (int i = 0; i < count; ++i) {
             PlainActionFuture<Integer> supersededFuture = new PlainActionFuture<>();
             supersededFutures.add(supersededFuture);
-            Runnable getter = () -> cache.get(() -> false, supersededFuture);
-            if (randomBoolean()) {
-                getFutures.add(threadPool.generic().submit(getter));
-            } else {
-                getter.run();
-            }
+            maybeSpawn.accept(() -> cache.get(ESTestCase::randomBoolean, supersededFuture));
         }
 
         int response = randomInt();
@@ -120,17 +132,16 @@ public class CapacityResponseCacheTests extends AutoscalingTestCase {
         PlainActionFuture<Integer> responseFuture = new PlainActionFuture<>();
         cache.get(() -> false, responseFuture);
 
-        assertThat(blockingFuture.isDone(), is(false));
-        for (PlainActionFuture<Integer> future : supersededFutures) {
-            assertThat(future.isDone(), is(false));
-        }
+        Stream.concat(blockingFutures.stream(), supersededFutures.stream()).forEach(future -> assertThat(future.isDone(), is(false)));
         assertThat(responseFuture.isDone(), is(false));
 
-        getFutures.forEach(FutureUtils::get);
+        spawned.forEach(FutureUtils::get);
         // release the initial blocked request.
         await(barrier);
 
-        assertThat(blockingFuture.actionGet(), equalTo(0));
+        assertThat(blockingFutures.stream().mapToInt(ActionFuture::actionGet).filter(i -> i == 0).count(), greaterThan(0L));
+        blockingFutures.stream().mapToInt(ActionFuture::actionGet).forEach(i -> assertThat(i, anyOf(is(0), is(response))));
+
         supersededFutures.forEach(future -> assertThat(future.actionGet(), equalTo(response)));
         assertThat(responseFuture.actionGet(), equalTo(response));
 

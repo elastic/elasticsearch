@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
@@ -17,6 +18,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.hamcrest.Matchers.equalTo;
 
 public class HumanReadableIndexSettingsTests extends ESTestCase {
     public void testHumanReadableSettings() {
@@ -28,9 +30,23 @@ public class HumanReadableIndexSettingsTests extends ESTestCase {
             .build();
 
         Settings humanSettings = IndexMetadata.addHumanReadableSettings(testSettings);
-
+        assertThat(humanSettings.size(), equalTo(4));
         assertEquals(versionCreated.toString(), humanSettings.get(IndexMetadata.SETTING_VERSION_CREATED_STRING, null));
         ZonedDateTime creationDate = ZonedDateTime.ofInstant(Instant.ofEpochMilli(created), ZoneOffset.UTC);
         assertEquals(creationDate.toString(), humanSettings.get(IndexMetadata.SETTING_CREATION_DATE_STRING, null));
+
+        testSettings = Settings.builder()
+            .put(testSettings)
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), 1L)
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), 10L)
+            .build();
+        humanSettings = IndexMetadata.addHumanReadableSettings(testSettings);
+        assertThat(humanSettings.size(), equalTo(8));
+        assertEquals(versionCreated.toString(), humanSettings.get(IndexMetadata.SETTING_VERSION_CREATED_STRING, null));
+        assertEquals(creationDate.toString(), humanSettings.get(IndexMetadata.SETTING_CREATION_DATE_STRING, null));
+        var startTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(1L), ZoneOffset.UTC);
+        assertEquals(startTime.toString(), humanSettings.get(IndexMetadata.SETTING_TIME_SERIES_START_TIME_STRING, null));
+        var endTime = ZonedDateTime.ofInstant(Instant.ofEpochMilli(10L), ZoneOffset.UTC);
+        assertEquals(endTime.toString(), humanSettings.get(IndexMetadata.SETTING_TIME_SERIES_END_TIME_STRING, null));
     }
 }

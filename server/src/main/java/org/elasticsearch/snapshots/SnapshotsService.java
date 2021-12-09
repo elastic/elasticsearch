@@ -2053,8 +2053,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             private SnapshotDeletionsInProgress.Entry newDelete = null;
 
-            private boolean reusedExistingDelete = false;
-
             // Snapshots that had all of their shard snapshots in queued state and thus were removed from the
             // cluster state right away
             private final Collection<Snapshot> completedNoCleanup = new ArrayList<>();
@@ -2190,7 +2188,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         .findFirst();
                     if (foundDuplicate.isPresent()) {
                         newDelete = foundDuplicate.get();
-                        reusedExistingDelete = true;
                         return currentState;
                     }
                     newDelete = new SnapshotDeletionsInProgress.Entry(
@@ -2232,9 +2229,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     listener.onResponse(null);
                 } else {
                     addDeleteListener(newDelete.uuid(), listener);
-                    if (reusedExistingDelete) {
-                        return;
-                    }
                     if (newDelete.state() == SnapshotDeletionsInProgress.State.STARTED) {
                         if (tryEnterRepoLoop(repositoryName)) {
                             deleteSnapshotsFromRepository(newDelete, repositoryData, newState.nodes().getMinNodeVersion());

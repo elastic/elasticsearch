@@ -554,7 +554,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         try {
             // final Environment to be used in the lambda below
             final Environment localFinalEnv = env;
-            final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
+            final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss", Locale.ROOT);
             List<String> existingConfigLines = Files.readAllLines(ymlPath, StandardCharsets.UTF_8);
             fullyWriteFile(env.configFile(), "elasticsearch.yml", true, stream -> {
                 try (BufferedWriter bw = new BufferedWriter(new OutputStreamWriter(stream, StandardCharsets.UTF_8))) {

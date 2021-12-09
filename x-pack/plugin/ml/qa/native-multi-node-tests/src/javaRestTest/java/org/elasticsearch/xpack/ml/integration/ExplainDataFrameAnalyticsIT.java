@@ -239,8 +239,8 @@ public class ExplainDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsInteg
                   },
                   "runtime": {
                     "mapped_runtime_field": {
-                      "type": "double"
-            ,          "script": "emit(doc['mapped_field'].value + 10.0)"
+                      "type": "double",,
+                      "script": "emit(doc['mapped_field'].value + 10.0)"
                     }
                   }
                 }""";

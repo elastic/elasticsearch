@@ -26,7 +26,7 @@ Specifies the memory that dedicated masters need. Defaults to 1GB.
 ==== {api-examples-title}
 
 This example puts an autoscaling policy named `my_autoscaling_policy`, overriding
-the proactive decider's `forecast_window` to be 10 minutes.
+the dedicated masters decider's `min_hot_nodes` to be 3 nodes.
 
 [source,console]
 --------------------------------------------------
@@ -35,7 +35,7 @@ PUT /_autoscaling/policy/my_autoscaling_policy
   "roles" : [ "master" ],
   "deciders": {
     "dedicated_masters_decider": {
-      "forecast_window": "10m"
+      "min_hot_nodes": "3"
     }
   }
 }

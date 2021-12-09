@@ -51,20 +51,11 @@ public class RestForceMergeAction extends BaseRestHandler {
             return channel -> client.admin().indices().forceMerge(mergeRequest, new RestToXContentListener<>(channel));
         } else {
             mergeRequest.setShouldStoreResult(true);
+            return sendTask(
+                client.getLocalNodeId(),
+                client.executeLocally(ForceMergeAction.INSTANCE, mergeRequest, LoggingTaskListener.instance())
+            );
         }
-        /*
-         * Let's try and validate before forking so the user gets some error. The
-         * task can't totally validate until it starts but this is better than
-         * nothing.
-         */
-        ActionRequestValidationException validationException = mergeRequest.validate();
-        if (validationException != null) {
-            throw validationException;
-        }
-        return sendTask(
-            client.getLocalNodeId(),
-            client.executeLocally(ForceMergeAction.INSTANCE, mergeRequest, LoggingTaskListener.instance())
-        );
     }
 
     private RestChannelConsumer sendTask(String localNodeId, Task task) {

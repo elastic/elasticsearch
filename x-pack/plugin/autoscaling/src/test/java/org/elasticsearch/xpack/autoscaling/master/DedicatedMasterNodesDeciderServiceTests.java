@@ -47,15 +47,15 @@ public class DedicatedMasterNodesDeciderServiceTests extends AutoscalingTestCase
             .put(DedicatedMasterNodesDeciderService.MIN_HOT_NODE_MEMORY.getKey(), minHotNodeMemory)
             .put(DedicatedMasterNodesDeciderService.MASTER_NODE_MEMORY.getKey(), masterNodeMemory)
             .build();
-        var discoveryNodes = new DiscoveryNode[minNumHotNodes];
-        for (int i = 0; i < discoveryNodes.length; i++) {
-            discoveryNodes[i] = createNode(
+        var hotNodes = new DiscoveryNode[minNumHotNodes];
+        for (int i = 0; i < hotNodes.length; i++) {
+            hotNodes[i] = createNode(
                 DiscoveryNodeRole.MASTER_ROLE,
                 DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
                 DiscoveryNodeRole.DATA_HOT_NODE_ROLE
             );
         }
-        var clusterState = ClusterStateCreationUtils.state(discoveryNodes[0], discoveryNodes[0], discoveryNodes);
+        var clusterState = ClusterStateCreationUtils.state(hotNodes[0], hotNodes[0], hotNodes);
         var context = new TestContext(clusterState, (node) -> minHotNodeMemory.getBytes());
 
         assertAutoscalingDeciderResult(context, policySettings, (result) -> {
@@ -71,6 +71,42 @@ public class DedicatedMasterNodesDeciderServiceTests extends AutoscalingTestCase
                 result.reason().summary(),
                 containsString("Number of hot and content nodes [" + minNumHotNodes + "] Total memory size of hot and content nodes")
             );
+        });
+    }
+
+    public void testDoesNotScaleDownWhenThereAreDedicatedMasters() {
+        var minNumHotNodes = randomIntBetween(4, 6);
+        var minHotNodeMemory = ByteSizeValue.ofGb(randomIntBetween(4, 64));
+        var masterNodeMemory = ByteSizeValue.ofGb(randomIntBetween(1, 4));
+        final Settings policySettings = Settings.builder()
+            .put(DedicatedMasterNodesDeciderService.MIN_HOT_NODES.getKey(), minNumHotNodes)
+            .put(DedicatedMasterNodesDeciderService.MIN_HOT_NODE_MEMORY.getKey(), minHotNodeMemory)
+            .put(DedicatedMasterNodesDeciderService.MASTER_NODE_MEMORY.getKey(), masterNodeMemory)
+            .build();
+
+        int numOfHotNodes = randomIntBetween(1, minNumHotNodes - 1);
+        var hotNodes = new DiscoveryNode[numOfHotNodes];
+        for (int i = 0; i < hotNodes.length; i++) {
+            hotNodes[i] = createNode(DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE, DiscoveryNodeRole.DATA_HOT_NODE_ROLE);
+        }
+        final int numberOfMasterNodes = randomIntBetween(1, 3);
+        AutoscalingCapacity currentCapacity = AutoscalingCapacity.builder()
+            .node(null, ByteSizeValue.ofGb(1).getBytes())
+            .total(null, ByteSizeValue.ofGb(numberOfMasterNodes).getBytes())
+            .build();
+        var clusterState = ClusterStateCreationUtils.state(hotNodes[0], hotNodes[0], hotNodes);
+        var context = new TestContext(clusterState, (node) -> minHotNodeMemory.getBytes(), currentCapacity);
+
+        assertAutoscalingDeciderResult(context, policySettings, (result) -> {
+            AutoscalingCapacity capacity = result.requiredCapacity();
+            assertThat(
+                capacity.total().memory(),
+                equalTo(ByteSizeValue.ofBytes(DEFAULT_NUMBER_OF_MASTER_NODES * masterNodeMemory.getBytes()))
+            );
+            assertThat(capacity.node().memory(), equalTo(masterNodeMemory));
+            assertThat(capacity.total().storage(), is(nullValue()));
+            assertThat(capacity.node().storage(), is(nullValue()));
+            assertThat(result.reason().summary(), containsString("The cluster has dedicated masters"));
         });
     }
 
@@ -109,6 +145,33 @@ public class DedicatedMasterNodesDeciderServiceTests extends AutoscalingTestCase
         });
     }
 
+    public void testReturnsNullCapacityWhenCurrentCapacityIsUnknown() {
+        var minNumHotNodes = randomIntBetween(4, 6);
+        var minHotNodeMemory = ByteSizeValue.ofGb(randomIntBetween(4, 64));
+        var masterNodeMemory = ByteSizeValue.ofGb(randomIntBetween(1, 4));
+        final Settings policySettings = Settings.builder()
+            .put(DedicatedMasterNodesDeciderService.MIN_HOT_NODES.getKey(), minNumHotNodes)
+            .put(DedicatedMasterNodesDeciderService.MIN_HOT_NODE_MEMORY.getKey(), minHotNodeMemory)
+            .put(DedicatedMasterNodesDeciderService.MASTER_NODE_MEMORY.getKey(), masterNodeMemory)
+            .build();
+        var hotNodes = new DiscoveryNode[minNumHotNodes];
+        for (int i = 0; i < hotNodes.length; i++) {
+            hotNodes[i] = createNode(
+                DiscoveryNodeRole.MASTER_ROLE,
+                DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
+                DiscoveryNodeRole.DATA_HOT_NODE_ROLE
+            );
+        }
+        var clusterState = ClusterStateCreationUtils.state(hotNodes[0], hotNodes[0], hotNodes);
+        var context = new TestContext(clusterState, (node) -> minHotNodeMemory.getBytes(), null);
+
+        assertAutoscalingDeciderResult(context, policySettings, (result) -> {
+            AutoscalingCapacity capacity = result.requiredCapacity();
+            assertThat(capacity, is(nullValue()));
+            assertThat(result.reason().summary(), containsString("current capacity not available"));
+        });
+    }
+
     private void assertAutoscalingDeciderResult(AutoscalingDeciderContext context, Consumer<AutoscalingDeciderResult> consumer) {
         assertAutoscalingDeciderResult(context, Settings.EMPTY, consumer);
     }
@@ -136,10 +199,16 @@ public class DedicatedMasterNodesDeciderServiceTests extends AutoscalingTestCase
     static class TestContext implements AutoscalingDeciderContext {
         private final ClusterState clusterState;
         private final AutoscalingMemoryInfo autoscalingMemoryInfo;
+        private final AutoscalingCapacity currentCapacity;
 
         TestContext(ClusterState clusterState, AutoscalingMemoryInfo autoscalingMemoryInfo) {
+            this(clusterState, autoscalingMemoryInfo, AutoscalingCapacity.ZERO);
+        }
+
+        TestContext(ClusterState clusterState, AutoscalingMemoryInfo autoscalingMemoryInfo, AutoscalingCapacity currentCapacity) {
             this.clusterState = clusterState;
             this.autoscalingMemoryInfo = autoscalingMemoryInfo;
+            this.currentCapacity = currentCapacity;
         }
 
         @Override
@@ -149,7 +218,7 @@ public class DedicatedMasterNodesDeciderServiceTests extends AutoscalingTestCase
 
         @Override
         public AutoscalingCapacity currentCapacity() {
-            return null;
+            return currentCapacity;
         }
 
         @Override

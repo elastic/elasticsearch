@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.autoscaling.master;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 public class DedicatedMasterNodesDeciderReasonWireSerializationTests extends AbstractWireSerializingTestCase<
@@ -22,8 +20,9 @@ public class DedicatedMasterNodesDeciderReasonWireSerializationTests extends Abs
     @Override
     protected DedicatedMasterNodesDeciderService.DedicatedMasterNodesReason createTestInstance() {
         return new DedicatedMasterNodesDeciderService.DedicatedMasterNodesReason(
+            randomAlphaOfLength(20),
             randomIntBetween(0, 200),
-            new ByteSizeValue(randomIntBetween(1, 10), randomFrom(ByteSizeUnit.values()))
+            randomLongBetween(1, 1 << 12)
         );
     }
 
@@ -32,8 +31,9 @@ public class DedicatedMasterNodesDeciderReasonWireSerializationTests extends Abs
         DedicatedMasterNodesDeciderService.DedicatedMasterNodesReason instance
     ) {
         return new DedicatedMasterNodesDeciderService.DedicatedMasterNodesReason(
+            instance.summary(),
             randomValueOtherThan(instance.getHotAndContentNodes(), () -> randomIntBetween(0, 200)),
-            instance.getTotalHotAndContentNodesMemory()
+            instance.getTotalHotAndContentNodesMemoryBytes()
         );
     }
 }

@@ -27,6 +27,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.StreamSupport;
 
+import static java.util.stream.Collectors.summarizingLong;
+
 public class DedicatedMasterNodesDeciderService implements AutoscalingDeciderService {
     public static final String NAME = "dedicated-masters-decider";
 
@@ -51,31 +53,63 @@ public class DedicatedMasterNodesDeciderService implements AutoscalingDeciderSer
 
     @Override
     public AutoscalingDeciderResult scale(Settings configuration, AutoscalingDeciderContext context) {
-        int hotAndContentNodes = (int) StreamSupport.stream(context.state().nodes().spliterator(), false)
+        AutoscalingCapacity currentCapacity = context.currentCapacity();
+        if (currentCapacity == null || currentCapacity.total().memory() == null) {
+            return new AutoscalingDeciderResult(null, new DedicatedMasterNodesReason("current capacity not available", -1, -1));
+        }
+        final ByteSizeValue masterNodeMemory = MASTER_NODE_MEMORY.get(configuration);
+        long currentTotalCapacityInBytes = currentCapacity.total().memory().getBytes();
+        if (currentTotalCapacityInBytes > 0) {
+            // If we have dedicated masters but not the total desired capacity (i.e. the operator is still adding them)
+            // return the required capacity, otherwise just return the current capacity.
+            final AutoscalingCapacity capacity;
+            if (currentTotalCapacityInBytes >= DEFAULT_NUMBER_OF_MASTER_NODES * masterNodeMemory.getBytes()) {
+                capacity = currentCapacity;
+            } else {
+                capacity = getDedicatedMastersCapacity(configuration);
+            }
+
+            return new AutoscalingDeciderResult(capacity, new DedicatedMasterNodesReason("The cluster has dedicated masters", -1, -1));
+        }
+
+        var hotAndContentNodesSummary = StreamSupport.stream(context.state().nodes().spliterator(), false)
             .filter(this::hasHotAndContentRole)
-            .count();
-        long totalHotAndContentNodesMemory = StreamSupport.stream(context.state().nodes().spliterator(), false)
-            .filter(this::hasHotAndContentRole)
-            .mapToLong(node -> getNodeMemory(node, context))
-            .sum();
+            .collect(summarizingLong(node -> getNodeMemory(node, context)));
+        final int hotAndContentNodes = (int) hotAndContentNodesSummary.getCount();
+        final long totalHotAndContentNodesMemoryBytes = hotAndContentNodesSummary.getSum();
 
         final int minHotNodes = MIN_HOT_NODES.get(configuration);
         final ByteSizeValue minHotNodeMemory = MIN_HOT_NODE_MEMORY.get(configuration);
-        final ByteSizeValue masterNodeMemory = MASTER_NODE_MEMORY.get(configuration);
         final AutoscalingCapacity autoscalingCapacity;
-        if (hotAndContentNodes >= minHotNodes && totalHotAndContentNodesMemory >= minHotNodes * minHotNodeMemory.getBytes()) {
-            autoscalingCapacity = AutoscalingCapacity.builder()
-                .node(null, masterNodeMemory)
-                .total(null, ByteSizeValue.ofBytes(DEFAULT_NUMBER_OF_MASTER_NODES * masterNodeMemory.getBytes()))
-                .build();
+        if (hotAndContentNodes >= minHotNodes || totalHotAndContentNodesMemoryBytes >= minHotNodes * minHotNodeMemory.getBytes()) {
+            autoscalingCapacity = getDedicatedMastersCapacity(configuration);
         } else {
             autoscalingCapacity = AutoscalingCapacity.ZERO;
         }
 
+        final String summaryMessage = getSummaryMessage(hotAndContentNodes, totalHotAndContentNodesMemoryBytes);
         return new AutoscalingDeciderResult(
             autoscalingCapacity,
-            new DedicatedMasterNodesReason(hotAndContentNodes, new ByteSizeValue(totalHotAndContentNodesMemory, ByteSizeUnit.BYTES))
+            new DedicatedMasterNodesReason(summaryMessage, hotAndContentNodes, totalHotAndContentNodesMemoryBytes)
         );
+    }
+
+    private AutoscalingCapacity getDedicatedMastersCapacity(Settings configuration) {
+        final ByteSizeValue masterNodeMemory = MASTER_NODE_MEMORY.get(configuration);
+
+        return AutoscalingCapacity.builder()
+            .node(null, masterNodeMemory)
+            .total(null, ByteSizeValue.ofBytes(DEFAULT_NUMBER_OF_MASTER_NODES * masterNodeMemory.getBytes()))
+            .build();
+    }
+
+    public String getSummaryMessage(int hotAndContentNodes, long totalHotAndContentNodesMemoryBytes) {
+        return "Number of hot and content nodes ["
+            + hotAndContentNodes
+            + "] "
+            + "Total memory size of hot and content nodes ["
+            + new ByteSizeValue(totalHotAndContentNodesMemoryBytes, ByteSizeUnit.BYTES)
+            + "]";
     }
 
     protected long getNodeMemory(DiscoveryNode node, AutoscalingDeciderContext context) {
@@ -104,35 +138,33 @@ public class DedicatedMasterNodesDeciderService implements AutoscalingDeciderSer
     }
 
     public static class DedicatedMasterNodesReason implements AutoscalingDeciderResult.Reason {
+        private final String reason;
         private final int hotAndContentNodes;
-        private final ByteSizeValue totalHotAndContentNodesMemory;
+        private final long totalHotAndContentNodesMemoryBytes;
 
-        public DedicatedMasterNodesReason(int hotAndContentNodes, ByteSizeValue totalHotAndContentNodesMemory) {
+        public DedicatedMasterNodesReason(String reason, int hotAndContentNodes, long totalHotAndContentNodesMemory) {
+            this.reason = reason;
             this.hotAndContentNodes = hotAndContentNodes;
-            this.totalHotAndContentNodesMemory = totalHotAndContentNodesMemory;
+            this.totalHotAndContentNodesMemoryBytes = totalHotAndContentNodesMemory;
         }
 
         public DedicatedMasterNodesReason(StreamInput in) throws IOException {
+            this.reason = in.readString();
             this.hotAndContentNodes = in.readInt();
-            this.totalHotAndContentNodesMemory = new ByteSizeValue(in);
+            this.totalHotAndContentNodesMemoryBytes = in.readLong();
         }
 
         public int getHotAndContentNodes() {
             return hotAndContentNodes;
         }
 
-        public ByteSizeValue getTotalHotAndContentNodesMemory() {
-            return totalHotAndContentNodesMemory;
+        public long getTotalHotAndContentNodesMemoryBytes() {
+            return totalHotAndContentNodesMemoryBytes;
         }
 
         @Override
         public String summary() {
-            return "Number of hot and content nodes ["
-                + hotAndContentNodes
-                + "] "
-                + "Total memory size of hot and content nodes ["
-                + totalHotAndContentNodesMemory
-                + "]";
+            return reason;
         }
 
         @Override
@@ -142,15 +174,17 @@ public class DedicatedMasterNodesDeciderService implements AutoscalingDeciderSer
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(reason);
             out.writeInt(hotAndContentNodes);
-            totalHotAndContentNodesMemory.writeTo(out);
+            out.writeLong(totalHotAndContentNodesMemoryBytes);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.field("reason", reason);
             builder.field("hot_and_content_nodes", hotAndContentNodes);
-            builder.field("total_hot_and_content_nodes_memory", totalHotAndContentNodesMemory);
+            builder.field("total_hot_and_content_nodes_memory", totalHotAndContentNodesMemoryBytes);
             builder.endObject();
             return builder;
         }
@@ -161,12 +195,13 @@ public class DedicatedMasterNodesDeciderService implements AutoscalingDeciderSer
             if (o == null || getClass() != o.getClass()) return false;
             DedicatedMasterNodesReason that = (DedicatedMasterNodesReason) o;
             return hotAndContentNodes == that.hotAndContentNodes
-                && Objects.equals(totalHotAndContentNodesMemory, that.totalHotAndContentNodesMemory);
+                && Objects.equals(reason, that.reason)
+                && Objects.equals(totalHotAndContentNodesMemoryBytes, that.totalHotAndContentNodesMemoryBytes);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(hotAndContentNodes, totalHotAndContentNodesMemory);
+            return Objects.hash(reason, hotAndContentNodes, totalHotAndContentNodesMemoryBytes);
         }
     }
 }

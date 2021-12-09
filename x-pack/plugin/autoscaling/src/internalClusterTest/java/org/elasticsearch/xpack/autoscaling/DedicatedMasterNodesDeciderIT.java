@@ -96,10 +96,12 @@ public class DedicatedMasterNodesDeciderIT extends ESIntegTestCase {
     }
 
     public void testScaleUp() throws Exception {
+        boolean largeHotNodes = randomBoolean();
         ByteSizeValue minDataNodeMemory = ByteSizeValue.ofGb(randomIntBetween(1, 64));
 
+        ByteSizeValue hotNodeMemory = largeHotNodes ? ByteSizeValue.ofBytes(minDataNodeMemory.getBytes() * 2) : minDataNodeMemory;
         final ActionFuture<Void> nodeStatsRequested = nodeStatsTestClient.respond(
-            (req, listener) -> respondWithFakeNodeMemory(req, minDataNodeMemory, listener),
+            (req, listener) -> respondWithFakeNodeMemory(req, hotNodeMemory, listener),
             3
         );
 
@@ -112,26 +114,35 @@ public class DedicatedMasterNodesDeciderIT extends ESIntegTestCase {
         );
         nodeStatsRequested.get();
 
-        assertAutoscalingDeciderResults(deciderResults -> {
-            assertThat(deciderResults.requiredCapacity().node().memory(), equalTo(ByteSizeValue.ofGb(0)));
-            assertThat(deciderResults.requiredCapacity().total().memory(), equalTo(ByteSizeValue.ofGb(0)));
-        });
+        if (largeHotNodes) {
+            assertAutoscalingDeciderResults(deciderResults -> {
+                assertThat(deciderResults.requiredCapacity().node().memory(), equalTo(ByteSizeValue.ofGb(1)));
+                assertThat(deciderResults.requiredCapacity().total().memory(), equalTo(ByteSizeValue.ofGb(3)));
 
-        final ActionFuture<Void> secondRoundOfNodeStatsRequested = nodeStatsTestClient.respond(
-            (req, listener) -> respondWithFakeNodeMemory(req, minDataNodeMemory, listener),
-            3
-        );
+                assertThat(deciderResults.currentCapacity().total().memory(), equalTo(ByteSizeValue.ofGb(0)));
+            });
+        } else {
+            assertAutoscalingDeciderResults(deciderResults -> {
+                assertThat(deciderResults.requiredCapacity().node().memory(), equalTo(ByteSizeValue.ofGb(0)));
+                assertThat(deciderResults.requiredCapacity().total().memory(), equalTo(ByteSizeValue.ofGb(0)));
+            });
 
-        startNodes(3, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE, DiscoveryNodeRole.MASTER_ROLE);
-        ensureStableCluster(6);
-        secondRoundOfNodeStatsRequested.get();
+            final ActionFuture<Void> secondRoundOfNodeStatsRequested = nodeStatsTestClient.respond(
+                (req, listener) -> respondWithFakeNodeMemory(req, hotNodeMemory, listener),
+                3
+            );
 
-        assertAutoscalingDeciderResults(deciderResults -> {
-            assertThat(deciderResults.requiredCapacity().node().memory(), equalTo(ByteSizeValue.ofGb(1)));
-            assertThat(deciderResults.requiredCapacity().total().memory(), equalTo(ByteSizeValue.ofGb(3)));
+            startNodes(3, DiscoveryNodeRole.DATA_HOT_NODE_ROLE, DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE, DiscoveryNodeRole.MASTER_ROLE);
+            ensureStableCluster(6);
+            secondRoundOfNodeStatsRequested.get();
 
-            assertThat(deciderResults.currentCapacity().total().memory(), equalTo(ByteSizeValue.ofGb(0)));
-        });
+            assertAutoscalingDeciderResults(deciderResults -> {
+                assertThat(deciderResults.requiredCapacity().node().memory(), equalTo(ByteSizeValue.ofGb(1)));
+                assertThat(deciderResults.requiredCapacity().total().memory(), equalTo(ByteSizeValue.ofGb(3)));
+
+                assertThat(deciderResults.currentCapacity().total().memory(), equalTo(ByteSizeValue.ofGb(0)));
+            });
+        }
     }
 
     public void testSmallClusterDoNotNeedDedicatedMasters() throws Exception {
@@ -155,7 +166,7 @@ public class DedicatedMasterNodesDeciderIT extends ESIntegTestCase {
         });
     }
 
-    public void testScaleDown() throws Exception {
+    public void testDoesNotScaleDownOnceTheClusterHasDedicatedMasters() throws Exception {
         final ActionFuture<Void> nodeStatsRequestedForAllNodes = nodeStatsTestClient.respond(
             (req, listener) -> respondWithFakeNodeMemory(req, ByteSizeValue.ofGb(64), listener),
             6
@@ -173,13 +184,23 @@ public class DedicatedMasterNodesDeciderIT extends ESIntegTestCase {
             assertThat(deciderResults.requiredCapacity().total().memory(), equalTo(ByteSizeValue.ofGb(3)));
         });
 
+        final int numMasterNodes = randomIntBetween(1, 3);
+        final ActionFuture<Void> nodeStatsRequestedForMasterNodes = nodeStatsTestClient.respond(
+            (req, listener) -> respondWithFakeNodeMemory(req, ByteSizeValue.ofGb(1), listener),
+            numMasterNodes
+        );
+
+        internalCluster().startMasterOnlyNodes(numMasterNodes);
+
+        nodeStatsRequestedForMasterNodes.get();
+
         internalCluster().stopRandomNonMasterNode();
 
-        ensureStableCluster(5);
+        ensureStableCluster(5 + numMasterNodes);
 
         assertAutoscalingDeciderResults(deciderResults -> {
-            assertThat(deciderResults.requiredCapacity().node().memory(), equalTo(ByteSizeValue.ofGb(0)));
-            assertThat(deciderResults.requiredCapacity().total().memory(), equalTo(ByteSizeValue.ofGb(0)));
+            assertThat(deciderResults.requiredCapacity().node().memory(), equalTo(ByteSizeValue.ofGb(1)));
+            assertThat(deciderResults.requiredCapacity().total().memory(), equalTo(ByteSizeValue.ofGb(3)));
         });
     }
 

@@ -1088,6 +1088,11 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         public SnapshotShardSizeInfo snapshotShardSizeInfo() {
             return null;
         }
+
+        @Override
+        public void ensureNotCancelled() {
+
+        }
     }
 
     private static long autoBytesForMl(Long nodeSize, Long jvmSize) {

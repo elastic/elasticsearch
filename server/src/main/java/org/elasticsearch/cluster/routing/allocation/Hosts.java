@@ -27,10 +27,9 @@ public class Hosts {
 
     public Hosts(Iterable<RoutingNode> nodes) {
         Set<HostBuilder> hostBuilderSet = new HashSet<>();
-        Map<String, HostBuilder> hostNameMap = new HashMap<>();
         Map<String, HostBuilder> hostAddressMap = new HashMap<>();
         for (RoutingNode checkNode : nodes) {
-            HostBuilder hostBuilder = getOrCreateHost(checkNode, hostNameMap, hostAddressMap);
+            HostBuilder hostBuilder = getOrCreateHost(checkNode, hostAddressMap);
             if (hostBuilder != null) {
                 hostBuilder.addNode(checkNode);
                 hostBuilderSet.add(hostBuilder);
@@ -47,32 +46,21 @@ public class Hosts {
         this.node2Host = Collections.unmodifiableMap(tmpNode2Host);
     }
 
-    private HostBuilder getOrCreateHost(RoutingNode node, Map<String, HostBuilder> hostNameMap, Map<String, HostBuilder> hostAddressMap) {
+    private HostBuilder getOrCreateHost(RoutingNode node, Map<String, HostBuilder> hostAddressMap) {
         // skip if the DiscoveryNode of a deleted RoutingNode is empty
         if (node.node() == null) {
             return null;
         }
-        String hostName = node.node().getHostName();
+
         String hostAddress = node.node().getHostAddress();
-        HostBuilder hostBuilder;
-        if (Strings.hasLength(hostAddress)) {
-            hostBuilder = hostAddressMap.get(hostAddress);
-        } else if (Strings.hasLength(hostName)) {
-            hostBuilder = hostNameMap.get(hostName);
-        } else {
-            return null;
-        }
+        assert Strings.hasLength(node.node().getHostAddress()) : node;
+        HostBuilder hostBuilder = hostAddressMap.get(hostAddress);
 
         if (hostBuilder != null) {
             return hostBuilder;
         } else {
             HostBuilder newHostBuilder = new HostBuilder();
-            if (Strings.hasLength(hostAddress)) {
-                hostAddressMap.put(hostAddress, newHostBuilder);
-            }
-            if (Strings.hasLength(hostName)) {
-                hostNameMap.put(hostName, newHostBuilder);
-            }
+            hostAddressMap.put(hostAddress, newHostBuilder);
             return newHostBuilder;
         }
     }

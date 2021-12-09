@@ -60,6 +60,7 @@ public class EcsJsonLayout extends AbstractStringLayout {
         map.put("elasticsearch.cluster.uuid", inQuotes("%cluster_id"));
         map.put("elasticsearch.node.id", inQuotes("%node_id"));
         map.put("elasticsearch.node.name", inQuotes("%node_name"));
+        map.put("trace.id", inQuotes("%notEmpty{%trace_id}"));
         map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
         map.put("data_stream.type", inQuotes("logs"));
         map.put("data_stream.dataset", inQuotes("deprecation.elasticsearch"));

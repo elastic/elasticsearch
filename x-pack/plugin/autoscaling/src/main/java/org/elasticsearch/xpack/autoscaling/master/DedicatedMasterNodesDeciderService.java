@@ -30,7 +30,7 @@ import java.util.stream.StreamSupport;
 import static java.util.stream.Collectors.summarizingLong;
 
 public class DedicatedMasterNodesDeciderService implements AutoscalingDeciderService {
-    public static final String NAME = "dedicated-masters-decider";
+    public static final String NAME = "dedicated_masters_decider";
 
     public static final int DEFAULT_NUMBER_OF_MASTER_NODES = 3;
     public static final ByteSizeValue DEFAULT_MASTER_MEMORY = ByteSizeValue.ofGb(1);

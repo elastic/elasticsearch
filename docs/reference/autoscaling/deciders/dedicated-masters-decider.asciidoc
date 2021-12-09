@@ -1,0 +1,62 @@
+[role="xpack"]
+[[autoscaling-dedicated-masters-decider]]
+=== Dedicated master nodes decider
+
+The dedicated master nodes decider (`dedicated_masters_decider`) calculates when is necessary
+to add dedicated master nodes to handle the current cluster configuration.
+
+The dedicated master nodes decider is enabled for all policies governing nodes with the `master` role.
+
+[[autoscaling-dedicated-masters-decider-settings]]
+==== Configuration settings
+
+`min_hot_nodes`::
+(Optional, integer)
+Specifies the minimum number of hot and content nodes that need dedicated masters. Defaults to 6 nodes.
+
+`min_hot_node_memory`::
+(Optional, <<byte-units,byte value>>)
+Specifies the memory that hot and content nodes should have to require dedicated masters. Defaults to 64GB.
+
+`master_node_memory`::
+(Optional, <<byte-units,byte value>>)
+Specifies the memory that dedicated masters need. Defaults to 1GB.
+
+[[autoscaling-dedicated-masters-decider-examples]]
+==== {api-examples-title}
+
+This example puts an autoscaling policy named `my_autoscaling_policy`, overriding
+the proactive decider's `forecast_window` to be 10 minutes.
+
+[source,console]
+--------------------------------------------------
+PUT /_autoscaling/policy/my_autoscaling_policy
+{
+  "roles" : [ "master" ],
+  "deciders": {
+    "dedicated_masters_decider": {
+      "forecast_window": "10m"
+    }
+  }
+}
+--------------------------------------------------
+// TEST
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/my_autoscaling_policy
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////

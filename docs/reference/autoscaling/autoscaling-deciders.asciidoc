@@ -30,6 +30,9 @@ Available for policies governing machine learning nodes.
 <<autoscaling-fixed-decider,Fixed decider>>::
 Responds with a fixed required capacity. This decider is intended for testing only.
 
+<<autoscaling-dedicated-masters-decider,Dedicated master nodes decider>>::
+Computes whether or not dedicated masters are needed in the current cluster configuration.
+
 include::deciders/reactive-storage-decider.asciidoc[]
 include::deciders/proactive-storage-decider.asciidoc[]
 include::deciders/frozen-shards-decider.asciidoc[]
@@ -37,3 +40,4 @@ include::deciders/frozen-storage-decider.asciidoc[]
 include::deciders/frozen-existence-decider.asciidoc[]
 include::deciders/machine-learning-decider.asciidoc[]
 include::deciders/fixed-decider.asciidoc[]
+include::deciders/dedicated-masters-decider.asciidoc[]

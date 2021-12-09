@@ -168,32 +168,52 @@ public class IndexDeprecationChecksTests extends ESTestCase {
     }
 
     public void testChainedMultiFields() throws IOException {
-        XContentBuilder xContent = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("invalid-field")
-            .field("type", "keyword")
-            .startObject("fields")
-            .startObject("sub-field")
-            .field("type", "keyword")
-            .startObject("fields")
-            .startObject("sub-sub-field")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .startObject("valid-field")
-            .field("type", "keyword")
-            .startObject("fields")
-            .startObject("sub-field")
-            .field("type", "keyword")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject();
+        XContentBuilder xContent = XContentFactory.jsonBuilder();
+        xContent.startObject();
+        {
+            xContent.startObject("properties");
+            {
+                xContent.startObject("invalid-field");
+                {
+                    xContent.field("type", "keyword");
+                    xContent.startObject("fields");
+                    {
+                        xContent.startObject("sub-field");
+                        {
+                            xContent.field("type", "keyword");
+                            xContent.startObject("fields");
+                            {
+                                xContent.startObject("sub-sub-field");
+                                {
+                                    xContent.field("type", "keyword");
+                                }
+                                xContent.endObject();
+                            }
+                            xContent.endObject();
+                        }
+                        xContent.endObject();
+                    }
+                    xContent.endObject();
+                }
+                xContent.endObject();
+                xContent.startObject("valid-field");
+                {
+                    xContent.field("type", "keyword");
+                    xContent.startObject("fields");
+                    {
+                        xContent.startObject("sub-field");
+                        {
+                            xContent.field("type", "keyword");
+                        }
+                        xContent.endObject();
+                    }
+                    xContent.endObject();
+                }
+                xContent.endObject();
+            }
+            xContent.endObject();
+        }
+        xContent.endObject();
         String mapping = BytesReference.bytes(xContent).utf8ToString();
 
         IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
@@ -213,6 +233,83 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             "Defining multi-fields within multi-fields is deprecated",
             "https://ela.st/es-deprecation-7-chained-multi-fields",
             "Remove chained multi-fields from the \"invalid-field\" mapping. Multi-fields within multi-fields are not supported in 8.0.",
+            false,
+            null
+        );
+        assertEquals(singletonList(expected), issues);
+    }
+
+    public void testDynamicTemplateChainedMultiFields() throws IOException {
+        XContentBuilder xContent = XContentFactory.jsonBuilder();
+        xContent.startObject();
+        {
+            xContent.startObject("properties");
+            {
+                xContent.startObject("valid-field");
+                {
+                    xContent.field("type", "keyword");
+                }
+                xContent.endObject();
+            }
+            xContent.endObject();
+            xContent.startArray("dynamic_templates");
+            {
+                xContent.startObject();
+                {
+                    xContent.startObject("invalid_template");
+                    {
+                        xContent.field("match_mapping_type", "long");
+                        xContent.startObject("mapping");
+                        {
+                            xContent.field("type", "keyword");
+                            xContent.startObject("fields");
+                            {
+                                xContent.startObject("sub-field");
+                                {
+                                    xContent.field("type", "keyword");
+                                    xContent.startObject("fields");
+                                    {
+                                        xContent.startObject("sub-sub-field");
+                                        {
+                                            xContent.field("type", "keyword");
+                                        }
+                                        xContent.endObject();
+                                    }
+                                    xContent.endObject();
+                                }
+                                xContent.endObject();
+                            }
+                            xContent.endObject();
+                        }
+                        xContent.endObject();
+                    }
+                    xContent.endObject();
+                }
+                xContent.endObject();
+            }
+            xContent.endArray();
+        }
+        xContent.endObject();
+        String mapping = BytesReference.bytes(xContent).utf8ToString();
+
+        IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
+            .settings(settings(Version.V_7_3_0))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .putMapping("_doc", mapping)
+            .build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(ClusterState.EMPTY_STATE, simpleIndex)
+        );
+        assertEquals(1, issues.size());
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Defining multi-fields within multi-fields inside dynamic templates is deprecated",
+            "https://ela.st/es-deprecation-7-chained-multi-fields",
+            "Remove chained multi-fields from the \"invalid_template\" dynamic template. "
+                + "Multi-fields within multi-fields are not supported in 8.0.",
             false,
             null
         );

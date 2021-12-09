@@ -91,7 +91,7 @@ The `transport.profiles.*.xpack.security.type` setting is now deprecated. In
 HTTP interface instead.
 
 To avoid deprecation warnings,
-{java-rest}/java-rest-high-level-migration.html[migrate any code for the Java
+https://www.elastic.co/guide/en/elasticsearch/client/java-rest/7.15/java-rest-high-level-migration.html[migrate any code for the Java
 transport client]. Then remove any transport profiles using the deprecated
 setting.
 // end::notable-breaking-changes[]

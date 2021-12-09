@@ -1251,14 +1251,25 @@ class NodeDeprecationChecks {
         final ClusterState clusterState,
         final XPackLicenseState licenseState
     ) {
+        String detail =
+            "Remove the context-specific cache settings and set [script.max_compilations_rate] to configure the rate limit for the "
+                + "general cache. If no limit is set, the rate defaults to 150 compilations per five minutes: 150/5m. Context-specific "
+                + "caches are no longer needed to prevent system scripts from triggering rate limits.";
         if (ScriptService.isUseContextCacheSet(settings)) {
             return new DeprecationIssue(
                 DeprecationIssue.Level.WARNING,
                 ScriptService.USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE,
                 "https://ela.st/es-deprecation-7-script-context-cache",
-                "Remove the context-specific cache settings and set [script.max_compilations_rate] to configure the rate limit for the "
-                    + "general cache. If no limit is set, the rate defaults to 150 compilations per five minutes: 150/5m. Context-specific "
-                    + "caches are no longer needed to prevent system scripts from triggering rate limits.",
+                detail,
+                false,
+                null
+            );
+        } else if (ScriptService.isImplicitContextCacheSet(settings)) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                ScriptService.contextDeprecationMessage(settings),
+                "https://ela.st/es-deprecation-7-script-context-cache",
+                detail,
                 false,
                 null
             );

@@ -21,7 +21,7 @@ The following APIs support {ccs}:
 * <<search-field-caps,Field capabilities>>
 * <<sql-search-api,SQL search>>
 * experimental:[] <<eql-search-api,EQL search>>
-* experimental:[] <<search-vector-tile-api,Vector tile search>>
+* <<search-vector-tile-api,Vector tile search>>
 
 [discrete]
 [[ccs-example]]

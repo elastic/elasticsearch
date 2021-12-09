@@ -13,10 +13,10 @@ SHOW COLUMNS
      LIKE pattern]        <4>
 ----
 
-<1> Catalog identifier or wildcard
-<2> Whether or not to include frozen indices
-<3> Single index identifier or double quoted es multi index pattern
-<4> SQL LIKE pattern matching on index names
+<1> Catalog (cluster) identifier. Supports wildcards (`*`).
+<2> Whether or not to include frozen indices.
+<3> Single table (index or data stream) identifier or double-quoted multi-target pattern.
+<4> SQL LIKE pattern matching table names.
 
 See <<sql-index-patterns, index patterns>> for more information about
 patterns.

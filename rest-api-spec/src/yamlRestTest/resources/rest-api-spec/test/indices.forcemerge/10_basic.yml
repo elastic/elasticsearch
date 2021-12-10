@@ -44,6 +44,6 @@
       indices.forcemerge:
         max_num_segments: 1
         wait_for_completion: false
-  - match: { task: '/^\w+:\d+$/' }
+  - match: { task: '/^\S+:\d+$/' }
 
 

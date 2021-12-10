@@ -52,7 +52,7 @@ public class TestStableAnalysisPluginIT extends ESIntegTestCase {
                 new String[]{"I like to use elastic products", "I like to use elastic products"},
                 new AnalyzeAction.AnalyzeToken[] {
                     new AnalyzeAction.AnalyzeToken(
-                        "elastic",
+                        "ELASTIC",
                         4,
                         14,
                         14 + "elastic".length(),
@@ -60,7 +60,7 @@ public class TestStableAnalysisPluginIT extends ESIntegTestCase {
                         "<ALPHANUM>",
                         null),
                     new AnalyzeAction.AnalyzeToken(
-                        "elastic",
+                        "ELASTIC",
                         110,
                         45,
                         45 + "elastic".length(),
@@ -73,7 +73,7 @@ public class TestStableAnalysisPluginIT extends ESIntegTestCase {
                 new String[]{"I like using Elastic products", "I like using Elastic products"},
                 new AnalyzeAction.AnalyzeToken[] {
                     new AnalyzeAction.AnalyzeToken(
-                        "elastic",
+                        "ELASTIC",
                         3,
                         13,
                         13 + "Elastic".length(),
@@ -81,7 +81,7 @@ public class TestStableAnalysisPluginIT extends ESIntegTestCase {
                         "<ALPHANUM>",
                         null),
                     new AnalyzeAction.AnalyzeToken(
-                        "elastic",
+                        "ELASTIC",
                         108,
                         43,
                         43 + "elastic".length(),
@@ -93,7 +93,7 @@ public class TestStableAnalysisPluginIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate(index));
 
-        for (String filter : List.of("demo", "demo_old")) {
+        for (String filter : List.of("demo_legacy", "demo")) {
             for (AnalysisTestcases testcase : testCases) {
                 AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index).tokenizer("standard")
                     .addTokenFilter("lowercase")
@@ -103,12 +103,12 @@ public class TestStableAnalysisPluginIT extends ESIntegTestCase {
 
                 AnalyzeAction.Response result = client().admin().indices().analyze(analyzeRequest).actionGet();
 
-                /*assertFalse(result.getTokens().isEmpty());
+                assertFalse(result.getTokens().isEmpty());
                 assertEquals(2, result.getTokens().size());
 
                 for (int i = 0; i < result.getTokens().size(); i++) {
                     assertThat(testcase.tokens[i], equalTo(result.getTokens().get(i)));
-                }*/
+                }
             }
         }
     }

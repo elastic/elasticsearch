@@ -27,6 +27,10 @@ public class PluginAnalysisPipelineStep implements AnalysisPipelineStep {
 
     @Override
     public List<AnalyzeAction.AnalyzeToken> process(String field, String[] texts, int maxTokenCount) {
+        return process(field, texts, maxTokenCount, null);
+    }
+
+    public List<AnalyzeAction.AnalyzeToken> process(String field, String[] texts, int maxTokenCount, String[] attributes) {
         TokenCounter tc = new TokenCounter(maxTokenCount);
         List<AnalyzeAction.AnalyzeToken> tokens = new ArrayList<>();
         AnalyzeState state = new AnalyzeState(-1, 0);
@@ -54,5 +58,16 @@ public class PluginAnalysisPipelineStep implements AnalysisPipelineStep {
         }
 
         return tokens;
+    }
+
+    @Override
+    public DetailedPipelineAnalysisPackage details(String field, String[] texts, int maxTokenCount, String[] attributes) {
+        return null;
+    }
+
+    @Override
+    public List<AnalyzeAction.AnalyzeTokenList> detailedFilters(String field, String[] texts, int maxTokenCount, String[] attributes) {
+        List<AnalyzeAction.AnalyzeToken> tokens = process(field, texts, maxTokenCount, attributes);
+        return List.of(new AnalyzeAction.AnalyzeTokenList(iteratorFactory.name(), tokens.toArray(new AnalyzeAction.AnalyzeToken[0])));
     }
 }

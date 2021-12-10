@@ -139,12 +139,6 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
 
         IndexSettings settings = indexService == null ? null : indexService.getIndexSettings();
 
-        /*AnalysisIteratorFactory iteratorFactory = analysisRegistry.getSimpleAnalyzeIterator(request.tokenFilters());
-
-        if (iteratorFactory != null) {
-            return new AnalyzeAction.Response(simpleIteratorAnalyze(request, iteratorFactory, maxTokenCount), null);
-        }*/
-
         AnalysisPipeline pipeline = analysisRegistry.buildAnalyzerPipeline(
             settings,
             false,
@@ -153,7 +147,9 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             request.tokenFilters()
         );
 
-        pipeline.process(request.field(), request.text(), maxTokenCount);
+        if (pipeline != null) {
+            return new AnalyzeAction.Response(pipeline.process(request.field(), request.text(), maxTokenCount), null);
+        }
 
         // First, we check to see if the request requires a custom analyzer. If so, then we
         // need to build it and then close it after use.
@@ -424,39 +420,6 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
             );
         }
         return detailResponse;
-    }
-
-    private static List<AnalyzeAction.AnalyzeToken> simpleIteratorAnalyze(
-        AnalyzeAction.Request request,
-        AnalysisIteratorFactory iteratorFactory,
-        int maxTokenCount) {
-        TokenCounter tc = new TokenCounter(maxTokenCount);
-        List<AnalyzeAction.AnalyzeToken> tokens = new ArrayList<>();
-        AnalyzeState state = new AnalyzeState(-1, 0);
-
-        for (String text : request.text()) {
-            try (SimpleAnalyzeIterator iterator = iteratorFactory.newInstance(text, state)) {
-                AnalyzeToken token;
-                iterator.start();
-                while ((token = iterator.next()) != null) {
-                    tokens.add(new AnalyzeAction.AnalyzeToken(
-                        token.getTerm(),
-                        token.getPosition(),
-                        token.getStartOffset(),
-                        token.getEndOffset(),
-                        token.getPositionLength(),
-                        token.getType(),
-                        null
-                    ));
-
-                    tc.increment();
-                }
-                iterator.end();
-                state = iterator.state();
-            }
-        }
-
-        return tokens;
     }
 
     private static TokenStream createStackedTokenStream(

@@ -834,7 +834,7 @@ public final class AnalysisRegistry implements Closeable {
         return new IndexAnalyzers(analyzers, normalizers, whitespaceNormalizers);
     }
 
-    private static NamedAnalyzer produceAnalyzer(
+    public static NamedAnalyzer produceAnalyzer(
         String name,
         AnalyzerProvider<?> analyzerFactory,
         Map<String, TokenFilterFactory> tokenFilters,

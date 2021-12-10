@@ -31,7 +31,7 @@ public class AnalysisStempelPlugin extends Plugin implements AnalysisPlugin {
         return Map.of(
             "polish_stem", PolishStemTokenFilterFactory::new,
             "polish_stop", PolishStopTokenFilterFactory::new,
-            "demo_old", DemoTokenFilterFactory::new);
+            "demo_legacy", DemoTokenFilterFactory::new);
     }
 
     @Override

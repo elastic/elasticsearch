@@ -16,6 +16,8 @@ import static java.lang.Math.toRadians;
  */
 public final class H3 {
 
+    public static int MAX_H3_RES = Constants.MAX_H3_RES;
+
     /**
      * Converts from <code>long</code> representation of an index to <code>String</code> representation.
      */

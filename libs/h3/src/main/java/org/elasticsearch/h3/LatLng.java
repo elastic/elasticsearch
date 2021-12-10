@@ -45,7 +45,7 @@ public final class LatLng {
      *
      * @param res The desired H3 resolution for the encoding.
      */
-    public FaceIJK geoToFaceIJK(int res) {
+    FaceIJK geoToFaceIJK(int res) {
         Vec3d v3d = new Vec3d(this);
 
         // determine the icosahedron face

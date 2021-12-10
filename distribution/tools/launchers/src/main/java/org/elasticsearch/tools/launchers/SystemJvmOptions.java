@@ -55,6 +55,7 @@ final class SystemJvmOptions {
                 // log4j 2
                 "-Dlog4j.shutdownHookEnabled=false",
                 "-Dlog4j2.disable.jmx=true",
+                "-Dlog4j2.formatMsgNoLookups=true",
 
                 javaLocaleProviders(),
                 maybeAddOpensJavaIoToAllUnnamed()

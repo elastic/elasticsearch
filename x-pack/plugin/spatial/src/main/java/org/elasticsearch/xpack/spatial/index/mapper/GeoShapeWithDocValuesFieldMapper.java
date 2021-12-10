@@ -411,7 +411,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         @Override
         public boolean isEmpty() {
-            return value != null;
+            return value == null;
         }
 
         @Override

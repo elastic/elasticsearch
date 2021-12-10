@@ -20,7 +20,12 @@ import java.util.Map;
 public class SpatialPainlessExtension implements PainlessExtension {
 
     private static final List<Whitelist> WHITELISTS = List.of(
-        WhitelistLoader.loadFromResourceFiles(SpatialPainlessExtension.class, "org.elasticsearch.xpack.spatial.index.fielddata.txt")
+        WhitelistLoader.loadFromResourceFiles(
+            SpatialPainlessExtension.class,
+            "org.elasticsearch.xpack.spatial.index.fielddata.txt",
+            "org.elasticsearch.xpack.spatial.index.fielddata.plain.txt",
+            "org.elasticsearch.xpack.spatial.index.mapper.txt"
+        )
     );
 
     @Override

@@ -110,7 +110,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
     );
 
     /**
-     * Allowed license families for this project.
+     * Allowed license families for this project.Vendored
      */
     @Input
     private List<String> approvedLicenses = new ArrayList<String>(Arrays.asList("SSPL+Elastic License", "Generated", "Vendored", "Apache LZ4-Java"));
@@ -172,6 +172,8 @@ public abstract class LicenseHeadersTask extends DefaultTask {
         matchers.add(subStringMatcher("GEN  ", "Generated", "ANTLR GENERATED CODE"));
         // Vendored Code
         matchers.add(subStringMatcher("VEN  ", "Vendored", "@notice"));
+        // Uber h3 port
+        matchers.add(subStringMatcher("H3   ", "Vendored", "Based on the h3 project by Uber (@uber)"));
 
         additionalLicenses.get().forEach(l ->
             matchers.add(subStringMatcher(l.licenseFamilyCategory, l.licenseFamilyName, l.substringPattern))

@@ -1,14 +1,13 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * Based on the h3 project by Uber (@uber)
+ * https://github.com/uber/h3
+ * Licensed to Elasticsearch B.V under the Apache 2.0 License.
+ * Elasticsearch B.V licenses this file, including any modifications, to you under the Apache 2.0 License.
+ * See the LICENSE file in the project root for more information.
  */
-
 package org.elasticsearch.h3;
 
-public class Vec3d {
+final class Vec3d {
 
     /** icosahedron face centers in x/y/z on the unit sphere */
     public static final double[][] faceCenterPoint = new double[][] {
@@ -38,7 +37,7 @@ public class Vec3d {
     private final double y;
     private final double z;
 
-    public Vec3d(LatLng latLng) {
+    Vec3d(LatLng latLng) {
         double r = Math.cos(latLng.getLatRad());
         this.z = Math.sin(latLng.getLatRad());
         this.x = Math.cos(latLng.getLonRad()) * r;

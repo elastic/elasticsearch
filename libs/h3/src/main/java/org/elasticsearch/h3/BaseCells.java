@@ -1,16 +1,16 @@
 /*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * Based on the h3 project by Uber (@uber)
+ * https://github.com/uber/h3
+ * Licensed to Elasticsearch B.V under the Apache 2.0 License.
+ * Elasticsearch B.V licenses this file, including any modifications, to you under the Apache 2.0 License.
+ * See the LICENSE file in the project root for more information.
  */
 package org.elasticsearch.h3;
 
 /**
  *  Base cell related lookup tables and access functions.
  */
-class BaseCells {
+final class BaseCells {
 
     private static class BaseCellData {
         // "home" face and normalized ijk coordinates on that face

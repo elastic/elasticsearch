@@ -1,0 +1,34 @@
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.BuildPlugin
+
+plugins {
+  id 'base'
+}
+
+configurations {
+  log4j {
+    transitive = false
+  }
+}
+
+BuildPlugin.configureRepositories(project)
+def log4jVersion = VersionProperties.versions.log4j
+dependencies {
+  log4j "org.apache.logging.log4j:log4j-core:${log4jVersion}"
+}
+
+// Strip out JndiLookup class to avoid any possibility of exploitation of CVE-2021-44228
+// See: https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-44228
+// See: https://issues.apache.org/jira/browse/LOG4J2-3201
+task patchLog4j(type: Zip) {
+  extension = 'jar'
+  baseName = 'log4j-core'
+  version = log4jVersion
+  from({ zipTree(configurations.log4j.singleFile) }) {
+    exclude '**/JndiLookup.class'
+  }
+}
+
+artifacts {
+  'default'(patchLog4j)
+}

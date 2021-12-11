@@ -72,6 +72,12 @@ if (!isEclipse) {
   }
 }
 
+configurations.all {
+  resolutionStrategy.dependencySubstitution {
+    substitute module("org.apache.logging.log4j:log4j-core") because "patched to remove JndiLookup class" with project(":libs:log4j")
+  }
+}
+
 dependencies {
 
   compile "org.elasticsearch:elasticsearch-core:${version}"

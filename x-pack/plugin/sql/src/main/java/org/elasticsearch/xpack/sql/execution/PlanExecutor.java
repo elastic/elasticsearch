@@ -76,8 +76,7 @@ public class PlanExecutor {
         metrics.translate();
 
         newSession(cfg).sqlExecutable(sql, params, wrap(exec -> {
-            if (exec instanceof EsQueryExec) {
-                EsQueryExec e = (EsQueryExec) exec;
+            if (exec instanceof EsQueryExec e) {
                 listener.onResponse(SourceGenerator.sourceBuilder(e.queryContainer(), cfg.filter(), cfg.pageSize()));
             }
             // try to provide a better resolution of what failed

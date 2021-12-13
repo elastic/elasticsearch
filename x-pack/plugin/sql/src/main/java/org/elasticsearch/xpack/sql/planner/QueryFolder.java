@@ -136,7 +136,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan rule(ProjectExec project) {
+            // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (project.child() instanceof EsQueryExec exec) {
+                // @formatter:on
                 QueryContainer queryC = exec.queryContainer();
 
                 AttributeMap.Builder<Expression> aliases = AttributeMap.<Expression>builder().putAll(queryC.aliases());
@@ -201,8 +203,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     private static class FoldFilter extends FoldingRule<FilterExec> {
         @Override
         protected PhysicalPlan rule(FilterExec plan) {
-
+            // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (plan.child() instanceof EsQueryExec exec) {
+                // @formatter:on
                 QueryContainer qContainer = exec.queryContainer();
 
                 QueryTranslation qt = toQuery(plan.condition(), plan.isHaving());
@@ -431,9 +434,11 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan rule(AggregateExec a) {
+            // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (a.child() instanceof EsQueryExec exec) {
                 return fold(a, exec);
             }
+            // @formatter:on
             return a;
         }
 
@@ -746,7 +751,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
     private static class FoldOrderBy extends FoldingRule<OrderExec> {
         @Override
         protected PhysicalPlan rule(OrderExec plan) {
+            // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (plan.child() instanceof EsQueryExec exec) {
+                // @formatter:on
                 QueryContainer qContainer = exec.queryContainer();
 
                 // Reverse traversal together with the upwards fold direction ensures that sort clauses are added in reverse order of
@@ -817,12 +824,14 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan rule(LimitExec plan) {
+            // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (plan.child() instanceof EsQueryExec exec) {
                 int limit = (Integer) SqlDataTypeConverter.convert(Foldables.valueOf(plan.limit()), DataTypes.INTEGER);
                 int currentSize = exec.queryContainer().limit();
                 int newSize = currentSize < 0 ? limit : Math.min(currentSize, limit);
                 return exec.with(exec.queryContainer().withLimit(newSize));
             }
+            // @formatter:on
             return plan;
         }
     }
@@ -850,7 +859,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         protected PhysicalPlan rule(PivotExec plan) {
+            // @formatter:off - https://bugs.eclipse.org/bugs/show_bug.cgi?id=574437
             if (plan.child() instanceof EsQueryExec exec) {
+                // @formatter:on
                 Pivot p = plan.pivot();
                 EsQueryExec fold = FoldAggregate.fold(
                     new AggregateExec(plan.source(), exec, new ArrayList<>(p.groupingSet()), combine(p.groupingSet(), p.aggregates())),

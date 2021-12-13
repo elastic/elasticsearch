@@ -27,7 +27,7 @@
 
 ARG BASE_REGISTRY=registry1.dso.mil
 ARG BASE_IMAGE=ironbank/redhat/ubi/ubi8
-ARG BASE_TAG=8.4
+ARG BASE_TAG=8.5
 
 FROM ${base_image} AS builder
 

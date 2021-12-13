@@ -19,7 +19,7 @@ setup:
 
   # It's too hard to create a genuine model snapshot in a YAML test.
   # All we can do is create the descriptor doc that will allow the
-  # endpoints to get past an existence chech. Then the actual snapshot
+  # endpoints to get past an existence check. Then the actual snapshot
   # upgrade will of course fail, but we can test that the stats report
   # the attempt.
   - do:

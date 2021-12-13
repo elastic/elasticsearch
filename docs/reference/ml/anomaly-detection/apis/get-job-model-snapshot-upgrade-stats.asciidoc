@@ -28,7 +28,7 @@ Requires the `monitor_ml` cluster privilege. This privilege is included in the
 == {api-description-title}
 
 {anomaly-detect-cap} job model snapshot upgrades are ephemeral. Only
-upgrades that are in progress are the time this API is called will be
+upgrades that are in progress at the time this API is called will be
 returned.
 
 [[ml-get-job-model-snapshot-upgrade-stats-path-parms]]

@@ -35,13 +35,14 @@ import java.util.stream.Collectors;
 
 public class CoreElasticAnalysisPipelineStep implements AnalysisPipelineStep {
     private final Analyzer analyzer;
+    private final CustomAnalyzer wrappedAnalyzer;
 
     public CoreElasticAnalysisPipelineStep(
         TokenizerFactory tokenizerFactory,
         List<CharFilterFactory> charFilterFactories,
         List<TokenFilterFactory> tokenFilterFactories
     ) {
-        Analyzer wrappedAnalyzer = new CustomAnalyzer(
+        this.wrappedAnalyzer = new CustomAnalyzer(
             tokenizerFactory,
             charFilterFactories.toArray(new CharFilterFactory[] {}),
             tokenFilterFactories.toArray(new TokenFilterFactory[] {})
@@ -172,8 +173,7 @@ public class CoreElasticAnalysisPipelineStep implements AnalysisPipelineStep {
 
     @Override
     public DetailedPipelineAnalysisPackage details(String field, String[] texts, int maxTokenCount, String[] attributes) {
-        CustomAnalyzer customAnalyzer = (CustomAnalyzer)analyzer;
-        AnalyzerComponents components = customAnalyzer.getComponents();
+        AnalyzerComponents components = wrappedAnalyzer.getComponents();
 
         CharFilterFactory[] charFilterFactories = components.getCharFilters();
         TokenizerFactory tokenizerFactory = components.getTokenizerFactory();
@@ -241,8 +241,7 @@ public class CoreElasticAnalysisPipelineStep implements AnalysisPipelineStep {
 
     @Override
     public List<AnalyzeAction.AnalyzeTokenList> detailedFilters(String field, String[] texts, int maxTokenCount, String[] attributes) {
-        CustomAnalyzer customAnalyzer = (CustomAnalyzer)analyzer;
-        AnalyzerComponents components = customAnalyzer.getComponents();
+        AnalyzerComponents components = wrappedAnalyzer.getComponents();
 
         CharFilterFactory[] charFilterFactories = components.getCharFilters();
         TokenizerFactory tokenizerFactory = components.getTokenizerFactory();

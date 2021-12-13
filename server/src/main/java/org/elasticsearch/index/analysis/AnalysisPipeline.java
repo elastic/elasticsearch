@@ -49,6 +49,40 @@ public class AnalysisPipeline {
         return new StepTransform(nextIndexMappings, textBuilder.toString());
     }
 
+    private List<AnalyzeAction.AnalyzeToken> remap(
+        StepTransform nextInput,
+        Map<Integer, AnalyzeAction.AnalyzeToken> firstTokens,
+        List<AnalyzeAction.AnalyzeToken> in) {
+        List<AnalyzeAction.AnalyzeToken> adjusted = new ArrayList<>();
+
+        for (AnalyzeAction.AnalyzeToken token : in) {
+            Integer mappingIndex = nextInput.mappings.get(token.getPosition());
+            if (mappingIndex != null) {
+                AnalyzeAction.AnalyzeToken original = firstTokens.get(mappingIndex);
+                if (original != null) {
+                    AnalyzeAction.AnalyzeToken mappedToken = new AnalyzeAction.AnalyzeToken(
+                        token.getTerm(),
+                        original.getPosition(),
+                        original.getStartOffset(),
+                        original.getEndOffset(),
+                        token.getPositionLength(),
+                        token.getType(),
+                        token.getAttributes()
+                    );
+                    adjusted.add(mappedToken);
+                    continue;
+                } else {
+                    assert false : "We should have a token in our map based on the original index";
+                }
+            } else {
+                assert false : "We should have found the original index mapping";
+            }
+            adjusted.add(token);
+        }
+
+        return adjusted;
+    }
+
     public List<AnalyzeAction.AnalyzeToken> process(String field, String[] texts, int maxTokenCount) {
         if (steps.isEmpty()) {
             return new ArrayList<>();
@@ -74,34 +108,53 @@ public class AnalysisPipeline {
                 nextInput = nextInput(result, nextInput.mappings);
             }
 
-            List<AnalyzeAction.AnalyzeToken> adjusted = new ArrayList<>();
-
-            for (AnalyzeAction.AnalyzeToken token : result) {
-                Integer mappingIndex = nextInput.mappings.get(token.getPosition());
-                if (mappingIndex != null) {
-                    AnalyzeAction.AnalyzeToken original = firstTokens.get(mappingIndex);
-                    if (original != null) {
-                        AnalyzeAction.AnalyzeToken mappedToken = new AnalyzeAction.AnalyzeToken(
-                            token.getTerm(),
-                            original.getPosition(),
-                            original.getStartOffset(),
-                            original.getEndOffset(),
-                            token.getPositionLength(),
-                            token.getType(),
-                            token.getAttributes()
-                        );
-                        adjusted.add(mappedToken);
-                        continue;
-                    } else {
-                        assert false : "We should have a token in our map based on the original index";
-                    }
-                } else {
-                    assert false : "We should have found the original index mapping";
-                }
-                adjusted.add(token);
-            }
+            List<AnalyzeAction.AnalyzeToken> adjusted = remap(nextInput, firstTokens, result);
 
             return adjusted;
+        }
+        return result;
+    }
+
+    public DetailedPipelineAnalysisPackage details(String field, String[] texts, int maxTokenCount, String[] attributes) {
+        if (steps.isEmpty()) {
+            return null;
+        }
+
+        Iterator<AnalysisPipelineStep> stepIterator = steps.listIterator();
+
+        DetailedPipelineAnalysisPackage result = stepIterator.next().details(field, texts, maxTokenCount, attributes);
+
+        if (stepIterator.hasNext()) {
+            Map<Integer, AnalyzeAction.AnalyzeToken> firstTokens = new HashMap<>();
+            AnalyzeAction.AnalyzeTokenList lastFilterResult = result.getTokenizer();
+
+            if (result.getTokenFilters().isEmpty() == false) {
+                lastFilterResult = result.getTokenFilters().get(result.getTokenFilters().size() - 1);
+            }
+
+
+            for (AnalyzeAction.AnalyzeToken token : lastFilterResult.getTokens()) {
+                firstTokens.put(token.getPosition(), token);
+            }
+
+            StepTransform nextInput = nextInput(List.of(lastFilterResult.getTokens()), null);
+
+            while (stepIterator.hasNext()) {
+                List<AnalyzeAction.AnalyzeTokenList> stepList = stepIterator.next().detailedFilters(
+                    field, new String[]{ nextInput.text }, maxTokenCount, attributes);
+
+                for (AnalyzeAction.AnalyzeTokenList filterList : stepList) {
+                    List<AnalyzeAction.AnalyzeToken> adjusted = remap(nextInput, firstTokens, List.of(filterList.getTokens()));
+                    result.getTokenFilters().add(new AnalyzeAction.AnalyzeTokenList(
+                        filterList.getName(),
+                        adjusted.toArray(new AnalyzeAction.AnalyzeToken[0])
+                    ));
+                }
+
+                AnalyzeAction.AnalyzeTokenList last = stepList.get(stepList.size() - 1);
+
+                nextInput = nextInput(List.of(last.getTokens()), nextInput.mappings);
+            }
         }
         return result;
     }

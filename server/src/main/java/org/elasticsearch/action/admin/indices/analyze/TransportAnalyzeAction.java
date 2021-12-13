@@ -35,6 +35,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerComponents;
 import org.elasticsearch.index.analysis.AnalyzerComponentsProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.DetailedPipelineAnalysisPackage;
 import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -148,6 +149,23 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         );
 
         if (pipeline != null) {
+            if (request.explain()) {
+                DetailedPipelineAnalysisPackage detailedAnalysis = pipeline.details(
+                    request.field(),
+                    request.text(),
+                    maxTokenCount,
+                    request.attributes()
+                );
+
+                return new AnalyzeAction.Response(
+                    null,
+                    new AnalyzeAction.DetailAnalyzeResponse(
+                        detailedAnalysis.getCharFilters().toArray(new AnalyzeAction.CharFilteredText[0]),
+                        detailedAnalysis.getTokenizer(),
+                        detailedAnalysis.getTokenFilters().toArray(new AnalyzeAction.AnalyzeTokenList[0])
+                    ));
+            }
+
             return new AnalyzeAction.Response(pipeline.process(request.field(), request.text(), maxTokenCount), null);
         }
 
@@ -320,8 +338,8 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         if (potentialCustomAnalyzer instanceof AnalyzerComponentsProvider) {
             AnalyzerComponentsProvider customAnalyzer = (AnalyzerComponentsProvider) potentialCustomAnalyzer;
             // note: this is not field-name dependent in our cases so we can leave out the argument
-            int positionIncrementGap = potentialCustomAnalyzer.getPositionIncrementGap("");
-            int offsetGap = potentialCustomAnalyzer.getOffsetGap("");
+            int positionIncrementGap = analyzer.getPositionIncrementGap("");
+            int offsetGap = analyzer.getOffsetGap("");
             AnalyzerComponents components = customAnalyzer.getComponents();
             // divide charfilter, tokenizer tokenfilters
             CharFilterFactory[] charFilterFactories = components.getCharFilters();

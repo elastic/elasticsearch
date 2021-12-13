@@ -229,8 +229,8 @@ RUN groupadd -g 1000 elasticsearch && \\
 ENV ELASTIC_CONTAINER true
 
 WORKDIR /usr/share/elasticsearch
-COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 
+COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearch
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
 COPY --from=zlib --chown=0:0 /usr/local/cloudflare-zlib /usr/local/cloudflare-zlib
 
@@ -263,14 +263,8 @@ RUN chmod g=u /etc/passwd && \\
 <% if (docker_base == 'default' || docker_base == 'cloud') { %>
 # Update "cacerts" bundle to use Ubuntu's CA certificates (and make sure it
 # stays up-to-date with changes to Ubuntu's store)
-RUN set -eux ; \\
-    { \\
-      echo '#!/usr/bin/env bash'; \\
-      echo 'set -Eeuo pipefail'; \\
-      echo 'trust extract --overwrite --format=java-cacerts --filter=ca-anchors --purpose=server-auth "/usr/share/elasticsearch/jdk/lib/security/cacerts"'; \\
-    } > /etc/ca-certificates/update.d/docker-openjdk; \\
-    chmod +x /etc/ca-certificates/update.d/docker-openjdk; \\
-    /etc/ca-certificates/update.d/docker-openjdk
+COPY bin/docker-openjdk /etc/ca-certificates/update.d/docker-openjdk
+RUN /etc/ca-certificates/update.d/docker-openjdk
 <% } else { %>
 RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
 <% } %>

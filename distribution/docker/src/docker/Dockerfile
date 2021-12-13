@@ -68,7 +68,7 @@ RUN chmod 0555 /bin/tini
 
 # Install required packages to extract the Elasticsearch distribution
 <% if (docker_base == 'default' || docker_base == 'cloud') { %>
-RUN <%= retry.loop(package_manager, "${package_manager} update && DEBIAN_FRONTEND=noninteractive ${package_manager} install -y curl ca-certificates-java") %>
+RUN <%= retry.loop(package_manager, "${package_manager} update && DEBIAN_FRONTEND=noninteractive ${package_manager} install -y curl ") %>
 <% } else { %>
 RUN <%= retry.loop(package_manager, "${package_manager} install -y findutils tar gzip") %>
 <% } %>
@@ -194,11 +194,12 @@ RUN ${package_manager} update --setopt=tsflags=nodocs -y && \\
 RUN <%= retry.loop(
     package_manager,
       "export DEBIAN_FRONTEND=noninteractive && \n" +
-      "${package_manager} update && \n" +
-      "${package_manager} upgrade -y && \n" +
-      "${package_manager} install -y --no-install-recommends curl netcat zip unzip vim-tiny ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
-      "${package_manager} clean && \n" +
-      "rm -rf /var/lib/apt/lists/*"
+      "      ${package_manager} update && \n" +
+      "      ${package_manager} upgrade -y && \n" +
+      "      ${package_manager} install -y --no-install-recommends \n" +
+      "        ca-certificates curl netcat p11-kit unzip vim-tiny zip ${docker_base == 'cloud' ? 'wget' : '' } && \n" +
+      "      ${package_manager} clean && \n" +
+      "      rm -rf /var/lib/apt/lists/*"
   ) %>
 
 <% } else { %>
@@ -207,7 +208,7 @@ RUN <%= retry.loop(
     package_manager,
       "${package_manager} update --setopt=tsflags=nodocs -y && \n" +
       "      ${package_manager} install --setopt=tsflags=nodocs -y \n" +
-      "      nc shadow-utils zip unzip findutils procps-ng && \n" +
+      "        nc shadow-utils zip unzip findutils procps-ng && \n" +
       "      ${package_manager} clean all"
     ) %>
 
@@ -233,10 +234,6 @@ COPY --from=builder --chown=0:0 /usr/share/elasticsearch /usr/share/elasticsearc
 COPY --from=builder --chown=0:0 /bin/tini /bin/tini
 COPY --from=zlib --chown=0:0 /usr/local/cloudflare-zlib /usr/local/cloudflare-zlib
 
-<% if (docker_base == 'default' || docker_base == 'cloud') { %>
-COPY --from=builder --chown=0:0 /etc/ssl/certs/java/cacerts /etc/ssl/certs/java/cacerts
-<% } %>
-
 <% if (docker_base == 'cloud') { %>
 COPY --from=builder --chown=0:0 /opt /opt
 <% } %>
@@ -260,10 +257,23 @@ COPY ${bin_dir}/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod g=u /etc/passwd && \\
     chmod 0555 /usr/local/bin/docker-entrypoint.sh && \\
     find / -xdev -perm -4000 -exec chmod ug-s {} + && \\
-    ln -sf <%= docker_base == 'default' || docker_base == 'cloud' ? '/etc/ssl/certs/java/cacerts' : '/etc/pki/ca-trust/extracted/java/cacerts' %> \\
-      /usr/share/elasticsearch/jdk/lib/security/cacerts && \\
     chmod 0775 /usr/share/elasticsearch && \\
     chown elasticsearch bin config config/jvm.options.d data logs plugins
+
+<% if (docker_base == 'default' || docker_base == 'cloud') { %>
+# Update "cacerts" bundle to use Ubuntu's CA certificates (and make sure it
+# stays up-to-date with changes to Ubuntu's store)
+RUN set -eux ; \\
+    { \\
+      echo '#!/usr/bin/env bash'; \\
+      echo 'set -Eeuo pipefail'; \\
+      echo 'trust extract --overwrite --format=java-cacerts --filter=ca-anchors --purpose=server-auth "/usr/share/elasticsearch/jdk/lib/security/cacerts"'; \\
+    } > /etc/ca-certificates/update.d/docker-openjdk; \\
+    chmod +x /etc/ca-certificates/update.d/docker-openjdk; \\
+    /etc/ca-certificates/update.d/docker-openjdk
+<% } else { %>
+RUN ln -sf /etc/pki/ca-trust/extracted/java/cacerts /usr/share/elasticsearch/jdk/lib/security/cacerts
+<% } %>
 
 EXPOSE 9200 9300
 

@@ -163,6 +163,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     }
 
     private RoutingNodes(RoutingNodes routingNodes) {
+        // we should not call this on mutable instances, it's still expensive to create the copy and callers should instead mutate a single
+        // instance
+        assert routingNodes.readOnly : "tried to create a mutable copy from a mutable instance";
         this.readOnly = false;
         this.nodesToShards = new HashMap<>(routingNodes.nodesToShards.size());
         for (Map.Entry<String, RoutingNode> entry : routingNodes.nodesToShards.entrySet()) {
@@ -193,9 +196,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      * @return a mutable copy of this instance
      */
     public RoutingNodes mutableCopy() {
-        // we should not call this on mutable instances, it's still expensive to create the copy and callers should instead mutate a single
-        // instance
-        assert readOnly : "tried to create a mutable copy from a mutable instance";
         return new RoutingNodes(this);
     }
 

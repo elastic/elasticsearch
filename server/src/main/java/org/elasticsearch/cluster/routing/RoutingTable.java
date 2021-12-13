@@ -582,12 +582,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             if (indicesRouting == null) {
                 throw new IllegalStateException("once build is called the builder cannot be reused");
             }
-            RoutingTable table;
-            if (version == 0 && indicesRouting.isEmpty()) {
-                table = EMPTY_ROUTING_TABLE;
-            } else {
-                table = new RoutingTable(version, indicesRouting.build());
-            }
+            RoutingTable table = new RoutingTable(version, indicesRouting.build());
             indicesRouting = null;
             return table;
         }

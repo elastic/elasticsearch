@@ -22,7 +22,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.is;
 
 public class RandomSamplingQueryBuilderTests extends AbstractQueryTestCase<RandomSamplingQueryBuilder> {
 
@@ -79,9 +79,7 @@ public class RandomSamplingQueryBuilderTests extends AbstractQueryTestCase<Rando
     public void testFromJson() throws IOException {
         String json = "{ \"random_sample\": {\"boost\":1.0,\"probability\": 0.5}}";
         RandomSamplingQueryBuilder parsed = (RandomSamplingQueryBuilder) parseQuery(json);
-        checkGeneratedJson(json, parsed);
         assertThat(parsed.getProbability(), equalTo(0.5));
-        assertThat(parsed.getSeed(), nullValue());
 
         // try with seed
         json = "{ \"random_sample\": {\"boost\":1.0,\"probability\": 0.5,\"seed\":123}}";
@@ -96,7 +94,11 @@ public class RandomSamplingQueryBuilderTests extends AbstractQueryTestCase<Rando
         SearchExecutionContext context = createSearchExecutionContext();
         QueryBuilder rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
-        assertTrue("query should be cacheable: " + queryBuilder.toString(), isCacheable);
+        assertThat(
+            "query should " + (isCacheable ? "" : "not") + " be cacheable: " + queryBuilder.toString(),
+            context.isCacheable(),
+            is(isCacheable)
+        );
     }
 
 }

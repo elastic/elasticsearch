@@ -20,10 +20,12 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.xpack.ml.math.FastGeometric;
+import org.elasticsearch.xpack.ml.math.PCG;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntSupplier;
 
 /**
@@ -32,34 +34,40 @@ import java.util.function.IntSupplier;
 public final class RandomSamplingQuery extends Query {
 
     private final double p;
-    private final IntSupplier rng;
     private final boolean cacheable;
     private final Query query;
+    private final AtomicLong stream = new AtomicLong();
+    private final int seed;
 
     /**
      * @param p         The sampling probability e.g. 0.05 == 5% probability a document will match
-     * @param rng       Random int supplier
+     * @param seed      The seed from which to generate uncorrelated streams of random numbers
      * @param cacheable True if the seed is static (provided by the user) so that we can cache the query, false otherwise
      */
-    RandomSamplingQuery(double p, IntSupplier rng, boolean cacheable, Query query) {
+    RandomSamplingQuery(double p, int seed, boolean cacheable, Query query) {
         if (p <= 0.0 || p >= 1.0) {
             throw new IllegalArgumentException("RandomSampling probability must be between 0.0 and 1.0");
         }
-
         this.p = p;
-        this.rng = rng;
+        this.seed = seed;
         this.cacheable = cacheable;
         this.query = query;
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+        final PCG pcg = new PCG(seed, stream.addAndGet(1));
         if (query == null) {
             return new ConstantScoreWeight(this, boost) {
                 @Override
                 public Scorer scorer(LeafReaderContext context) {
                     int maxDoc = context.reader().maxDoc();
-                    return new ConstantScoreScorer(this, score(), ScoreMode.COMPLETE_NO_SCORES, new RandomSamplingIterator(maxDoc, p, rng));
+                    return new ConstantScoreScorer(
+                        this,
+                        score(),
+                        ScoreMode.COMPLETE_NO_SCORES,
+                        new RandomSamplingIterator(maxDoc, p, pcg::nextInt)
+                    );
                 }
 
                 @Override
@@ -77,7 +85,7 @@ public final class RandomSamplingQuery extends Query {
                         this,
                         score(),
                         ScoreMode.COMPLETE_NO_SCORES,
-                        new RandomSamplingIterator(maxDoc, p, rng)
+                        new RandomSamplingIterator(maxDoc, p, pcg::nextInt)
                     );
                     Scorer queryScorer = innerWeight.scorer(context);
                     if (queryScorer == null) {
@@ -86,7 +94,7 @@ public final class RandomSamplingQuery extends Query {
                     return new ConstantScoreScorer(
                         this,
                         score(),
-                        ScoreMode.COMPLETE,
+                        ScoreMode.COMPLETE_NO_SCORES,
                         ConjunctionUtils.intersectScorers(List.of(scorer, queryScorer))
                     );
                 }
@@ -133,8 +141,10 @@ public final class RandomSamplingQuery extends Query {
 
         @Override
         public int advance(int target) {
-            int next = target + distribution.next();
-            doc = next < maxDoc ? next : NO_MORE_DOCS;
+            while (doc < target && doc < maxDoc) {
+                doc += distribution.next();
+            }
+            doc = doc < maxDoc ? doc : NO_MORE_DOCS;
             return doc;
         }
 

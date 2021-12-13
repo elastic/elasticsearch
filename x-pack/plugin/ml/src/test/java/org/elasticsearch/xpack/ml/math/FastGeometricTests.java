@@ -15,10 +15,8 @@ public class FastGeometricTests extends ESTestCase {
 
     private static final int N = 10_000_000;
     private static final double[] PROBABILITIES = new double[] { 0.5, 0.1, 0.01, 0.001, 0.0001, 0.00001 };
-    private static final double[] ERROR_RATES = new double[] { 0.5, 1, 2, 3, 10, 50};
 
     public void testGeometricSeries() {
-        int count = 0;
         for (double p : PROBABILITIES) {
             final PCG rng = new PCG(randomLong());
             final int size = 32;
@@ -46,8 +44,8 @@ public class FastGeometricTests extends ESTestCase {
                 assertThat("inaccurate geometric sampling at probability [" + p + "]", fractions[i], closeTo(expected[i], 1e-2));
             }
             mean /= N;
-            double expectedMean = (1 - p)/p;
-            assertThat(mean, closeTo(expectedMean, ERROR_RATES[count++]));
+            double expectedMean = (1 - p) / p;
+            assertThat("biased mean value when sampling at probability [" + p + "]", mean, closeTo(expectedMean, 1.0 / (Math.pow(p, 0.5))));
         }
     }
 

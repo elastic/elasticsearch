@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.randomsample;
 import com.carrotsearch.hppc.BitMixer;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -26,7 +27,6 @@ import org.elasticsearch.xpack.ml.math.PCG;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.IntSupplier;
 
 /**
  * A query that randomly matches documents with a user-provided probability.  May
@@ -39,7 +39,8 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
     private static final ParseField FILTER = new ParseField("filter");
 
     private double p = 0.1;
-    private Integer seed = null;
+    private boolean setSeed = false;
+    private int seed = Randomness.get().nextInt();
     private QueryBuilder queryBuilder;
 
     public RandomSamplingQueryBuilder() {}
@@ -50,14 +51,16 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
     public RandomSamplingQueryBuilder(StreamInput in) throws IOException {
         super(in);
         p = in.readDouble();
-        seed = in.readOptionalInt();
+        seed = in.readInt();
+        setSeed = in.readBoolean();
         queryBuilder = in.readOptionalNamedWriteable(QueryBuilder.class);
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeDouble(p);
-        out.writeOptionalInt(seed);
+        out.writeInt(seed);
+        out.writeBoolean(setSeed);
         out.writeOptionalNamedWriteable(queryBuilder);
     }
 
@@ -70,13 +73,20 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
         return this;
     }
 
-    public Integer getSeed() {
+    public int getSeed() {
         return seed;
     }
 
-    public RandomSamplingQueryBuilder setSeed(Integer seed) {
+    public RandomSamplingQueryBuilder setSeed(int seed) {
         this.seed = seed;
+        this.setSeed = true;
         return this;
+    }
+
+    private void setGeneratedSeed(int seed) {
+        if (setSeed == false) {
+            this.seed = seed;
+        }
     }
 
     public RandomSamplingQueryBuilder setQuery(QueryBuilder query) {
@@ -89,7 +99,7 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
         builder.startObject(NAME);
         printBoostAndQueryName(builder);
         builder.field(PROBABILITY.getPreferredName(), p);
-        if (seed != null) {
+        if (setSeed) {
             builder.field(SEED.getPreferredName(), seed);
         }
         if (queryBuilder != null) {
@@ -110,19 +120,16 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
 
     @Override
     protected final Query doToQuery(SearchExecutionContext context) throws IOException {
-        int seed = Objects.requireNonNullElseGet(this.seed, () -> Long.hashCode(context.nowInMillis()));
         long hash = BitMixer.mix(context.index().getUUID(), context.getShardId());
-        if (this.seed == null) {
+        if (this.setSeed == false) {
             context.disableCache();
         }
-        return new RandomSamplingQuery(p, new IntSupplier() {
-            private final PCG pcg = new PCG(seed, hash);
-
-            @Override
-            public int getAsInt() {
-                return pcg.nextInt();
-            }
-        }, context.isCacheable(), queryBuilder == null ? null : queryBuilder.toQuery(context));
+        return new RandomSamplingQuery(
+            p,
+            new PCG(seed, hash).nextInt(),
+            this.setSeed,
+            queryBuilder == null ? null : queryBuilder.toQuery(context)
+        );
     }
 
     @Override
@@ -133,7 +140,13 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
                 return rewrite; // we won't match anyway
             }
             if (rewrite != queryBuilder) {
-                return new RandomSamplingQueryBuilder().setQuery(rewrite).setProbability(p).setSeed(seed);
+                RandomSamplingQueryBuilder builder = new RandomSamplingQueryBuilder().setQuery(rewrite).setProbability(p);
+                if (setSeed) {
+                    builder.setSeed(seed);
+                } else {
+                    builder.setGeneratedSeed(seed);
+                }
+                return builder;
             }
         }
         return this;
@@ -148,12 +161,18 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
 
     @Override
     protected boolean doEquals(RandomSamplingQueryBuilder other) {
-        return Objects.equals(p, other.p) && Objects.equals(seed, other.seed);
+        return Objects.equals(p, other.p)
+            && (setSeed == false || Objects.equals(seed, other.seed))
+            && Objects.equals(queryBuilder, other.queryBuilder);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(p, seed);
+        if (setSeed) {
+            return Objects.hash(p, seed, queryBuilder);
+        } else {
+            return Objects.hash(p, queryBuilder);
+        }
     }
 
     @Override

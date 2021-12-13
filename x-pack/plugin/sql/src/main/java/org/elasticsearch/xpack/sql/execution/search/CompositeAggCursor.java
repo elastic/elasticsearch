@@ -237,8 +237,7 @@ public class CompositeAggCursor implements Cursor {
     private static void updateSourceAfterKey(Map<String, Object> afterKey, SearchSourceBuilder search) {
         AggregationBuilder aggBuilder = search.aggregations().getAggregatorFactories().iterator().next();
         // update after-key with the new value
-        if (aggBuilder instanceof CompositeAggregationBuilder) {
-            CompositeAggregationBuilder comp = (CompositeAggregationBuilder) aggBuilder;
+        if (aggBuilder instanceof CompositeAggregationBuilder comp) {
             comp.aggregateAfter(afterKey);
         } else {
             throw new SqlIllegalArgumentException("Invalid client request; expected a group-by but instead got {}", aggBuilder);

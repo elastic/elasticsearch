@@ -511,8 +511,7 @@ public class IndexResolver {
 
         EsField esField = field.apply(fieldName);
 
-        if (parent != null && parent instanceof UnsupportedEsField) {
-            UnsupportedEsField unsupportedParent = (UnsupportedEsField) parent;
+        if (parent != null && parent instanceof UnsupportedEsField unsupportedParent) {
             String inherited = unsupportedParent.getInherited();
             String type = unsupportedParent.getOriginalType();
 

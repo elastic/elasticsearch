@@ -149,12 +149,12 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     private static Object wrapUnmodifiable(Object raw) {
         // Wraps all mutable types that the JSON parser can create by immutable wrappers.
         // Any inputs not wrapped are assumed to be immutable
-        if (raw instanceof Map) {
-            return new UnmodifiableIngestData((Map<String, Object>) raw);
-        } else if (raw instanceof List) {
-            return new UnmodifiableIngestList((List<Object>) raw);
-        } else if (raw instanceof byte[]) {
-            return ((byte[]) raw).clone();
+        if (raw instanceof Map map) {
+            return new UnmodifiableIngestData(map);
+        } else if (raw instanceof List list) {
+            return new UnmodifiableIngestList(list);
+        } else if (raw instanceof byte[] bytes) {
+            return bytes.clone();
         }
         return raw;
     }

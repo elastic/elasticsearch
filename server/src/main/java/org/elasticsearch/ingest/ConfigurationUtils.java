@@ -98,8 +98,8 @@ public final class ConfigurationUtils {
         if (value == null) {
             return null;
         }
-        if (value instanceof String) {
-            return (String) value;
+        if (value instanceof String string) {
+            return string;
         }
         throw newConfigurationException(
             processorType,
@@ -135,10 +135,10 @@ public final class ConfigurationUtils {
         if (value == null) {
             return null;
         }
-        if (value instanceof String) {
-            return (String) value;
-        } else if (value instanceof Integer) {
-            return String.valueOf(value);
+        if (value instanceof String string) {
+            return string;
+        } else if (value instanceof Integer integer) {
+            return String.valueOf(integer);
         }
         throw newConfigurationException(
             processorType,
@@ -170,8 +170,8 @@ public final class ConfigurationUtils {
         if (value == null) {
             return null;
         }
-        if (value instanceof String) {
-            return (String) value;
+        if (value instanceof String string) {
+            return string;
         } else if (value instanceof Long || value instanceof Integer) {
             return String.valueOf(value);
         }
@@ -220,8 +220,8 @@ public final class ConfigurationUtils {
         if (value == null) {
             return null;
         }
-        if (value instanceof Boolean) {
-            return (Boolean) value;
+        if (value instanceof Boolean b) {
+            return b;
         }
         throw newConfigurationException(
             processorType,
@@ -322,9 +322,9 @@ public final class ConfigurationUtils {
     }
 
     private static <T> List<T> readList(String processorType, String processorTag, String propertyName, Object value) {
-        if (value instanceof List) {
+        if (value instanceof List list) {
             @SuppressWarnings("unchecked")
-            List<T> stringList = (List<T>) value;
+            List<T> stringList = list;
             return stringList;
         } else {
             throw newConfigurationException(
@@ -543,8 +543,8 @@ public final class ConfigurationUtils {
         String type,
         Object config
     ) throws Exception {
-        if (config instanceof Map) {
-            return readProcessor(processorFactories, scriptService, type, (Map<String, Object>) config);
+        if (config instanceof Map map) {
+            return readProcessor(processorFactories, scriptService, type, map);
         } else if (config instanceof String && "script".equals(type)) {
             Map<String, Object> normalizedScript = new HashMap<>(1);
             normalizedScript.put(ScriptType.INLINE.getParseField().getPreferredName(), config);

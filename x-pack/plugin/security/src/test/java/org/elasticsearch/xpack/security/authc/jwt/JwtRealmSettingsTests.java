@@ -15,9 +15,12 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
+import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.junit.Before;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.GROUPS_CLAIM;
+import static org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings.PRINCIPAL_CLAIM;
 
 public class JwtRealmSettingsTests extends ESTestCase {
 
@@ -36,7 +39,9 @@ public class JwtRealmSettingsTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, JwtRealmSettings.JWKSET_PATH), "https://op.example.com/jwks.json")
             .put(getFullSettingKey(REALM_NAME, JwtRealmSettings.POPULATE_USER_METADATA), randomBoolean())
             .put(getFullSettingKey(REALM_NAME, JwtRealmSettings.PRINCIPAL_CLAIM.getClaim()), "sub")
+            .put(getFullSettingKey(REALM_NAME, JwtRealmSettings.PRINCIPAL_CLAIM.getPattern()), "^([^@]+)@example\\.com$")
             .put(getFullSettingKey(REALM_NAME, JwtRealmSettings.GROUPS_CLAIM.getClaim()), "group1")
+            .put(getFullSettingKey(REALM_NAME, JwtRealmSettings.GROUPS_CLAIM.getPattern()), "^(.*)$")
             .put(getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_CONNECT_TIMEOUT), "5s")
             .put(getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_CONNECTION_READ_TIMEOUT), "5s")
             .put(getFullSettingKey(REALM_NAME, JwtRealmSettings.HTTP_SOCKET_TIMEOUT), "5s")
@@ -48,6 +53,8 @@ public class JwtRealmSettingsTests extends ESTestCase {
             .put(getFullSettingKey(REALM_NAME, JwtRealmSettings.ALLOWED_CLOCK_SKEW), "10s");
         settingsBuilder.setSecureSettings(this.getSecureSettings());
         final RealmConfig realmConfig = buildConfig(settingsBuilder.build());
+        ClaimParser.forSetting(logger, PRINCIPAL_CLAIM, realmConfig, true);
+        ClaimParser.forSetting(logger, GROUPS_CLAIM, realmConfig, false);
     }
 
     private MockSecureSettings getSecureSettings() {

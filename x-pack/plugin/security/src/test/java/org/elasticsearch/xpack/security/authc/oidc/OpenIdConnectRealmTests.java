@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizatio
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authc.support.ClaimParser;
 import org.elasticsearch.xpack.security.authc.support.MockLookupRealm;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -221,7 +222,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         builder.put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getPattern()), "^OIDC-(.+)");
         final RealmConfig config = buildConfig(builder.build(), threadContext);
         final ClaimSetting principalSetting = new ClaimSetting(OpenIdConnectRealmSettings.TYPE, "principal");
-        final OpenIdConnectRealm.ClaimParser parser = OpenIdConnectRealm.ClaimParser.forSetting(logger, principalSetting, config, true);
+        final ClaimParser parser = ClaimParser.forSetting(logger, principalSetting, config, true);
         final JWTClaimsSet claims = new JWTClaimsSet.Builder().subject("OIDC-cbarton")
             .audience("https://rp.elastic.co/cb")
             .expirationTime(Date.from(now().plusSeconds(3600)))

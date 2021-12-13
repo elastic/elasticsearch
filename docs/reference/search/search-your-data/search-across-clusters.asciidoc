@@ -432,7 +432,7 @@ clusters must use the same {es} version.
 include::{es-repo-dir}/modules/remote-clusters-shared.asciidoc[tag=remote-cluster-compatibility-matrix]
 ====
 
-{ccs} can also search remote clusters that are being
+{ccs-cap} can also search remote clusters that are being
 <<rolling-upgrades, upgraded>> so long as both the "upgrade from" and
 "upgrade to" version are compatible with the gateway node.
 

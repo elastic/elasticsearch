@@ -1,3 +1,14 @@
+[[release-notes-6.8.21]]
+== {es} version 6.8.21
+
+[[enhancement-6.8.21]]
+[float]
+=== Enhancements
+
+Infra/Logging::
+* Disable JNDI lookups via the `log4j2.formatMsgNoLookups` system property {es-pull}81622[#81622]
+* Patch log4j jar to remove the `JndiLookup` class from the classpath {es-pull}81629[#81629]
+
 [[release-notes-6.8.20]]
 == {es} version 6.8.20
 

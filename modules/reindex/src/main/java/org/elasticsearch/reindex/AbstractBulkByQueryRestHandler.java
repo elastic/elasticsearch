@@ -18,6 +18,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.Scroll;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -66,6 +67,12 @@ public abstract class AbstractBulkByQueryRestHandler<
         // Let the requester set search timeout. It is probably only going to be useful for testing but who knows.
         if (restRequest.hasParam("search_timeout")) {
             searchRequest.source().timeout(restRequest.paramAsTime("search_timeout", null));
+        }
+
+        //Do not open scroll if limit <= scroll size
+        var docsPerScroll = searchRequest.source().size();
+        if (internal.getMaxDocs() != -1 && internal.getMaxDocs() <= docsPerScroll && internal.isAbortOnVersionConflict()) {
+            searchRequest.scroll((Scroll) null);
         }
     }
 

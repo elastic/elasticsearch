@@ -8,6 +8,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -19,13 +20,13 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class RestUpdateByQueryActionTests extends RestActionTestCase {
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
-    final List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
+public class RestUpdateByQueryActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
@@ -34,7 +35,8 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(BulkByScrollResponse.class));
     }
 
-    public void testTypeInPath() throws IOException {
+    public void testTypeInPath() {
+        var contentTypeHeader = List.of(compatibleMediaType(XContentType.VND_JSON, RestApiVersion.V_7));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
         ).withMethod(RestRequest.Method.POST).withPath("/some_index/some_type/_update_by_query").build();
@@ -46,5 +48,51 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
         // RestUpdateByQueryAction itself doesn't check for a deprecated type usage
         // checking here for a deprecation from its internal search request
         assertCriticalWarnings(RestSearchAction.TYPES_DEPRECATION_MESSAGE);
+    }
+
+    public void testSetsScrollByDefault() throws IOException {
+        var httpRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.POST)
+            .withPath("/my-index/_update_by_query")
+            .withContent(new BytesArray("{}"), XContentType.JSON)
+            .build();
+
+        var transportRequest = new RestDeleteByQueryAction().buildRequest(httpRequest, writableRegistry());
+
+        assertThat(transportRequest.getSearchRequest().scroll(), notNullValue());
+    }
+
+    public void testNoScrollWhenMaxDocsIsLessThenScrollSize() throws IOException {
+        var httpRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.POST)
+            .withPath("/my-index/_update_by_query")
+            .withParams(Map.of("scroll_size", "10"))
+            .withContent(new BytesArray("""
+                {
+                  "max_docs": 1
+                }
+                """), XContentType.JSON)
+            .build();
+
+        var transportRequest = new RestDeleteByQueryAction().buildRequest(httpRequest, writableRegistry());
+
+        assertThat(transportRequest.getSearchRequest().scroll(), nullValue());
+    }
+
+    public void testSetsScrollWhenMaxDocsIsLessThenScrollSizeAndProceedOnConflict() throws IOException {
+        var httpRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withMethod(RestRequest.Method.POST)
+            .withPath("/my-index/_update_by_query")
+            .withParams(Map.of("scroll_size", "10", "conflicts", "proceed"))
+            .withContent(new BytesArray("""
+                {
+                  "max_docs": 1
+                }
+                """), XContentType.JSON)
+            .build();
+
+        var transportRequest = new RestDeleteByQueryAction().buildRequest(httpRequest, writableRegistry());
+
+        assertThat(transportRequest.getSearchRequest().scroll(), notNullValue());
     }
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper.flattened;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -256,6 +257,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public Query existsQuery(SearchExecutionContext context) {
             Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, ""));
             return new PrefixQuery(term);
+        }
+
+        @Override
+        public boolean fieldExists(FieldInfos fis) {
+            return true;
         }
 
         @Override

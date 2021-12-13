@@ -565,10 +565,14 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(resp, 2L);
     }
 
-    public void testAllFieldsWithSpecifiedLeniency() throws IOException {
+    public void testAllFieldsWithSpecifiedLeniency() throws Exception {
         String indexBody = copyToStringFromClasspath("/org/elasticsearch/search/query/all-query-index.json");
         prepareCreate("test").setSource(indexBody, XContentType.JSON).get();
         ensureGreen("test");
+
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        reqs.add(client().prepareIndex("test").setId("1").setSource("f_long", 1));
+        indexRandom(true, false, reqs);
 
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,

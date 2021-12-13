@@ -49,6 +49,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -2142,6 +2143,15 @@ public final class PainlessLookupBuilder {
                 java.lang.reflect.Method javaMethod = javaMethods.get(0);
                 String painlessMethodKey = buildPainlessMethodKey(javaMethod.getName(), javaMethod.getParameterCount());
                 painlessClassBuilder.functionalInterfaceMethod = painlessClassBuilder.methods.get(painlessMethodKey);
+                if (painlessClassBuilder.functionalInterfaceMethod == null) {
+                    List<Class<?>> superInterfaces = new ArrayList<>(Arrays.asList(targetClass.getInterfaces()));
+                    while (painlessClassBuilder.functionalInterfaceMethod == null && superInterfaces.isEmpty() == false) {
+                        Class<?> superInterface = superInterfaces.remove(0);
+                        painlessClassBuilder.functionalInterfaceMethod = Optional.ofNullable(
+                            classesToPainlessClassBuilders.get(superInterface)
+                        ).map(superInterfaceBuilder -> superInterfaceBuilder.methods.get(painlessMethodKey)).orElse(null);
+                    }
+                }
             }
         }
     }

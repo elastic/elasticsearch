@@ -46,6 +46,14 @@ public class LambdaTests extends ScriptTestCase {
 
     }
 
+    public void testLambdaForBinaryOperator() {
+        assertEquals(
+            "short",
+            exec("List l = new ArrayList(); l.add('looooong'); l.add('short'); " + "return l.stream().reduce((e1, e2) -> e2).get()")
+        );
+
+    }
+
     public void testPrimitiveLambdas() {
         assertEquals(4, exec("List l = new ArrayList(); l.add(1); l.add(1); " + "return l.stream().mapToInt(x -> x + 1).sum();"));
     }

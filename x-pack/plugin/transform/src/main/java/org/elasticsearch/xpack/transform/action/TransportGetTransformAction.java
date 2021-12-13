@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.transform.action;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -16,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.Task;
@@ -25,6 +27,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.AbstractTransportGetResourcesAction;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
@@ -33,10 +36,21 @@ import org.elasticsearch.xpack.core.transform.action.GetTransformAction.Response
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
+import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+
+import static java.util.function.Predicate.not;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.core.transform.TransformField.INDEX_DOC_TYPE;
 
 public class TransportGetTransformAction extends AbstractTransportGetResourcesAction<TransformConfig, Request, Response> {
+
+    private static final String DANGLING_TASK_ERROR_MESSAGE_FORMAT =
+        "Found task for transform [{}], but no configuration for it. To delete this transform use DELETE with force=true.";
 
     private final ClusterService clusterService;
 
@@ -56,7 +70,29 @@ public class TransportGetTransformAction extends AbstractTransportGetResourcesAc
     protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
         final ClusterState state = clusterService.state();
         TransformNodes.warnIfNoTransformNodes(state);
-        searchResources(request, ActionListener.wrap(r -> listener.onResponse(new Response(r.results(), r.count())), listener::onFailure));
+
+        // Step 2: Search for all the transform tasks (matching the request) that *do not* have corresponding transform config.
+        ActionListener<QueryPage<TransformConfig>> searchTransformConfigsListener = ActionListener.wrap(r -> {
+            Set<String> transformConfigIds = r.results().stream().map(TransformConfig::getId).collect(toSet());
+            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = TransformTask.findTransformTasks(
+                request.getId(),
+                state
+            );
+            List<Response.Error> errors = transformTasks.stream()
+                .map(PersistentTasksCustomMetadata.PersistentTask::getId)
+                .filter(not(transformConfigIds::contains))
+                .map(
+                    transformId -> new Response.Error(
+                        "dangling_task",
+                        new ParameterizedMessage(DANGLING_TASK_ERROR_MESSAGE_FORMAT, transformId).getFormattedMessage()
+                    )
+                )
+                .collect(toList());
+            listener.onResponse(new Response(r.results(), r.count(), errors.isEmpty() ? null : errors));
+        }, listener::onFailure);
+
+        // Step 1: Search for all the transform configs matching the request.
+        searchResources(request, searchTransformConfigsListener);
     }
 
     @Override

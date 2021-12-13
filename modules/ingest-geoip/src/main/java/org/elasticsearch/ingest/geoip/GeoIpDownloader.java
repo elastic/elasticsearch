@@ -10,6 +10,8 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -119,7 +121,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     // visible for testing
     void updateDatabases() throws IOException {
-        logger.info("updating geoip databases");
+        logger.debug("updating geoip databases");
         List<Map<String, Object>> response = fetchDatabasesOverview();
         for (Map<String, Object> res : response) {
             if (res.get("name").toString().endsWith(".tgz")) {
@@ -131,7 +133,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     @SuppressWarnings("unchecked")
     private <T> List<T> fetchDatabasesOverview() throws IOException {
         String url = endpoint + "?elastic_geoip_service_tos=agree";
-        logger.info("fetching geoip databases overview from [" + url + "]");
+        logger.debug("fetching geoip databases overview from [{}]", url);
         byte[] data = httpClient.getBytes(url);
         try (
             XContentParser parser = XContentType.JSON.xContent()
@@ -149,7 +151,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             updateTimestamp(name, state.get(name));
             return;
         }
-        logger.info("updating geoip database [" + name + "]");
+        logger.debug("downloading geoip database [{}]", name);
         String url = databaseInfo.get("url").toString();
         if (url.startsWith("http") == false) {
             // relative url, add it after last slash (i.e resolve sibling) or at the end if there's no slash after http[s]://
@@ -164,12 +166,12 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
                 state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start));
                 updateTaskState();
                 stats = stats.successfulDownload(System.currentTimeMillis() - start).databasesCount(state.getDatabases().size());
-                logger.info("updated geoip database [" + name + "]");
+                logger.info("successfully downloaded geoip database [{}]", name);
                 deleteOldChunks(name, firstChunk);
             }
         } catch (Exception e) {
             stats = stats.failedDownload();
-            logger.error("error updating geoip database [" + name + "]", e);
+            logger.error((Supplier<?>) () -> new ParameterizedMessage("error downloading geoip database [{}]", name), e);
         }
     }
 
@@ -189,7 +191,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     // visible for testing
     protected void updateTimestamp(String name, Metadata old) {
-        logger.info("geoip database [" + name + "] is up to date, updated timestamp");
+        logger.debug("geoip database [{}] is up to date, updated timestamp", name);
         state = state.put(
             name,
             new Metadata(old.getLastUpdate(), old.getFirstChunk(), old.getLastChunk(), old.getMd5(), System.currentTimeMillis())

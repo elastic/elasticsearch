@@ -21,6 +21,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.startsWith;
 
 public class AdjacencyMatrixAggregatorTests extends AggregatorTestCase {
     public void testTooManyFilters() {
@@ -38,7 +39,7 @@ public class AdjacencyMatrixAggregatorTests extends AggregatorTestCase {
         );
         assertThat(
             ex.getMessage(),
-            equalTo(
+            startsWith(
                 "Number of filters is too large, must be less than or equal to: [" + maxFilters + "] but was [" + maxFiltersPlusOne + "]."
             )
         );

@@ -81,7 +81,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setCreateTime(Instant.now())
             .setEstimatedOperations(0)
-            .setEstimatedHeapMemory(0)
+            .setModelSize(0)
             .build();
         TrainedModelConfig config2 = buildTrainedModelConfigBuilder(modelId1).setInput(
             new TrainedModelInput(Arrays.asList("field.foo", "field.bar", "other.categorical"))
@@ -93,7 +93,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             )
             .setVersion(Version.CURRENT)
             .setEstimatedOperations(0)
-            .setEstimatedHeapMemory(0)
+            .setModelSize(0)
             .setCreateTime(Instant.now())
             .build();
         AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
@@ -250,7 +250,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setCreateTime(Instant.now())
             .setEstimatedOperations(0)
-            .setEstimatedHeapMemory(0)
+            .setModelSize(0)
             .build();
         AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
@@ -396,7 +396,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
             )
             .setVersion(Version.CURRENT)
             .setEstimatedOperations(0)
-            .setEstimatedHeapMemory(0)
+            .setModelSize(0)
             .setCreateTime(Instant.now())
             .build();
         AtomicReference<Boolean> putConfigHolder = new AtomicReference<>();

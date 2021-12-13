@@ -43,7 +43,7 @@ public class RestMultiSearchTemplateActionTests extends RestActionTestCase {
         ).withMethod(RestRequest.Method.GET).withPath("/some_index/some_type/_msearch/template").withContent(bytesContent, null).build();
 
         dispatchRequest(request);
-        assertWarnings(RestMultiSearchTemplateAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestMultiSearchTemplateAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeInBody() {
@@ -55,6 +55,6 @@ public class RestMultiSearchTemplateActionTests extends RestActionTestCase {
         ).withPath("/some_index/_msearch/template").withContent(bytesContent, null).build();
 
         dispatchRequest(request);
-        assertWarnings(RestMultiSearchTemplateAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestMultiSearchTemplateAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

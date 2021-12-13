@@ -78,7 +78,7 @@ public class SearchInputTests extends ESTestCase {
         Map<String, ScriptContext<?>> contexts = new HashMap<>();
         contexts.put(Watcher.SCRIPT_TEMPLATE_CONTEXT.name, Watcher.SCRIPT_TEMPLATE_CONTEXT);
         contexts.put(WatcherTransformScript.CONTEXT.name, WatcherTransformScript.CONTEXT);
-        scriptService = new ScriptService(Settings.EMPTY, engines, contexts);
+        scriptService = new ScriptService(Settings.EMPTY, engines, contexts, () -> 1L);
 
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

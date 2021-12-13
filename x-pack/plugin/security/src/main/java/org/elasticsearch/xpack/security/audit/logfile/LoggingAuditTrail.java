@@ -30,7 +30,6 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
@@ -767,7 +766,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         String action,
         String index,
         String requestName,
-        TransportAddress remoteAddress,
+        InetSocketAddress remoteAddress,
         AuthorizationInfo authorizationInfo
     ) {
         assert eventType == ACCESS_DENIED || eventType == AuditLevel.ACCESS_GRANTED || eventType == SYSTEM_ACCESS_GRANTED;
@@ -804,7 +803,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
                 } else if (remoteAddress != null) {
                     logEntryBuilder.with(ORIGIN_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
-                        .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(remoteAddress.address()));
+                        .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(remoteAddress));
                 }
                 logEntryBuilder.build();
             }
@@ -1446,10 +1445,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 logEntry.with(ORIGIN_TYPE_FIELD_NAME, REST_ORIGIN_FIELD_VALUE)
                     .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(restAddress));
             } else {
-                final TransportAddress address = transportRequest.remoteAddress();
+                final InetSocketAddress address = transportRequest.remoteAddress();
                 if (address != null) {
                     logEntry.with(ORIGIN_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
-                        .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address.address()));
+                        .with(ORIGIN_ADDRESS_FIELD_NAME, NetworkAddress.format(address));
                 }
             }
             // fall through to local_node default
@@ -1474,7 +1473,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         LogEntryBuilder withOpaqueId(ThreadContext threadContext) {
-            final String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID);
+            final String opaqueId = threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
             if (opaqueId != null) {
                 logEntry.with(OPAQUE_ID_FIELD_NAME, opaqueId);
             }
@@ -1512,7 +1511,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     logEntry.with(PRINCIPAL_REALM_FIELD_NAME, authentication.getAuthenticatedBy().getName());
                 }
             }
-            if (authentication.isServiceAccount()) {
+            if (authentication.isAuthenticatedWithServiceAccount()) {
                 logEntry.with(SERVICE_TOKEN_NAME_FIELD_NAME, (String) authentication.getMetadata().get(TOKEN_NAME_FIELD))
                     .with(
                         SERVICE_TOKEN_TYPE_FIELD_NAME,

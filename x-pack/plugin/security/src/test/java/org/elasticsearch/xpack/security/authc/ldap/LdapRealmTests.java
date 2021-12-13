@@ -473,7 +473,8 @@ public class LdapRealmTests extends LdapTestCase {
         final ScriptService scriptService = new ScriptService(
             defaultGlobalSettings,
             Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
-            ScriptModule.CORE_CONTEXTS
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L
         );
         NativeRoleMappingStore roleMapper = new NativeRoleMappingStore(
             defaultGlobalSettings,

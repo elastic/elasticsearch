@@ -43,7 +43,6 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
 
         ParsedDocument doc = docMapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "value").endObject()),
                 XContentType.JSON,

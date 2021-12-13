@@ -60,16 +60,16 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
             doc.endArray();
         }
         doc.endObject();
-        ParsedDocument d = mapper.parse(new SourceToParse("test", "1", BytesReference.bytes(doc), XContentType.JSON));
+        ParsedDocument d = mapper.parse(new SourceToParse("1", BytesReference.bytes(doc), XContentType.JSON));
         writer.addDocument(d.rootDoc());
 
         BytesRef bytes1 = randomBytes();
         doc = XContentFactory.jsonBuilder().startObject().field("field", bytes1.bytes, bytes1.offset, bytes1.length).endObject();
-        d = mapper.parse(new SourceToParse("test", "2", BytesReference.bytes(doc), XContentType.JSON));
+        d = mapper.parse(new SourceToParse("2", BytesReference.bytes(doc), XContentType.JSON));
         writer.addDocument(d.rootDoc());
 
         doc = XContentFactory.jsonBuilder().startObject().endObject();
-        d = mapper.parse(new SourceToParse("test", "3", BytesReference.bytes(doc), XContentType.JSON));
+        d = mapper.parse(new SourceToParse("3", BytesReference.bytes(doc), XContentType.JSON));
         writer.addDocument(d.rootDoc());
 
         // test remove duplicate value
@@ -85,7 +85,7 @@ public class BinaryDVFieldDataTests extends AbstractFieldDataTestCase {
             doc.endArray();
         }
         doc.endObject();
-        d = mapper.parse(new SourceToParse("test", "4", BytesReference.bytes(doc), XContentType.JSON));
+        d = mapper.parse(new SourceToParse("4", BytesReference.bytes(doc), XContentType.JSON));
         writer.addDocument(d.rootDoc());
 
         IndexFieldData<?> indexFieldData = getForField("field");

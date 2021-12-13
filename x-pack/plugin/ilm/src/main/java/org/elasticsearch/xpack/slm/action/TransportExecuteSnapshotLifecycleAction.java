@@ -24,9 +24,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.slm.action.ExecuteSnapshotLifecycleAction;
-import org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleTask;
+import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;
 
 import java.util.Optional;
 

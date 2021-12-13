@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -231,6 +232,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         final MetadataIndexAliasesService mdIndexAliasesService = mock(MetadataIndexAliasesService.class);
 
         final Client mockClient = mock(Client.class);
+        final AllocationService mockAllocationService = mock(AllocationService.class);
 
         final Map<String, IndexStats> indexStats = new HashMap<>();
         int total = randomIntBetween(500, 1000);
@@ -279,7 +281,8 @@ public class TransportRolloverActionTests extends ESTestCase {
             mockActionFilters,
             mockIndexNameExpressionResolver,
             rolloverService,
-            mockClient
+            mockClient,
+            mockAllocationService
         );
 
         // For given alias, verify that condition evaluation fails when the condition doc count is greater than the primaries doc count

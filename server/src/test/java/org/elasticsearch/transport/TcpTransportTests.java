@@ -17,11 +17,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -542,7 +542,8 @@ public class TcpTransportTests extends ESTestCase {
                     Version.CURRENT,
                     new StatsTracker(),
                     testThreadPool,
-                    BigArrays.NON_RECYCLING_INSTANCE
+                    new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY)),
+                    new HandlingTimeTracker()
                 )
             );
 

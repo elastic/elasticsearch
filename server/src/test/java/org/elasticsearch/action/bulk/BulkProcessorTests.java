@@ -454,6 +454,48 @@ public class BulkProcessorTests extends ESTestCase {
         assertTrue(called.get());
     }
 
+    public void testDisableFlush() {
+        final AtomicInteger attemptRef = new AtomicInteger();
+
+        BulkResponse bulkResponse = new BulkResponse(
+            new BulkItemResponse[] { BulkItemResponse.success(0, randomFrom(DocWriteRequest.OpType.values()), mockResponse()) },
+            0
+        );
+
+        final BiConsumer<BulkRequest, ActionListener<BulkResponse>> consumer = (request, listener) -> {
+            listener.onResponse(bulkResponse);
+        };
+
+        final BulkProcessor.Listener listener = new BulkProcessor.Listener() {
+
+            @Override
+            public void beforeBulk(long executionId, BulkRequest request) {}
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, BulkResponse response) {
+                attemptRef.incrementAndGet();
+            }
+
+            @Override
+            public void afterBulk(long executionId, BulkRequest request, Throwable failure) {}
+        };
+
+        AtomicBoolean flushEnabled = new AtomicBoolean(false);
+        try (
+            BulkProcessor bulkProcessor = BulkProcessor.builder(consumer, listener, "BulkProcessorTests")
+                .setFlushCondition(flushEnabled::get)
+                .build()
+        ) {
+            bulkProcessor.add(new IndexRequest());
+            bulkProcessor.flush();
+            assertThat(attemptRef.get(), equalTo(0));
+
+            flushEnabled.set(true);
+            bulkProcessor.flush();
+            assertThat(attemptRef.get(), equalTo(1));
+        }
+    }
+
     private BulkProcessor.Listener emptyListener() {
         return new BulkProcessor.Listener() {
             @Override

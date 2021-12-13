@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
@@ -20,7 +22,6 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
@@ -135,9 +136,8 @@ public class Tile2DVisitorTests extends ESTestCase {
     }
 
     public void testRandomMultiLineIntersections() throws IOException {
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
         MultiLine geometry = randomMultiLine(false);
-        geometry = (MultiLine) indexer.prepareForIndexing(geometry);
+        geometry = (MultiLine) GeometryNormalizer.apply(Orientation.CCW, geometry);
         GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(geometry, CoordinateEncoder.GEO);
         Extent readerExtent = reader.getExtent();
 
@@ -180,8 +180,7 @@ public class Tile2DVisitorTests extends ESTestCase {
         }
 
         Geometry geometry = randomMultiPolygon(false);
-        GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
-        Geometry preparedGeometry = indexer.prepareForIndexing(geometry);
+        Geometry preparedGeometry = GeometryNormalizer.apply(Orientation.CCW, geometry);
 
         for (int i = 0; i < testPointCount; i++) {
             int cur = i;

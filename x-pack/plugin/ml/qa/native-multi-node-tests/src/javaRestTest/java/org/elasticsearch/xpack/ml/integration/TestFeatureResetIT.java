@@ -36,9 +36,11 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
+import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.junit.After;
 
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -199,11 +201,20 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
         ).actionGet();
         client().execute(
             PutTrainedModelDefinitionPartAction.INSTANCE,
-            new PutTrainedModelDefinitionPartAction.Request(TRAINED_MODEL_ID, new BytesArray(BASE_64_ENCODED_MODEL), 0, RAW_MODEL_SIZE, 1)
+            new PutTrainedModelDefinitionPartAction.Request(
+                TRAINED_MODEL_ID,
+                new BytesArray(Base64.getDecoder().decode(BASE_64_ENCODED_MODEL)),
+                0,
+                RAW_MODEL_SIZE,
+                1
+            )
         ).actionGet();
         client().execute(
             PutTrainedModelVocabularyAction.INSTANCE,
-            new PutTrainedModelVocabularyAction.Request(TRAINED_MODEL_ID, List.of("these", "are", "my", "words"))
+            new PutTrainedModelVocabularyAction.Request(
+                TRAINED_MODEL_ID,
+                List.of("these", "are", "my", "words", BertTokenizer.PAD_TOKEN, BertTokenizer.UNKNOWN_TOKEN)
+            )
         ).actionGet();
         client().execute(StartTrainedModelDeploymentAction.INSTANCE, new StartTrainedModelDeploymentAction.Request(TRAINED_MODEL_ID))
             .actionGet();

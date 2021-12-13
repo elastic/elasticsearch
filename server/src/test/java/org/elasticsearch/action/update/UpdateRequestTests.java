@@ -112,7 +112,7 @@ public class UpdateRequestTests extends ESTestCase {
         scripts.put("return", vars -> null);
         final MockScriptEngine engine = new MockScriptEngine("mock", scripts, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
-        ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptModule.CORE_CONTEXTS);
+        ScriptService scriptService = new ScriptService(baseSettings, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
         updateHelper = new UpdateHelper(scriptService);
     }
 

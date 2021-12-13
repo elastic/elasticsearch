@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[put-enrich-policy-api]]
 === Create enrich policy API
 ++++

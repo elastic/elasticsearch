@@ -162,7 +162,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         );
 
         final long nbDocs = randomLongBetween(10_000L, 20_000L);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), (int) nbDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), (int) nbDocs)) {
             waitForDocs(nbDocs, indexer);
         }
 
@@ -194,7 +194,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
         );
 
         final long nbDocs = randomLongBetween(10_000L, 20_000L);
-        try (BackgroundIndexer indexer = new BackgroundIndexer(index, "_doc", client(), (int) nbDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer(index, client(), (int) nbDocs)) {
             waitForDocs(nbDocs, indexer);
         }
 

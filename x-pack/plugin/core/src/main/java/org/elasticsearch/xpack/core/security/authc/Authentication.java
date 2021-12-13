@@ -113,11 +113,11 @@ public class Authentication implements ToXContentObject {
         return metadata;
     }
 
-    public boolean isServiceAccount() {
-        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType()) && null == getLookedUpBy();
+    public boolean isAuthenticatedWithServiceAccount() {
+        return ServiceAccountSettings.REALM_TYPE.equals(getAuthenticatedBy().getType());
     }
 
-    public boolean isApiKey() {
+    public boolean isAuthenticatedWithApiKey() {
         return AuthenticationType.API_KEY.equals(getAuthenticationType());
     }
 
@@ -235,7 +235,7 @@ public class Authentication implements ToXContentObject {
         builder.array(User.Fields.ROLES.getPreferredName(), user.roles());
         builder.field(User.Fields.FULL_NAME.getPreferredName(), user.fullName());
         builder.field(User.Fields.EMAIL.getPreferredName(), user.email());
-        if (isServiceAccount()) {
+        if (isAuthenticatedWithServiceAccount()) {
             final String tokenName = (String) getMetadata().get(ServiceAccountSettings.TOKEN_NAME_FIELD);
             assert tokenName != null : "token name cannot be null";
             final String tokenSource = (String) getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
@@ -261,7 +261,7 @@ public class Authentication implements ToXContentObject {
         }
         builder.endObject();
         builder.field(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), getAuthenticationType().name().toLowerCase(Locale.ROOT));
-        if (isApiKey()) {
+        if (isAuthenticatedWithApiKey()) {
             this.assertApiKeyMetadata();
             final String apiKeyId = (String) this.metadata.get(AuthenticationField.API_KEY_ID_KEY);
             final String apiKeyName = (String) this.metadata.get(AuthenticationField.API_KEY_NAME_KEY);
@@ -276,8 +276,6 @@ public class Authentication implements ToXContentObject {
     private void assertApiKeyMetadata() {
         assert (AuthenticationType.API_KEY.equals(this.type) == false) || (this.metadata.get(AuthenticationField.API_KEY_ID_KEY) != null)
             : "API KEY authentication requires metadata to contain API KEY id, and the value must be non-null.";
-        assert (AuthenticationType.API_KEY.equals(this.type) == false) || (this.metadata.containsKey(AuthenticationField.API_KEY_NAME_KEY))
-            : "API KEY authentication requires metadata to contain API KEY name; the value may be null for older keys.";
     }
 
     @Override

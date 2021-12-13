@@ -47,7 +47,7 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
         ).withMethod(RestRequest.Method.GET).withPath("/some_index/some_type/_msearch").withContent(bytesContent, null).build();
 
         dispatchRequest(request);
-        assertWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeInBody() {
@@ -59,7 +59,7 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
         ).withMethod(RestRequest.Method.POST).withPath("/some_index/_msearch").withContent(bytesContent, null).build();
 
         dispatchRequest(request);
-        assertWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     private Map<String, List<String>> headersWith(String accept, List<String> value) {

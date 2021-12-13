@@ -55,7 +55,7 @@ public class DataTier {
         true,
         Property.Dynamic,
         Property.NodeScope,
-        Property.Deprecated
+        Property.DeprecatedWarning
     );
 
     public static final String TIER_PREFERENCE = "index.routing.allocation.include._tier_preference";

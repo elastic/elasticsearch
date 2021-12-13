@@ -91,7 +91,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
     public static final Setting.AffixSetting<TimeValue> WAIT_MASTER_TIMEOUT_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "wait_master.timeout",
-        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(30), Property.Dynamic, Property.NodeScope, Property.Deprecated),
+        (key) -> Setting.timeSetting(key, TimeValue.timeValueSeconds(30), Property.Dynamic, Property.NodeScope, Property.DeprecatedWarning),
         TYPE_DEPENDENCY
     );
 
@@ -567,13 +567,18 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         }
     }
 
-    private void putWatch(final Client client, final String watchId, final String uniqueWatchId, final AtomicInteger pendingResponses) {
+    private void putWatch(
+        final Client clientToUse,
+        final String watchId,
+        final String uniqueWatchId,
+        final AtomicInteger pendingResponses
+    ) {
         final String watch = ClusterAlertsUtil.loadWatch(clusterService, watchId);
 
         logger.trace("adding monitoring watch [{}]", uniqueWatchId);
 
         executeAsyncWithOrigin(
-            client,
+            clientToUse,
             MONITORING_ORIGIN,
             PutWatchAction.INSTANCE,
             new PutWatchRequest(uniqueWatchId, new BytesArray(watch), XContentType.JSON),

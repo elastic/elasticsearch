@@ -27,22 +27,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeSt
 public class TypeParsers {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeParsers.class);
 
-    public static final String DOC_VALUES = "doc_values";
-    public static final String INDEX_OPTIONS_DOCS = "docs";
-    public static final String INDEX_OPTIONS_FREQS = "freqs";
-    public static final String INDEX_OPTIONS_POSITIONS = "positions";
-    public static final String INDEX_OPTIONS_OFFSETS = "offsets";
-
-    public static void checkNull(String propName, Object propNode) {
-        if (false == propName.equals("null_value") && propNode == null) {
-            /*
-             * No properties *except* null_value are allowed to have null. So we catch it here and tell the user something useful rather
-             * than send them a null pointer exception later.
-             */
-            throw new MapperParsingException("[" + propName + "] must not have a [null] value");
-        }
-    }
-
     /**
      * Parse the {@code meta} key of the mapping.
      */
@@ -106,7 +90,7 @@ public class TypeParsers {
                 // For indices created prior to 8.0, we only emit a deprecation warning and do not fail type parsing. This is to
                 // maintain the backwards-compatibility guarantee that we can always load indexes from the previous major version.
                 if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
-                    deprecationLogger.critical(
+                    deprecationLogger.warn(
                         DeprecationCategory.INDICES,
                         "multifield_within_multifield",
                         "At least one multi-field, ["

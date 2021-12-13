@@ -11,7 +11,6 @@ package org.elasticsearch.ingest.geoip;
 import com.maxmind.db.NoCache;
 import com.maxmind.db.Reader;
 import com.maxmind.geoip2.DatabaseReader;
-import com.maxmind.geoip2.exception.AddressNotFoundException;
 import com.maxmind.geoip2.model.AbstractResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
@@ -24,6 +23,7 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -37,6 +37,7 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -152,16 +153,19 @@ class DatabaseReaderLazyLoader implements Closeable {
         return Files.newInputStream(databasePath);
     }
 
+    @Nullable
     CityResponse getCity(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::city);
+        return getResponse(ipAddress, DatabaseReader::tryCity);
     }
 
+    @Nullable
     CountryResponse getCountry(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::country);
+        return getResponse(ipAddress, DatabaseReader::tryCountry);
     }
 
+    @Nullable
     AsnResponse getAsn(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::asn);
+        return getResponse(ipAddress, DatabaseReader::tryAsn);
     }
 
     boolean preLookup() {
@@ -178,16 +182,15 @@ class DatabaseReaderLazyLoader implements Closeable {
         return currentUsages.get();
     }
 
+    @Nullable
     private <T extends AbstractResponse> T getResponse(
         InetAddress ipAddress,
-        CheckedBiFunction<DatabaseReader, InetAddress, T, Exception> responseProvider
+        CheckedBiFunction<DatabaseReader, InetAddress, Optional<T>, Exception> responseProvider
     ) {
         SpecialPermission.check();
         return AccessController.doPrivileged((PrivilegedAction<T>) () -> cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
             try {
-                return responseProvider.apply(get(), ipAddress);
-            } catch (AddressNotFoundException e) {
-                throw new GeoIpProcessor.AddressNotFoundRuntimeException(e);
+                return responseProvider.apply(get(), ipAddress).orElse(null);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -210,8 +213,8 @@ class DatabaseReaderLazyLoader implements Closeable {
         return md5;
     }
 
-    public void close(boolean deleteDatabaseFileOnClose) throws IOException {
-        this.deleteDatabaseFileOnClose = deleteDatabaseFileOnClose;
+    public void close(boolean shouldDeleteDatabaseFileOnClose) throws IOException {
+        this.deleteDatabaseFileOnClose = shouldDeleteDatabaseFileOnClose;
         close();
     }
 

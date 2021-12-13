@@ -62,7 +62,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
         "xpack.eql.enabled",
         true,
         Setting.Property.NodeScope,
-        Setting.Property.Deprecated
+        Setting.Property.DeprecatedWarning
     );
 
     public EqlPlugin() {}

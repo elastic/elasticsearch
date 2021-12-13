@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -24,6 +24,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.RESULTS_FIELD;
+import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig.LABELS;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig.MULTI_LABEL;
 
@@ -32,7 +33,7 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
     public static final String NAME = "zero_shot_classification";
 
     public static ZeroShotClassificationConfigUpdate fromXContentStrict(XContentParser parser) {
-        return STRICT_PARSER.apply(parser, null);
+        return STRICT_PARSER.apply(parser, null).build();
     }
 
     @SuppressWarnings({ "unchecked" })
@@ -41,22 +42,28 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
         Boolean isMultiLabel = (Boolean) options.remove(MULTI_LABEL.getPreferredName());
         List<String> labels = (List<String>) options.remove(LABELS.getPreferredName());
         String resultsField = (String) options.remove(RESULTS_FIELD.getPreferredName());
+        TokenizationUpdate tokenizationUpdate = NlpConfigUpdate.tokenizationFromMap(options);
         if (options.isEmpty() == false) {
             throw ExceptionsHelper.badRequestException("Unrecognized fields {}.", map.keySet());
         }
-        return new ZeroShotClassificationConfigUpdate(labels, isMultiLabel, resultsField);
+        return new ZeroShotClassificationConfigUpdate(labels, isMultiLabel, resultsField, tokenizationUpdate);
     }
 
     @SuppressWarnings({ "unchecked" })
-    private static final ConstructingObjectParser<ZeroShotClassificationConfigUpdate, Void> STRICT_PARSER = new ConstructingObjectParser<>(
+    private static final ObjectParser<ZeroShotClassificationConfigUpdate.Builder, Void> STRICT_PARSER = new ObjectParser<>(
         NAME,
-        a -> new ZeroShotClassificationConfigUpdate((List<String>) a[0], (Boolean) a[1], (String) a[2])
+        ZeroShotClassificationConfigUpdate.Builder::new
     );
 
     static {
-        STRICT_PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), LABELS);
-        STRICT_PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), MULTI_LABEL);
-        STRICT_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), RESULTS_FIELD);
+        STRICT_PARSER.declareStringArray(Builder::setLabels, LABELS);
+        STRICT_PARSER.declareBoolean(Builder::setMultiLabel, MULTI_LABEL);
+        STRICT_PARSER.declareString(Builder::setResultsField, RESULTS_FIELD);
+        STRICT_PARSER.declareNamedObject(
+            Builder::setTokenizationUpdate,
+            (p, c, n) -> p.namedObject(TokenizationUpdate.class, n, false),
+            TOKENIZATION
+        );
     }
 
     private final List<String> labels;
@@ -66,8 +73,10 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
     public ZeroShotClassificationConfigUpdate(
         @Nullable List<String> labels,
         @Nullable Boolean isMultiLabel,
-        @Nullable String resultsField
+        @Nullable String resultsField,
+        @Nullable TokenizationUpdate tokenizationUpdate
     ) {
+        super(tokenizationUpdate);
         this.labels = labels;
         if (labels != null && labels.isEmpty()) {
             throw ExceptionsHelper.badRequestException("[{}] must not be empty", LABELS.getPreferredName());
@@ -77,6 +86,7 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
     }
 
     public ZeroShotClassificationConfigUpdate(StreamInput in) throws IOException {
+        super(in);
         labels = in.readOptionalStringList();
         isMultiLabel = in.readOptionalBoolean();
         resultsField = in.readOptionalString();
@@ -84,14 +94,14 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
         out.writeOptionalStringCollection(labels);
         out.writeOptionalBoolean(isMultiLabel);
         out.writeOptionalString(resultsField);
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (labels != null) {
             builder.field(LABELS.getPreferredName(), labels);
         }
@@ -101,7 +111,6 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
         if (resultsField != null) {
             builder.field(RESULTS_FIELD.getPreferredName(), resultsField);
         }
-        builder.endObject();
         return builder;
     }
 
@@ -134,7 +143,7 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
         return new ZeroShotClassificationConfig(
             zeroShotConfig.getClassificationLabels(),
             zeroShotConfig.getVocabularyConfig(),
-            zeroShotConfig.getTokenization(),
+            tokenizationUpdate == null ? zeroShotConfig.getTokenization() : tokenizationUpdate.apply(zeroShotConfig.getTokenization()),
             zeroShotConfig.getHypothesisTemplate(),
             Optional.ofNullable(isMultiLabel).orElse(zeroShotConfig.isMultiLabel()),
             Optional.ofNullable(labels).orElse(zeroShotConfig.getLabels()),
@@ -145,7 +154,8 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
     boolean isNoop(ZeroShotClassificationConfig originalConfig) {
         return (labels == null || labels.equals(originalConfig.getClassificationLabels()))
             && (isMultiLabel == null || isMultiLabel.equals(originalConfig.isMultiLabel()))
-            && (resultsField == null || resultsField.equals(originalConfig.getResultsField()));
+            && (resultsField == null || resultsField.equals(originalConfig.getResultsField()))
+            && super.isNoop();
     }
 
     @Override
@@ -160,7 +170,10 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
 
     @Override
     public InferenceConfigUpdate.Builder<? extends InferenceConfigUpdate.Builder<?, ?>, ? extends InferenceConfigUpdate> newBuilder() {
-        return new Builder().setLabels(labels).setMultiLabel(isMultiLabel);
+        return new Builder().setLabels(labels)
+            .setMultiLabel(isMultiLabel)
+            .setResultsField(resultsField)
+            .setTokenizationUpdate(tokenizationUpdate);
     }
 
     @Override
@@ -176,16 +189,21 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
         ZeroShotClassificationConfigUpdate that = (ZeroShotClassificationConfigUpdate) o;
         return Objects.equals(isMultiLabel, that.isMultiLabel)
             && Objects.equals(labels, that.labels)
-            && Objects.equals(resultsField, that.resultsField);
+            && Objects.equals(resultsField, that.resultsField)
+            && Objects.equals(tokenizationUpdate, that.tokenizationUpdate);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(labels, isMultiLabel, resultsField);
+        return Objects.hash(labels, isMultiLabel, resultsField, tokenizationUpdate);
     }
 
     public List<String> getLabels() {
         return labels;
+    }
+
+    public Boolean getMultiLabel() {
+        return isMultiLabel;
     }
 
     public static class Builder
@@ -194,6 +212,7 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
         private List<String> labels;
         private Boolean isMultiLabel;
         private String resultsField;
+        private TokenizationUpdate tokenizationUpdate;
 
         @Override
         public ZeroShotClassificationConfigUpdate.Builder setResultsField(String resultsField) {
@@ -211,8 +230,13 @@ public class ZeroShotClassificationConfigUpdate extends NlpConfigUpdate implemen
             return this;
         }
 
+        public Builder setTokenizationUpdate(TokenizationUpdate tokenizationUpdate) {
+            this.tokenizationUpdate = tokenizationUpdate;
+            return this;
+        }
+
         public ZeroShotClassificationConfigUpdate build() {
-            return new ZeroShotClassificationConfigUpdate(labels, isMultiLabel, resultsField);
+            return new ZeroShotClassificationConfigUpdate(labels, isMultiLabel, resultsField, tokenizationUpdate);
         }
     }
 }

@@ -7,17 +7,17 @@
  */
 package org.elasticsearch.upgrades;
 
-import io.github.nik9000.mapmatcher.ListMatcher;
-
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -29,10 +29,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
-import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
-import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
@@ -258,7 +258,7 @@ public class IndexingIT extends AbstractRollingTestCase {
     }
 
     public void testTsdb() throws IOException {
-        assumeTrue("tsdb added in 8.0.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_0_0));
+        assumeTrue("sort by _tsid added in 8.1.0", UPGRADE_FROM_VERSION.onOrAfter(Version.V_8_1_0));
 
         StringBuilder bulk = new StringBuilder();
         switch (CLUSTER_TYPE) {
@@ -322,6 +322,8 @@ public class IndexingIT extends AbstractRollingTestCase {
         indexSpec.startObject("settings").startObject("index");
         indexSpec.field("mode", "time_series");
         indexSpec.array("routing_path", new String[] { "dim" });
+        indexSpec.field("time_series.start_time", 1L);
+        indexSpec.field("time_series.end_time", DateUtils.MAX_MILLIS_BEFORE_9999 - 1);
         indexSpec.endObject().endObject();
         createIndex.setJsonEntity(Strings.toString(indexSpec.endObject()));
         client().performRequest(createIndex);
@@ -343,20 +345,9 @@ public class IndexingIT extends AbstractRollingTestCase {
         Request request = new Request("POST", "/tsdb/_search");
         request.addParameter("size", "0");
         XContentBuilder body = JsonXContent.contentBuilder().startObject();
-        // TODO replace tsid runtime field with real tsid
-        body.startObject("runtime_mappings");
-        {
-            body.startObject("tsid");
-            {
-                body.field("type", "keyword");
-                body.field("script", "emit('dim:' + doc['dim'].value)");
-            }
-            body.endObject();
-        }
-        body.endObject();
         body.startObject("aggs").startObject("tsids");
         {
-            body.startObject("terms").field("field", "tsid").endObject();
+            body.startObject("terms").field("field", "_tsid").endObject();
             body.startObject("aggs").startObject("avg");
             {
                 body.startObject("avg").field("field", "value").endObject();
@@ -367,8 +358,7 @@ public class IndexingIT extends AbstractRollingTestCase {
         request.setJsonEntity(Strings.toString(body.endObject()));
         ListMatcher tsidsExpected = matchesList();
         for (int d = 0; d < expected.length; d++) {
-            // Object key = Map.of("dim", TSDB_DIMS.get(d)); TODO use this once tsid is real
-            Object key = "dim:" + TSDB_DIMS.get(d);
+            Object key = Map.of("dim", TSDB_DIMS.get(d));
             tsidsExpected = tsidsExpected.item(matchesMap().extraOk().entry("key", key).entry("avg", Map.of("value", expected[d])));
         }
         assertMap(

@@ -396,7 +396,7 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, queryAsString, RestApiVersion.V_7);
         QueryBuilder queryBuilder = parseQuery(parser);
         queryBuilder.toQuery(searchExecutionContext);
-        assertWarnings(PercolateQueryBuilder.DOCUMENT_TYPE_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(PercolateQueryBuilder.DOCUMENT_TYPE_DEPRECATION_MESSAGE);
     }
 
     public void testFromJsonWithType() throws IOException {
@@ -416,6 +416,6 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
         XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, queryAsString, RestApiVersion.V_7);
         QueryBuilder queryBuilder = parseQuery(parser);
         rewriteAndFetch(queryBuilder, searchExecutionContext).toQuery(searchExecutionContext);
-        assertWarnings(PercolateQueryBuilder.TYPE_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(PercolateQueryBuilder.TYPE_DEPRECATION_MESSAGE);
     }
 }

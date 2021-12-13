@@ -68,7 +68,7 @@ public class SearchTransformTests extends ESTestCase {
 
         final MockScriptEngine engine = new MockScriptEngine("mock", Collections.emptyMap(), Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
+        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
 
         Client client = mock(Client.class);
         SearchTransformFactory transformFactory = new SearchTransformFactory(Settings.EMPTY, client, xContentRegistry(), scriptService);

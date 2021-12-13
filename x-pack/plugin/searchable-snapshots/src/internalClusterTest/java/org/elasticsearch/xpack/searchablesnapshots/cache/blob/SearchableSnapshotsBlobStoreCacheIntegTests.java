@@ -83,11 +83,11 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         builder.put(CacheService.SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), blobCacheMaxLength);
 
         // Frozen (shared cache) cache should be large enough to not cause direct reads
-        builder.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(128));
+        builder.put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(128));
         // Align ranges to match the blob cache max length
-        builder.put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), blobCacheMaxLength);
+        builder.put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), blobCacheMaxLength);
         builder.put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), blobCacheMaxLength);
-        builder.put(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), blobCacheMaxLength);
+        builder.put(FrozenCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), blobCacheMaxLength);
         cacheSettings = builder.build();
     }
 

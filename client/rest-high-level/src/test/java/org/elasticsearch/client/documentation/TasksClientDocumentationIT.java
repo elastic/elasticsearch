@@ -67,7 +67,7 @@ public class TasksClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::list-tasks-request-filter
             request.setActions("cluster:*"); // <1>
             request.setNodes("nodeId1", "nodeId2"); // <2>
-            request.setParentTaskId(new TaskId("parentTaskId", 42)); // <3>
+            request.setTargetParentTaskId(new TaskId("parentTaskId", 42)); // <3>
             // end::list-tasks-request-filter
 
             // tag::list-tasks-request-detailed

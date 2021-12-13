@@ -267,4 +267,12 @@ public class ShardChangesActionTests extends ESSingleNodeTestCase {
         assertThat(reference.get(), instanceOf(ShardNotFoundException.class));
     }
 
+    public void testShardChangesActionRequestHasDescription() {
+        var index = new Index("index", "uuid");
+        var shardId = new ShardId(index, 0);
+
+        var description = new ShardChangesAction.Request(shardId, "uuid").getDescription();
+
+        assertThat(description, equalTo("shardId[[index][0]]"));
+    }
 }

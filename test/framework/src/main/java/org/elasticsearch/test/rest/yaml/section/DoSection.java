@@ -252,8 +252,8 @@ public class DoSection implements ExecutableSection {
         return catchParam;
     }
 
-    public void setCatch(String catchParam) {
-        this.catchParam = catchParam;
+    public void setCatch(String param) {
+        this.catchParam = param;
     }
 
     public ApiCallSection getApiCallSection() {

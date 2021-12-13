@@ -331,29 +331,30 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             migrationInfo.getFeatureName(),
             migrationInfo.getNextIndexName()
         );
-        final AtomicReference<Map<String, Object>> updatedTaskStateFeatureMetadata = new AtomicReference<>();
         if (migrationInfo.getFeatureName().equals(lastFeatureName) == false) {
             // And then invoke the pre-migration hook for the next one.
-            migrationInfo.prepareForIndicesMigration(
-                clusterService,
-                baseClient,
-                ActionListener.wrap(updatedTaskStateFeatureMetadata::set, this::markAsFailed)
-            );
+            migrationInfo.prepareForIndicesMigration(clusterService, baseClient, ActionListener.wrap(newMetadata -> {
+                currentFeatureCallbackMetadata.set(newMetadata);
+                updateTaskState(migrationInfo, listener, newMetadata);
+            }, this::markAsFailed));
         } else {
             // Otherwise, just re-use what we already have.
-            updatedTaskStateFeatureMetadata.set(currentFeatureCallbackMetadata.get());
+            updateTaskState(migrationInfo, listener, currentFeatureCallbackMetadata.get());
         }
+    }
+
+    private void updateTaskState(SystemIndexMigrationInfo migrationInfo, Consumer<ClusterState> listener, Map<String, Object> metadata) {
         final SystemIndexMigrationTaskState newTaskState = new SystemIndexMigrationTaskState(
             migrationInfo.getCurrentIndexName(),
             migrationInfo.getFeatureName(),
-            updatedTaskStateFeatureMetadata.get()
+            metadata
         );
         logger.debug("updating task state to [{}]", Strings.toString(newTaskState));
-        currentFeatureCallbackMetadata.set(updatedTaskStateFeatureMetadata.get());
+        currentFeatureCallbackMetadata.set(metadata);
         updatePersistentTaskState(newTaskState, ActionListener.wrap(task -> {
             assert newTaskState.equals(task.getState()) : "task state returned by update method did not match submitted task state";
             logger.debug("new task state [{}] accepted", Strings.toString(newTaskState));
-            listener.accept(clusterState);
+            listener.accept(clusterService.state());
         }, this::markAsFailed));
     }
 
@@ -458,9 +459,16 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             migrationInfo.getNextIndexName()
         );
 
+        Settings.Builder settingsBuilder = Settings.builder();
+        if (Objects.nonNull(migrationInfo.getSettings())) {
+            settingsBuilder.put(migrationInfo.getSettings());
+            settingsBuilder.remove("index.blocks.write");
+            settingsBuilder.remove("index.blocks.read");
+            settingsBuilder.remove("index.blocks.metadata");
+        }
         createRequest.waitForActiveShards(ActiveShardCount.ALL)
             .mappings(migrationInfo.getMappings())
-            .settings(Objects.requireNonNullElse(migrationInfo.getSettings(), Settings.EMPTY));
+            .settings(Objects.requireNonNullElse(settingsBuilder.build(), Settings.EMPTY));
         metadataCreateIndexService.createIndex(createRequest, listener);
     }
 

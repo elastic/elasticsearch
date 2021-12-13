@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResu
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenizationUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
@@ -55,6 +56,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassification
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
@@ -399,7 +401,7 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 InferenceConfigUpdate.class,
-                new ParseField(TextClassificationConfig.NAME),
+                new ParseField(TextClassificationConfigUpdate.NAME),
                 TextClassificationConfigUpdate::fromXContentStrict
             )
         );
@@ -431,6 +433,14 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 Tokenization.class,
                 BertTokenization.NAME,
                 (p, c) -> BertTokenization.fromXContent(p, (boolean) c)
+            )
+        );
+
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                TokenizationUpdate.class,
+                BertTokenizationUpdate.NAME,
+                (p, c) -> BertTokenizationUpdate.fromXContent(p)
             )
         );
 
@@ -580,6 +590,14 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         // Tokenization
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(Tokenization.class, BertTokenization.NAME.getPreferredName(), BertTokenization::new)
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TokenizationUpdate.class,
+                BertTokenizationUpdate.NAME.getPreferredName(),
+                BertTokenizationUpdate::new
+            )
         );
 
         return namedWriteables;

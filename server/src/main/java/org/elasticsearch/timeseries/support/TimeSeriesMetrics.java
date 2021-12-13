@@ -15,17 +15,28 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.RegexpQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
@@ -33,15 +44,20 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
-import java.time.temporal.TemporalAccessor;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.index.IndexSettings.MAX_INNER_RESULT_WINDOW_SETTING;
 
 /**
  * Reads data in a time series style way.
@@ -51,16 +67,28 @@ public class TimeSeriesMetrics {
 
     private final int bucketBatchSize;
     private final int docBatchSize;
+    private final TimeValue staleness;
     private final Client client;
     private final String[] indices;
     private final List<String> dimensionFieldNames;
+    private final Map<String, TimeSeriesParams.MetricType> metricFieldNames;
 
-    TimeSeriesMetrics(int bucketBatchSize, int docBatchSize, Client client, String[] indices, List<String> dimensionFieldNames) {
+    TimeSeriesMetrics(
+        int bucketBatchSize,
+        int docBatchSize,
+        TimeValue staleness,
+        Client client,
+        String[] indices,
+        List<String> dimensionFieldNames,
+        Map<String, TimeSeriesParams.MetricType> metricFieldNames
+    ) {
         this.bucketBatchSize = bucketBatchSize;
         this.docBatchSize = docBatchSize;
+        this.staleness = staleness;
         this.client = client;
         this.indices = indices;
         this.dimensionFieldNames = dimensionFieldNames;
+        this.metricFieldNames = metricFieldNames;
     }
 
     /**
@@ -70,11 +98,12 @@ public class TimeSeriesMetrics {
         /**
          * Called when starting a new time series.
          */
-        void onTimeSeriesStart(Map<String, Object> dimensions);
+        void onTimeSeriesStart(String metric, Map<String, Object> dimensions);
 
         /**
          * Called for each metric returned.
-         * @param time the {@code @timestamp} recorded in the metric
+         *
+         * @param time  the {@code @timestamp} recorded in the metric
          * @param value the metric value
          */
         void onMetric(long time, double value);
@@ -91,262 +120,411 @@ public class TimeSeriesMetrics {
         void onError(Exception e);
     }
 
-    // TODO selector
-    /**
-     * Get the latest value for all time series in the range.
-     */
-    public void latestInRange(String metric, TemporalAccessor from, TemporalAccessor to, MetricsCallback callback) {
-        latestInRanage(metric, from, to, null, null, null, callback);
+    public enum TimeSeriesSelectorMatcher {
+        EQUAL {
+            @Override
+            protected Predicate<String> matcher(String expression) {
+                return expression::equals;
+            }
+
+            @Override
+            protected QueryBuilder asQuery(String name, String value) {
+                return new TermQueryBuilder(name, value);
+            }
+        },
+
+        NOT_EQUAL {
+            @Override
+            protected Predicate<String> matcher(String expression) {
+                return Predicate.not(expression::equals);
+            }
+
+            @Override
+            protected QueryBuilder asQuery(String name, String value) {
+                return new BoolQueryBuilder().mustNot(EQUAL.asQuery(name, value));
+            }
+        },
+
+        RE_EQUAL {
+            @Override
+            protected Predicate<String> matcher(String expression) {
+                return Pattern.compile(expression).asMatchPredicate();
+            }
+
+            @Override
+            protected QueryBuilder asQuery(String name, String value) {
+                return new RegexpQueryBuilder(name, value);
+            }
+        },
+
+        RE_NOT_EQUAL {
+            @Override
+            protected Predicate<String> matcher(String expression) {
+                return Predicate.not(RE_EQUAL.matcher(expression));
+            }
+
+            @Override
+            protected QueryBuilder asQuery(String name, String value) {
+                return new BoolQueryBuilder().mustNot(RE_EQUAL.asQuery(name, value));
+            }
+        };
+
+        protected abstract Predicate<String> matcher(String expression);
+
+        protected abstract QueryBuilder asQuery(String name, String value);
     }
 
-    // TODO selector
+    public static class TimeSeriesMetricSelector {
+        private final TimeSeriesSelectorMatcher matcher;
+        private final String value;
+
+        public TimeSeriesMetricSelector(TimeSeriesSelectorMatcher matcher, String value) {
+            this.matcher = matcher;
+            this.value = value;
+        }
+
+        public Predicate<String> asPredicate() {
+            return matcher.matcher(value);
+        }
+    }
+
+    public static class TimeSeriesDimensionSelector {
+        private final TimeSeriesSelectorMatcher matcher;
+        private final String name;
+        private final String value;
+
+        public TimeSeriesDimensionSelector(String name, TimeSeriesSelectorMatcher matcher, String value) {
+            this.name = name;
+            this.matcher = matcher;
+            this.value = value;
+        }
+
+        public QueryBuilder asQuery() {
+            return matcher.asQuery(name, value);
+        }
+    }
+
     /**
-     * Get the latest value for all time series in many ranges.
+     * Return the latest metrics before time within staleness period.
+     *
+     * @param metrics metrics selectors (ANDed together)
+     * @param dimensions dimension selectors (ANDed together)
+     * @param time the time before which the latest metrics are returned
+     * @param callback callback used to return the metrics
      */
-    public void latestInRanges(
-        String metric,
-        TemporalAccessor from,
-        TemporalAccessor to,
-        DateHistogramInterval step,
+    public void latest(
+        List<TimeSeriesMetricSelector> metrics,
+        List<TimeSeriesDimensionSelector> dimensions,
+        long time,
         MetricsCallback callback
     ) {
-        latestInRanage(metric, from, to, step, null, null, callback);
+        retrieve(metrics, dimensions, time, null, null, callback);
     }
 
     /**
-     * Get the latest value for all time series in one or many ranges.
-     * @param step null if reading from a single range, the length of the range otherwise.
+     * Return all metrics with range time period just before and including the time specified by the time parameter
+     *
+     * @param metrics metrics selectors (ANDed together)
+     * @param dimensions dimension selectors (ANDed together)
+     * @param time the time before which the results are returned
+     * @param range range within which the results are returned
+     * @param callback callback used to return the metrics
      */
-    private void latestInRanage(
-        String metric,
-        TemporalAccessor from,
-        TemporalAccessor to,
-        @Nullable DateHistogramInterval step,
-        @Nullable Map<String, Object> afterKey,
-        @Nullable Map<String, Object> previousTimeSeries,
+    public void range(
+        List<TimeSeriesMetricSelector> metrics,
+        List<TimeSeriesDimensionSelector> dimensions,
+        long time,
+        TimeValue range,
         MetricsCallback callback
     ) {
-        // TODO test asserting forking
-        SearchRequest search = searchInRange(from, to);
-        search.source().size(0);
-        search.source().trackTotalHits(false);
-        search.source().aggregation(timeSeriesComposite(step, afterKey).subAggregation(latestMetric(metric)));
-        logger.debug("Requesting batch of latest {}", search);
-        client.search(
-            search,
-            ActionListener.wrap(
-                new LatestInRangeResponseHandler(metric, callback, from, to, step, search, previousTimeSeries),
-                callback::onError
-            )
-        );
+        retrieve(metrics, dimensions, time, range, null, callback);
     }
 
-    private SearchRequest searchInRange(TemporalAccessor from, TemporalAccessor to) {
-        SearchRequest search = new SearchRequest(indices);
-        search.source()
-            .query(
-                new RangeQueryBuilder("@timestamp").format(DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER.pattern())
-                    .gt(DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER.format(from))
-                    .lte(DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER.format(to))
-            );
-        return search;
+    /**
+     * Return all metrics with range time period just before and including the time specified by the time parameter
+     *
+     * @param metrics metrics selectors (ANDed together)
+     * @param dimensions dimension selectors (ANDed together)
+     * @param time the time before which the results are returned
+     * @param range range within which the results are returned
+     * @param step if not null, it makes this method equivalent to running the {@link #latest(List, List, long, MetricsCallback)} method
+     *             several times while changing time from time to (time - range) with the step interval
+     * @param callback callback used to return the metrics
+     */
+    public void range(
+        List<TimeSeriesMetricSelector> metrics,
+        List<TimeSeriesDimensionSelector> dimensions,
+        long time,
+        TimeValue range,
+        TimeValue step,
+        MetricsCallback callback
+    ) {
+        retrieve(metrics, dimensions, time, range, step, callback);
     }
 
-    private CompositeAggregationBuilder timeSeriesComposite(@Nullable DateHistogramInterval step, @Nullable Map<String, Object> afterKey) {
-        Stream<CompositeValuesSourceBuilder<?>> sources = dimensionFieldNames.stream()
-            .map(d -> new TermsValuesSourceBuilder(d).field(d).missingBucket(true));
-        if (step != null) {
-            sources = Stream.concat(
-                sources,
-                /*
-                 * offset(1) *includes* that last milli of the range and excludes
-                 * the first milli of the range - effectively shifting us from a
-                 * closed/open range to an open/closed range.
-                 */
-                Stream.of(new DateHistogramValuesSourceBuilder("@timestamp").field("@timestamp").fixedInterval(step).offset(1))
+    private void retrieve(
+        List<TimeSeriesMetricSelector> metrics,
+        List<TimeSeriesDimensionSelector> dimensions,
+        long time,
+        @Nullable TimeValue range,
+        @Nullable TimeValue step,
+        MetricsCallback callback
+    ) {
+        List<String> resolvedMetrics = resolveMetrics(metrics);
+        final long from;
+        final int size;
+        if (range != null) {
+            if (step != null) {
+                from = time - range.getMillis() - staleness.getMillis();
+                size = 0;
+            } else {
+                from = time - range.getMillis();
+                size = docBatchSize;
+            }
+        } else {
+            if (step != null) {
+                throw new IllegalArgumentException("Cannot specify non-null step if range is null");
+            } else {
+                from = time - staleness.getMillis();
+                size = 0;
+            }
+        }
+        SearchRequest search = searchInRange(resolvedMetrics, dimensions, from, time, size);
+        if (size > 0) {
+            client.search(search, ActionListener.wrap(new SearchResponseHandler(resolvedMetrics, callback, search), callback::onError));
+        } else {
+            CompositeAggregationBuilder timeSeries = timeSeriesComposite();
+            for (String metric : resolvedMetrics) {
+                timeSeries.subAggregation(latestMetric(metric, time, range, step));
+            }
+            search.source().aggregation(timeSeries);
+            logger.debug("Requesting batch of latest {}", search);
+            client.search(
+                search,
+                ActionListener.wrap(new AggsResponseHandler(resolvedMetrics, callback, search, timeSeries), callback::onError)
             );
         }
-        return new CompositeAggregationBuilder("time_series", sources.collect(toList())).aggregateAfter(afterKey).size(bucketBatchSize);
-    }
-
-    private TopHitsAggregationBuilder latestMetric(String metric) {
-        // TODO top metrics would almost certainly be better here but its in analytics.
-        return new TopHitsAggregationBuilder("latest").sort(new FieldSortBuilder("@timestamp").order(SortOrder.DESC))
-            .fetchField(metric)
-            .fetchField(new FieldAndFormat("@timestamp", "epoch_millis"))
-            .size(1);
     }
 
     /**
-     * Handler for each page of results from {@link TimeSeriesMetrics#latestInRanage}.
+     * Handler for extracting results from {@link TimeSeriesMetrics#retrieve} from aggregations.
      */
-    private class LatestInRangeResponseHandler implements CheckedConsumer<SearchResponse, RuntimeException> {
-        private final String metric;
+    private class AggsResponseHandler implements CheckedConsumer<SearchResponse, RuntimeException> {
+        private final List<String> resolvedMetrics;
+        Map<String, Object> previousDimensions;
         private final MetricsCallback callback;
-        private final TemporalAccessor from;
-        private final TemporalAccessor to;
-        @Nullable
-        private final DateHistogramInterval step;
         private final SearchRequest search;
-        private Map<String, Object> previousDimensions;
+        private final CompositeAggregationBuilder timeSeries;
 
-        LatestInRangeResponseHandler(
-            String metric,
+        AggsResponseHandler(
+            List<String> resolvedMetrics,
             MetricsCallback callback,
-            TemporalAccessor from,
-            TemporalAccessor to,
-            @Nullable DateHistogramInterval step,
             SearchRequest search,
-            @Nullable Map<String, Object> previousDimensions
+            CompositeAggregationBuilder timeSeries
         ) {
-            this.metric = metric;
+            this.resolvedMetrics = resolvedMetrics;
+            this.previousDimensions = null;
             this.callback = callback;
-            this.from = from;
-            this.to = to;
-            this.step = step;
             this.search = search;
-            this.previousDimensions = previousDimensions;
+            this.timeSeries = timeSeries;
         }
 
         @Override
         public void accept(SearchResponse response) {
             // TODO shard error handling
             InternalComposite composite = response.getAggregations().get("time_series");
-            logger.debug("Received batch of latest {} with {} buckets", search, composite.getBuckets().size());
-            for (InternalComposite.InternalBucket bucket : composite.getBuckets()) {
-                Map<String, Object> dimensions = bucket.getKey()
-                    .entrySet()
-                    .stream()
-                    .filter(e -> false == e.getKey().equals("@timestamp") && e.getValue() != null)
-                    .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
-                if (false == Objects.equals(previousDimensions, dimensions)) {
-                    previousDimensions = dimensions;
-                    callback.onTimeSeriesStart(dimensions);
+            for (String metric : resolvedMetrics) {
+                previousDimensions = null;
+                for (InternalComposite.InternalBucket bucket : composite.getBuckets()) {
+                    Map<String, Object> dimensions = bucket.getKey()
+                        .entrySet()
+                        .stream()
+                        .filter(e -> false == e.getKey().equals("@timestamp") && e.getValue() != null)
+                        .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+                    if (false == Objects.equals(previousDimensions, dimensions)) {
+                        previousDimensions = dimensions;
+                        callback.onTimeSeriesStart(metric, dimensions);
+                    }
+
+                    InternalFilter filter = bucket.getAggregations().get(metric);
+                    List<Aggregation> aggs = new ArrayList<>(filter.getAggregations().asList());
+                    aggs.sort(Comparator.comparingLong(o -> Long.parseLong(o.getName())));
+                    for (Aggregation agg : aggs) {
+                        InternalFilter timeFilter = (InternalFilter) agg;
+                        Long time;
+                        if ("use_timestamp".equals(timeFilter.getName())) {
+                            time = null;
+                        } else {
+                            time = Long.parseLong(timeFilter.getName());
+                        }
+                        InternalTopHits latest = timeFilter.getAggregations().get("results");
+                        for (SearchHit hit : latest.getHits().getHits()) {
+                            DocumentField metricField = hit.field(metric);
+                            if (metricField == null) {
+                                throw new IllegalStateException(
+                                    "Cannot retrieve metric field [" + metric + "][" + bucket + "] from [" + response + "]"
+                                );
+                            }
+                            long effectiveTime = time == null ? Long.parseLong(hit.field("@timestamp").getValue()) : time;
+                            double value = ((Number) metricField.getValue()).doubleValue();
+                            callback.onMetric(effectiveTime, value);
+                        }
+                    }
                 }
-                InternalTopHits latest = bucket.getAggregations().get("latest");
-                SearchHit[] hits = latest.getHits().getHits();
-                if (hits.length == 0) {
-                    continue;
-                }
-                DocumentField metricField = hits[0].field(metric);
-                if (metricField == null) {
-                    // TODO skip in query?
-                    continue;
-                }
-                long time = Long.parseLong((String) hits[0].field("@timestamp").getValue());
-                double value = ((Number) metricField.getValue()).doubleValue();
-                callback.onMetric(time, value);
             }
             if (composite.afterKey() == null) {
                 callback.onSuccess();
             } else {
-                latestInRanage(metric, from, to, step, composite.afterKey(), previousDimensions, callback);
+                timeSeries.aggregateAfter(composite.afterKey());
+                client.search(search, ActionListener.wrap(this, callback::onError));
             }
         }
     }
 
-    // TODO selector
     /**
-     * Return all values for all time series in a range.
+     * Handler for extracting results from {@link TimeSeriesMetrics#retrieve} from search hits.
      */
-    public void valuesInRange(String metric, TemporalAccessor from, TemporalAccessor to, MetricsCallback listener) {
-        valuesInRange(metric, from, to, null, null, listener);
-    }
-
-    /**
-     * Search for a page of values for all time series in a range.
-     */
-    private void valuesInRange(
-        String metric,
-        TemporalAccessor from,
-        TemporalAccessor to,
-        Object[] searchAfter,
-        Map<String, Object> previousTimeSeries,
-        MetricsCallback callback
-    ) {
-        SearchRequest search = searchInRange(from, to);
-        search.source().size(docBatchSize);
-        search.source().trackTotalHits(false);
-        List<SortBuilder<?>> sorts = Stream.concat(
-            dimensionFieldNames.stream().map(d -> new FieldSortBuilder(d).order(SortOrder.ASC)),
-            Stream.of(new FieldSortBuilder("@timestamp").order(SortOrder.ASC).setFormat("epoch_millis"))
-        ).collect(toList());
-        search.source().sort(sorts);
-        if (searchAfter != null) {
-            search.source().searchAfter(searchAfter);
-        }
-        search.source().fetchField(metric);
-        client.search(
-            search,
-            ActionListener.wrap(new ValuesInRangeResponseHandler(metric, callback, from, to, search, previousTimeSeries), callback::onError)
-        );
-    }
-
-    /**
-     * Handler for {@link TimeSeriesMetrics#valuesInRange}.
-     */
-    private class ValuesInRangeResponseHandler implements CheckedConsumer<SearchResponse, RuntimeException> {
-        private final String metric;
+    private class SearchResponseHandler implements CheckedConsumer<SearchResponse, RuntimeException> {
+        private final List<String> resolvedMetrics;
+        Map<String, Object> previousDimensions;
         private final MetricsCallback callback;
-        private final TemporalAccessor from;
-        private final TemporalAccessor to;
         private final SearchRequest search;
-        private Map<String, Object> previousDimensions;
 
-        ValuesInRangeResponseHandler(
-            String metric,
-            MetricsCallback callback,
-            TemporalAccessor from,
-            TemporalAccessor to,
-            SearchRequest search,
-            @Nullable Map<String, Object> previousDimensions
-        ) {
-            this.metric = metric;
+        SearchResponseHandler(List<String> resolvedMetrics, MetricsCallback callback, SearchRequest search) {
+            this.resolvedMetrics = resolvedMetrics;
+            this.previousDimensions = null;
             this.callback = callback;
-            this.from = from;
-            this.to = to;
             this.search = search;
-            this.previousDimensions = previousDimensions;
         }
 
         @Override
         public void accept(SearchResponse response) {
             // TODO shard error handling
-            logger.debug("Received batch of values {} with {} docs", search, response.getHits().getHits().length);
             SearchHit[] hits = response.getHits().getHits();
-            for (SearchHit hit : hits) {
-                /*
-                 * Read the dimensions out of the sort. This is useful because
-                 * we already need the sort so we can do proper pagination but
-                 * it also converts numeric dimension into a Long which is nice
-                 * and consistent.
-                 */
-                Map<String, Object> dimensions = new HashMap<>();
-                for (int d = 0; d < dimensionFieldNames.size(); d++) {
-                    Object dimensionValue = hit.getSortValues()[d];
-                    if (dimensionValue != null) {
-                        dimensions.put(dimensionFieldNames.get(d), dimensionValue);
+            for (String metric : resolvedMetrics) {
+                for (SearchHit hit : hits) {
+                    /*
+                     * Read the dimensions out of the sort. This is useful because
+                     * we already need the sort so we can do proper pagination but
+                     * it also converts numeric dimension into a Long which is nice
+                     * and consistent.
+                     */
+                    Map<String, Object> dimensions = new HashMap<>();
+                    for (int d = 0; d < dimensionFieldNames.size(); d++) {
+                        Object dimensionValue = hit.getSortValues()[d];
+                        if (dimensionValue != null) {
+                            dimensions.put(dimensionFieldNames.get(d), dimensionValue);
+                        }
                     }
+                    DocumentField metricField = hit.field(metric);
+                    if (metricField == null) {
+                        continue;
+                    }
+                    if (false == Objects.equals(previousDimensions, dimensions)) {
+                        previousDimensions = dimensions;
+                        callback.onTimeSeriesStart(metric, dimensions);
+                    }
+                    long time = Long.parseLong((String) hit.getSortValues()[dimensionFieldNames.size()]);
+                    double value = ((Number) metricField.getValue()).doubleValue();
+                    callback.onMetric(time, value);
                 }
-                if (false == Objects.equals(previousDimensions, dimensions)) {
-                    previousDimensions = dimensions;
-                    callback.onTimeSeriesStart(dimensions);
-                }
-                DocumentField metricField = hit.field(metric);
-                if (metricField == null) {
-                    // TODO skip in query?
-                    continue;
-                }
-                long time = Long.parseLong((String) hit.getSortValues()[dimensionFieldNames.size()]);
-                double value = ((Number) metricField.getValue()).doubleValue();
-                callback.onMetric(time, value);
             }
 
             if (hits.length < docBatchSize) {
                 callback.onSuccess();
             } else {
-                valuesInRange(metric, from, to, hits[hits.length - 1].getSortValues(), previousDimensions, callback);
+                search.source().searchAfter(hits[hits.length - 1].getSortValues());
+                client.search(search, ActionListener.wrap(this, callback::onError));
             }
+        }
+    }
+
+    private List<String> resolveMetrics(List<TimeSeriesMetricSelector> selectors) {
+        Stream<String> metrics = metricFieldNames.keySet().stream();
+        for (TimeSeriesMetricSelector selector : selectors) {
+            metrics = metrics.filter(selector.asPredicate());
+        }
+        return metrics.collect(Collectors.toUnmodifiableList());
+    }
+
+    private SearchRequest searchInRange(List<String> metrics, List<TimeSeriesDimensionSelector> dimensions, long from, long to, int size) {
+        SearchRequest search = new SearchRequest(indices);
+        BoolQueryBuilder builder = new BoolQueryBuilder();
+        builder.must(
+            new RangeQueryBuilder("@timestamp").format(DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER.pattern()).gt(from).lte(to)
+        );
+        for (String metric : metrics) {
+            builder.should(new ExistsQueryBuilder(metric));
+        }
+        for (TimeSeriesDimensionSelector dimension : dimensions) {
+            builder.must(dimension.asQuery());
+        }
+        search.source().query(builder);
+        if (size > 0) {
+            List<SortBuilder<?>> sorts = Stream.concat(
+                dimensionFieldNames.stream().map(d -> new FieldSortBuilder(d).order(SortOrder.ASC)),
+                Stream.of(new FieldSortBuilder("@timestamp").order(SortOrder.ASC).setFormat("epoch_millis"))
+            ).collect(toList());
+            search.source().sort(sorts);
+            for (String metric : metrics) {
+                search.source().fetchField(metric);
+            }
+        }
+        search.source().size(size);
+        search.source().trackTotalHits(false);
+        return search;
+    }
+
+    private CompositeAggregationBuilder timeSeriesComposite(@Nullable Map<String, Object> afterKey) {
+        Stream<CompositeValuesSourceBuilder<?>> sources = dimensionFieldNames.stream()
+            .map(d -> new TermsValuesSourceBuilder(d).field(d).missingBucket(true));
+        return new CompositeAggregationBuilder("time_series", sources.collect(toList())).aggregateAfter(afterKey).size(bucketBatchSize);
+    }
+
+    private CompositeAggregationBuilder timeSeriesComposite() {
+        Stream<CompositeValuesSourceBuilder<?>> sources = dimensionFieldNames.stream()
+            .map(d -> new TermsValuesSourceBuilder(d).field(d).missingBucket(true));
+        return new CompositeAggregationBuilder("time_series", sources.collect(toList())).size(bucketBatchSize);
+    }
+
+    private AggregationBuilder latestMetric(String metric, long time, TimeValue range, TimeValue step) {
+        if (step == null) {
+            String aggKey = range == null ? Long.toString(time) : "use_timestamp";
+            return new FilterAggregationBuilder(metric, new ExistsQueryBuilder(metric)).subAggregation(
+                new FilterAggregationBuilder(aggKey, new MatchAllQueryBuilder()).subAggregation(
+                    new TopHitsAggregationBuilder("results").sort(
+                        new FieldSortBuilder("@timestamp").order(range == null ? SortOrder.DESC : SortOrder.ASC)
+                    )
+                        .fetchField(metric)
+                        .fetchField(new FieldAndFormat("@timestamp", "epoch_millis"))
+                        .size(range == null ? 1 : MAX_INNER_RESULT_WINDOW_SETTING.getDefault(Settings.EMPTY))
+                )
+            );
+        } else {
+            FilterAggregationBuilder metricAgg = new FilterAggregationBuilder(metric, new ExistsQueryBuilder(metric));
+            long stepMillis = step.getMillis();
+            long from = time - range.getMillis();
+            long first = from / stepMillis;
+            long last = time / stepMillis;
+            for (int i = 0; i < (int) (last - first); i++) {
+                metricAgg.subAggregation(
+                    new FilterAggregationBuilder(
+                        Long.toString((first + i + 1) * stepMillis),
+                        new BoolQueryBuilder().filter(
+                            new RangeQueryBuilder("@timestamp").format(DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER.pattern())
+                                .gt((first + i + 1) * stepMillis - staleness.getMillis())
+                                .lte((first + i + 1) * stepMillis)
+                        ).filter(new ExistsQueryBuilder(metric))
+                    ).subAggregation(
+                        new TopHitsAggregationBuilder("results").sort(new FieldSortBuilder("@timestamp").order(SortOrder.DESC))
+                            .fetchField(metric)
+                            .fetchField(new FieldAndFormat("@timestamp", "epoch_millis"))
+                            .size(1)
+                    )
+                );
+            }
+            return metricAgg;
         }
     }
 }

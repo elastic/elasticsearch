@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="gold"]
 [[collecting-monitoring-data]]
 == Collecting monitoring data using legacy collectors
 ++++

@@ -10,9 +10,12 @@ package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -26,12 +29,22 @@ import static org.hamcrest.Matchers.equalTo;
 public class TextClassificationConfigUpdateTests extends AbstractBWCSerializationTestCase<TextClassificationConfigUpdate> {
 
     public void testFromMap() {
-        TextClassificationConfigUpdate expected = new TextClassificationConfigUpdate(List.of("foo", "bar"), 3, "ml-results");
+        TextClassificationConfigUpdate expected = new TextClassificationConfigUpdate(
+            List.of("foo", "bar"),
+            3,
+            "ml-results",
+            new BertTokenizationUpdate(Tokenization.Truncate.FIRST)
+        );
         Map<String, Object> config = new HashMap<>() {
             {
                 put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
                 put(NlpConfig.CLASSIFICATION_LABELS.getPreferredName(), List.of("foo", "bar"));
                 put(NlpConfig.NUM_TOP_CLASSES.getPreferredName(), 3);
+                Map<String, Object> truncate = new HashMap<>();
+                truncate.put("truncate", "first");
+                Map<String, Object> bert = new HashMap<>();
+                bert.put("bert", truncate);
+                put("tokenization", bert);
             }
         };
         assertThat(TextClassificationConfigUpdate.fromMap(config), equalTo(expected));
@@ -67,8 +80,14 @@ public class TextClassificationConfigUpdateTests extends AbstractBWCSerializatio
         assertFalse(
             new TextClassificationConfigUpdate.Builder().setClassificationLabels(List.of("a", "b"))
                 .build()
-                .isNoop(new TextClassificationConfig.Builder().setClassificationLabels(List.of("c", "d")).setNumTopClasses(3).build())
+                .isNoop(new TextClassificationConfig.Builder().setClassificationLabels(List.of("c", "d")).build())
         );
+        assertFalse(
+            new TextClassificationConfigUpdate.Builder().setTokenizationUpdate(new BertTokenizationUpdate(Tokenization.Truncate.SECOND))
+                .build()
+                .isNoop(new TextClassificationConfig.Builder().setClassificationLabels(List.of("c", "d")).build())
+        );
+
     }
 
     public void testApply() {
@@ -96,6 +115,22 @@ public class TextClassificationConfigUpdateTests extends AbstractBWCSerializatio
             new TextClassificationConfig.Builder(originalConfig).setNumTopClasses(originalConfig.getNumTopClasses() + 2).build(),
             equalTo(
                 new TextClassificationConfigUpdate.Builder().setNumTopClasses(originalConfig.getNumTopClasses() + 2)
+                    .build()
+                    .apply(originalConfig)
+            )
+        );
+
+        Tokenization.Truncate truncate = randomFrom(Tokenization.Truncate.values());
+        Tokenization tokenization = new BertTokenization(
+            originalConfig.getTokenization().doLowerCase(),
+            originalConfig.getTokenization().withSpecialTokens(),
+            originalConfig.getTokenization().maxSequenceLength(),
+            truncate
+        );
+        assertThat(
+            new TextClassificationConfig.Builder(originalConfig).setTokenization(tokenization).build(),
+            equalTo(
+                new TextClassificationConfigUpdate.Builder().setTokenizationUpdate(new BertTokenizationUpdate(truncate))
                     .build()
                     .apply(originalConfig)
             )
@@ -145,11 +180,32 @@ public class TextClassificationConfigUpdateTests extends AbstractBWCSerializatio
         if (randomBoolean()) {
             builder.setResultsField(randomAlphaOfLength(8));
         }
+        if (randomBoolean()) {
+            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values())));
+        }
         return builder.build();
     }
 
     @Override
     protected TextClassificationConfigUpdate mutateInstanceForVersion(TextClassificationConfigUpdate instance, Version version) {
+        if (version.before(Version.V_8_1_0)) {
+            return new TextClassificationConfigUpdate(
+                instance.getClassificationLabels(),
+                instance.getNumTopClasses(),
+                instance.getResultsField(),
+                null
+            );
+        }
         return instance;
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        return new NamedXContentRegistry(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        return new NamedWriteableRegistry(new MlInferenceNamedXContentProvider().getNamedWriteables());
     }
 }

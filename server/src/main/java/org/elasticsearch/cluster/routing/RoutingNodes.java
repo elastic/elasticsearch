@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -1133,11 +1132,6 @@ public class RoutingNodes implements Iterable<RoutingNode> {
          */
         public boolean isIgnoredEmpty() {
             return ignored.isEmpty();
-        }
-
-        public void shuffle() {
-            nodes.ensureMutable();
-            Randomness.shuffle(unassigned);
         }
 
         /**

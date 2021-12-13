@@ -400,7 +400,7 @@ public class Realms implements Iterable<Realm> {
 
     private void logDeprecationForReservedPrefixedRealmNames(List<RealmConfig.RealmIdentifier> realmIdentifiers) {
         if (false == realmIdentifiers.isEmpty()) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.SECURITY,
                 "realm_name_with_reserved_prefix",
                 "Found realm "

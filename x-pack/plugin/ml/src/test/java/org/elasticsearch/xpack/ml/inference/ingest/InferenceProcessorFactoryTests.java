@@ -191,7 +191,11 @@ public class InferenceProcessorFactoryTests extends ESTestCase {
         );
         assertThat(
             ex.getMessage(),
-            equalTo("unrecognized inference configuration type [unknown_type]. Supported types [classification, regression]")
+            equalTo(
+                "unrecognized inference configuration type [unknown_type]."
+                    + " Supported types [classification, regression, fill_mask, ner, pass_through, "
+                    + "text_classification, text_embedding, zero_shot_classification]"
+            )
         );
 
         Map<String, Object> config2 = new HashMap<>() {

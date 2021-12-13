@@ -14,9 +14,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -29,6 +34,8 @@ import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public final class TransformIndex {
     private static final Logger logger = LogManager.getLogger(TransformIndex.class);
@@ -37,6 +44,51 @@ public final class TransformIndex {
     private static final String META = "_meta";
 
     private TransformIndex() {}
+
+    /**
+     * Checks whether the given index was created automatically by the transform rather than explicitly by the user.
+     *
+     * @param client ES client
+     * @param destIndex Destination index name/pattern
+     * @param listener Listener to be called after the check is done.
+     *                 Returns {@code true} if the given index was created by the transform and {@code false} otherwise.
+     */
+    public static void isDestinationIndexCreatedByTransform(Client client, String destIndex, ActionListener<Boolean> listener) {
+        GetIndexRequest getIndexRequest = new GetIndexRequest().indices(destIndex)
+            // We only need mappings, more specifically its "_meta" part
+            .features(GetIndexRequest.Feature.MAPPINGS);
+        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, GetIndexAction.INSTANCE, getIndexRequest, ActionListener.wrap(getIndexResponse -> {
+            ImmutableOpenMap<String, MappingMetadata> indicesMappings = getIndexResponse.mappings();
+            if (indicesMappings.containsKey(destIndex) == false) {
+                listener.onResponse(false);
+                return;
+            }
+            Map<String, Object> indexMapping = indicesMappings.get(destIndex).getSourceAsMap();
+            if (indexMapping.containsKey(META) == false) {
+                listener.onResponse(false);
+                return;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> indexMappingMetadata = (Map<String, Object>) indexMapping.get(META);
+            if (indexMappingMetadata.containsKey(TransformField.CREATED_BY) == false) {
+                listener.onResponse(false);
+                return;
+            }
+            String createdBy = (String) indexMappingMetadata.get(TransformField.CREATED_BY);
+            if (TransformField.TRANSFORM_SIGNATURE.equals(createdBy) == false) {
+                listener.onResponse(false);
+                return;
+            }
+            listener.onResponse(true);
+        }, e -> {
+            if (e instanceof IndexNotFoundException) {
+                // Missing index is ok, we should report that it was not created by transform (because it doesn't exist)
+                listener.onResponse(false);
+                return;
+            }
+            listener.onFailure(e);
+        }));
+    }
 
     public static void createDestinationIndex(
         Client client,

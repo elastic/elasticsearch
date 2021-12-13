@@ -166,7 +166,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             .build();
 
         performRequest(request);
-        assertWarnings(RestValidateQueryAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestValidateQueryAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeParameter() {
@@ -181,7 +181,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             .build();
 
         performRequest(request);
-        assertWarnings(RestValidateQueryAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestValidateQueryAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     private void performRequest(RestRequest request) {

@@ -10,14 +10,18 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -41,6 +45,26 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
         private boolean allowNoMatch = true;
         private boolean force;
 
+        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
+
+        static {
+            PARSER.declareString(Request::setId, TrainedModelConfig.MODEL_ID);
+            PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
+            PARSER.declareBoolean(Request::setForce, FORCE);
+        }
+
+        public static Request parseRequest(String id, XContentParser parser) {
+            Request request = PARSER.apply(parser, null);
+            if (request.getId() == null) {
+                request.setId(id);
+            } else if (Strings.isNullOrEmpty(id) == false && id.equals(request.getId()) == false) {
+                throw new IllegalArgumentException(
+                    Messages.getMessage(Messages.INCONSISTENT_ID, TrainedModelConfig.MODEL_ID, request.getId(), id)
+                );
+            }
+            return request;
+        }
+
         public Request(String id) {
             setId(id);
         }
@@ -51,6 +75,8 @@ public class StopTrainedModelDeploymentAction extends ActionType<StopTrainedMode
             allowNoMatch = in.readBoolean();
             force = in.readBoolean();
         }
+
+        private Request() {}
 
         public final void setId(String id) {
             this.id = ExceptionsHelper.requireNonNull(id, TrainedModelConfig.MODEL_ID);

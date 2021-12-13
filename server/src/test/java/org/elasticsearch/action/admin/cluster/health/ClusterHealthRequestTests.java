@@ -39,7 +39,6 @@ public class ClusterHealthRequestTests extends ESTestCase {
         assertThat(cloneRequest.waitForEvents(), equalTo(originalRequest.waitForEvents()));
         assertIndicesEquals(cloneRequest.indices(), originalRequest.indices());
         assertThat(cloneRequest.indicesOptions(), equalTo(originalRequest.indicesOptions()));
-        assertThat(cloneRequest.doesReturn200ForClusterHealthTimeout(), equalTo(originalRequest.doesReturn200ForClusterHealthTimeout()));
     }
 
     public void testRequestReturnsHiddenIndicesByDefault() {

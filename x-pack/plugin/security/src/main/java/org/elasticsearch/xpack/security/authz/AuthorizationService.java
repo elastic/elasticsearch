@@ -882,7 +882,10 @@ public class AuthorizationService {
             }
         }
 
-        String userText = "user [" + authUser.principal() + "]";
+        String userText = (authentication.isAuthenticatedWithServiceAccount() ? "service account" : "user")
+            + " ["
+            + authUser.principal()
+            + "]";
         // check for run as
         if (authentication.getUser().isRunAs()) {
             userText = userText + " run as [" + authentication.getUser().principal() + "]";
@@ -892,9 +895,14 @@ public class AuthorizationService {
             final String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;
-        } else if (false == authentication.isServiceAccount()) {
-            // Don't print roles for API keys because they're not meaningful
-            // Also not printing roles for service accounts since they have no roles
+        }
+
+        // The run-as user is always from a realm. So it must have roles that can be printed.
+        // If the user is not run-as, we cannot print the roles if it's an API key or a service account (both do not have
+        // roles, but privileges)
+        if (authentication.getUser().isRunAs()
+            || (false == authentication.isAuthenticatedWithServiceAccount()
+                && AuthenticationType.API_KEY != authentication.getAuthenticationType())) {
             userText = userText + " with roles [" + Strings.arrayToCommaDelimitedString(authentication.getUser().roles()) + "]";
         }
 

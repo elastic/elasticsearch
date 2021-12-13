@@ -120,8 +120,7 @@ JDK 16 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
-> Note: It is also required to have `JAVA8_HOME`, `JAVA9_HOME`, `JAVA10_HOME`
-and `JAVA11_HOME`, `JAVA12_HOME`, `JAVA13_HOME`, `JAVA14_HOME`, and `JAVA15_HOME`
+> Note: It is also required to have `JAVA8_HOME`, `JAVA11_HOME`, and `JAVA17_HOME`
 available so that the tests can pass.
 
 Elasticsearch uses the Gradle wrapper for its build. You can execute Gradle
@@ -130,7 +129,7 @@ script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
 We support development in IntelliJ versions IntelliJ 2020.1 and
-onwards and Eclipse 2020-3 and onwards.
+onwards and Eclipse 2021-09 and onwards.
 
 [Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
 
@@ -204,15 +203,10 @@ automatically formatted in
 
 ### Importing the project into Eclipse
 
-Elasticsearch builds using Gradle and Java 16. When importing into Eclipse you
-will either need to use an appropriate JDK to run Eclipse itself (e.g. by
-specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
-defining the JDK Gradle uses by setting **Preferences** > **Gradle** >
-**Advanced Options** > **Java home** to an appropriate version.
-
-IMPORTANT: If you have previously imported the project by running `./gradlew eclipse`
-           then you must build an entirely new workspace and `git clean -xdf` to
-           blow away *everything* that the gradle eclipse plugin made.
+Elasticsearch builds using Gradle and Java 17. You'll need Eclipse 2021-09
+and it's [Java 17 support ](https://marketplace.eclipse.org/content/java-17-support-eclipse-2021-09-421)
+Then point [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini)'s `-vm` to
+Java 17.
 
  - Select **File > Import...**
  - Select **Existing Gradle Project**

@@ -60,7 +60,7 @@ public class ScriptLanguagesInfoTests extends ESTestCase {
         );
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(settings, engines, ScriptModule.CORE_CONTEXTS);
+        return new ScriptService(settings, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
     }
 
     public interface MiscContext {
@@ -86,7 +86,7 @@ public class ScriptLanguagesInfoTests extends ESTestCase {
         Map<String, ScriptContext<?>> mockAndMiscContexts = new HashMap<>(mockContexts);
         mockAndMiscContexts.put(miscContext, new ScriptContext<>(miscContext, MiscContext.class));
 
-        ScriptService ss = new ScriptService(Settings.EMPTY, engines, mockAndMiscContexts);
+        ScriptService ss = new ScriptService(Settings.EMPTY, engines, mockAndMiscContexts, () -> 1L);
         ScriptLanguagesInfo info = ss.getScriptLanguages();
 
         assertTrue(info.languageContexts.containsKey(MockScriptEngine.NAME));
@@ -115,7 +115,7 @@ public class ScriptLanguagesInfoTests extends ESTestCase {
         Map<String, ScriptContext<?>> mockAndMiscContexts = new HashMap<>(mockContexts);
         mockAndMiscContexts.put(miscContext, new ScriptContext<>(miscContext, MiscContext.class));
 
-        ScriptService ss = new ScriptService(settings.build(), engines, mockAndMiscContexts);
+        ScriptService ss = new ScriptService(settings.build(), engines, mockAndMiscContexts, () -> 1L);
         ScriptLanguagesInfo info = ss.getScriptLanguages();
 
         assertTrue(info.languageContexts.containsKey(MockScriptEngine.NAME));

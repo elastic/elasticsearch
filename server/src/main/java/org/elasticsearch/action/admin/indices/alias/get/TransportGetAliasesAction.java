@@ -84,7 +84,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         // resolve all concrete indices upfront and warn/error later
         final String[] concreteIndices = indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(state, request);
         final SystemIndexAccessLevel systemIndexAccessLevel = indexNameExpressionResolver.getSystemIndexAccessLevel();
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request, concreteIndices);
+        ImmutableOpenMap<String, List<AliasMetadata>> aliases = state.metadata().findAliases(request.aliases(), concreteIndices);
         listener.onResponse(
             new GetAliasesResponse(
                 postProcess(request, concreteIndices, aliases, state, systemIndexAccessLevel, threadPool.getThreadContext(), systemIndices),
@@ -184,7 +184,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             }
         });
         if (systemIndicesNames.isEmpty() == false) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.API,
                 "open_system_index_access",
                 "this request accesses system indices: {}, but in a future major version, direct access to system "
@@ -228,7 +228,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
         }
 
         if (systemAliases.isEmpty() == false) {
-            deprecationLogger.critical(
+            deprecationLogger.warn(
                 DeprecationCategory.API,
                 "open_system_alias_access",
                 "this request accesses aliases with names reserved for system indices: {}, but in a future major version, direct "

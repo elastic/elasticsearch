@@ -8,6 +8,7 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -60,7 +61,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
     static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
     static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
-    private static final String ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER = "X-elastic-product-origin";
 
     private static final BytesReference FAVICON_RESPONSE;
 
@@ -125,6 +125,27 @@ public class RestController implements HttpServerTransport.Dispatcher {
         RestHandler handler,
         String deprecationMessage
     ) {
+        registerAsDeprecatedHandler(method, path, version, handler, deprecationMessage, null);
+    }
+
+    /**
+     * Registers a REST handler to be executed when the provided {@code method} and {@code path} match the request.
+     *
+     * @param method GET, POST, etc.
+     * @param path Path to handle (e.g. "/{index}/{type}/_bulk")
+     * @param version API version to handle (e.g. RestApiVersion.V_8)
+     * @param handler The handler to actually execute
+     * @param deprecationMessage The message to log and send as a header in the response
+     * @param deprecationLevel The deprecation log level to use for the deprecation warning, either WARN or CRITICAL
+     */
+    protected void registerAsDeprecatedHandler(
+        RestRequest.Method method,
+        String path,
+        RestApiVersion version,
+        RestHandler handler,
+        String deprecationMessage,
+        @Nullable Level deprecationLevel
+    ) {
         assert (handler instanceof DeprecationRestHandler) == false;
         if (version == RestApiVersion.current()) {
             // e.g. it was marked as deprecated in 8.x, and we're currently running 8.x
@@ -132,7 +153,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 method,
                 path,
                 version,
-                new DeprecationRestHandler(handler, method, path, deprecationMessage, deprecationLogger, false)
+                new DeprecationRestHandler(handler, method, path, deprecationLevel, deprecationMessage, deprecationLogger, false)
             );
         } else if (version == RestApiVersion.minimumSupported()) {
             // e.g. it was marked as deprecated in 7.x, and we're currently running 8.x
@@ -140,7 +161,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 method,
                 path,
                 version,
-                new DeprecationRestHandler(handler, method, path, deprecationMessage, deprecationLogger, true)
+                new DeprecationRestHandler(handler, method, path, deprecationLevel, deprecationMessage, deprecationLogger, true)
             );
         } else {
             // e.g. it was marked as deprecated in 7.x, and we're currently running *9.x*
@@ -255,7 +276,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 route.getPath(),
                 route.getRestApiVersion(),
                 handler,
-                route.getDeprecationMessage()
+                route.getDeprecationMessage(),
+                route.getDeprecationLevel()
             );
         } else {
             // it's just a normal route
@@ -349,7 +371,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product and
                 // therefore we should allow a subset of external system index access.
                 // This header is intended for internal use only.
-                final String prodOriginValue = request.header(ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+                final String prodOriginValue = request.header(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
                 if (prodOriginValue != null) {
                     threadContext.putHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, Boolean.TRUE.toString());
                     threadContext.putHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY, prodOriginValue);
@@ -456,7 +478,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 final List<String> distinctHeaderValues = headerValues.stream().distinct().collect(Collectors.toList());
                 if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
                     throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
-                } else if (name.equals(Task.TRACE_PARENT)) {
+                } else if (name.equals(Task.TRACE_PARENT_HTTP_HEADER)) {
                     String traceparent = distinctHeaderValues.get(0);
                     if (traceparent.length() >= 55) {
                         threadContext.putHeader(Task.TRACE_ID, traceparent.substring(3, 35));

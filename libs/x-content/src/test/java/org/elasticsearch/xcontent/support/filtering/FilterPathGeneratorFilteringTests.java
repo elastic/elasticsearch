@@ -15,7 +15,8 @@ import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
+import java.util.Arrays;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -67,6 +68,11 @@ public class FilterPathGeneratorFilteringTests extends ESTestCase {
         assertResult(SAMPLE, "**.l", true, "{'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
 
         assertResult(SAMPLE, "**.*2", true, "{'e':[{'f2':'f2_value'},{'g2':'g2_value'}]}");
+
+        assertResult(SAMPLE, "h.i.j.k.l,h.i.j.k.l.m", true, "{'h':{'i':{'j':{'k':{'l':'l_value'}}}}}");
+        assertResult(SAMPLE, "a,b,c,d,e.f1,e.f2,e.g1,e.g2,h.i.j.k.l", true, SAMPLE);
+        assertResult(SAMPLE, "", true, "");
+        assertResult(SAMPLE, "h.", true, "");
     }
 
     public void testExclusiveFilters() throws Exception {
@@ -278,6 +284,16 @@ public class FilterPathGeneratorFilteringTests extends ESTestCase {
                 + "{'g1':'g1_value'}],'h':{'i':{'j':{'k':{'l':'l_value'}}}}}"
         );
 
+        assertResult(
+            SAMPLE,
+            "h.i.j.k.l,h.i.j.k.l.m",
+            false,
+            "{'a':0,'b':true,'c':'c_value','d':[0,1,2],'e':[{'f1':'f1_value','f2':'f2_value'}," + "{'g1':'g1_value','g2':'g2_value'}]}"
+        );
+
+        assertResult(SAMPLE, "a,b,c,d,e.f1,e.f2,e.g1,e.g2,h.i.j.k.l", false, "");
+        assertResult(SAMPLE, "", false, SAMPLE);
+        assertResult(SAMPLE, "h.", false, SAMPLE);
     }
 
     public void testInclusiveFiltersWithDots() throws Exception {
@@ -295,7 +311,7 @@ public class FilterPathGeneratorFilteringTests extends ESTestCase {
             try (
                 FilteringGeneratorDelegate generator = new FilteringGeneratorDelegate(
                     JSON_FACTORY.createGenerator(os),
-                    new FilterPathBasedFilter(Collections.singleton(filter), inclusive),
+                    new FilterPathBasedFilter(Arrays.asList(filter.split(",")).stream().collect(Collectors.toSet()), inclusive),
                     true,
                     true
                 )

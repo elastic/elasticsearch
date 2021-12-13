@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import com.carrotsearch.hppc.IntHashSet;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
@@ -56,6 +54,7 @@ import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeci
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -327,7 +326,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .build();
         metaBuilder.put(indexMetadata, true);
         stateBuilder.metadata(metaBuilder);
-        stateBuilder.routingTable(RoutingTable.builder().addAsNewRestore(indexMetadata, recoverySource, new IntHashSet()).build());
+        stateBuilder.routingTable(RoutingTable.builder().addAsNewRestore(indexMetadata, recoverySource, new HashSet<>()).build());
         ClusterState clusterState = stateBuilder.build();
 
         int shardId = randomInt(indexMetadata.getNumberOfShards() - 1);

@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -50,12 +49,10 @@ public class TransportStartILMAction extends AcknowledgedTransportMasterNodeActi
 
     @Override
     protected void masterOperation(Task task, StartILMRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("ilm_operation_mode_update", new AckedClusterStateUpdateTask(request, listener) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return (OperationModeUpdateTask.ilmMode(OperationMode.RUNNING)).execute(currentState);
-            }
-        });
+        clusterService.submitStateUpdateTask(
+            "ilm_operation_mode_update[running]",
+            OperationModeUpdateTask.wrap(OperationModeUpdateTask.ilmMode(OperationMode.RUNNING), request, listener)
+        );
     }
 
     @Override

@@ -186,10 +186,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs()
-            .stream()
-            .map(policyConfig -> policyConfig.load(xContentRegistry))
-            .collect(Collectors.toList());
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
         assertThat(policies, hasSize(1));
         LifecyclePolicy policy = policies.get(0);
         policyMap.put(policy.getName(), policy);
@@ -220,10 +217,7 @@ public class WatcherIndexTemplateRegistryTests extends ESTestCase {
 
         Map<String, LifecyclePolicy> policyMap = new HashMap<>();
         String policyStr = "{\"phases\":{\"delete\":{\"min_age\":\"1m\",\"actions\":{\"delete\":{}}}}}";
-        List<LifecyclePolicy> policies = registry.getPolicyConfigs()
-            .stream()
-            .map(policyConfig -> policyConfig.load(xContentRegistry))
-            .collect(Collectors.toList());
+        List<LifecyclePolicy> policies = registry.getPolicyConfigs();
         assertThat(policies, hasSize(1));
         LifecyclePolicy policy = policies.get(0);
         try (

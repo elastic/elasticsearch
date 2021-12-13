@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[ml-put-job]]
 = Create {anomaly-jobs} API
 ++++

@@ -317,7 +317,7 @@ public class ChunkedTrainedModelPersister {
                     XContentHelper.convertToMap(JsonXContent.jsonXContent, analytics.toString(), true)
                 )
             )
-            .setEstimatedHeapMemory(modelSize.ramBytesUsed() + customProcessorSize)
+            .setModelSize(modelSize.ramBytesUsed() + customProcessorSize)
             .setEstimatedOperations(modelSize.numOperations())
             .setInput(new TrainedModelInput(fieldNamesWithoutDependentVariable))
             .setLicenseLevel(License.OperationMode.PLATINUM.description())

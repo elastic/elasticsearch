@@ -82,7 +82,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         final int totalNumDocs = scaledRandomIntBetween(200, 10000);
         int waitFor = totalNumDocs / 10;
         int extraDocs = waitFor;
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), extraDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", client(), extraDocs)) {
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
@@ -146,7 +146,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         final int totalNumDocs = scaledRandomIntBetween(200, 10000);
         int waitFor = totalNumDocs / 10;
         int extraDocs = waitFor;
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), extraDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", client(), extraDocs)) {
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
@@ -207,7 +207,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         final int totalNumDocs = scaledRandomIntBetween(200, 10000);
         int waitFor = totalNumDocs / 10;
         int extraDocs = waitFor;
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), extraDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", client(), extraDocs)) {
             logger.info("--> waiting for {} docs to be indexed ...", waitFor);
             waitForDocs(waitFor, indexer);
             indexer.assertNoFailures();
@@ -323,7 +323,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
         final int numDocs = scaledRandomIntBetween(200, 9999);
 
-        try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), numDocs)) {
+        try (BackgroundIndexer indexer = new BackgroundIndexer("test", client(), numDocs)) {
 
             for (int i = 0; i < numDocs; i += scaledRandomIntBetween(100, Math.min(1000, numDocs))) {
                 indexer.assertNoFailures();

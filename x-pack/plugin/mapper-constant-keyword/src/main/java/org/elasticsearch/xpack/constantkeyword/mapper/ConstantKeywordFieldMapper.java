@@ -23,7 +23,9 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -35,6 +37,7 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentParser;
@@ -130,7 +133,15 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new ConstantIndexFieldData.Builder(value, name(), CoreValuesSourceType.KEYWORD);
+            return new ConstantIndexFieldData.Builder(
+                value,
+                name(),
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new DelegateDocValuesField(
+                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                    n
+                )
+            );
         }
 
         @Override
@@ -201,7 +212,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query fuzzyQuery(
-            Object value,
+            Object term,
             Fuzziness fuzziness,
             int prefixLength,
             int maxExpansions,
@@ -212,7 +223,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 return new MatchNoDocsQuery();
             }
 
-            final String termAsString = BytesRefs.toString(value);
+            final String termAsString = BytesRefs.toString(term);
             final int maxEdits = fuzziness.asDistance(termAsString);
 
             final int[] termText = new int[termAsString.codePointCount(0, termAsString.length())];
@@ -237,7 +248,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query regexpQuery(
-            String value,
+            String regexp,
             int syntaxFlags,
             int matchFlags,
             int maxDeterminizedStates,
@@ -248,7 +259,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 return new MatchNoDocsQuery();
             }
 
-            final Automaton automaton = new RegExp(value, syntaxFlags, matchFlags).toAutomaton(maxDeterminizedStates);
+            final Automaton automaton = new RegExp(regexp, syntaxFlags, matchFlags).toAutomaton(maxDeterminizedStates);
             final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
             if (runAutomaton.run(this.value)) {
                 return new MatchAllDocsQuery();

@@ -26,6 +26,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
@@ -152,16 +153,16 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     protected FrozenCacheService randomFrozenCacheService() {
         final Settings.Builder cacheSettings = Settings.builder();
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
+            cacheSettings.put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), randomFrozenCacheSize());
         }
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(), pageAligned(randomFrozenCacheSize()));
+            cacheSettings.put(FrozenCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), pageAligned(randomFrozenCacheSize()));
         }
         if (randomBoolean()) {
             cacheSettings.put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
         }
         if (randomBoolean()) {
-            cacheSettings.put(FrozenCacheService.FROZEN_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
+            cacheSettings.put(FrozenCacheService.SHARED_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomFrozenCacheRangeSize());
         }
         return new FrozenCacheService(singlePathNodeEnvironment, cacheSettings.build(), threadPool);
     }
@@ -182,7 +183,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         return new FrozenCacheService(
             singlePathNodeEnvironment,
             Settings.builder()
-                .put(FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING.getKey(), cacheSize)
+                .put(FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
                 .put(FrozenCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), cacheRangeSize)
                 .build(),
             threadPool
@@ -216,7 +217,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
     }
 
     protected static ByteSizeValue randomFrozenCacheRangeSize() {
-        return pageAlignedBetween(FrozenCacheService.MIN_SNAPSHOT_CACHE_RANGE_SIZE, FrozenCacheService.MAX_SNAPSHOT_CACHE_RANGE_SIZE);
+        return pageAlignedBetween(new ByteSizeValue(4, ByteSizeUnit.KB), new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES));
     }
 
     private static ByteSizeValue pageAlignedBetween(ByteSizeValue min, ByteSizeValue max) {

@@ -49,6 +49,7 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * A node for testing which allows:
@@ -157,9 +158,14 @@ public class MockNode extends Node {
     }
 
     @Override
-    protected ScriptService newScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
+    protected ScriptService newScriptService(
+        Settings settings,
+        Map<String, ScriptEngine> engines,
+        Map<String, ScriptContext<?>> contexts,
+        LongSupplier timeProvider
+    ) {
         if (getPluginsService().filterPlugins(MockScriptService.TestPlugin.class).isEmpty()) {
-            return super.newScriptService(settings, engines, contexts);
+            return super.newScriptService(settings, engines, contexts, timeProvider);
         }
         return new MockScriptService(settings, engines, contexts);
     }

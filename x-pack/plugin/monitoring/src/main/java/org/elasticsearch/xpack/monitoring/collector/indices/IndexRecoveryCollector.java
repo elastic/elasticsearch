@@ -47,7 +47,7 @@ public class IndexRecoveryCollector extends Collector {
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope,
-        Setting.Property.Deprecated
+        Setting.Property.DeprecatedWarning
     );
 
     private final Client client;

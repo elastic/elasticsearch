@@ -8,8 +8,9 @@
 
 package org.elasticsearch.legacygeo;
 
+import org.elasticsearch.common.geo.GeometryNormalizer;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.LinearRing;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.legacygeo.builders.CircleBuilder;
 import org.elasticsearch.legacygeo.builders.CoordinatesBuilder;
 import org.elasticsearch.legacygeo.builders.EnvelopeBuilder;
@@ -800,6 +801,6 @@ public class ShapeBuilderTests extends ESTestCase {
     }
 
     public Object buildGeometry(ShapeBuilder<?, ?, ?> builder) {
-        return new GeoShapeIndexer(true, "name").prepareForIndexing(builder.buildGeometry());
+        return GeometryNormalizer.apply(Orientation.CCW, builder.buildGeometry());
     }
 }

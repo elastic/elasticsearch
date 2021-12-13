@@ -38,6 +38,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertThat;
 
 public abstract class TransformRestTestCase extends ESRestTestCase {
 
@@ -383,6 +385,13 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         refreshIndex(transformIndex);
     }
 
+    protected void resetTransform(String transformId, boolean force) throws IOException {
+        final Request resetTransformRequest = createRequestWithAuth("POST", getTransformEndpoint() + transformId + "/_reset", null);
+        resetTransformRequest.addParameter(TransformField.FORCE.getPreferredName(), Boolean.toString(force));
+        Map<String, Object> resetTransformResponse = entityAsMap(client().performRequest(resetTransformRequest));
+        assertThat(resetTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+    }
+
     protected Request createRequestWithAuth(final String method, final String endpoint, final String authHeader) {
         final Request request = new Request(method, endpoint);
 
@@ -412,11 +421,13 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected static List<Map<String, Object>> getTransforms() throws IOException {
-        Response response = adminClient().performRequest(new Request("GET", getTransformEndpoint() + "_all"));
+    protected static List<Map<String, Object>> getTransforms(List<Map<String, String>> expectedErrors) throws IOException {
+        Request request = new Request("GET", getTransformEndpoint() + "_all");
+        Response response = adminClient().performRequest(request);
         Map<String, Object> transforms = entityAsMap(response);
         List<Map<String, Object>> transformConfigs = (List<Map<String, Object>>) XContentMapValues.extractValue("transforms", transforms);
-
+        List<Map<String, String>> errors = (List<Map<String, String>>) XContentMapValues.extractValue("errors", transforms);
+        assertThat(errors, is(equalTo(expectedErrors)));
         return transformConfigs == null ? Collections.emptyList() : transformConfigs;
     }
 

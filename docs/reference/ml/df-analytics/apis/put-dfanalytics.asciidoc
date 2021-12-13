@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="platinum"]
 [[put-dfanalytics]]
 = Create {dfanalytics-jobs} API
 [subs="attributes"]

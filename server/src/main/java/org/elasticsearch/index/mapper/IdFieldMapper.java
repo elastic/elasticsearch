@@ -21,6 +21,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -66,7 +67,6 @@ public class IdFieldMapper extends MetadataFieldMapper {
     public static final String CONTENT_TYPE = "_id";
 
     public static class Defaults {
-        public static final String NAME = IdFieldMapper.NAME;
 
         public static final FieldType FIELD_TYPE = new FieldType();
         public static final FieldType NESTED_FIELD_TYPE;
@@ -87,7 +87,9 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new IdFieldMapper(c.isIdFieldDataEnabled()));
+    public static final IdFieldMapper NO_FIELD_DATA = new IdFieldMapper(() -> false);
+
+    public static final TypeParser PARSER = new FixedTypeParser(MappingParserContext::idFieldMapper);
 
     static final class IdFieldType extends TermBasedFieldType {
 
@@ -151,12 +153,16 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
-                CoreValuesSourceType.KEYWORD
+                CoreValuesSourceType.KEYWORD,
+                (dv, n) -> new DelegateDocValuesField(
+                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
+                    n
+                )
             );
             return new IndexFieldData.Builder() {
                 @Override
                 public IndexFieldData<?> build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-                    deprecationLogger.critical(DeprecationCategory.AGGREGATIONS, "id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
+                    deprecationLogger.warn(DeprecationCategory.AGGREGATIONS, "id_field_data", ID_FIELD_DATA_DEPRECATION_MESSAGE);
                     final IndexFieldData<?> fieldData = fieldDataBuilder.build(cache, breakerService);
                     return new IndexFieldData<>() {
                         @Override
@@ -219,7 +225,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
             @Override
             public DocValuesField<?> getScriptField(String name) {
-                return new DelegateDocValuesField(new ScriptDocValues.Strings(getBytesValues()), name);
+                return new DelegateDocValuesField(new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(getBytesValues())), name);
             }
 
             @Override
@@ -253,7 +259,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    private IdFieldMapper(BooleanSupplier fieldDataEnabled) {
+    public IdFieldMapper(BooleanSupplier fieldDataEnabled) {
         super(new IdFieldType(fieldDataEnabled), Lucene.KEYWORD_ANALYZER);
     }
 

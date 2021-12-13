@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.regex.Regex;
@@ -17,10 +16,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Nullable;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
-import java.util.stream.Collectors;
 
 public class DiscoveryNodeFilters {
 
@@ -36,23 +34,23 @@ public class DiscoveryNodeFilters {
      * "_ip", "_host_ip", and "_publish_ip" and ensuring each of their comma separated values
      * that has no wildcards is a valid IP address.
      */
-    public static final BiConsumer<String, String> IP_VALIDATOR = (propertyKey, rawValue) -> {
-        if (rawValue != null) {
+    public static void validateIpValue(String propertyKey, List<String> values) {
+        if (values != null) {
             if (propertyKey.endsWith("._ip") || propertyKey.endsWith("._host_ip") || propertyKey.endsWith("_publish_ip")) {
-                for (String value : Strings.tokenizeToStringArray(rawValue, ",")) {
+                for (String value : values) {
                     if (Regex.isSimpleMatchPattern(value) == false && InetAddresses.isInetAddress(value) == false) {
                         throw new IllegalArgumentException("invalid IP address [" + value + "] for [" + propertyKey + "]");
                     }
                 }
             }
         }
-    };
+    }
 
-    public static DiscoveryNodeFilters buildFromKeyValue(OpType opType, Map<String, String> filters) {
+    public static DiscoveryNodeFilters buildFromKeyValues(OpType opType, Map<String, List<String>> filters) {
         Map<String, String[]> bFilters = new HashMap<>();
-        for (Map.Entry<String, String> entry : filters.entrySet()) {
-            String[] values = Strings.tokenizeToStringArray(entry.getValue(), ",");
-            if (values.length > 0) {
+        for (var entry : filters.entrySet()) {
+            String[] values = entry.getValue().toArray(String[]::new);
+            if (values.length > 0 && entry.getKey() != null) {
                 bFilters.put(entry.getKey(), values);
             }
         }
@@ -66,9 +64,13 @@ public class DiscoveryNodeFilters {
 
     private final OpType opType;
 
-    DiscoveryNodeFilters(OpType opType, Map<String, String[]> filters) {
+    @Nullable
+    private final DiscoveryNodeFilters withoutTierPreferences;
+
+    private DiscoveryNodeFilters(OpType opType, Map<String, String[]> filters) {
         this.opType = opType;
-        this.filters = filters;
+        this.filters = Map.copyOf(filters);
+        this.withoutTierPreferences = doTrimTier(this);
     }
 
     private boolean matchByIP(String[] values, @Nullable String hostIp, @Nullable String publishIp) {
@@ -89,24 +91,17 @@ public class DiscoveryNodeFilters {
      */
     @Nullable
     public static DiscoveryNodeFilters trimTier(@Nullable DiscoveryNodeFilters original) {
-        if (original == null) {
-            return null;
-        }
+        return original == null ? null : original.withoutTierPreferences;
+    }
 
-        Map<String, String[]> newFilters = original.filters.entrySet()
-            .stream()
-            // Remove all entries that use "_tier_preference", as these will be handled elsewhere
-            .filter(entry -> {
-                String attr = entry.getKey();
-                return attr != null && attr.equals("_tier_preference") == false;
-            })
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-
-        if (newFilters.size() == 0) {
-            return null;
-        } else {
-            return new DiscoveryNodeFilters(original.opType, newFilters);
+    private static DiscoveryNodeFilters doTrimTier(DiscoveryNodeFilters original) {
+        if (original.filters.containsKey("_tier_preference") == false) {
+            return original;
         }
+        final Map<String, String[]> newFilters = new HashMap<>(original.filters);
+        final String[] removed = newFilters.remove("_tier_preference");
+        assert removed != null;
+        return newFilters.isEmpty() ? null : new DiscoveryNodeFilters(original.opType, newFilters);
     }
 
     public boolean match(DiscoveryNode node) {

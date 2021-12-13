@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="enterprise"]
 [[autoscaling-delete-autoscaling-policy]]
 === Delete autoscaling policy API
 ++++

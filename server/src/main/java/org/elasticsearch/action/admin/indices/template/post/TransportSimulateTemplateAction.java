@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -48,6 +49,7 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
     private final NamedXContentRegistry xContentRegistry;
     private final IndicesService indicesService;
     private AliasValidator aliasValidator;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportSimulateTemplateAction(
@@ -58,7 +60,8 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         NamedXContentRegistry xContentRegistry,
-        IndicesService indicesService
+        IndicesService indicesService,
+        SystemIndices systemIndices
     ) {
         super(
             SimulateTemplateAction.NAME,
@@ -75,6 +78,7 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         this.xContentRegistry = xContentRegistry;
         this.indicesService = indicesService;
         this.aliasValidator = new AliasValidator();
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -152,7 +156,8 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
             stateWithTemplate,
             xContentRegistry,
             indicesService,
-            aliasValidator
+            aliasValidator,
+            systemIndices
         );
         listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
     }

@@ -81,8 +81,6 @@ include::securing-communications/security-basic-setup.asciidoc[]
 
 include::securing-communications/security-basic-setup-https.asciidoc[]
 
-include::securing-communications/configuring-tls-docker.asciidoc[]
-
 include::securing-communications/enabling-cipher-suites.asciidoc[]
 
 include::securing-communications/tls-versions-jdk.asciidoc[]

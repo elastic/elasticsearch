@@ -46,7 +46,7 @@ public class RestMultiGetActionTests extends RestActionTestCase {
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
         ).withMethod(RestRequest.Method.GET).withPath("some_index/some_type/_mget").build();
         dispatchRequest(deprecatedRequest);
-        assertWarnings(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
     }
 
     public void testTypeInBody() throws Exception {
@@ -70,7 +70,7 @@ public class RestMultiGetActionTests extends RestActionTestCase {
             .withContent(BytesReference.bytes(content), null)
             .build();
         dispatchRequest(request);
-        assertWarnings(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
+        assertCriticalWarnings(RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
     }
 
 }

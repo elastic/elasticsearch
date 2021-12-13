@@ -96,8 +96,7 @@ public final class MappingParser {
 
     private Mapping parse(String type, Map<String, Object> mapping) throws MapperParsingException {
         MappingParserContext parserContext = parserContextSupplier.get();
-        RootObjectMapper.Builder rootObjectMapperBuilder = rootObjectTypeParser.parse(type, mapping, parserContext);
-        parserContext.getIndexSettings().getMode().completeMappings(parserContext, mapping, rootObjectMapperBuilder);
+        RootObjectMapper rootObjectMapper = rootObjectTypeParser.parse(type, mapping, parserContext).build(MapperBuilderContext.ROOT);
 
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
@@ -112,7 +111,7 @@ public final class MappingParser {
             if (typeParser != null) {
                 iterator.remove();
                 if (false == fieldNode instanceof Map) {
-                    throw new IllegalArgumentException("[_parent] must be an object containing [type]");
+                    throw new IllegalArgumentException("[" + fieldName + "] config must be an object");
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
@@ -145,10 +144,6 @@ public final class MappingParser {
         }
         checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
 
-        return new Mapping(
-            rootObjectMapperBuilder.build(MapperBuilderContext.ROOT),
-            metadataMappers.values().toArray(new MetadataFieldMapper[0]),
-            meta
-        );
+        return new Mapping(rootObjectMapper, metadataMappers.values().toArray(new MetadataFieldMapper[0]), meta);
     }
 }

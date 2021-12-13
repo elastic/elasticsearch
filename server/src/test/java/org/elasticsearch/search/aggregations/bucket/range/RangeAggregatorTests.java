@@ -45,10 +45,10 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
-import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static java.util.Collections.singleton;
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;

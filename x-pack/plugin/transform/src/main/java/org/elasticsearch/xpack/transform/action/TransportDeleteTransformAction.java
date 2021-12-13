@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,6 +30,7 @@ import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -70,36 +70,32 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        final PersistentTasksCustomMetadata pTasksMeta = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null && request.isForce() == false) {
+        final boolean transformIsRunning = TransformTask.getTransformTask(request.getId(), state) != null;
+        if (transformIsRunning && request.isForce() == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot delete transform [" + request.getId() + "] as the task is running. Stop the task first",
                     RestStatus.CONFLICT
                 )
             );
-        } else {
-            ActionListener<Void> stopTransformActionListener = ActionListener.wrap(
-                stopResponse -> transformConfigManager.deleteTransform(request.getId(), ActionListener.wrap(r -> {
-                    logger.debug("[{}] deleted transform", request.getId());
-                    auditor.info(request.getId(), "Deleted transform.");
-                    listener.onResponse(AcknowledgedResponse.of(r));
-                }, listener::onFailure)),
-                listener::onFailure
-            );
-
-            if (pTasksMeta != null && pTasksMeta.getTask(request.getId()) != null) {
-                executeAsyncWithOrigin(
-                    client,
-                    TRANSFORM_ORIGIN,
-                    StopTransformAction.INSTANCE,
-                    new StopTransformAction.Request(request.getId(), true, true, null, true, false),
-                    ActionListener.wrap(r -> stopTransformActionListener.onResponse(null), stopTransformActionListener::onFailure)
-                );
-            } else {
-                stopTransformActionListener.onResponse(null);
-            }
+            return;
         }
+
+        ActionListener<StopTransformAction.Response> stopTransformActionListener = ActionListener.wrap(
+            unusedStopResponse -> transformConfigManager.deleteTransform(request.getId(), ActionListener.wrap(r -> {
+                logger.debug("[{}] deleted transform", request.getId());
+                auditor.info(request.getId(), "Deleted transform.");
+                listener.onResponse(AcknowledgedResponse.of(r));
+            }, listener::onFailure)),
+            listener::onFailure
+        );
+
+        if (transformIsRunning == false) {
+            stopTransformActionListener.onResponse(null);
+            return;
+        }
+        StopTransformAction.Request stopTransformRequest = new StopTransformAction.Request(request.getId(), true, true, null, true, false);
+        executeAsyncWithOrigin(client, TRANSFORM_ORIGIN, StopTransformAction.INSTANCE, stopTransformRequest, stopTransformActionListener);
     }
 
     @Override

@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.upgrades;
 
-import io.github.nik9000.mapmatcher.ListMatcher;
-
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -19,6 +17,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -30,10 +29,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
-import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
-import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;

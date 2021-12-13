@@ -40,9 +40,10 @@ public class GetJobModelSnapshotsUpgradeStatsActionResponseTests extends Abstrac
     }
 
     public static Response.JobModelSnapshotUpgradeStats createRandomizedStat() {
-        Response.JobModelSnapshotUpgradeStats.Builder builder =
-            Response.JobModelSnapshotUpgradeStats.builder(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20))
-            .setUpgradeState(randomFrom(SnapshotUpgradeState.values()));
+        Response.JobModelSnapshotUpgradeStats.Builder builder = Response.JobModelSnapshotUpgradeStats.builder(
+            randomAlphaOfLengthBetween(1, 20),
+            randomAlphaOfLengthBetween(1, 20)
+        ).setUpgradeState(randomFrom(SnapshotUpgradeState.values()));
         if (randomBoolean()) {
             builder.setNode(new DiscoveryNode("_id", new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT));
         } else {

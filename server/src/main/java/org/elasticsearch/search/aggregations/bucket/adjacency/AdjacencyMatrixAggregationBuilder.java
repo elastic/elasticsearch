@@ -206,8 +206,12 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
         int maxFilters = IndexSearcher.getMaxClauseCount();
         if (filters.size() > maxFilters) {
             throw new IllegalArgumentException(
-                "Number of filters is too large, must be less than or equal to: [" + maxFilters + "] but was [" + filters.size() + "].  " +
-                    "You can increase this limit by scaling up your java heap or number of CPUs"
+                "Number of filters is too large, must be less than or equal to: ["
+                    + maxFilters
+                    + "] but was ["
+                    + filters.size()
+                    + "].  "
+                    + "You can increase this limit by scaling up your java heap or number of CPUs"
             );
         }
         return new AdjacencyMatrixAggregatorFactory(name, filters, separator, context, parent, subFactoriesBuilder, metadata);

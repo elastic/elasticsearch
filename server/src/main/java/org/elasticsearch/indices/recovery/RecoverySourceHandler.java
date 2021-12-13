@@ -559,10 +559,20 @@ public class RecoverySourceHandler {
             }
             if (canSkipPhase1(recoverySourceMetadata, request.metadataSnapshot()) == false) {
                 cancellableThreads.checkForCancel();
-                final boolean canUseSnapshots = useSnapshots && request.canDownloadSnapshotFiles();
-                Store.MetadataSnapshot targetMetadata = isSearchableSnapshotStore(shard.indexSettings().getSettings())
-                    ? recoverySourceMetadata
-                    : request.metadataSnapshot();
+                final Store.MetadataSnapshot targetMetadata;
+                final boolean canUseSnapshots;
+                if (isSearchableSnapshotStore(shard.indexSettings().getSettings())) {
+                    // When using searchable snapshots, skip the file copy process as the target node already knows how to retrieve those
+                    // files; skipping the file copy process is done by setting sourceMetadata == targetMetadata.
+                    // We can't fully skip phase 1, as we still want to run the cleanFiles step to prepare the files on the target node
+                    targetMetadata = recoverySourceMetadata;
+                    // Set canUseSnapshots to false to avoid scanning the snapshot repository for available snapshots as
+                    // we already know that there is a snapshot available and the target node knows how to retrieve the files.
+                    canUseSnapshots = false;
+                } else {
+                    targetMetadata = request.metadataSnapshot();
+                    canUseSnapshots = useSnapshots && request.canDownloadSnapshotFiles();
+                }
                 recoveryPlannerService.computeRecoveryPlan(
                     shard.shardId(),
                     shardStateIdentifier,

@@ -44,6 +44,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.index.shard.StoreRecovery;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -227,6 +228,17 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
+                    if (isSearchableSnapshotStore(indexShard.indexSettings().getSettings())) {
+                        // for searchable snapshots, peer recovery is treated similarly to recovery from snapshot
+                        indexShard.getIndexEventListener().afterFilesRestoredFromRepository(indexShard);
+                        final Store store = indexShard.store();
+                        store.incRef();
+                        try {
+                            StoreRecovery.bootstrap(indexShard, store);
+                        } finally {
+                            store.decRef();
+                        }
+                    }
                     final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
@@ -284,51 +296,45 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         logger.trace("{} collecting local files for [{}]", recoveryTarget.shardId(), recoveryTarget.sourceNode());
 
         Store.MetadataSnapshot metadataSnapshot;
-
-        if (isSearchableSnapshotStore(recoveryTarget.indexShard().indexSettings().getSettings())) {
-            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
-            startingSeqNo = UNASSIGNED_SEQ_NO;
-        } else {
+        try {
+            metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
+            // Make sure that the current translog is consistent with the Lucene index; otherwise, we have to throw away the Lucene index.
             try {
-                metadataSnapshot = recoveryTarget.indexShard().snapshotStoreMetadata();
-                // Make sure that the current translog is consistent with the Lucene index; otherwise, we have to throw away the index.
-                try {
-                    final String expectedTranslogUUID = metadataSnapshot.getCommitUserData().get(Translog.TRANSLOG_UUID_KEY);
-                    final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), expectedTranslogUUID);
-                    assert globalCheckpoint + 1 >= startingSeqNo : "invalid startingSeqNo " + startingSeqNo + " >= " + globalCheckpoint;
-                } catch (IOException | TranslogCorruptedException e) {
-                    logger.warn(
-                        new ParameterizedMessage(
-                            "error while reading global checkpoint from translog, "
-                                + "resetting the starting sequence number from {} to unassigned and recovering as if there are none",
-                            startingSeqNo
-                        ),
-                        e
-                    );
-                    metadataSnapshot = Store.MetadataSnapshot.EMPTY;
-                    startingSeqNo = UNASSIGNED_SEQ_NO;
-                }
-            } catch (final org.apache.lucene.index.IndexNotFoundException e) {
-                // happens on an empty folder. no need to log
-                assert startingSeqNo == UNASSIGNED_SEQ_NO : startingSeqNo;
-                logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
+                final String expectedTranslogUUID = metadataSnapshot.getCommitUserData().get(Translog.TRANSLOG_UUID_KEY);
+                final long globalCheckpoint = Translog.readGlobalCheckpoint(recoveryTarget.translogLocation(), expectedTranslogUUID);
+                assert globalCheckpoint + 1 >= startingSeqNo : "invalid startingSeqNo " + startingSeqNo + " >= " + globalCheckpoint;
+            } catch (IOException | TranslogCorruptedException e) {
+                logger.warn(
+                    new ParameterizedMessage(
+                        "error while reading global checkpoint from translog, "
+                            + "resetting the starting sequence number from {} to unassigned and recovering as if there are none",
+                        startingSeqNo
+                    ),
+                    e
+                );
                 metadataSnapshot = Store.MetadataSnapshot.EMPTY;
-            } catch (final IOException e) {
-                if (startingSeqNo != UNASSIGNED_SEQ_NO) {
-                    logger.warn(
-                        new ParameterizedMessage(
-                            "error while listing local files, resetting the starting sequence number from {} "
-                                + "to unassigned and recovering as if there are none",
-                            startingSeqNo
-                        ),
-                        e
-                    );
-                    startingSeqNo = UNASSIGNED_SEQ_NO;
-                } else {
-                    logger.warn("error while listing local files, recovering as if there are none", e);
-                }
-                metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+                startingSeqNo = UNASSIGNED_SEQ_NO;
             }
+        } catch (final org.apache.lucene.index.IndexNotFoundException e) {
+            // happens on an empty folder. no need to log
+            assert startingSeqNo == UNASSIGNED_SEQ_NO : startingSeqNo;
+            logger.trace("{} shard folder empty, recovering all files", recoveryTarget);
+            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
+        } catch (final IOException e) {
+            if (startingSeqNo != UNASSIGNED_SEQ_NO) {
+                logger.warn(
+                    new ParameterizedMessage(
+                        "error while listing local files, resetting the starting sequence number from {} "
+                            + "to unassigned and recovering as if there are none",
+                        startingSeqNo
+                    ),
+                    e
+                );
+                startingSeqNo = UNASSIGNED_SEQ_NO;
+            } else {
+                logger.warn("error while listing local files, recovering as if there are none", e);
+            }
+            metadataSnapshot = Store.MetadataSnapshot.EMPTY;
         }
         logger.trace("{} local file count [{}]", recoveryTarget.shardId(), metadataSnapshot.size());
         request = new StartRecoveryRequest(

@@ -543,8 +543,8 @@ public final class ConfigurationUtils {
         String type,
         Object config
     ) throws Exception {
-        if (config instanceof Map<?, ?> map) {
-            return readProcessor(processorFactories, scriptService, type, map);
+        if (config instanceof Map) {
+            return readProcessor(processorFactories, scriptService, type, (Map<String, Object>) config);
         } else if (config instanceof String && "script".equals(type)) {
             Map<String, Object> normalizedScript = new HashMap<>(1);
             normalizedScript.put(ScriptType.INLINE.getParseField().getPreferredName(), config);

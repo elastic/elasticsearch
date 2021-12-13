@@ -111,10 +111,17 @@ public class PlanExecutor {
         metrics.total(metric);
         metrics.paging(metric);
 
-        cursor.nextPage(cfg, client, writableRegistry, wrap(listener::onResponse, ex -> {
+        nextPageInternal(cfg, cursor, wrap(listener::onResponse, ex -> {
             metrics.failed(metric);
             listener.onFailure(ex);
         }));
+    }
+
+    /**
+     * `nextPage` for internal callers (not from the APIs) without metrics reporting.
+     */
+    public void nextPageInternal(SqlConfiguration cfg, Cursor cursor, ActionListener<Page> listener) {
+        cursor.nextPage(cfg, client, writableRegistry, listener);
     }
 
     public void cleanCursor(Cursor cursor, ActionListener<Boolean> listener) {

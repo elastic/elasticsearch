@@ -368,7 +368,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         if (indexCreationDate == null) {
             return null;
         } else {
-            return TimeValue.timeValueMillis(now.get() - indexCreationDate);
+            return TimeValue.timeValueMillis(Math.max(0L, now.get() - indexCreationDate));
         }
     }
 
@@ -432,7 +432,7 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
         if (lifecycleDate == null) {
             return TimeValue.MINUS_ONE;
         } else {
-            return TimeValue.timeValueMillis(now.get() - lifecycleDate);
+            return TimeValue.timeValueMillis(Math.max(0L, now.get() - lifecycleDate));
         }
     }
 

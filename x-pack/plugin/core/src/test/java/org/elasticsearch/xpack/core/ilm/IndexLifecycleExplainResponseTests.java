@@ -52,7 +52,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
         boolean stepNull = randomBoolean();
         return IndexLifecycleExplainResponse.newManagedIndexResponse(
             randomAlphaOfLength(10),
-            randomLongBetween(0, System.currentTimeMillis()),
+            randomBoolean() ? null : randomLongBetween(0, System.currentTimeMillis()),
             randomAlphaOfLength(10),
             randomBoolean() ? null : randomLongBetween(0, System.currentTimeMillis()),
             stepNull ? null : randomAlphaOfLength(10),
@@ -101,19 +101,49 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
         assertThat(exception.getMessage(), containsString("=null"));
     }
 
-    public void testTimeSinceIndexCreation() {
+    public void testIndexAges() {
         IndexLifecycleExplainResponse unmanagedExplainResponse = randomUnmanagedIndexExplainResponse();
+        assertThat(unmanagedExplainResponse.getLifecycleDate(), is(nullValue()));
+        assertThat(unmanagedExplainResponse.getAge(System::currentTimeMillis), is(TimeValue.MINUS_ONE));
+
         assertThat(unmanagedExplainResponse.getIndexCreationDate(), is(nullValue()));
         assertThat(unmanagedExplainResponse.getTimeSinceIndexCreation(System::currentTimeMillis), is(nullValue()));
 
-        IndexLifecycleExplainResponse managedExplainResponse = randomManagedIndexExplainResponse();
+        IndexLifecycleExplainResponse managedExplainResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(
+            "indexName",
+            12345L,
+            "policy",
+            5678L,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        assertThat(managedExplainResponse.getLifecycleDate(), is(notNullValue()));
+        Long now = 1_000_000L;
+        assertThat(managedExplainResponse.getAge(() -> now), is(notNullValue()));
+        assertThat(
+            managedExplainResponse.getAge(() -> now),
+            is(equalTo(TimeValue.timeValueMillis(now - managedExplainResponse.getLifecycleDate())))
+        );
+        assertThat(managedExplainResponse.getAge(() -> 0L), is(equalTo(TimeValue.ZERO)));
         assertThat(managedExplainResponse.getIndexCreationDate(), is(notNullValue()));
-        Long now = System.currentTimeMillis();
         assertThat(managedExplainResponse.getTimeSinceIndexCreation(() -> now), is(notNullValue()));
         assertThat(
             managedExplainResponse.getTimeSinceIndexCreation(() -> now),
             is(equalTo(TimeValue.timeValueMillis(now - managedExplainResponse.getIndexCreationDate())))
         );
+        assertThat(managedExplainResponse.getTimeSinceIndexCreation(() -> 0L), is(equalTo(TimeValue.ZERO)));
     }
 
     @Override

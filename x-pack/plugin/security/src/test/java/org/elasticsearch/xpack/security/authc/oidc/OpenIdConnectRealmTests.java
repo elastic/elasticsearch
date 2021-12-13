@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.ClaimSetting;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -219,7 +220,7 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
         final Settings.Builder builder = getBasicRealmSettings();
         builder.put(getFullSettingKey(REALM_NAME, OpenIdConnectRealmSettings.PRINCIPAL_CLAIM.getPattern()), "^OIDC-(.+)");
         final RealmConfig config = buildConfig(builder.build(), threadContext);
-        final OpenIdConnectRealmSettings.ClaimSetting principalSetting = new OpenIdConnectRealmSettings.ClaimSetting("principal");
+        final ClaimSetting principalSetting = new ClaimSetting(OpenIdConnectRealmSettings.TYPE, "principal");
         final OpenIdConnectRealm.ClaimParser parser = OpenIdConnectRealm.ClaimParser.forSetting(logger, principalSetting, config, true);
         final JWTClaimsSet claims = new JWTClaimsSet.Builder().subject("OIDC-cbarton")
             .audience("https://rp.elastic.co/cb")

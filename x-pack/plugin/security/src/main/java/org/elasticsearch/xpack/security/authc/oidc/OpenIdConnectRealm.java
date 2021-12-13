@@ -40,7 +40,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.support.ClaimSetting;
 import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -482,7 +482,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
 
         static ClaimParser forSetting(
             Logger logger,
-            OpenIdConnectRealmSettings.ClaimSetting setting,
+            ClaimSetting setting,
             RealmConfig realmConfig,
             boolean required
         ) {

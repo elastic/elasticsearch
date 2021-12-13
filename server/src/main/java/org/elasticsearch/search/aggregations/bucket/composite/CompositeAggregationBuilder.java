@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -187,6 +188,11 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
             if (source == null) {
                 throw new IllegalArgumentException("Composite source cannot be null");
             }
+
+            if (TimeSeriesIdFieldMapper.NAME.equals(source.field())) {
+                throw new IllegalArgumentException("[" + TimeSeriesIdFieldMapper.NAME + "] cannot be used in composite aggregation");
+            }
+
             boolean unique = names.add(source.name());
             if (unique == false) {
                 duplicates.add(source.name());

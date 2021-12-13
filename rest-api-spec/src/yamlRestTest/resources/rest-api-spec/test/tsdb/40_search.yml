@@ -287,6 +287,31 @@ aggregate a tag:
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
 
 ---
+"composite aggregate the tsid fails":
+  - skip:
+      version: " - 8.00.99"
+      reason: _tsid support introduced in 8.1.0
+
+  - do:
+      catch: /\[_tsid\] cannot be used in composite aggregation/
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tsids:
+              composite:
+                sources: [
+                  {
+                    "tsid": {
+                      "terms": {
+                        "field": "_tsid"
+                      }
+                    }
+                  }
+                ]
+
+---
 field capabilities:
   - skip:
       version: " - 8.00.99"

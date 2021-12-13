@@ -100,7 +100,7 @@ public class TestingConventionsTasks extends DefaultTask {
 
     @OutputFile
     public File getSuccessMarker() {
-        return new File(getProject().getBuildDir(), "markers/" + getName());
+        return new File(projectLayout.getBuildDirectory().getAsFile().get(), "markers/" + getName());
     }
 
     public void naming(Closure<?> action) {

@@ -35,13 +35,10 @@ import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskP
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME;
 
 public class TransportGetJobModelSnapshotsUpgradeStatsAction extends TransportMasterNodeReadAction<Request, Response> {
 
@@ -78,9 +75,7 @@ public class TransportGetJobModelSnapshotsUpgradeStatsAction extends TransportMa
             () -> new ParameterizedMessage("[{}] get stats for model snapshot [{}] upgrades", request.getJobId(), request.getSnapshotId())
         );
         final PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgrades = (tasksInProgress == null)
-            ? Collections.emptyList()
-            : tasksInProgress.findTasks(JOB_SNAPSHOT_UPGRADE_TASK_NAME, t -> true);
+        final Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgrades = MlTasks.snapshotUpgradeTasks(tasksInProgress);
 
         // 2. Now that we have the job IDs, find the relevant model snapshot upgrades
         ActionListener<List<Job.Builder>> expandIdsListener = ActionListener.wrap(jobs -> {

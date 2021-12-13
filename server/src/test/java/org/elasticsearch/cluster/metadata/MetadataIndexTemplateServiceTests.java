@@ -2100,7 +2100,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         settings.put("index.routing_path", "uid");
         var templateWithDataStreamSnippet = new ComposableIndexTemplate(
             baseTemplate.indexPatterns(),
-            new Template(settings.build(), baseTemplate.template().mappings(), null),
+            new Template(settings.build(), baseTemplate.template() != null ? baseTemplate.template().mappings() : null, null),
             baseTemplate.composedOf(),
             baseTemplate.priority(),
             baseTemplate.version(),

@@ -480,12 +480,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             return values;
         }
 
-        static ClaimParser forSetting(
-            Logger logger,
-            ClaimSetting setting,
-            RealmConfig realmConfig,
-            boolean required
-        ) {
+        static ClaimParser forSetting(Logger logger, ClaimSetting setting, RealmConfig realmConfig, boolean required) {
 
             if (realmConfig.hasSetting(setting.getClaim())) {
                 String claimName = realmConfig.getSetting(setting.getClaim());

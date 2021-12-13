@@ -2116,8 +2116,6 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    List<Class<?>> inherited = new ArrayList<>();
-
     private void setFunctionalInterfaceMethod(Class<?> targetClass, PainlessClassBuilder targetPainlessClassBuilder) {
         if (targetClass.isInterface()) {
             List<java.lang.reflect.Method> javaMethods = new ArrayList<>();

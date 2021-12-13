@@ -18,10 +18,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 public class ScriptCompilationSettingsIT extends AbstractUpgradeTestCase {
-    private static final String WARNING =
-        "[script.max_compilations_rate] setting was deprecated in Elasticsearch and will be removed in a future release! "
-            + "See the breaking changes documentation for the next major version.";
-
     public void testMaxCompilationRate() throws IOException {
         assumeTrue(
             "default changed in v7.16",
@@ -31,19 +27,9 @@ public class ScriptCompilationSettingsIT extends AbstractUpgradeTestCase {
         String maxCompilationRate = compilationRate("template", "max_compilations_rate", "5000/5m");
         String expectedSetting = "{\"acknowledged\":true,\"persistent\":" + maxCompilationRate + ",\"transient\":{}}";
 
-        if (CLUSTER_TYPE.equals(ClusterType.OLD)) {
-            Request request = new Request("PUT", "_cluster/settings");
-            request.setJsonEntity("{\"persistent\":" + maxCompilationRate + "}");
-            request.setOptions(expectWarnings(WARNING));
-            Response response = client().performRequest(request);
-            assertEquals(expectedSetting, EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
-            System.out.println("OLDDDDDD");
-        } else if (CLUSTER_TYPE.equals(ClusterType.MIXED)) {
-            Request request = new Request("GET", "_cluster/settings");
-            Response response = client().performRequest(request);
-            assertEquals(expectedSetting, EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
-            System.out.println("MIXXXED");
-        }
+        Request request = new Request("GET", "_cluster/settings");
+        Response response = client().performRequest(request);
+        assertEquals(expectedSetting, EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
     }
 
     protected String compilationRate(String context, String field, String value) throws IOException {

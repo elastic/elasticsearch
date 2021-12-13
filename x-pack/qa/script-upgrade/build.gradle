@@ -18,6 +18,7 @@ BuildParams.bwcVersions.withWireCompatiple( v -> v.onOrAfter("7.15.0")) { bwcVer
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.license.self_generated.type', 'basic'
     setting 'script.disable_max_compilations_rate', 'false'
+    setting 'script.context.template.max_compilations_rate', '5000/5m'
   }
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {

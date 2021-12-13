@@ -191,7 +191,7 @@ public final class ConvertProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("Field [" + field + "] is null, cannot be converted to type [" + convertType + "]");
         }
 
-        if (oldValue instanceof List list) {
+        if (oldValue instanceof List<?> list) {
             List<Object> newList = new ArrayList<>(list.size());
             for (Object value : list) {
                 newList.add(convertType.convert(value));

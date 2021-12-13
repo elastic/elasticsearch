@@ -94,19 +94,21 @@ public final class FingerprintProcessor extends AbstractProcessor {
             // iteratively traverse document fields
             while (values.isEmpty() == false) {
                 var value = values.pop();
-                if (value instanceof List list) {
+                if (value instanceof List<?> list) {
                     for (int k = list.size() - 1; k >= 0; k--) {
                         values.push(list.get(k));
                     }
-                } else if (value instanceof Set set) {
-                    // process set entries in consistent order
+                } else if (value instanceof Set) {
                     @SuppressWarnings("rawtypes")
+                    var set = (Set<Comparable>) value;
+                    // process set entries in consistent order
                     var setList = new ArrayList<>(set);
                     setList.sort(Comparator.naturalOrder());
                     for (int k = setList.size() - 1; k >= 0; k--) {
                         values.push(setList.get(k));
                     }
-                } else if (value instanceof Map map) {
+                } else if (value instanceof Map) {
+                    var map = (Map<String, Object>) value;
                     // process map entries in consistent order
                     @SuppressWarnings("rawtypes")
                     var entryList = new ArrayList<>(map.entrySet());
@@ -114,7 +116,7 @@ public final class FingerprintProcessor extends AbstractProcessor {
                     for (int k = entryList.size() - 1; k >= 0; k--) {
                         values.push(entryList.get(k));
                     }
-                } else if (value instanceof Map.Entry entry) {
+                } else if (value instanceof Map.Entry<?, ?> entry) {
                     hasher.update(DELIMITER);
                     hasher.update(toBytes(entry.getKey()));
                     values.push(entry.getValue());

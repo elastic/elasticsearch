@@ -58,7 +58,7 @@ abstract class AbstractStringProcessor<T> extends AbstractProcessor {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
 
-        if (val instanceof List list) {
+        if (val instanceof List<?> list) {
             List<Object> newList = new ArrayList<>(list.size());
             for (Object value : list) {
                 if (value instanceof String string) {

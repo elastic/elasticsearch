@@ -62,7 +62,12 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
         out.writeList(buckets);
     }
 
-    protected abstract InternalGeoGrid<B> create(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata);
+    protected abstract InternalGeoGrid<B> create(
+        String name,
+        int requiredSize,
+        List<InternalGeoGridBucket> buckets,
+        Map<String, Object> metadata
+    );
 
     @Override
     public List<InternalGeoGridBucket> getBuckets() {

@@ -38,7 +38,12 @@ public class GeoHashGridAggregator extends GeoGridAggregator<InternalGeoHashGrid
     }
 
     @Override
-    protected InternalGeoHashGrid buildAggregation(String name, int requiredSize, List<InternalGeoGridBucket> buckets, Map<String, Object> metadata) {
+    protected InternalGeoHashGrid buildAggregation(
+        String name,
+        int requiredSize,
+        List<InternalGeoGridBucket> buckets,
+        Map<String, Object> metadata
+    ) {
         return new InternalGeoHashGrid(name, requiredSize, buckets, metadata);
     }
 

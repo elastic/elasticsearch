@@ -94,8 +94,7 @@ public class RestReindexActionTests extends RestActionTestCase {
     }
 
     public void testNoScrollWhenMaxDocsIsLessThenScrollSize() throws IOException {
-        var httpRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
+        var httpRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/_reindex")
             .withContent(new BytesArray("""
                 {
@@ -113,8 +112,7 @@ public class RestReindexActionTests extends RestActionTestCase {
     }
 
     public void testSetsScrollWhenMaxDocsIsLessThenScrollSizeAndProceedOnConflict() throws IOException {
-        var httpRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
+        var httpRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/_reindex")
             .withContent(new BytesArray("""
                 {

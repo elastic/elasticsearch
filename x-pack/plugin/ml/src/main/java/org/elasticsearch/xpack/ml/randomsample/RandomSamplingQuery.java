@@ -38,29 +38,33 @@ public final class RandomSamplingQuery extends Query {
     private final Query query;
     private final AtomicLong stream = new AtomicLong();
     private final int seed;
+    private final long hash;
 
     /**
      * @param p         The sampling probability e.g. 0.05 == 5% probability a document will match
-     * @param seed      The seed from which to generate uncorrelated streams of random numbers
+     * @param seed      The seed from the builder
+     * @param hash      A unique hash so that if the same seed is used between multiple queries, unique random number streams
+     *                  can be generated
      * @param cacheable True if the seed is static (provided by the user) so that we can cache the query, false otherwise
      */
-    RandomSamplingQuery(double p, int seed, boolean cacheable, Query query) {
+    RandomSamplingQuery(double p, int seed, long hash, boolean cacheable, Query query) {
         if (p <= 0.0 || p >= 1.0) {
             throw new IllegalArgumentException("RandomSampling probability must be between 0.0 and 1.0");
         }
         this.p = p;
         this.seed = seed;
+        this.hash = hash;
         this.cacheable = cacheable;
         this.query = query;
     }
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
-        final PCG pcg = new PCG(seed, stream.addAndGet(1));
         if (query == null) {
             return new ConstantScoreWeight(this, boost) {
                 @Override
                 public Scorer scorer(LeafReaderContext context) {
+                    final PCG pcg = new PCG(seed, hash);
                     int maxDoc = context.reader().maxDoc();
                     return new ConstantScoreScorer(
                         this,
@@ -80,6 +84,7 @@ public final class RandomSamplingQuery extends Query {
             return new ConstantScoreWeight(query, boost) {
                 @Override
                 public Scorer scorer(LeafReaderContext context) throws IOException {
+                    final PCG pcg = new PCG(seed, hash);
                     int maxDoc = context.reader().maxDoc();
                     Scorer scorer = new ConstantScoreScorer(
                         this,

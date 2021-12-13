@@ -22,7 +22,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.ml.math.PCG;
 
 import java.io.IOException;
 import java.util.Map;
@@ -124,12 +123,7 @@ public class RandomSamplingQueryBuilder extends AbstractQueryBuilder<RandomSampl
         if (this.setSeed == false) {
             context.disableCache();
         }
-        return new RandomSamplingQuery(
-            p,
-            new PCG(seed, hash).nextInt(),
-            this.setSeed,
-            queryBuilder == null ? null : queryBuilder.toQuery(context)
-        );
+        return new RandomSamplingQuery(p, seed, hash, this.setSeed, queryBuilder == null ? null : queryBuilder.toQuery(context));
     }
 
     @Override

@@ -41,10 +41,10 @@ public class InternalGeoTileGrid extends InternalGeoGrid<InternalGeoTileGridBuck
 
     @Override
     protected InternalGeoGrid<InternalGeoTileGridBucket> create(
-            String name,
-            int requiredSize,
-            List<InternalGeoGridBucket> buckets,
-            Map<String, Object> metadata
+        String name,
+        int requiredSize,
+        List<InternalGeoGridBucket> buckets,
+        Map<String, Object> metadata
     ) {
         return new InternalGeoTileGrid(name, requiredSize, buckets, metadata);
     }

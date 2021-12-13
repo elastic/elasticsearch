@@ -41,10 +41,10 @@ public class InternalGeoHashGrid extends InternalGeoGrid<InternalGeoHashGridBuck
 
     @Override
     protected InternalGeoGrid<InternalGeoHashGridBucket> create(
-            String name,
-            int requiredSize,
-            List<InternalGeoGridBucket> buckets,
-            Map<String, Object> metadata
+        String name,
+        int requiredSize,
+        List<InternalGeoGridBucket> buckets,
+        Map<String, Object> metadata
     ) {
         return new InternalGeoHashGrid(name, requiredSize, buckets, metadata);
     }

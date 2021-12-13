@@ -15,6 +15,7 @@ import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.DependencySet;
 import org.gradle.api.artifacts.ModuleVersionIdentifier;
 import org.gradle.api.artifacts.ProjectDependency;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.internal.ConventionTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
@@ -33,6 +34,8 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import javax.inject.Inject;
+
 /**
  * A task to gather information about the dependencies and export them into a csv file.
  * <p>
@@ -45,17 +48,19 @@ import java.util.stream.Collectors;
  * </ul>
  */
 public class DependenciesInfoTask extends ConventionTask {
+
+    private final ProjectLayout projectLayout;
+
     /**
      * Directory to read license files
      */
     @Optional
     @InputDirectory
-    private File licensesDir = new File(getProject().getProjectDir(), "licenses").exists()
-        ? new File(getProject().getProjectDir(), "licenses")
-        : null;
+    private File licensesDir;
 
     @OutputFile
-    private File outputFile = new File(getProject().getBuildDir(), "reports/dependencies/dependencies.csv");
+    private File outputFile;
+
     private LinkedHashMap<String, String> mappings;
 
     public Configuration getRuntimeConfiguration() {
@@ -101,7 +106,12 @@ public class DependenciesInfoTask extends ConventionTask {
     @InputFiles
     private Configuration compileOnlyConfiguration;
 
-    public DependenciesInfoTask() {
+    @Inject
+    public DependenciesInfoTask(ProjectLayout pLayout) {
+        this.projectLayout = pLayout;
+        File dir = pLayout.getProjectDirectory().dir("licenses").getAsFile();
+        this.licensesDir = dir.exists() ? dir : null;
+        this.outputFile = pLayout.getBuildDirectory().dir("reports/dependencies").get().file("dependencies.csv").getAsFile();
         setDescription("Create a CSV file with dependencies information.");
     }
 

@@ -322,9 +322,9 @@ public final class ConfigurationUtils {
     }
 
     private static <T> List<T> readList(String processorType, String processorTag, String propertyName, Object value) {
-        if (value instanceof List list) {
+        if (value instanceof List) {
             @SuppressWarnings("unchecked")
-            List<T> stringList = list;
+            List<T> stringList = (List<T>) value;
             return stringList;
         } else {
             throw newConfigurationException(
@@ -543,7 +543,7 @@ public final class ConfigurationUtils {
         String type,
         Object config
     ) throws Exception {
-        if (config instanceof Map map) {
+        if (config instanceof Map<?, ?> map) {
             return readProcessor(processorFactories, scriptService, type, map);
         } else if (config instanceof String && "script".equals(type)) {
             Map<String, Object> normalizedScript = new HashMap<>(1);

@@ -212,9 +212,9 @@ public final class IngestDocument {
             if (context == null) {
                 return false;
             }
-            if (context instanceof Map map) {
+            if (context instanceof Map<?, ?> map) {
                 context = map.get(pathElement);
-            } else if (context instanceof List list) {
+            } else if (context instanceof List<?> list) {
                 try {
                     int index = Integer.parseInt(pathElement);
                     if (index < 0 || index >= list.size()) {
@@ -243,10 +243,10 @@ public final class IngestDocument {
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
-        if (context instanceof Map map) {
+        if (context instanceof Map<?, ?> map) {
             return map.containsKey(leafKey);
         }
-        if (context instanceof List list) {
+        if (context instanceof List<?> list) {
             try {
                 int index = Integer.parseInt(leafKey);
                 if (index >= 0 && index < list.size()) {
@@ -289,14 +289,14 @@ public final class IngestDocument {
         }
 
         String leafKey = fieldPath.pathElements[fieldPath.pathElements.length - 1];
-        if (context instanceof Map map) {
+        if (context instanceof Map<?, ?> map) {
             if (map.containsKey(leafKey)) {
                 map.remove(leafKey);
                 return;
             }
             throw new IllegalArgumentException("field [" + leafKey + "] not present as part of path [" + path + "]");
         }
-        if (context instanceof List list) {
+        if (context instanceof List<?> list) {
             int index;
             try {
                 index = Integer.parseInt(leafKey);
@@ -327,13 +327,13 @@ public final class IngestDocument {
         if (context == null) {
             throw new IllegalArgumentException("cannot resolve [" + pathElement + "] from null as part of path [" + fullPath + "]");
         }
-        if (context instanceof Map map) {
+        if (context instanceof Map<?, ?> map) {
             if (map.containsKey(pathElement)) {
                 return map.get(pathElement);
             }
             throw new IllegalArgumentException("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
         }
-        if (context instanceof List list) {
+        if (context instanceof List<?> list) {
             int index;
             try {
                 index = Integer.parseInt(pathElement);
@@ -531,7 +531,7 @@ public final class IngestDocument {
                     map.put(pathElement, newMap);
                     context = newMap;
                 }
-            } else if (context instanceof List list) {
+            } else if (context instanceof List<?> list) {
                 int index;
                 try {
                     index = Integer.parseInt(pathElement);
@@ -624,9 +624,9 @@ public final class IngestDocument {
     @SuppressWarnings("unchecked")
     private static Object appendValues(Object maybeList, Object value, boolean allowDuplicates) {
         List<Object> list;
-        if (maybeList instanceof List l) {
+        if (maybeList instanceof List) {
             // maybeList is already a list, we append the provided values to it
-            list = l;
+            list = (List<Object>) maybeList;
         } else {
             // maybeList is a scalar, we convert it to a list and append the provided values to it
             list = new ArrayList<>();
@@ -642,7 +642,7 @@ public final class IngestDocument {
     }
 
     private static void appendValues(List<Object> list, Object value) {
-        if (value instanceof List l) {
+        if (value instanceof List<?> l) {
             list.addAll(l);
         } else {
             list.add(value);
@@ -651,7 +651,7 @@ public final class IngestDocument {
 
     private static boolean appendValuesWithoutDuplicates(List<Object> list, Object value) {
         boolean valuesWereAppended = false;
-        if (value instanceof List valueList) {
+        if (value instanceof List<?> valueList) {
             for (Object val : valueList) {
                 if (list.contains(val) == false) {
                     list.add(val);
@@ -747,13 +747,13 @@ public final class IngestDocument {
                 copy.put(entry.getKey(), deepCopy(entry.getValue()));
             }
             return copy;
-        } else if (value instanceof List listValue) {
+        } else if (value instanceof List<?> listValue) {
             List<Object> copy = new ArrayList<>(listValue.size());
             for (Object itemValue : listValue) {
                 copy.add(deepCopy(itemValue));
             }
             return copy;
-        } else if (value instanceof Set setValue) {
+        } else if (value instanceof Set<?> setValue) {
             Set<Object> copy = new HashSet<>(setValue.size());
             for (Object itemValue : setValue) {
                 copy.add(deepCopy(itemValue));

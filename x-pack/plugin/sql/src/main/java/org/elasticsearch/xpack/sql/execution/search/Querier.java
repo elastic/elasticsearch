@@ -467,23 +467,19 @@ public class Querier {
         }
 
         private BucketExtractor createExtractor(FieldExtraction ref, BucketExtractor totalCount) {
-            if (ref instanceof GroupByRef) {
-                GroupByRef r = (GroupByRef) ref;
+            if (ref instanceof GroupByRef r) {
                 return new CompositeKeyExtractor(r.key(), r.property(), cfg.zoneId(), r.isDateTimeBased());
             }
 
-            if (ref instanceof MetricAggRef) {
-                MetricAggRef r = (MetricAggRef) ref;
+            if (ref instanceof MetricAggRef r) {
                 return new MetricAggExtractor(r.name(), r.property(), r.innerKey(), cfg.zoneId(), r.dataType());
             }
 
-            if (ref instanceof TopHitsAggRef) {
-                TopHitsAggRef r = (TopHitsAggRef) ref;
+            if (ref instanceof TopHitsAggRef r) {
                 return new TopHitsAggExtractor(r.name(), r.fieldDataType(), cfg.zoneId());
             }
 
-            if (ref instanceof PivotColumnRef) {
-                PivotColumnRef r = (PivotColumnRef) ref;
+            if (ref instanceof PivotColumnRef r) {
                 return new PivotExtractor(createExtractor(r.pivot(), totalCount), createExtractor(r.agg(), totalCount), r.value());
             }
 
@@ -548,13 +544,11 @@ public class Querier {
         }
 
         private HitExtractor createExtractor(FieldExtraction ref) {
-            if (ref instanceof SearchHitFieldRef) {
-                SearchHitFieldRef f = (SearchHitFieldRef) ref;
+            if (ref instanceof SearchHitFieldRef f) {
                 return new FieldHitExtractor(f.name(), f.getDataType(), cfg.zoneId(), f.hitName(), multiValueFieldLeniency);
             }
 
-            if (ref instanceof ScriptFieldRef) {
-                ScriptFieldRef f = (ScriptFieldRef) ref;
+            if (ref instanceof ScriptFieldRef f) {
                 return new FieldHitExtractor(f.name(), null, cfg.zoneId(), multiValueFieldLeniency);
             }
 

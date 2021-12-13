@@ -367,6 +367,23 @@ POST my-index-000001/_update_by_query?scroll_size=100
 --------------------------------------------------
 // TEST[setup:my_index]
 
+Update a document using a unique attribute (by setting `max_docs`). When the
+`max_docs` is less then a `scroll_size` the scroll will not be opened:
+
+[source,console]
+--------------------------------------------------
+POST my-index-000001/_update_by_query
+{
+  "query": {
+    "term": {
+      "user.id": "kimchy"
+    }
+  },
+  "max_docs": 1
+}
+--------------------------------------------------
+// TEST[setup:my_index]
+
 [[docs-update-by-query-api-source]]
 ===== Update the document source
 

@@ -252,7 +252,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
-        when(shard.indexSettings()).thenReturn(INDEX_SETTINGS);
         final List<Translog.Operation> operations = new ArrayList<>();
         final int initialNumberOfDocs = randomIntBetween(10, 1000);
         for (int i = 0; i < initialNumberOfDocs; i++) {
@@ -328,7 +327,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final StartRecoveryRequest request = getStartRecoveryRequest();
         final IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
-        when(shard.indexSettings()).thenReturn(INDEX_SETTINGS);
         final List<Translog.Operation> ops = new ArrayList<>();
         for (int numOps = between(1, 256), i = 0; i < numOps; i++) {
             final Engine.Index index = getIndex(Integer.toString(i));
@@ -389,7 +387,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
     public void testSendOperationsConcurrently() throws Throwable {
         final IndexShard shard = mock(IndexShard.class);
         when(shard.state()).thenReturn(IndexShardState.STARTED);
-        when(shard.indexSettings()).thenReturn(INDEX_SETTINGS);
         Set<Long> receivedSeqNos = ConcurrentCollections.newConcurrentSet();
         long maxSeenAutoIdTimestamp = randomBoolean() ? -1 : randomNonNegativeLong();
         long maxSeqNoOfUpdatesOrDeletes = randomBoolean() ? -1 : randomNonNegativeLong();
@@ -752,7 +749,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final IndexShard shard = mock(IndexShard.class);
         final AtomicBoolean freed = new AtomicBoolean(true);
         when(shard.isRelocatedPrimary()).thenReturn(false);
-        when(shard.indexSettings()).thenReturn(INDEX_SETTINGS);
         doAnswer(invocation -> {
             freed.set(false);
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> freed.set(true));
@@ -923,7 +919,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         Store store = newStore(createTempDir("source"), false);
         IndexShard shard = mock(IndexShard.class);
         when(shard.store()).thenReturn(store);
-        when(shard.indexSettings()).thenReturn(INDEX_SETTINGS);
         Directory dir = store.directory();
         RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
         int numDocs = randomIntBetween(10, 100);
@@ -1072,7 +1067,6 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         try (Store store = newStore(createTempDir("source"), false)) {
             IndexShard shard = mock(IndexShard.class);
             when(shard.store()).thenReturn(store);
-            when(shard.indexSettings()).thenReturn(INDEX_SETTINGS);
             Directory dir = store.directory();
             RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig());
             int numDocs = randomIntBetween(10, 100);

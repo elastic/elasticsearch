@@ -40,22 +40,22 @@ public class InternalGeoTileGrid extends InternalGeoGrid<InternalGeoTileGridBuck
     }
 
     @Override
-    InternalGeoGrid<InternalGeoTileGridBucket> create(
-        String name,
-        int requiredSize,
-        List<InternalGeoGridBucket> buckets,
-        Map<String, Object> metadata
+    protected InternalGeoGrid<InternalGeoTileGridBucket> create(
+            String name,
+            int requiredSize,
+            List<InternalGeoGridBucket> buckets,
+            Map<String, Object> metadata
     ) {
         return new InternalGeoTileGrid(name, requiredSize, buckets, metadata);
     }
 
     @Override
-    InternalGeoTileGridBucket createBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
+    protected InternalGeoTileGridBucket createBucket(long hashAsLong, long docCount, InternalAggregations aggregations) {
         return new InternalGeoTileGridBucket(hashAsLong, docCount, aggregations);
     }
 
     @Override
-    Reader<InternalGeoTileGridBucket> getBucketReader() {
+    protected Reader<InternalGeoTileGridBucket> getBucketReader() {
         return InternalGeoTileGridBucket::new;
     }
 

@@ -234,31 +234,6 @@ public class QueryStringIT extends ESIntegTestCase {
         assertThat(e.getCause().getMessage(), containsString("unit [D] not supported for date math [-2D]"));
     }
 
-    // The only expectation for this test is to not throw exception
-    public void testLimitOnExpandedFieldsButIgnoreUnmappedFields() throws Exception {
-        XContentBuilder builder = jsonBuilder();
-        builder.startObject();
-        builder.startObject("_doc");
-        builder.startObject("properties");
-        for (int i = 0; i < IndexSearcher.getMaxClauseCount() - 100; i++) {
-            builder.startObject("field" + i).field("type", "text").endObject();
-        }
-        builder.endObject(); // properties
-        builder.endObject(); // type1
-        builder.endObject();
-
-        assertAcked(prepareCreate("ignoreunmappedfields").setMapping(builder));
-
-        client().prepareIndex("ignoreunmappedfields").setId("1").setSource("field1", "foo bar baz").get();
-        refresh();
-
-        QueryStringQueryBuilder qb = queryStringQuery("bar");
-        if (randomBoolean()) {
-            qb.field("*").field("unmappedField1").field("unmappedField2").field("unmappedField3").field("unmappedField4");
-        }
-        client().prepareSearch("ignoreunmappedfields").setQuery(qb).get();
-    }
-
     public void testLimitOnExpandedFields() throws Exception {
 
         final int maxClauseCount = randomIntBetween(50, 100);

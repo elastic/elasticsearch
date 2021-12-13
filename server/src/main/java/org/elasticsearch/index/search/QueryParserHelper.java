@@ -94,7 +94,7 @@ public final class QueryParserHelper {
                 resolvedFields.put(field.getKey(), boost);
             }
         }
-        checkForTooManyFields(resolvedFields.size(), context, null);
+        checkForTooManyFields(resolvedFields.size(), null);
         return resolvedFields;
     }
 
@@ -151,7 +151,7 @@ public final class QueryParserHelper {
         return fields;
     }
 
-    static void checkForTooManyFields(int numberOfFields, SearchExecutionContext context, @Nullable String inputPattern) {
+    static void checkForTooManyFields(int numberOfFields, @Nullable String inputPattern) {
         int limit = IndexSearcher.getMaxClauseCount();
         if (numberOfFields > limit) {
             StringBuilder errorMsg = new StringBuilder("field expansion ");

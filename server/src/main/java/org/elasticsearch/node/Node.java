@@ -10,6 +10,7 @@ package org.elasticsearch.node;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Assertions;
@@ -473,7 +474,7 @@ public class Node implements Closeable {
             final UsageService usageService = new UsageService();
 
             SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
-            SearchUtils.configureMaxClauses(threadPool);
+            IndexSearcher.setMaxClauseCount(SearchUtils.calculateMaxClauseValue(threadPool));
             List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
                 NetworkModule.getNamedWriteables().stream(),
                 IndicesModule.getNamedWriteables().stream(),

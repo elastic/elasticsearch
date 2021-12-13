@@ -8,27 +8,26 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
 
 public class SearchUtilsTests extends ESTestCase {
 
-    private static final int maxClauseCount = IndexSearcher.getMaxClauseCount();
-
-    @After
-    public void tearDown() throws Exception {
-        IndexSearcher.setMaxClauseCount(maxClauseCount);
-        super.tearDown();
-    }
-
     public void testConfigureMaxClauses() {
 
-        SearchUtils.configureMaxClauses(13, 1);
-        assertEquals(5041, IndexSearcher.getMaxClauseCount());
+        // Heap below 1 Gb
+        assertEquals(4096, SearchUtils.calculateMaxClauseValue(4, 0));
 
-        SearchUtils.configureMaxClauses(73, 30);
-        assertEquals(26932, IndexSearcher.getMaxClauseCount());
+        // Number of processors not available
+        assertEquals(4096, SearchUtils.calculateMaxClauseValue(-1, 1));
+
+        // Insanely high configured search thread pool size
+        assertEquals(4096, SearchUtils.calculateMaxClauseValue(1024, 1));
+
+        // 1Gb heap, 8 processors
+        assertEquals(5041, SearchUtils.calculateMaxClauseValue(13, 1));
+
+        // 30Gb heap, 48 processors
+        assertEquals(26932, SearchUtils.calculateMaxClauseValue(73, 30));
     }
 
 }

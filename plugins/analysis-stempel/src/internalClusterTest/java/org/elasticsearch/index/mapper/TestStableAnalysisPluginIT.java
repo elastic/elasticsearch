@@ -113,11 +113,15 @@ public class TestStableAnalysisPluginIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate(index));
 
-        for (String filter : List.of("demo", "demo_legacy")) {
+        for (String filter : List.of("demo_legacy", "demo")) {
             for (AnalysisTestcases testcase : testCases) {
                 AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index).tokenizer("standard")
                     .addTokenFilter("lowercase")
+                    .addTokenFilter("uppercase")
+                    .addTokenFilter("lowercase")
                     .addTokenFilter(filter)
+                    .addTokenFilter("uppercase")
+                    .addTokenFilter("lowercase")
                     .addTokenFilter("uppercase")
                     .explain(true)
                     .text(testcase.phrases);
@@ -129,11 +133,14 @@ public class TestStableAnalysisPluginIT extends ESIntegTestCase {
 
                 int numTokens = Arrays.stream(testcase.phrases).map(p -> p.split(" ").length).reduce(0, Integer::sum).intValue();
                 assertEquals(numTokens, result.detail().tokenizer().getTokens().length);
+                assertEquals(7, result.detail().tokenfilters().length);
                 assertEquals(numTokens, result.detail().tokenfilters()[0].getTokens().length);
 
-                assertEquals(2, result.detail().tokenfilters()[1].getTokens().length);
+                int firstShrunkTokenIndex = 3;
 
-                AnalyzeAction.AnalyzeToken[] finalTokens = result.detail().tokenfilters()[2].getTokens();
+                assertEquals(2, result.detail().tokenfilters()[firstShrunkTokenIndex].getTokens().length);
+
+                AnalyzeAction.AnalyzeToken[] finalTokens = result.detail().tokenfilters()[firstShrunkTokenIndex+1].getTokens();
                 assertEquals(2, finalTokens.length);
 
                 for (int i = 0; i < finalTokens.length; i++) {

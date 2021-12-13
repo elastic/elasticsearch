@@ -1,5 +1,5 @@
 {
-  "ml.get_job_snapshot_upgrade_stats":{
+  "ml.get_model_snapshot_upgrade_stats":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-job-model-snapshot-upgrade-stats.html",
       "description":"Gets stats for anomaly detection job model snapshot upgrades that are in progress."

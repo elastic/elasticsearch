@@ -78,7 +78,7 @@ setup:
 ---
 "Test stats all snapshots":
   - do:
-      ml.get_job_snapshot_upgrade_stats:
+      ml.get_model_snapshot_upgrade_stats:
         job_id: "upgrade-model-snapshot"
         snapshot_id: "_all"
   - match: { count: 0 }
@@ -87,7 +87,7 @@ setup:
 "Test stats one snapshot":
   - do:
       catch: missing
-      ml.get_job_snapshot_upgrade_stats:
+      ml.get_model_snapshot_upgrade_stats:
         job_id: "upgrade-model-snapshot"
         snapshot_id: "9999999999"
 
@@ -104,7 +104,7 @@ setup:
         wait_for_completion: false
 
   - do:
-      ml.get_job_snapshot_upgrade_stats:
+      ml.get_model_snapshot_upgrade_stats:
         job_id: "upgrade-model-snapshot"
         snapshot_id: "1234567890"
   - match: { count: 1 }

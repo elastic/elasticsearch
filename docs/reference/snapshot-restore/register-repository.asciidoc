@@ -49,7 +49,7 @@ the repository as read-only.
 
 This prevents multiple clusters from writing to the repository at the same time
 and corrupting the repository’s contents. It also prevents {es} from caching the
-repository's contents which means that changes made by other clusters will
+repository's contents, which means that changes made by other clusters will
 become visible straight away.
 // end::multi-cluster-repo[]
 --

@@ -4,7 +4,7 @@
 // CSV spec used by the docs
 //
 
-fromQualifiedTableQuoted-NoEdit
+fromQualifiedTableQuoted
 // tag::fromQualifiedTableQuoted
 SELECT emp_no FROM "my*cluster:*emp" LIMIT 1;
 

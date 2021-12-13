@@ -27,9 +27,8 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
     public static final String REMOTE_CLUSTER_NAME = "my_remote_cluster"; // gradle defined
     public static final String EXTRACT_FN_NAME = "EXTRACT";
 
-    private static final String NO_EDIT_SUFFIX = "-NoEdit";
     private static final Pattern DESCRIBE_OR_SHOW = Pattern.compile("(?i)\\s*(DESCRIBE|SHOW).*");
-    private static final Pattern FROM_QUALIFIED = Pattern.compile("(?i)FROM\\w+" + REMOTE_CLUSTER_NAME + ":");
+    private static final Pattern FROM_QUALIFIED = Pattern.compile(".*(?i)FROM\\s+[^\\s:]+:[^\\s:]+\\s.*");
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -45,7 +44,7 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
             groupName,
             testName,
             lineNumber,
-            mayEditQuery(testName) && randomBoolean() ? qualifyFromClause(testCase) : testCase
+            randomBoolean() && isFromQualified(testCase.query) == false ? qualifyFromClause(testCase) : testCase
         );
     }
 
@@ -103,7 +102,7 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
         Connection connection = esJdbc(connectionProperties());
         // Only set the default catalog if the query index isn't yet qualified with the catalog, which can happen if query has been written
         // qualified from the start (for the documentation) or edited in qualifyFromClause() above.
-        if (mayEditQuery(testName) && FROM_QUALIFIED.matcher(csvTestCase().query).matches() == false) {
+        if (isFromQualified(csvTestCase().query) == false) {
             connection.setCatalog(REMOTE_CLUSTER_NAME);
         }
         return connection;
@@ -123,7 +122,9 @@ public class JdbcCsvSpecIT extends CsvSpecTestCase {
         return fileName.startsWith("nested") && randomBoolean() ? randomIntBetween(1, 5) : super.fetchSize();
     }
 
-    private static boolean mayEditQuery(String testName) {
-        return testName.endsWith(NO_EDIT_SUFFIX) == false;
+    // Simple check if the FROM clause of a query contains a cluster-qualified index (pattern).
+    // Note: it won't work reliably with multiple clauses (subselects) or queries embedded in strings.
+    private static boolean isFromQualified(String query) {
+        return FROM_QUALIFIED.matcher(query).matches();
     }
 }

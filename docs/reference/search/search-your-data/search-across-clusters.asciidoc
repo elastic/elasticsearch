@@ -413,9 +413,16 @@ image:images/ccs/ccs-min-roundtrip-client-response.svg[]
 [[ccs-supported-configurations]]
 === Supported configurations
 
-Generally, <<gateway-nodes-selection, cross cluster search>> can search remote
-clusters that are one major version ahead or behind the coordinating node's
-version. Cross cluster search can also search remote clusters that are being
+To run a {ccs}, the local and remote clusters must be compatible as outlined
+in the following matrix.
+
+[%collapsible%open]
+.Version compatibility matrix
+====
+include::{es-repo-dir}/modules/remote-clusters.asciidoc[tag=remote-cluster-compatibility-matrix]
+====
+
+{ccs-cap} can also search remote clusters that are being
 <<rolling-upgrades, upgraded>> so long as both the "upgrade from" and
 "upgrade to" version are compatible with the gateway node.
 

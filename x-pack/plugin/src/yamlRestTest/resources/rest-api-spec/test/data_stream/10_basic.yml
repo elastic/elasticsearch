@@ -625,7 +625,7 @@ setup:
 "Get data stream api check existence of replicated field":
   - skip:
       version: " - 7.16.0"
-      reason: "replicated field only supported in 7.16+"
+      reason: "replicated field only supported from 7.16+ and later"
 
   - do:
       indices.create_data_stream:

@@ -28,9 +28,11 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class RestUpdateByQueryActionTests extends RestActionTestCase {
 
+    private final RestUpdateByQueryAction action = new RestUpdateByQueryAction();
+
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestUpdateByQueryAction());
+        controller().registerHandler(action);
         verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(BulkByScrollResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(BulkByScrollResponse.class));
     }
@@ -51,20 +53,18 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
     }
 
     public void testSetsScrollByDefault() throws IOException {
-        var httpRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
+        var httpRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/my-index/_update_by_query")
             .withContent(new BytesArray("{}"), XContentType.JSON)
             .build();
 
-        var transportRequest = new RestDeleteByQueryAction().buildRequest(httpRequest, writableRegistry());
+        var transportRequest = action.buildRequest(httpRequest, writableRegistry());
 
         assertThat(transportRequest.getSearchRequest().scroll(), notNullValue());
     }
 
     public void testNoScrollWhenMaxDocsIsLessThenScrollSize() throws IOException {
-        var httpRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
+        var httpRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/my-index/_update_by_query")
             .withParams(Map.of("scroll_size", "10"))
             .withContent(new BytesArray("""
@@ -74,14 +74,13 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
                 """), XContentType.JSON)
             .build();
 
-        var transportRequest = new RestDeleteByQueryAction().buildRequest(httpRequest, writableRegistry());
+        var transportRequest = action.buildRequest(httpRequest, writableRegistry());
 
         assertThat(transportRequest.getSearchRequest().scroll(), nullValue());
     }
 
     public void testSetsScrollWhenMaxDocsIsLessThenScrollSizeAndProceedOnConflict() throws IOException {
-        var httpRequest = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
+        var httpRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("/my-index/_update_by_query")
             .withParams(Map.of("scroll_size", "10", "conflicts", "proceed"))
             .withContent(new BytesArray("""
@@ -91,7 +90,7 @@ public class RestUpdateByQueryActionTests extends RestActionTestCase {
                 """), XContentType.JSON)
             .build();
 
-        var transportRequest = new RestDeleteByQueryAction().buildRequest(httpRequest, writableRegistry());
+        var transportRequest = action.buildRequest(httpRequest, writableRegistry());
 
         assertThat(transportRequest.getSearchRequest().scroll(), notNullValue());
     }

@@ -69,7 +69,7 @@ public abstract class AbstractBulkByQueryRestHandler<
             searchRequest.source().timeout(restRequest.paramAsTime("search_timeout", null));
         }
 
-        //Do not open scroll if limit <= scroll size
+        // Do not open scroll if limit <= scroll size
         var docsPerScroll = searchRequest.source().size();
         if (internal.getMaxDocs() != -1 && internal.getMaxDocs() <= docsPerScroll && internal.isAbortOnVersionConflict()) {
             searchRequest.scroll((Scroll) null);

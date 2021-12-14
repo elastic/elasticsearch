@@ -147,16 +147,16 @@ or a `BinaryOperator` results in an `IllegalArgumentException` as either
 a compilation error when static types are used or a runtime error when
 dynamic types are used. Use standard procedural statements as a workaround
  (`if/else`, `while`, `for`, etc.).
-
++
 An example failure of a `UnaryOperator`:
-
++
 [source,Java]
 ----
 List l = ['abc', '123']; l.replaceAll(f -> f.replace('abc', 'doremi');
 ----
-
++
 The workaround:
-
++
 [source,Java]
 ----
 List l = ['abc', '123'];

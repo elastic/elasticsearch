@@ -110,7 +110,7 @@ public abstract class LicenseHeadersTask extends DefaultTask {
     );
 
     /**
-     * Allowed license families for this project.Vendored
+     * Allowed license families for this project.
      */
     @Input
     private List<String> approvedLicenses = new ArrayList<String>(Arrays.asList("SSPL+Elastic License", "Generated", "Vendored", "Apache LZ4-Java"));

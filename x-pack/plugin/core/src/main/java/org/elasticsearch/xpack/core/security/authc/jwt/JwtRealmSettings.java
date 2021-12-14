@@ -138,16 +138,25 @@ public class JwtRealmSettings {
 
     // JWT settings
 
-    public static final Setting.AffixSetting<String> ISSUER = RealmSettings.simpleString(TYPE, "issuer", Setting.Property.NodeScope);
-    public static final Setting.AffixSetting<String> JWKSET_PATH = RealmSettings.simpleString(
+    public static final Setting.AffixSetting<String> ALLOWED_ISSUER = RealmSettings.simpleString(
         TYPE,
-        "jwkset_path",
+        "allowed_issuer",
+        Setting.Property.NodeScope
+    );
+    public static final Setting.AffixSetting<String> ALLOWED_AUDIENCE = RealmSettings.simpleString(
+        TYPE,
+        "allowed_audience",
         Setting.Property.NodeScope
     );
     public static final Setting.AffixSetting<TimeValue> ALLOWED_CLOCK_SKEW = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "allowed_clock_skew",
         key -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Setting.Property.NodeScope)
+    );
+    public static final Setting.AffixSetting<String> JWKSET_PATH = RealmSettings.simpleString(
+        TYPE,
+        "jwkset_path",
+        Setting.Property.NodeScope
     );
     public static final Setting.AffixSetting<Boolean> POPULATE_USER_METADATA = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
@@ -169,9 +178,10 @@ public class JwtRealmSettings {
             HTTP_PROXY_HOST,
             HTTP_PROXY_PORT,
             HTTP_PROXY_SCHEME,
-            ISSUER,
-            JWKSET_PATH,
+            ALLOWED_ISSUER,
+            ALLOWED_AUDIENCE,
             ALLOWED_CLOCK_SKEW,
+            JWKSET_PATH,
             POPULATE_USER_METADATA
         );
         set.addAll(PRINCIPAL_CLAIM.settings());

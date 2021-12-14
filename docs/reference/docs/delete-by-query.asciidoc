@@ -423,8 +423,7 @@ POST my-index-000001/_delete_by_query?scroll_size=5000
 --------------------------------------------------
 // TEST[setup:my_index]
 
-Delete a document using a unique attribute (by setting `max_docs`). When the
-`max_docs` is less then a `scroll_size` the scroll will not be opened:
+Delete a document using a unique attribute:
 
 [source,console]
 --------------------------------------------------

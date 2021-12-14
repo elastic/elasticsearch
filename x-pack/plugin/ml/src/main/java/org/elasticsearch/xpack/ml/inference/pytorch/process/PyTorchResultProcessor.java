@@ -100,7 +100,10 @@ public class PyTorchResultProcessor {
 
     private void processInferenceResult(PyTorchInferenceResult inferenceResult) {
         logger.trace(() -> new ParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, inferenceResult.getRequestId()));
-        processResult(inferenceResult);
+        if (inferenceResult.isError() == false) {
+            timingStats.accept(inferenceResult.getTimeMs());
+            lastUsed = Instant.now();
+        }
         PendingResult pendingResult = pendingResults.remove(inferenceResult.getRequestId());
         if (pendingResult == null) {
             logger.debug(() -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, inferenceResult.getRequestId()));
@@ -111,13 +114,6 @@ public class PyTorchResultProcessor {
 
     public synchronized LongSummaryStatistics getTimingStats() {
         return new LongSummaryStatistics(timingStats.getCount(), timingStats.getMin(), timingStats.getMax(), timingStats.getSum());
-    }
-
-    private synchronized void processResult(PyTorchInferenceResult result) {
-        if (result.isError() == false) {
-            timingStats.accept(result.getTimeMs());
-            lastUsed = Instant.now();
-        }
     }
 
     public synchronized Instant getLastUsed() {

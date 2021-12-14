@@ -197,8 +197,8 @@ public class ServerUtils {
             Settings settings = Settings.builder().loadFromPath(configFilePath).build();
             enrollmentEnabled = settings.hasValue("xpack.security.enrollment.enabled")
                 && settings.get("xpack.security.enrollment.enabled").equals("true");
-            httpSslEnabled =
-                settings.hasValue("xpack.security.http.ssl.enabled") && settings.get("xpack.security.http.ssl.enabled").equals("true");
+            httpSslEnabled = settings.hasValue("xpack.security.http.ssl.enabled")
+                && settings.get("xpack.security.http.ssl.enabled").equals("true");
         }
         if (enrollmentEnabled && httpSslEnabled) {
             assert Files.exists(caCert) == false;

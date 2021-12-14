@@ -39,9 +39,9 @@ import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
-import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -98,10 +98,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
         ClusterState clusterState,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        PersistentTasksCustomMetadata taskMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = taskMetadata == null
-            ? Collections.emptyList()
-            : taskMetadata.findTasks(TransformTaskParams.NAME, t -> true);
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> transformTasks = TransformTask.findAllTransformTasks(clusterState);
         final int taskCount = transformTasks.size();
         final Map<String, Long> transformsCountByState = new HashMap<>();
         for (PersistentTasksCustomMetadata.PersistentTask<?> transformTask : transformTasks) {

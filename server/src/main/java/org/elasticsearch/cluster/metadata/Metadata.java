@@ -9,8 +9,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -872,9 +870,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
         // Check if any persistent metadata needs to be saved
         int customCount1 = 0;
-        for (ObjectObjectCursor<String, Custom> cursor : metadata1.customs) {
-            if (cursor.value.context().contains(XContentContext.GATEWAY)) {
-                if (cursor.value.equals(metadata2.custom(cursor.key)) == false) {
+        for (Map.Entry<String, Custom> cursor : metadata1.customs.entrySet()) {
+            if (cursor.getValue().context().contains(XContentContext.GATEWAY)) {
+                if (cursor.getValue().equals(metadata2.custom(cursor.getKey())) == false) {
                     return false;
                 }
                 customCount1++;
@@ -1564,8 +1562,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             final List<String> allClosedIndices = new ArrayList<>();
             final List<String> visibleClosedIndices = new ArrayList<>();
             final Set<String> allAliases = new HashSet<>();
-            for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
-                final IndexMetadata indexMetadata = cursor.value;
+            final ImmutableOpenMap<String, IndexMetadata> indicesMap = indices.build();
+            for (IndexMetadata indexMetadata : indicesMap.values()) {
                 final String name = indexMetadata.getIndex().getName();
                 boolean added = allIndices.add(name);
                 assert added : "double index named [" + name + "]";
@@ -1587,23 +1585,29 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 indexMetadata.getAliases().keysIt().forEachRemaining(allAliases::add);
             }
 
+            final ArrayList<String> duplicates = new ArrayList<>();
             final Set<String> allDataStreams = new HashSet<>();
             DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
             if (dataStreamMetadata != null) {
                 for (DataStream dataStream : dataStreamMetadata.dataStreams().values()) {
                     allDataStreams.add(dataStream.getName());
                 }
+                // Adding data stream aliases:
+                for (String dataStreamAlias : dataStreamMetadata.getDataStreamAliases().keySet()) {
+                    if (allAliases.add(dataStreamAlias) == false) {
+                        duplicates.add("data stream alias and indices alias have the same name (" + dataStreamAlias + ")");
+                    }
+                }
             }
 
             final Set<String> aliasDuplicatesWithIndices = new HashSet<>(allAliases);
             aliasDuplicatesWithIndices.retainAll(allIndices);
-            ArrayList<String> duplicates = new ArrayList<>();
             if (aliasDuplicatesWithIndices.isEmpty() == false) {
                 // iterate again and constructs a helpful message
-                for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
+                for (IndexMetadata cursor : indicesMap.values()) {
                     for (String alias : aliasDuplicatesWithIndices) {
-                        if (cursor.value.getAliases().containsKey(alias)) {
-                            duplicates.add(alias + " (alias of " + cursor.value.getIndex() + ") conflicts with index");
+                        if (cursor.getAliases().containsKey(alias)) {
+                            duplicates.add(alias + " (alias of " + cursor.getIndex() + ") conflicts with index");
                         }
                     }
                 }
@@ -1613,11 +1617,18 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             aliasDuplicatesWithDataStreams.retainAll(allDataStreams);
             if (aliasDuplicatesWithDataStreams.isEmpty() == false) {
                 // iterate again and constructs a helpful message
-                for (ObjectCursor<IndexMetadata> cursor : indices.values()) {
-                    for (String alias : aliasDuplicatesWithDataStreams) {
-                        if (cursor.value.getAliases().containsKey(alias)) {
-                            duplicates.add(alias + " (alias of " + cursor.value.getIndex() + ") conflicts with data stream");
+                for (String alias : aliasDuplicatesWithDataStreams) {
+                    // reported var avoids adding a message twice if an index alias has the same name as a data stream.
+                    boolean reported = false;
+                    for (IndexMetadata cursor : indicesMap.values()) {
+                        if (cursor.getAliases().containsKey(alias)) {
+                            duplicates.add(alias + " (alias of " + cursor.getIndex() + ") conflicts with data stream");
+                            reported = true;
                         }
+                    }
+                    // This is for adding an error message for when a data steam alias has the same name as a data stream.
+                    if (reported == false && dataStreamMetadata != null && dataStreamMetadata.dataStreams().containsKey(alias)) {
+                        duplicates.add("data stream alias and data stream have the same name (" + alias + ")");
                     }
                 }
             }
@@ -1639,21 +1650,19 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 );
             }
 
-            ImmutableOpenMap<String, IndexMetadata> indices = this.indices.build();
-
             SortedMap<String, IndexAbstraction> indicesLookup;
             if (previousIndicesLookup != null) {
-                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata, indices));
+                assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata, indicesMap));
                 indicesLookup = previousIndicesLookup;
             } else {
                 if (builtIndicesLookupEagerly) {
-                    indicesLookup = buildIndicesLookup(dataStreamMetadata, indices);
+                    indicesLookup = buildIndicesLookup(dataStreamMetadata, indicesMap);
                 } else {
                     indicesLookup = null;
                 }
             }
 
-            purgeUnusedEntries(indices);
+            purgeUnusedEntries(indicesMap);
 
             // build all concrete indices arrays:
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
@@ -1668,7 +1677,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
             int totalNumberOfShards = 0;
             int totalOpenIndexShards = 0;
-            for (IndexMetadata indexMetadata : indices.values()) {
+            for (IndexMetadata indexMetadata : indicesMap.values()) {
                 totalNumberOfShards += indexMetadata.getTotalNumberOfShards();
                 if (IndexMetadata.State.OPEN.equals(indexMetadata.getState())) {
                     totalOpenIndexShards += indexMetadata.getTotalNumberOfShards();
@@ -1686,7 +1695,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 hashesOfConsistentSettings,
                 totalNumberOfShards,
                 totalOpenIndexShards,
-                indices,
+                indicesMap,
                 templates.build(),
                 customs.build(),
                 allIndicesArray,
@@ -1839,10 +1848,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 builder.endObject();
             }
 
-            for (ObjectObjectCursor<String, Custom> cursor : metadata.customs()) {
-                if (cursor.value.context().contains(context)) {
-                    builder.startObject(cursor.key);
-                    cursor.value.toXContent(builder, params);
+            for (Map.Entry<String, Custom> cursor : metadata.customs().entrySet()) {
+                if (cursor.getValue().context().contains(context)) {
+                    builder.startObject(cursor.getKey());
+                    cursor.getValue().toXContent(builder, params);
                     builder.endObject();
                 }
             }

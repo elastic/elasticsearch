@@ -98,8 +98,8 @@ public final class ConfigurationUtils {
         if (value == null) {
             return null;
         }
-        if (value instanceof String) {
-            return (String) value;
+        if (value instanceof String string) {
+            return string;
         }
         throw newConfigurationException(
             processorType,
@@ -135,10 +135,10 @@ public final class ConfigurationUtils {
         if (value == null) {
             return null;
         }
-        if (value instanceof String) {
-            return (String) value;
-        } else if (value instanceof Integer) {
-            return String.valueOf(value);
+        if (value instanceof String string) {
+            return string;
+        } else if (value instanceof Integer integer) {
+            return String.valueOf(integer);
         }
         throw newConfigurationException(
             processorType,
@@ -170,8 +170,8 @@ public final class ConfigurationUtils {
         if (value == null) {
             return null;
         }
-        if (value instanceof String) {
-            return (String) value;
+        if (value instanceof String string) {
+            return string;
         } else if (value instanceof Long || value instanceof Integer) {
             return String.valueOf(value);
         }
@@ -220,8 +220,8 @@ public final class ConfigurationUtils {
         if (value == null) {
             return null;
         }
-        if (value instanceof Boolean) {
-            return (Boolean) value;
+        if (value instanceof Boolean b) {
+            return b;
         }
         throw newConfigurationException(
             processorType,

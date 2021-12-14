@@ -40,6 +40,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.putPipeline;
 import static org.elasticsearch.xpack.ml.integration.InferenceIngestIT.simulateRequest;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -247,18 +248,26 @@ public class PyTorchModelIT extends ESRestTestCase {
             String statusState = (String) XContentMapValues.extractValue("deployment_stats.allocation_status.state", stats.get(0));
             assertThat(responseMap.toString(), statusState, is(not(nullValue())));
             assertThat(AllocationStatus.State.fromString(statusState), greaterThanOrEqualTo(state));
-            Integer byteSize = (Integer) XContentMapValues.extractValue("deployment_stats.model_size_bytes", stats.get(0));
-            assertThat(responseMap.toString(), byteSize, is(not(nullValue())));
-            assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
 
-            Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
-            var humanResponseMap = entityAsMap(humanResponse);
-            stats = (List<Map<String, Object>>) humanResponseMap.get("trained_model_stats");
-            assertThat(stats, hasSize(1));
-            String stringBytes = (String) XContentMapValues.extractValue("deployment_stats.model_size", stats.get(0));
-            assertThat("stats response: " + responseMap + " human stats response" + humanResponseMap, stringBytes, is(not(nullValue())));
-            assertThat(stringBytes, equalTo("1.5kb"));
-            stopDeployment(model);
+            // starting models do not know their model size yet
+            if (state.isAnyOf(AllocationStatus.State.STARTED, AllocationStatus.State.FULLY_ALLOCATED)) {
+                Integer byteSize = (Integer) XContentMapValues.extractValue("deployment_stats.model_size_bytes", stats.get(0));
+                assertThat(responseMap.toString(), byteSize, is(not(nullValue())));
+                assertThat(byteSize, equalTo((int) RAW_MODEL_SIZE));
+
+                Response humanResponse = client().performRequest(new Request("GET", "/_ml/trained_models/" + modelId + "/_stats?human"));
+                var humanResponseMap = entityAsMap(humanResponse);
+                stats = (List<Map<String, Object>>) humanResponseMap.get("trained_model_stats");
+                assertThat(stats, hasSize(1));
+                String stringBytes = (String) XContentMapValues.extractValue("deployment_stats.model_size", stats.get(0));
+                assertThat(
+                    "stats response: " + responseMap + " human stats response" + humanResponseMap,
+                    stringBytes,
+                    is(not(nullValue()))
+                );
+                assertThat(stringBytes, equalTo("1.5kb"));
+            }
+            stopDeployment(modelId);
         };
 
         assertAtLeast.accept(model, AllocationStatus.State.STARTING);
@@ -457,7 +466,11 @@ public class PyTorchModelIT extends ESRestTestCase {
         String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
         assertThat(
             response,
-            containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API.")
+            allOf(
+                containsString("model [not-deployed] must be deployed to use. Please deploy with the start trained model deployment API."),
+                containsString("error"),
+                not(containsString("warning"))
+            )
         );
 
         client().performRequest(
@@ -512,9 +525,8 @@ public class PyTorchModelIT extends ESRestTestCase {
         startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
 
         String input = "once twice thrice";
-        ResponseException ex = expectThrows(ResponseException.class, () -> infer("once twice thrice", modelId));
         assertThat(
-            ex.getMessage(),
+            EntityUtils.toString(infer("once twice thrice", modelId).getEntity()),
             containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
         );
 
@@ -570,6 +582,62 @@ public class PyTorchModelIT extends ESRestTestCase {
         stopDeployment(modelId, true);
     }
 
+    public void testPipelineWithBadProcessor() throws IOException {
+        String model = "deployed";
+        createTrainedModel(model);
+        putVocabulary(List.of("once", "twice"), model);
+        putModelDefinition(model);
+        startDeployment(model);
+        String source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "deployed",
+                      "inference_config": {
+                        "ner": {}
+                      }
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"input": "my words"}}]
+            }
+            """;
+
+        String response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(
+            response,
+            allOf(
+                containsString("inference not possible. Task is configured with [pass_through] but received update of type [ner]"),
+                containsString("error"),
+                not(containsString("warning"))
+            )
+        );
+
+        // Missing input field is a warning
+        source = """
+            {
+              "pipeline": {
+                "processors": [
+                  {
+                    "inference": {
+                      "model_id": "deployed"
+                    }
+                  }
+                ]
+              },
+              "docs": [
+                {"_source": {"something": "my words"}}]
+            }
+            """;
+
+        response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
+        assertThat(response, containsString("warning"));
+    }
+
     public void testDeleteModelWithDeploymentUsedByIngestProcessor() throws IOException {
         String modelId = "test_delete_model_with_used_deployment";
         createTrainedModel(modelId);
@@ -619,6 +687,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     private void putVocabulary(List<String> vocabulary, String modelId) throws IOException {
         List<String> vocabularyWithPad = new ArrayList<>();
         vocabularyWithPad.add(BertTokenizer.PAD_TOKEN);
+        vocabularyWithPad.add(BertTokenizer.UNKNOWN_TOKEN);
         vocabularyWithPad.addAll(vocabulary);
         String quotedWords = vocabularyWithPad.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
 

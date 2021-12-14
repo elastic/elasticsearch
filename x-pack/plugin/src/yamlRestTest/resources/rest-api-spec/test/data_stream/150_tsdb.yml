@@ -72,8 +72,8 @@ setup:
 ---
 created the data stream:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       indices.get_data_stream:
@@ -92,50 +92,42 @@ created the data stream:
 ---
 fetch the tsid:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       search:
         index: k8s
         body:
-          runtime_mappings: # TODO replace this with tsid once it is generated
-            tsid:
-              type: keyword
-              script: emit('k8s.pod.uid:' + doc['k8s.pod.uid'].value + ',metricset:' + doc['metricset'].value)
           fields:
-            - field: tsid
+            - field: _tsid
           query:
             query_string:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields.tsid: ['k8s.pod.uid:947e4ced-1786-4e53-9e0c-5c447e959507,metricset:pod']}
+  - match: {hits.hits.0.fields._tsid: [{k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}]}
 
 ---
 "aggregate the tsid":
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       search:
         index: k8s
         body:
           size: 0
-          runtime_mappings: # TODO replace this with tsid once it is generated
-            tsid:
-              type: keyword
-              script: emit('k8s.pod.uid:' + doc['k8s.pod.uid'].value + ',metricset:' + doc['metricset'].value)
           aggs:
             tsids:
               terms:
-                field: tsid
+                field: _tsid
                 order:
                   _key: asc
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: 'k8s.pod.uid:947e4ced-1786-4e53-9e0c-5c447e959507,metricset:pod'}
+  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - match: {aggregations.tsids.buckets.1.key: 'k8s.pod.uid:df3145b3-0563-4d3b-a0f7-897eb2876ea9,metricset:pod'}
+  - match: {aggregations.tsids.buckets.1.key: {k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset: pod}}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}

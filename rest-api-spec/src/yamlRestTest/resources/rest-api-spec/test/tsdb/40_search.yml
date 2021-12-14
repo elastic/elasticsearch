@@ -189,8 +189,8 @@ fetch a tag:
 ---
 aggregate a dimension:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       search:
@@ -287,6 +287,24 @@ aggregate a tag:
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
 
 ---
+"aggregate filter the tsid fails":
+  - skip:
+      version: " - 8.00.99"
+      reason: _tsid support introduced in 8.1.0
+
+  - do:
+      catch: /\[_tsid\] is not searchable/
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tsids:
+              filter:
+                term:
+                  _tsid: wont't work
+
+---
 field capabilities:
   - skip:
       version: " - 8.00.99"
@@ -353,9 +371,28 @@ ids query:
           query:
             ids:
               values: ["u1", "u3"]
+          sort: ["@timestamp"]
 
   - match: {hits.total.value: 2}
   - match: {hits.hits.0._id: "u1"}
   - match: {hits.hits.0.fields.k8s\.pod\.network\.tx: [2001828691]}
   - match: {hits.hits.1._id: "u3"}
   - match: {hits.hits.1.fields.k8s\.pod\.network\.tx: [2001848691]}
+
+---
+sort by tsid:
+  - skip:
+      version: " - 8.0.99"
+      reason: _tsid introduced in 8.1.0
+
+  - do:
+      search:
+        index: test
+        body:
+          sort:   [ "_tsid", "@timestamp" ]
+
+  - match: {hits.total.value: 8}
+  - match: {hits.hits.0.sort: [{ "k8s.pod.uid" : "947e4ced-1786-4e53-9e0c-5c447e959507", "metricset" : "pod"}, 1619635804467]}
+  - match: {hits.hits.1.sort: [{ "k8s.pod.uid" : "947e4ced-1786-4e53-9e0c-5c447e959507", "metricset" : "pod"}, 1619635824467]}
+  - match: {hits.hits.4.sort: [{ "k8s.pod.uid" : "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "metricset" : "pod"}, 1619635803142]}
+  - match: {hits.hits.7.sort: [{ "k8s.pod.uid" : "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "metricset" : "pod"}, 1619635863142]}

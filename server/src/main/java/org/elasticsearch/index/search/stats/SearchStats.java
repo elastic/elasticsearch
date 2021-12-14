@@ -30,10 +30,12 @@ public class SearchStats implements Writeable, ToXContentFragment {
         private long queryCount;
         private long queryTimeInMillis;
         private long queryCurrent;
+        private long queryFailureCount;
 
         private long fetchCount;
         private long fetchTimeInMillis;
         private long fetchCurrent;
+        private long fetchFailureCount;
 
         private long scrollCount;
         private long scrollTimeInMillis;
@@ -47,6 +49,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             // for internal use, initializes all counts to 0
         }
 
+        // left here for backward compatibility
         public Stats(
             long queryCount,
             long queryTimeInMillis,
@@ -78,14 +81,51 @@ public class SearchStats implements Writeable, ToXContentFragment {
             this.suggestCurrent = suggestCurrent;
         }
 
-        private Stats(StreamInput in) throws IOException {
+        public Stats(
+            long queryCount,
+            long queryTimeInMillis,
+            long queryCurrent,
+            long queryFailureCount,
+            long fetchCount,
+            long fetchTimeInMillis,
+            long fetchCurrent,
+            long fetchFailureCount,
+            long scrollCount,
+            long scrollTimeInMillis,
+            long scrollCurrent,
+            long suggestCount,
+            long suggestTimeInMillis,
+            long suggestCurrent
+        ) {
+            this.queryCount = queryCount;
+            this.queryTimeInMillis = queryTimeInMillis;
+            this.queryCurrent = queryCurrent;
+            this.queryFailureCount = queryFailureCount;
+
+            this.fetchCount = fetchCount;
+            this.fetchTimeInMillis = fetchTimeInMillis;
+            this.fetchCurrent = fetchCurrent;
+            this.fetchFailureCount = fetchFailureCount;
+
+            this.scrollCount = scrollCount;
+            this.scrollTimeInMillis = scrollTimeInMillis;
+            this.scrollCurrent = scrollCurrent;
+
+            this.suggestCount = suggestCount;
+            this.suggestTimeInMillis = suggestTimeInMillis;
+            this.suggestCurrent = suggestCurrent;
+        }
+
+        private Stats(StreamInput in) throws IOException { // TODO older stream?
             queryCount = in.readVLong();
             queryTimeInMillis = in.readVLong();
             queryCurrent = in.readVLong();
+            queryFailureCount = in.readVLong();
 
             fetchCount = in.readVLong();
             fetchTimeInMillis = in.readVLong();
             fetchCurrent = in.readVLong();
+            fetchFailureCount = in.readVLong();
 
             scrollCount = in.readVLong();
             scrollTimeInMillis = in.readVLong();
@@ -203,10 +243,12 @@ public class SearchStats implements Writeable, ToXContentFragment {
             out.writeVLong(queryCount);
             out.writeVLong(queryTimeInMillis);
             out.writeVLong(queryCurrent);
+            out.writeVLong(queryFailureCount);
 
             out.writeVLong(fetchCount);
             out.writeVLong(fetchTimeInMillis);
             out.writeVLong(fetchCurrent);
+            out.writeVLong(fetchFailureCount);
 
             out.writeVLong(scrollCount);
             out.writeVLong(scrollTimeInMillis);
@@ -218,14 +260,16 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException { // TODO
             builder.field(Fields.QUERY_TOTAL, queryCount);
             builder.humanReadableField(Fields.QUERY_TIME_IN_MILLIS, Fields.QUERY_TIME, getQueryTime());
             builder.field(Fields.QUERY_CURRENT, queryCurrent);
+            builder.field(Fields.QUERY_FAILURE_TOTAL, queryFailureCount);
 
             builder.field(Fields.FETCH_TOTAL, fetchCount);
             builder.humanReadableField(Fields.FETCH_TIME_IN_MILLIS, Fields.FETCH_TIME, getFetchTime());
             builder.field(Fields.FETCH_CURRENT, fetchCurrent);
+            builder.field(Fields.FETCH_FAILURE_TOTAL, fetchFailureCount);
 
             builder.field(Fields.SCROLL_TOTAL, scrollCount);
             builder.humanReadableField(Fields.SCROLL_TIME_IN_MILLIS, Fields.SCROLL_TIME, getScrollTime());
@@ -255,7 +299,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         this.groupStats = groupStats;
     }
 
-    public SearchStats(StreamInput in) throws IOException {
+    public SearchStats(StreamInput in) throws IOException { // TODO migration
         totalStats = Stats.readStats(in);
         openContexts = in.readVLong();
         if (in.readBoolean()) {
@@ -338,10 +382,12 @@ public class SearchStats implements Writeable, ToXContentFragment {
         static final String QUERY_TIME = "query_time";
         static final String QUERY_TIME_IN_MILLIS = "query_time_in_millis";
         static final String QUERY_CURRENT = "query_current";
+        static final String QUERY_FAILURE_TOTAL = "query_failure_total";
         static final String FETCH_TOTAL = "fetch_total";
         static final String FETCH_TIME = "fetch_time";
         static final String FETCH_TIME_IN_MILLIS = "fetch_time_in_millis";
         static final String FETCH_CURRENT = "fetch_current";
+        static final String FETCH_FAILURE_TOTAL = "fetch_failure_total";
         static final String SCROLL_TOTAL = "scroll_total";
         static final String SCROLL_TIME = "scroll_time";
         static final String SCROLL_TIME_IN_MILLIS = "scroll_time_in_millis";

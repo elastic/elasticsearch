@@ -482,6 +482,9 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("search.fetch_total", "sibling:pri;alias:sfto,searchFetchTotal;default:false;text-align:right;desc:total fetch ops");
         table.addCell("pri.search.fetch_total", "default:false;text-align:right;desc:total fetch ops");
 
+        table.addCell("search.fetch_failure_total", "sibling:pri;alias:sfto,searchFetchFailureTotal;default:false;text-align:right;desc:total fetch ops");
+        table.addCell("pri.search.fetch_failure_total", "default:false;text-align:right;desc:total fetch ops");
+
         table.addCell(
             "search.open_contexts",
             "sibling:pri;alias:so,searchOpenContexts;default:false;text-align:right;desc:open search contexts"
@@ -505,6 +508,12 @@ public class RestIndicesAction extends AbstractCatAction {
             "sibling:pri;alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops"
         );
         table.addCell("pri.search.query_total", "default:false;text-align:right;desc:total query phase ops");
+
+        table.addCell(
+            "search.query_failure_total",
+            "sibling:pri;alias:sqto,searchQueryFailureTotal;default:false;text-align:right;desc:total query phase ops"
+        );
+        table.addCell("pri.search.query_failure_total", "default:false;text-align:right;desc:total query phase ops");
 
         table.addCell(
             "search.scroll_current",

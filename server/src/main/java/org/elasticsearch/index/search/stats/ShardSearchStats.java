@@ -73,6 +73,7 @@ public final class ShardSearchStats implements SearchOperationListener {
                 statsHolder.suggestCurrent.dec();
             } else {
                 statsHolder.queryCurrent.dec();
+                statsHolder.queryFailureMetric.inc(1);
             }
         });
     }
@@ -97,7 +98,10 @@ public final class ShardSearchStats implements SearchOperationListener {
 
     @Override
     public void onFailedFetchPhase(SearchContext searchContext) {
-        computeStats(searchContext, statsHolder -> statsHolder.fetchCurrent.dec());
+        computeStats(searchContext, statsHolder -> {
+            statsHolder.fetchCurrent.dec();
+            statsHolder.fetchFailureMetric.inc(1);
+        });
     }
 
     @Override
@@ -156,6 +160,8 @@ public final class ShardSearchStats implements SearchOperationListener {
     static final class StatsHolder {
         final MeanMetric queryMetric = new MeanMetric();
         final MeanMetric fetchMetric = new MeanMetric();
+        final MeanMetric queryFailureMetric = new MeanMetric();
+        final MeanMetric fetchFailureMetric = new MeanMetric();
         /* We store scroll statistics in microseconds because with nanoseconds we run the risk of overflowing the total stats if there are
          * many scrolls. For example, on a system with 2^24 scrolls that have been executed, each executing for 2^10 seconds, then using
          * nanoseconds would require a numeric representation that can represent at least 2^24 * 2^10 * 10^9 > 2^24 * 2^10 * 2^29 = 2^63
@@ -175,9 +181,11 @@ public final class ShardSearchStats implements SearchOperationListener {
                 queryMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(queryMetric.sum()),
                 queryCurrent.count(),
+                queryFailureMetric.count(),
                 fetchMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(fetchMetric.sum()),
                 fetchCurrent.count(),
+                fetchFailureMetric.count(),
                 scrollMetric.count(),
                 TimeUnit.MICROSECONDS.toMillis(scrollMetric.sum()),
                 scrollCurrent.count(),

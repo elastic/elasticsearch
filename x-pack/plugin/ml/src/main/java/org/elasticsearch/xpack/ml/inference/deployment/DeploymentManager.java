@@ -372,7 +372,7 @@ public class DeploymentManager {
                                 processContext,
                                 request.tokenization,
                                 processor.getResultProcessor((NlpConfig) config),
-                                ActionListener.wrap(this::onSuccess, this::onFailure)
+                                this
                             ),
                             this::onFailure
                         )

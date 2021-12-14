@@ -35,8 +35,8 @@ public final class MatchProcessor extends AbstractEnrichProcessor {
 
     @Override
     public QueryBuilder getQueryBuilder(Object fieldValue) {
-        if (fieldValue instanceof List) {
-            return new TermsQueryBuilder(matchField, (List<?>) fieldValue);
+        if (fieldValue instanceof List<?> list) {
+            return new TermsQueryBuilder(matchField, list);
         } else {
             return new TermQueryBuilder(matchField, fieldValue);
         }

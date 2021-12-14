@@ -62,18 +62,7 @@ public class PyTorchResultProcessor {
                 PyTorchResult result = iterator.next();
                 PyTorchInferenceResult inferenceResult = result.inferenceResult();
                 if (inferenceResult != null) {
-                    logger.trace(
-                        () -> new ParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, inferenceResult.getRequestId())
-                    );
-                    processResult(inferenceResult);
-                    PendingResult pendingResult = pendingResults.remove(inferenceResult.getRequestId());
-                    if (pendingResult == null) {
-                        logger.debug(
-                            () -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, inferenceResult.getRequestId())
-                        );
-                    } else {
-                        pendingResult.listener.onResponse(inferenceResult);
-                    }
+                    processInferenceResult(inferenceResult);
                 }
                 ThreadSettings threadSettings = result.threadSettings();
                 if (threadSettings != null) {
@@ -107,6 +96,17 @@ public class PyTorchResultProcessor {
             pendingResults.clear();
         }
         logger.debug(() -> new ParameterizedMessage("[{}] Results processing finished", deploymentId));
+    }
+
+    private void processInferenceResult(PyTorchInferenceResult inferenceResult) {
+        logger.trace(() -> new ParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, inferenceResult.getRequestId()));
+        processResult(inferenceResult);
+        PendingResult pendingResult = pendingResults.remove(inferenceResult.getRequestId());
+        if (pendingResult == null) {
+            logger.debug(() -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, inferenceResult.getRequestId()));
+        } else {
+            pendingResult.listener.onResponse(inferenceResult);
+        }
     }
 
     public synchronized LongSummaryStatistics getTimingStats() {

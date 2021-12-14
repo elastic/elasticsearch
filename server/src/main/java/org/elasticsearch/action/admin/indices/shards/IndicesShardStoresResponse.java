@@ -8,9 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.shards;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -26,6 +23,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Response for {@link IndicesShardStoresAction}
@@ -290,9 +288,9 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(storeStatuses, StreamOutput::writeString, (o, v) -> {
             o.writeVInt(v.size());
-            for (IntObjectCursor<List<StoreStatus>> shardStatusesEntry : v) {
-                o.writeInt(shardStatusesEntry.key);
-                o.writeCollection(shardStatusesEntry.value);
+            for (Map.Entry<Integer, List<StoreStatus>> shardStatusesEntry : v.entrySet()) {
+                o.writeInt(shardStatusesEntry.getKey());
+                o.writeCollection(shardStatusesEntry.getValue());
             }
         });
         out.writeList(failures);
@@ -309,14 +307,14 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
         }
 
         builder.startObject(Fields.INDICES);
-        for (ObjectObjectCursor<String, ImmutableOpenIntMap<List<StoreStatus>>> indexShards : storeStatuses) {
-            builder.startObject(indexShards.key);
+        for (Map.Entry<String, ImmutableOpenIntMap<List<StoreStatus>>> indexShards : storeStatuses.entrySet()) {
+            builder.startObject(indexShards.getKey());
 
             builder.startObject(Fields.SHARDS);
-            for (IntObjectCursor<List<StoreStatus>> shardStatusesEntry : indexShards.value) {
-                builder.startObject(String.valueOf(shardStatusesEntry.key));
+            for (Map.Entry<Integer, List<StoreStatus>> shardStatusesEntry : indexShards.getValue().entrySet()) {
+                builder.startObject(String.valueOf(shardStatusesEntry.getKey()));
                 builder.startArray(Fields.STORES);
-                for (StoreStatus storeStatus : shardStatusesEntry.value) {
+                for (StoreStatus storeStatus : shardStatusesEntry.getValue()) {
                     builder.startObject();
                     storeStatus.toXContent(builder, params);
                     builder.endObject();

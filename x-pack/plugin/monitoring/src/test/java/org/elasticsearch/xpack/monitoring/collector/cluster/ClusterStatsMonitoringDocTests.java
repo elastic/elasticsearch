@@ -261,7 +261,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
     @Override
     public void testToXContent() throws IOException {
         final String clusterUuid = "_cluster";
-        final ClusterName clusterName = new ClusterName("_cluster_name");
+        final ClusterName testClusterName = new ClusterName("_cluster_name");
         final TransportAddress transportAddress = new TransportAddress(TransportAddress.META_ADDRESS, 9300);
         final DiscoveryNode discoveryNode = new DiscoveryNode(
             "_node_name",
@@ -275,7 +275,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             Version.CURRENT
         );
 
-        final ClusterState clusterState = ClusterState.builder(clusterName)
+        final ClusterState testClusterState = ClusterState.builder(testClusterName)
             .metadata(
                 Metadata.builder()
                     .clusterUUID(clusterUuid)
@@ -287,7 +287,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             .nodes(DiscoveryNodes.builder().masterNodeId("_node").localNodeId("_node").add(discoveryNode).build())
             .build();
 
-        final License license = License.builder()
+        final License testLicense = License.builder()
             .uid("442ca961-9c00-4bb2-b5c9-dfaacd547403")
             .type("trial")
             .issuer("elasticsearch")
@@ -297,7 +297,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             .maxNodes(2)
             .build();
 
-        final List<XPackFeatureSet.Usage> usages = singletonList(new MonitoringFeatureSetUsage(false, null));
+        final List<XPackFeatureSet.Usage> usageList = singletonList(new MonitoringFeatureSetUsage(false, null));
 
         final NodeInfo mockNodeInfo = mock(NodeInfo.class);
         Version mockNodeVersion = Version.CURRENT.minimumIndexCompatibilityVersion();
@@ -404,11 +404,11 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockNodeResponse.nodeStats()).thenReturn(mockNodeStats);
         when(mockNodeResponse.shardsStats()).thenReturn(new ShardStats[] { mockShardStats });
 
-        final Metadata metadata = clusterState.metadata();
-        final ClusterStatsResponse clusterStats = new ClusterStatsResponse(
+        final Metadata metadata = testClusterState.metadata();
+        final ClusterStatsResponse clusterStatsResponse = new ClusterStatsResponse(
             1451606400000L,
             "_cluster",
-            clusterName,
+            testClusterName,
             singletonList(mockNodeResponse),
             emptyList(),
             MappingStats.of(metadata, () -> {}),
@@ -423,14 +423,14 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             1502107402133L,
             1506593717631L,
             node,
-            clusterName.value(),
+            testClusterName.value(),
             "_version",
             ClusterHealthStatus.GREEN,
-            license,
+            testLicense,
             apmIndicesExist,
-            usages,
-            clusterStats,
-            clusterState,
+            usageList,
+            clusterStatsResponse,
+            testClusterState,
             needToEnableTLS
         );
 
@@ -669,7 +669,29 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                 + "      \"ingest\": {"
                 + "        \"number_of_pipelines\": 0,"
                 + "        \"processor_stats\": {}"
-                + "      }"
+                + "      },"
+                + "      \"indexing_pressure\": {"
+                + "         \"memory\": {"
+                + "             \"current\" :{"
+                + "                 \"combined_coordinating_and_primary_in_bytes\": 0,"
+                + "                 \"coordinating_in_bytes\": 0,"
+                + "                 \"primary_in_bytes\": 0,"
+                + "                 \"replica_in_bytes\": 0,"
+                + "                 \"all_in_bytes\": 0"
+                + "             },"
+                + "             \"total\": {"
+                + "                 \"combined_coordinating_and_primary_in_bytes\": 0,"
+                + "                 \"coordinating_in_bytes\": 0,"
+                + "                 \"primary_in_bytes\": 0,"
+                + "                 \"replica_in_bytes\": 0,"
+                + "                 \"all_in_bytes\": 0,"
+                + "                 \"coordinating_rejections\": 0,"
+                + "                 \"primary_rejections\": 0,"
+                + "                 \"replica_rejections\": 0"
+                + "             },"
+                + "             \"limit_in_bytes\": 0"
+                + "         }"
+                + "       }"
                 + "    }"
                 + "  },"
                 + "  \"cluster_state\": {"

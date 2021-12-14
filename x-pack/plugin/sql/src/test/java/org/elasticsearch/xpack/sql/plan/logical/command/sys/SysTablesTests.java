@@ -339,6 +339,24 @@ public class SysTablesTests extends ESTestCase {
         }, alias);
     }
 
+    public void testSysTablesWithCatalogPatternOnlyAliases() throws Exception {
+        executeCommand("SYS TABLES CATALOG LIKE 'clus*' LIKE '%' TYPE 'VIEW'", r -> {
+            assertEquals(1, r.size());
+            assertEquals("alias", r.column(2));
+        }, alias);
+    }
+
+    public void testSysTablesWithNoCatalogOnlyAliases() throws Exception {
+        executeCommand("SYS TABLES TYPE 'VIEW'", r -> {
+            assertEquals(1, r.size());
+            assertEquals("alias", r.column(2));
+        }, alias);
+    }
+
+    public void testSysTablesWithNonExistentCatalogOnlyAliases() throws Exception {
+        executeCommand("SYS TABLES CATALOG LIKE 'bogus' LIKE '%' TYPE 'VIEW'", r -> { assertEquals(0, r.size()); });
+    }
+
     public void testSysTablesWithInvalidType() throws Exception {
         executeCommand("SYS TABLES LIKE 'test' TYPE 'QUE HORA ES'", r -> { assertEquals(0, r.size()); }, new IndexInfo[0]);
     }

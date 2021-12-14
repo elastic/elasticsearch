@@ -1166,7 +1166,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(funcName + "(int)", eqe.output().get(0).qualifiedName());
             assertEquals(DOUBLE, eqe.output().get(0).dataType());
 
-            FieldExtraction fe = eqe.queryContainer().fields().get(0).v1();
+            FieldExtraction fe = eqe.queryContainer().fields().get(0).extraction();
             assertEquals(MetricAggRef.class, fe.getClass());
             assertEquals(((MetricAggRef) fe).property(), metricToAgg.get(funcName));
 
@@ -1293,7 +1293,7 @@ public class QueryTranslatorTests extends ESTestCase {
             .stream()
             .collect(Collectors.toMap(AggregationBuilder::getName, ab -> ab));
         return IntStream.range(0, fieldCount).mapToObj(i -> {
-            String percentileAggName = ((MetricAggRef) ee.queryContainer().fields().get(i).v1()).name();
+            String percentileAggName = ((MetricAggRef) ee.queryContainer().fields().get(i).extraction()).name();
             return (AbstractPercentilesAggregationBuilder) aggsByName.get(percentileAggName);
         }).collect(Collectors.toList());
     }

@@ -171,15 +171,15 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
     }
 
     public void testMonitoringNodeConstructor() {
-        final String id = randomAlphaOfLength(5);
+        id = randomAlphaOfLength(5);
         final String name = randomAlphaOfLengthBetween(3, 10);
         final TransportAddress fakeTransportAddress = buildNewFakeTransportAddress();
         final String host = fakeTransportAddress.address().getHostString();
         final String transportAddress = fakeTransportAddress.toString();
         final String ip = fakeTransportAddress.getAddress();
-        final long timestamp = randomNonNegativeLong();
+        timestamp = randomNonNegativeLong();
 
-        final MonitoringDoc.Node node = new MonitoringDoc.Node(id, host, transportAddress, ip, name, timestamp);
+        node = new MonitoringDoc.Node(id, host, transportAddress, ip, name, timestamp);
 
         assertThat(node.getUUID(), equalTo(id));
         assertThat(node.getHost(), equalTo(host));
@@ -190,7 +190,7 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
     }
 
     public void testMonitoringNodeToXContent() throws IOException {
-        final MonitoringDoc.Node node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
+        node = new MonitoringDoc.Node("_uuid", "_host", "_addr", "_ip", "_name", 1504169190855L);
 
         final BytesReference xContent = XContentHelper.toXContent(node, XContentType.JSON, randomBoolean());
         assertEquals(
@@ -207,22 +207,22 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
     }
 
     public void testMonitoringNodeEqualsAndHashcode() {
-        final EqualsHashCodeTestUtils.CopyFunction<MonitoringDoc.Node> copy = node -> new MonitoringDoc.Node(
-            node.getUUID(),
-            node.getHost(),
-            node.getTransportAddress(),
-            node.getIp(),
-            node.getName(),
-            node.getTimestamp()
+        final EqualsHashCodeTestUtils.CopyFunction<MonitoringDoc.Node> copy = _node -> new MonitoringDoc.Node(
+            _node.getUUID(),
+            _node.getHost(),
+            _node.getTransportAddress(),
+            _node.getIp(),
+            _node.getName(),
+            _node.getTimestamp()
         );
 
         final List<EqualsHashCodeTestUtils.MutateFunction<MonitoringDoc.Node>> mutations = new ArrayList<>();
         mutations.add(n -> {
-            String id;
+            String randomId;
             do {
-                id = UUIDs.randomBase64UUID();
-            } while (id.equals(n.getUUID()));
-            return new MonitoringDoc.Node(id, n.getHost(), n.getTransportAddress(), n.getIp(), n.getName(), n.getTimestamp());
+                randomId = UUIDs.randomBase64UUID();
+            } while (randomId.equals(n.getUUID()));
+            return new MonitoringDoc.Node(randomId, n.getHost(), n.getTransportAddress(), n.getIp(), n.getName(), n.getTimestamp());
         });
         mutations.add(n -> {
             String host;
@@ -253,11 +253,11 @@ public abstract class BaseMonitoringDocTestCase<T extends MonitoringDoc> extends
             return new MonitoringDoc.Node(n.getUUID(), n.getHost(), n.getTransportAddress(), n.getIp(), name, n.getTimestamp());
         });
         mutations.add(n -> {
-            long timestamp;
+            long randomTimestamp;
             do {
-                timestamp = randomBoolean() ? randomNonNegativeLong() : 0L;
-            } while (timestamp == n.getTimestamp());
-            return new MonitoringDoc.Node(n.getUUID(), n.getHost(), n.getTransportAddress(), n.getIp(), n.getName(), timestamp);
+                randomTimestamp = randomBoolean() ? randomNonNegativeLong() : 0L;
+            } while (randomTimestamp == n.getTimestamp());
+            return new MonitoringDoc.Node(n.getUUID(), n.getHost(), n.getTransportAddress(), n.getIp(), n.getName(), randomTimestamp);
         });
 
         final MonitoringDoc.Node sourceNode = MonitoringTestUtils.randomMonitoringNode(random());

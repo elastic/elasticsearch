@@ -895,13 +895,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                         final String info = sender + "_B_" + iter;
                         serviceB.sendRequest(
                             nodeA,
-                            "test",
+                            "internal:test",
                             new TestRequest(info),
                             new ActionListenerResponseHandler<>(listener, TestResponse::new)
                         );
                         try {
                             listener.actionGet();
-
                         } catch (Exception e) {
                             logger.trace(
                                 (Supplier<?>) () -> new ParameterizedMessage("caught exception while sending to node {}", nodeA),

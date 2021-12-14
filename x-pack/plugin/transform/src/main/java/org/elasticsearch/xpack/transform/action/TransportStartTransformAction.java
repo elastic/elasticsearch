@@ -47,9 +47,9 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformIndex;
 import org.elasticsearch.xpack.transform.transforms.TransformNodes;
+import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.time.Clock;
-import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -154,7 +154,7 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
         ActionListener<Boolean> createOrGetIndexListener = ActionListener.wrap(unused -> {
             TransformTaskParams transformTask = transformTaskParamsHolder.get();
             assert transformTask != null;
-            PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams> existingTask = getExistingTask(transformTask.getId(), state);
+            PersistentTasksCustomMetadata.PersistentTask<?> existingTask = TransformTask.getTransformTask(transformTask.getId(), state);
             if (existingTask == null) {
                 // Create the allocated task and wait for it to be started
                 persistentTasksService.sendStartRequest(
@@ -275,31 +275,6 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
     @Override
     protected ClusterBlockException checkBlock(StartTransformAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-    }
-
-    @SuppressWarnings("unchecked")
-    private static PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams> getExistingTask(String id, ClusterState state) {
-        PersistentTasksCustomMetadata pTasksMeta = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        if (pTasksMeta == null) {
-            return null;
-        }
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> existingTask = pTasksMeta.findTasks(
-            TransformTaskParams.NAME,
-            t -> t.getId().equals(id)
-        );
-        if (existingTask.isEmpty()) {
-            return null;
-        } else {
-            assert (existingTask.size() == 1);
-            PersistentTasksCustomMetadata.PersistentTask<?> pTask = existingTask.iterator().next();
-            if (pTask.getParams() instanceof TransformTaskParams) {
-                return (PersistentTasksCustomMetadata.PersistentTask<TransformTaskParams>) pTask;
-            }
-            throw new ElasticsearchStatusException(
-                "Found transform persistent task [" + id + "] with incorrect params",
-                RestStatus.INTERNAL_SERVER_ERROR
-            );
-        }
     }
 
     private void cancelTransformTask(String taskId, String transformId, Exception exception, Consumer<Exception> onFailure) {

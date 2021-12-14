@@ -13,13 +13,12 @@ import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,62 +26,92 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 
 public class FillMaskProcessor implements NlpTask.Processor {
 
-    private final NlpTask.RequestBuilder requestBuilder;
+    private final NlpTokenizer tokenizer;
 
     FillMaskProcessor(NlpTokenizer tokenizer, FillMaskConfig config) {
-        this.requestBuilder = tokenizer.requestBuilder();
+        this.tokenizer = tokenizer;
     }
 
     @Override
     public void validateInputs(List<String> inputs) {
         if (inputs.isEmpty()) {
-            throw new IllegalArgumentException("input request is empty");
+            throw ExceptionsHelper.badRequestException("input request is empty");
         }
 
+        final String mask = tokenizer.getMaskToken();
         for (String input : inputs) {
-            int maskIndex = input.indexOf(BertTokenizer.MASK_TOKEN);
+            int maskIndex = input.indexOf(mask);
             if (maskIndex < 0) {
-                throw new IllegalArgumentException("no " + BertTokenizer.MASK_TOKEN + " token could be found");
+                throw ExceptionsHelper.badRequestException("no {} token could be found", mask);
             }
 
-            maskIndex = input.indexOf(BertTokenizer.MASK_TOKEN, maskIndex + BertTokenizer.MASK_TOKEN.length());
+            maskIndex = input.indexOf(mask, maskIndex + mask.length());
             if (maskIndex > 0) {
-                throw new IllegalArgumentException("only one " + BertTokenizer.MASK_TOKEN + " token should exist in the input");
+                throw ExceptionsHelper.badRequestException("only one {} token should exist in the input", mask);
             }
         }
     }
 
     @Override
     public NlpTask.RequestBuilder getRequestBuilder(NlpConfig config) {
-        return requestBuilder;
+        return tokenizer.requestBuilder();
     }
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor(NlpConfig config) {
-        if (config instanceof FillMaskConfig) {
-            FillMaskConfig fillMaskConfig = (FillMaskConfig) config;
+        if (config instanceof FillMaskConfig fillMaskConfig) {
             return (tokenization, result) -> processResult(
                 tokenization,
                 result,
+                tokenizer,
                 fillMaskConfig.getNumTopClasses(),
                 fillMaskConfig.getResultsField()
             );
         } else {
-            return (tokenization, result) -> processResult(tokenization, result, FillMaskConfig.DEFAULT_NUM_RESULTS, DEFAULT_RESULTS_FIELD);
+            return (tokenization, result) -> processResult(
+                tokenization,
+                result,
+                tokenizer,
+                FillMaskConfig.DEFAULT_NUM_RESULTS,
+                DEFAULT_RESULTS_FIELD
+            );
         }
     }
 
     static InferenceResults processResult(
         TokenizationResult tokenization,
         PyTorchResult pyTorchResult,
+        NlpTokenizer tokenizer,
         int numResults,
         String resultsField
     ) {
-        if (tokenization.getTokenizations().isEmpty() || tokenization.getTokenizations().get(0).getTokens().length == 0) {
+        if (tokenization.getTokenizations().isEmpty() || tokenization.getTokenizations().get(0).getTokenIds().length == 0) {
             return new WarningInferenceResults("No valid tokens for inference");
         }
 
-        int maskTokenIndex = Arrays.asList(tokenization.getTokenizations().get(0).getTokens()).indexOf(BertTokenizer.MASK_TOKEN);
+        if (tokenizer.getMaskTokenId().isEmpty()) {
+            throw ExceptionsHelper.conflictStatusException(
+                "The token id for the mask token {} is not known in the tokenizer. Check the vocabulary contains the mask token",
+                tokenizer.getMaskToken()
+            );
+        }
+
+        int maskTokenIndex = -1;
+        int maskTokenId = tokenizer.getMaskTokenId().getAsInt();
+        for (int i = 0; i < tokenization.getTokenizations().get(0).getTokenIds().length; i++) {
+            if (tokenization.getTokenizations().get(0).getTokenIds()[i] == maskTokenId) {
+                maskTokenIndex = i;
+                break;
+            }
+        }
+        if (maskTokenIndex == -1) {
+            return new WarningInferenceResults(
+                "mask token id [{}] not found in the tokenization {}",
+                maskTokenId,
+                List.of(tokenization.getTokenizations().get(0).getTokenIds())
+            );
+        }
+
         // TODO - process all results in the batch
         double[] normalizedScores = NlpHelpers.convertToProbabilitiesBySoftMax(pyTorchResult.getInferenceResult()[0][maskTokenIndex]);
 
@@ -103,7 +132,7 @@ public class FillMaskProcessor implements NlpTask.Processor {
             tokenization.getTokenizations()
                 .get(0)
                 .getInput()
-                .replace(BertTokenizer.MASK_TOKEN, tokenization.getFromVocab(scoreAndIndices[0].index)),
+                .replace(tokenizer.getMaskToken(), tokenization.getFromVocab(scoreAndIndices[0].index)),
             results,
             Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
             scoreAndIndices[0].score,

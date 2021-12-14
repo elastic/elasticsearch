@@ -30,7 +30,11 @@ public interface NlpTokenizer {
 
     NlpTask.RequestBuilder requestBuilder();
 
-    OptionalInt getPadToken();
+    OptionalInt getPadTokenId();
+
+    OptionalInt getMaskTokenId();
+
+    String getMaskToken();
 
     static NlpTokenizer build(Vocabulary vocabulary, Tokenization params) {
         ExceptionsHelper.requireNonNull(params, TOKENIZATION);

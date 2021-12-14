@@ -149,10 +149,10 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     checkTransformConfigAndLogWarnings(updatedConfig);
 
                     if (update.changesSettings(configAndVersion.v1())) {
-                        PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
+                        PersistentTasksCustomMetadata.PersistentTask<?> transformTask = TransformTask.getTransformTask(
+                            request.getId(),
                             clusterState
                         );
-                        PersistentTasksCustomMetadata.PersistentTask<?> transformTask = tasksMetadata.getTask(request.getId());
 
                         // to send a request to apply new settings at runtime, several requirements must be met:
                         // - transform must be running, meaning a task exists

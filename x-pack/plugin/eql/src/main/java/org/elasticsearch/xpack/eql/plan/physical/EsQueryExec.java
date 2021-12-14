@@ -43,8 +43,8 @@ public class EsQueryExec extends LeafExec {
         return NodeInfo.create(this, EsQueryExec::new, output, queryContainer);
     }
 
-    public EsQueryExec with(QueryContainer container) {
-        return new EsQueryExec(source(), output, container);
+    public EsQueryExec with(QueryContainer queryContainer) {
+        return new EsQueryExec(source(), output, queryContainer);
     }
 
     @Override

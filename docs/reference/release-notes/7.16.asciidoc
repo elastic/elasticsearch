@@ -16,6 +16,12 @@ related
 https://discuss.elastic.co/t/apache-log4j2-remote-code-execution-rce-vulnerability-cve-2021-44228-esa-2021-31/291476[security
 announcement].
 
+[[known-issues-7.16.1]]
+[discrete]
+=== Known issues
+
+include::7.16.asciidoc[tag=painless-functional-interface-resolution-81696-known-issue]
+
 [[enhancement-7.16.1]]
 [float]
 === Enhancements
@@ -158,6 +164,7 @@ for (int i = 0; i < l.size(); ++i) {
     l.set(i, l.get(i).replace('abc', 'doremi'));
 }
 ----
+// end::painless-functional-interface-resolution-81696-known-issue[]
 
 [[feature-7.16.0]]
 [float]

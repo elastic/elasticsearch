@@ -31,6 +31,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.BWCLucene70Codec;
 
 import java.io.IOException;
@@ -169,6 +170,10 @@ public abstract class BWCCodec extends Codec {
     private static FieldInfos filterFields(FieldInfos fieldInfos) {
         List<FieldInfo> fieldInfoCopy = new ArrayList<>(fieldInfos.size());
         for (FieldInfo fieldInfo : fieldInfos) {
+            // omit sequence number field so that it doesn't interfere with peer recovery
+            if (fieldInfo.name.equals(SeqNoFieldMapper.NAME)) {
+                continue;
+            }
             fieldInfoCopy.add(
                 new FieldInfo(
                     fieldInfo.name,

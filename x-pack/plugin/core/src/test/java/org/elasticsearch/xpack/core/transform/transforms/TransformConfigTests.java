@@ -141,7 +141,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         );
     }
 
-    public static TransformConfig randomInvalidTransformConfig() {
+    public static TransformConfig randomInvalidTransformConfig(String id) {
         if (randomBoolean()) {
             PivotConfig pivotConfig;
             LatestConfig latestConfig;
@@ -154,7 +154,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             }
 
             return new TransformConfig(
-                randomAlphaOfLengthBetween(1, 10),
+                id,
                 randomInvalidSourceConfig(),
                 randomDestConfig(),
                 null,
@@ -171,7 +171,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             );
         } // else
         return new TransformConfig(
-            randomAlphaOfLengthBetween(1, 10),
+            id,
             randomSourceConfig(),
             randomDestConfig(),
             null,

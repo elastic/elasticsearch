@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -768,7 +767,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         MoveAllocationCommand command = new MoveAllocationCommand(index.getName(), 0, "node1", "node2");
         RoutingAllocation routingAllocation = new RoutingAllocation(
             new AllocationDeciders(Collections.emptyList()),
-            new RoutingNodes(clusterState, false),
+            clusterState.mutableRoutingNodes(),
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,
@@ -835,7 +834,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         MoveAllocationCommand command = new MoveAllocationCommand(index.getName(), 0, "node2", "node1");
         RoutingAllocation routingAllocation = new RoutingAllocation(
             new AllocationDeciders(Collections.emptyList()),
-            new RoutingNodes(clusterState, false),
+            clusterState.mutableRoutingNodes(),
             clusterState,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,

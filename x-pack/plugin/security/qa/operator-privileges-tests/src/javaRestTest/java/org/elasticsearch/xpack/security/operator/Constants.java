@@ -297,6 +297,7 @@ public class Constants {
         "cluster:monitor/xpack/ml/info/get",
         "cluster:monitor/xpack/ml/job/get",
         "cluster:monitor/xpack/ml/job/model_snapshots/get",
+        "cluster:monitor/xpack/ml/job/model_snapshots/upgrade/stats/get",
         "cluster:monitor/xpack/ml/job/results/buckets/get",
         "cluster:monitor/xpack/ml/job/results/categories/get",
         "cluster:monitor/xpack/ml/job/results/influencers/get",

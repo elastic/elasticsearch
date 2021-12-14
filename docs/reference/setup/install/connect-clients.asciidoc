@@ -31,7 +31,7 @@ openssl x509 -fingerprint -sha256 -in config/tls_auto_config_<timestamp>/http_ca
 
 `<timestamp>`:: The timestamp of when the auto-configuration process created the security files directory.
 
-The command returns the the security certificate, including the fingerprint.
+The command returns the security certificate, including the fingerprint.
 The `issuer` should be `Elasticsearch security auto-configuration HTTP CA`.
 
 [source,sh]

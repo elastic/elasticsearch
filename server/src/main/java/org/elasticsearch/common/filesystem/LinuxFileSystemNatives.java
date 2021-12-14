@@ -90,7 +90,7 @@ final class LinuxFileSystemNatives implements FileSystemNatives.Provider {
             final Stat stats = new Stat();
             final int rc = XStatLibrary.__xstat(STAT_VER, path.toString(), stats);
             if (logger.isTraceEnabled()) {
-                logger.trace("executing native method __xstat() returned {} with error code [{}] for file [{}]", rc, stats, path);
+                logger.trace("executing native method __xstat() returned {} with error code [{}] for file [{}]", stats, rc, path);
             }
             return OptionalLong.of(stats.st_blocks * ST_BLOCKS_UNIT);
         } catch (LastErrorException e) {

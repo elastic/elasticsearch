@@ -606,8 +606,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                     parentCtx = parentCtx.getParent();
                     if (parentCtx instanceof ValueExpressionDefaultContext) {
                         parentCtx = parentCtx.getParent();
-                        if (parentCtx instanceof ArithmeticUnaryContext) {
-                            ArithmeticUnaryContext auc = (ArithmeticUnaryContext) parentCtx;
+                        if (parentCtx instanceof ArithmeticUnaryContext auc) {
                             negative = auc.MINUS() != null;
                         }
                     }
@@ -967,8 +966,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
                     }
                 }
                 // Intervals and SysTypes can only have a single "-" as parentheses are not allowed there
-            } else if (parentCtx instanceof IntervalContext) {
-                IntervalContext ic = (IntervalContext) parentCtx;
+            } else if (parentCtx instanceof IntervalContext ic) {
                 if (ic.sign != null && ic.sign.getType() == SqlBaseParser.MINUS) {
                     return new Tuple<>(source(ic), true);
                 }

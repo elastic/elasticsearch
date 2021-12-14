@@ -234,8 +234,7 @@ final class QueryTranslator {
         if (arg.foldable()) {
             return String.valueOf(arg.fold());
         }
-        if (arg instanceof FieldAttribute) {
-            FieldAttribute field = (FieldAttribute) arg;
+        if (arg instanceof FieldAttribute field) {
             // COUNT(DISTINCT) uses cardinality aggregation which works on exact values (not changed by analyzers or normalizers)
             if ((af instanceof Count && ((Count) af).distinct()) || af instanceof TopHits) {
                 // use the `keyword` version of the field, if there is one

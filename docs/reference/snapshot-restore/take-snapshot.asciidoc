@@ -348,7 +348,8 @@ the <<slm-api-get-policy,get {slm-init} policy API>>. The response includes:
 * The next scheduled policy execution.
 * The last time the policy successfully started the snapshot process, if
   applicable. A successful start doesn't guarantee the snapshot completed.
-* The last time the policy failed and the associated error, if applicable.
+* The last time policy execution failed, if applicable, and the associated
+  error.
 
 [source,console]
 ----

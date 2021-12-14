@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -27,6 +28,10 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestCase<IndexLifecycleExplainResponse> {
@@ -47,6 +52,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
         boolean stepNull = randomBoolean();
         return IndexLifecycleExplainResponse.newManagedIndexResponse(
             randomAlphaOfLength(10),
+            randomBoolean() ? null : randomLongBetween(0, System.currentTimeMillis()),
             randomAlphaOfLength(10),
             randomBoolean() ? null : randomLongBetween(0, System.currentTimeMillis()),
             stepNull ? null : randomAlphaOfLength(10),
@@ -72,6 +78,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
             IllegalArgumentException.class,
             () -> IndexLifecycleExplainResponse.newManagedIndexResponse(
                 randomAlphaOfLength(10),
+                randomNonNegativeLong(),
                 randomAlphaOfLength(10),
                 randomBoolean() ? null : randomNonNegativeLong(),
                 (numNull == 1) ? null : randomAlphaOfLength(10),
@@ -92,6 +99,51 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
         );
         assertThat(exception.getMessage(), startsWith("managed index response must have complete step details"));
         assertThat(exception.getMessage(), containsString("=null"));
+    }
+
+    public void testIndexAges() {
+        IndexLifecycleExplainResponse unmanagedExplainResponse = randomUnmanagedIndexExplainResponse();
+        assertThat(unmanagedExplainResponse.getLifecycleDate(), is(nullValue()));
+        assertThat(unmanagedExplainResponse.getAge(System::currentTimeMillis), is(TimeValue.MINUS_ONE));
+
+        assertThat(unmanagedExplainResponse.getIndexCreationDate(), is(nullValue()));
+        assertThat(unmanagedExplainResponse.getTimeSinceIndexCreation(System::currentTimeMillis), is(nullValue()));
+
+        IndexLifecycleExplainResponse managedExplainResponse = IndexLifecycleExplainResponse.newManagedIndexResponse(
+            "indexName",
+            12345L,
+            "policy",
+            5678L,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+        assertThat(managedExplainResponse.getLifecycleDate(), is(notNullValue()));
+        Long now = 1_000_000L;
+        assertThat(managedExplainResponse.getAge(() -> now), is(notNullValue()));
+        assertThat(
+            managedExplainResponse.getAge(() -> now),
+            is(equalTo(TimeValue.timeValueMillis(now - managedExplainResponse.getLifecycleDate())))
+        );
+        assertThat(managedExplainResponse.getAge(() -> 0L), is(equalTo(TimeValue.ZERO)));
+        assertThat(managedExplainResponse.getIndexCreationDate(), is(notNullValue()));
+        assertThat(managedExplainResponse.getTimeSinceIndexCreation(() -> now), is(notNullValue()));
+        assertThat(
+            managedExplainResponse.getTimeSinceIndexCreation(() -> now),
+            is(equalTo(TimeValue.timeValueMillis(now - managedExplainResponse.getIndexCreationDate())))
+        );
+        assertThat(managedExplainResponse.getTimeSinceIndexCreation(() -> 0L), is(equalTo(TimeValue.ZERO)));
     }
 
     @Override
@@ -117,6 +169,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
     @Override
     protected IndexLifecycleExplainResponse mutateInstance(IndexLifecycleExplainResponse instance) throws IOException {
         String index = instance.getIndex();
+        Long indexCreationDate = instance.getIndexCreationDate();
         String policy = instance.getPolicyName();
         String phase = instance.getPhase();
         String action = instance.getAction();
@@ -206,6 +259,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
             }
             return IndexLifecycleExplainResponse.newManagedIndexResponse(
                 index,
+                indexCreationDate,
                 policy,
                 policyTime,
                 phase,

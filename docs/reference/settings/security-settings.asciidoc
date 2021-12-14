@@ -1955,15 +1955,40 @@ In addition to the <<ref-realm-settings,settings that are valid for all realms>>
 can specify the following settings.
 // end::jwt-description-tag[]
 
-// tag::jwt-issuer-tag[]
-`issuer` {ess-icon}::
+// tag::jwt-allowed-issuer-tag[]
+`allowed_issuer` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 A verifiable Identifier for your JWT Issuer. An Issuer
 Identifier is usually a case sensitive URL using the https scheme that contains
 scheme, host, and optionally, port number and path components and no query or
 fragment components. The value for this setting should be provided by your JWT
 Issuer.
-// end::jwt-op-issuer-tag[]
+// end::jwt-allowed-issuer-tag[]
+
+// tag::jwt-allowed-audience-tag[]
+`allowed_issuer` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+A verifiable Identifier for your JWT client application.
+
+The OAuth 2.0 Client Identifier that was assigned to the
+OpenID Connect Relying Party application during registration
+at the OpenID Connect Provider.
+// end::jwt-allowed-audience-tag[]
+
+// tag::jwt-allowed-signature-algorithm-tag[]
+`allowed_clock_skew` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The signature algorithm that will be used by {es} in order to verify the
+signature of the id tokens it will receive from the JWT Issuer.
+Defaults to `RSA256`.
+// end::jwt-allowed-signature-algorithm-tag[]
+
+// tag::jwt-allowed-clock-skew-tag[]
+`allowed_clock_skew` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The maximum allowed clock skew to be taken into consideration when validating
+id tokens with regards to their creation and expiration times.
+// end::jwt-allowed-clock-skew-tag[]
 
 // tag::jwt-jwkset-path-tag[]
 `jwkset_path` {ess-icon}::
@@ -1980,7 +2005,7 @@ rotated the signing keys.
 +
 File-based resources are polled at a frequency determined by the global {es}
 `resource.reload.interval.high` setting, which defaults to 5 seconds.
-// end::jwt-op-jwkset-path-tag[]
+// end::jwt-jwkset-path-tag[]
 
 `authorization_realms`::
 (<<static-cluster-setting,Static>>)
@@ -2017,13 +2042,6 @@ the principal.
 (<<static-cluster-setting,Static>>)
 As per `claim_patterns.principal`, but for the _group_ property.
 // end::jwt-claim-pattern-groups-tag[]
-
-// tag::jwt-allowed-clock-skew-tag[]
-`allowed_clock_skew` {ess-icon}::
-(<<static-cluster-setting,Static>>)
-The maximum allowed clock skew to be taken into consideration when validating
-id tokens with regards to their creation and expiration times.
-// end::jwt-allowed-clock-skew-tag[]
 
 // tag::jwt-populate-user-metadata-tag[]
 `populate_user_metadata` {ess-icon}::

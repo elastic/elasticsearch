@@ -19,6 +19,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 public class JwtRealmSettings {
 
@@ -153,6 +154,17 @@ public class JwtRealmSettings {
         "allowed_clock_skew",
         key -> Setting.timeSetting(key, TimeValue.timeValueSeconds(60), Setting.Property.NodeScope)
     );
+    public static final Setting.AffixSetting<String> ALLOWED_SIGNATURE_ALGORITHM = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "allowed_signature_algorithm",
+        key -> new Setting<>(key, "RS256", Function.identity(), v -> {
+            if (SUPPORTED_SIGNATURE_ALGORITHMS.contains(v) == false) {
+                throw new IllegalArgumentException(
+                    "Invalid value [" + v + "] for [" + key + "]. Allowed values are " + SUPPORTED_SIGNATURE_ALGORITHMS + "}]"
+                );
+            }
+        }, Setting.Property.NodeScope)
+    );
     public static final Setting.AffixSetting<String> JWKSET_PATH = RealmSettings.simpleString(
         TYPE,
         "jwkset_path",
@@ -180,6 +192,7 @@ public class JwtRealmSettings {
             HTTP_PROXY_SCHEME,
             ALLOWED_ISSUER,
             ALLOWED_AUDIENCE,
+            ALLOWED_SIGNATURE_ALGORITHM,
             ALLOWED_CLOCK_SKEW,
             JWKSET_PATH,
             POPULATE_USER_METADATA

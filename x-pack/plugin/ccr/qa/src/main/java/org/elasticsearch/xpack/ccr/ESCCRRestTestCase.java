@@ -15,6 +15,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.RestStatus;
@@ -27,6 +28,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -344,8 +346,14 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         assertOK(client.performRequest(request));
     }
 
+    private static final LazyInitializable<Long, RuntimeException> time = new LazyInitializable<>(System::currentTimeMillis);
+
     protected static String backingIndexName(String dataStreamName, int generation) {
-        return DataStream.getDefaultBackingIndexName(dataStreamName, generation);
+        return DataStream.getDefaultBackingIndexName(dataStreamName, generation, time.getOrCompute());
+    }
+
+    protected static String backingIndexName(String dataStreamName, int generation, long epochMillis) {
+        return DataStream.getDefaultBackingIndexName(dataStreamName, generation, epochMillis);
     }
 
     protected RestClient buildLeaderClient() throws IOException {

@@ -2676,7 +2676,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final BlockingQueue<BlobStoreIndexShardSnapshot.FileInfo> filesToSnapshot = new LinkedBlockingQueue<>();
 
             if (isSearchableSnapshotStore(store.indexSettings().getSettings())) {
-                indexCommitPointFiles = new ArrayList<>();
+                indexCommitPointFiles = Collections.emptyList();
             } else if (filesFromSegmentInfos == null) {
                 // If we did not find a set of files that is equal to the current commit we determine the files to upload by comparing files
                 // in the commit with files already in the repository

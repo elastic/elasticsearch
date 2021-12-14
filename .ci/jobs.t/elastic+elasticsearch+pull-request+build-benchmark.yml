@@ -33,6 +33,8 @@
               - ^docs/.*
             black-list-labels:
               - '>test-mute'
+            white-list-labels:
+              - 'build-benchmark'
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'
@@ -44,9 +46,6 @@
       - shell: |
          #!/usr/local/bin/runbld --redirect-stderr
          $WORKSPACE/.ci/scripts/run-gradle.sh :build-tools-internal:bootstrapPerformanceTests
-         #!/usr/local/bin/runbld --redirect-stderr
          $WORKSPACE/.ci/scripts/install-gradle-profiler.sh
-         #!/usr/local/bin/runbld --redirect-stderr
          $WORKSPACE/.ci/scripts/run-gradle-profiler.sh --benchmark --scenario-file build-tools-internal/build/performanceTests/elasticsearch-build-tool-update.scenarios --project-dir . --output-dir profile-out
-         #!/usr/local/bin/runbld --redirect-stderr
          tar -czf build/${BUILD_NUMBER}.tar.bz2 profile-out

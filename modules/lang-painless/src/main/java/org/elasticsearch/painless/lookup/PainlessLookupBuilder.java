@@ -2116,7 +2116,7 @@ public final class PainlessLookupBuilder {
         }
     }
 
-    private void setFunctionalInterfaceMethod(Class<?> targetClass, PainlessClassBuilder painlessClassBuilder) {
+    private void setFunctionalInterfaceMethod(Class<?> targetClass, PainlessClassBuilder targetPainlessClassBuilder) {
         if (targetClass.isInterface()) {
             List<java.lang.reflect.Method> javaMethods = new ArrayList<>();
 
@@ -2141,7 +2141,31 @@ public final class PainlessLookupBuilder {
             } else if (javaMethods.size() == 1) {
                 java.lang.reflect.Method javaMethod = javaMethods.get(0);
                 String painlessMethodKey = buildPainlessMethodKey(javaMethod.getName(), javaMethod.getParameterCount());
-                painlessClassBuilder.functionalInterfaceMethod = painlessClassBuilder.methods.get(painlessMethodKey);
+
+                List<Class<?>> superInterfaces = new ArrayList<>();
+                Set<Class<?>> resolvedInterfaces = new HashSet<>();
+
+                superInterfaces.add(targetClass);
+
+                while (superInterfaces.isEmpty() == false) {
+                    Class<?> superInterface = superInterfaces.remove(0);
+
+                    if (resolvedInterfaces.add(superInterface)) {
+                        PainlessClassBuilder functionalInterfacePainlessClassBuilder = classesToPainlessClassBuilders.get(superInterface);
+
+                        if (functionalInterfacePainlessClassBuilder != null) {
+                            targetPainlessClassBuilder.functionalInterfaceMethod = functionalInterfacePainlessClassBuilder.methods.get(
+                                painlessMethodKey
+                            );
+
+                            if (targetPainlessClassBuilder.functionalInterfaceMethod != null) {
+                                break;
+                            }
+                        }
+
+                        superInterfaces.addAll(Arrays.asList(superInterface.getInterfaces()));
+                    }
+                }
             }
         }
     }

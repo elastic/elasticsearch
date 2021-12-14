@@ -18,7 +18,6 @@ import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -57,7 +56,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
             UpdateByQueryAction.NAME,
             transportService,
             actionFilters,
-            (Writeable.Reader<UpdateByQueryRequest>) UpdateByQueryRequest::new
+            UpdateByQueryRequest::new
         );
         this.threadPool = threadPool;
         this.client = client;

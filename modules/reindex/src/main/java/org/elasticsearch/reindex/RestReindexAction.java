@@ -15,7 +15,6 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestRequestFilter;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -67,12 +66,6 @@ public class RestReindexAction extends AbstractBaseReindexRestHandler<ReindexReq
         }
         if (request.hasParam(DocWriteRequest.REQUIRE_ALIAS)) {
             internal.setRequireAlias(request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false));
-        }
-
-        // Do not open scroll if limit <= scroll size
-        var docsPerScroll = internal.getSearchRequest().source().size();
-        if (internal.getMaxDocs() != -1 && internal.getMaxDocs() <= docsPerScroll && internal.isAbortOnVersionConflict()) {
-            internal.getSearchRequest().scroll((Scroll) null);
         }
 
         return internal;

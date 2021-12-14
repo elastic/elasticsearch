@@ -256,6 +256,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
+        // Do not open scroll if maxDocs <= scroll size
+        mainRequest.disableScrollIfUnnecessary();
         return new ClientScrollableHitSource(
             logger,
             backoffPolicy,

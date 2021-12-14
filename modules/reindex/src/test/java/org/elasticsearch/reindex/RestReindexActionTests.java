@@ -13,7 +13,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,8 +24,6 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static java.util.Collections.singletonMap;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class RestReindexActionTests extends RestActionTestCase {
 
@@ -80,53 +77,5 @@ public class RestReindexActionTests extends RestActionTestCase {
             ReindexRequest request = action.buildRequest(requestBuilder.build(), new NamedWriteableRegistry(Collections.emptyList()));
             assertEquals("10m", request.getScrollTime().toString());
         }
-    }
-
-    public void testSetsScrollByDefault() throws IOException {
-        var httpRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("/_reindex")
-            .withContent(new BytesArray("{}"), XContentType.JSON)
-            .build();
-
-        var transportRequest = action.buildRequest(httpRequest, writableRegistry());
-
-        assertThat(transportRequest.getSearchRequest().scroll(), notNullValue());
-    }
-
-    public void testNoScrollWhenMaxDocsIsLessThenScrollSize() throws IOException {
-        var httpRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("/_reindex")
-            .withContent(new BytesArray("""
-                {
-                  "source": {
-                    "size": 10
-                  },
-                  "max_docs": 1
-                }
-                """), XContentType.JSON)
-            .build();
-
-        var transportRequest = action.buildRequest(httpRequest, writableRegistry());
-
-        assertThat(transportRequest.getSearchRequest().scroll(), nullValue());
-    }
-
-    public void testSetsScrollWhenMaxDocsIsLessThenScrollSizeAndProceedOnConflict() throws IOException {
-        var httpRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
-            .withPath("/_reindex")
-            .withContent(new BytesArray("""
-                {
-                  "source": {
-                    "size": 10
-                  },
-                  "max_docs": 1,
-                  "conflicts": "proceed"
-                }
-                """), XContentType.JSON)
-            .build();
-
-        var transportRequest = action.buildRequest(httpRequest, writableRegistry());
-
-        assertThat(transportRequest.getSearchRequest().scroll(), notNullValue());
     }
 }

@@ -826,6 +826,12 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> response.consumeHits(1));
     }
 
+    public void testDisableScrollIfNotNeeded() {
+        new DummyAsyncBulkByScrollAction().buildScrollableResultSource(null);
+
+        assertThat(testRequest.disableScrollIfUnnecessaryCalled, equalTo(true));
+    }
+
     /**
      * Simulate a scroll response by setting the scroll id and firing the onScrollResponse method.
      */
@@ -907,6 +913,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     }
 
     private static class DummyAbstractBulkByScrollRequest extends AbstractBulkByScrollRequest<DummyAbstractBulkByScrollRequest> {
+
+        private boolean disableScrollIfUnnecessaryCalled = false;
+
         DummyAbstractBulkByScrollRequest(SearchRequest searchRequest) {
             super(searchRequest, true);
         }
@@ -919,6 +928,12 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         @Override
         protected DummyAbstractBulkByScrollRequest self() {
             return this;
+        }
+
+        @Override
+        public void disableScrollIfUnnecessary() {
+            disableScrollIfUnnecessaryCalled = true;
+            super.disableScrollIfUnnecessary();
         }
     }
 

@@ -16,9 +16,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Shared superclass for testing reindex and friends. In particular it makes sure to test the slice features.
+ * Shared superclass for testing reindex and friends
  */
 public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulkByScrollRequest<R> & ToXContent> extends
     AbstractXContentTestCase<R> {
@@ -72,6 +74,29 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         assertEquals(slicingTask, forSliced.getParentTask());
 
         extraForSliceAssertions(original, forSliced);
+    }
+
+    public void testEnableScrollByDefault() {
+        var request = newRequest();
+        request.disableScrollIfUnnecessary();
+        assertThat(request.getSearchRequest().scroll(), notNullValue());
+    }
+
+    public void testDisableScrollWhenMaxDocsIsLessThenScrollSize() {
+        var request = newRequest();
+        request.setMaxDocs(1);
+        request.getSearchRequest().source().size(100);
+        request.disableScrollIfUnnecessary();
+        assertThat(request.getSearchRequest().scroll(), nullValue());
+    }
+
+    public void testEnableScrollWhenProceedOnVersionConflict() {
+        var request = newRequest();
+        request.setMaxDocs(1);
+        request.getSearchRequest().source().size(100);
+        request.setAbortOnVersionConflict(false);
+        request.disableScrollIfUnnecessary();
+        assertThat(request.getSearchRequest().scroll(), notNullValue());
     }
 
     protected abstract R newRequest();

@@ -365,7 +365,8 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
      * Get scroll timeout
      */
     public TimeValue getScrollTime() {
-        return searchRequest.scroll().keepAlive();
+        Scroll scroll = searchRequest.scroll();
+        return scroll != null ? scroll.keepAlive() : null;
     }
 
     /**
@@ -421,6 +422,15 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         request.setParentTask(slicingTask);
         // TODO It'd be nice not to refresh on every slice. Instead we should refresh after the sub requests finish.
         return request;
+    }
+
+    /**
+     * Disables scroll (sets scroll to {@code null}) if {@code maxDocs <= scroll_size}
+     */
+    public void disableScrollIfUnnecessary() {
+        if (maxDocs != -1 && maxDocs <= searchRequest.source().size() && abortOnVersionConflict) {
+            searchRequest.scroll((Scroll) null);
+        }
     }
 
     @Override

@@ -130,6 +130,35 @@ Monitoring::
 * Deprecate `create_legacy_templates` setting on HTTP exporters {es-pull}78564[#78564]
 * Deprecate the monitoring ingest settings {es-pull}77659[#77659] (issue: {es-issue}77459[#77459])
 
+[[known-issues-7.16.0]]
+[discrete]
+=== Known issues
+
+// tag::painless-functional-interface-resolution-81696-known-issue[]
+* Painless function interface resolution: Any Painless script
+where a method call resolves a lambda argument to a `UnaryOperator`
+or a `BinaryOperator` results in an `IllegalArgumentException` as either
+a compilation error when static types are used or a runtime error when
+dynamic types are used. Use standard procedural statements as a workaround
+ (`if/else`, `while`, `for`, etc.).
+
+An example failure of a `UnaryOperator`:
+
+[source,Java]
+----
+List l = ['abc', '123']; l.replaceAll(f -> f.replace('abc', 'doremi');
+----
+
+The workaround:
+
+[source,Java]
+----
+List l = ['abc', '123'];
+for (int i = 0; i < l.size(); ++i) {
+    l.set(i, l.get(i).replace('abc', 'doremi'));
+}
+----
+
 [[feature-7.16.0]]
 [float]
 === New features

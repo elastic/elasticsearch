@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class BertTokenizerTests extends ESTestCase {
 
-    private static final List<String> TEST_CASED_VOCAB = List.of(
+    public static final List<String> TEST_CASED_VOCAB = List.of(
         "Elastic",
         "##search",
         "is",
@@ -43,7 +43,8 @@ public class BertTokenizerTests extends ESTestCase {
         BertTokenizer.UNKNOWN_TOKEN,
         "day",
         "Pancake",
-        "with"
+        "with",
+        BertTokenizer.PAD_TOKEN
     );
 
     private List<String> tokenStrings(List<DelimitedToken> tokens) {
@@ -134,7 +135,7 @@ public class BertTokenizerTests extends ESTestCase {
     public void testDoLowerCase() {
         {
             BertTokenizer tokenizer = BertTokenizer.builder(
-                Arrays.asList("elastic", "##search", "fun", BertTokenizer.UNKNOWN_TOKEN),
+                Arrays.asList("elastic", "##search", "fun", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN),
                 Tokenization.createDefault()
             ).setDoLowerCase(false).setWithSpecialTokens(false).build();
 
@@ -148,10 +149,10 @@ public class BertTokenizerTests extends ESTestCase {
         }
 
         {
-            BertTokenizer tokenizer = BertTokenizer.builder(Arrays.asList("elastic", "##search", "fun"), Tokenization.createDefault())
-                .setDoLowerCase(true)
-                .setWithSpecialTokens(false)
-                .build();
+            BertTokenizer tokenizer = BertTokenizer.builder(
+                Arrays.asList("elastic", "##search", "fun", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN),
+                Tokenization.createDefault()
+            ).setDoLowerCase(true).setWithSpecialTokens(false).build();
 
             TokenizationResult.Tokenization tokenization = tokenizer.tokenize("Elasticsearch fun", Tokenization.Truncate.NONE);
             assertArrayEquals(new int[] { 0, 1, 2 }, tokenization.getTokenIds());
@@ -173,7 +174,23 @@ public class BertTokenizerTests extends ESTestCase {
 
     public void testPunctuationWithMask() {
         BertTokenizer tokenizer = BertTokenizer.builder(
-            List.of("[CLS]", "This", "is", "[MASK]", "-", "~", "ta", "##stic", "!", "[SEP]", "sub", ",", "."),
+            List.of(
+                "[CLS]",
+                "This",
+                "is",
+                "[MASK]",
+                "-",
+                "~",
+                "ta",
+                "##stic",
+                "!",
+                "[SEP]",
+                "sub",
+                ",",
+                ".",
+                BertTokenizer.UNKNOWN_TOKEN,
+                BertTokenizer.PAD_TOKEN
+            ),
             Tokenization.createDefault()
         ).setWithSpecialTokens(true).setNeverSplit(Set.of("[MASK]")).build();
 
@@ -316,10 +333,10 @@ public class BertTokenizerTests extends ESTestCase {
     }
 
     public void testMultiSeqRequiresSpecialTokens() {
-        BertTokenizer tokenizer = BertTokenizer.builder(List.of("foo"), Tokenization.createDefault())
-            .setDoLowerCase(false)
-            .setWithSpecialTokens(false)
-            .build();
+        BertTokenizer tokenizer = BertTokenizer.builder(
+            List.of("foo", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN, BertTokenizer.CLASS_TOKEN, BertTokenizer.SEPARATOR_TOKEN),
+            Tokenization.createDefault()
+        ).setDoLowerCase(false).setWithSpecialTokens(false).build();
         expectThrows(Exception.class, () -> tokenizer.tokenize("foo", "foo", Tokenization.Truncate.NONE));
     }
 }

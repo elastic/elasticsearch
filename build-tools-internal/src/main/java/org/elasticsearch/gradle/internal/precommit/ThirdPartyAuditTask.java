@@ -86,7 +86,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private FileCollection jdkJarHellClasspath;
 
-    private final Property<JavaVersion> targetCompatibility = getProject().getObjects().property(JavaVersion.class);
+    private final Property<JavaVersion> targetCompatibility;
 
     private final ArchiveOperations archiveOperations;
 
@@ -108,6 +108,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         this.execOperations = execOperations;
         this.fileSystemOperations = fileSystemOperations;
         this.projectLayout = projectLayout;
+        this.targetCompatibility = objectFactory.property(JavaVersion.class);
     }
 
     @Input

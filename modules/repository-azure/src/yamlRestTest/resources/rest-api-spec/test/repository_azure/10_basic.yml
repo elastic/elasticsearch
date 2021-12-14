@@ -1,6 +1,6 @@
-# Integration tests for repository-gcs
+# Integration tests for repository-azure
 #
-"Plugin repository-gcs is loaded":
+"Module repository-azure is loaded":
     - skip:
         reason: "contains is a newly added assertion"
         features: contains
@@ -13,4 +13,4 @@
     - do:
         nodes.info: {}
 
-    - contains:  { nodes.$master.plugins: { name: repository-gcs } }
+    - contains:  { nodes.$master.modules: { name: repository-azure } }

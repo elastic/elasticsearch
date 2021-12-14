@@ -1,6 +1,6 @@
 # Integration tests for repository-s3
 #
-"Plugin repository-s3 is loaded":
+"Module repository-s3 is loaded":
     - skip:
         reason: "contains is a newly added assertion"
         features: contains
@@ -13,4 +13,4 @@
     - do:
         nodes.info: {}
 
-    - contains:  { nodes.$master.plugins: { name: repository-s3 } }
+    - contains:  { nodes.$master.modules: { name: repository-s3 } }

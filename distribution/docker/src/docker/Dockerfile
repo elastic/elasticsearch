@@ -137,18 +137,6 @@ RUN sed -i -e 's/ES_DISTRIBUTION_TYPE=tar/ES_DISTRIBUTION_TYPE=docker/' bin/elas
     find config -type f -exec chmod 0664 {} +
 
 <% if (docker_base == "cloud") { %>
-# Preinstall common plugins. Note that these are installed as root, meaning the `elasticsearch` user cannot delete them.
-COPY repository-s3-${version}.zip repository-gcs-${version}.zip repository-azure-${version}.zip /tmp/
-RUN bin/elasticsearch-plugin install --batch --verbose \\
-    file:/tmp/repository-s3-${version}.zip \\
-    file:/tmp/repository-gcs-${version}.zip \\
-    file:/tmp/repository-azure-${version}.zip
-# Generate a replacement example plugins config that reflects what is actually installed
-RUN echo "plugins:" > config/elasticsearch-plugins.example.yml && \\
-    echo "  - id: repository-azure" >> config/elasticsearch-plugins.example.yml && \\
-    echo "  - id: repository-gcs"   >> config/elasticsearch-plugins.example.yml && \\
-    echo "  - id: repository-s3"    >> config/elasticsearch-plugins.example.yml
-
 COPY filebeat-${version}.tar.gz metricbeat-${version}.tar.gz /tmp/
 RUN set -eux ; \\
     for beat in filebeat metricbeat ; do \\

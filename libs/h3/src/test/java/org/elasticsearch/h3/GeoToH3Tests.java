@@ -43,5 +43,4 @@ public class GeoToH3Tests extends ESTestCase {
             assertTrue(maxLon >= lon);
         }
     }
-
 }

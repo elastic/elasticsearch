@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.h3;
 
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.BufferedReader;
@@ -131,8 +132,8 @@ public class CellCenterTests extends ESTestCase {
     }
 
     private void processFile(String file) throws IOException {
-        InputStream fis = getClass().getResourceAsStream(file);
-        BufferedReader reader = new BufferedReader(new InputStreamReader(fis, StandardCharsets.UTF_8));
+        InputStream fis = getClass().getResourceAsStream(file + ".gz");
+        BufferedReader reader = new BufferedReader(new InputStreamReader(new GzipCompressorInputStream(fis), StandardCharsets.UTF_8));
         String line = reader.readLine();
         while (line != null) {
             StringTokenizer tokenizer = new StringTokenizer(line, " ");

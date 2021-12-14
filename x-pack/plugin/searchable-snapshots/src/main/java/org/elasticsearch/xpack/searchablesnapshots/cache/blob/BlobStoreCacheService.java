@@ -242,6 +242,10 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
         final long timeInEpochMillis,
         final ActionListener<Void> listener
     ) {
+        if (closed.get()) {
+            listener.onFailure(new IllegalStateException("Blob cache service is closed"));
+            return;
+        }
         final String id = generateId(repository, snapshotId, indexId, shardId, name, range);
         try {
             final CachedBlob cachedBlob = new CachedBlob(
@@ -267,10 +271,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
             boolean submitted = false;
             inFlightCacheFills.acquire();
             try {
-                if (closed.get()) {
-                    listener.onFailure(new IllegalStateException("Blob cache service is closed"));
-                    return;
-                }
                 final ActionListener<Void> wrappedListener = ActionListener.runAfter(listener, release);
                 innerPut(request, new ActionListener<>() {
                     @Override

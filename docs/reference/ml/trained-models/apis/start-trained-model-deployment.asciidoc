@@ -39,16 +39,25 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
 `inference_threads`::
 (Optional, integer)
 Sets the number of threads used by the inference process. This generally increases
-the inference speed. The inference process is a compute-bound process; any number 
-greater than the number of available CPU cores on the machine does not increase the 
-inference speed.
+the inference speed. The inference process is a compute-bound process; any number
+greater than the number of available hardware threads on the machine does not increase the
+inference speed. If this setting is greater than the number of hardware threads
+it will automatically be changed to a value less than the number of hardware threads.
 Defaults to 1.
 
 `model_threads`::
 (Optional, integer)
-Indicates how many threads are used when sending inference requests to
-the model. Increasing this value generally increases the throughput. Defaults to
-1.
+The number of threads used when sending inference requests to the model.
+Increasing this value generally increases the throughput.
+If this setting is greater than the number of hardware threads
+it will automatically be changed to a value less than the number of hardware threads.
+Defaults to 1.
+
+[NOTE]
+=============================================
+If the sum of `inference_threads` and `model_threads` is greater than the number of
+hardware threads then the number of `inference_threads` will be reduced.
+=============================================
 
 `queue_capacity`::
 (Optional, integer)

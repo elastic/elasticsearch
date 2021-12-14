@@ -101,8 +101,10 @@ public class PyTorchResultProcessor {
     private void processInferenceResult(PyTorchInferenceResult inferenceResult) {
         logger.trace(() -> new ParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, inferenceResult.getRequestId()));
         if (inferenceResult.isError() == false) {
-            timingStats.accept(inferenceResult.getTimeMs());
-            lastUsed = Instant.now();
+            synchronized (this) {
+                timingStats.accept(inferenceResult.getTimeMs());
+                lastUsed = Instant.now();
+            }
         }
         PendingResult pendingResult = pendingResults.remove(inferenceResult.getRequestId());
         if (pendingResult == null) {

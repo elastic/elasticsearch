@@ -52,12 +52,7 @@ public class TransportUpdateByQueryAction extends HandledTransportAction<UpdateB
         ScriptService scriptService,
         ClusterService clusterService
     ) {
-        super(
-            UpdateByQueryAction.NAME,
-            transportService,
-            actionFilters,
-            UpdateByQueryRequest::new
-        );
+        super(UpdateByQueryAction.NAME, transportService, actionFilters, UpdateByQueryRequest::new);
         this.threadPool = threadPool;
         this.client = client;
         this.scriptService = scriptService;

@@ -68,6 +68,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
 
     def testClusterProvider = testClusters.register(clusterName) {
       testDistribution = 'DEFAULT'
+      numberOfNodes = 2
 
       setting 'path.repo', repoLocation
       setting 'xpack.license.self_generated.type', 'trial'

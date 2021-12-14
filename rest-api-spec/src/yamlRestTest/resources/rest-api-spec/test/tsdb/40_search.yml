@@ -189,8 +189,8 @@ fetch a tag:
 ---
 aggregate a dimension:
   - skip:
-      version: " - 7.99.99"
-      reason: introduced in 8.0.0
+      version: " - 8.0.99"
+      reason: introduced in 8.1.0
 
   - do:
       search:

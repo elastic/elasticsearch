@@ -508,8 +508,3 @@ tsdb:
 
   - match: {failures.0.status: 400}
   - match: {failures.0.cause.reason: "delete is not supported because the destination index [tsdb] is in time series mode"}
-
-  - do:
-      indices.delete:
-        index: tsdb
-        ignore_unavailable: true

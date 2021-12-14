@@ -433,8 +433,3 @@ tsdb:
         index: tsdb
   - match: {hits.total.value: 1}
   - match: {hits.hits.0._source.k8s.pod.ip: 10.10.55.5}
-
-  - do:
-      indices.delete:
-        index: tsdb
-        ignore_unavailable: true

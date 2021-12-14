@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;

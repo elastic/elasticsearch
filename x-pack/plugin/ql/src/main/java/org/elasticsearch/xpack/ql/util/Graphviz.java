@@ -142,8 +142,7 @@ public abstract class Graphviz {
         for (Object v : props) {
             // skip null values, children and location
             if (v != null && n.children().contains(v) == false) {
-                if (v instanceof Collection) {
-                    Collection<?> c = (Collection<?>) v;
+                if (v instanceof Collection<?> c) {
                     StringBuilder colS = new StringBuilder();
                     for (Object o : c) {
                         if (drawSubTrees && isAnotherTree(o)) {
@@ -275,8 +274,7 @@ public abstract class Graphviz {
     }
 
     private static boolean isAnotherTree(Object value) {
-        if (value instanceof Node) {
-            Node<?> n = (Node<?>) value;
+        if (value instanceof Node<?> n) {
             // create a subgraph
             if (n.children().size() > 0) {
                 return true;

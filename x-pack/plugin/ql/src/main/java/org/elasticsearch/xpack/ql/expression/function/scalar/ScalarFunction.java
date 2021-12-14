@@ -80,8 +80,7 @@ public abstract class ScalarFunction extends Function {
         //
 
         // wrap intervals with dedicated methods for serialization
-        if (fold instanceof ZonedDateTime) {
-            ZonedDateTime zdt = (ZonedDateTime) fold;
+        if (fold instanceof ZonedDateTime zdt) {
             return new ScriptTemplate(
                 processScript("{sql}.asDateTime({})"),
                 paramsBuilder().variable(DateUtils.toString(zdt)).build(),
@@ -89,8 +88,7 @@ public abstract class ScalarFunction extends Function {
             );
         }
 
-        if (fold instanceof IntervalScripting) {
-            IntervalScripting is = (IntervalScripting) fold;
+        if (fold instanceof IntervalScripting is) {
             return new ScriptTemplate(
                 processScript(is.script()),
                 paramsBuilder().variable(is.value()).variable(is.typeName()).build(),
@@ -98,8 +96,7 @@ public abstract class ScalarFunction extends Function {
             );
         }
 
-        if (fold instanceof OffsetTime) {
-            OffsetTime ot = (OffsetTime) fold;
+        if (fold instanceof OffsetTime ot) {
             return new ScriptTemplate(processScript("{sql}.asTime({})"), paramsBuilder().variable(ot.toString()).build(), dataType());
         }
 

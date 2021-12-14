@@ -119,14 +119,7 @@ tasks.named("thirdPartyAudit").configure {
           //commons-logging provided dependencies
           'javax.servlet.ServletContextEvent',
           'javax.servlet.ServletContextListener',
-
-          'org.apache.avalon.framework.logger.Logger',
-          'javax.jms.Message',
-          'org.apache.log.Logger',
-          'org.apache.log.Hierarchy',
-          'org.apache.log.Logger',
-          'javax.servlet.ServletContextListener',
-          'javax.servlet.ServletContextEvent'
+          'javax.jms.Message'
   )
 }
 

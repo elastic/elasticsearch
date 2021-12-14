@@ -309,6 +309,6 @@ tasks.named("thirdPartyAudit").configure {
           'com.amazonaws.services.kms.model.EncryptResult',
           'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
           'com.amazonaws.services.kms.model.GenerateDataKeyResult',
-          'javax.activation.DataHandler',
+          'javax.activation.DataHandler'
   )
 }

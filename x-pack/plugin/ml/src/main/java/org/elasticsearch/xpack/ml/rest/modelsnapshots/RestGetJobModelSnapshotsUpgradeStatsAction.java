@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.ml.action.GetJobModelSnapshotsUpgradeStatsAc
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -26,7 +27,7 @@ public class RestGetJobModelSnapshotsUpgradeStatsAction extends BaseRestHandler 
 
     @Override
     public List<RestHandler.Route> routes() {
-        return List.of(
+        return Collections.singletonList(
             new Route(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}/_upgrade/_stats")
         );
     }

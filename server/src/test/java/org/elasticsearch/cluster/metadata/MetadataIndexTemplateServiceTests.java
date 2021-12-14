@@ -2087,45 +2087,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         service.addIndexTemplateV2(stateWithDSAndTemplate, false, "logs", nonDSTemplate);
     }
 
-    public void testAddIndexTemplateV2TimeSeriesMode() throws Exception {
-        var metadataIndexTemplateService = getMetadataIndexTemplateService();
-        var baseTemplate = ComposableIndexTemplateTests.randomInstance();
-        var settings = builder();
-        if (baseTemplate.template() != null && baseTemplate.template().settings() != null) {
-            settings.put(baseTemplate.template().settings());
-        }
-        settings.put("index.mode", "time_series");
-        settings.put("index.routing_path", "uid");
-        var templateWithDataStreamSnippet = new ComposableIndexTemplate(
-            baseTemplate.indexPatterns(),
-            new Template(settings.build(), baseTemplate.template() != null ? baseTemplate.template().mappings() : null, null),
-            baseTemplate.composedOf(),
-            baseTemplate.priority(),
-            baseTemplate.version(),
-            baseTemplate.metadata(),
-            new ComposableIndexTemplate.DataStreamTemplate()
-        );
-
-        var result = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", templateWithDataStreamSnippet);
-        assertNotNull(result.metadata().templatesV2().get("foo"));
-        assertTemplatesEqual(result.metadata().templatesV2().get("foo"), templateWithDataStreamSnippet);
-
-        var templateWithoutDataStreamSnippet = new ComposableIndexTemplate(
-            baseTemplate.indexPatterns(),
-            new Template(settings.build(), baseTemplate.template().mappings(), null),
-            baseTemplate.composedOf(),
-            baseTemplate.priority(),
-            baseTemplate.version(),
-            baseTemplate.metadata(),
-            null
-        );
-        var exception = expectThrows(
-            InvalidIndexTemplateException.class,
-            () -> metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", templateWithoutDataStreamSnippet)
-        );
-        assertThat(exception.getMessage(), containsString("[index.mode=time_series] requires [index.time_series.start_time];"));
-    }
-
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
         ThreadPool testThreadPool = mock(ThreadPool.class);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);

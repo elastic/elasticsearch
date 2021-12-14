@@ -170,6 +170,10 @@ public class MetadataCreateIndexService {
         this.indexSettingProviders.add(provider);
     }
 
+    public Set<IndexSettingProvider> getIndexSettingProviders() {
+        return indexSettingProviders;
+    }
+
     /**
      * Validate the name for an index against some static rules and a cluster state.
      */
@@ -851,6 +855,7 @@ public class MetadataCreateIndexService {
         ShardLimitValidator shardLimitValidator,
         Set<IndexSettingProvider> indexSettingProviders
     ) {
+        final Metadata metadata = currentState.getMetadata();
         final boolean isDataStreamIndex = request.dataStreamName() != null;
 
         // Create builders for the template and request settings. We transform these into builders
@@ -868,7 +873,13 @@ public class MetadataCreateIndexService {
             // additionalIndexSettings map
             for (IndexSettingProvider provider : indexSettingProviders) {
                 additionalIndexSettings.put(
-                    provider.getAdditionalIndexSettings(request.index(), isDataStreamIndex, templateAndRequestSettings)
+                    provider.getAdditionalIndexSettings(
+                        request.index(),
+                        request.dataStreamName(),
+                        request.getNameResolvedAt(),
+                        templateAndRequestSettings,
+                        metadata
+                    )
                 );
             }
 

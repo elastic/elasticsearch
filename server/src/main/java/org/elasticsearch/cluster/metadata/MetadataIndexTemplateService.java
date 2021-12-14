@@ -34,11 +34,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -51,7 +48,6 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -621,26 +617,36 @@ public class MetadataIndexTemplateService {
     private void validateIndexTemplateV2(String name, ComposableIndexTemplate indexTemplate, ClusterState currentState) {
         // Workaround for the fact that start_time and end_time are injected by the MetadataCreateDataStreamService upon creation,
         // but when validating templates that create data streams the MetadataCreateDataStreamService isn't used.
-        ComposableIndexTemplate templateToValidate = indexTemplate;
-        if (indexTemplate.getDataStreamTemplate() != null) {
-            var result = resolveIndexModeAndLookAheadTimeSetting(indexTemplate, currentState.metadata());
-            var indexMode = result.v1();
-            if (indexMode == IndexMode.TIME_SERIES) {
-                Template finalTemplate = indexTemplate.template();
-                Settings.Builder indexSettings = Settings.builder().put(finalTemplate.settings());
-                MetadataCreateDataStreamService.prepareFirstBackingIndexForTSDB(indexSettings, System.currentTimeMillis(), result.v2());
-                templateToValidate = new ComposableIndexTemplate(
-                    indexTemplate.indexPatterns(),
-                    new Template(indexSettings.build(), finalTemplate.mappings(), finalTemplate.aliases()),
-                    indexTemplate.composedOf(),
-                    indexTemplate.priority(),
-                    indexTemplate.version(),
-                    indexTemplate.metadata(),
-                    indexTemplate.getDataStreamTemplate(),
-                    indexTemplate.getAllowAutoCreate()
-                );
-            }
+        var finalTemplate = Optional.ofNullable(indexTemplate.template());
+        var finalSettings = Settings.builder();
+        finalSettings.put(finalTemplate.map(Template::settings).orElse(Settings.EMPTY));
+
+        for (var provider : metadataCreateIndexService.getIndexSettingProviders()) {
+            finalSettings.put(
+                provider.getAdditionalIndexSettings(
+                    "validate-index-name",
+                    "validate-data-stream-name",
+                    System.currentTimeMillis(),
+                    finalTemplate.map(Template::settings).orElse(Settings.EMPTY),
+                    currentState.getMetadata()
+                )
+            );
         }
+
+        var templateToValidate = new ComposableIndexTemplate(
+            indexTemplate.indexPatterns(),
+            new Template(
+                finalSettings.build(),
+                finalTemplate.map(Template::mappings).orElse(null),
+                finalTemplate.map(Template::aliases).orElse(null)
+            ),
+            indexTemplate.composedOf(),
+            indexTemplate.priority(),
+            indexTemplate.version(),
+            indexTemplate.metadata(),
+            indexTemplate.getDataStreamTemplate(),
+            indexTemplate.getAllowAutoCreate()
+        );
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
@@ -659,18 +665,6 @@ public class MetadataIndexTemplateService {
                 e
             );
         }
-    }
-
-    static Tuple<IndexMode, Duration> resolveIndexModeAndLookAheadTimeSetting(ComposableIndexTemplate indexTemplate, Metadata metadata) {
-        Settings allTemplateSettings = resolveSettings(indexTemplate, metadata.componentTemplates());
-        IndexMode indexMode = Optional.ofNullable(allTemplateSettings.get(IndexSettings.MODE.getKey()))
-            .map(value -> IndexMode.valueOf(value.toUpperCase(Locale.ROOT)))
-            .orElse(IndexMode.STANDARD);
-        TimeValue lookAheadTime = allTemplateSettings.getAsTime(
-            IndexSettings.LOOK_AHEAD_TIME.getKey(),
-            IndexSettings.LOOK_AHEAD_TIME.getDefault(allTemplateSettings)
-        );
-        return new Tuple<>(indexMode, Duration.ofMillis(lookAheadTime.getMillis()));
     }
 
     /**

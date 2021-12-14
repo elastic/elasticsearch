@@ -23,11 +23,8 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -37,8 +34,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -206,25 +201,12 @@ public class MetadataCreateDataStreamService {
                 "initialize_data_stream",
                 firstBackingIndexName,
                 firstBackingIndexName
-            ).dataStreamName(dataStreamName).systemDataStreamDescriptor(systemDataStreamDescriptor);
+            ).dataStreamName(dataStreamName).systemDataStreamDescriptor(systemDataStreamDescriptor).nameResolvedInstant(request.startTime);
 
-            var result = MetadataIndexTemplateService.resolveIndexModeAndLookAheadTimeSetting(template, currentState.metadata());
-            var indexMode = result.v1();
-            if (indexMode == IndexMode.TIME_SERIES) {
-                Settings.Builder indexSettingsBuilder = Settings.builder();
-                prepareFirstBackingIndexForTSDB(indexSettingsBuilder, request.startTime, result.v2());
-                if (isSystem) {
-                    indexSettingsBuilder.put(SystemIndexDescriptor.DEFAULT_SETTINGS);
-                } else {
-                    indexSettingsBuilder.put(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
-                }
-                createIndexRequest.settings(indexSettingsBuilder.build());
+            if (isSystem) {
+                createIndexRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
             } else {
-                if (isSystem) {
-                    createIndexRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
-                } else {
-                    createIndexRequest.settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
-                }
+                createIndexRequest.settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS);
             }
 
             try {
@@ -281,15 +263,6 @@ public class MetadataCreateDataStreamService {
         );
 
         return ClusterState.builder(currentState).metadata(builder).build();
-    }
-
-    static void prepareFirstBackingIndexForTSDB(Settings.Builder indexSettingsBuilder, long currentTime, Duration lookAheadTime) {
-        // 0 is the default and this is a required setting and b/c of that another value should be used than 0
-        Instant start = Instant.ofEpochMilli(1);
-        Instant end = Instant.ofEpochMilli(currentTime).plus(lookAheadTime);
-
-        indexSettingsBuilder.put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start.toEpochMilli());
-        indexSettingsBuilder.put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end.toEpochMilli());
     }
 
     public static ComposableIndexTemplate lookupTemplateForDataStream(String dataStreamName, Metadata metadata) {

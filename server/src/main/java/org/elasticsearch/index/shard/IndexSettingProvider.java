@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -19,7 +20,13 @@ public interface IndexSettingProvider {
      * Returns explicitly set default index {@link Settings} for the given index. This should not
      * return null.
      */
-    default Settings getAdditionalIndexSettings(String indexName, boolean isDataStreamIndex, Settings templateAndRequestSettings) {
+    default Settings getAdditionalIndexSettings(
+        String indexName,
+        String dataStreamName,
+        long resolvedAt,
+        Settings templateAndRequestSettings,
+        Metadata metadata
+    ) {
         return Settings.EMPTY;
     }
 }

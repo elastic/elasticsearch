@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.Create
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemDataStreamDescriptor.Type;
@@ -25,7 +24,6 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.Feature;
 import org.elasticsearch.test.ESTestCase;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -327,18 +325,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(indexMetadata.getSettings().get("index.time_series.end_time"), notNullValue());
         assertThat(indexMetadata.isHidden(), is(true));
         assertThat(indexMetadata.isSystem(), is(false));
-    }
-
-    public void testPrepareFirstBackingIndexForTSDB() {
-        Settings.Builder settings = Settings.builder();
-        long currentTime = System.currentTimeMillis();
-        Duration duration = Duration.ofMillis(randomNonNegativeLong());
-
-        MetadataCreateDataStreamService.prepareFirstBackingIndexForTSDB(settings, currentTime, duration);
-        Settings result = settings.build();
-        assertThat(result.size(), equalTo(2));
-        assertThat(result.get(IndexSettings.TIME_SERIES_START_TIME.getKey()), equalTo("1"));
-        assertThat(result.get(IndexSettings.TIME_SERIES_END_TIME.getKey()), equalTo(Long.toString(currentTime + duration.toMillis())));
     }
 
     public static ClusterState createDataStream(final String dataStreamName) throws Exception {

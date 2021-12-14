@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -38,7 +37,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -2126,56 +2124,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             () -> metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "foo", templateWithoutDataStreamSnippet)
         );
         assertThat(exception.getMessage(), containsString("[index.mode=time_series] requires [index.time_series.start_time];"));
-    }
-
-    public void testResolveIndexModeAndLookAheadTimeSetting() {
-        var composableIndexTemplate1 = ComposableIndexTemplateTests.randomInstance();
-        Metadata metadata = Metadata.EMPTY_METADATA;
-        var result = MetadataIndexTemplateService.resolveIndexModeAndLookAheadTimeSetting(composableIndexTemplate1, metadata);
-        assertThat(result.v1(), equalTo(IndexMode.STANDARD));
-        assertThat(result.v2(), equalTo(Duration.ofHours(2)));
-
-        var template1 = new Template(builder().put("index.mode", "time_series").build(), null, null);
-        var composableIndexTemplate2 = new ComposableIndexTemplate(
-            composableIndexTemplate1.indexPatterns(),
-            template1,
-            composableIndexTemplate1.composedOf(),
-            composableIndexTemplate1.priority(),
-            composableIndexTemplate1.version(),
-            composableIndexTemplate1.metadata()
-        );
-        result = MetadataIndexTemplateService.resolveIndexModeAndLookAheadTimeSetting(composableIndexTemplate2, metadata);
-        assertThat(result.v1(), equalTo(IndexMode.TIME_SERIES));
-        assertThat(result.v2(), equalTo(Duration.ofHours(2)));
-
-        var template2 = new Template(builder().put("index.mode", "time_series").put("index.look_ahead_time", "1h").build(), null, null);
-        var composableIndexTemplate3 = new ComposableIndexTemplate(
-            composableIndexTemplate1.indexPatterns(),
-            template2,
-            composableIndexTemplate1.composedOf(),
-            composableIndexTemplate1.priority(),
-            composableIndexTemplate1.version(),
-            composableIndexTemplate1.metadata()
-        );
-        result = MetadataIndexTemplateService.resolveIndexModeAndLookAheadTimeSetting(composableIndexTemplate3, metadata);
-        assertThat(result.v1(), equalTo(IndexMode.TIME_SERIES));
-        assertThat(result.v2(), equalTo(Duration.ofHours(1)));
-
-        var template3 = new Template(builder().put("index.mode", "time_series").put("index.look_ahead_time", "4h").build(), null, null);
-        var componentTemplate = new ComponentTemplate(template3, null, null);
-        var composableIndexTemplate4 = new ComposableIndexTemplate(
-            composableIndexTemplate1.indexPatterns(),
-            composableIndexTemplate1.template(),
-            List.of("c1"),
-            composableIndexTemplate1.priority(),
-            composableIndexTemplate1.version(),
-            composableIndexTemplate1.metadata()
-        );
-        Metadata.Builder mb = new Metadata.Builder(metadata);
-        mb.put("c1", componentTemplate);
-        result = MetadataIndexTemplateService.resolveIndexModeAndLookAheadTimeSetting(composableIndexTemplate4, mb.build());
-        assertThat(result.v1(), equalTo(IndexMode.TIME_SERIES));
-        assertThat(result.v2(), equalTo(Duration.ofHours(4)));
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {

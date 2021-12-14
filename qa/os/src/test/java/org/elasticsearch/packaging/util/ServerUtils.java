@@ -195,8 +195,10 @@ public class ServerUtils {
         if (Files.exists(configFilePath)) {
             // In docker we might not even have a file, and if we do it's not in the host's FS
             Settings settings = Settings.builder().loadFromPath(configFilePath).build();
-            enrollmentEnabled = settings.get("xpack.security.enrollment.enabled").equals("true");
-            httpSslEnabled = settings.get("xpack.security.http.ssl.enabled").equals("true");
+            enrollmentEnabled = settings.hasValue("xpack.security.enrollment.enabled")
+                && settings.get("xpack.security.enrollment.enabled").equals("true");
+            httpSslEnabled =
+                settings.hasValue("xpack.security.http.ssl.enabled") && settings.get("xpack.security.http.ssl.enabled").equals("true");
         }
         if (enrollmentEnabled && httpSslEnabled) {
             assert Files.exists(caCert) == false;

@@ -9,15 +9,11 @@
 package org.elasticsearch.packaging.test;
 
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -25,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeFalse;
 import static java.nio.file.StandardOpenOption.APPEND;
@@ -123,10 +120,9 @@ public class CertGenCliTests extends PackagingTestCase {
             .put("xpack.security.transport.ssl.enabled", true)
             .put("xpack.security.http.ssl.enabled", true)
             .build();
-        XContentBuilder builder = XContentBuilder.builder(XContentType.YAML.xContent());
-        Files.writeString(
+        Files.write(
             installation.config("elasticsearch.yml"),
-            Strings.toString(newSettings.toXContent(builder, ToXContent.EMPTY_PARAMS)),
+            newSettings.keySet().stream().map(k -> k + ": " + newSettings.get(k)).collect(Collectors.toList()),
             TRUNCATE_EXISTING
         );
 

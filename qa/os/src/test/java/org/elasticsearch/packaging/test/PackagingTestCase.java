@@ -686,8 +686,8 @@ public abstract class PackagingTestCase extends Assert {
             assertThat(sh.run(es.executables().keystoreTool + " list").stdout, Matchers.containsString("autoconfiguration.password_hash"));
             configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         }
-        assertThat(configLines, hasItem("#----------------------- Security auto configuration start -----------------------"));
-        assertThat(configLines, hasItem("#----------------------- Security auto configuration end -------------------------"));
+        assertThat(configLines, hasItem("#----------------------- BEGIN SECURITY AUTO CONFIGURATION -----------------------"));
+        assertThat(configLines, hasItem("#----------------------- END SECURITY AUTO CONFIGURATION -------------------------"));
         assertThat(configLines, hasItem("xpack.security.enabled: true"));
         assertThat(configLines, hasItem("# Enable encryption for HTTP API client connections, such as Kibana, Logstash, and Agents"));
         assertThat(configLines, hasItem("# Enable encryption and mutual authentication between cluster nodes"));
@@ -716,7 +716,7 @@ public abstract class PackagingTestCase extends Assert {
         List<String> configLines = Files.readAllLines(es.config("elasticsearch.yml"));
         assertThat(
             configLines,
-            not(contains(containsString("#----------------------- Security auto configuration start -----------------------")))
+            not(contains(containsString("#----------------------- BEGIN SECURITY AUTO CONFIGURATION -----------------------")))
         );
         Path caCert = ServerUtils.getCaCert(installation);
         if (caCert != null) {

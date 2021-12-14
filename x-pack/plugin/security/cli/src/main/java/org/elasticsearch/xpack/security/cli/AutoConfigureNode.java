@@ -121,9 +121,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
     private static final int HTTP_KEY_SIZE = 4096;
     static final String TLS_CONFIG_DIR_NAME_PREFIX = "tls_auto_config_";
     static final String AUTO_CONFIGURATION_START_MARKER =
-        "#----------------------- Security auto configuration start -----------------------";
+        "#----------------------- BEGIN SECURITY AUTO CONFIGURATION -----------------------";
     static final String AUTO_CONFIGURATION_END_MARKER =
-        "#----------------------- Security auto configuration end -------------------------";
+        "#----------------------- END SECURITY AUTO CONFIGURATION -------------------------";
 
     private final OptionSpec<String> enrollmentTokenParam = parser.accepts("enrollment-token", "The enrollment token to use")
         .withRequiredArg();

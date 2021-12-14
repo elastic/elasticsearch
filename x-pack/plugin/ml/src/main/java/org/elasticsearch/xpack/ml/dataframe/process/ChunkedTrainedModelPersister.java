@@ -278,13 +278,13 @@ public class ChunkedTrainedModelPersister {
 
     private long customProcessorSize() {
         List<PreProcessor> preProcessors = new ArrayList<>();
-        if (analytics.getAnalysis() instanceof Classification) {
-            preProcessors = ((Classification) analytics.getAnalysis()).getFeatureProcessors();
-        } else if (analytics.getAnalysis() instanceof Regression) {
-            preProcessors = ((Regression) analytics.getAnalysis()).getFeatureProcessors();
+        if (analytics.getAnalysis()instanceof Classification classification) {
+            preProcessors = classification.getFeatureProcessors();
+        } else if (analytics.getAnalysis()instanceof Regression regression) {
+            preProcessors = regression.getFeatureProcessors();
         }
-        return preProcessors.stream().mapToLong(PreProcessor::ramBytesUsed).sum() + RamUsageEstimator.NUM_BYTES_OBJECT_REF * preProcessors
-            .size();
+        return preProcessors.stream().mapToLong(PreProcessor::ramBytesUsed).sum() + RamUsageEstimator.NUM_BYTES_OBJECT_REF
+            * (long) preProcessors.size();
     }
 
     private TrainedModelConfig createTrainedModelConfig(TrainedModelType trainedModelType, ModelSizeInfo modelSize) {
@@ -327,11 +327,11 @@ public class ChunkedTrainedModelPersister {
     }
 
     private String getDependentVariable() {
-        if (analytics.getAnalysis() instanceof Classification) {
-            return ((Classification) analytics.getAnalysis()).getDependentVariable();
+        if (analytics.getAnalysis()instanceof Classification classification) {
+            return classification.getDependentVariable();
         }
-        if (analytics.getAnalysis() instanceof Regression) {
-            return ((Regression) analytics.getAnalysis()).getDependentVariable();
+        if (analytics.getAnalysis()instanceof Regression regression) {
+            return regression.getDependentVariable();
         }
         return null;
     }

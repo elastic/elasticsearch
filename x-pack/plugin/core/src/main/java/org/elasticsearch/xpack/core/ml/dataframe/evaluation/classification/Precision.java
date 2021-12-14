@@ -140,8 +140,7 @@ public class Precision implements EvaluationMetric {
 
     @Override
     public void process(Aggregations aggs) {
-        if (topActualClassNames.get() == null && aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME) instanceof Terms) {
-            Terms topActualClassesAgg = aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME);
+        if (topActualClassNames.get() == null && aggs.get(ACTUAL_CLASSES_NAMES_AGG_NAME)instanceof Terms topActualClassesAgg) {
             if (topActualClassesAgg.getSumOfOtherDocCounts() > 0) {
                 // This means there were more than {@code MAX_CLASSES_CARDINALITY} buckets.
                 // We cannot calculate average precision accurately, so we fail.
@@ -155,10 +154,8 @@ public class Precision implements EvaluationMetric {
             );
         }
         if (result.get() == null
-            && aggs.get(BY_PREDICTED_CLASS_AGG_NAME) instanceof Filters
-            && aggs.get(AVG_PRECISION_AGG_NAME) instanceof NumericMetricsAggregation.SingleValue) {
-            Filters byPredictedClassAgg = aggs.get(BY_PREDICTED_CLASS_AGG_NAME);
-            NumericMetricsAggregation.SingleValue avgPrecisionAgg = aggs.get(AVG_PRECISION_AGG_NAME);
+            && aggs.get(BY_PREDICTED_CLASS_AGG_NAME)instanceof Filters byPredictedClassAgg
+            && aggs.get(AVG_PRECISION_AGG_NAME)instanceof NumericMetricsAggregation.SingleValue avgPrecisionAgg) {
             List<PerClassSingleValue> classes = new ArrayList<>(byPredictedClassAgg.getBuckets().size());
             for (Filters.Bucket bucket : byPredictedClassAgg.getBuckets()) {
                 String className = bucket.getKeyAsString();

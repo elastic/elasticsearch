@@ -16,3 +16,4 @@ ES_RUNTIME_JAVA:
   - adoptopenjdk11
   - adoptopenjdk8
   - openjdk17
+  - openjdk18

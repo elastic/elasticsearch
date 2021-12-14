@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.analytics.rate;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
@@ -68,7 +69,7 @@ public class InternalRate extends InternalNumericMetricsAggregation.SingleValue 
     }
 
     @Override
-    public InternalRate reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalRate reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         // Compute the sum of double values with Kahan summation algorithm which is more
         // accurate than naive summation.
         CompensatedSum kahanSummation = new CompensatedSum(0, 0);

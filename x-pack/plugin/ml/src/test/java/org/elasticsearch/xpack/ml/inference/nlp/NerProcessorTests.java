@@ -90,7 +90,7 @@ public class NerProcessorTests extends ESTestCase {
 
     public void testProcessResults_GivenNoTokens() {
         NerProcessor.NerResultProcessor processor = new NerProcessor.NerResultProcessor(NerProcessor.IobTag.values(), null, false);
-        TokenizationResult tokenization = tokenize(Collections.emptyList(), "");
+        TokenizationResult tokenization = tokenize(List.of(BertTokenizer.PAD_TOKEN, BertTokenizer.UNKNOWN_TOKEN), "");
         assertThat(
             processor.processResult(tokenization, new PyTorchResult("test", null, 0L, null)),
             instanceOf(WarningInferenceResults.class)
@@ -100,7 +100,7 @@ public class NerProcessorTests extends ESTestCase {
     public void testProcessResults() {
         NerProcessor.NerResultProcessor processor = new NerProcessor.NerResultProcessor(NerProcessor.IobTag.values(), null, true);
         TokenizationResult tokenization = tokenize(
-            Arrays.asList("el", "##astic", "##search", "many", "use", "in", "london"),
+            Arrays.asList("el", "##astic", "##search", "many", "use", "in", "london", BertTokenizer.PAD_TOKEN, BertTokenizer.UNKNOWN_TOKEN),
             "Many use Elasticsearch in London"
         );
 
@@ -139,7 +139,7 @@ public class NerProcessorTests extends ESTestCase {
 
         NerProcessor.NerResultProcessor processor = new NerProcessor.NerResultProcessor(iobMap, null, true);
         TokenizationResult tokenization = tokenize(
-            Arrays.asList("el", "##astic", "##search", "many", "use", "in", "london"),
+            Arrays.asList("el", "##astic", "##search", "many", "use", "in", "london", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN),
             "Elasticsearch in London"
         );
 

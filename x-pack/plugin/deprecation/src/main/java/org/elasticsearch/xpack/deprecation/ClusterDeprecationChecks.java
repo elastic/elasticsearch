@@ -318,6 +318,198 @@ public class ClusterDeprecationChecks {
     }
 
     /**
+     * Check templates that use fields with `boost` values
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkTemplatesWithBoostedFields(ClusterState state) {
+        Map<String, List<String>> templatesContainingBoostedFields = new HashMap<>();
+        state.getMetadata().getTemplates().forEach((templateCursor) -> {
+            String templateName = templateCursor.key;
+            templateCursor.value.getMappings().forEach((mappingCursor) -> {
+                String type = mappingCursor.key;
+                // There should be the type name at this level, but there was a bug where mappings could be stored without a type (#45120)
+                // to make sure, we try to detect this like we try to do in MappingMetadata#sourceAsMap()
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappingCursor.value.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey(type)) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get(type);
+                }
+                List<String> mappingIssues = IndexDeprecationChecks.findInPropertiesRecursively(
+                    type,
+                    mapping,
+                    IndexDeprecationChecks::containsBoostedFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                );
+                if (mappingIssues.size() > 0) {
+                    templatesContainingBoostedFields.put(templateName, mappingIssues);
+                }
+            });
+        });
+        if (templatesContainingBoostedFields.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining boosted fields on index template mappings is deprecated",
+                "https://ela.st/es-deprecation-7-boost-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove boost fields from the \"%s\" template%s. Configuring a boost value on mapping fields "
+                        + "is not supported in 8.0.",
+                    String.join(",", templatesContainingBoostedFields.keySet()),
+                    templatesContainingBoostedFields.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Check templates that use fields with `boost` values in dynamic templates
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkTemplatesWithBoostFieldsInDynamicTemplates(ClusterState state) {
+        Map<String, List<String>> templatesContainingBoostedFields = new HashMap<>();
+        state.getMetadata().getTemplates().forEach((templateCursor) -> {
+            String templateName = templateCursor.key;
+            templateCursor.value.getMappings().forEach((mappingCursor) -> {
+                String type = mappingCursor.key;
+                // There should be the type name at this level, but there was a bug where mappings could be stored without a type (#45120)
+                // to make sure, we try to detect this like we try to do in MappingMetadata#sourceAsMap()
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappingCursor.value.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey(type)) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get(type);
+                }
+                List<String> mappingIssues = IndexDeprecationChecks.findInDynamicTemplates(
+                    type,
+                    mapping,
+                    IndexDeprecationChecks::containsMappingWithBoostedFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                );
+                if (mappingIssues.size() > 0) {
+                    templatesContainingBoostedFields.put(templateName, mappingIssues);
+                }
+            });
+        });
+        if (templatesContainingBoostedFields.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining boosted fields on index template dynamic_templates is deprecated",
+                "https://ela.st/es-deprecation-7-boost-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove boost fields from the \"%s\" template%s. Configuring a boost value on mapping fields "
+                        + "is not supported in 8.0.",
+                    String.join(",", templatesContainingBoostedFields.keySet()),
+                    templatesContainingBoostedFields.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Check component templates that use fields with `boost` values
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkComponentTemplatesWithBoostedFields(ClusterState state) {
+        Map<String, List<String>> templatesContainingBoostedFields = new HashMap<>();
+        state.getMetadata().componentTemplates().forEach((templateName, componentTemplate) -> {
+            CompressedXContent mappings = componentTemplate.template().mappings();
+            if (mappings != null) {
+                // Component templates root their mapping data under the "_doc" mapping type. Unpack it if that is the case.
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappings.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey("_doc")) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get("_doc");
+                }
+                List<String> mappingIssues = IndexDeprecationChecks.findInPropertiesRecursively(
+                    "_doc",
+                    mapping,
+                    IndexDeprecationChecks::containsBoostedFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                );
+                if (mappingIssues.size() > 0) {
+                    templatesContainingBoostedFields.put(templateName, mappingIssues);
+                }
+            }
+        });
+        if (templatesContainingBoostedFields.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining boosted fields on component templates is deprecated",
+                "https://ela.st/es-deprecation-7-boost-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove boost fields from the \"%s\" component template%s. Configuring a boost value on mapping fields "
+                        + "is not supported in 8.0.",
+                    String.join(",", templatesContainingBoostedFields.keySet()),
+                    templatesContainingBoostedFields.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Check component templates that use fields with `boost` values in dynamic templates
+     */
+    @SuppressWarnings("unchecked")
+    static DeprecationIssue checkComponentTemplatesWithBoostedFieldsInDynamicTemplates(ClusterState state) {
+        Map<String, List<String>> templatesContainingBoostedFields = new HashMap<>();
+        state.getMetadata().componentTemplates().forEach((templateName, componentTemplate) -> {
+            CompressedXContent mappings = componentTemplate.template().mappings();
+            if (mappings != null) {
+                // Component templates root their mapping data under the "_doc" mapping type. Unpack it if that is the case.
+                Map<String, Object> mapping = XContentHelper.convertToMap(mappings.compressedReference(), true).v2();
+                if (mapping.size() == 1 && mapping.containsKey("_doc")) {
+                    // the type name is the root value, reduce it
+                    mapping = (Map<String, Object>) mapping.get("_doc");
+                }
+                List<String> mappingIssues = IndexDeprecationChecks.findInDynamicTemplates(
+                    "_doc",
+                    mapping,
+                    IndexDeprecationChecks::containsMappingWithBoostedFields,
+                    IndexDeprecationChecks::formatField,
+                    "",
+                    ""
+                );
+                if (mappingIssues.size() > 0) {
+                    templatesContainingBoostedFields.put(templateName, mappingIssues);
+                }
+            }
+        });
+        if (templatesContainingBoostedFields.isEmpty() == false) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                "Defining boosted fields on component template dynamic_templates is deprecated",
+                "https://ela.st/es-deprecation-7-boost-fields",
+                String.format(
+                    Locale.ROOT,
+                    "Remove boost fields from the \"%s\" component template%s. Configuring a boost value on mapping fields "
+                        + "is not supported in 8.0.",
+                    String.join(",", templatesContainingBoostedFields.keySet()),
+                    templatesContainingBoostedFields.size() > 1 ? "s" : ""
+                ),
+                false,
+                null
+            );
+        }
+        return null;
+    }
+
+    /**
      * Check templates that use `_field_names` explicitly, which was deprecated in https://github.com/elastic/elasticsearch/pull/42854
      * and will throw an error on new indices in 8.0
      */

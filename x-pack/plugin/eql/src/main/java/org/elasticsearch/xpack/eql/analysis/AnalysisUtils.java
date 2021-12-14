@@ -73,8 +73,7 @@ public final class AnalysisUtils {
 
     private static Attribute handleSpecialFields(UnresolvedAttribute u, Attribute named, boolean allowCompound) {
         // if it's a object/compound type, keep it unresolved with a nice error message
-        if (named instanceof FieldAttribute) {
-            FieldAttribute fa = (FieldAttribute) named;
+        if (named instanceof FieldAttribute fa) {
 
             // incompatible mappings
             if (fa.field() instanceof InvalidMappedField) {

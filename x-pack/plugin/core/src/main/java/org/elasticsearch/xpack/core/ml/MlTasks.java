@@ -313,6 +313,16 @@ public final class MlTasks {
         });
     }
 
+    public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasks(
+        @Nullable PersistentTasksCustomMetadata tasks
+    ) {
+        if (tasks == null) {
+            return Collections.emptyList();
+        }
+
+        return tasks.findTasks(JOB_SNAPSHOT_UPGRADE_TASK_NAME, task -> true);
+    }
+
     public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasksOnNode(
         @Nullable PersistentTasksCustomMetadata tasks,
         String nodeId

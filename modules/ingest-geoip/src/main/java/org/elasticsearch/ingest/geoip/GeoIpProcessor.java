@@ -131,15 +131,15 @@ public final class GeoIpProcessor extends AbstractProcessor {
             return ingestDocument;
         }
 
-        if (ip instanceof String) {
-            Map<String, Object> geoData = getGeoData(lazyLoader, (String) ip);
+        if (ip instanceof String ipString) {
+            Map<String, Object> geoData = getGeoData(lazyLoader, ipString);
             if (geoData.isEmpty() == false) {
                 ingestDocument.setFieldValue(targetField, geoData);
             }
-        } else if (ip instanceof List) {
+        } else if (ip instanceof List<?> ipList) {
             boolean match = false;
-            List<Map<String, Object>> geoDataList = new ArrayList<>(((List) ip).size());
-            for (Object ipAddr : (List) ip) {
+            List<Map<String, Object>> geoDataList = new ArrayList<>(ipList.size());
+            for (Object ipAddr : ipList) {
                 if (ipAddr instanceof String == false) {
                     throw new IllegalArgumentException("array in field [" + field + "] should only contain strings");
                 }

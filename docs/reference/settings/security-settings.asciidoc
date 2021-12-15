@@ -1966,7 +1966,7 @@ Issuer.
 // end::jwt-allowed-issuer-tag[]
 
 // tag::jwt-allowed-audience-tag[]
-`allowed_issuer` {ess-icon}::
+`allowed_audience` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 A verifiable Identifier for your JWT client application.
 

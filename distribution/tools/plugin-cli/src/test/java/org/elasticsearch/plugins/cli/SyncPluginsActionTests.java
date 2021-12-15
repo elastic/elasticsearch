@@ -188,6 +188,41 @@ public class SyncPluginsActionTests extends ESTestCase {
     }
 
     /**
+     * Check that the config file can still specify plugins that have been migrated to modules, but
+     * they are ignored.
+     */
+    public void test_getPluginChanges_withModularisedPluginsToInstall_ignoresPlugins() throws Exception {
+        config.setPlugins(
+            List.of(new PluginDescriptor("repository-azure"), new PluginDescriptor("repository-gcs"), new PluginDescriptor("repository-s3"))
+        );
+        final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
+        assertThat(pluginChanges.isEmpty(), is(true));
+    }
+
+    /**
+     * Check that if there are plugins already installed that have been migrated to modules, then they are removed,
+     * even if they are specified in the config file.
+     */
+    public void test_getPluginChanges_withModularisedPluginsToRemove_removesPlugins() throws Exception {
+        createPlugin("repository-azure");
+        createPlugin("repository-gcs");
+        createPlugin("repository-s3");
+        config.setPlugins(
+            List.of(new PluginDescriptor("repository-azure"), new PluginDescriptor("repository-gcs"), new PluginDescriptor("repository-s3"))
+        );
+
+        final PluginChanges pluginChanges = action.getPluginChanges(config, Optional.empty());
+
+        assertThat(pluginChanges.isEmpty(), is(false));
+        assertThat(pluginChanges.install, empty());
+        assertThat(pluginChanges.remove, hasSize(3));
+        assertThat(pluginChanges.upgrade, empty());
+        assertThat(pluginChanges.remove.get(0).getId(), equalTo("repository-azure"));
+        assertThat(pluginChanges.remove.get(1).getId(), equalTo("repository-gcs"));
+        assertThat(pluginChanges.remove.get(2).getId(), equalTo("repository-s3"));
+    }
+
+    /**
      * Check that if there are no changes to apply, then the install and remove actions are not used.
      * This is a redundant test, really, because the sync action exits early if there are no
      * changes.

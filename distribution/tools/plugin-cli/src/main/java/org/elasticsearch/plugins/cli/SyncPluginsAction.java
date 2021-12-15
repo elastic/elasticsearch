@@ -24,6 +24,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -115,7 +116,14 @@ public class SyncPluginsAction implements PluginsSynchronizer {
     PluginChanges getPluginChanges(PluginsConfig pluginsConfig, Optional<PluginsConfig> cachedPluginsConfig) throws PluginSyncException {
         final List<PluginInfo> existingPlugins = getExistingPlugins();
 
-        final List<PluginDescriptor> pluginsThatShouldExist = pluginsConfig.getPlugins();
+        // For plugins that have migrated to modules, in order to help transition it's OK to still specify these plugins
+        // in the config file, but they will have no effect. Indeed, any existing plugin installation will also be removed,
+        // leaving only the module.
+        final List<PluginDescriptor> pluginsThatShouldExist = pluginsConfig.getPlugins()
+            .stream()
+            .filter(each -> InstallPluginAction.PLUGINS_CONVERTED_TO_MODULES.contains(each.getId()) == false)
+            .toList();
+
         final List<PluginDescriptor> pluginsThatActuallyExist = existingPlugins.stream()
             .map(info -> new PluginDescriptor(info.getName()))
             .collect(Collectors.toList());
@@ -130,6 +138,10 @@ public class SyncPluginsAction implements PluginsSynchronizer {
             .collect(Collectors.toList());
 
         final List<PluginDescriptor> pluginsToUpgrade = getPluginsToUpgrade(pluginsToMaybeUpgrade, cachedPluginsConfig, existingPlugins);
+
+        pluginsToRemove.sort(Comparator.comparing(PluginDescriptor::getId));
+        pluginsToInstall.sort(Comparator.comparing(PluginDescriptor::getId));
+        pluginsToMaybeUpgrade.sort(Comparator.comparing(PluginDescriptor::getId));
 
         return new PluginChanges(pluginsToRemove, pluginsToInstall, pluginsToUpgrade);
     }

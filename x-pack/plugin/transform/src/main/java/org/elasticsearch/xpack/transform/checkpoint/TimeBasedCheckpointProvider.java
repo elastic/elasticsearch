@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.checkpoint;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -114,6 +115,10 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
      */
     private static Function<Long, Long> createAlignTimestampFunction(TransformConfig transformConfig) {
         if (Boolean.FALSE.equals(transformConfig.getSettings().getAlignCheckpoints())) {
+            return identity();
+        }
+        // In case of transforms created before aligning timestamp optimization was introduced we assume the default was "false".
+        if (transformConfig.getVersion() == null || transformConfig.getVersion().before(Version.V_7_15_0)) {
             return identity();
         }
         if (transformConfig.getPivotConfig() == null) {

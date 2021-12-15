@@ -67,6 +67,8 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION;
+import static org.elasticsearch.xpack.core.ml.MachineLearningField.MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 import static org.elasticsearch.xpack.core.ml.MlTasks.PERSISTENT_TASK_MASTER_NODE_TIMEOUT;
 import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
@@ -74,12 +76,6 @@ import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIG
 public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksExecutor<OpenJobAction.JobParams> {
 
     private static final Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutor.class);
-    // Ideally this would be 7.0.0, but it has to be 6.4.0 because due to an oversight it's impossible
-    // for the Java code to distinguish the model states for versions 6.4.0 to 7.9.3 inclusive.
-    public static final Version MIN_CHECKED_SUPPORTED_SNAPSHOT_VERSION = Version.fromString("6.4.0");
-    // We tell the user we support model snapshots newer than 7.0.0 as that's the major version
-    // boundary, even though behind the scenes we have to support back to 6.4.0.
-    public static final Version MIN_REPORTED_SUPPORTED_SNAPSHOT_VERSION = Version.V_7_0_0;
 
     // Resuming a job with a running datafeed from its current snapshot was added in 7.11 and
     // can only be done if the master node is on or after that version.

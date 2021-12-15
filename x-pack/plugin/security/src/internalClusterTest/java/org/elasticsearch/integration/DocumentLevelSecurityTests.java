@@ -129,77 +129,71 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
     @Override
     protected String configUsers() {
         final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(USERS_PASSWD));
-        return super.configUsers()
-            + "user1:"
-            + usersPasswdHashed
-            + "\n"
-            + "user2:"
-            + usersPasswdHashed
-            + "\n"
-            + "user3:"
-            + usersPasswdHashed
-            + "\n"
-            + "user4:"
-            + usersPasswdHashed
-            + "\n"
-            + "user5:"
-            + usersPasswdHashed
-            + "\n";
+        return super.configUsers() + """
+            user1:%s
+            user2:%s
+            user3:%s
+            user4:%s
+            user5:%s
+            """.formatted(usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed, usersPasswdHashed);
     }
 
     @Override
     protected String configUsersRoles() {
-        return super.configUsersRoles()
-            + "role1:user1,user2,user3\n"
-            + "role2:user1,user3\n"
-            + "role3:user2,user3\n"
-            + "role4:user4\n"
-            + "role5:user5\n";
+        return super.configUsersRoles() + """
+            role1:user1,user2,user3
+            role2:user1,user3
+            role3:user2,user3
+            role4:user4
+            role5:user5
+            """;
     }
 
     @Override
     protected String configRoles() {
-        return super.configRoles()
-            + "\nrole1:\n"
-            + "  cluster: [ none ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ none ]\n"
-            + "\nrole2:\n"
-            + "  cluster:\n"
-            + "    - all\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges:\n"
-            + "        - all\n"
-            + "      query: \n"
-            + "        term: \n"
-            + "          field1: value1\n"
-            + "role3:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ ALL ]\n"
-            + "      query: '{\"term\" : {\"field2\" : \"value2\"}}'\n"
-            + // <-- query defined as json in a string
-            "role4:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ ALL ]\n"
-            +
-            // query that can match nested documents
-            "      query: '{\"bool\": { \"must_not\": { \"term\" : {\"field1\" : \"value2\"}}}}'\n"
-            + "role5:\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "    - names: [ 'test' ]\n"
-            + "      privileges: [ read ]\n"
-            + "      query: '{\"term\" : {\"field2\" : \"value2\"}}'\n"
-            + "    - names: [ 'fls-index' ]\n"
-            + "      privileges: [ read ]\n"
-            + "      field_security:\n"
-            + "         grant: [ 'field1', 'other_field', 'suggest_field2' ]\n";
+        // <-- query defined as json in a string
+        // query that can match nested documents
+        return super.configRoles() + """
+
+            role1:
+              cluster: [ none ]
+              indices:
+                - names: '*'
+                  privileges: [ none ]
+
+            role2:
+              cluster:
+                - all
+              indices:
+                - names: '*'
+                  privileges:
+                    - all
+                  query:
+                    term:
+                      field1: value1
+            role3:
+              cluster: [ all ]
+              indices:
+                - names: '*'
+                  privileges: [ ALL ]
+                  query: '{"term" : {"field2" : "value2"}}'
+            role4:
+              cluster: [ all ]
+              indices:
+                - names: '*'
+                  privileges: [ ALL ]
+                  query: '{"bool": { "must_not": { "term" : {"field1" : "value2"}}}}'
+            role5:
+              cluster: [ all ]
+              indices:
+                - names: [ 'test' ]
+                  privileges: [ read ]
+                  query: '{"term" : {"field2" : "value2"}}'
+                - names: [ 'fls-index' ]
+                  privileges: [ read ]
+                  field_security:
+                     grant: [ 'field1', 'other_field', 'suggest_field2' ]
+            """;
     }
 
     @Override
@@ -553,10 +547,8 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("doc_index").setMapping("message", "type=text", "field1", "type=text"));
         client().prepareIndex("query_index")
             .setId("1")
-            .setSource(
-                "{\"field1\": \"value1\", \"field2\": \"value2\", \"query\": " + "{\"match\": {\"message\": \"bonsai tree\"}}}",
-                XContentType.JSON
-            )
+            .setSource("""
+                {"field1": "value1", "field2": "value2", "query": {"match": {"message": "bonsai tree"}}}""", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE)
             .get();
         client().prepareIndex("doc_index")
@@ -603,18 +595,14 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
         );
         client().prepareIndex("search_index")
             .setId("1")
-            .setSource(
-                "{\"field1\": \"value1\", \"field2\": \"value2\", \"search_field\": " + "{ \"type\": \"point\", \"coordinates\":[1, 1] }}",
-                XContentType.JSON
-            )
+            .setSource("""
+                {"field1": "value1", "field2": "value2", "search_field": { "type": "point", "coordinates":[1, 1] }}""", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE)
             .get();
         client().prepareIndex("shape_index")
             .setId("1")
-            .setSource(
-                "{\"field1\": \"value1\", \"shape_field\": " + "{ \"type\": \"envelope\", \"coordinates\": [[0, 2], [2, 0]]}}",
-                XContentType.JSON
-            )
+            .setSource("""
+                {"field1": "value1", "shape_field": { "type": "envelope", "coordinates": [[0, 2], [2, 0]]}}""", XContentType.JSON)
             .setRefreshPolicy(IMMEDIATE)
             .get();
         ShapeQueryBuilder shapeQuery = new ShapeQueryBuilder("search_field", "1").relation(ShapeRelation.WITHIN)

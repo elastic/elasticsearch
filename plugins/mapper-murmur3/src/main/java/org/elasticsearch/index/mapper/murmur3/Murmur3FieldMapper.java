@@ -19,6 +19,7 @@ import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.ScriptDocValues.Longs;
+import org.elasticsearch.index.fielddata.ScriptDocValues.LongsSupplier;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -83,7 +84,10 @@ public class Murmur3FieldMapper extends FieldMapper {
     // this only exists so a check can be done to match the field type to using murmur3 hashing...
     public static class Murmur3FieldType extends MappedFieldType {
 
-        public static final ToScriptField<SortedNumericDocValues> TO_SCRIPT_FIELD = (dv, n) -> new DelegateDocValuesField(new Longs(dv), n);
+        public static final ToScriptField<SortedNumericDocValues> TO_SCRIPT_FIELD = (dv, n) -> new DelegateDocValuesField(
+            new Longs(new LongsSupplier(dv)),
+            n
+        );
 
         private Murmur3FieldType(String name, boolean isStored, Map<String, String> meta) {
             super(name, false, isStored, true, TextSearchInfo.NONE, meta);

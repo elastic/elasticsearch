@@ -86,28 +86,17 @@ public class SameShardAllocationDecider extends AllocationDecider {
             return YES_AUTO_EXPAND_ALL;
         }
         if (node.node() != null) {
+            assert Strings.hasLength(node.node().getHostAddress()) : node;
             for (RoutingNode checkNode : allocation.routingNodes()) {
                 if (checkNode.node() == null) {
                     continue;
                 }
                 // check if its on the same host as the one we want to allocate to
-                boolean checkNodeOnSameHostName = false;
-                boolean checkNodeOnSameHostAddress = false;
-                if (Strings.hasLength(checkNode.node().getHostAddress()) && Strings.hasLength(node.node().getHostAddress())) {
-                    if (checkNode.node().getHostAddress().equals(node.node().getHostAddress())) {
-                        checkNodeOnSameHostAddress = true;
-                    }
-                } else if (Strings.hasLength(checkNode.node().getHostName()) && Strings.hasLength(node.node().getHostName())) {
-                    if (checkNode.node().getHostName().equals(node.node().getHostName())) {
-                        checkNodeOnSameHostName = true;
-                    }
-                }
-                if (checkNodeOnSameHostAddress || checkNodeOnSameHostName) {
+                assert Strings.hasLength(checkNode.node().getHostAddress()) : checkNode;
+                if (checkNode.node().getHostAddress().equals(node.node().getHostAddress())) {
                     for (ShardRouting assignedShard : assignedShards) {
                         if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {
-                            return allocation.debugDecision()
-                                ? debugNoAlreadyAllocatedToHost(node, allocation, checkNodeOnSameHostAddress)
-                                : Decision.NO;
+                            return allocation.debugDecision() ? debugNoAlreadyAllocatedToHost(node, allocation) : Decision.NO;
                         }
                     }
                 }
@@ -121,20 +110,13 @@ public class SameShardAllocationDecider extends AllocationDecider {
         return canAllocate(shardRouting, node, allocation);
     }
 
-    private static Decision debugNoAlreadyAllocatedToHost(
-        RoutingNode node,
-        RoutingAllocation allocation,
-        boolean checkNodeOnSameHostAddress
-    ) {
-        String hostType = checkNodeOnSameHostAddress ? "address" : "name";
-        String host = checkNodeOnSameHostAddress ? node.node().getHostAddress() : node.node().getHostName();
+    private static Decision debugNoAlreadyAllocatedToHost(RoutingNode node, RoutingAllocation allocation) {
         return allocation.decision(
             Decision.NO,
             NAME,
-            "a copy of this shard is already allocated to host %s [%s], on node [%s], and [%s] is [true] which "
+            "a copy of this shard is already allocated to host address [%s], on node [%s], and [%s] is [true] which "
                 + "forbids more than one node on this host from holding a copy of this shard",
-            hostType,
-            host,
+            node.node().getHostAddress(),
             node.nodeId(),
             CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey()
         );
@@ -169,7 +151,7 @@ public class SameShardAllocationDecider extends AllocationDecider {
         if (assignedShard.isSameAllocation(shardRouting)) {
             explanation = "this shard is already allocated to this node [" + shardRouting.toString() + "]";
         } else {
-            explanation = "a copy of this shard is already allocated to this node [" + assignedShard.toString() + "]";
+            explanation = "a copy of this shard is already allocated to this node [" + assignedShard + "]";
         }
         return Decision.single(Decision.Type.NO, NAME, explanation);
     }

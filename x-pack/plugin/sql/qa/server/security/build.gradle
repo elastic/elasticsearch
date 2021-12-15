@@ -54,6 +54,9 @@ subprojects {
       "${-> testClusters.integTest.singleNode().getAuditLog()}"
     nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',
       "${-> testClusters.integTest.singleNode().getAuditLog().getParentFile()}/integTest_audit-${new Date().format('yyyy-MM-dd')}-1.json.gz"
+
+    // Disabled because of log4j Security Manager permission issues in CLI tools
+    systemProperty 'tests.security.manager', 'false'
   }
 
   tasks.named("testingConventions").configure { enabled = false }

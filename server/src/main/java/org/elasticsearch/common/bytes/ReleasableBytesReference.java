@@ -31,7 +31,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     private static final ReleasableBytesReference EMPTY = new ReleasableBytesReference(BytesArray.EMPTY, NO_OP);
 
     private final BytesReference delegate;
-    private final AbstractRefCounted refCounted;
+    private final RefCounted refCounted;
 
     public static ReleasableBytesReference empty() {
         EMPTY.incRef();
@@ -42,19 +42,15 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         this(delegate, new RefCountedReleasable(releasable));
     }
 
-    public ReleasableBytesReference(BytesReference delegate, AbstractRefCounted refCounted) {
+    public ReleasableBytesReference(BytesReference delegate, RefCounted refCounted) {
         this.delegate = delegate;
         this.refCounted = refCounted;
-        assert refCounted.refCount() > 0;
+        assert refCounted.hasReferences();
     }
 
     public static ReleasableBytesReference wrap(BytesReference reference) {
         assert reference instanceof ReleasableBytesReference == false : "use #retain() instead of #wrap() on a " + reference.getClass();
         return reference.length() == 0 ? empty() : new ReleasableBytesReference(reference, NO_OP);
-    }
-
-    public int refCount() {
-        return refCounted.refCount();
     }
 
     @Override
@@ -98,19 +94,19 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public byte get(int index) {
-        assert refCount() > 0;
+        assert hasReferences();
         return delegate.get(index);
     }
 
     @Override
     public int getInt(int index) {
-        assert refCount() > 0;
+        assert hasReferences();
         return delegate.getInt(index);
     }
 
     @Override
     public int indexOf(byte marker, int from) {
-        assert refCount() > 0;
+        assert hasReferences();
         return delegate.indexOf(marker, from);
     }
 
@@ -121,7 +117,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public BytesReference slice(int from, int length) {
-        assert refCount() > 0;
+        assert hasReferences();
         return delegate.slice(from, length);
     }
 
@@ -132,7 +128,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public StreamInput streamInput() throws IOException {
-        assert refCount() > 0;
+        assert hasReferences();
         return new BytesReferenceStreamInput(this) {
             @Override
             public ReleasableBytesReference readReleasableBytesReference() throws IOException {
@@ -148,37 +144,37 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public void writeTo(OutputStream os) throws IOException {
-        assert refCount() > 0;
+        assert hasReferences();
         delegate.writeTo(os);
     }
 
     @Override
     public String utf8ToString() {
-        assert refCount() > 0;
+        assert hasReferences();
         return delegate.utf8ToString();
     }
 
     @Override
     public BytesRef toBytesRef() {
-        assert refCount() > 0;
+        assert hasReferences();
         return delegate.toBytesRef();
     }
 
     @Override
     public BytesRefIterator iterator() {
-        assert refCount() > 0;
+        assert hasReferences();
         return delegate.iterator();
     }
 
     @Override
     public int compareTo(BytesReference o) {
-        assert refCount() > 0;
+        assert hasReferences();
         return delegate.compareTo(o);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        assert refCount() > 0;
+        assert hasReferences();
         return delegate.toXContent(builder, params);
     }
 
@@ -189,31 +185,31 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public boolean equals(Object obj) {
-        assert refCount() > 0;
+        assert hasReferences();
         return delegate.equals(obj);
     }
 
     @Override
     public int hashCode() {
-        assert refCount() > 0;
+        assert hasReferences();
         return delegate.hashCode();
     }
 
     @Override
     public boolean hasArray() {
-        assert refCount() > 0;
+        assert hasReferences();
         return delegate.hasArray();
     }
 
     @Override
     public byte[] array() {
-        assert refCount() > 0;
+        assert hasReferences();
         return delegate.array();
     }
 
     @Override
     public int arrayOffset() {
-        assert refCount() > 0;
+        assert hasReferences();
         return delegate.arrayOffset();
     }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.get.GetResultTests;
@@ -46,11 +47,18 @@ public class UpdateResponseTests extends ESTestCase {
         {
             UpdateResponse updateResponse = new UpdateResponse(new ShardId("index", "index_uuid", 0), "id", -2, 0, 0, NOT_FOUND);
             String output = Strings.toString(updateResponse);
-            assertEquals(
-                "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":0,\"result\":\"not_found\","
-                    + "\"_shards\":{\"total\":0,\"successful\":0,\"failed\":0}}",
-                output
-            );
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "_index": "index",
+                  "_id": "id",
+                  "_version": 0,
+                  "result": "not_found",
+                  "_shards": {
+                    "total": 0,
+                    "successful": 0,
+                    "failed": 0
+                  }
+                }"""), output);
         }
         {
             UpdateResponse updateResponse = new UpdateResponse(
@@ -63,14 +71,24 @@ public class UpdateResponseTests extends ESTestCase {
                 DELETED
             );
             String output = Strings.toString(updateResponse);
-            assertEquals(
-                "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"result\":\"deleted\","
-                    + "\"_shards\":{\"total\":10,\"successful\":6,\"failed\":0},\"_seq_no\":3,\"_primary_term\":17}",
-                output
-            );
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "_index": "index",
+                  "_id": "id",
+                  "_version": 1,
+                  "result": "deleted",
+                  "_shards": {
+                    "total": 10,
+                    "successful": 6,
+                    "failed": 0
+                  },
+                  "_seq_no": 3,
+                  "_primary_term": 17
+                }"""), output);
         }
         {
-            BytesReference source = new BytesArray("{\"title\":\"Book title\",\"isbn\":\"ABC-123\"}");
+            BytesReference source = new BytesArray("""
+                {"title":"Book title","isbn":"ABC-123"}""");
             Map<String, DocumentField> fields = new HashMap<>();
             fields.put("title", new DocumentField("title", Collections.singletonList("Book title")));
             fields.put("isbn", new DocumentField("isbn", Collections.singletonList("ABC-123")));
@@ -87,14 +105,33 @@ public class UpdateResponseTests extends ESTestCase {
             updateResponse.setGetResult(new GetResult("books", "1", 0, 1, 2, true, source, fields, null));
 
             String output = Strings.toString(updateResponse);
-            assertEquals(
-                "{\"_index\":\"books\",\"_id\":\"1\",\"_version\":2,\"result\":\"updated\","
-                    + "\"_shards\":{\"total\":3,\"successful\":2,\"failed\":0},\"_seq_no\":7,\"_primary_term\":17,\"get\":{"
-                    + "\"_seq_no\":0,\"_primary_term\":1,\"found\":true,"
-                    + "\"_source\":{\"title\":\"Book title\",\"isbn\":\"ABC-123\"},\"fields\":{\"isbn\":[\"ABC-123\"],\"title\":[\"Book "
-                    + "title\"]}}}",
-                output
-            );
+            assertEquals(XContentHelper.stripWhitespace("""
+                {
+                  "_index": "books",
+                  "_id": "1",
+                  "_version": 2,
+                  "result": "updated",
+                  "_shards": {
+                    "total": 3,
+                    "successful": 2,
+                    "failed": 0
+                  },
+                  "_seq_no": 7,
+                  "_primary_term": 17,
+                  "get": {
+                    "_seq_no": 0,
+                    "_primary_term": 1,
+                    "found": true,
+                    "_source": {
+                      "title": "Book title",
+                      "isbn": "ABC-123"
+                    },
+                    "fields": {
+                      "isbn": [ "ABC-123" ],
+                      "title": [ "Book title" ]
+                    }
+                  }
+                }"""), output);
         }
     }
 

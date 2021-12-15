@@ -222,10 +222,27 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             builder.startObject();
             ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\",\"phase\":\"search\","
-                + "\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\",\"reason\":"
-                + "{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}}]}";
-            assertEquals(expected, Strings.toString(builder));
+            String expected = """
+                {
+                  "type": "search_phase_execution_exception",
+                  "reason": "all shards failed",
+                  "phase": "search",
+                  "grouped": true,
+                  "failed_shards": [
+                    {
+                      "shard": 1,
+                      "index": "foo",
+                      "node": "node_1",
+                      "reason": {
+                        "type": "parsing_exception",
+                        "reason": "foobar",
+                        "line": 1,
+                        "col": 2
+                      }
+                    }
+                  ]
+                }""";
+            assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
         }
         {
             ShardSearchFailure failure = new ShardSearchFailure(
@@ -249,12 +266,39 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             builder.startObject();
             ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\","
-                + "\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\","
-                + "\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}},{\"shard\":1,"
-                + "\"index\":\"foo1\",\"node\":\"node_1\",\"reason\":{\"type\":\"query_shard_exception\",\"reason\":\"foobar\","
-                + "\"index_uuid\":\"_na_\",\"index\":\"foo1\"}}]}";
-            assertEquals(expected, Strings.toString(builder));
+
+            String expected = """
+                {
+                  "type": "search_phase_execution_exception",
+                  "reason": "all shards failed",
+                  "phase": "search",
+                  "grouped": true,
+                  "failed_shards": [
+                    {
+                      "shard": 1,
+                      "index": "foo",
+                      "node": "node_1",
+                      "reason": {
+                        "type": "parsing_exception",
+                        "reason": "foobar",
+                        "line": 1,
+                        "col": 2
+                      }
+                    },
+                    {
+                      "shard": 1,
+                      "index": "foo1",
+                      "node": "node_1",
+                      "reason": {
+                        "type": "query_shard_exception",
+                        "reason": "foobar",
+                        "index_uuid": "_na_",
+                        "index": "foo1"
+                      }
+                    }
+                  ]
+                }""";
+            assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
         }
         {
             ShardSearchFailure failure = new ShardSearchFailure(
@@ -277,11 +321,32 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             builder.startObject();
             ex.toXContent(builder, ToXContent.EMPTY_PARAMS);
             builder.endObject();
-            String expected = "{\"type\":\"search_phase_execution_exception\",\"reason\":\"all shards failed\","
-                + "\"phase\":\"search\",\"grouped\":true,\"failed_shards\":[{\"shard\":1,\"index\":\"foo\",\"node\":\"node_1\","
-                + "\"reason\":{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}}],"
-                + "\"caused_by\":{\"type\":\"null_pointer_exception\",\"reason\":null}}";
-            assertEquals(expected, Strings.toString(builder));
+
+            String expected = """
+                {
+                  "type": "search_phase_execution_exception",
+                  "reason": "all shards failed",
+                  "phase": "search",
+                  "grouped": true,
+                  "failed_shards": [
+                    {
+                      "shard": 1,
+                      "index": "foo",
+                      "node": "node_1",
+                      "reason": {
+                        "type": "parsing_exception",
+                        "reason": "foobar",
+                        "line": 1,
+                        "col": 2
+                      }
+                    }
+                  ],
+                  "caused_by": {
+                    "type": "null_pointer_exception",
+                    "reason": null
+                  }
+                }""";
+            assertEquals(XContentHelper.stripWhitespace(expected), Strings.toString(builder));
         }
     }
 
@@ -341,16 +406,19 @@ public class ElasticsearchExceptionTests extends ESTestCase {
     public void testToXContent() throws IOException {
         {
             ElasticsearchException e = new ElasticsearchException("test");
-            assertExceptionAsJson(e, "{\"type\":\"exception\",\"reason\":\"test\"}");
+            assertExceptionAsJson(e, """
+                {"type":"exception","reason":"test"}""");
         }
         {
             ElasticsearchException e = new IndexShardRecoveringException(new ShardId("_test", "_0", 5));
-            assertExceptionAsJson(
-                e,
-                "{\"type\":\"index_shard_recovering_exception\","
-                    + "\"reason\":\"CurrentState[RECOVERING] Already recovering\",\"index_uuid\":\"_0\","
-                    + "\"shard\":\"5\",\"index\":\"_test\"}"
-            );
+            assertExceptionAsJson(e, """
+                {
+                  "type": "index_shard_recovering_exception",
+                  "reason": "CurrentState[RECOVERING] Already recovering",
+                  "index_uuid": "_0",
+                  "shard": "5",
+                  "index": "_test"
+                }""");
         }
         {
             ElasticsearchException e = new BroadcastShardOperationFailedException(
@@ -358,38 +426,65 @@ public class ElasticsearchExceptionTests extends ESTestCase {
                 "foo",
                 new IllegalStateException("bar")
             );
-            assertExceptionAsJson(e, "{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"}");
+            assertExceptionAsJson(e, """
+                {
+                  "type": "illegal_state_exception",
+                  "reason": "bar"
+                }""");
         }
         {
             ElasticsearchException e = new ElasticsearchException(new IllegalArgumentException("foo"));
-            assertExceptionAsJson(
-                e,
-                "{\"type\":\"exception\",\"reason\":\"java.lang.IllegalArgumentException: foo\","
-                    + "\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"foo\"}}"
-            );
+            assertExceptionAsJson(e, """
+                {
+                  "type": "exception",
+                  "reason": "java.lang.IllegalArgumentException: foo",
+                  "caused_by": {
+                    "type": "illegal_argument_exception",
+                    "reason": "foo"
+                  }
+                }""");
         }
         {
             ElasticsearchException e = new SearchParseException(SHARD_TARGET, "foo", new XContentLocation(1, 0));
-            assertExceptionAsJson(e, "{\"type\":\"search_parse_exception\",\"reason\":\"foo\",\"line\":1,\"col\":0}");
+
+            assertExceptionAsJson(e, """
+                {"type":"search_parse_exception","reason":"foo","line":1,"col":0}""");
         }
         {
             ElasticsearchException ex = new ElasticsearchException(
                 "foo",
                 new ElasticsearchException("bar", new IllegalArgumentException("index is closed", new RuntimeException("foobar")))
             );
-            assertExceptionAsJson(
-                ex,
-                "{\"type\":\"exception\",\"reason\":\"foo\",\"caused_by\":{\"type\":\"exception\","
-                    + "\"reason\":\"bar\",\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"index is closed\","
-                    + "\"caused_by\":{\"type\":\"runtime_exception\",\"reason\":\"foobar\"}}}}"
-            );
+            assertExceptionAsJson(ex, """
+                {
+                  "type": "exception",
+                  "reason": "foo",
+                  "caused_by": {
+                    "type": "exception",
+                    "reason": "bar",
+                    "caused_by": {
+                      "type": "illegal_argument_exception",
+                      "reason": "index is closed",
+                      "caused_by": {
+                        "type": "runtime_exception",
+                        "reason": "foobar"
+                      }
+                    }
+                  }
+                }""");
         }
         {
             ElasticsearchException e = new ElasticsearchException("foo", new IllegalStateException("bar"));
-            assertExceptionAsJson(
-                e,
-                "{\"type\":\"exception\",\"reason\":\"foo\"," + "\"caused_by\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"}}"
-            );
+
+            assertExceptionAsJson(e, """
+                {
+                  "type": "exception",
+                  "reason": "foo",
+                  "caused_by": {
+                    "type": "illegal_state_exception",
+                    "reason": "bar"
+                  }
+                }""");
 
             // Test the same exception but with the "rest.exception.stacktrace.skip" parameter disabled: the stack_trace must be present
             // in the JSON. Since the stack can be large, it only checks the beginning of the JSON.
@@ -406,11 +501,11 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             assertThat(
                 actual,
                 startsWith(
-                    "{\"type\":\"exception\",\"reason\":\"foo\","
-                        + "\"caused_by\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\","
-                        + "\"stack_trace\":\"java.lang.IllegalStateException: bar"
-                        + (Constants.WINDOWS ? "\\r\\n" : "\\n")
-                        + "\\tat org.elasticsearch."
+                    """
+                        {"type":"exception","reason":"foo","caused_by":{"type":"illegal_state_exception","reason":"bar",\
+                        "stack_trace":"java.lang.IllegalStateException: bar%s\\tat org.elasticsearch.""".formatted(
+                        Constants.WINDOWS ? "\\r\\n" : "\\n"
+                    )
                 )
             );
         }
@@ -425,11 +520,13 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             } else {
                 ex = new FileNotFoundException("foo not found");
             }
-            assertExceptionAsJson(ex, "{\"type\":\"file_not_found_exception\",\"reason\":\"foo not found\"}");
+            assertExceptionAsJson(ex, """
+                {"type":"file_not_found_exception","reason":"foo not found"}""");
         }
         {
             ParsingException ex = new ParsingException(1, 2, "foobar", null);
-            assertExceptionAsJson(ex, "{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2}");
+            assertExceptionAsJson(ex, """
+                {"type":"parsing_exception","reason":"foobar","line":1,"col":2}""");
         }
 
         { // test equivalence
@@ -441,7 +538,8 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             });
 
             assertEquals(throwableString, toXContentString);
-            assertEquals("{\"type\":\"file_not_found_exception\",\"reason\":\"foo not found\"}", toXContentString);
+            assertEquals("""
+                {"type":"file_not_found_exception","reason":"foo not found"}""", toXContentString);
         }
 
         { // render header and metadata
@@ -450,10 +548,23 @@ public class ElasticsearchExceptionTests extends ESTestCase {
             ex.addMetadata("es.test2", "value2");
             ex.addHeader("test", "some value");
             ex.addHeader("test_multi", "some value", "another value");
-            String expected = "{\"type\":\"parsing_exception\",\"reason\":\"foobar\",\"line\":1,\"col\":2,"
-                + "\"test1\":\"value1\",\"test2\":\"value2\","
-                + "\"header\":{\"test_multi\":"
-                + "[\"some value\",\"another value\"],\"test\":\"some value\"}}";
+
+            String expected = """
+                {
+                  "type": "parsing_exception",
+                  "reason": "foobar",
+                  "line": 1,
+                  "col": 2,
+                  "test1": "value1",
+                  "test2": "value2",
+                  "header": {
+                    "test_multi": [
+                      "some value",
+                      "another value"
+                    ],
+                    "test": "some value"
+                  }
+                }""";
             assertExceptionAsJson(ex, expected);
         }
     }
@@ -471,28 +582,29 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         e.addMetadata("es.metadata_foo_0", "foo_0");
         e.addMetadata("es.metadata_foo_1", "foo_1");
 
-        final String expectedJson = "{"
-            + "\"type\":\"exception\","
-            + "\"reason\":\"foo\","
-            + "\"metadata_foo_0\":\"foo_0\","
-            + "\"metadata_foo_1\":\"foo_1\","
-            + "\"caused_by\":{"
-            + "\"type\":\"exception\","
-            + "\"reason\":\"bar\","
-            + "\"caused_by\":{"
-            + "\"type\":\"exception\","
-            + "\"reason\":\"baz\","
-            + "\"caused_by\":{"
-            + "\"type\":\"cluster_block_exception\","
-            + "\"reason\":\"blocked by: [SERVICE_UNAVAILABLE/2/no master];\""
-            + "}"
-            + "}"
-            + "},"
-            + "\"header\":{"
-            + "\"foo_0\":\"0\","
-            + "\"foo_1\":\"1\""
-            + "}"
-            + "}";
+        final String expectedJson = """
+            {
+              "type": "exception",
+              "reason": "foo",
+              "metadata_foo_0": "foo_0",
+              "metadata_foo_1": "foo_1",
+              "caused_by": {
+                "type": "exception",
+                "reason": "bar",
+                "caused_by": {
+                  "type": "exception",
+                  "reason": "baz",
+                  "caused_by": {
+                    "type": "cluster_block_exception",
+                    "reason": "blocked by: [SERVICE_UNAVAILABLE/2/no master];"
+                  }
+                }
+              },
+              "header": {
+                "foo_0": "0",
+                "foo_1": "1"
+              }
+            }""";
 
         assertExceptionAsJson(e, expectedJson);
 

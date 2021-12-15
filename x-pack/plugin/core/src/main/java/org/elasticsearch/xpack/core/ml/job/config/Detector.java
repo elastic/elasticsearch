@@ -594,9 +594,9 @@ public class Detector implements ToXContentObject, Writeable {
                 verifyFieldName(field);
             }
 
-            DetectorFunction function = this.function == null ? DetectorFunction.METRIC : this.function;
+            DetectorFunction detectorFunction = this.function == null ? DetectorFunction.METRIC : this.function;
             for (DetectionRule rule : rules) {
-                validateRule(rule, function);
+                validateRule(rule, detectorFunction);
             }
 
             // partition, by and over field names cannot be duplicates
@@ -671,7 +671,7 @@ public class Detector implements ToXContentObject, Writeable {
 
             return new Detector(
                 detectorDescription,
-                function,
+                detectorFunction,
                 fieldName,
                 byFieldName,
                 overFieldName,
@@ -715,14 +715,14 @@ public class Detector implements ToXContentObject, Writeable {
             return field.chars().anyMatch(Character::isISOControl);
         }
 
-        private void validateRule(DetectionRule rule, DetectorFunction function) {
-            checkFunctionHasRuleSupport(rule, function);
+        private void validateRule(DetectionRule rule, DetectorFunction detectorFunction) {
+            checkFunctionHasRuleSupport(rule, detectorFunction);
             checkScoping(rule);
         }
 
-        private void checkFunctionHasRuleSupport(DetectionRule rule, DetectorFunction function) {
-            if (ruleHasConditionOnResultValue(rule) && FUNCTIONS_WITHOUT_RULE_CONDITION_SUPPORT.contains(function)) {
-                String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_NOT_SUPPORTED_BY_FUNCTION, function);
+        private void checkFunctionHasRuleSupport(DetectionRule rule, DetectorFunction detectorFunction) {
+            if (ruleHasConditionOnResultValue(rule) && FUNCTIONS_WITHOUT_RULE_CONDITION_SUPPORT.contains(detectorFunction)) {
+                String msg = Messages.getMessage(Messages.JOB_CONFIG_DETECTION_RULE_NOT_SUPPORTED_BY_FUNCTION, detectorFunction);
                 throw ExceptionsHelper.badRequestException(msg);
             }
         }

@@ -203,35 +203,29 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
 
     private String configRoles() {
         // test role allows for everything
-        return SAMPLE_USER_ROLE
-            + ":\n"
-            + "  cluster: [ ALL ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      allow_restricted_indices: true\n"
-            + "      privileges: [ ALL ]\n"
-            + "\n"
-            +
-            // IDP end user doesn't need any privileges on the security cluster
-            SAMPLE_IDPUSER_ROLE
-            + ":\n"
-            +
-            // Could switch to grant apikey for user and call this as console_user
-            "  cluster: ['cluster:admin/xpack/security/api_key/create']\n"
-            + "  indices: []\n"
-            + "  applications:\n "
-            + "    - application: elastic-cloud\n"
-            + "       resources: [ '"
-            + SP_ENTITY_ID
-            + "' ]\n"
-            + "       privileges: [ 'sso:superuser' ]\n"
-            + "\n"
-            +
-            // Console user should be able to call all IDP related endpoints and register application privileges
-            CONSOLE_USER_ROLE
-            + ":\n"
-            + "  cluster: ['cluster:admin/idp/*', 'cluster:admin/xpack/security/privilege/*' ]\n"
-            + "  indices: []\n";
+        // IDP end user doesn't need any privileges on the security cluster
+        // Could switch to grant apikey for user and call this as console_user
+        // Console user should be able to call all IDP related endpoints and register application privileges
+        return """
+            %s:
+              cluster: [ ALL ]
+              indices:
+                - names: '*'
+                  allow_restricted_indices: true
+                  privileges: [ ALL ]
+
+            %s:
+              cluster: ['cluster:admin/xpack/security/api_key/create']
+              indices: []
+              applications:
+                 - application: elastic-cloud
+                   resources: [ '%s' ]
+                   privileges: [ 'sso:superuser' ]
+
+            %s:
+              cluster: ['cluster:admin/idp/*', 'cluster:admin/xpack/security/privilege/*' ]
+              indices: []
+            """.formatted(SAMPLE_USER_ROLE, SAMPLE_IDPUSER_ROLE, SP_ENTITY_ID, CONSOLE_USER_ROLE);
     }
 
     private String configUsers() {

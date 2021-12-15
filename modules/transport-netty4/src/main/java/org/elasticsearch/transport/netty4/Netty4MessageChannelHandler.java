@@ -21,6 +21,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.InboundPipeline;
@@ -55,7 +56,8 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
             threadPool::relativeTimeInMillis,
             transport.getInflightBreaker(),
             requestHandlers::getHandler,
-            transport::inboundMessage
+            transport::inboundMessage,
+            false
         );
     }
 
@@ -68,7 +70,7 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
         final ByteBuf buffer = (ByteBuf) msg;
         Netty4TcpChannel channel = ctx.channel().attr(Netty4Transport.CHANNEL_KEY).get();
         final BytesReference wrapped = Netty4Utils.toBytesReference(buffer);
-        try (ReleasableBytesReference reference = new ReleasableBytesReference(wrapped, buffer::release)) {
+        try (ReleasableBytesReference reference = new ReleasableBytesReference(wrapped, new ByteBufRefCounted(buffer))) {
             pipeline.handleBytes(channel, reference);
         }
     }
@@ -211,4 +213,43 @@ final class Netty4MessageChannelHandler extends ChannelDuplexHandler {
             buf.release();
         }
     }
+
+    private static final class ByteBufRefCounted implements RefCounted {
+
+        private final ByteBuf buffer;
+
+        ByteBufRefCounted(ByteBuf buffer) {
+            this.buffer = buffer;
+        }
+
+        @Override
+        public void incRef() {
+            buffer.retain();
+        }
+
+        @Override
+        public boolean tryIncRef() {
+            if (hasReferences() == false) {
+                return false;
+            }
+            try {
+                buffer.retain();
+            } catch (RuntimeException e) {
+                assert hasReferences() == false;
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public boolean decRef() {
+            return buffer.release();
+        }
+
+        @Override
+        public boolean hasReferences() {
+            return buffer.refCnt() > 0;
+        }
+    }
+
 }

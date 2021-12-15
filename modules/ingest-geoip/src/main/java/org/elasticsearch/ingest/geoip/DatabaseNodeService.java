@@ -146,7 +146,7 @@ public final class DatabaseNodeService implements Closeable {
         if (Files.exists(geoipTmpDirectory) == false) {
             Files.createDirectories(geoipTmpDirectory);
         }
-        LOGGER.info("initialized database registry, using geoip-databases directory [{}]", geoipTmpDirectory);
+        LOGGER.debug("initialized database node service, using geoip-databases directory [{}]", geoipTmpDirectory);
         ingestServiceArg.addIngestClusterStateListener(this::checkDatabases);
         this.ingestService = ingestServiceArg;
     }
@@ -261,7 +261,7 @@ public final class DatabaseNodeService implements Closeable {
         }
 
         final Path databaseTmpFile = Files.createFile(geoipTmpDirectory.resolve(databaseName + ".tmp"));
-        LOGGER.info("downloading geoip database [{}] to [{}]", databaseName, databaseTmpGzFile);
+        LOGGER.debug("downloading geoip database [{}] to [{}]", databaseName, databaseTmpGzFile);
         retrieveDatabase(
             databaseName,
             recordedMd5,
@@ -348,7 +348,7 @@ public final class DatabaseNodeService implements Closeable {
                     LOGGER.debug("no pipelines found to reload");
                 }
             }
-            LOGGER.info("successfully reloaded changed geoip database file [{}]", file);
+            LOGGER.info("successfully loaded geoip database file [{}]", file.getFileName());
         } catch (Exception e) {
             LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("failed to update database [{}]", databaseFileName), e);
         }
@@ -357,7 +357,7 @@ public final class DatabaseNodeService implements Closeable {
     void removeStaleEntries(Collection<String> staleEntries) {
         for (String staleEntry : staleEntries) {
             try {
-                LOGGER.info("database [{}] no longer exists, cleaning up...", staleEntry);
+                LOGGER.debug("database [{}] no longer exists, cleaning up...", staleEntry);
                 DatabaseReaderLazyLoader existing = databases.remove(staleEntry);
                 assert existing != null;
                 existing.close(true);

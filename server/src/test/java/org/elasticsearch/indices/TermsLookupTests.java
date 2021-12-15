@@ -70,10 +70,8 @@ public class TermsLookupTests extends ESTestCase {
     }
 
     public void testXContentParsing() throws IOException {
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{ \"index\" : \"index\", \"id\" : \"id\", \"path\" : \"path\", \"routing\" : \"routing\" }"
-        );
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            { "index" : "index", "id" : "id", "path" : "path", "routing" : "routing" }""");
 
         TermsLookup tl = TermsLookup.parseTermsLookup(parser);
         assertEquals("index", tl.index());

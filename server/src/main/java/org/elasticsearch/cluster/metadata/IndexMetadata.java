@@ -8,11 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.LongArrayList;
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
@@ -57,6 +52,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -721,8 +717,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     @Nullable
     public MappingMetadata mapping() {
-        for (ObjectObjectCursor<String, MappingMetadata> cursor : mappings) {
-            return cursor.value;
+        for (Map.Entry<String, MappingMetadata> cursor : mappings.entrySet()) {
+            return cursor.getValue();
         }
         return null;
     }
@@ -1087,14 +1083,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             aliasMetadata.writeTo(out);
         }
         out.writeVInt(customData.size());
-        for (final ObjectObjectCursor<String, DiffableStringMap> cursor : customData) {
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
+        for (final Map.Entry<String, DiffableStringMap> cursor : customData.entrySet()) {
+            out.writeString(cursor.getKey());
+            cursor.getValue().writeTo(out);
         }
         out.writeVInt(inSyncAllocationIds.size());
-        for (IntObjectCursor<Set<String>> cursor : inSyncAllocationIds) {
-            out.writeVInt(cursor.key);
-            DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.value, out);
+        for (Map.Entry<Integer, Set<String>> cursor : inSyncAllocationIds.entrySet()) {
+            out.writeVInt(cursor.getKey());
+            DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.getValue(), out);
         }
         out.writeVInt(rolloverInfos.size());
         for (RolloverInfo rolloverInfo : rolloverInfos.values()) {
@@ -1593,8 +1589,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.endObject();
             }
 
-            for (ObjectObjectCursor<String, DiffableStringMap> cursor : indexMetadata.customData) {
-                builder.stringStringMap(cursor.key, cursor.value);
+            for (Map.Entry<String, DiffableStringMap> cursor : indexMetadata.customData.entrySet()) {
+                builder.stringStringMap(cursor.getKey(), cursor.getValue());
             }
 
             if (context != Metadata.XContentContext.API) {
@@ -1611,8 +1607,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.endArray();
             } else {
                 builder.startArray(KEY_ALIASES);
-                for (ObjectCursor<String> cursor : indexMetadata.getAliases().keys()) {
-                    builder.value(cursor.value);
+                for (Map.Entry<String, AliasMetadata> cursor : indexMetadata.getAliases().entrySet()) {
+                    builder.value(cursor.getKey());
                 }
                 builder.endArray();
 
@@ -1624,9 +1620,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             builder.startObject(KEY_IN_SYNC_ALLOCATIONS);
-            for (IntObjectCursor<Set<String>> cursor : indexMetadata.inSyncAllocationIds) {
-                builder.startArray(String.valueOf(cursor.key));
-                for (String allocationId : cursor.value) {
+            for (Map.Entry<Integer, Set<String>> cursor : indexMetadata.inSyncAllocationIds.entrySet()) {
+                builder.startArray(String.valueOf(cursor.getKey()));
+                for (String allocationId : cursor.getValue()) {
                     builder.value(allocationId);
                 }
                 builder.endArray();
@@ -1741,12 +1737,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             }
                         }
                     } else if (KEY_PRIMARY_TERMS.equals(currentFieldName)) {
-                        LongArrayList list = new LongArrayList();
+                        ArrayList<Long> list = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                             list.add(parser.longValue());
                         }
-                        builder.primaryTerms(list.toArray());
+                        builder.primaryTerms(list.stream().mapToLong(i -> i).toArray());
                     } else {
                         throw new IllegalArgumentException("Unexpected field for an array " + currentFieldName);
                     }
@@ -1826,6 +1822,23 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     } else if ("mappings".equals(currentFieldName)) {
                         // don't try to parse these for now
                         parser.skipChildren();
+                    } else if ("in_sync_allocations".equals(currentFieldName)) {
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (token == XContentParser.Token.START_ARRAY) {
+                                String shardId = currentFieldName;
+                                Set<String> allocationIds = new HashSet<>();
+                                while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                                    if (token == XContentParser.Token.VALUE_STRING) {
+                                        allocationIds.add(parser.text());
+                                    }
+                                }
+                                builder.putInSyncAllocationIds(Integer.valueOf(shardId), allocationIds);
+                            } else {
+                                throw new IllegalArgumentException("Unexpected token: " + token);
+                            }
+                        }
                     } else {
                         // assume it's custom index metadata
                         parser.skipChildren();
@@ -1856,6 +1869,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 }
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+
+            builder.putMapping(MappingMetadata.EMPTY_MAPPINGS); // just make sure it's not empty so that _source can be read
 
             IndexMetadata indexMetadata = builder.build();
             assert indexMetadata.getCreationVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion());

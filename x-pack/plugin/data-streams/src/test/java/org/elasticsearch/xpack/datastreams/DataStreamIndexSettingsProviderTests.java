@@ -8,16 +8,12 @@
 package org.elasticsearch.xpack.datastreams;
 
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Instant;
-import java.util.List;
 
 import static org.elasticsearch.common.settings.Settings.builder;
 import static org.hamcrest.Matchers.equalTo;
@@ -26,7 +22,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
     public void testGetAdditionalIndexSettings() {
         String dataStreamName = "logs-app1";
-        Metadata metadata = Metadata.EMPTY_METADATA;
 
         long now = Instant.now().toEpochMilli();
         Settings settings = builder().put("index.mode", "time_series").build();
@@ -34,7 +29,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            false,
+            true,
             now,
             settings
         );
@@ -44,7 +39,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
     public void testGetAdditionalIndexSettingsLookAheadTime() {
         String dataStreamName = "logs-app1";
-        Metadata metadata = Metadata.EMPTY_METADATA;
 
         long now = Instant.now().toEpochMilli();
         TimeValue lookAheadTime = TimeValue.timeValueMinutes(30);
@@ -53,7 +47,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            false,
+            true,
             now,
             settings
         );
@@ -64,8 +58,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
     public void testGetAdditionalIndexSettingsNoTimeSeries() {
         String dataStreamName = "logs-app1";
-        Metadata metadata = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(Tuple.tuple(dataStreamName, 1)), List.of())
-            .getMetadata();
 
         long now = Instant.now().toEpochMilli();
         Settings settings = randomBoolean() ? Settings.EMPTY : builder().put("index.mode", "standard").build();
@@ -73,7 +65,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            false,
+            true,
             now,
             settings
         );
@@ -82,8 +74,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
     public void testGetAdditionalIndexSettingsDataStreamAlreadyCreated() {
         String dataStreamName = "logs-app1";
-        Metadata metadata = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(Tuple.tuple(dataStreamName, 1)), List.of())
-            .getMetadata();
 
         long now = Instant.now().toEpochMilli();
         Settings settings = builder().put("index.mode", "time_series").build();

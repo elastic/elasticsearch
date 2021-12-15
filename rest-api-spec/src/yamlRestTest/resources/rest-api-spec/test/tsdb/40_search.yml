@@ -396,3 +396,34 @@ sort by tsid:
   - match: {hits.hits.1.sort: [{ "k8s.pod.uid" : "947e4ced-1786-4e53-9e0c-5c447e959507", "metricset" : "pod"}, 1619635824467]}
   - match: {hits.hits.4.sort: [{ "k8s.pod.uid" : "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "metricset" : "pod"}, 1619635803142]}
   - match: {hits.hits.7.sort: [{ "k8s.pod.uid" : "df3145b3-0563-4d3b-a0f7-897eb2876ea9", "metricset" : "pod"}, 1619635863142]}
+
+---
+composite aggregation on tsid:
+  - skip:
+      version: " - 8.0.99"
+      reason: _tsid introduced in 8.1.0
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggregations:
+            tsids:
+              composite:
+                sources: [
+                    "tsid": {
+                      "terms": {
+                        "field": "_tsid"
+                      }
+                    }
+                ]
+
+  - match:  { hits.total.value: 8 }
+  - length: { aggregations.tsids.buckets: 2 }
+  - match:  { aggregations.tsids.buckets.0.key.tsid.k8s\.pod\.uid: "947e4ced-1786-4e53-9e0c-5c447e959507" }
+  - match:  { aggregations.tsids.buckets.0.key.tsid.metricset: "pod" }
+  - match:  { aggregations.tsids.buckets.0.doc_count: 4 }
+  - match:  { aggregations.tsids.buckets.1.key.tsid.k8s\.pod\.uid: "df3145b3-0563-4d3b-a0f7-897eb2876ea9" }
+  - match:  { aggregations.tsids.buckets.1.key.tsid.metricset: "pod" }
+  - match:  { aggregations.tsids.buckets.1.doc_count: 4 }

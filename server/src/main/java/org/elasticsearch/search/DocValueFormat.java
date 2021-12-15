@@ -12,6 +12,7 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,7 +35,9 @@ import java.text.ParseException;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.LongSupplier;
 
@@ -78,7 +81,7 @@ public interface DocValueFormat extends NamedWriteable {
 
     /** Parse a value that was formatted with {@link #format(BytesRef)} back
      *  to the original BytesRef. */
-    default BytesRef parseBytesRef(String value) {
+    default BytesRef parseBytesRef(Object value) {
         throw new UnsupportedOperationException();
     }
 
@@ -155,8 +158,8 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(value);
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(value.toString());
         }
 
         @Override
@@ -190,8 +193,8 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(Base64.getDecoder().decode(value));
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(Base64.getDecoder().decode(value.toString()));
         }
     };
 
@@ -479,8 +482,8 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value)));
+        public BytesRef parseBytesRef(Object value) {
+            return new BytesRef(InetAddressPoint.encode(InetAddresses.forString(value.toString())));
         }
 
         @Override
@@ -695,6 +698,39 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public Object format(BytesRef value) {
             return TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(value).streamInput());
+        }
+
+        @Override
+        public BytesRef parseBytesRef(Object value) {
+            if (value instanceof Map<?, ?> m) {
+                Map<String, BytesReference> dimensionFields = new LinkedHashMap<>(m.size());
+                m.forEach((k, v) -> {
+                    if (v instanceof String s) {
+                        dimensionFields.put(k.toString(), TimeSeriesIdFieldMapper.encodeTsidValue(s));
+                    } else if (v instanceof Long l) {
+                        Number ul = (Number) UNSIGNED_LONG_SHIFTED.format(l);
+                        if (l == ul) {
+                            dimensionFields.put(k.toString(), TimeSeriesIdFieldMapper.encodeTsidValue(l));
+                        } else {
+                            long ll = UNSIGNED_LONG_SHIFTED.parseLong(String.valueOf(l), false, () -> 0L);
+                            dimensionFields.put(k.toString(), TimeSeriesIdFieldMapper.encodeTsidUnsignedLongValue(ll));
+                        }
+                    } else if (v instanceof BigInteger ul) {
+                        long ll = UNSIGNED_LONG_SHIFTED.parseLong(ul.toString(), false, () -> 0L);
+                        dimensionFields.put(k.toString(), TimeSeriesIdFieldMapper.encodeTsidUnsignedLongValue(ll));
+                    } else {
+                        throw new IllegalArgumentException("Unexpected value in tsid object [" + v + "]");
+                    }
+                });
+
+                try {
+                    return TimeSeriesIdFieldMapper.buildTsidField(dimensionFields).toBytesRef();
+                } catch (IOException e) {
+                   throw new IllegalArgumentException(e);
+                }
+            } else {
+                throw new IllegalArgumentException("Cannot parse tsid object [" + value + "]");
+            }
         }
     };
 }

@@ -1208,8 +1208,25 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 dailyModelSnapshotRetentionAfterDays = DEFAULT_DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS;
             }
             if (analysisConfig.getModelPruneWindow() == null) {
+                long modelPruneWindowSeconds = analysisConfig.getBucketSpan().seconds() / 2 + AnalysisConfig.DEFAULT_MODEL_PRUNE_WINDOW
+                    .seconds();
+                modelPruneWindowSeconds -= (modelPruneWindowSeconds % analysisConfig.getBucketSpan().seconds());
+                if (modelPruneWindowSeconds < AnalysisConfig.DEFAULT_MODEL_PRUNE_WINDOW.seconds()) {
+                    modelPruneWindowSeconds += analysisConfig.getBucketSpan().seconds();
+                }
+                modelPruneWindowSeconds = Math.max(20 * analysisConfig.getBucketSpan().seconds(), modelPruneWindowSeconds);
+
                 AnalysisConfig.Builder analysisConfigBuilder = new AnalysisConfig.Builder(analysisConfig);
-                analysisConfigBuilder.setModelPruneWindow(AnalysisConfig.DEFAULT_MODEL_PRUNE_WINDOW);
+                final int SECONDS_IN_A_DAY = 86400;
+                final int SECONDS_IN_A_MINUTE = 60;
+                if (modelPruneWindowSeconds % SECONDS_IN_A_DAY == 0) {
+                    analysisConfigBuilder.setModelPruneWindow(TimeValue.timeValueDays(modelPruneWindowSeconds / SECONDS_IN_A_DAY));
+                } else if (modelPruneWindowSeconds % SECONDS_IN_A_MINUTE == 0) {
+                    long modelPruneWindowMinutes = modelPruneWindowSeconds / SECONDS_IN_A_MINUTE;
+                    analysisConfigBuilder.setModelPruneWindow(TimeValue.timeValueMinutes(modelPruneWindowMinutes));
+                } else {
+                    analysisConfigBuilder.setModelPruneWindow(TimeValue.timeValueSeconds(modelPruneWindowSeconds));
+                }
                 this.setAnalysisConfig(analysisConfigBuilder);
             }
         }

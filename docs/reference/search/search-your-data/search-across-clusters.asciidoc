@@ -34,15 +34,15 @@ run {es} on your own hardware, see <<remote-clusters>>.
 [[ccs-gateway-seed-nodes]]
 * If you use <<sniff-mode,sniff mode>>, the local coordinating node
 must be able to connect to seed and gateway nodes on the remote cluster.
++
+We recommend using gateway nodes capable of serving as coordinating nodes.
+These seed nodes can be a subset of these gateway nodes.
 
 [[ccs-proxy-mode]]
 * If you use <<proxy-mode,proxy mode>>, the local coordinating node must be able
 to connect to the configured `proxy_address`. The proxy at this address must be
 able to route connections to gateway and coordinating nodes on the remote
 cluster.
-
-* We recommend using gateway nodes capable of serving as coordinating nodes. The
-seed nodes can be a subset of these gateway nodes.
 
 * {ccs-cap} requires different security privileges on the local cluster and
 remote cluster. See <<remote-clusters-privileges-ccs>> and

@@ -309,6 +309,10 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
             if (actionNames.contains(MigrateAction.NAME)) {
                 actionNames.remove(AllocateAction.NAME);
             }
+            // Remove since this will cause deprecation warnings and test failures
+            if (actionNames.contains(FreezeAction.NAME)) {
+                actionNames.remove(FreezeAction.NAME);
+            }
             for (String action : actionNames) {
                 actions.put(action, randomAction.apply(action));
             }

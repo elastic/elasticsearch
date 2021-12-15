@@ -333,11 +333,22 @@ public final class AnalysisRegistry implements Closeable {
      */
     public AnalysisPipeline buildAnalyzerPipeline(
         IndexSettings indexSettings,
-        boolean normalizer,
         NameOrDefinition tokenizer,
         List<NameOrDefinition> charFilters,
         List<NameOrDefinition> tokenFilters
     ) throws IOException {
+        boolean normalizer = false;
+
+        if (tokenizer == null) {
+            if ((tokenFilters == null || tokenFilters.isEmpty())
+                && (charFilters == null || charFilters.isEmpty())) {
+                return null;
+            }
+
+            normalizer = true;
+            tokenizer = new NameOrDefinition("keyword");
+        }
+
         TokenizerFactory tokenizerFactory = getComponentFactory(
             indexSettings,
             tokenizer,

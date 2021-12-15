@@ -142,7 +142,6 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
 
         AnalysisPipeline pipeline = analysisRegistry.buildAnalyzerPipeline(
             settings,
-            false,
             request.tokenizer(),
             request.charFilters(),
             request.tokenFilters()

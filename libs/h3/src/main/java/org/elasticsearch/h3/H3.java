@@ -32,6 +32,16 @@ public final class H3 {
         return Long.parseUnsignedLong(h3Address, 16);
     }
 
+    /** determines if an H3 cell is a pentagon */
+    public static boolean isPentagon(long h3) {
+        return H3Index.H3_is_pentagon(h3);
+    }
+
+    /** determines if an H3 cell in string format is a pentagon */
+    public static boolean isPentagon(String h3Address) {
+        return isPentagon(stringToH3(h3Address));
+    }
+
     /** Returns true if this is a valid H3 index */
     public static boolean h3IsValid(long h3) {
         if (H3Index.H3_get_high_bit(h3) != 0) {

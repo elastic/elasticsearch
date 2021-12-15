@@ -5,31 +5,35 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.deployment;
+package org.elasticsearch.xpack.ml.inference.pytorch.results;
 
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-public class PyTorchResultTests extends AbstractSerializingTestCase<PyTorchResult> {
+public class PyTorchInferenceResultTests extends AbstractXContentTestCase<PyTorchInferenceResult> {
+
     @Override
-    protected PyTorchResult doParseInstance(XContentParser parser) throws IOException {
-        return PyTorchResult.fromXContent(parser);
+    protected PyTorchInferenceResult doParseInstance(XContentParser parser) throws IOException {
+        return PyTorchInferenceResult.fromXContent(parser);
     }
 
     @Override
-    protected Writeable.Reader<PyTorchResult> instanceReader() {
-        return PyTorchResult::new;
+    protected boolean supportsUnknownFields() {
+        return false;
     }
 
     @Override
-    protected PyTorchResult createTestInstance() {
+    protected PyTorchInferenceResult createTestInstance() {
+        return createRandom();
+    }
+
+    public static PyTorchInferenceResult createRandom() {
         boolean createError = randomBoolean();
         String id = randomAlphaOfLength(6);
         if (createError) {
-            return new PyTorchResult(id, null, null, "This is an error message");
+            return new PyTorchInferenceResult(id, null, null, "This is an error message");
         } else {
             int rows = randomIntBetween(1, 10);
             int columns = randomIntBetween(1, 10);
@@ -42,7 +46,7 @@ public class PyTorchResultTests extends AbstractSerializingTestCase<PyTorchResul
                     }
                 }
             }
-            return new PyTorchResult(id, arr, randomLong(), null);
+            return new PyTorchInferenceResult(id, arr, randomLong(), null);
         }
     }
 }

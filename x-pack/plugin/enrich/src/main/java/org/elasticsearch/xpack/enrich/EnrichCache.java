@@ -102,8 +102,8 @@ public class EnrichCache {
                 if (throwable != null) {
                     // Don't cache failures
                     cache.invalidate(cacheKey, cacheEntry);
-                    if (throwable instanceof Exception) {
-                        callBack.accept(response, (Exception) throwable);
+                    if (throwable instanceof Exception e) {
+                        callBack.accept(response, e);
                         return;
                     }
                     // Let ElasticsearchUncaughtExceptionHandler handle this, which should halt Elasticsearch

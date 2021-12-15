@@ -30,7 +30,7 @@ tasks.named("forbiddenPatterns").configure {
 }
 
 tasks.named("test").configure {
-  environment 'HOSTNAME', 'dummy.test.hostname'
+  environment 'HOSTNAME', 'dummy.test.hostname' // some tests rely on this being set, which it always is for the code running in main
   systemProperty 'tests.security.manager', 'false' // the main code under test runs without the SecurityManager
 }
 

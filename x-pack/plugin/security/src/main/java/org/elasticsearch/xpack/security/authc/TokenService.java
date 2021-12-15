@@ -175,12 +175,10 @@ public final class TokenService {
     static final int IV_BYTES = 12;
     private static final int VERSION_BYTES = 4;
     private static final String ENCRYPTION_CIPHER = "AES/GCM/NoPadding";
-    private static final String EXPIRED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\""
-        + XPackField.SECURITY
-        + "\", error=\"invalid_token\", error_description=\"The access token expired\"";
-    private static final String MALFORMED_TOKEN_WWW_AUTH_VALUE = "Bearer realm=\""
-        + XPackField.SECURITY
-        + "\", error=\"invalid_token\", error_description=\"The access token is malformed\"";
+    private static final String EXPIRED_TOKEN_WWW_AUTH_VALUE = """
+        Bearer realm="%s", error="invalid_token", error_description="The access token expired\"""".formatted(XPackField.SECURITY);
+    private static final String MALFORMED_TOKEN_WWW_AUTH_VALUE = """
+        Bearer realm="%s", error="invalid_token", error_description="The access token is malformed\"""".formatted(XPackField.SECURITY);
     private static final BackoffPolicy DEFAULT_BACKOFF = BackoffPolicy.exponentialBackoff();
 
     public static final String THREAD_POOL_NAME = XPackField.SECURITY + "-token-key";

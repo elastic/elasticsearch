@@ -298,12 +298,14 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
             nodeStats.add(
                 AllocationStats.NodeStats.forStartedState(
                     clusterService.localNode(),
-                    stats.get().getTimingStats().getCount(),
+                    stats.get().timingStats().getCount(),
                     // avoid reporting the average time as 0 if count < 1
-                    (stats.get().getTimingStats().getCount() > 0) ? stats.get().getTimingStats().getAverage() : null,
-                    stats.get().getPendingCount(),
-                    stats.get().getLastUsed(),
-                    stats.get().getStartTime()
+                    (stats.get().timingStats().getCount() > 0) ? stats.get().timingStats().getAverage() : null,
+                    stats.get().pendingCount(),
+                    stats.get().lastUsed(),
+                    stats.get().startTime(),
+                    stats.get().inferenceThreads(),
+                    stats.get().modelThreads()
                 )
             );
         } else {

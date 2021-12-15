@@ -83,36 +83,37 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return SecuritySettingsSource.TEST_ROLE
-            + ":\n"
-            + "  cluster: [ all ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [manage]\n"
-            + "    - names: '/.*/'\n"
-            + "      privileges: [write]\n"
-            + "    - names: 'test'\n"
-            + "      privileges: [read]\n"
-            + "    - names: 'test1'\n"
-            + "      privileges: [read]\n"
-            + "\n"
-            + "role_a:\n"
-            + "  indices:\n"
-            + "    - names: 'a'\n"
-            + "      privileges: [all]\n"
-            + "    - names: 'alias1'\n"
-            + "      privileges: [read]\n"
-            + "\n"
-            + "role_monitor_all_unrestricted_indices:\n"
-            + "  cluster: [monitor]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [monitor]\n"
-            + "\n"
-            + "role_b:\n"
-            + "  indices:\n"
-            + "    - names: 'b'\n"
-            + "      privileges: [all]\n";
+        return """
+            %s:
+              cluster: [ all ]
+              indices:
+                - names: '*'
+                  privileges: [manage]
+                - names: '/.*/'
+                  privileges: [write]
+                - names: 'test'
+                  privileges: [read]
+                - names: 'test1'
+                  privileges: [read]
+
+            role_a:
+              indices:
+                - names: 'a'
+                  privileges: [all]
+                - names: 'alias1'
+                  privileges: [read]
+
+            role_monitor_all_unrestricted_indices:
+              cluster: [monitor]
+              indices:
+                - names: '*'
+                  privileges: [monitor]
+
+            role_b:
+              indices:
+                - names: 'b'
+                  privileges: [all]
+            """.formatted(SecuritySettingsSource.TEST_ROLE);
     }
 
     @Override
@@ -132,10 +133,11 @@ public class MultipleIndicesPermissionsTests extends SecurityIntegTestCase {
 
     @Override
     protected String configUsersRoles() {
-        return SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES
-            + "role_a:user_a,user_ab\n"
-            + "role_b:user_ab\n"
-            + "role_monitor_all_unrestricted_indices:user_monitor\n";
+        return SecuritySettingsSource.CONFIG_STANDARD_USER_ROLES + """
+            role_a:user_a,user_ab
+            role_b:user_ab
+            role_monitor_all_unrestricted_indices:user_monitor
+            """;
     }
 
     public void testSingleRole() throws Exception {

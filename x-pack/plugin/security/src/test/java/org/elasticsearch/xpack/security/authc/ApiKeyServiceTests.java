@@ -1298,13 +1298,38 @@ public class ApiKeyServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testApiKeyDocDeserialization() throws IOException {
-        final String apiKeyDocumentSource =
-            "{\"doc_type\":\"api_key\",\"creation_time\":1591919944598,\"expiration_time\":1591919944599,\"api_key_invalidated\":false,"
-                + "\"api_key_hash\":\"{PBKDF2}10000$abc\",\"role_descriptors\":{\"a\":{\"cluster\":[\"all\"]}},"
-                + "\"limited_by_role_descriptors\":{\"limited_by\":{\"cluster\":[\"all\"],"
-                + "\"metadata\":{\"_reserved\":true},\"type\":\"role\"}},"
-                + "\"name\":\"key-1\",\"version\":7000099,"
-                + "\"creator\":{\"principal\":\"admin\",\"metadata\":{\"foo\":\"bar\"},\"realm\":\"file1\",\"realm_type\":\"file\"}}";
+        final String apiKeyDocumentSource = """
+            {
+              "doc_type": "api_key",
+              "creation_time": 1591919944598,
+              "expiration_time": 1591919944599,
+              "api_key_invalidated": false,
+              "api_key_hash": "{PBKDF2}10000$abc",
+              "role_descriptors": {
+                "a": {
+                  "cluster": [ "all" ]
+                }
+              },
+              "limited_by_role_descriptors": {
+                "limited_by": {
+                  "cluster": [ "all" ],
+                  "metadata": {
+                    "_reserved": true
+                  },
+                  "type": "role"
+                }
+              },
+              "name": "key-1",
+              "version": 7000099,
+              "creator": {
+                "principal": "admin",
+                "metadata": {
+                  "foo": "bar"
+                },
+                "realm": "file1",
+                "realm_type": "file"
+              }
+            }""";
         final ApiKeyDoc apiKeyDoc = ApiKeyDoc.fromXContent(
             XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,
@@ -1320,11 +1345,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals("{PBKDF2}10000$abc", apiKeyDoc.hash);
         assertEquals("key-1", apiKeyDoc.name);
         assertEquals(7000099, apiKeyDoc.version);
-        assertEquals(new BytesArray("{\"a\":{\"cluster\":[\"all\"]}}"), apiKeyDoc.roleDescriptorsBytes);
-        assertEquals(
-            new BytesArray("{\"limited_by\":{\"cluster\":[\"all\"],\"metadata\":{\"_reserved\":true},\"type\":\"role\"}}"),
-            apiKeyDoc.limitedByRoleDescriptorsBytes
-        );
+        assertEquals(new BytesArray("""
+            {"a":{"cluster":["all"]}}"""), apiKeyDoc.roleDescriptorsBytes);
+        assertEquals(new BytesArray("""
+            {"limited_by":{"cluster":["all"],"metadata":{"_reserved":true},"type":"role"}}"""), apiKeyDoc.limitedByRoleDescriptorsBytes);
 
         final Map<String, Object> creator = apiKeyDoc.creator;
         assertEquals("admin", creator.get("principal"));
@@ -1334,12 +1358,27 @@ public class ApiKeyServiceTests extends ESTestCase {
     }
 
     public void testApiKeyDocDeserializationWithNullValues() throws IOException {
-        final String apiKeyDocumentSource =
-            "{\"doc_type\":\"api_key\",\"creation_time\":1591919944598,\"expiration_time\":null,\"api_key_invalidated\":false,"
-                + "\"api_key_hash\":\"{PBKDF2}10000$abc\",\"role_descriptors\":{},"
-                + "\"limited_by_role_descriptors\":{\"limited_by\":{\"cluster\":[\"all\"]}},"
-                + "\"name\":null,\"version\":7000099,"
-                + "\"creator\":{\"principal\":\"admin\",\"metadata\":{},\"realm\":\"file1\"}}";
+        final String apiKeyDocumentSource = """
+            {
+              "doc_type": "api_key",
+              "creation_time": 1591919944598,
+              "expiration_time": null,
+              "api_key_invalidated": false,
+              "api_key_hash": "{PBKDF2}10000$abc",
+              "role_descriptors": {},
+              "limited_by_role_descriptors": {
+                "limited_by": {
+                  "cluster": [ "all" ]
+                }
+              },
+              "name": null,
+              "version": 7000099,
+              "creator": {
+                "principal": "admin",
+                "metadata": {},
+                "realm": "file1"
+              }
+            }""";
         final ApiKeyDoc apiKeyDoc = ApiKeyDoc.fromXContent(
             XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,

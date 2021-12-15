@@ -108,11 +108,21 @@ public class RestTermsEnumActionTests extends ESTestCase {
 
     public void testRestTermEnumAction() throws Exception {
         // GIVEN a valid query
-        final String content = "{"
-            + "\"field\":\"a\", "
-            + "\"string\":\"foo\", "
-            + "\"search_after\":\"football\", "
-            + "\"index_filter\":{\"bool\":{\"must\":{\"term\":{\"user\":\"kimchy\"}}}}}";
+        final String content = """
+            {
+              "field": "a",
+              "string": "foo",
+              "search_after": "football",
+              "index_filter": {
+                "bool": {
+                  "must": {
+                    "term": {
+                      "user": "kimchy"
+                    }
+                  }
+                }
+              }
+            }""";
 
         final RestRequest request = createRestRequest(content);
         final FakeRestChannel channel = new FakeRestChannel(request, true, 0);
@@ -128,10 +138,19 @@ public class RestTermsEnumActionTests extends ESTestCase {
 
     public void testRestTermEnumActionMissingField() throws Exception {
         // GIVEN an invalid query
-        final String content = "{"
-            // + "\"field\":\"a\", "
-            + "\"string\":\"foo\", "
-            + "\"index_filter\":{\"bool\":{\"must\":{\"term\":{\"user\":\"kimchy\"}}}}}";
+        final String content = """
+            {
+              "string": "foo",
+              "index_filter": {
+                "bool": {
+                  "must": {
+                    "term": {
+                      "user": "kimchy"
+                    }
+                  }
+                }
+              }
+            }""";
 
         final RestRequest request = createRestRequest(content);
         final FakeRestChannel channel = new FakeRestChannel(request, true, 0);

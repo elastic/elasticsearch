@@ -66,7 +66,8 @@ public class ClearRolesCacheResponse extends BaseNodesResponse<ClearRolesCacheRe
             builder.endObject();
             return Strings.toString(builder);
         } catch (IOException e) {
-            return "{ \"error\" : \"" + e.getMessage() + "\"}";
+            return """
+                { "error" : "%s" }""".formatted(e.getMessage());
         }
     }
 

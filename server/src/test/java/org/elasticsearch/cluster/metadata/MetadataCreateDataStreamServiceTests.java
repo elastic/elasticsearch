@@ -298,35 +298,6 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         );
     }
 
-    public void testCreateDataStreamTSDBStyle() throws Exception {
-        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
-        final String dataStreamName = "my-tsdb-data-stream";
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))
-            .template(new Template(Settings.builder().put("index.mode", "time_series").build(), null, null))
-            .dataStreamTemplate(new DataStreamTemplate())
-            .build();
-        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
-            .metadata(Metadata.builder().put("template", template).build())
-            .build();
-
-        CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(dataStreamName);
-        ClusterState newState = MetadataCreateDataStreamService.createDataStream(metadataCreateIndexService, cs, req);
-        assertThat(newState.metadata().dataStreams().size(), equalTo(1));
-        assertThat(newState.metadata().dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
-        assertThat(newState.metadata().dataStreams().get(dataStreamName).isSystem(), is(false));
-        assertThat(newState.metadata().dataStreams().get(dataStreamName).isHidden(), is(false));
-        assertThat(newState.metadata().dataStreams().get(dataStreamName).isReplicated(), is(false));
-
-        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-        IndexMetadata indexMetadata = newState.metadata().index(backingIndexName);
-        assertThat(indexMetadata, notNullValue());
-        assertThat(indexMetadata.getSettings().get("index.hidden"), equalTo("true"));
-        assertThat(indexMetadata.getSettings().get("index.time_series.start_time"), equalTo("1"));
-        assertThat(indexMetadata.getSettings().get("index.time_series.end_time"), notNullValue());
-        assertThat(indexMetadata.isHidden(), is(true));
-        assertThat(indexMetadata.isSystem(), is(false));
-    }
-
     public static ClusterState createDataStream(final String dataStreamName) throws Exception {
         final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStreamName + "*"))

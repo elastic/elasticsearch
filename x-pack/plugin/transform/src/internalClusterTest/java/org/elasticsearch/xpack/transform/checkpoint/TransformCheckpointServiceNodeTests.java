@@ -73,9 +73,6 @@ import java.util.Map.Entry;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-/**
- * Test suite for legacy checkpointing using 2 calls: getindex, getindexstats
- */
 public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTestCase {
 
     // re-use the mock client for the whole test suite as the underlying thread pool and the
@@ -88,13 +85,19 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
 
     private class MockClientForCheckpointing extends NoOpClient {
 
-        private final boolean oldCheckpointAPI;
+        private final boolean supportTransformCheckpointApi;
         private volatile Map<String, long[]> checkpoints;
         private volatile String[] indices;
 
-        MockClientForCheckpointing(String testName, boolean oldCheckpointAPI) {
+        /**
+         * Mock client for checkpointing
+         *
+         * @param testName name of the test, used for naming the threadpool
+         * @param supportTransformCheckpointApi whether to mock the checkpoint API, if false throws action not found
+         */
+        MockClientForCheckpointing(String testName, boolean supportTransformCheckpointApi) {
             super(testName);
-            this.oldCheckpointAPI = oldCheckpointAPI;
+            this.supportTransformCheckpointApi = supportTransformCheckpointApi;
         }
 
         void setCheckpoints(Map<String, long[]> checkpoints) {
@@ -111,8 +114,8 @@ public class TransformCheckpointServiceNodeTests extends TransformSingleNodeTest
         ) {
 
             if (request instanceof GetCheckpointAction.Request) {
-                // fallback to legacy checkpointing if requested
-                if (oldCheckpointAPI) {
+                // throw action not found if checkpoint API is not supported, transform should fallback to legacy checkpointing
+                if (supportTransformCheckpointApi == false) {
                     listener.onFailure(new ActionNotFoundTransportException(GetCheckpointAction.NAME));
                     return;
                 }

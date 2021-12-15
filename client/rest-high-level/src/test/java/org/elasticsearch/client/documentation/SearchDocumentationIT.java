@@ -821,10 +821,11 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
         request.setScriptType(ScriptType.INLINE);
         request.setScript( // <2>
-            "{" +
-            "  \"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" } }," +
-            "  \"size\" : \"{{size}}\"" +
-            "}");
+            """
+            {
+              "query": { "match": { "{{field}}": "{{value}}" } },
+              "size": "{{size}}"
+            }""");
 
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("field", "title");
@@ -931,10 +932,11 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             request.setScriptType(ScriptType.INLINE);
             request.setScript(
-                "{" +
-                "  \"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" } }," +
-                "  \"size\" : \"{{size}}\"" +
-                "}");
+                """
+                {
+                   "query": { "match" : { "{{field}}" : "{{value}}" } },
+                   "size" : "{{size}}"
+                }""");
 
             Map<String, Object> scriptParams = new HashMap<>();
             scriptParams.put("field", "title");
@@ -1036,16 +1038,16 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
     protected void registerQueryScript(RestClient restClient) throws IOException {
         // tag::register-script
         Request scriptRequest = new Request("POST", "_scripts/title_search");
-        scriptRequest.setJsonEntity(
-            "{" +
-            "  \"script\": {" +
-            "    \"lang\": \"mustache\"," +
-            "    \"source\": {" +
-            "      \"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" } }," +
-            "      \"size\" : \"{{size}}\"" +
-            "    }" +
-            "  }" +
-            "}");
+        scriptRequest.setJsonEntity("""
+            {
+              "script": {
+                "lang": "mustache",
+                "source": {
+                  "query": { "match": { "{{field}}": "{{value}}" } },
+                  "size": "{{size}}"
+                }
+              }
+            }""");
         Response scriptResponse = restClient.performRequest(scriptRequest);
         // end::register-script
         assertEquals(RestStatus.OK.getStatus(), scriptResponse.getStatusLine().getStatusCode());

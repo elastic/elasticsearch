@@ -34,45 +34,42 @@ public class BasicStatementTests extends ScriptTestCase {
         assertEquals(2, exec("int x = 4; if (x == 5) return 1; else if (x == 4) return 2; else return 0;"));
         assertEquals(1, exec("int x = 4; if (x == 5) return 1; else if (x == 4) return 1; else return 0;"));
 
-        assertEquals(
-            3,
-            exec(
-                "int x = 5;\n"
-                    + "if (x == 5) {\n"
-                    + "    int y = 2;\n"
-                    + "    \n"
-                    + "    if (y == 2) {\n"
-                    + "        x = 3;\n"
-                    + "    }\n"
-                    + "    \n"
-                    + "}\n"
-                    + "\n"
-                    + "return x;\n"
-            )
-        );
+        assertEquals(3, exec("""
+            int x = 5;
+            if (x == 5) {
+                int y = 2;
+
+                if (y == 2) {
+                    x = 3;
+                }
+
+            }
+
+            return x;
+            """));
     }
 
     public void testWhileStatement() {
 
         assertEquals("aaaaaa", exec("String c = \"a\"; int x; while (x < 5) { c += \"a\"; ++x; } return c;"));
 
-        Object value = exec(
-            " byte[][] b = new byte[5][5];       \n"
-                + " byte x = 0, y;                     \n"
-                + "                                    \n"
-                + " while (x < 5) {                    \n"
-                + "     y = 0;                         \n"
-                + "                                    \n"
-                + "     while (y < 5) {                \n"
-                + "         b[x][y] = (byte)(x*y);     \n"
-                + "         ++y;                       \n"
-                + "     }                              \n"
-                + "                                    \n"
-                + "     ++x;                           \n"
-                + " }                                  \n"
-                + "                                    \n"
-                + " return b;                          \n"
-        );
+        Object value = exec("""
+             byte[][] b = new byte[5][5];
+             byte x = 0, y;
+
+             while (x < 5) {
+                 y = 0;
+
+                 while (y < 5) {
+                     b[x][y] = (byte)(x*y);
+                     ++y;
+                 }
+
+                 ++x;
+             }
+
+             return b;
+            """);
 
         byte[][] b = (byte[][]) value;
 
@@ -86,23 +83,23 @@ public class BasicStatementTests extends ScriptTestCase {
     public void testDoWhileStatement() {
         assertEquals("aaaaaa", exec("String c = \"a\"; int x; do { c += \"a\"; ++x; } while (x < 5); return c;"));
 
-        Object value = exec(
-            " int[][] b = new int[5][5]; \n"
-                + " int x = 0, y;                    \n"
-                + "                                  \n"
-                + " do {                             \n"
-                + "     y = 0;                       \n"
-                + "                                  \n"
-                + "     do {                         \n"
-                + "         b[x][y] = x*y;           \n"
-                + "         ++y;                     \n"
-                + "     } while (y < 5);             \n"
-                + "                                  \n"
-                + "     ++x;                         \n"
-                + " } while (x < 5);                 \n"
-                + "                                  \n"
-                + " return b;                        \n"
-        );
+        Object value = exec("""
+             int[][] b = new int[5][5];
+             int x = 0, y;
+
+             do {
+                 y = 0;
+
+                 do {
+                     b[x][y] = x*y;
+                     ++y;
+                 } while (y < 5);
+
+                 ++x;
+             } while (x < 5);
+
+             return b;
+            """);
 
         int[][] b = (int[][]) value;
 
@@ -119,16 +116,16 @@ public class BasicStatementTests extends ScriptTestCase {
 
         assertEquals(6, exec("double test() { return 0.0; }" + "int x, y; for (test(); x < 4; test()) {y += x; ++x;} return y;"));
 
-        Object value = exec(
-            " int[][] b = new int[5][5];  \n"
-                + " for (int x = 0; x < 5; ++x) {     \n"
-                + "     for (int y = 0; y < 5; ++y) { \n"
-                + "         b[x][y] = x*y;            \n"
-                + "     }                             \n"
-                + " }                                 \n"
-                + "                                   \n"
-                + " return b;                         \n"
-        );
+        Object value = exec("""
+             int[][] b = new int[5][5];
+             for (int x = 0; x < 5; ++x) {
+                 for (int y = 0; y < 5; ++y) {
+                     b[x][y] = x*y;
+                 }
+             }
+
+             return b;
+            """);
 
         int[][] b = (int[][]) value;
 

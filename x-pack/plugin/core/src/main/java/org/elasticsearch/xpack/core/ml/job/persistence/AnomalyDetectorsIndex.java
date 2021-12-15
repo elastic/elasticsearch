@@ -125,7 +125,10 @@ public final class AnomalyDetectorsIndex {
     }
 
     public static String wrappedResultsMapping() {
-        return "{\n\"_doc\" : " + resultsMapping() + "\n}";
+        return """
+            {
+            "_doc" : %s
+            }""".formatted(resultsMapping());
     }
 
     public static String resultsMapping() {

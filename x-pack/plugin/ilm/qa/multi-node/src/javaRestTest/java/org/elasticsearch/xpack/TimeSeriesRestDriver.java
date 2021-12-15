@@ -149,15 +149,12 @@ public final class TimeSeriesRestDriver {
         throws IOException {
         XContentBuilder builder = jsonBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        StringEntity templateJSON = new StringEntity(
-            String.format(
-                Locale.ROOT,
-                "{\n" + "  \"index_patterns\": \"%s\",\n" + "  \"data_stream\": {},\n" + "  \"template\": %s\n" + "}",
-                indexPattern,
-                Strings.toString(builder)
-            ),
-            ContentType.APPLICATION_JSON
-        );
+        StringEntity templateJSON = new StringEntity(String.format(Locale.ROOT, """
+            {
+              "index_patterns": "%s",
+              "data_stream": {},
+              "template": %s
+            }""", indexPattern, Strings.toString(builder)), ContentType.APPLICATION_JSON);
         Request createIndexTemplateRequest = new Request("PUT", "_index_template/" + templateName);
         createIndexTemplateRequest.setEntity(templateJSON);
         client.performRequest(createIndexTemplateRequest);
@@ -165,7 +162,12 @@ public final class TimeSeriesRestDriver {
 
     public static void rolloverMaxOneDocCondition(RestClient client, String indexAbstractionName) throws IOException {
         Request rolloverRequest = new Request("POST", "/" + indexAbstractionName + "/_rollover");
-        rolloverRequest.setJsonEntity("{\n" + "  \"conditions\": {\n" + "    \"max_docs\": \"1\"\n" + "  }\n" + "}");
+        rolloverRequest.setJsonEntity("""
+            {
+              "conditions": {
+                "max_docs": "1"
+              }
+            }""");
         client.performRequest(rolloverRequest);
     }
 
@@ -303,15 +305,11 @@ public final class TimeSeriesRestDriver {
         if (useWriteIndex) {
             writeIndexSnippet = "\"is_write_index\": true";
         }
-        request.setJsonEntity(
-            "{\n \"settings\": "
-                + Strings.toString(settings.build())
-                + ", \"aliases\" : { \""
-                + alias
-                + "\": { "
-                + writeIndexSnippet
-                + " } } }"
-        );
+        request.setJsonEntity("""
+            {
+             "settings": %s,
+             "aliases" : { "%s": { %s } }
+            }""".formatted(Strings.toString(settings.build()), alias, writeIndexSnippet));
         client.performRequest(request);
         // wait for the shards to initialize
         ensureGreen(index);
@@ -319,7 +317,10 @@ public final class TimeSeriesRestDriver {
 
     public static void createIndexWithSettings(RestClient client, String index, Settings.Builder settings) throws IOException {
         Request request = new Request("PUT", "/" + index);
-        request.setJsonEntity("{\n \"settings\": " + Strings.toString(settings.build()) + "}");
+        request.setJsonEntity("""
+            {
+             "settings": %s
+            }""".formatted(Strings.toString(settings.build())));
         client.performRequest(request);
         // wait for the shards to initialize
         ensureGreen(index);

@@ -66,110 +66,94 @@ public class SnapshotStatusTests extends AbstractXContentTestCase<SnapshotStatus
                 break;
         }
 
-        String expected = "{\n"
-            + "  \"snapshot\" : \"test-snap\",\n"
-            + "  \"repository\" : \"test-repo\",\n"
-            + "  \"uuid\" : \""
-            + uuid
-            + "\",\n"
-            + "  \"state\" : \""
-            + state.toString()
-            + "\",\n"
-            + "  \"include_global_state\" : "
-            + includeGlobalState
-            + ",\n"
-            + "  \"shards_stats\" : {\n"
-            + "    \"initializing\" : "
-            + initializingShards
-            + ",\n"
-            + "    \"started\" : "
-            + startedShards
-            + ",\n"
-            + "    \"finalizing\" : "
-            + finalizingShards
-            + ",\n"
-            + "    \"done\" : "
-            + doneShards
-            + ",\n"
-            + "    \"failed\" : "
-            + failedShards
-            + ",\n"
-            + "    \"total\" : "
-            + totalShards
-            + "\n"
-            + "  },\n"
-            + "  \"stats\" : {\n"
-            + "    \"incremental\" : {\n"
-            + "      \"file_count\" : 0,\n"
-            + "      \"size_in_bytes\" : 0\n"
-            + "    },\n"
-            + "    \"total\" : {\n"
-            + "      \"file_count\" : 0,\n"
-            + "      \"size_in_bytes\" : 0\n"
-            + "    },\n"
-            + "    \"start_time_in_millis\" : 0,\n"
-            + "    \"time_in_millis\" : 0\n"
-            + "  },\n"
-            + "  \"indices\" : {\n"
-            + "    \""
-            + indexName
-            + "\" : {\n"
-            + "      \"shards_stats\" : {\n"
-            + "        \"initializing\" : "
-            + initializingShards
-            + ",\n"
-            + "        \"started\" : "
-            + startedShards
-            + ",\n"
-            + "        \"finalizing\" : "
-            + finalizingShards
-            + ",\n"
-            + "        \"done\" : "
-            + doneShards
-            + ",\n"
-            + "        \"failed\" : "
-            + failedShards
-            + ",\n"
-            + "        \"total\" : "
-            + totalShards
-            + "\n"
-            + "      },\n"
-            + "      \"stats\" : {\n"
-            + "        \"incremental\" : {\n"
-            + "          \"file_count\" : 0,\n"
-            + "          \"size_in_bytes\" : 0\n"
-            + "        },\n"
-            + "        \"total\" : {\n"
-            + "          \"file_count\" : 0,\n"
-            + "          \"size_in_bytes\" : 0\n"
-            + "        },\n"
-            + "        \"start_time_in_millis\" : 0,\n"
-            + "        \"time_in_millis\" : 0\n"
-            + "      },\n"
-            + "      \"shards\" : {\n"
-            + "        \""
-            + shardId
-            + "\" : {\n"
-            + "          \"stage\" : \""
-            + shardStage.toString()
-            + "\",\n"
-            + "          \"stats\" : {\n"
-            + "            \"incremental\" : {\n"
-            + "              \"file_count\" : 0,\n"
-            + "              \"size_in_bytes\" : 0\n"
-            + "            },\n"
-            + "            \"total\" : {\n"
-            + "              \"file_count\" : 0,\n"
-            + "              \"size_in_bytes\" : 0\n"
-            + "            },\n"
-            + "            \"start_time_in_millis\" : 0,\n"
-            + "            \"time_in_millis\" : 0\n"
-            + "          }\n"
-            + "        }\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String expected = """
+            {
+              "snapshot" : "test-snap",
+              "repository" : "test-repo",
+              "uuid" : "%s",
+              "state" : "%s",
+              "include_global_state" : %s,
+              "shards_stats" : {
+                "initializing" : %s,
+                "started" : %s,
+                "finalizing" : %s,
+                "done" : %s,
+                "failed" : %s,
+                "total" : %s
+              },
+              "stats" : {
+                "incremental" : {
+                  "file_count" : 0,
+                  "size_in_bytes" : 0
+                },
+                "total" : {
+                  "file_count" : 0,
+                  "size_in_bytes" : 0
+                },
+                "start_time_in_millis" : 0,
+                "time_in_millis" : 0
+              },
+              "indices" : {
+                "%s" : {
+                  "shards_stats" : {
+                    "initializing" : %s,
+                    "started" : %s,
+                    "finalizing" : %s,
+                    "done" : %s,
+                    "failed" : %s,
+                    "total" : %s
+                  },
+                  "stats" : {
+                    "incremental" : {
+                      "file_count" : 0,
+                      "size_in_bytes" : 0
+                    },
+                    "total" : {
+                      "file_count" : 0,
+                      "size_in_bytes" : 0
+                    },
+                    "start_time_in_millis" : 0,
+                    "time_in_millis" : 0
+                  },
+                  "shards" : {
+                    "%s" : {
+                      "stage" : "%s",
+                      "stats" : {
+                        "incremental" : {
+                          "file_count" : 0,
+                          "size_in_bytes" : 0
+                        },
+                        "total" : {
+                          "file_count" : 0,
+                          "size_in_bytes" : 0
+                        },
+                        "start_time_in_millis" : 0,
+                        "time_in_millis" : 0
+                      }
+                    }
+                  }
+                }
+              }
+            }""".formatted(
+            uuid,
+            state.toString(),
+            includeGlobalState,
+            initializingShards,
+            startedShards,
+            finalizingShards,
+            doneShards,
+            failedShards,
+            totalShards,
+            indexName,
+            initializingShards,
+            startedShards,
+            finalizingShards,
+            doneShards,
+            failedShards,
+            totalShards,
+            shardId,
+            shardStage.toString()
+        );
         assertEquals(expected, status.toString());
     }
 

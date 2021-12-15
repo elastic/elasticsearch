@@ -308,13 +308,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             {
                 // tag::create-index-request-mappings
                 request.mapping(// <1>
-                        "{\n" +
-                        "  \"properties\": {\n" +
-                        "    \"message\": {\n" +
-                        "      \"type\": \"text\"\n" +
-                        "    }\n" +
-                        "  }\n" +
-                        "}", // <2>
+                        """
+                        {
+                          "properties": {
+                            "message": {
+                              "type": "text"
+                            }
+                          }
+                        }""", // <2>
                         XContentType.JSON);
                 // end::create-index-request-mappings
                 CreateIndexResponse createIndexResponse = client.indices().create(request, RequestOptions.DEFAULT);
@@ -380,20 +381,21 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             request = new CreateIndexRequest("twitter6");
             // tag::create-index-whole-source
-            request.source("{\n" +
-                    "    \"settings\" : {\n" +
-                    "        \"number_of_shards\" : 1,\n" +
-                    "        \"number_of_replicas\" : 0\n" +
-                    "    },\n" +
-                    "    \"mappings\" : {\n" +
-                    "        \"properties\" : {\n" +
-                    "            \"message\" : { \"type\" : \"text\" }\n" +
-                    "        }\n" +
-                    "    },\n" +
-                    "    \"aliases\" : {\n" +
-                    "        \"twitter_alias\" : {}\n" +
-                    "    }\n" +
-                    "}", XContentType.JSON); // <1>
+            request.source("""
+                    {
+                        "settings" : {
+                            "number_of_shards" : 1,
+                            "number_of_replicas" : 0
+                        },
+                        "mappings" : {
+                            "properties" : {
+                                "message" : { "type" : "text" }
+                            }
+                        },
+                        "aliases" : {
+                            "twitter_alias" : {}
+                        }
+                    }""", XContentType.JSON); // <1>
             // end::create-index-whole-source
 
             // tag::create-index-execute
@@ -459,13 +461,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             {
                 // tag::put-mapping-request-source
                 request.source(
-                    "{\n" +
-                    "  \"properties\": {\n" +
-                    "    \"message\": {\n" +
-                    "      \"type\": \"text\"\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "}", // <1>
+                    """
+                    {
+                      "properties": {
+                        "message": {
+                          "type": "text"
+                        }
+                      }
+                    }""", // <1>
                     XContentType.JSON);
                 // end::put-mapping-request-source
                 AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
@@ -680,16 +683,17 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             assertTrue(createIndexResponse.isAcknowledged());
             PutMappingRequest request = new PutMappingRequest("twitter");
             request.source(
-                "{\n"
-                    + "  \"properties\": {\n"
-                    + "    \"message\": {\n"
-                    + "      \"type\": \"text\"\n"
-                    + "    },\n"
-                    + "    \"timestamp\": {\n"
-                    + "      \"type\": \"date\"\n"
-                    + "    }\n"
-                    + "  }\n"
-                    + "}", // <1>
+                """
+                    {
+                      "properties": {
+                        "message": {
+                          "type": "text"
+                        },
+                        "timestamp": {
+                          "type": "date"
+                        }
+                      }
+                    }""", // <1>
                 XContentType.JSON
             );
             AcknowledgedResponse putMappingResponse = client.indices().putMapping(request, RequestOptions.DEFAULT);
@@ -1112,7 +1116,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             Settings settings = Settings.builder().put("number_of_shards", 3).build();
-            String mappings = "{\"properties\":{\"field-1\":{\"type\":\"integer\"}}}";
+            String mappings = """
+                {"properties":{"field-1":{"type":"integer"}}}""";
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("index").settings(settings).mapping(mappings, XContentType.JSON);
             CreateIndexResponse createIndexResponse = client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
             assertTrue(createIndexResponse.isAcknowledged());
@@ -1828,7 +1833,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 .put("index.number_of_shards", 4)); // <1>
         // end::rollover-index-request-settings
         // tag::rollover-index-request-mapping
-        String mappings = "{\"properties\":{\"field-1\":{\"type\":\"keyword\"}}}";
+        String mappings = """
+            {"properties":{"field-1":{"type":"keyword"}}}
+            """;
         request.getCreateIndexRequest().mapping(mappings, XContentType.JSON); // <1>
         // end::rollover-index-request-mapping
         // tag::rollover-index-request-alias
@@ -2007,9 +2014,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         }
         {
             // tag::indices-put-settings-settings-source
-            request.settings(
-                    "{\"index.number_of_replicas\": \"2\"}"
-                    , XContentType.JSON); // <1>
+            request.settings("""
+                    {"index.number_of_replicas": "2"}
+                    """, XContentType.JSON); // <1>
             // end::indices-put-settings-settings-source
         }
 
@@ -2086,13 +2093,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         {
             // tag::put-template-request-mappings-json
             request.mapping(// <1>
-                "{\n" +
-                    "  \"properties\": {\n" +
-                    "    \"message\": {\n" +
-                    "      \"type\": \"text\"\n" +
-                    "    }\n" +
-                    "  }\n" +
-                    "}",
+                """
+                            {
+                  "properties": {
+                    "message": {
+                      "type": "text"
+                    }
+                  }
+                }""",
                 XContentType.JSON);
             // end::put-template-request-mappings-json
             assertTrue(client.indices().putTemplate(request, LEGACY_TEMPLATE_OPTIONS).isAcknowledged());
@@ -2148,27 +2156,28 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         // end::put-template-request-version
 
         // tag::put-template-whole-source
-        request.source("{\n" +
-            "  \"index_patterns\": [\n" +
-            "    \"log-*\",\n" +
-            "    \"pattern-1\"\n" +
-            "  ],\n" +
-            "  \"order\": 1,\n" +
-            "  \"settings\": {\n" +
-            "    \"number_of_shards\": 1\n" +
-            "  },\n" +
-            "  \"mappings\": {\n" +
-            "    \"properties\": {\n" +
-            "      \"message\": {\n" +
-            "        \"type\": \"text\"\n" +
-            "      }\n" +
-            "    }\n" +
-            "  },\n" +
-            "  \"aliases\": {\n" +
-            "    \"alias-1\": {},\n" +
-            "    \"{index}-alias\": {}\n" +
-            "  }\n" +
-            "}", XContentType.JSON); // <1>
+        request.source("""
+                {
+                  "index_patterns": [
+                    "log-*",
+                    "pattern-1"
+                  ],
+                  "order": 1,
+                  "settings": {
+                    "number_of_shards": 1
+                  },
+                  "mappings": {
+                    "properties": {
+                      "message": {
+                        "type": "text"
+                      }
+                    }
+                  },
+                  "aliases": {
+                    "alias-1": {},
+                    "{index}-alias": {}
+                  }
+                }""", XContentType.JSON); // <1>
         // end::put-template-whole-source
 
         // tag::put-template-request-create
@@ -2367,13 +2376,14 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
         {
             // tag::put-index-template-v2-request-mappings-json
-            String mappingJson = "{\n" +
-                "  \"properties\": {\n" +
-                "    \"message\": {\n" +
-                "      \"type\": \"text\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}"; // <1>
+            String mappingJson = """
+                    {
+                      "properties": {
+                        "message": {
+                          "type": "text"
+                        }
+                      }
+                    }"""; // <1>
             PutComposableIndexTemplateRequest request = new PutComposableIndexTemplateRequest()
                 .name("my-template");
             Template template = new Template(null, new CompressedXContent(mappingJson), null); // <2>

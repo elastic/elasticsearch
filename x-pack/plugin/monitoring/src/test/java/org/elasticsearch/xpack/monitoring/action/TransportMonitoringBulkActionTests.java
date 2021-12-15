@@ -366,28 +366,26 @@ public class TransportMonitoringBulkActionTests extends ESTestCase {
         ).createMonitoringDoc(monitoringBulkDoc);
 
         final BytesReference xContent = XContentHelper.toXContent(monitoringDoc, XContentType.JSON, randomBoolean());
-        assertEquals(
-            "{"
-                + "\"cluster_uuid\":\"_cluster_uuid\","
-                + "\"timestamp\":\"2017-08-07T12:03:22.133Z\","
-                + "\"interval_ms\":15000,"
-                + "\"type\":\"_type\","
-                + "\"source_node\":{"
-                + "\"uuid\":\"_uuid\","
-                + "\"host\":\"_host\","
-                + "\"transport_address\":\"_addr\","
-                + "\"ip\":\"_ip\","
-                + "\"name\":\"_name\","
-                + "\"timestamp\":\"2017-08-31T08:46:30.855Z\""
-                + "},"
-                + "\"_type\":{"
-                + "\"_foo\":{"
-                + "\"_bar\":\"_baz\""
-                + "}"
-                + "}"
-                + "}",
-            xContent.utf8ToString()
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "cluster_uuid": "_cluster_uuid",
+              "timestamp": "2017-08-07T12:03:22.133Z",
+              "interval_ms": 15000,
+              "type": "_type",
+              "source_node": {
+                "uuid": "_uuid",
+                "host": "_host",
+                "transport_address": "_addr",
+                "ip": "_ip",
+                "name": "_name",
+                "timestamp": "2017-08-31T08:46:30.855Z"
+              },
+              "_type": {
+                "_foo": {
+                  "_bar": "_baz"
+                }
+              }
+            }"""), xContent.utf8ToString());
     }
 
     @SuppressWarnings("unchecked")

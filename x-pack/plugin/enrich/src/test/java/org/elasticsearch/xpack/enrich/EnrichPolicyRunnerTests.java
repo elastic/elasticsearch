@@ -105,21 +105,14 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     public void testRunner() throws Exception {
         final String sourceIndex = "source-index";
-        IndexResponse indexRequest = client().index(
-            new IndexRequest().index(sourceIndex)
-                .id("id")
-                .source(
-                    "{"
-                        + "\"field1\":\"value1\","
-                        + "\"field2\":2,"
-                        + "\"field3\":\"ignored\","
-                        + "\"field4\":\"ignored\","
-                        + "\"field5\":\"value5\""
-                        + "}",
-                    XContentType.JSON
-                )
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-        ).actionGet();
+        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+            {
+              "field1": "value1",
+              "field2": 2,
+              "field3": "ignored",
+              "field4": "ignored",
+              "field5": "value5"
+            }""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         SearchResponse sourceSearchResponse = client().search(
@@ -189,12 +182,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     public void testRunnerGeoMatchType() throws Exception {
         final String sourceIndex = "source-index";
-        IndexResponse indexRequest = client().index(
-            new IndexRequest().index(sourceIndex)
-                .id("id")
-                .source("{" + "\"location\":" + "\"POINT(10.0 10.0)\"," + "\"zipcode\":90210" + "}", XContentType.JSON)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-        ).actionGet();
+        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+            {"location":"POINT(10.0 10.0)","zipcode":90210}""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
+            .actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         SearchResponse sourceSearchResponse = client().search(
@@ -277,12 +267,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     private void testNumberRangeMatchType(String rangeType) throws Exception {
         final String sourceIndex = "source-index";
         createIndex(sourceIndex, Settings.EMPTY, "_doc", "range", "type=" + rangeType + "_range");
-        IndexResponse indexRequest = client().index(
-            new IndexRequest().index(sourceIndex)
-                .id("id")
-                .source("{" + "\"range\":" + "{" + "\"gt\":1," + "\"lt\":10" + "}," + "\"zipcode\":90210" + "}", XContentType.JSON)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-        ).actionGet();
+        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+            {"range":{"gt":1,"lt":10},"zipcode":90210}""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
+            .actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         SearchResponse sourceSearchResponse = client().search(
@@ -359,12 +346,9 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
     public void testRunnerRangeTypeWithIpRange() throws Exception {
         final String sourceIndexName = "source-index";
         createIndex(sourceIndexName, Settings.EMPTY, "_doc", "subnet", "type=ip_range");
-        IndexResponse indexRequest = client().index(
-            new IndexRequest().index(sourceIndexName)
-                .id("id")
-                .source("{" + "\"subnet\":" + "\"10.0.0.0/8\"," + "\"department\":\"research\"" + "}", XContentType.JSON)
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-        ).actionGet();
+        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndexName).id("id").source("""
+            {"subnet":"10.0.0.0/8","department":"research"}""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE))
+            .actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         GetIndexResponse sourceIndex = client().admin().indices().getIndex(new GetIndexRequest().indices(sourceIndexName)).actionGet();
@@ -443,28 +427,16 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         int numberOfSourceIndices = 3;
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
-            IndexResponse indexRequest = client().index(
-                new IndexRequest().index(sourceIndex)
-                    .id(randomAlphaOfLength(10))
-                    .source(
-                        "{"
-                            + "\"idx\":"
-                            + idx
-                            + ","
-                            + "\"key\":"
-                            + "\"key"
-                            + idx
-                            + "\","
-                            + "\"field1\":\"value1\","
-                            + "\"field2\":2,"
-                            + "\"field3\":\"ignored\","
-                            + "\"field4\":\"ignored\","
-                            + "\"field5\":\"value5\""
-                            + "}",
-                        XContentType.JSON
-                    )
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            ).actionGet();
+            IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source("""
+                {
+                  "idx": %s,
+                  "key": "key%s",
+                  "field1": "value1",
+                  "field2": 2,
+                  "field3": "ignored",
+                  "field4": "ignored",
+                  "field5": "value5"
+                }""".formatted(idx, idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
             assertEquals(RestStatus.CREATED, indexRequest.status());
 
             SearchResponse sourceSearchResponse = client().search(
@@ -543,27 +515,16 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
             IndexResponse indexRequest = client().index(
-                new IndexRequest().index(sourceIndex)
-                    .id(collidingDocId)
-                    .routing(collidingDocId + idx)
-                    .source(
-                        "{"
-                            + "\"idx\":"
-                            + idx
-                            + ","
-                            + "\"key\":"
-                            + "\"key"
-                            + idx
-                            + "\","
-                            + "\"field1\":\"value1\","
-                            + "\"field2\":2,"
-                            + "\"field3\":\"ignored\","
-                            + "\"field4\":\"ignored\","
-                            + "\"field5\":\"value5\""
-                            + "}",
-                        XContentType.JSON
-                    )
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                new IndexRequest().index(sourceIndex).id(collidingDocId).routing(collidingDocId + idx).source("""
+                    {
+                      "idx": %s,
+                      "key": "key%s",
+                      "field1": "value1",
+                      "field2": 2,
+                      "field3": "ignored",
+                      "field4": "ignored",
+                      "field5": "value5"
+                    }""".formatted(idx, idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             ).actionGet();
             assertEquals(RestStatus.CREATED, indexRequest.status());
 
@@ -657,26 +618,16 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         int numberOfSourceIndices = 3;
         for (int idx = 0; idx < numberOfSourceIndices; idx++) {
             final String sourceIndex = baseSourceName + idx;
-            IndexResponse indexRequest = client().index(
-                new IndexRequest().index(sourceIndex)
-                    .id(randomAlphaOfLength(10))
-                    .source(
-                        "{"
-                            + "\"idx\":"
-                            + idx
-                            + ","
-                            + "\"key\":"
-                            + "\"key\","
-                            + "\"field1\":\"value1\","
-                            + "\"field2\":2,"
-                            + "\"field3\":\"ignored\","
-                            + "\"field4\":\"ignored\","
-                            + "\"field5\":\"value5\""
-                            + "}",
-                        XContentType.JSON
-                    )
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            ).actionGet();
+            IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id(randomAlphaOfLength(10)).source("""
+                {
+                  "idx": %s,
+                  "key": "key",
+                  "field1": "value1",
+                  "field2": 2,
+                  "field3": "ignored",
+                  "field4": "ignored",
+                  "field5": "value5"
+                }""".formatted(idx), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
             assertEquals(RestStatus.CREATED, indexRequest.status());
 
             SearchResponse sourceSearchResponse = client().search(
@@ -968,10 +919,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         IndexResponse indexRequest = client().index(
             new IndexRequest().index(sourceIndex)
                 .id("id")
-                .source(
-                    "{" + "\"data\":{" + "\"field1\":\"value1\"," + "\"field2\":2," + "\"field3\":\"ignored\"" + "}" + "}",
-                    XContentType.JSON
-                )
+                .source("""
+                    {"data":{"field1":"value1","field2":2,"field3":"ignored"}}""", XContentType.JSON)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
         ).actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
@@ -1081,10 +1030,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         IndexResponse indexRequest = client().index(
             new IndexRequest().index(sourceIndex)
                 .id("id")
-                .source(
-                    "{" + "\"data\":{" + "\"field1\":\"value1\"," + "\"field2\":2," + "\"field3\":\"ignored\"" + "}" + "}",
-                    XContentType.JSON
-                )
+                .source("""
+                    {"data":{"field1":"value1","field2":2,"field3":"ignored"}}""", XContentType.JSON)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
         ).actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
@@ -1191,21 +1138,14 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .actionGet();
         assertTrue(createResponse.isAcknowledged());
 
-        IndexResponse indexRequest = client().index(
-            new IndexRequest().index(sourceIndex)
-                .id("id")
-                .source(
-                    "{"
-                        + "\"data\":{"
-                        + "\"subnet\":\"10.0.0.0/8\","
-                        + "\"department\":\"research\","
-                        + "\"field3\":\"ignored\""
-                        + "}"
-                        + "}",
-                    XContentType.JSON
-                )
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-        ).actionGet();
+        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+            {
+              "data": {
+                "subnet": "10.0.0.0/8",
+                "department": "research",
+                "field3": "ignored"
+              }
+            }""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         SearchResponse sourceSearchResponse = client().search(
@@ -1315,23 +1255,16 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .actionGet();
         assertTrue(createResponse.isAcknowledged());
 
-        IndexResponse indexRequest = client().index(
-            new IndexRequest().index(sourceIndex)
-                .id("id")
-                .source(
-                    "{"
-                        + "\"data\":{"
-                        + "\"fields\":{"
-                        + "\"field1\":\"value1\","
-                        + "\"field2\":2,"
-                        + "\"field3\":\"ignored\""
-                        + "}"
-                        + "}"
-                        + "}",
-                    XContentType.JSON
-                )
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-        ).actionGet();
+        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+            {
+              "data": {
+                "fields": {
+                  "field1": "value1",
+                  "field2": 2,
+                  "field3": "ignored"
+                }
+              }
+            }""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         SearchResponse sourceSearchResponse = client().search(
@@ -1449,23 +1382,16 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .actionGet();
         assertTrue(createResponse.isAcknowledged());
 
-        IndexResponse indexRequest = client().index(
-            new IndexRequest().index(sourceIndex)
-                .id("id")
-                .source(
-                    "{"
-                        + "\"data\":{"
-                        + "\"fields\":{"
-                        + "\"subnet\":\"10.0.0.0/8\","
-                        + "\"department\":\"research\","
-                        + "\"field3\":\"ignored\""
-                        + "}"
-                        + "}"
-                        + "}",
-                    XContentType.JSON
-                )
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-        ).actionGet();
+        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+            {
+              "data": {
+                "fields": {
+                  "subnet": "10.0.0.0/8",
+                  "department": "research",
+                  "field3": "ignored"
+                }
+              }
+            }""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         SearchResponse sourceSearchResponse = client().search(
@@ -1584,26 +1510,19 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
             .actionGet();
         assertTrue(createResponse.isAcknowledged());
 
-        IndexResponse indexRequest = client().index(
-            new IndexRequest().index(sourceIndex)
-                .id("id")
-                .source(
-                    "{"
-                        + "\"data\":{"
-                        + "\"fields\":{"
-                        + "\"period\": {"
-                        + "    \"gte\" : \"2021/08/20 at 12:00\","
-                        + "    \"lte\" : \"2021/08/28 at 23:00\""
-                        + "},"
-                        + "\"status\":\"enrolled\","
-                        + "\"field3\":\"ignored\""
-                        + "}"
-                        + "}"
-                        + "}",
-                    XContentType.JSON
-                )
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-        ).actionGet();
+        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+            {
+              "data": {
+                "fields": {
+                  "period": {
+                    "gte": "2021/08/20 at 12:00",
+                    "lte": "2021/08/28 at 23:00"
+                  },
+                  "status": "enrolled",
+                  "field3": "ignored"
+                }
+              }
+            }""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         SearchResponse sourceSearchResponse = client().search(
@@ -1739,7 +1658,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         IndexResponse indexRequest = client().index(
             new IndexRequest().index(sourceIndex)
                 .id("id")
-                .source("{" + "\"data.field1\":\"value1\"," + "\"data.field2\":2," + "\"data.field3\":\"ignored\"" + "}", XContentType.JSON)
+                .source("""
+                    {"data.field1":"value1","data.field2":2,"data.field3":"ignored"}""", XContentType.JSON)
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
         ).actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
@@ -1814,21 +1734,14 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     public void testRunnerWithForceMergeRetry() throws Exception {
         final String sourceIndex = "source-index";
-        IndexResponse indexRequest = client().index(
-            new IndexRequest().index(sourceIndex)
-                .id("id")
-                .source(
-                    "{"
-                        + "\"field1\":\"value1\","
-                        + "\"field2\":2,"
-                        + "\"field3\":\"ignored\","
-                        + "\"field4\":\"ignored\","
-                        + "\"field5\":\"value5\""
-                        + "}",
-                    XContentType.JSON
-                )
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-        ).actionGet();
+        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+            {
+              "field1": "value1",
+              "field2": 2,
+              "field3": "ignored",
+              "field4": "ignored",
+              "field5": "value5"
+            }""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         SearchResponse sourceSearchResponse = client().search(
@@ -1981,21 +1894,14 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     public void testRunnerCancel() throws Exception {
         final String sourceIndex = "source-index";
-        IndexResponse indexRequest = client().index(
-            new IndexRequest().index(sourceIndex)
-                .id("id")
-                .source(
-                    "{"
-                        + "\"field1\":\"value1\","
-                        + "\"field2\":2,"
-                        + "\"field3\":\"ignored\","
-                        + "\"field4\":\"ignored\","
-                        + "\"field5\":\"value5\""
-                        + "}",
-                    XContentType.JSON
-                )
-                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-        ).actionGet();
+        IndexResponse indexRequest = client().index(new IndexRequest().index(sourceIndex).id("id").source("""
+            {
+              "field1": "value1",
+              "field2": 2,
+              "field3": "ignored",
+              "field4": "ignored",
+              "field5": "value5"
+            }""", XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)).actionGet();
         assertEquals(RestStatus.CREATED, indexRequest.status());
 
         List<String> enrichFields = List.of("field2", "field5");

@@ -84,25 +84,21 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(1.0), singletonList(metricOneDouble))
         );
         InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, singletonList("test"), 1, top, null);
-        assertThat(
-            Strings.toString(tm, true, true),
-            equalTo(
-                "{\n"
-                    + "  \"test\" : {\n"
-                    + "    \"top\" : [\n"
-                    + "      {\n"
-                    + "        \"sort\" : [\n"
-                    + "          1.0\n"
-                    + "        ],\n"
-                    + "        \"metrics\" : {\n"
-                    + "          \"test\" : 1.0\n"
-                    + "        }\n"
-                    + "      }\n"
-                    + "    ]\n"
-                    + "  }\n"
-                    + "}"
-            )
-        );
+        assertThat(Strings.toString(tm, true, true), equalTo("""
+            {
+              "test" : {
+                "top" : [
+                  {
+                    "sort" : [
+                      1.0
+                    ],
+                    "metrics" : {
+                      "test" : 1.0
+                    }
+                  }
+                ]
+              }
+            }"""));
     }
 
     public void testToXContentDateSortValue() throws IOException {
@@ -111,25 +107,21 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             new InternalTopMetrics.TopMetric(strictDateTime(), sortValue, singletonList(metricOneDouble))
         );
         InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, singletonList("test"), 1, top, null);
-        assertThat(
-            Strings.toString(tm, true, true),
-            equalTo(
-                "{\n"
-                    + "  \"test\" : {\n"
-                    + "    \"top\" : [\n"
-                    + "      {\n"
-                    + "        \"sort\" : [\n"
-                    + "          \"2007-12-03T10:15:30.000Z\"\n"
-                    + "        ],\n"
-                    + "        \"metrics\" : {\n"
-                    + "          \"test\" : 1.0\n"
-                    + "        }\n"
-                    + "      }\n"
-                    + "    ]\n"
-                    + "  }\n"
-                    + "}"
-            )
-        );
+        assertThat(Strings.toString(tm, true, true), equalTo("""
+            {
+              "test" : {
+                "top" : [
+                  {
+                    "sort" : [
+                      "2007-12-03T10:15:30.000Z"
+                    ],
+                    "metrics" : {
+                      "test" : 1.0
+                    }
+                  }
+                ]
+              }
+            }"""));
     }
 
     public void testToXContentLongMetricValue() throws IOException {
@@ -137,25 +129,21 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(1.0), singletonList(metricOneLong))
         );
         InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, singletonList("test"), 1, top, null);
-        assertThat(
-            Strings.toString(tm, true, true),
-            equalTo(
-                "{\n"
-                    + "  \"test\" : {\n"
-                    + "    \"top\" : [\n"
-                    + "      {\n"
-                    + "        \"sort\" : [\n"
-                    + "          1.0\n"
-                    + "        ],\n"
-                    + "        \"metrics\" : {\n"
-                    + "          \"test\" : 1\n"
-                    + "        }\n"
-                    + "      }\n"
-                    + "    ]\n"
-                    + "  }\n"
-                    + "}"
-            )
-        );
+        assertThat(Strings.toString(tm, true, true), equalTo("""
+            {
+              "test" : {
+                "top" : [
+                  {
+                    "sort" : [
+                      1.0
+                    ],
+                    "metrics" : {
+                      "test" : 1
+                    }
+                  }
+                ]
+              }
+            }"""));
     }
 
     public void testToXContentDateMetricValue() throws IOException {
@@ -167,25 +155,21 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(1.0), singletonList(metricValue))
         );
         InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, singletonList("test"), 1, top, null);
-        assertThat(
-            Strings.toString(tm, true, true),
-            equalTo(
-                "{\n"
-                    + "  \"test\" : {\n"
-                    + "    \"top\" : [\n"
-                    + "      {\n"
-                    + "        \"sort\" : [\n"
-                    + "          1.0\n"
-                    + "        ],\n"
-                    + "        \"metrics\" : {\n"
-                    + "          \"test\" : \"2007-12-03T10:15:30.000Z\"\n"
-                    + "        }\n"
-                    + "      }\n"
-                    + "    ]\n"
-                    + "  }\n"
-                    + "}"
-            )
-        );
+        assertThat(Strings.toString(tm, true, true), equalTo("""
+            {
+              "test" : {
+                "top" : [
+                  {
+                    "sort" : [
+                      1.0
+                    ],
+                    "metrics" : {
+                      "test" : "2007-12-03T10:15:30.000Z"
+                    }
+                  }
+                ]
+              }
+            }"""));
     }
 
     public void testToXContentManyMetrics() throws IOException {
@@ -197,27 +181,23 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             )
         );
         InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, List.of("foo", "bar", "baz"), 1, top, null);
-        assertThat(
-            Strings.toString(tm, true, true),
-            equalTo(
-                "{\n"
-                    + "  \"test\" : {\n"
-                    + "    \"top\" : [\n"
-                    + "      {\n"
-                    + "        \"sort\" : [\n"
-                    + "          1.0\n"
-                    + "        ],\n"
-                    + "        \"metrics\" : {\n"
-                    + "          \"foo\" : 1.0,\n"
-                    + "          \"bar\" : 1,\n"
-                    + "          \"baz\" : 1.0\n"
-                    + "        }\n"
-                    + "      }\n"
-                    + "    ]\n"
-                    + "  }\n"
-                    + "}"
-            )
-        );
+        assertThat(Strings.toString(tm, true, true), equalTo("""
+            {
+              "test" : {
+                "top" : [
+                  {
+                    "sort" : [
+                      1.0
+                    ],
+                    "metrics" : {
+                      "foo" : 1.0,
+                      "bar" : 1,
+                      "baz" : 1.0
+                    }
+                  }
+                ]
+              }
+            }"""));
     }
 
     public void testToXContentManyTopMetrics() throws IOException {
@@ -226,33 +206,29 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
             new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(2.0), singletonList(metricOneLong))
         );
         InternalTopMetrics tm = new InternalTopMetrics("test", sortOrder, singletonList("test"), 2, top, null);
-        assertThat(
-            Strings.toString(tm, true, true),
-            equalTo(
-                "{\n"
-                    + "  \"test\" : {\n"
-                    + "    \"top\" : [\n"
-                    + "      {\n"
-                    + "        \"sort\" : [\n"
-                    + "          1.0\n"
-                    + "        ],\n"
-                    + "        \"metrics\" : {\n"
-                    + "          \"test\" : 1.0\n"
-                    + "        }\n"
-                    + "      },\n"
-                    + "      {\n"
-                    + "        \"sort\" : [\n"
-                    + "          2.0\n"
-                    + "        ],\n"
-                    + "        \"metrics\" : {\n"
-                    + "          \"test\" : 1\n"
-                    + "        }\n"
-                    + "      }\n"
-                    + "    ]\n"
-                    + "  }\n"
-                    + "}"
-            )
-        );
+        assertThat(Strings.toString(tm, true, true), equalTo("""
+            {
+              "test" : {
+                "top" : [
+                  {
+                    "sort" : [
+                      1.0
+                    ],
+                    "metrics" : {
+                      "test" : 1.0
+                    }
+                  },
+                  {
+                    "sort" : [
+                      2.0
+                    ],
+                    "metrics" : {
+                      "test" : 1
+                    }
+                  }
+                ]
+              }
+            }"""));
     }
 
     public void testGetProperty() {

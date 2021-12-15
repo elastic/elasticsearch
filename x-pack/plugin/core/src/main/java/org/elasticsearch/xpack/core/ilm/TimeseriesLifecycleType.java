@@ -49,9 +49,9 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final String COLD_PHASE = "cold";
     static final String FROZEN_PHASE = "frozen";
     static final String DELETE_PHASE = "delete";
-    static final List<String> ORDERED_VALID_PHASES = Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE, DELETE_PHASE);
+    public static final List<String> ORDERED_VALID_PHASES = List.of(HOT_PHASE, WARM_PHASE, COLD_PHASE, FROZEN_PHASE, DELETE_PHASE);
 
-    static final List<String> ORDERED_VALID_HOT_ACTIONS = Stream.of(
+    public static final List<String> ORDERED_VALID_HOT_ACTIONS = Stream.of(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         RolloverAction.NAME,
@@ -60,8 +60,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
         ShrinkAction.NAME,
         ForceMergeAction.NAME,
         SearchableSnapshotAction.NAME
-    ).filter(Objects::nonNull).collect(toList());
-    static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(
+    ).filter(Objects::nonNull).toList();
+    public static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
@@ -70,7 +70,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         ShrinkAction.NAME,
         ForceMergeAction.NAME
     );
-    static final List<String> ORDERED_VALID_COLD_ACTIONS = Stream.of(
+    public static final List<String> ORDERED_VALID_COLD_ACTIONS = Stream.of(
         SetPriorityAction.NAME,
         UnfollowAction.NAME,
         ReadOnlyAction.NAME,
@@ -79,9 +79,9 @@ public class TimeseriesLifecycleType implements LifecycleType {
         MigrateAction.NAME,
         FreezeAction.NAME,
         RollupV2.isEnabled() ? RollupILMAction.NAME : null
-    ).filter(Objects::nonNull).collect(toList());
-    static final List<String> ORDERED_VALID_FROZEN_ACTIONS = Arrays.asList(UnfollowAction.NAME, SearchableSnapshotAction.NAME);
-    static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(WaitForSnapshotAction.NAME, DeleteAction.NAME);
+    ).filter(Objects::nonNull).toList();
+    public static final List<String> ORDERED_VALID_FROZEN_ACTIONS = List.of(UnfollowAction.NAME, SearchableSnapshotAction.NAME);
+    public static final List<String> ORDERED_VALID_DELETE_ACTIONS = List.of(WaitForSnapshotAction.NAME, DeleteAction.NAME);
 
     static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
@@ -111,8 +111,8 @@ public class TimeseriesLifecycleType implements LifecycleType {
     );
     // Set of actions that cannot be defined (executed) after the managed index has been mounted as searchable snapshot.
     // It's ordered to produce consistent error messages which can be unit tested.
-    static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = new LinkedHashSet<>(
-        Arrays.asList(ForceMergeAction.NAME, FreezeAction.NAME, ShrinkAction.NAME, RollupILMAction.NAME)
+    public static final Set<String> ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT = Collections.unmodifiableSet(
+        new LinkedHashSet<>(Arrays.asList(ForceMergeAction.NAME, FreezeAction.NAME, ShrinkAction.NAME, RollupILMAction.NAME))
     );
 
     private TimeseriesLifecycleType() {}

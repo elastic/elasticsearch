@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.search;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -16,6 +17,8 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
 
 public class QueryParserHelperTests extends MapperServiceTestCase {
 
@@ -41,6 +44,28 @@ public class QueryParserHelperTests extends MapperServiceTestCase {
         {
             Map<String, Float> resolvedFields = QueryParserHelper.resolveMappingFields(context, Map.of("unmapped", 1.0f));
             assertTrue(resolvedFields.isEmpty());
+        }
+    }
+
+    public void testFieldExpansionAboveLimitThrowsException() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            for (int i = 0; i < 10; i++) {
+                b.startObject("field" + i).field("type", "long").endObject();
+            }
+        }));
+        SearchExecutionContext context = createSearchExecutionContext(mapperService);
+
+        int originalMaxClauseCount = IndexSearcher.getMaxClauseCount();
+        try {
+            IndexSearcher.setMaxClauseCount(4);
+            Exception e = expectThrows(IllegalArgumentException.class,
+                () -> QueryParserHelper.resolveMappingFields(context, Map.of("field*", 1.0f)));
+            assertThat(e.getMessage(), containsString("field expansion matches too many fields"));
+
+            IndexSearcher.setMaxClauseCount(10);
+            assertThat(QueryParserHelper.resolveMappingFields(context, Map.of("field*", 1.0f)).keySet(), hasSize(10));
+        } finally {
+            IndexSearcher.setMaxClauseCount(originalMaxClauseCount);
         }
     }
 }

@@ -13,7 +13,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 public final class SearchUtils {
 
-    public static final int DEFAULT_MAX_CLAUSE_COUNT = 4096;
+    public static final int DEFAULT_MAX_CLAUSE_COUNT = 1024;
 
     public static int calculateMaxClauseValue(ThreadPool threadPool) {
         int searchThreadPoolSize = threadPool.info(ThreadPool.Names.SEARCH).getMax();
@@ -21,7 +21,7 @@ public final class SearchUtils {
         return calculateMaxClauseValue(searchThreadPoolSize, heapSize);
     }
 
-    static int calculateMaxClauseValue(long threadPoolSize, long heapInGb) {
+    static int calculateMaxClauseValue(long threadPoolSize, double heapInGb) {
         if (threadPoolSize <= 0 || heapInGb <= 0) {
             return DEFAULT_MAX_CLAUSE_COUNT;
         }
@@ -31,7 +31,7 @@ public final class SearchUtils {
         // dividing the heap by 16k (or the equivalent, multiplying the heap in GB by
         // 64k), and then divide that by the number of possible concurrent search
         // threads.
-        int maxClauseCount = Math.toIntExact(heapInGb * 65_536 / threadPoolSize);
+        int maxClauseCount = (int) (heapInGb * 65_536 / threadPoolSize);
         return Math.max(DEFAULT_MAX_CLAUSE_COUNT, maxClauseCount);
     }
 

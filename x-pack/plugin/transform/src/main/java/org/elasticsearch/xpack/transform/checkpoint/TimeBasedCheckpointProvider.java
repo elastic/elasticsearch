@@ -118,7 +118,7 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
             return identity();
         }
         // In case of transforms created before aligning timestamp optimization was introduced we assume the default was "false".
-        if (transformConfig.getVersion().before(Version.V_7_15_0)) {
+        if (transformConfig.getVersion() == null || transformConfig.getVersion().before(Version.V_7_15_0)) {
             return identity();
         }
         if (transformConfig.getPivotConfig() == null) {

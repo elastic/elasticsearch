@@ -58,6 +58,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
+import static org.elasticsearch.index.analysis.AnalysisUtil.createStackedTokenStream;
+import static org.elasticsearch.index.analysis.AnalysisUtil.extractExtendedAttributes;
+import static org.elasticsearch.index.analysis.AnalysisUtil.writeCharStream;
+
 /**
  * Transport action used to execute analyze requests
  */
@@ -436,44 +440,6 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         return detailResponse;
     }
 
-    private static TokenStream createStackedTokenStream(
-        String source,
-        CharFilterFactory[] charFilterFactories,
-        TokenizerFactory tokenizerFactory,
-        TokenFilterFactory[] tokenFilterFactories,
-        int current
-    ) {
-        Reader reader = new StringReader(source);
-        for (CharFilterFactory charFilterFactory : charFilterFactories) {
-            reader = charFilterFactory.create(reader);
-        }
-        Tokenizer tokenizer = tokenizerFactory.create();
-        tokenizer.setReader(reader);
-        TokenStream tokenStream = tokenizer;
-        for (int i = 0; i < current; i++) {
-            tokenStream = tokenFilterFactories[i].create(tokenStream);
-        }
-        return tokenStream;
-    }
-
-    private static String writeCharStream(Reader input) {
-        final int BUFFER_SIZE = 1024;
-        char[] buf = new char[BUFFER_SIZE];
-        int len;
-        StringBuilder sb = new StringBuilder();
-        do {
-            try {
-                len = input.read(buf, 0, BUFFER_SIZE);
-            } catch (IOException e) {
-                throw new ElasticsearchException("failed to analyze (charFiltering)", e);
-            }
-            if (len > 0) {
-                sb.append(buf, 0, len);
-            }
-        } while (len == BUFFER_SIZE);
-        return sb.toString();
-    }
-
     private static class TokenCounter {
         private int tokenCount = 0;
         private int maxTokenCount;
@@ -552,41 +518,4 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeAc
         }
 
     }
-
-    /**
-     * other attribute extract object.
-     * Extracted object group by AttributeClassName
-     *
-     * @param stream current TokenStream
-     * @param includeAttributes filtering attributes
-     * @return Map&lt;key value&gt;
-     */
-    private static Map<String, Object> extractExtendedAttributes(TokenStream stream, final Set<String> includeAttributes) {
-        final Map<String, Object> extendedAttributes = new TreeMap<>();
-
-        stream.reflectWith((attClass, key, value) -> {
-            if (CharTermAttribute.class.isAssignableFrom(attClass)) {
-                return;
-            }
-            if (PositionIncrementAttribute.class.isAssignableFrom(attClass)) {
-                return;
-            }
-            if (OffsetAttribute.class.isAssignableFrom(attClass)) {
-                return;
-            }
-            if (TypeAttribute.class.isAssignableFrom(attClass)) {
-                return;
-            }
-            if (includeAttributes == null || includeAttributes.isEmpty() || includeAttributes.contains(key.toLowerCase(Locale.ROOT))) {
-                if (value instanceof BytesRef) {
-                    final BytesRef p = (BytesRef) value;
-                    value = p.toString();
-                }
-                extendedAttributes.put(key, value);
-            }
-        });
-
-        return extendedAttributes;
-    }
-
 }

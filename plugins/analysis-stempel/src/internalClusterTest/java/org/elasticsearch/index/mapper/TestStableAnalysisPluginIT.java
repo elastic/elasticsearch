@@ -14,7 +14,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -24,7 +23,9 @@ public class TestStableAnalysisPluginIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singletonList(AnalysisStempelPlugin.class);
+        return List.of(
+            AnalysisStempelPlugin.class
+        );
     }
 
     private class AnalysisTestcases {
@@ -113,7 +114,7 @@ public class TestStableAnalysisPluginIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate(index));
 
-        for (String filter : List.of("demo", "demo_legacy")) {
+        for (String filter : List.of("demo_legacy", "demo")) {
             for (AnalysisTestcases testcase : testCases) {
                 AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index).tokenizer("standard")
                     .addTokenFilter("lowercase")

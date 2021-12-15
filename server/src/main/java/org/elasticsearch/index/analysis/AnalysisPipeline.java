@@ -17,15 +17,13 @@ import java.util.List;
 import java.util.Map;
 
 public class AnalysisPipeline {
-    private final AnalysisPipelineFirstStep firstStep;
     private final List<AnalysisPipelineStep> steps;
 
-    public AnalysisPipeline(AnalysisPipelineFirstStep firstStep, List<AnalysisPipelineStep> steps) {
-        this.firstStep = firstStep;
+    public AnalysisPipeline(List<AnalysisPipelineStep> steps) {
         this.steps = steps;
     }
 
-    private Map<Integer, Integer> nextInput(List<AnalyzeAction.AnalyzeToken> tokens, Map<Integer, Integer> prevMappings) {
+    private Map<Integer, Integer> nextStepMappings(List<AnalyzeAction.AnalyzeToken> tokens, Map<Integer, Integer> prevMappings) {
         Map<Integer, Integer> nextIndexMappings = new HashMap<>();
         int tokenIndex = 0;
 
@@ -73,14 +71,20 @@ public class AnalysisPipeline {
     }
 
     public List<AnalyzeAction.AnalyzeToken> process(String field, String[] texts, int maxTokenCount) {
-        if (firstStep == null) {
+        if (steps.isEmpty()) {
             return new ArrayList<>();
         }
 
         List<AnalyzeAction.AnalyzeToken> result;
         Iterator<AnalysisPipelineStep> stepIterator = steps.listIterator();
 
-        result = firstStep.process(field, texts, maxTokenCount);
+        AnalysisPipelineStep firstStep = stepIterator.next();
+
+        if (firstStep instanceof AnalysisPipelineFirstStep) {
+            result = ((AnalysisPipelineFirstStep)firstStep).process(field, texts, maxTokenCount);
+        } else {
+            throw new IllegalStateException("The first step of the analysis pipeline must be of AnalysisPipelineFirstStep type");
+        }
 
         if (stepIterator.hasNext()) {
             Map<Integer, AnalyzeAction.AnalyzeToken> firstTokens = new HashMap<>();
@@ -89,12 +93,12 @@ public class AnalysisPipeline {
                 firstTokens.put(token.getPosition(), token);
             }
 
-            Map<Integer, Integer> mappings = nextInput(result, null);
+            Map<Integer, Integer> mappings = nextStepMappings(result, null);
 
             while (stepIterator.hasNext()) {
                 result = stepIterator.next().process(field, result, maxTokenCount);
 
-                mappings = nextInput(result, mappings);
+                mappings = nextStepMappings(result, mappings);
             }
 
             List<AnalyzeAction.AnalyzeToken> adjusted = remap(mappings, firstTokens, result);
@@ -106,13 +110,19 @@ public class AnalysisPipeline {
     }
 
     public DetailedPipelineAnalysisPackage details(String field, String[] texts, int maxTokenCount, String[] attributes) {
-        if (firstStep == null) {
+        if (steps.isEmpty()) {
             return null;
         }
 
         Iterator<AnalysisPipelineStep> stepIterator = steps.listIterator();
+        AnalysisPipelineStep firstStep = stepIterator.next();
+        DetailedPipelineAnalysisPackage result;
 
-        DetailedPipelineAnalysisPackage result = firstStep.details(field, texts, maxTokenCount, attributes);
+        if (firstStep instanceof AnalysisPipelineFirstStep) {
+            result = ((AnalysisPipelineFirstStep)firstStep).details(field, texts, maxTokenCount, attributes);
+        } else {
+            throw new IllegalStateException("The first step of the analysis pipeline must be of AnalysisPipelineFirstStep type");
+        }
 
         if (stepIterator.hasNext()) {
             Map<Integer, AnalyzeAction.AnalyzeToken> firstTokens = new HashMap<>();
@@ -122,12 +132,11 @@ public class AnalysisPipeline {
                 lastFilterResult = result.getTokenFilters().get(result.getTokenFilters().size() - 1);
             }
 
-
             for (AnalyzeAction.AnalyzeToken token : lastFilterResult.getTokens()) {
                 firstTokens.put(token.getPosition(), token);
             }
 
-            Map<Integer, Integer> mappings = nextInput(List.of(lastFilterResult.getTokens()), null);
+            Map<Integer, Integer> mappings = nextStepMappings(List.of(lastFilterResult.getTokens()), null);
 
             while (stepIterator.hasNext()) {
                 List<AnalyzeAction.AnalyzeTokenList> stepList = stepIterator.next().detailedFilters(
@@ -143,11 +152,12 @@ public class AnalysisPipeline {
 
                 AnalyzeAction.AnalyzeTokenList last = stepList.get(stepList.size() - 1);
 
-                mappings = nextInput(List.of(last.getTokens()), mappings);
+                mappings = nextStepMappings(List.of(last.getTokens()), mappings);
 
                 lastFilterResult = result.getTokenFilters().get(result.getTokenFilters().size() - 1);
             }
         }
+
         return result;
     }
 }

@@ -292,21 +292,6 @@ public final class AnalysisRegistry implements Closeable {
 
         List<TokenFilterFactory> tokenFilterFactories = new ArrayList<>();
         for (NameOrDefinition nod : tokenFilters) {
-            // NG
-            try {
-                AnalysisIteratorFactory aif = getComponentFactory(
-                    indexSettings,
-                    nod,
-                    "filter",
-                    this::getAnalysisIteratorProvider,
-                    this::getAnalysisIteratorProvider,
-                    this::getAnalysisIteratorProvider
-                );
-                if (aif != null) {
-                    continue;
-                }
-            } catch (IllegalArgumentException okToNotFind) {}
-
             TokenFilterFactory tff = buildTokenFilterFactory(
                 indexSettings,
                 normalizer,
@@ -362,15 +347,6 @@ public final class AnalysisRegistry implements Closeable {
             this::getTokenizerProvider
         );
 
-        TokenizerFactory standardTokenizerFactory = getComponentFactory(
-            indexSettings,
-            new NameOrDefinition("standard"),
-            "tokenizer",
-            this::getTokenizerProvider,
-            prebuiltAnalysis::getTokenizerFactory,
-            this::getTokenizerProvider
-        );
-
         List<CharFilterFactory> charFilterFactories = new ArrayList<>();
         for (NameOrDefinition nod : charFilters) {
             charFilterFactories.add(
@@ -385,7 +361,6 @@ public final class AnalysisRegistry implements Closeable {
             );
         }
 
-        AnalysisPipelineFirstStep firstStep = null;
         List<AnalysisPipelineStep> pipelineSteps = new ArrayList<>();
 
         List<TokenFilterFactory> tokenFilterFactories = new ArrayList<>();
@@ -400,19 +375,14 @@ public final class AnalysisRegistry implements Closeable {
                     this::getAnalysisIteratorProvider
                 );
                 if (aif != null) {
-                    CoreElasticAnalysisPipelineStep prevStep = new CoreElasticAnalysisPipelineStep(
-                        (pipelineSteps.size() > 0) ? standardTokenizerFactory : tokenizerFactory,
+                    ElasticAnalysisPipelineStep prevStep = new ElasticAnalysisPipelineStep(
+                        tokenizerFactory,
                         charFilterFactories,
                         new ArrayList<>(tokenFilterFactories));
 
                     PluginAnalysisPipelineStep pluginStep = new PluginAnalysisPipelineStep(aif);
 
-                    if (firstStep == null) {
-                        firstStep = prevStep;
-                    } else {
-                        pipelineSteps.add(prevStep);
-                    }
-
+                    pipelineSteps.add(prevStep);
                     pipelineSteps.add(pluginStep);
 
                     tokenFilterFactories.clear();
@@ -433,33 +403,15 @@ public final class AnalysisRegistry implements Closeable {
         }
 
         if (tokenFilterFactories.isEmpty() == false) {
-            CoreElasticAnalysisPipelineStep lastStep = new CoreElasticAnalysisPipelineStep(
-                (pipelineSteps.size() > 0) ?  standardTokenizerFactory : tokenizerFactory,
+            ElasticAnalysisPipelineStep lastStep = new ElasticAnalysisPipelineStep(
+                tokenizerFactory,
                 charFilterFactories,
                 tokenFilterFactories);
 
-            if (firstStep == null) {
-                firstStep = lastStep;
-            } else {
                 pipelineSteps.add(lastStep);
-            }
-
         }
 
-        return new AnalysisPipeline(firstStep, pipelineSteps);
-    }
-
-    public AnalysisIteratorFactory getSimpleAnalyzeIterator(List<NameOrDefinition> filters)
-        throws IOException{
-        if (filters == null || filters.isEmpty()) {
-            return null;
-        }
-
-        AnalysisProvider<AnalysisIteratorFactory> factoryProvider = analysisIterators.get(filters.get(0).name);
-        if (factoryProvider != null) {
-            return factoryProvider.get(environment, filters.get(0).name);
-        }
-        return null;
+        return new AnalysisPipeline(pipelineSteps);
     }
 
     public Map<String, TokenFilterFactory> buildTokenFilterFactories(IndexSettings indexSettings) throws IOException {

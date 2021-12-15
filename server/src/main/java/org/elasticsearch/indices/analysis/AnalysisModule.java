@@ -192,7 +192,6 @@ public final class AnalysisModule {
 
         // Add filters available in lucene-core
         preConfiguredTokenFilters.register("lowercase", PreConfiguredTokenFilter.singleton("lowercase", true, LowerCaseFilter::new));
-        preConfiguredTokenFilters.register("uppercase", PreConfiguredTokenFilter.singleton("uppercase", true, UpperCaseFilter::new));
         // Add "standard" for old indices (bwc)
         preConfiguredTokenFilters.register(
             "standard",

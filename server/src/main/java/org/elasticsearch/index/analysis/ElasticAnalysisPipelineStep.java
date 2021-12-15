@@ -15,8 +15,8 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 
@@ -29,15 +29,18 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
-public class CoreElasticAnalysisPipelineStep implements AnalysisPipelineStep, AnalysisPipelineFirstStep {
+import static org.elasticsearch.index.analysis.AnalysisUtil.createStackedTokenStream;
+import static org.elasticsearch.index.analysis.AnalysisUtil.extractExtendedAttributes;
+import static org.elasticsearch.index.analysis.AnalysisUtil.writeCharStream;
+
+public class ElasticAnalysisPipelineStep implements AnalysisPipelineStep, AnalysisPipelineFirstStep {
     private final Analyzer analyzer;
     private final CustomAnalyzer wrappedAnalyzer;
 
-    public CoreElasticAnalysisPipelineStep(
+    public ElasticAnalysisPipelineStep(
         TokenizerFactory tokenizerFactory,
         List<CharFilterFactory> charFilterFactories,
         List<TokenFilterFactory> tokenFilterFactories
@@ -75,14 +78,6 @@ public class CoreElasticAnalysisPipelineStep implements AnalysisPipelineStep, An
         }
     }
 
-    private Map<String, Object> buildAttributeMap(TokenStream stream, String[] attributes) {
-        if (attributes == null) {
-            return null;
-        }
-        final Set<String> includeAttributes = Arrays.stream(attributes).map(s -> s.toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
-        return extractExtendedAttributes(stream, includeAttributes);
-    }
-
     private List<AnalyzeAction.AnalyzeToken> tokenizeStream(
         TokenStream stream,
         PositionOffset pos,
@@ -98,7 +93,10 @@ public class CoreElasticAnalysisPipelineStep implements AnalysisPipelineStep, An
         TypeAttribute type = stream.addAttribute(TypeAttribute.class);
         PositionLengthAttribute posLen = stream.addAttribute(PositionLengthAttribute.class);
 
-        Map<String, Object> attributeMap = buildAttributeMap(stream, attributes);
+        Set<String> includeAttributes = null;
+        if (attributes != null) {
+            includeAttributes = Arrays.stream(attributes).map(s -> s.toLowerCase(Locale.ROOT)).collect(Collectors.toSet());;
+        }
 
         while (stream.incrementToken()) {
             int increment = posIncr.getPositionIncrement();
@@ -113,7 +111,7 @@ public class CoreElasticAnalysisPipelineStep implements AnalysisPipelineStep, An
                     pos.lastOffset + offset.endOffset(),
                     posLen.getPositionLength(),
                     type.type(),
-                    attributeMap
+                    (includeAttributes == null) ? null : extractExtendedAttributes(stream, includeAttributes)
                 )
             );
             tc.increment();
@@ -168,24 +166,6 @@ public class CoreElasticAnalysisPipelineStep implements AnalysisPipelineStep, An
         }
     }
 
-    private static String writeCharStream(Reader input) {
-        final int BUFFER_SIZE = 1024;
-        char[] buf = new char[BUFFER_SIZE];
-        int len;
-        StringBuilder sb = new StringBuilder();
-        do {
-            try {
-                len = input.read(buf, 0, BUFFER_SIZE);
-            } catch (IOException e) {
-                throw new ElasticsearchException("failed to analyze (charFiltering)", e);
-            }
-            if (len > 0) {
-                sb.append(buf, 0, len);
-            }
-        } while (len == BUFFER_SIZE);
-        return sb.toString();
-    }
-
     @Override
     public DetailedPipelineAnalysisPackage details(String field, String[] texts, int maxTokenCount, String[] attributes) {
         AnalyzerComponents components = wrappedAnalyzer.getComponents();
@@ -232,40 +212,6 @@ public class CoreElasticAnalysisPipelineStep implements AnalysisPipelineStep, An
             charFilteredLists,
             detailedFilters(field, texts, maxTokenCount, attributes)
         );
-    }
-
-    private static TokenStream createStackedTokenStream(
-        String source,
-        CharFilterFactory[] charFilterFactories,
-        TokenizerFactory tokenizerFactory,
-        TokenFilterFactory[] tokenFilterFactories,
-        int current
-    ) {
-        Reader reader = new StringReader(source);
-        for (CharFilterFactory charFilterFactory : charFilterFactories) {
-            reader = charFilterFactory.create(reader);
-        }
-        Tokenizer tokenizer = tokenizerFactory.create();
-        tokenizer.setReader(reader);
-        return createStackedTokenStream(tokenizer, tokenFilterFactories, current);
-    }
-
-    private static TokenStream createStackedTokenStream(
-        TokenStream tokenStream,
-        TokenFilterFactory[] tokenFilterFactories
-    ) {
-        return createStackedTokenStream(tokenStream, tokenFilterFactories, tokenFilterFactories.length);
-    }
-
-    private static TokenStream createStackedTokenStream(
-        TokenStream tokenStream,
-        TokenFilterFactory[] tokenFilterFactories,
-        int current
-    ) {
-        for (int i = 0; i < current; i++) {
-            tokenStream = tokenFilterFactories[i].create(tokenStream);
-        }
-        return tokenStream;
     }
 
     public List<AnalyzeAction.AnalyzeTokenList> detailedFilters(String field, String[] texts, int maxTokenCount, String[] attributes) {
@@ -326,33 +272,5 @@ public class CoreElasticAnalysisPipelineStep implements AnalysisPipelineStep, An
         }
 
         return result;
-    }
-
-    private static Map<String, Object> extractExtendedAttributes(TokenStream stream, final Set<String> includeAttributes) {
-        final Map<String, Object> extendedAttributes = new TreeMap<>();
-
-        stream.reflectWith((attClass, key, value) -> {
-            if (CharTermAttribute.class.isAssignableFrom(attClass)) {
-                return;
-            }
-            if (PositionIncrementAttribute.class.isAssignableFrom(attClass)) {
-                return;
-            }
-            if (OffsetAttribute.class.isAssignableFrom(attClass)) {
-                return;
-            }
-            if (TypeAttribute.class.isAssignableFrom(attClass)) {
-                return;
-            }
-            if (includeAttributes == null || includeAttributes.isEmpty() || includeAttributes.contains(key.toLowerCase(Locale.ROOT))) {
-                if (value instanceof BytesRef) {
-                    final BytesRef p = (BytesRef) value;
-                    value = p.toString();
-                }
-                extendedAttributes.put(key, value);
-            }
-        });
-
-        return extendedAttributes;
     }
 }

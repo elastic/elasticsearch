@@ -9,7 +9,9 @@
 package org.elasticsearch.plugin.analysis.stempel;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.UpperCaseFilter;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
+import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.pl.DemoIteratorFactory;
 import org.elasticsearch.index.analysis.pl.DemoTokenFilterFactory;
@@ -21,6 +23,7 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.analysis.AnalysisIteratorFactory;
 
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
@@ -42,5 +45,10 @@ public class AnalysisStempelPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public Map<String, AnalysisProvider<AnalysisIteratorFactory>> getIterators() {
         return singletonMap("demo", DemoIteratorFactory::new);
+    }
+
+    @Override
+    public List<PreConfiguredTokenFilter> getPreConfiguredTokenFilters() {
+        return List.of(PreConfiguredTokenFilter.singleton("uppercase", true, UpperCaseFilter::new));
     }
 }

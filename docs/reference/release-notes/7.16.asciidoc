@@ -155,7 +155,7 @@ The following example is a `UnaryOperator` type that will result in a failure:
 List l = ['abc', '123']; l.replaceAll(f -> f.replace('abc', 'doremi');
 ----
 +
-The workaround:
+The following example is a possible workaround:
 +
 [source,Java]
 ----

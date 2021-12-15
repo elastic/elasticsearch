@@ -940,6 +940,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         Path tmpPath = basePath.resolve(fileName + "." + UUIDs.randomBase64UUID() + ".tmp");
         try (OutputStream outputStream = Files.newOutputStream(tmpPath, StandardOpenOption.CREATE_NEW)) {
             writer.accept(outputStream);
+        }
+        // close file before moving, otherwise the windows FS throws IOException
+        try {
             PosixFileAttributeView view = Files.getFileAttributeView(tmpPath, PosixFileAttributeView.class);
             if (view != null) {
                 view.setPermissions(permission);

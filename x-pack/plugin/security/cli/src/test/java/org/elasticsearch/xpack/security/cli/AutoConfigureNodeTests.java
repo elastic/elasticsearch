@@ -195,16 +195,16 @@ public class AutoConfigureNodeTests extends ESTestCase {
             X509Certificate httpCertificate = runAutoConfigAndReturnHTTPCertificate(
                 tempDir,
                 Settings.builder()
-                    .put(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey(), "172.168.1.110")
+                    .put(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey(), "gypsy.hill")
                     .put(NetworkService.GLOBAL_NETWORK_HOST_SETTING.getKey(), "172.168.1.100")
-                    .put(HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST.getKey(), "10.10.10.110")
+                    .put(HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST.getKey(), "balkan.beast")
                     .put(HttpTransportSettings.SETTING_HTTP_HOST.getKey(), "10.10.10.100")
                     .build()
             );
             assertThat(checkGeneralNameSan(httpCertificate, "dummy.test.hostname", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "localhost", GeneralName.dNSName), is(true));
-            assertThat(checkGeneralNameSan(httpCertificate, "172.168.1.110", GeneralName.iPAddress), is(true));
-            assertThat(checkGeneralNameSan(httpCertificate, "10.10.10.110", GeneralName.iPAddress), is(true));
+            assertThat(checkGeneralNameSan(httpCertificate, "gypsy.hill", GeneralName.dNSName), is(true));
+            assertThat(checkGeneralNameSan(httpCertificate, "balkan.beast", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "172.168.1.100", GeneralName.iPAddress), is(false));
             assertThat(checkGeneralNameSan(httpCertificate, "10.10.10.100", GeneralName.iPAddress), is(false));
         } finally {

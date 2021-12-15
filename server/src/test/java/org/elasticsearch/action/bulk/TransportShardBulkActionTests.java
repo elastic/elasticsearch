@@ -86,13 +86,20 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         .build();
 
     private IndexMetadata indexMetadata() throws IOException {
-        return IndexMetadata.builder("index")
-            .putMapping(
-                "{\"properties\":{\"foo\":{\"type\":\"text\",\"fields\":" + "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}"
-            )
-            .settings(idxSettings)
-            .primaryTerm(0, 1)
-            .build();
+        return IndexMetadata.builder("index").putMapping("""
+            {
+              "properties": {
+                "foo": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 256
+                    }
+                  }
+                }
+              }
+            }""").settings(idxSettings).primaryTerm(0, 1).build();
     }
 
     public void testExecuteBulkIndexRequest() throws Exception {

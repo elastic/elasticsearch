@@ -56,20 +56,21 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class JobTests extends AbstractSerializingTestCase<Job> {
 
-    private static final String FUTURE_JOB = "{\n"
-        + "    \"job_id\": \"farequote\",\n"
-        + "    \"create_time\": 1234567890000,\n"
-        + "    \"tomorrows_technology_today\": \"wow\",\n"
-        + "    \"analysis_config\": {\n"
-        + "        \"bucket_span\": \"1h\",\n"
-        + "        \"something_new\": \"gasp\",\n"
-        + "        \"detectors\": [{\"function\": \"metric\", \"field_name\": \"responsetime\", \"by_field_name\": \"airline\"}]\n"
-        + "    },\n"
-        + "    \"data_description\": {\n"
-        + "        \"time_field\": \"time\",\n"
-        + "        \"the_future\": 123\n"
-        + "    }\n"
-        + "}";
+    private static final String FUTURE_JOB = """
+        {
+            "job_id": "farequote",
+            "create_time": 1234567890000,
+            "tomorrows_technology_today": "wow",
+            "analysis_config": {
+                "bucket_span": "1h",
+                "something_new": "gasp",
+                "detectors": [{"function": "metric", "field_name": "responsetime", "by_field_name": "airline"}]
+            },
+            "data_description": {
+                "time_field": "time",
+                "the_future": 123
+            }
+        }""";
 
     @Override
     protected Job createTestInstance() {
@@ -651,18 +652,19 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     }
 
     public void testParseJobWithDeletingButWithoutBlockReason() throws IOException {
-        String jobWithDeleting = "{\n"
-            + "    \"job_id\": \"deleting_job\",\n"
-            + "    \"create_time\": 1234567890000,\n"
-            + "    \"analysis_config\": {\n"
-            + "        \"bucket_span\": \"1h\",\n"
-            + "        \"detectors\": [{\"function\": \"count\"}]\n"
-            + "    },\n"
-            + "    \"data_description\": {\n"
-            + "        \"time_field\": \"time\"\n"
-            + "    },\n"
-            + "    \"deleting\": true\n"
-            + "}";
+        String jobWithDeleting = """
+            {
+                "job_id": "deleting_job",
+                "create_time": 1234567890000,
+                "analysis_config": {
+                    "bucket_span": "1h",
+                    "detectors": [{"function": "count"}]
+                },
+                "data_description": {
+                    "time_field": "time"
+                },
+                "deleting": true
+            }""";
 
         try (
             XContentParser parser = JsonXContent.jsonXContent.createParser(

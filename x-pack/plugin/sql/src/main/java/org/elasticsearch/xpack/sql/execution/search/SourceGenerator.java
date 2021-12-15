@@ -107,8 +107,7 @@ public abstract class SourceGenerator {
         for (Sort sortable : container.sort().values()) {
             SortBuilder<?> sortBuilder = null;
 
-            if (sortable instanceof AttributeSort) {
-                AttributeSort as = (AttributeSort) sortable;
+            if (sortable instanceof AttributeSort as) {
                 Attribute attr = as.attribute();
 
                 // sorting only works on not-analyzed fields - look for a multi-field replacement
@@ -142,8 +141,7 @@ public abstract class SourceGenerator {
                         sortBuilder = fieldSort;
                     }
                 }
-            } else if (sortable instanceof ScriptSort) {
-                ScriptSort ss = (ScriptSort) sortable;
+            } else if (sortable instanceof ScriptSort ss) {
                 sortBuilder = scriptSort(
                     ss.script().toPainless(),
                     ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING

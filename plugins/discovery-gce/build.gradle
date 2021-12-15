@@ -52,6 +52,8 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.avalon.framework.logger.Logger',
           'org.apache.log.Hierarchy',
           'org.apache.log.Logger',
+          'org.apache.avalon.framework.logger.Logger',
+          'javax.jms.Message',
           'org.apache.http.ConnectionReuseStrategy',
           'org.apache.http.Header',
           'org.apache.http.HttpEntity',

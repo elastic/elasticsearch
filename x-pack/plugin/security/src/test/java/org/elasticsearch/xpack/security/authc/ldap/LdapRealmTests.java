@@ -484,45 +484,30 @@ public class LdapRealmTests extends LdapTestCase {
         ) {
             @Override
             protected void loadMappings(ActionListener<List<ExpressionRoleMapping>> listener) {
-                listener.onResponse(
-                    Arrays.asList(
-                        this.buildMapping(
-                            "m1",
-                            new BytesArray(
-                                "{"
-                                    + "\"role_templates\":[{\"template\":{\"source\":\"_user_{{metadata.uid}}\"}}],"
-                                    + "\"enabled\":true,"
-                                    + "\"rules\":{ \"any\":["
-                                    + " { \"field\":{\"realm.name\":\"ldap1\"}},"
-                                    + " { \"field\":{\"realm.name\":\"ldap2\"}}"
-                                    + "]}}"
-                            )
-                        ),
-                        this.buildMapping(
-                            "m2",
-                            new BytesArray(
-                                "{"
-                                    + "\"roles\":[\"should_not_happen\"],"
-                                    + "\"enabled\":true,"
-                                    + "\"rules\":{ \"all\":["
-                                    + " { \"field\":{\"realm.name\":\"ldap1\"}},"
-                                    + " { \"field\":{\"realm.name\":\"ldap2\"}}"
-                                    + "]}}"
-                            )
-                        ),
-                        this.buildMapping(
-                            "m3",
-                            new BytesArray(
-                                "{"
-                                    + "\"roles\":[\"sales_admin\"],"
-                                    + "\"enabled\":true,"
-                                    + "\"rules\":"
-                                    + " { \"field\":{\"dn\":\"*,ou=people,o=sevenSeas\"}}"
-                                    + "}"
-                            )
-                        )
-                    )
-                );
+                listener.onResponse(Arrays.asList(this.buildMapping("m1", new BytesArray("""
+                    {
+                        "role_templates": [ { "template": { "source": "_user_{{metadata.uid}}" } } ],
+                        "enabled": true,
+                        "rules": {
+                          "any": [ { "field": { "realm.name": "ldap1" } }, { "field": { "realm.name": "ldap2" } } ]
+                        }
+                      }""")), this.buildMapping("m2", new BytesArray("""
+                    {
+                      "roles": [ "should_not_happen" ],
+                      "enabled": true,
+                      "rules": {
+                        "all": [ { "field": { "realm.name": "ldap1" } }, { "field": { "realm.name": "ldap2" } } ]
+                      }
+                    }""")), this.buildMapping("m3", new BytesArray("""
+                    {
+                      "roles": [ "sales_admin" ],
+                      "enabled": true,
+                      "rules": {
+                        "field": {
+                          "dn": "*,ou=people,o=sevenSeas"
+                        }
+                      }
+                    }"""))));
             }
         };
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, sslService, threadPool);

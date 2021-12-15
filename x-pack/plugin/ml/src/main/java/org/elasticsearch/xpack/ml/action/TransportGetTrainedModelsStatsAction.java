@@ -191,8 +191,7 @@ public class TransportGetTrainedModelsStatsAction extends HandledTransportAction
                     ingestService.getScriptService()
                 );
                 pipeline.getProcessors().forEach(processor -> {
-                    if (processor instanceof InferenceProcessor) {
-                        InferenceProcessor inferenceProcessor = (InferenceProcessor) processor;
+                    if (processor instanceof InferenceProcessor inferenceProcessor) {
                         if (modelIds.contains(inferenceProcessor.getModelId())) {
                             pipelineIdsByModelIds.computeIfAbsent(inferenceProcessor.getModelId(), m -> new LinkedHashSet<>())
                                 .add(pipelineId);

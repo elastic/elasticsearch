@@ -10,6 +10,7 @@ package org.elasticsearch.oldrepos;
 import org.apache.http.HttpHost;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
@@ -26,6 +27,8 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -83,7 +86,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             try {
                 Request createIndex = new Request("PUT", "/test");
                 int numberOfShards = randomIntBetween(1, 3);
-                createIndex.setJsonEntity("{\"settings\":{\"number_of_shards\": " + numberOfShards + "}}");
+                createIndex.setJsonEntity("""
+                    {"settings":{"number_of_shards": %s}}
+                    """.formatted(numberOfShards));
                 oldEs.performRequest(createIndex);
 
                 for (int i = 0; i < numDocs; i++) {
@@ -97,7 +102,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
                 // register repo on old ES and take snapshot
                 Request createRepoRequest = new Request("PUT", "/_snapshot/testrepo");
-                createRepoRequest.setJsonEntity("{\"type\":\"fs\",\"settings\":{\"location\":\"" + repoLocation + "\"}}");
+                createRepoRequest.setJsonEntity("""
+                    {"type":"fs","settings":{"location":"%s"}}
+                    """.formatted(repoLocation));
                 oldEs.performRequest(createRepoRequest);
 
                 Request createSnapshotRequest = new Request("PUT", "/_snapshot/testrepo/snap1");
@@ -211,6 +218,16 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, restoreSnapshotResponse.getRestoreInfo().totalShards());
         assertEquals(numberOfShards, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
+        assertEquals(
+            ClusterHealthStatus.GREEN,
+            client.cluster()
+                .health(
+                    new ClusterHealthRequest("restored_test").waitForGreenStatus().waitForNoRelocatingShards(true),
+                    RequestOptions.DEFAULT
+                )
+                .getStatus()
+        );
+
         // run a search against the index
         assertDocs("restored_test", numDocs, expectedIds, client);
 
@@ -219,12 +236,23 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             .mountSnapshot(
                 new MountSnapshotRequest("testrepo", "snap1", "test").storage(MountSnapshotRequest.Storage.FULL_COPY)
                     .renamedIndex("mounted_full_copy_test")
+                    .indexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build())
                     .waitForCompletion(true),
                 RequestOptions.DEFAULT
             );
         assertNotNull(mountSnapshotResponse.getRestoreInfo());
         assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().totalShards());
         assertEquals(numberOfShards, mountSnapshotResponse.getRestoreInfo().successfulShards());
+
+        assertEquals(
+            ClusterHealthStatus.GREEN,
+            client.cluster()
+                .health(
+                    new ClusterHealthRequest("mounted_full_copy_test").waitForGreenStatus().waitForNoRelocatingShards(true),
+                    RequestOptions.DEFAULT
+                )
+                .getStatus()
+        );
 
         // run a search against the index
         assertDocs("mounted_full_copy_test", numDocs, expectedIds, client);

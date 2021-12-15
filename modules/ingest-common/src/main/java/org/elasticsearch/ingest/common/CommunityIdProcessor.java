@@ -271,11 +271,11 @@ public final class CommunityIdProcessor extends AbstractProcessor {
     static int parseIntFromObjectOrString(Object o, String fieldName) {
         if (o == null) {
             return 0;
-        } else if (o instanceof Number) {
-            return ((Number) o).intValue();
-        } else if (o instanceof String) {
+        } else if (o instanceof Number number) {
+            return number.intValue();
+        } else if (o instanceof String string) {
             try {
-                return Integer.parseInt((String) o);
+                return Integer.parseInt(string);
             } catch (NumberFormatException e) {
                 // fall through to IllegalArgumentException below
             }
@@ -468,11 +468,9 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         }
 
         public static Transport fromObject(Object o) {
-            if (o instanceof Number) {
-                return fromNumber(((Number) o).intValue());
-            } else if (o instanceof String) {
-                String protocolStr = (String) o;
-
+            if (o instanceof Number number) {
+                return fromNumber(number.intValue());
+            } else if (o instanceof String protocolStr) {
                 // check if matches protocol name
                 if (TRANSPORT_NAMES.containsKey(protocolStr.toLowerCase(Locale.ROOT))) {
                     return TRANSPORT_NAMES.get(protocolStr.toLowerCase(Locale.ROOT));

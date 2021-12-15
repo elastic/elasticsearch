@@ -4,3 +4,8 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.license.self_generated.type', 'trial'
   plugin ':x-pack:qa:freeze-plugin'
 }
+
+tasks.named("integTest").configure {
+  // Disabled because of log4j Security Manager permission issues in CLI tools
+  systemProperty 'tests.security.manager', 'false'
+}

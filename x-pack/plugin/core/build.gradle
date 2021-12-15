@@ -118,7 +118,8 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.log.Logger',
           //commons-logging provided dependencies
           'javax.servlet.ServletContextEvent',
-          'javax.servlet.ServletContextListener'
+          'javax.servlet.ServletContextListener',
+          'javax.jms.Message'
   )
 }
 

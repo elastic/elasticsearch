@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
-import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
-import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -39,11 +40,6 @@ public class TextClassificationProcessor implements NlpTask.Processor {
         // negative values are a special case of asking for ALL classes. Since we require the output size to equal the classLabel size
         // This is a nice way of setting the value
         this.numTopClasses = config.getNumTopClasses() < 0 ? this.classLabels.length : config.getNumTopClasses();
-        validate();
-    }
-
-    private void validate() {
-        // validation occurs in TextClassificationConfig
     }
 
     @Override
@@ -81,20 +77,21 @@ public class TextClassificationProcessor implements NlpTask.Processor {
 
     static InferenceResults processResult(
         TokenizationResult tokenization,
-        PyTorchResult pyTorchResult,
+        PyTorchInferenceResult pyTorchResult,
         int numTopClasses,
         List<String> labels,
         String resultsField
     ) {
         if (pyTorchResult.getInferenceResult().length < 1) {
-            return new WarningInferenceResults("Text classification result has no data");
+            throw new ElasticsearchStatusException("Text classification result has no data", RestStatus.INTERNAL_SERVER_ERROR);
         }
 
         // TODO only the first entry in the batch result is verified and
         // checked. Implement for all in batch
         if (pyTorchResult.getInferenceResult()[0][0].length != labels.size()) {
-            return new WarningInferenceResults(
+            throw new ElasticsearchStatusException(
                 "Expected exactly [{}] values in text classification result; got [{}]",
+                RestStatus.INTERNAL_SERVER_ERROR,
                 labels.size(),
                 pyTorchResult.getInferenceResult()[0][0].length
             );

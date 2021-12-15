@@ -190,6 +190,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
             return queryCurrent;
         }
 
+        public long getQueryFailureCount() {
+            return queryFailureCount;
+        }
+
         public long getFetchCount() {
             return fetchCount;
         }
@@ -204,6 +208,10 @@ public class SearchStats implements Writeable, ToXContentFragment {
 
         public long getFetchCurrent() {
             return fetchCurrent;
+        }
+
+        public long getFetchFailureCount() {
+            return fetchFailureCount;
         }
 
         public long getScrollCount() {

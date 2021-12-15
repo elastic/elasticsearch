@@ -823,6 +823,9 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getFetchCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getFetchCount());
 
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getFetchFailureCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getFetchFailureCount());
+
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getOpenContexts());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getOpenContexts());
 
@@ -834,6 +837,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryCount());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryFailureCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryFailureCount());
 
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollCurrent());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollCurrent());

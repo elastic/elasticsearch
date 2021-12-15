@@ -478,10 +478,12 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(searchStats == null ? null : searchStats.getTotal().getFetchCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getFetchTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getFetchCount());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getFetchFailureCount());
             table.addCell(searchStats == null ? null : searchStats.getOpenContexts());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryCount());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryFailureCount());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getScrollCurrent());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getScrollTime());
             table.addCell(searchStats == null ? null : searchStats.getTotal().getScrollCount());

@@ -31,7 +31,8 @@ import static org.hamcrest.Matchers.equalTo;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class SimpleDataNodesIT extends ESIntegTestCase {
 
-    private static final String SOURCE = "{\"type1\":{\"id\":\"1\",\"name\":\"test\"}}";
+    private static final String SOURCE = """
+        {"type1":{"id":"1","name":"test"}}""";
 
     public void testIndexingBeforeAndAfterDataNodesStart() {
         internalCluster().startNode(nonDataNode());

@@ -429,13 +429,20 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         ClusterHealthResponse actionGet = testCluster.client().admin().cluster().health(healthRequest).actionGet();
         if (actionGet.isTimedOut()) {
             logger.info(
-                "{} timed out: "
-                    + "\nleader cluster state:\n{}"
-                    + "\nleader cluster hot threads:\n{}"
-                    + "\nleader cluster tasks:\n{}"
-                    + "\nfollower cluster state:\n{}"
-                    + "\nfollower cluster hot threads:\n{}"
-                    + "\nfollower cluster tasks:\n{}",
+                """
+                    {} timed out:
+                    leader cluster state:
+                    {}
+                    leader cluster hot threads:
+                    {}
+                    leader cluster tasks:
+                    {}
+                    follower cluster state:
+                    {}
+                    follower cluster hot threads:
+                    {}
+                    follower cluster tasks:
+                    {}""",
                 method,
                 leaderClient().admin().cluster().prepareState().get().getState(),
                 getHotThreads(leaderClient()),

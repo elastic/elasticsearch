@@ -29,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
@@ -112,210 +113,198 @@ public class ClusterStateTests extends ESTestCase {
         String ephemeralId = clusterState.getNodes().get("nodeId1").getEphemeralId();
         String allocationId = index.getShards().get(1).getAllAllocationIds().iterator().next();
 
-        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
+        XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         clusterState.toXContent(builder, new ToXContent.MapParams(singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API)));
         builder.endObject();
 
-        assertEquals(
-            "{\n"
-                + "  \"cluster_uuid\" : \"clusterUUID\",\n"
-                + "  \"version\" : 0,\n"
-                + "  \"state_uuid\" : \"stateUUID\",\n"
-                + "  \"master_node\" : \"masterNodeId\",\n"
-                + "  \"blocks\" : {\n"
-                + "    \"global\" : {\n"
-                + "      \"1\" : {\n"
-                + "        \"description\" : \"description\",\n"
-                + "        \"retryable\" : true,\n"
-                + "        \"disable_state_persistence\" : true,\n"
-                + "        \"levels\" : [\n"
-                + "          \"read\",\n"
-                + "          \"write\",\n"
-                + "          \"metadata_read\",\n"
-                + "          \"metadata_write\"\n"
-                + "        ]\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"indices\" : {\n"
-                + "      \"index\" : {\n"
-                + "        \"2\" : {\n"
-                + "          \"description\" : \"description2\",\n"
-                + "          \"retryable\" : false,\n"
-                + "          \"levels\" : [\n"
-                + "            \"read\",\n"
-                + "            \"write\",\n"
-                + "            \"metadata_read\",\n"
-                + "            \"metadata_write\"\n"
-                + "          ]\n"
-                + "        }\n"
-                + "      }\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"nodes\" : {\n"
-                + "    \"nodeId1\" : {\n"
-                + "      \"name\" : \"\",\n"
-                + "      \"ephemeral_id\" : \""
-                + ephemeralId
-                + "\",\n"
-                + "      \"transport_address\" : \"127.0.0.1:111\",\n"
-                + "      \"attributes\" : { },\n"
-                + "      \"roles\" : [\n"
-                + "        \"data\",\n"
-                + "        \"data_cold\",\n"
-                + "        \"data_content\",\n"
-                + "        \"data_frozen\",\n"
-                + "        \"data_hot\",\n"
-                + "        \"data_warm\",\n"
-                + "        \"ingest\",\n"
-                + "        \"master\",\n"
-                + "        \"ml\",\n"
-                + "        \"remote_cluster_client\",\n"
-                + "        \"transform\",\n"
-                + "        \"voting_only\"\n"
-                + "      ]\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"metadata\" : {\n"
-                + "    \"cluster_uuid\" : \"clusterUUID\",\n"
-                + "    \"cluster_uuid_committed\" : false,\n"
-                + "    \"cluster_coordination\" : {\n"
-                + "      \"term\" : 1,\n"
-                + "      \"last_committed_config\" : [\n"
-                + "        \"commitedConfigurationNodeId\"\n"
-                + "      ],\n"
-                + "      \"last_accepted_config\" : [\n"
-                + "        \"acceptedConfigurationNodeId\"\n"
-                + "      ],\n"
-                + "      \"voting_config_exclusions\" : [\n"
-                + "        {\n"
-                + "          \"node_id\" : \"exlucdedNodeId\",\n"
-                + "          \"node_name\" : \"excludedNodeName\"\n"
-                + "        }\n"
-                + "      ]\n"
-                + "    },\n"
-                + "    \"templates\" : {\n"
-                + "      \"template\" : {\n"
-                + "        \"order\" : 0,\n"
-                + "        \"index_patterns\" : [\n"
-                + "          \"pattern1\",\n"
-                + "          \"pattern2\"\n"
-                + "        ],\n"
-                + "        \"settings\" : {\n"
-                + "          \"index\" : {\n"
-                + "            \"version\" : {\n"
-                + "              \"created\" : \""
-                + Version.CURRENT.id
-                + "\"\n"
-                + "            }\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"mappings\" : {\n"
-                + "          \"key1\" : { }\n"
-                + "        },\n"
-                + "        \"aliases\" : { }\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"indices\" : {\n"
-                + "      \"index\" : {\n"
-                + "        \"version\" : 1,\n"
-                + "        \"mapping_version\" : 1,\n"
-                + "        \"settings_version\" : 1,\n"
-                + "        \"aliases_version\" : 1,\n"
-                + "        \"routing_num_shards\" : 1,\n"
-                + "        \"state\" : \"open\",\n"
-                + "        \"settings\" : {\n"
-                + "          \"index\" : {\n"
-                + "            \"number_of_shards\" : \"1\",\n"
-                + "            \"number_of_replicas\" : \"2\",\n"
-                + "            \"version\" : {\n"
-                + "              \"created\" : \""
-                + Version.CURRENT.id
-                + "\"\n"
-                + "            }\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"mappings\" : {\n"
-                + "          \"type\" : {\n"
-                + "            \"type1\" : {\n"
-                + "              \"key\" : \"value\"\n"
-                + "            }\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"aliases\" : [\n"
-                + "          \"alias\"\n"
-                + "        ],\n"
-                + "        \"primary_terms\" : {\n"
-                + "          \"0\" : 1\n"
-                + "        },\n"
-                + "        \"in_sync_allocations\" : {\n"
-                + "          \"0\" : [\n"
-                + "            \"allocationId\"\n"
-                + "          ]\n"
-                + "        },\n"
-                + "        \"rollover_info\" : {\n"
-                + "          \"rolloveAlias\" : {\n"
-                + "            \"met_conditions\" : { },\n"
-                + "            \"time\" : 1\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"system\" : false,\n"
-                + "        \"timestamp_range\" : {\n"
-                + "          \"shards\" : [ ]\n"
-                + "        }\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"index-graveyard\" : {\n"
-                + "      \"tombstones\" : [ ]\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"routing_table\" : {\n"
-                + "    \"indices\" : {\n"
-                + "      \"index\" : {\n"
-                + "        \"shards\" : {\n"
-                + "          \"1\" : [\n"
-                + "            {\n"
-                + "              \"state\" : \"STARTED\",\n"
-                + "              \"primary\" : true,\n"
-                + "              \"node\" : \"nodeId2\",\n"
-                + "              \"relocating_node\" : null,\n"
-                + "              \"shard\" : 1,\n"
-                + "              \"index\" : \"index\",\n"
-                + "              \"allocation_id\" : {\n"
-                + "                \"id\" : \""
-                + allocationId
-                + "\"\n"
-                + "              }\n"
-                + "            }\n"
-                + "          ]\n"
-                + "        }\n"
-                + "      }\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"routing_nodes\" : {\n"
-                + "    \"unassigned\" : [ ],\n"
-                + "    \"nodes\" : {\n"
-                + "      \"nodeId2\" : [\n"
-                + "        {\n"
-                + "          \"state\" : \"STARTED\",\n"
-                + "          \"primary\" : true,\n"
-                + "          \"node\" : \"nodeId2\",\n"
-                + "          \"relocating_node\" : null,\n"
-                + "          \"shard\" : 1,\n"
-                + "          \"index\" : \"index\",\n"
-                + "          \"allocation_id\" : {\n"
-                + "            \"id\" : \""
-                + allocationId
-                + "\"\n"
-                + "          }\n"
-                + "        }\n"
-                + "      ],\n"
-                + "      \"nodeId1\" : [ ]\n"
-                + "    }\n"
-                + "  }\n"
-                + "}",
-            Strings.toString(builder)
-        );
+        assertEquals(XContentHelper.stripWhitespace("""
+            {
+              "cluster_uuid": "clusterUUID",
+              "version": 0,
+              "state_uuid": "stateUUID",
+              "master_node": "masterNodeId",
+              "blocks": {
+                "global": {
+                  "1": {
+                    "description": "description",
+                    "retryable": true,
+                    "disable_state_persistence": true,
+                    "levels": [
+                      "read",
+                      "write",
+                      "metadata_read",
+                      "metadata_write"
+                    ]
+                  }
+                },
+                "indices": {
+                  "index": {
+                    "2": {
+                      "description": "description2",
+                      "retryable": false,
+                      "levels": [
+                        "read",
+                        "write",
+                        "metadata_read",
+                        "metadata_write"
+                      ]
+                    }
+                  }
+                }
+              },
+              "nodes": {
+                "nodeId1": {
+                  "name": "",
+                  "ephemeral_id": "%s",
+                  "transport_address": "127.0.0.1:111",
+                  "attributes": {},
+                  "roles": [
+                    "data",
+                    "data_cold",
+                    "data_content",
+                    "data_frozen",
+                    "data_hot",
+                    "data_warm",
+                    "ingest",
+                    "master",
+                    "ml",
+                    "remote_cluster_client",
+                    "transform",
+                    "voting_only"
+                  ]
+                }
+              },
+              "metadata": {
+                "cluster_uuid": "clusterUUID",
+                "cluster_uuid_committed": false,
+                "cluster_coordination": {
+                  "term": 1,
+                  "last_committed_config": [
+                    "commitedConfigurationNodeId"
+                  ],
+                  "last_accepted_config": [
+                    "acceptedConfigurationNodeId"
+                  ],
+                  "voting_config_exclusions": [
+                    {
+                      "node_id": "exlucdedNodeId",
+                      "node_name": "excludedNodeName"
+                    }
+                  ]
+                },
+                "templates": {
+                  "template": {
+                    "order": 0,
+                    "index_patterns": [
+                      "pattern1",
+                      "pattern2"
+                    ],
+                    "settings": {
+                      "index": {
+                        "version": {
+                          "created": "%s"
+                        }
+                      }
+                    },
+                    "mappings": {
+                      "key1": {}
+                    },
+                    "aliases": {}
+                  }
+                },
+                "indices": {
+                  "index": {
+                    "version": 1,
+                    "mapping_version": 1,
+                    "settings_version": 1,
+                    "aliases_version": 1,
+                    "routing_num_shards": 1,
+                    "state": "open",
+                    "settings": {
+                      "index": {
+                        "number_of_shards": "1",
+                        "number_of_replicas": "2",
+                        "version": {
+                          "created": "%s"
+                        }
+                      }
+                    },
+                    "mappings": {
+                      "type": {
+                        "type1": {
+                          "key": "value"
+                        }
+                      }
+                    },
+                    "aliases": [
+                      "alias"
+                    ],
+                    "primary_terms": {
+                      "0": 1
+                    },
+                    "in_sync_allocations": {
+                      "0": [
+                        "allocationId"
+                      ]
+                    },
+                    "rollover_info": {
+                      "rolloveAlias": {
+                        "met_conditions": {},
+                        "time": 1
+                      }
+                    },
+                    "system": false,
+                    "timestamp_range": {
+                      "shards": []
+                    }
+                  }
+                },
+                "index-graveyard": {
+                  "tombstones": []
+                }
+              },
+              "routing_table": {
+                "indices": {
+                  "index": {
+                    "shards": {
+                      "1": [
+                        {
+                          "state": "STARTED",
+                          "primary": true,
+                          "node": "nodeId2",
+                          "relocating_node": null,
+                          "shard": 1,
+                          "index": "index",
+                          "allocation_id": {
+                            "id": "%s"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              "routing_nodes": {
+                "unassigned": [],
+                "nodes": {
+                  "nodeId2": [
+                    {
+                      "state": "STARTED",
+                      "primary": true,
+                      "node": "nodeId2",
+                      "relocating_node": null,
+                      "shard": 1,
+                      "index": "index",
+                      "allocation_id": {
+                        "id": "%s"
+                      }
+                    }
+                  ],
+                  "nodeId1": []
+                }
+              }
+            }""".formatted(ephemeralId, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId)), Strings.toString(builder));
 
     }
 
@@ -339,197 +328,185 @@ public class ClusterStateTests extends ESTestCase {
         clusterState.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(
-            "{\n"
-                + "  \"cluster_uuid\" : \"clusterUUID\",\n"
-                + "  \"version\" : 0,\n"
-                + "  \"state_uuid\" : \"stateUUID\",\n"
-                + "  \"master_node\" : \"masterNodeId\",\n"
-                + "  \"blocks\" : {\n"
-                + "    \"global\" : {\n"
-                + "      \"1\" : {\n"
-                + "        \"description\" : \"description\",\n"
-                + "        \"retryable\" : true,\n"
-                + "        \"disable_state_persistence\" : true,\n"
-                + "        \"levels\" : [\n"
-                + "          \"read\",\n"
-                + "          \"write\",\n"
-                + "          \"metadata_read\",\n"
-                + "          \"metadata_write\"\n"
-                + "        ]\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"indices\" : {\n"
-                + "      \"index\" : {\n"
-                + "        \"2\" : {\n"
-                + "          \"description\" : \"description2\",\n"
-                + "          \"retryable\" : false,\n"
-                + "          \"levels\" : [\n"
-                + "            \"read\",\n"
-                + "            \"write\",\n"
-                + "            \"metadata_read\",\n"
-                + "            \"metadata_write\"\n"
-                + "          ]\n"
-                + "        }\n"
-                + "      }\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"nodes\" : {\n"
-                + "    \"nodeId1\" : {\n"
-                + "      \"name\" : \"\",\n"
-                + "      \"ephemeral_id\" : \""
-                + ephemeralId
-                + "\",\n"
-                + "      \"transport_address\" : \"127.0.0.1:111\",\n"
-                + "      \"attributes\" : { },\n"
-                + "      \"roles\" : [\n"
-                + "        \"data\",\n"
-                + "        \"data_cold\",\n"
-                + "        \"data_content\",\n"
-                + "        \"data_frozen\",\n"
-                + "        \"data_hot\",\n"
-                + "        \"data_warm\",\n"
-                + "        \"ingest\",\n"
-                + "        \"master\",\n"
-                + "        \"ml\",\n"
-                + "        \"remote_cluster_client\",\n"
-                + "        \"transform\",\n"
-                + "        \"voting_only\"\n"
-                + "      ]\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"metadata\" : {\n"
-                + "    \"cluster_uuid\" : \"clusterUUID\",\n"
-                + "    \"cluster_uuid_committed\" : false,\n"
-                + "    \"cluster_coordination\" : {\n"
-                + "      \"term\" : 1,\n"
-                + "      \"last_committed_config\" : [\n"
-                + "        \"commitedConfigurationNodeId\"\n"
-                + "      ],\n"
-                + "      \"last_accepted_config\" : [\n"
-                + "        \"acceptedConfigurationNodeId\"\n"
-                + "      ],\n"
-                + "      \"voting_config_exclusions\" : [\n"
-                + "        {\n"
-                + "          \"node_id\" : \"exlucdedNodeId\",\n"
-                + "          \"node_name\" : \"excludedNodeName\"\n"
-                + "        }\n"
-                + "      ]\n"
-                + "    },\n"
-                + "    \"templates\" : {\n"
-                + "      \"template\" : {\n"
-                + "        \"order\" : 0,\n"
-                + "        \"index_patterns\" : [\n"
-                + "          \"pattern1\",\n"
-                + "          \"pattern2\"\n"
-                + "        ],\n"
-                + "        \"settings\" : {\n"
-                + "          \"index.version.created\" : \""
-                + Version.CURRENT.id
-                + "\"\n"
-                + "        },\n"
-                + "        \"mappings\" : {\n"
-                + "          \"key1\" : { }\n"
-                + "        },\n"
-                + "        \"aliases\" : { }\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"indices\" : {\n"
-                + "      \"index\" : {\n"
-                + "        \"version\" : 1,\n"
-                + "        \"mapping_version\" : 1,\n"
-                + "        \"settings_version\" : 1,\n"
-                + "        \"aliases_version\" : 1,\n"
-                + "        \"routing_num_shards\" : 1,\n"
-                + "        \"state\" : \"open\",\n"
-                + "        \"settings\" : {\n"
-                + "          \"index.number_of_replicas\" : \"2\",\n"
-                + "          \"index.number_of_shards\" : \"1\",\n"
-                + "          \"index.version.created\" : \""
-                + Version.CURRENT.id
-                + "\"\n"
-                + "        },\n"
-                + "        \"mappings\" : {\n"
-                + "          \"type\" : {\n"
-                + "            \"type1\" : {\n"
-                + "              \"key\" : \"value\"\n"
-                + "            }\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"aliases\" : [\n"
-                + "          \"alias\"\n"
-                + "        ],\n"
-                + "        \"primary_terms\" : {\n"
-                + "          \"0\" : 1\n"
-                + "        },\n"
-                + "        \"in_sync_allocations\" : {\n"
-                + "          \"0\" : [\n"
-                + "            \"allocationId\"\n"
-                + "          ]\n"
-                + "        },\n"
-                + "        \"rollover_info\" : {\n"
-                + "          \"rolloveAlias\" : {\n"
-                + "            \"met_conditions\" : { },\n"
-                + "            \"time\" : 1\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"system\" : false,\n"
-                + "        \"timestamp_range\" : {\n"
-                + "          \"shards\" : [ ]\n"
-                + "        }\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"index-graveyard\" : {\n"
-                + "      \"tombstones\" : [ ]\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"routing_table\" : {\n"
-                + "    \"indices\" : {\n"
-                + "      \"index\" : {\n"
-                + "        \"shards\" : {\n"
-                + "          \"1\" : [\n"
-                + "            {\n"
-                + "              \"state\" : \"STARTED\",\n"
-                + "              \"primary\" : true,\n"
-                + "              \"node\" : \"nodeId2\",\n"
-                + "              \"relocating_node\" : null,\n"
-                + "              \"shard\" : 1,\n"
-                + "              \"index\" : \"index\",\n"
-                + "              \"allocation_id\" : {\n"
-                + "                \"id\" : \""
-                + allocationId
-                + "\"\n"
-                + "              }\n"
-                + "            }\n"
-                + "          ]\n"
-                + "        }\n"
-                + "      }\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"routing_nodes\" : {\n"
-                + "    \"unassigned\" : [ ],\n"
-                + "    \"nodes\" : {\n"
-                + "      \"nodeId2\" : [\n"
-                + "        {\n"
-                + "          \"state\" : \"STARTED\",\n"
-                + "          \"primary\" : true,\n"
-                + "          \"node\" : \"nodeId2\",\n"
-                + "          \"relocating_node\" : null,\n"
-                + "          \"shard\" : 1,\n"
-                + "          \"index\" : \"index\",\n"
-                + "          \"allocation_id\" : {\n"
-                + "            \"id\" : \""
-                + allocationId
-                + "\"\n"
-                + "          }\n"
-                + "        }\n"
-                + "      ],\n"
-                + "      \"nodeId1\" : [ ]\n"
-                + "    }\n"
-                + "  }\n"
-                + "}",
-            Strings.toString(builder)
-        );
+        assertEquals("""
+            {
+              "cluster_uuid" : "clusterUUID",
+              "version" : 0,
+              "state_uuid" : "stateUUID",
+              "master_node" : "masterNodeId",
+              "blocks" : {
+                "global" : {
+                  "1" : {
+                    "description" : "description",
+                    "retryable" : true,
+                    "disable_state_persistence" : true,
+                    "levels" : [
+                      "read",
+                      "write",
+                      "metadata_read",
+                      "metadata_write"
+                    ]
+                  }
+                },
+                "indices" : {
+                  "index" : {
+                    "2" : {
+                      "description" : "description2",
+                      "retryable" : false,
+                      "levels" : [
+                        "read",
+                        "write",
+                        "metadata_read",
+                        "metadata_write"
+                      ]
+                    }
+                  }
+                }
+              },
+              "nodes" : {
+                "nodeId1" : {
+                  "name" : "",
+                  "ephemeral_id" : "%s",
+                  "transport_address" : "127.0.0.1:111",
+                  "attributes" : { },
+                  "roles" : [
+                    "data",
+                    "data_cold",
+                    "data_content",
+                    "data_frozen",
+                    "data_hot",
+                    "data_warm",
+                    "ingest",
+                    "master",
+                    "ml",
+                    "remote_cluster_client",
+                    "transform",
+                    "voting_only"
+                  ]
+                }
+              },
+              "metadata" : {
+                "cluster_uuid" : "clusterUUID",
+                "cluster_uuid_committed" : false,
+                "cluster_coordination" : {
+                  "term" : 1,
+                  "last_committed_config" : [
+                    "commitedConfigurationNodeId"
+                  ],
+                  "last_accepted_config" : [
+                    "acceptedConfigurationNodeId"
+                  ],
+                  "voting_config_exclusions" : [
+                    {
+                      "node_id" : "exlucdedNodeId",
+                      "node_name" : "excludedNodeName"
+                    }
+                  ]
+                },
+                "templates" : {
+                  "template" : {
+                    "order" : 0,
+                    "index_patterns" : [
+                      "pattern1",
+                      "pattern2"
+                    ],
+                    "settings" : {
+                      "index.version.created" : "%s"
+                    },
+                    "mappings" : {
+                      "key1" : { }
+                    },
+                    "aliases" : { }
+                  }
+                },
+                "indices" : {
+                  "index" : {
+                    "version" : 1,
+                    "mapping_version" : 1,
+                    "settings_version" : 1,
+                    "aliases_version" : 1,
+                    "routing_num_shards" : 1,
+                    "state" : "open",
+                    "settings" : {
+                      "index.number_of_replicas" : "2",
+                      "index.number_of_shards" : "1",
+                      "index.version.created" : "%s"
+                    },
+                    "mappings" : {
+                      "type" : {
+                        "type1" : {
+                          "key" : "value"
+                        }
+                      }
+                    },
+                    "aliases" : [
+                      "alias"
+                    ],
+                    "primary_terms" : {
+                      "0" : 1
+                    },
+                    "in_sync_allocations" : {
+                      "0" : [
+                        "allocationId"
+                      ]
+                    },
+                    "rollover_info" : {
+                      "rolloveAlias" : {
+                        "met_conditions" : { },
+                        "time" : 1
+                      }
+                    },
+                    "system" : false,
+                    "timestamp_range" : {
+                      "shards" : [ ]
+                    }
+                  }
+                },
+                "index-graveyard" : {
+                  "tombstones" : [ ]
+                }
+              },
+              "routing_table" : {
+                "indices" : {
+                  "index" : {
+                    "shards" : {
+                      "1" : [
+                        {
+                          "state" : "STARTED",
+                          "primary" : true,
+                          "node" : "nodeId2",
+                          "relocating_node" : null,
+                          "shard" : 1,
+                          "index" : "index",
+                          "allocation_id" : {
+                            "id" : "%s"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              "routing_nodes" : {
+                "unassigned" : [ ],
+                "nodes" : {
+                  "nodeId2" : [
+                    {
+                      "state" : "STARTED",
+                      "primary" : true,
+                      "node" : "nodeId2",
+                      "relocating_node" : null,
+                      "shard" : 1,
+                      "index" : "index",
+                      "allocation_id" : {
+                        "id" : "%s"
+                      }
+                    }
+                  ],
+                  "nodeId1" : [ ]
+                }
+              }
+            }""".formatted(ephemeralId, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId), Strings.toString(builder));
 
     }
 
@@ -554,203 +531,191 @@ public class ClusterStateTests extends ESTestCase {
         clusterState.toXContent(builder, new ToXContent.MapParams(mapParams));
         builder.endObject();
 
-        assertEquals(
-            "{\n"
-                + "  \"cluster_uuid\" : \"clusterUUID\",\n"
-                + "  \"version\" : 0,\n"
-                + "  \"state_uuid\" : \"stateUUID\",\n"
-                + "  \"master_node\" : \"masterNodeId\",\n"
-                + "  \"blocks\" : {\n"
-                + "    \"global\" : {\n"
-                + "      \"1\" : {\n"
-                + "        \"description\" : \"description\",\n"
-                + "        \"retryable\" : true,\n"
-                + "        \"disable_state_persistence\" : true,\n"
-                + "        \"levels\" : [\n"
-                + "          \"read\",\n"
-                + "          \"write\",\n"
-                + "          \"metadata_read\",\n"
-                + "          \"metadata_write\"\n"
-                + "        ]\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"indices\" : {\n"
-                + "      \"index\" : {\n"
-                + "        \"2\" : {\n"
-                + "          \"description\" : \"description2\",\n"
-                + "          \"retryable\" : false,\n"
-                + "          \"levels\" : [\n"
-                + "            \"read\",\n"
-                + "            \"write\",\n"
-                + "            \"metadata_read\",\n"
-                + "            \"metadata_write\"\n"
-                + "          ]\n"
-                + "        }\n"
-                + "      }\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"nodes\" : {\n"
-                + "    \"nodeId1\" : {\n"
-                + "      \"name\" : \"\",\n"
-                + "      \"ephemeral_id\" : \""
-                + ephemeralId
-                + "\",\n"
-                + "      \"transport_address\" : \"127.0.0.1:111\",\n"
-                + "      \"attributes\" : { },\n"
-                + "      \"roles\" : [\n"
-                + "        \"data\",\n"
-                + "        \"data_cold\",\n"
-                + "        \"data_content\",\n"
-                + "        \"data_frozen\",\n"
-                + "        \"data_hot\",\n"
-                + "        \"data_warm\",\n"
-                + "        \"ingest\",\n"
-                + "        \"master\",\n"
-                + "        \"ml\",\n"
-                + "        \"remote_cluster_client\",\n"
-                + "        \"transform\",\n"
-                + "        \"voting_only\"\n"
-                + "      ]\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"metadata\" : {\n"
-                + "    \"cluster_uuid\" : \"clusterUUID\",\n"
-                + "    \"cluster_uuid_committed\" : false,\n"
-                + "    \"cluster_coordination\" : {\n"
-                + "      \"term\" : 1,\n"
-                + "      \"last_committed_config\" : [\n"
-                + "        \"commitedConfigurationNodeId\"\n"
-                + "      ],\n"
-                + "      \"last_accepted_config\" : [\n"
-                + "        \"acceptedConfigurationNodeId\"\n"
-                + "      ],\n"
-                + "      \"voting_config_exclusions\" : [\n"
-                + "        {\n"
-                + "          \"node_id\" : \"exlucdedNodeId\",\n"
-                + "          \"node_name\" : \"excludedNodeName\"\n"
-                + "        }\n"
-                + "      ]\n"
-                + "    },\n"
-                + "    \"templates\" : {\n"
-                + "      \"template\" : {\n"
-                + "        \"order\" : 0,\n"
-                + "        \"index_patterns\" : [\n"
-                + "          \"pattern1\",\n"
-                + "          \"pattern2\"\n"
-                + "        ],\n"
-                + "        \"settings\" : {\n"
-                + "          \"index\" : {\n"
-                + "            \"version\" : {\n"
-                + "              \"created\" : \""
-                + Version.CURRENT.id
-                + "\"\n"
-                + "            }\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"mappings\" : { },\n"
-                + "        \"aliases\" : { }\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"indices\" : {\n"
-                + "      \"index\" : {\n"
-                + "        \"version\" : 1,\n"
-                + "        \"mapping_version\" : 1,\n"
-                + "        \"settings_version\" : 1,\n"
-                + "        \"aliases_version\" : 1,\n"
-                + "        \"routing_num_shards\" : 1,\n"
-                + "        \"state\" : \"open\",\n"
-                + "        \"settings\" : {\n"
-                + "          \"index\" : {\n"
-                + "            \"number_of_shards\" : \"1\",\n"
-                + "            \"number_of_replicas\" : \"2\",\n"
-                + "            \"version\" : {\n"
-                + "              \"created\" : \""
-                + Version.CURRENT.id
-                + "\"\n"
-                + "            }\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"mappings\" : {\n"
-                + "          \"type\" : {\n"
-                + "            \"type1\" : {\n"
-                + "              \"key\" : \"value\"\n"
-                + "            }\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"aliases\" : [\n"
-                + "          \"alias\"\n"
-                + "        ],\n"
-                + "        \"primary_terms\" : {\n"
-                + "          \"0\" : 1\n"
-                + "        },\n"
-                + "        \"in_sync_allocations\" : {\n"
-                + "          \"0\" : [\n"
-                + "            \"allocationId\"\n"
-                + "          ]\n"
-                + "        },\n"
-                + "        \"rollover_info\" : {\n"
-                + "          \"rolloveAlias\" : {\n"
-                + "            \"met_conditions\" : { },\n"
-                + "            \"time\" : 1\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"system\" : false,\n"
-                + "        \"timestamp_range\" : {\n"
-                + "          \"shards\" : [ ]\n"
-                + "        }\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"index-graveyard\" : {\n"
-                + "      \"tombstones\" : [ ]\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"routing_table\" : {\n"
-                + "    \"indices\" : {\n"
-                + "      \"index\" : {\n"
-                + "        \"shards\" : {\n"
-                + "          \"1\" : [\n"
-                + "            {\n"
-                + "              \"state\" : \"STARTED\",\n"
-                + "              \"primary\" : true,\n"
-                + "              \"node\" : \"nodeId2\",\n"
-                + "              \"relocating_node\" : null,\n"
-                + "              \"shard\" : 1,\n"
-                + "              \"index\" : \"index\",\n"
-                + "              \"allocation_id\" : {\n"
-                + "                \"id\" : \""
-                + allocationId
-                + "\"\n"
-                + "              }\n"
-                + "            }\n"
-                + "          ]\n"
-                + "        }\n"
-                + "      }\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"routing_nodes\" : {\n"
-                + "    \"unassigned\" : [ ],\n"
-                + "    \"nodes\" : {\n"
-                + "      \"nodeId2\" : [\n"
-                + "        {\n"
-                + "          \"state\" : \"STARTED\",\n"
-                + "          \"primary\" : true,\n"
-                + "          \"node\" : \"nodeId2\",\n"
-                + "          \"relocating_node\" : null,\n"
-                + "          \"shard\" : 1,\n"
-                + "          \"index\" : \"index\",\n"
-                + "          \"allocation_id\" : {\n"
-                + "            \"id\" : \""
-                + allocationId
-                + "\"\n"
-                + "          }\n"
-                + "        }\n"
-                + "      ],\n"
-                + "      \"nodeId1\" : [ ]\n"
-                + "    }\n"
-                + "  }\n"
-                + "}",
-            Strings.toString(builder)
-        );
+        assertEquals("""
+            {
+              "cluster_uuid" : "clusterUUID",
+              "version" : 0,
+              "state_uuid" : "stateUUID",
+              "master_node" : "masterNodeId",
+              "blocks" : {
+                "global" : {
+                  "1" : {
+                    "description" : "description",
+                    "retryable" : true,
+                    "disable_state_persistence" : true,
+                    "levels" : [
+                      "read",
+                      "write",
+                      "metadata_read",
+                      "metadata_write"
+                    ]
+                  }
+                },
+                "indices" : {
+                  "index" : {
+                    "2" : {
+                      "description" : "description2",
+                      "retryable" : false,
+                      "levels" : [
+                        "read",
+                        "write",
+                        "metadata_read",
+                        "metadata_write"
+                      ]
+                    }
+                  }
+                }
+              },
+              "nodes" : {
+                "nodeId1" : {
+                  "name" : "",
+                  "ephemeral_id" : "%s",
+                  "transport_address" : "127.0.0.1:111",
+                  "attributes" : { },
+                  "roles" : [
+                    "data",
+                    "data_cold",
+                    "data_content",
+                    "data_frozen",
+                    "data_hot",
+                    "data_warm",
+                    "ingest",
+                    "master",
+                    "ml",
+                    "remote_cluster_client",
+                    "transform",
+                    "voting_only"
+                  ]
+                }
+              },
+              "metadata" : {
+                "cluster_uuid" : "clusterUUID",
+                "cluster_uuid_committed" : false,
+                "cluster_coordination" : {
+                  "term" : 1,
+                  "last_committed_config" : [
+                    "commitedConfigurationNodeId"
+                  ],
+                  "last_accepted_config" : [
+                    "acceptedConfigurationNodeId"
+                  ],
+                  "voting_config_exclusions" : [
+                    {
+                      "node_id" : "exlucdedNodeId",
+                      "node_name" : "excludedNodeName"
+                    }
+                  ]
+                },
+                "templates" : {
+                  "template" : {
+                    "order" : 0,
+                    "index_patterns" : [
+                      "pattern1",
+                      "pattern2"
+                    ],
+                    "settings" : {
+                      "index" : {
+                        "version" : {
+                          "created" : "%s"
+                        }
+                      }
+                    },
+                    "mappings" : { },
+                    "aliases" : { }
+                  }
+                },
+                "indices" : {
+                  "index" : {
+                    "version" : 1,
+                    "mapping_version" : 1,
+                    "settings_version" : 1,
+                    "aliases_version" : 1,
+                    "routing_num_shards" : 1,
+                    "state" : "open",
+                    "settings" : {
+                      "index" : {
+                        "number_of_shards" : "1",
+                        "number_of_replicas" : "2",
+                        "version" : {
+                          "created" : "%s"
+                        }
+                      }
+                    },
+                    "mappings" : {
+                      "type" : {
+                        "type1" : {
+                          "key" : "value"
+                        }
+                      }
+                    },
+                    "aliases" : [
+                      "alias"
+                    ],
+                    "primary_terms" : {
+                      "0" : 1
+                    },
+                    "in_sync_allocations" : {
+                      "0" : [
+                        "allocationId"
+                      ]
+                    },
+                    "rollover_info" : {
+                      "rolloveAlias" : {
+                        "met_conditions" : { },
+                        "time" : 1
+                      }
+                    },
+                    "system" : false,
+                    "timestamp_range" : {
+                      "shards" : [ ]
+                    }
+                  }
+                },
+                "index-graveyard" : {
+                  "tombstones" : [ ]
+                }
+              },
+              "routing_table" : {
+                "indices" : {
+                  "index" : {
+                    "shards" : {
+                      "1" : [
+                        {
+                          "state" : "STARTED",
+                          "primary" : true,
+                          "node" : "nodeId2",
+                          "relocating_node" : null,
+                          "shard" : 1,
+                          "index" : "index",
+                          "allocation_id" : {
+                            "id" : "%s"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              "routing_nodes" : {
+                "unassigned" : [ ],
+                "nodes" : {
+                  "nodeId2" : [
+                    {
+                      "state" : "STARTED",
+                      "primary" : true,
+                      "node" : "nodeId2",
+                      "relocating_node" : null,
+                      "shard" : 1,
+                      "index" : "index",
+                      "allocation_id" : {
+                        "id" : "%s"
+                      }
+                    }
+                  ],
+                  "nodeId1" : [ ]
+                }
+              }
+            }""".formatted(ephemeralId, Version.CURRENT.id, Version.CURRENT.id, allocationId, allocationId), Strings.toString(builder));
 
     }
 
@@ -793,76 +758,72 @@ public class ClusterStateTests extends ESTestCase {
         clusterState.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        assertEquals(
-            "{\n"
-                + "  \"cluster_uuid\" : \"clusterUUID\",\n"
-                + "  \"version\" : 0,\n"
-                + "  \"state_uuid\" : \"stateUUID\",\n"
-                + "  \"master_node\" : null,\n"
-                + "  \"blocks\" : { },\n"
-                + "  \"nodes\" : { },\n"
-                + "  \"metadata\" : {\n"
-                + "    \"cluster_uuid\" : \"clusterUUID\",\n"
-                + "    \"cluster_uuid_committed\" : false,\n"
-                + "    \"cluster_coordination\" : {\n"
-                + "      \"term\" : 0,\n"
-                + "      \"last_committed_config\" : [ ],\n"
-                + "      \"last_accepted_config\" : [ ],\n"
-                + "      \"voting_config_exclusions\" : [ ]\n"
-                + "    },\n"
-                + "    \"templates\" : { },\n"
-                + "    \"indices\" : {\n"
-                + "      \"index\" : {\n"
-                + "        \"version\" : 2,\n"
-                + "        \"mapping_version\" : 1,\n"
-                + "        \"settings_version\" : 1,\n"
-                + "        \"aliases_version\" : 1,\n"
-                + "        \"routing_num_shards\" : 1,\n"
-                + "        \"state\" : \"open\",\n"
-                + "        \"settings\" : {\n"
-                + "          \"index\" : {\n"
-                + "            \"number_of_shards\" : \"1\",\n"
-                + "            \"number_of_replicas\" : \"2\",\n"
-                + "            \"version\" : {\n"
-                + "              \"created\" : \""
-                + Version.CURRENT.id
-                + "\"\n"
-                + "            }\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"mappings\" : {\n"
-                + "          \"type\" : {\n"
-                + "            \"key\" : \"value\"\n"
-                + "          }\n"
-                + "        },\n"
-                + "        \"aliases\" : [ ],\n"
-                + "        \"primary_terms\" : {\n"
-                + "          \"0\" : 1\n"
-                + "        },\n"
-                + "        \"in_sync_allocations\" : {\n"
-                + "          \"0\" : [ ]\n"
-                + "        },\n"
-                + "        \"rollover_info\" : { },\n"
-                + "        \"system\" : false,\n"
-                + "        \"timestamp_range\" : {\n"
-                + "          \"shards\" : [ ]\n"
-                + "        }\n"
-                + "      }\n"
-                + "    },\n"
-                + "    \"index-graveyard\" : {\n"
-                + "      \"tombstones\" : [ ]\n"
-                + "    }\n"
-                + "  },\n"
-                + "  \"routing_table\" : {\n"
-                + "    \"indices\" : { }\n"
-                + "  },\n"
-                + "  \"routing_nodes\" : {\n"
-                + "    \"unassigned\" : [ ],\n"
-                + "    \"nodes\" : { }\n"
-                + "  }\n"
-                + "}",
-            Strings.toString(builder)
-        );
+        assertEquals("""
+            {
+              "cluster_uuid" : "clusterUUID",
+              "version" : 0,
+              "state_uuid" : "stateUUID",
+              "master_node" : null,
+              "blocks" : { },
+              "nodes" : { },
+              "metadata" : {
+                "cluster_uuid" : "clusterUUID",
+                "cluster_uuid_committed" : false,
+                "cluster_coordination" : {
+                  "term" : 0,
+                  "last_committed_config" : [ ],
+                  "last_accepted_config" : [ ],
+                  "voting_config_exclusions" : [ ]
+                },
+                "templates" : { },
+                "indices" : {
+                  "index" : {
+                    "version" : 2,
+                    "mapping_version" : 1,
+                    "settings_version" : 1,
+                    "aliases_version" : 1,
+                    "routing_num_shards" : 1,
+                    "state" : "open",
+                    "settings" : {
+                      "index" : {
+                        "number_of_shards" : "1",
+                        "number_of_replicas" : "2",
+                        "version" : {
+                          "created" : "%s"
+                        }
+                      }
+                    },
+                    "mappings" : {
+                      "type" : {
+                        "key" : "value"
+                      }
+                    },
+                    "aliases" : [ ],
+                    "primary_terms" : {
+                      "0" : 1
+                    },
+                    "in_sync_allocations" : {
+                      "0" : [ ]
+                    },
+                    "rollover_info" : { },
+                    "system" : false,
+                    "timestamp_range" : {
+                      "shards" : [ ]
+                    }
+                  }
+                },
+                "index-graveyard" : {
+                  "tombstones" : [ ]
+                }
+              },
+              "routing_table" : {
+                "indices" : { }
+              },
+              "routing_nodes" : {
+                "unassigned" : [ ],
+                "nodes" : { }
+              }
+            }""".formatted(Version.CURRENT.id), Strings.toString(builder));
     }
 
     private ClusterState buildClusterState() throws IOException {

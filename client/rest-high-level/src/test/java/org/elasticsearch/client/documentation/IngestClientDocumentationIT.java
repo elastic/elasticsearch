@@ -62,9 +62,19 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             // tag::put-pipeline-request
-            String source =
-                "{\"description\":\"my set of processors\"," +
-                    "\"processors\":[{\"set\":{\"field\":\"foo\",\"value\":\"bar\"}}]}";
+            String source = """
+                {
+                  "description": "my set of processors",
+                  "processors": [
+                    {
+                      "set": {
+                        "field": "foo",
+                        "value": "bar"
+                      }
+                    }
+                  ]
+                }
+                """;
             PutPipelineRequest request = new PutPipelineRequest(
                 "my-pipeline-id", // <1>
                 new BytesArray(source.getBytes(StandardCharsets.UTF_8)), // <2>
@@ -97,8 +107,11 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            String source = "{\"description\":\"my set of processors\","
-                + "\"processors\":[{\"set\":{\"field\":\"foo\",\"value\":\"bar\"}}]}";
+            String source = """
+                {
+                   "description": "my set of processors",
+                   "processors": [ { "set": { "field": "foo", "value": "bar" } } ]
+                }""";
             PutPipelineRequest request = new PutPipelineRequest(
                 "my-pipeline-id",
                 new BytesArray(source.getBytes(StandardCharsets.UTF_8)),
@@ -278,17 +291,29 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             // tag::simulate-pipeline-request
-            String source =
-                "{\"" +
-                    "pipeline\":{" +
-                        "\"description\":\"_description\"," +
-                        "\"processors\":[{\"set\":{\"field\":\"field2\",\"value\":\"_value\"}}]" +
-                    "}," +
-                    "\"docs\":[" +
-                        "{\"_index\":\"index\",\"_id\":\"id\",\"_source\":{\"foo\":\"bar\"}}," +
-                        "{\"_index\":\"index\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}" +
-                    "]" +
-                "}";
+            String source = """
+                {
+                   "pipeline": {
+                     "description": "_description",
+                     "processors": [ { "set": { "field": "field2", "value": "_value" } } ]
+                   },
+                   "docs": [
+                     {
+                       "_index": "index",
+                       "_id": "id",
+                       "_source": {
+                         "foo": "bar"
+                       }
+                     },
+                     {
+                       "_index": "index",
+                       "_id": "id",
+                       "_source": {
+                         "foo": "rab"
+                       }
+                     }
+                   ]
+                 }""";
             SimulatePipelineRequest request = new SimulatePipelineRequest(
                 new BytesArray(source.getBytes(StandardCharsets.UTF_8)), // <1>
                 XContentType.JSON // <2>
@@ -335,16 +360,29 @@ public class IngestClientDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-            String source = "{\""
-                + "pipeline\":{"
-                + "\"description\":\"_description\","
-                + "\"processors\":[{\"set\":{\"field\":\"field2\",\"value\":\"_value\"}}]"
-                + "},"
-                + "\"docs\":["
-                + "{\"_index\":\"index\",\"_id\":\"id\",\"_source\":{\"foo\":\"bar\"}},"
-                + "{\"_index\":\"index\",\"_id\":\"id\",\"_source\":{\"foo\":\"rab\"}}"
-                + "]"
-                + "}";
+            String source = """
+                {
+                   "pipeline": {
+                     "description": "_description",
+                     "processors": [ { "set": { "field": "field2", "value": "_value" } } ]
+                   },
+                   "docs": [
+                     {
+                       "_index": "index",
+                       "_id": "id",
+                       "_source": {
+                         "foo": "bar"
+                       }
+                     },
+                     {
+                       "_index": "index",
+                       "_id": "id",
+                       "_source": {
+                         "foo": "rab"
+                       }
+                     }
+                   ]
+                 }""";
             SimulatePipelineRequest request = new SimulatePipelineRequest(
                 new BytesArray(source.getBytes(StandardCharsets.UTF_8)),
                 XContentType.JSON

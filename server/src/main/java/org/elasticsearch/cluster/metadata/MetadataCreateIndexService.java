@@ -855,7 +855,6 @@ public class MetadataCreateIndexService {
         ShardLimitValidator shardLimitValidator,
         Set<IndexSettingProvider> indexSettingProviders
     ) {
-        final Metadata metadata = currentState.getMetadata();
         final boolean isDataStreamIndex = request.dataStreamName() != null;
 
         // Create builders for the template and request settings. We transform these into builders
@@ -868,6 +867,7 @@ public class MetadataCreateIndexService {
         if (sourceMetadata == null) {
             final Settings.Builder additionalIndexSettings = Settings.builder();
             final Settings templateAndRequestSettings = Settings.builder().put(combinedTemplateSettings).put(request.settings()).build();
+            final boolean newDataStream = currentState.getMetadata().dataStreams().containsKey(request.dataStreamName()) == false;
 
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
@@ -876,9 +876,9 @@ public class MetadataCreateIndexService {
                     provider.getAdditionalIndexSettings(
                         request.index(),
                         request.dataStreamName(),
+                        newDataStream,
                         request.getNameResolvedAt(),
-                        templateAndRequestSettings,
-                        metadata
+                        templateAndRequestSettings
                     )
                 );
             }

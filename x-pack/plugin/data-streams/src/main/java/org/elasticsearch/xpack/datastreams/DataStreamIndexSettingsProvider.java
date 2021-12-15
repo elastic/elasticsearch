@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.datastreams;
 
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
@@ -24,11 +23,11 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     public Settings getAdditionalIndexSettings(
         String indexName,
         String dataStreamName,
+        boolean newDataStream,
         long resolvedAt,
-        Settings templateAndRequestSettings,
-        Metadata metadata
+        Settings templateAndRequestSettings
     ) {
-        if (dataStreamName != null && metadata.dataStreams().containsKey(dataStreamName) == false) {
+        if (dataStreamName != null && newDataStream) {
             IndexMode indexMode = Optional.ofNullable(templateAndRequestSettings.get(IndexSettings.MODE.getKey()))
                 .map(value -> IndexMode.valueOf(value.toUpperCase(Locale.ROOT)))
                 .orElse(IndexMode.STANDARD);

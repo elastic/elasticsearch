@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
@@ -203,9 +202,9 @@ public class DataTier {
         public Settings getAdditionalIndexSettings(
             String indexName,
             String dataStreamName,
+            boolean newDataStream,
             long resolvedAt,
-            Settings indexSettings,
-            Metadata metadata
+            Settings indexSettings
         ) {
             Set<String> settings = indexSettings.keySet();
             if (settings.contains(TIER_PREFERENCE)) {

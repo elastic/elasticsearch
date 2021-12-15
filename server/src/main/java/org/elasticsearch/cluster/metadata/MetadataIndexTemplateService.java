@@ -625,10 +625,10 @@ public class MetadataIndexTemplateService {
             finalSettings.put(
                 provider.getAdditionalIndexSettings(
                     "validate-index-name",
-                    "validate-data-stream-name",
+                    indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
+                    true,
                     System.currentTimeMillis(),
-                    finalTemplate.map(Template::settings).orElse(Settings.EMPTY),
-                    currentState.getMetadata()
+                    finalTemplate.map(Template::settings).orElse(Settings.EMPTY)
                 )
             );
         }

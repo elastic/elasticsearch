@@ -34,9 +34,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
+            false,
             now,
-            settings,
-            metadata
+            settings
         );
         assertThat(result.getAsLong(IndexSettings.TIME_SERIES_START_TIME.getKey(), -1L), equalTo(1L));
         assertThat(result.getAsLong(IndexSettings.TIME_SERIES_END_TIME.getKey(), -1L), equalTo(now + TimeValue.timeValueHours(2).millis()));
@@ -53,9 +53,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
+            false,
             now,
-            settings,
-            metadata
+            settings
         );
         assertThat(result.size(), equalTo(2));
         assertThat(result.getAsLong(IndexSettings.TIME_SERIES_START_TIME.getKey(), -1L), equalTo(1L));
@@ -73,9 +73,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
+            false,
             now,
-            settings,
-            metadata
+            settings
         );
         assertThat(result, equalTo(Settings.EMPTY));
     }
@@ -91,9 +91,9 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
+            false,
             now,
-            settings,
-            metadata
+            settings
         );
         assertThat(result, equalTo(Settings.EMPTY));
     }

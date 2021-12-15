@@ -16,9 +16,9 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ZeroShotClassificationConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -146,7 +146,7 @@ public class ZeroShotClassificationProcessor implements NlpTask.Processor {
         }
 
         @Override
-        public InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult) {
+        public InferenceResults processResult(TokenizationResult tokenization, PyTorchInferenceResult pyTorchResult) {
             if (pyTorchResult.getInferenceResult().length < 1) {
                 return new WarningInferenceResults("Zero shot classification result has no data");
             }

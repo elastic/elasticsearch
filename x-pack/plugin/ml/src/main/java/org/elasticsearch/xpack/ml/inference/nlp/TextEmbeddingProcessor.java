@@ -11,9 +11,9 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfig;
-import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 
 import java.util.List;
 import java.util.Optional;
@@ -46,7 +46,11 @@ public class TextEmbeddingProcessor implements NlpTask.Processor {
         return (tokenization, pyTorchResult) -> processResult(tokenization, pyTorchResult, config.getResultsField());
     }
 
-    private static InferenceResults processResult(TokenizationResult tokenization, PyTorchResult pyTorchResult, String resultsField) {
+    private static InferenceResults processResult(
+        TokenizationResult tokenization,
+        PyTorchInferenceResult pyTorchResult,
+        String resultsField
+    ) {
         // TODO - process all results in the batch
         return new TextEmbeddingResults(
             Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),

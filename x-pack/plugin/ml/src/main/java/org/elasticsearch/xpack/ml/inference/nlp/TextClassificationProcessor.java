@@ -13,9 +13,9 @@ import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
-import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 
 import java.util.Arrays;
 import java.util.Comparator;
@@ -81,7 +81,7 @@ public class TextClassificationProcessor implements NlpTask.Processor {
 
     static InferenceResults processResult(
         TokenizationResult tokenization,
-        PyTorchResult pyTorchResult,
+        PyTorchInferenceResult pyTorchResult,
         int numTopClasses,
         List<String> labels,
         String resultsField

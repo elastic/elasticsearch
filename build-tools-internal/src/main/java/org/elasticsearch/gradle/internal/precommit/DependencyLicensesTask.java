@@ -12,12 +12,14 @@ import org.elasticsearch.gradle.internal.precommit.LicenseAnalyzer.LicenseInfo;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
+import org.gradle.api.file.Directory;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
@@ -124,6 +126,7 @@ public class DependencyLicensesTask extends DefaultTask {
      *  Names of files that should be ignored by the check
      */
     private LinkedHashSet<String> ignoreFiles = new LinkedHashSet<>();
+    private ProjectLayout projectLayout;
 
     /**
      * Add a mapping from a regex pattern for the jar name, to a prefix to find
@@ -146,6 +149,7 @@ public class DependencyLicensesTask extends DefaultTask {
 
     @Inject
     public DependencyLicensesTask(ObjectFactory objects, ProjectLayout projectLayout) {
+        this.projectLayout = projectLayout;
         licensesDir = objects.directoryProperty().convention(projectLayout.getProjectDirectory().dir("licenses"));
     }
 
@@ -247,8 +251,8 @@ public class DependencyLicensesTask extends DefaultTask {
     // The check logic is exception driven so a failed tasks will not be defined
     // by this output but when successful we can safely mark the task as up-to-date.
     @OutputDirectory
-    public File getOutputMarker() {
-        return new File(getProject().getBuildDir(), "dependencyLicense");
+    public Provider<Directory> getOutputMarker() {
+        return projectLayout.getBuildDirectory().dir("dependencyLicense");
     }
 
     private void failIfAnyMissing(String item, Boolean exists, String type) {

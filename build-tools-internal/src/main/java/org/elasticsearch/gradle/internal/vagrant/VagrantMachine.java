@@ -137,12 +137,22 @@ public class VagrantMachine {
     }
 
     // convert the given path from an elasticsearch repo path to a VM path
+    @Deprecated
     public static String convertLinuxPath(Project project, String path) {
-        return "/elasticsearch/" + project.getRootDir().toPath().relativize(Paths.get(path));
+        return convertLinuxPath(project.getRootDir(), path);
     }
 
+    public static String convertLinuxPath(File rootDir, String path) {
+        return "/elasticsearch/" + rootDir.toPath().relativize(Paths.get(path));
+    }
+
+    @Deprecated
     public static String convertWindowsPath(Project project, String path) {
-        return "C:\\elasticsearch\\" + project.getRootDir().toPath().relativize(Paths.get(path)).toString().replace('/', '\\');
+        return convertWindowsPath(project.getRootDir(), path);
+    }
+
+    public static String convertWindowsPath(File rootDir, String path) {
+        return "C:\\elasticsearch\\" + rootDir.toPath().relativize(Paths.get(path)).toString().replace('/', '\\');
     }
 
     public static class VagrantExecSpec {

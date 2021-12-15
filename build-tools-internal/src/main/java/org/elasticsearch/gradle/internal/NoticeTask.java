@@ -87,7 +87,6 @@ public class NoticeTask extends DefaultTask {
         } else {
             sources = sources.plus(source);
         }
-
     }
 
     @TaskAction

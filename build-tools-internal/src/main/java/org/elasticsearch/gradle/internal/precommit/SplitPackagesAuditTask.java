@@ -13,6 +13,7 @@ import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -66,13 +67,12 @@ public class SplitPackagesAuditTask extends DefaultTask {
     private final RegularFileProperty markerFile;
 
     @Inject
-    public SplitPackagesAuditTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory) {
+    public SplitPackagesAuditTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory, ProjectLayout projectLayout) {
         this.workerExecutor = workerExecutor;
         this.srcDirs = objectFactory.setProperty(File.class);
         this.ignoreClasses = objectFactory.setProperty(String.class);
         this.markerFile = objectFactory.fileProperty();
-
-        this.markerFile.set(getProject().getLayout().getBuildDirectory().file("markers/" + this.getName() + ".marker"));
+        this.markerFile.set(projectLayout.getBuildDirectory().file("markers/" + this.getName() + ".marker"));
     }
 
     @TaskAction

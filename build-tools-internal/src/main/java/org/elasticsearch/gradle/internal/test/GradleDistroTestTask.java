@@ -9,12 +9,16 @@
 package org.elasticsearch.gradle.internal.test;
 
 import org.elasticsearch.gradle.internal.vagrant.VagrantShellTask;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.options.Option;
+import org.gradle.initialization.layout.BuildLayout;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+
+import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.vagrant.VagrantMachine.convertLinuxPath;
 import static org.elasticsearch.gradle.internal.vagrant.VagrantMachine.convertWindowsPath;
@@ -27,6 +31,15 @@ public class GradleDistroTestTask extends VagrantShellTask {
     private String taskName;
     private String testClass;
     private List<String> extraArgs = new ArrayList<>();
+
+    private final ProjectLayout projectLayout;
+    private final BuildLayout buildLayout;
+
+    @Inject
+    public GradleDistroTestTask(BuildLayout buildLayout, ProjectLayout projectLayout) {
+        this.buildLayout = buildLayout;
+        this.projectLayout = projectLayout;
+    }
 
     public void setTaskName(String taskName) {
         this.taskName = taskName;
@@ -62,12 +75,16 @@ public class GradleDistroTestTask extends VagrantShellTask {
     }
 
     private List<String> getScript(boolean isWindows) {
-        String cacheDir = getProject().getBuildDir() + "/gradle-cache";
+        String cacheDir = projectLayout.getBuildDirectory().dir("gradle-cache").get().getAsFile().getAbsolutePath();
         StringBuilder line = new StringBuilder();
         line.append(isWindows ? "& .\\gradlew " : "./gradlew ");
         line.append(taskName);
         line.append(" --project-cache-dir ");
-        line.append(isWindows ? convertWindowsPath(getProject(), cacheDir) : convertLinuxPath(getProject(), cacheDir));
+        line.append(
+            isWindows
+                ? convertWindowsPath(buildLayout.getRootDirectory(), cacheDir)
+                : convertLinuxPath(buildLayout.getRootDirectory(), cacheDir)
+        );
         line.append(" -S");
         line.append(" --parallel");
         line.append(" -D'org.gradle.logging.level'=" + getProject().getGradle().getStartParameter().getLogLevel());

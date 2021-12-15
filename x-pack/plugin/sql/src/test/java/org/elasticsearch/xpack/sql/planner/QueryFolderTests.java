@@ -293,7 +293,7 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
         assertEquals(
-            "{\"range\":{\"int\":{\"from\":10,\"to\":null,\"include_lower\":false,\"include_upper\":false,\"boost\":1.0}}}",
+            "{\"range\":{\"int\":{\"gt\":10,\"boost\":1.0}}}",
             ee.queryContainer().query().asBuilder().toString().replaceAll("\\s+", "")
         );
         assertEquals(1, ee.output().size());

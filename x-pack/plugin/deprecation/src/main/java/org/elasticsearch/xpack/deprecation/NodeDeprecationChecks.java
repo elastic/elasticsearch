@@ -482,7 +482,18 @@ public class NodeDeprecationChecks {
     ) {
         Setting.AffixSetting<?> maxSetting = ScriptService.SCRIPT_MAX_COMPILATIONS_RATE_SETTING;
         Set<String> contextCompilationRates = maxSetting.getAsMap(settings).keySet();
-        if (contextCompilationRates.isEmpty() == false) {
+        if (ScriptService.isImplicitContextCacheSet(settings)) {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.WARNING,
+                ScriptService.contextDeprecationMessage(settings),
+                "https://ela.st/es-deprecation-7-script-context-cache",
+                "Remove the context-specific cache settings and set [script.max_compilations_rate] to configure the rate limit for the "
+                    + "general cache. If no limit is set, the rate defaults to 150 compilations per five minutes: 150/5m. Context-specific "
+                    + "caches are no longer needed to prevent system scripts from triggering rate limits.",
+                false,
+                null
+            );
+        } else if (contextCompilationRates.isEmpty() == false) {
             String maxSettings = contextCompilationRates.stream()
                 .sorted()
                 .map(c -> maxSetting.getConcreteSettingForNamespace(c).getKey())

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetDeploymentStatsActionResponseTests;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStats;
+import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
@@ -26,7 +27,6 @@ import java.net.UnknownHostException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,26 +75,8 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
         DiscoveryNodes nodes = buildNodes("node1", "node2", "node3");
 
         List<AllocationStats.NodeStats> nodeStatsList = new ArrayList<>();
-        nodeStatsList.add(
-            AllocationStats.NodeStats.forStartedState(
-                nodes.get("node1"),
-                randomNonNegativeLong(),
-                randomDoubleBetween(0.0, 100.0, true),
-                randomIntBetween(1, 100),
-                Instant.now(),
-                Instant.now()
-            )
-        );
-        nodeStatsList.add(
-            AllocationStats.NodeStats.forStartedState(
-                nodes.get("node2"),
-                randomNonNegativeLong(),
-                randomDoubleBetween(0.0, 100.0, true),
-                randomIntBetween(1, 100),
-                Instant.now(),
-                Instant.now()
-            )
-        );
+        nodeStatsList.add(AllocationStatsTests.randomNodeStats(nodes.get("node1")));
+        nodeStatsList.add(AllocationStatsTests.randomNodeStats(nodes.get("node2")));
 
         var model1 = new AllocationStats(
             "model1",
@@ -129,26 +111,8 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
         DiscoveryNodes nodes = buildNodes("node1", "node2");
 
         List<AllocationStats.NodeStats> nodeStatsList = new ArrayList<>();
-        nodeStatsList.add(
-            AllocationStats.NodeStats.forStartedState(
-                nodes.get("node1"),
-                randomNonNegativeLong(),
-                randomDoubleBetween(0.0, 100.0, true),
-                randomIntBetween(1, 100),
-                Instant.now(),
-                Instant.now()
-            )
-        );
-        nodeStatsList.add(
-            AllocationStats.NodeStats.forStartedState(
-                nodes.get("node2"),
-                randomNonNegativeLong(),
-                randomDoubleBetween(0.0, 100.0, true),
-                randomIntBetween(1, 100),
-                Instant.now(),
-                Instant.now()
-            )
-        );
+        nodeStatsList.add(AllocationStatsTests.randomNodeStats(nodes.get("node1")));
+        nodeStatsList.add(AllocationStatsTests.randomNodeStats(nodes.get("node2")));
 
         var model1 = new AllocationStats(
             "model1",
@@ -186,46 +150,6 @@ public class TransportGetDeploymentStatsActionTests extends ESTestCase {
             builder.add(new DiscoveryNode(nodeId, new TransportAddress(inetAddress, port++), Version.CURRENT));
         }
         return builder.build();
-    }
-
-    private AllocationStats randomDeploymentStats() {
-        List<AllocationStats.NodeStats> nodeStatsList = new ArrayList<>();
-        int numNodes = randomIntBetween(1, 4);
-        for (int i = 0; i < numNodes; i++) {
-            var node = new DiscoveryNode("node_" + i, new TransportAddress(InetAddress.getLoopbackAddress(), 9300), Version.CURRENT);
-            if (randomBoolean()) {
-                nodeStatsList.add(
-                    AllocationStats.NodeStats.forStartedState(
-                        node,
-                        randomNonNegativeLong(),
-                        randomDoubleBetween(0.0, 100.0, true),
-                        randomIntBetween(1, 100),
-                        Instant.now(),
-                        Instant.now()
-                    )
-                );
-            } else {
-                nodeStatsList.add(
-                    AllocationStats.NodeStats.forNotStartedState(
-                        node,
-                        randomFrom(RoutingState.values()),
-                        randomBoolean() ? null : "a good reason"
-                    )
-                );
-            }
-        }
-
-        nodeStatsList.sort(Comparator.comparing(n -> n.getNode().getId()));
-
-        return new AllocationStats(
-            randomAlphaOfLength(5),
-            ByteSizeValue.ofBytes(randomNonNegativeLong()),
-            randomBoolean() ? null : randomIntBetween(1, 8),
-            randomBoolean() ? null : randomIntBetween(1, 8),
-            randomBoolean() ? null : randomIntBetween(1, 10000),
-            Instant.now(),
-            nodeStatsList
-        );
     }
 
     private static TrainedModelAllocation createAllocation(String modelId) {

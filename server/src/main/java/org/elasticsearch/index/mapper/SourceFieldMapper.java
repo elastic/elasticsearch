@@ -14,34 +14,32 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.function.Function;
+import java.util.Set;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
-
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
 
     public static final String CONTENT_TYPE = "_source";
-    private final Function<Map<String, ?>, Map<String, Object>> filter;
+    private final CheckedBiFunction<BytesReference, XContentType, BytesReference, IOException> filter;
+    private final XContentParserConfiguration parserConfig;
 
     private static final SourceFieldMapper DEFAULT = new SourceFieldMapper(Defaults.ENABLED, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
 
@@ -145,7 +143,19 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.includes = includes;
         this.excludes = excludes;
         final boolean filtered = CollectionUtils.isEmpty(includes) == false || CollectionUtils.isEmpty(excludes) == false;
-        this.filter = enabled && filtered ? XContentMapValues.filter(includes, excludes) : null;
+        if (enabled && filtered) {
+            this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.of(includes), Set.of(excludes));
+            this.filter = (sourceBytes, contentType) -> {
+                BytesStreamOutput streamOutput = new BytesStreamOutput(Math.min(1024, sourceBytes.length()));
+                XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), streamOutput);
+                XContentParser parser = XContentType.JSON.xContent().createParser(parserConfig, sourceBytes.streamInput());
+                builder.copyCurrentStructure(parser);
+                return BytesReference.bytes(builder);
+            };
+        } else {
+            this.parserConfig = null;
+            this.filter = null;
+        }
         this.complete = enabled && CollectionUtils.isEmpty(includes) && CollectionUtils.isEmpty(excludes);
     }
 
@@ -181,14 +191,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (enabled && originalSource != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
             if (filter != null) {
-                // we don't update the context source if we filter, we want to keep it as is...
-                Tuple<XContentType, Map<String, Object>> mapTuple = XContentHelper.convertToMap(originalSource, true, contentType);
-                Map<String, Object> filteredSource = filter.apply(mapTuple.v2());
-                BytesStreamOutput bStream = new BytesStreamOutput();
-                XContentType actualContentType = mapTuple.v1();
-                XContentBuilder builder = XContentFactory.contentBuilder(actualContentType, bStream).map(filteredSource);
-                builder.close();
-                return bStream.bytes();
+                return filter.apply(originalSource,contentType);
             } else {
                 return originalSource;
             }

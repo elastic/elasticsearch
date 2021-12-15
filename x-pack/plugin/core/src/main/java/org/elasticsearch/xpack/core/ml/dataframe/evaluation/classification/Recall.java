@@ -120,11 +120,11 @@ public class Recall implements EvaluationMetric {
 
     @Override
     public void process(Aggregations aggs) {
-        final Aggregation byAgg = aggs.get(BY_ACTUAL_CLASS_AGG_NAME);
-        final Aggregation recallAgg = aggs.get(BY_ACTUAL_CLASS_AGG_NAME);
+        final Aggregation byClass = aggs.get(BY_ACTUAL_CLASS_AGG_NAME);
+        final Aggregation avgRecall = aggs.get(AVG_RECALL_AGG_NAME);
         if (result.get() == null
-            && byAgg instanceof Terms byActualClassAgg
-            && recallAgg instanceof NumericMetricsAggregation.SingleValue avgRecallAgg) {
+            && byClass instanceof Terms byActualClassAgg
+            && avgRecall instanceof NumericMetricsAggregation.SingleValue avgRecallAgg) {
             if (byActualClassAgg.getSumOfOtherDocCounts() > 0) {
                 // This means there were more than {@code MAX_CLASSES_CARDINALITY} buckets.
                 // We cannot calculate average recall accurately, so we fail.

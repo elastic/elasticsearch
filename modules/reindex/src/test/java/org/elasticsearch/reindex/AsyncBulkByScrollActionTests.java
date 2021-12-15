@@ -117,6 +117,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AsyncBulkByScrollActionTests extends ESTestCase {
     private MyMockClient client;
@@ -826,10 +828,28 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         expectThrows(IllegalArgumentException.class, () -> response.consumeHits(1));
     }
 
-    public void testDisableScrollIfNotNeeded() {
-        new DummyAsyncBulkByScrollAction().buildScrollableResultSource(null);
+    public void testEnableScrollByDefault() {
+        var preparedRequest = AbstractAsyncBulkByScrollAction.prepareRequest(testRequest, false, false);
+        assertThat(preparedRequest.getSearchRequest().scroll(), notNullValue());
+    }
 
-        assertThat(testRequest.disableScrollIfUnnecessaryCalled, equalTo(true));
+    public void testDisableScrollWhenMaxDocsIsLessThenScrollSize() {
+        testRequest.setMaxDocs(1);
+        testRequest.getSearchRequest().source().size(100);
+
+        var preparedRequest = AbstractAsyncBulkByScrollAction.prepareRequest(testRequest, false, false);
+
+        assertThat(preparedRequest.getSearchRequest().scroll(), nullValue());
+    }
+
+    public void testEnableScrollWhenProceedOnVersionConflict() {
+        testRequest.setMaxDocs(1);
+        testRequest.getSearchRequest().source().size(100);
+        testRequest.setAbortOnVersionConflict(false);
+
+        var preparedRequest = AbstractAsyncBulkByScrollAction.prepareRequest(testRequest, false, false);
+
+        assertThat(preparedRequest.getSearchRequest().scroll(), notNullValue());
     }
 
     /**
@@ -914,8 +934,6 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
     private static class DummyAbstractBulkByScrollRequest extends AbstractBulkByScrollRequest<DummyAbstractBulkByScrollRequest> {
 
-        private boolean disableScrollIfUnnecessaryCalled = false;
-
         DummyAbstractBulkByScrollRequest(SearchRequest searchRequest) {
             super(searchRequest, true);
         }
@@ -928,12 +946,6 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         @Override
         protected DummyAbstractBulkByScrollRequest self() {
             return this;
-        }
-
-        @Override
-        public void disableScrollIfUnnecessary() {
-            disableScrollIfUnnecessaryCalled = true;
-            super.disableScrollIfUnnecessary();
         }
     }
 

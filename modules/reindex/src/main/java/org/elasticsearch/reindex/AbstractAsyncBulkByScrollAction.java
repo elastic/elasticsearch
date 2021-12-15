@@ -45,6 +45,7 @@ import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateScript;
+import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -173,12 +174,20 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.searchClient = searchClient;
         this.bulkClient = bulkClient;
         this.threadPool = threadPool;
-        this.mainRequest = mainRequest;
+        this.mainRequest = prepareRequest(mainRequest, needsSourceDocumentVersions, needsSourceDocumentSeqNoAndPrimaryTerm);
         this.listener = listener;
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
         scrollSource = buildScrollableResultSource(backoffPolicy);
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
+    }
+
+    //Visible for testing
+    static <Request extends AbstractBulkByScrollRequest<Request>> Request prepareRequest(
+        Request mainRequest,
+        boolean needsSourceDocumentVersions,
+        boolean needsSourceDocumentSeqNoAndPrimaryTerm
+    ) {
         /*
          * Default to sorting by doc. We can't do this in the request itself because it is normal to *add* to the sorts rather than replace
          * them and if we add _doc as the first sort by default then sorts will never work.... So we add it here, only if there isn't
@@ -191,6 +200,17 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
         sourceBuilder.version(needsSourceDocumentVersions);
         sourceBuilder.seqNoAndPrimaryTerm(needsSourceDocumentSeqNoAndPrimaryTerm);
+
+        /*
+         * Do not open scroll if max docs <= scroll size and not resuming on version conflicts
+         */
+        if (mainRequest.getMaxDocs() != -1
+            && mainRequest.getMaxDocs() <= mainRequest.getSearchRequest().source().size()
+            && mainRequest.isAbortOnVersionConflict()) {
+            mainRequest.getSearchRequest().scroll((Scroll) null);
+        }
+
+        return mainRequest;
     }
 
     /**
@@ -256,8 +276,6 @@ public abstract class AbstractAsyncBulkByScrollAction<
     }
 
     protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy) {
-        // Do not open scroll if maxDocs <= scroll size
-        mainRequest.disableScrollIfUnnecessary();
         return new ClientScrollableHitSource(
             logger,
             backoffPolicy,

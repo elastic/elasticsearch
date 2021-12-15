@@ -424,15 +424,6 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
         return request;
     }
 
-    /**
-     * Disables scroll (sets scroll to {@code null}) if {@code maxDocs <= scroll_size}
-     */
-    public void disableScrollIfUnnecessary() {
-        if (maxDocs != -1 && maxDocs <= searchRequest.source().size() && abortOnVersionConflict) {
-            searchRequest.scroll((Scroll) null);
-        }
-    }
-
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new BulkByScrollTask(id, type, action, getDescription(), parentTaskId, headers);

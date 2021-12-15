@@ -169,6 +169,6 @@ public class AutoConfigureNodeTests extends ESTestCase {
         }
 
         KeyStore httpKeystore = KeyStoreUtil.readKeyStore(Path.of(httpKeystorePath), "PKCS12", httpKeystorePassword.getChars());
-        return (X509Certificate) httpKeystore.getCertificate("http_keystore_local_node");
+        return (X509Certificate) httpKeystore.getCertificate("http_local_node_key");
     }
 }

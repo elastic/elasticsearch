@@ -135,12 +135,10 @@ public class AutoConfigureNodeTests extends ESTestCase {
         AtomicBoolean sanContainsHostname = new AtomicBoolean(false);
         AtomicBoolean sanContainsLocalhost = new AtomicBoolean(false);
         httpCertificate.getSubjectAlternativeNames().forEach(subjectAltName -> {
-            if (subjectAltName.get(1).equals("dummy.test.hostname") &&
-                subjectAltName.get(0).equals(GeneralName.dNSName)) {
+            if (subjectAltName.get(1).equals("dummy.test.hostname") && subjectAltName.get(0).equals(GeneralName.dNSName)) {
                 sanContainsHostname.set(true);
             }
-            if (subjectAltName.get(1).equals("localhost") &&
-                subjectAltName.get(0).equals(GeneralName.dNSName)) {
+            if (subjectAltName.get(1).equals("localhost") && subjectAltName.get(0).equals(GeneralName.dNSName)) {
                 sanContainsLocalhost.set(true);
             }
         });

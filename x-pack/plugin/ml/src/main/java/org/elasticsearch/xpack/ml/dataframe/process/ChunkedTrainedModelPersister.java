@@ -21,6 +21,7 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Classification;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.DataFrameAnalysis;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
@@ -278,9 +279,10 @@ public class ChunkedTrainedModelPersister {
 
     private long customProcessorSize() {
         List<PreProcessor> preProcessors = new ArrayList<>();
-        if (analytics.getAnalysis()instanceof Classification classification) {
+        final DataFrameAnalysis analysis = analytics.getAnalysis();
+        if (analysis instanceof Classification classification) {
             preProcessors = classification.getFeatureProcessors();
-        } else if (analytics.getAnalysis()instanceof Regression regression) {
+        } else if (analysis instanceof Regression regression) {
             preProcessors = regression.getFeatureProcessors();
         }
         return preProcessors.stream().mapToLong(PreProcessor::ramBytesUsed).sum() + RamUsageEstimator.NUM_BYTES_OBJECT_REF
@@ -327,10 +329,11 @@ public class ChunkedTrainedModelPersister {
     }
 
     private String getDependentVariable() {
-        if (analytics.getAnalysis()instanceof Classification classification) {
+        final DataFrameAnalysis analysis = analytics.getAnalysis();
+        if (analysis instanceof Classification classification) {
             return classification.getDependentVariable();
         }
-        if (analytics.getAnalysis()instanceof Regression regression) {
+        if (analysis instanceof Regression regression) {
             return regression.getDependentVariable();
         }
         return null;

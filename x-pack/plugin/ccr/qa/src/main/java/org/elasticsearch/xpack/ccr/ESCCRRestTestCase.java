@@ -121,9 +121,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void putAutoFollowPattern(String patternName, String remoteCluster, String indexPattern) throws IOException {
         Request putPatternRequest = new Request("PUT", "/_ccr/auto_follow/" + patternName);
-        putPatternRequest.setJsonEntity(
-            "{\"leader_index_patterns\": [\"" + indexPattern + "\"], \"remote_cluster\": \"" + remoteCluster + "\"}"
-        );
+        putPatternRequest.setJsonEntity("""
+            {"leader_index_patterns": ["%s"], "remote_cluster": "%s"}
+            """.formatted(indexPattern, remoteCluster));
         assertOK(client().performRequest(putPatternRequest));
     }
 
@@ -175,7 +175,9 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void verifyCcrMonitoring(final String expectedLeaderIndex, final String expectedFollowerIndex) throws IOException {
         Request request = new Request("GET", "/.monitoring-*/_search");
-        request.setJsonEntity("{\"query\": {\"term\": {\"ccr_stats.leader_index\": \"" + expectedLeaderIndex + "\"}}}");
+        request.setJsonEntity("""
+            {"query": {"term": {"ccr_stats.leader_index": "%s"}}}
+            """.formatted(expectedLeaderIndex));
         Map<String, ?> response;
         try {
             response = toMap(adminClient().performRequest(request));
@@ -217,7 +219,8 @@ public class ESCCRRestTestCase extends ESRestTestCase {
 
     protected static void verifyAutoFollowMonitoring() throws IOException {
         Request request = new Request("GET", "/.monitoring-*/_search");
-        request.setJsonEntity("{\"query\": {\"term\": {\"type\": \"ccr_auto_follow_stats\"}}}");
+        request.setJsonEntity("""
+            {"query": {"term": {"type": "ccr_auto_follow_stats"}}}""");
         Map<String, ?> response;
         try {
             response = toMap(adminClient().performRequest(request));

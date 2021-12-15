@@ -17,11 +17,12 @@ import org.hamcrest.Matchers;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class JsonThrowablePatternConverterTests extends ESTestCase {
-    private static final String LINE_SEPARATOR = System.lineSeparator();
+    private static final Pattern NEWLINE = Pattern.compile("\\R");
     private JsonThrowablePatternConverter converter = JsonThrowablePatternConverter.newInstance(null, null);
 
     public void testNoStacktrace() throws IOException {
@@ -36,26 +37,18 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
     }
 
     public void testStacktraceWithJson() throws IOException {
-
-        String json = "{"
-            + LINE_SEPARATOR
-            + "  \"terms\" : {"
-            + LINE_SEPARATOR
-            + "    \"user\" : ["
-            + LINE_SEPARATOR
-            + "      \"u1\","
-            + LINE_SEPARATOR
-            + "      \"u2\","
-            + LINE_SEPARATOR
-            + "      \"u3\""
-            + LINE_SEPARATOR
-            + "    ],"
-            + LINE_SEPARATOR
-            + "    \"boost\" : 1.0"
-            + LINE_SEPARATOR
-            + "  }"
-            + LINE_SEPARATOR
-            + "}";
+        String json = """
+            {
+              "terms": {
+                "user": [
+                  "u1",
+                  "u2",
+                  "u3"
+                ],
+                "boost": 1.0
+              }
+            }\
+            """;
         Exception thrown = new Exception(json);
         LogEvent event = Log4jLogEvent.newBuilder().setMessage(new SimpleMessage("message")).setThrown(thrown).build();
 
@@ -67,7 +60,7 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("no logs parsed"));
 
-        int jsonLength = json.split(LINE_SEPARATOR).length;
+        int jsonLength = NEWLINE.split(json).length;
         int stacktraceLength = thrown.getStackTrace().length;
         assertThat(
             "stacktrace should formatted in multiple lines. JsonLogLine= " + jsonLogLine + " result= " + result,
@@ -81,10 +74,18 @@ public class JsonThrowablePatternConverterTests extends ESTestCase {
         converter.format(event, builder);
         String jsonStacktraceElement = builder.toString();
 
-        return "{\"type\": \"console\", \"timestamp\": \"2019-01-03T16:30:53,058+0100\", \"level\": \"DEBUG\", "
-            + "\"component\": \"o.e.a.s.TransportSearchAction\", \"cluster.name\": \"clustername\", \"node.name\": \"node-0\", "
-            + "\"cluster.uuid\": \"OG5MkvOrR9azuClJhWvy6Q\", \"node.id\": \"VTShUqmcQG6SzeKY5nn7qA\",  \"message\": \"msg msg\" "
-            + jsonStacktraceElement
-            + "}";
+        return """
+            {
+              "type": "console",
+              "timestamp": "2019-01-03T16:30:53,058+0100",
+              "level": "DEBUG",
+              "component": "o.e.a.s.TransportSearchAction",
+              "cluster.name": "clustername",
+              "node.name": "node-0",
+              "cluster.uuid": "OG5MkvOrR9azuClJhWvy6Q",
+              "node.id": "VTShUqmcQG6SzeKY5nn7qA",
+              "message": "msg msg"
+              %s
+            }""".formatted(jsonStacktraceElement);
     }
 }

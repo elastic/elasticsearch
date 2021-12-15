@@ -301,8 +301,10 @@ public abstract class RestSqlUsageTestCase extends ESRestTestCase {
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (IndexDocument doc : docs) {
-            bulk.append("{\"index\":{}}\n");
-            bulk.append("{\"condition\":\"" + doc.condition + "\",\"name\":\"" + doc.name + "\",\"page_count\":" + doc.pageCount + "}\n");
+            bulk.append("""
+                {"index":{}}
+                {"condition":"%s","name":"%s","page_count":%s}
+                """.formatted(doc.condition, doc.name, doc.pageCount));
         }
         request.setJsonEntity(bulk.toString());
         client().performRequest(request);

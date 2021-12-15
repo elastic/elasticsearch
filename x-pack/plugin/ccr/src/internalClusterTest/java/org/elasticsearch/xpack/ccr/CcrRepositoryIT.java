@@ -434,11 +434,8 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
         AtomicBoolean updateSent = new AtomicBoolean(false);
         Runnable updateMappings = () -> {
             if (updateSent.compareAndSet(false, true)) {
-                leaderClient().admin()
-                    .indices()
-                    .preparePutMapping(leaderIndex)
-                    .setSource("{\"properties\":{\"k\":{\"type\":\"long\"}}}", XContentType.JSON)
-                    .execute(ActionListener.wrap(latch::countDown));
+                leaderClient().admin().indices().preparePutMapping(leaderIndex).setSource("""
+                    {"properties":{"k":{"type":"long"}}}""", XContentType.JSON).execute(ActionListener.wrap(latch::countDown));
             }
             try {
                 latch.await();

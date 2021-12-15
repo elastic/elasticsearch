@@ -406,14 +406,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
         if (key == null || "doc_count".equals(key)) {
             return (lhs, rhs) -> order.reverseMul() * Long.compare(bucketDocCount(lhs), bucketDocCount(rhs));
         }
-        throw new IllegalArgumentException(
-            "Ordering on a single-bucket aggregation can only be done on its doc_count. "
-                + "Either drop the key (a la \""
-                + name()
-                + "\") or change it to \"doc_count\" (a la \""
-                + name()
-                + ".doc_count\") or \"key\"."
-        );
+        throw new IllegalArgumentException("""
+            Ordering on a single-bucket aggregation can only be done on its doc_count. \
+            Either drop the key (a la "%s") or change it to "doc_count" (a la "%s.doc_count") or "key".""".formatted(name(), name()));
     }
 
     public static boolean descendsFromGlobalAggregator(Aggregator parent) {

@@ -14,9 +14,8 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 
-public class StableLuceneAnalyzeIterator implements SimpleAnalyzeIterator {
+public class StableLuceneAnalyzeIterator implements PortableAnalyzeIterator {
     private final Object stream;
-    private final Object analyzer;
     private final Object term;
     private final Object posIncr;
     private final Object offset;
@@ -33,15 +32,15 @@ public class StableLuceneAnalyzeIterator implements SimpleAnalyzeIterator {
     private final MethodHandle mhAttrEndOffset;
     private final MethodHandle mhAttrGetPositionLength;
     private final MethodHandle mhAttrType;
-    private final MethodHandle mhGetPositionIncrementGap;
-    private final MethodHandle mhGetOffsetGap;
 
     int lastPosition;
     int lastOffset;
 
-    public StableLuceneAnalyzeIterator(Object analyzer, Object stream, AnalyzeState prevState) {
+    private final AnalyzeSettings settings;
+
+    public StableLuceneAnalyzeIterator(Object stream, AnalyzeState prevState, AnalyzeSettings settings) {
         StablePluginAPIUtil.ensureClassCompatibility(stream.getClass(), "org.apache.lucene.analysis.TokenStream");
-        this.analyzer = analyzer;
+        this.settings = settings;
         this.stream = stream;
         this.lastPosition = prevState.getLastPosition();
         this.lastOffset = prevState.getLastOffset();
@@ -66,20 +65,6 @@ public class StableLuceneAnalyzeIterator implements SimpleAnalyzeIterator {
                     StablePluginAPIUtil.lookupClass(stream, "org.apache.lucene.util.Attribute"),
                     Class.class
                 )
-            );
-
-            // Analyzer method handles
-            Class<?> analyzerClass = StablePluginAPIUtil.lookupClass(stream, "org.apache.lucene.analysis.Analyzer");
-
-            mhGetPositionIncrementGap = lookup.findVirtual(
-                analyzerClass,
-                "getPositionIncrementGap",
-                MethodType.methodType(int.class, String.class)
-            );
-            mhGetOffsetGap = lookup.findVirtual(
-                analyzerClass,
-                "getOffsetGap",
-                MethodType.methodType(int.class, String.class)
             );
 
             // Lucene analysis Attribute method handles and object creation
@@ -166,14 +151,13 @@ public class StableLuceneAnalyzeIterator implements SimpleAnalyzeIterator {
             lastOffset += (int)mhAttrEndOffset.invoke(offset);
             lastPosition += (int)mhAttrGetPositionIncrement.invoke(posIncr);
 
-            int incrementGap = (int)mhGetPositionIncrementGap.invoke(analyzer, null);
+            int incrementGap = (settings != null) ? settings.getPositionIncrementGap() : -1;
             if (incrementGap <= 0) {
                 // Match what's done in Analysis registry
                 incrementGap = TextFieldMapper.Defaults.POSITION_INCREMENT_GAP;
             }
             lastPosition += incrementGap;
-            lastOffset += (int)mhGetOffsetGap.invoke(analyzer, null);
-
+            lastOffset += (settings != null) ? settings.getOffsetGap() : 0;
         } catch (Throwable t) {
             throw new IllegalArgumentException("Unsupported token stream operation", t);
         }

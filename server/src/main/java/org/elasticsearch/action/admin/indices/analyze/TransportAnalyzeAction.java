@@ -44,10 +44,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.plugins.analysis.AnalysisIteratorFactory;
-import org.elasticsearch.plugins.analysis.AnalyzeState;
-import org.elasticsearch.plugins.analysis.AnalyzeToken;
-import org.elasticsearch.plugins.analysis.SimpleAnalyzeIterator;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 

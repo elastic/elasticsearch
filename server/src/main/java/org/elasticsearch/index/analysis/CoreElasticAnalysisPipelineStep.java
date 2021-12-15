@@ -33,7 +33,7 @@ import java.util.TreeMap;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
-public class CoreElasticAnalysisPipelineStep implements AnalysisPipelineStep {
+public class CoreElasticAnalysisPipelineStep implements AnalysisPipelineStep, AnalysisPipelineFirstStep {
     private final Analyzer analyzer;
     private final CustomAnalyzer wrappedAnalyzer;
 
@@ -102,8 +102,8 @@ public class CoreElasticAnalysisPipelineStep implements AnalysisPipelineStep {
 
         while (stream.incrementToken()) {
             int increment = posIncr.getPositionIncrement();
-            if (increment > 0) {
-                pos.lastPosition = pos.lastPosition + increment;
+                if (increment > 0) {
+                    pos.lastPosition = pos.lastPosition + increment;
             }
             tokens.add(
                 new AnalyzeAction.AnalyzeToken(
@@ -151,6 +151,21 @@ public class CoreElasticAnalysisPipelineStep implements AnalysisPipelineStep {
     @Override
     public List<AnalyzeAction.AnalyzeToken> process(String field, String[] texts, int maxTokenCount) {
         return tokenizeTexts(field, texts, maxTokenCount, null, (f, t) -> analyzer.tokenStream(f, t));
+    }
+
+    @Override
+    public List<AnalyzeAction.AnalyzeToken> process(String field, List<AnalyzeAction.AnalyzeToken> inTokens, int maxTokenCount) {
+        TokenCounter tc = new TokenCounter(maxTokenCount);
+
+        AnalyzerComponents components = wrappedAnalyzer.getComponents();
+        TokenFilterFactory[] tokenFilterFactories = components.getTokenFilters();
+        PositionOffset pos = new PositionOffset(-1, 0);
+
+        try (TokenStream stream = createStackedTokenStream(new PipelineTokenizer(inTokens), tokenFilterFactories)) {
+            return tokenizeStream(stream, pos, tc, field, null);
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to analyze", e);
+        }
     }
 
     private static String writeCharStream(Reader input) {
@@ -232,14 +247,27 @@ public class CoreElasticAnalysisPipelineStep implements AnalysisPipelineStep {
         }
         Tokenizer tokenizer = tokenizerFactory.create();
         tokenizer.setReader(reader);
-        TokenStream tokenStream = tokenizer;
+        return createStackedTokenStream(tokenizer, tokenFilterFactories, current);
+    }
+
+    private static TokenStream createStackedTokenStream(
+        TokenStream tokenStream,
+        TokenFilterFactory[] tokenFilterFactories
+    ) {
+        return createStackedTokenStream(tokenStream, tokenFilterFactories, tokenFilterFactories.length);
+    }
+
+    private static TokenStream createStackedTokenStream(
+        TokenStream tokenStream,
+        TokenFilterFactory[] tokenFilterFactories,
+        int current
+    ) {
         for (int i = 0; i < current; i++) {
             tokenStream = tokenFilterFactories[i].create(tokenStream);
         }
         return tokenStream;
     }
 
-    @Override
     public List<AnalyzeAction.AnalyzeTokenList> detailedFilters(String field, String[] texts, int maxTokenCount, String[] attributes) {
         AnalyzerComponents components = wrappedAnalyzer.getComponents();
 
@@ -264,6 +292,36 @@ public class CoreElasticAnalysisPipelineStep implements AnalysisPipelineStep {
                 result.add(new AnalyzeAction.AnalyzeTokenList(
                     tokenFilterFactories[i].name(),
                     filterTokens.toArray(new AnalyzeAction.AnalyzeToken[0])));
+            }
+        }
+
+        return result;
+    }
+
+    @Override
+    public List<AnalyzeAction.AnalyzeTokenList> detailedFilters(String field, List<AnalyzeAction.AnalyzeToken> tokens, int maxTokenCount, String[] attributes) {
+        AnalyzerComponents components = wrappedAnalyzer.getComponents();
+
+        TokenFilterFactory[] tokenFilterFactories = components.getTokenFilters();
+
+        List<AnalyzeAction.AnalyzeTokenList> result = new ArrayList<>();
+
+        if (tokenFilterFactories != null) {
+            for (int i = 0; i < tokenFilterFactories.length; i++) {
+                TokenCounter tc = new TokenCounter(maxTokenCount);
+                PositionOffset pos = new PositionOffset(-1, 0);
+
+                try (TokenStream stream = createStackedTokenStream(
+                    new PipelineTokenizer(tokens),
+                    tokenFilterFactories,
+                    i+1)) {
+                    List<AnalyzeAction.AnalyzeToken> filterTokens = tokenizeStream(stream, pos, tc, field, attributes);
+                    result.add(new AnalyzeAction.AnalyzeTokenList(
+                        tokenFilterFactories[i].name(),
+                        filterTokens.toArray(new AnalyzeAction.AnalyzeToken[0])));
+                } catch (IOException e) {
+                    throw new ElasticsearchException("failed to analyze", e);
+                }
             }
         }
 

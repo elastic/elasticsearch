@@ -8,8 +8,10 @@
 
 package org.elasticsearch.plugins.analysis;
 
+import java.util.List;
+
 public interface AnalysisIteratorFactory {
     String name();
 
-    SimpleAnalyzeIterator newInstance(String text, AnalyzeState prevState);
+    PortableAnalyzeIterator newInstance(List<AnalyzeToken> tokens, AnalyzeState prevState);
 }

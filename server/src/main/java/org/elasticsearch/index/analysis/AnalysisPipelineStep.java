@@ -34,7 +34,6 @@ public interface AnalysisPipelineStep {
         }
     }
 
-    List<AnalyzeAction.AnalyzeToken> process(String field, String[] texts, int maxTokenCount);
-    DetailedPipelineAnalysisPackage details(String field, String[] texts, int maxTokenCount, String[] attributes);
-    List<AnalyzeAction.AnalyzeTokenList> detailedFilters(String field, String[] texts, int maxTokenCount, String[] attributes);
+    List<AnalyzeAction.AnalyzeToken> process(String field, List<AnalyzeAction.AnalyzeToken> tokens, int maxTokenCount);
+    List<AnalyzeAction.AnalyzeTokenList> detailedFilters(String field, List<AnalyzeAction.AnalyzeToken> tokens, int maxTokenCount, String[] attributes);
 }

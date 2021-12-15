@@ -18,9 +18,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.analysis.AbstractAnalysisIteratorFactory;
+import org.elasticsearch.plugins.analysis.AnalyzeSettings;
 import org.elasticsearch.plugins.analysis.AnalyzeState;
-import org.elasticsearch.plugins.analysis.SimpleAnalyzeIterator;
+import org.elasticsearch.plugins.analysis.AnalyzeToken;
+import org.elasticsearch.plugins.analysis.PortableAnalyzeIterator;
 import org.elasticsearch.plugins.analysis.StableLuceneAnalyzeIterator;
+
+import java.util.List;
 
 public class DemoIteratorFactory extends AbstractAnalysisIteratorFactory {
 
@@ -40,8 +44,17 @@ public class DemoIteratorFactory extends AbstractAnalysisIteratorFactory {
     }
 
     @Override
-    public SimpleAnalyzeIterator newInstance(String text, AnalyzeState prevState) {
-        return new StableLuceneAnalyzeIterator(analyzer, analyzer.tokenStream(null, text), prevState);
+    public PortableAnalyzeIterator newInstance(List<AnalyzeToken> tokens, AnalyzeState prevState) {
+        StringBuilder textBuilder = new StringBuilder();
+        tokens.forEach(t -> {
+            textBuilder.append(t.getTerm()).append(' ');
+        });
+        textBuilder.setLength(textBuilder.length() - 1);
+
+        return new StableLuceneAnalyzeIterator(
+            analyzer.tokenStream(null, textBuilder.toString()),
+            prevState,
+            new AnalyzeSettings(100, 1));
     }
 
     private class ElasticWordOnlyTokenFilter extends FilteringTokenFilter {

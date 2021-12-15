@@ -88,7 +88,7 @@ public class TestStableAnalysisPluginIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate(index));
 
-        for (String filter : List.of("demo_legacy", "demo")) {
+        for (String filter : List.of("demo", "demo_legacy", "demo")) {
             for (AnalysisTestcases testcase : testCases) {
                 AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index).tokenizer("standard")
                     .addTokenFilter("lowercase")
@@ -113,7 +113,7 @@ public class TestStableAnalysisPluginIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate(index));
 
-        for (String filter : List.of("demo_legacy", "demo")) {
+        for (String filter : List.of("demo", "demo_legacy")) {
             for (AnalysisTestcases testcase : testCases) {
                 AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index).tokenizer("standard")
                     .addTokenFilter("lowercase")

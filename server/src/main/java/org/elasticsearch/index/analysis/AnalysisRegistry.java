@@ -23,7 +23,6 @@ import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.plugins.analysis.AnalysisIteratorFactory;
-import org.elasticsearch.plugins.analysis.SimpleAnalyzeIterator;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -386,11 +385,11 @@ public final class AnalysisRegistry implements Closeable {
             );
         }
 
+        AnalysisPipelineFirstStep firstStep = null;
         List<AnalysisPipelineStep> pipelineSteps = new ArrayList<>();
 
         List<TokenFilterFactory> tokenFilterFactories = new ArrayList<>();
         for (NameOrDefinition nod : tokenFilters) {
-            // NG
             try {
                 AnalysisIteratorFactory aif = getComponentFactory(
                     indexSettings,
@@ -402,13 +401,18 @@ public final class AnalysisRegistry implements Closeable {
                 );
                 if (aif != null) {
                     CoreElasticAnalysisPipelineStep prevStep = new CoreElasticAnalysisPipelineStep(
-                        (pipelineSteps.size() > 0) ?  standardTokenizerFactory : tokenizerFactory,
+                        (pipelineSteps.size() > 0) ? standardTokenizerFactory : tokenizerFactory,
                         charFilterFactories,
                         new ArrayList<>(tokenFilterFactories));
 
                     PluginAnalysisPipelineStep pluginStep = new PluginAnalysisPipelineStep(aif);
 
-                    pipelineSteps.add(prevStep);
+                    if (firstStep == null) {
+                        firstStep = prevStep;
+                    } else {
+                        pipelineSteps.add(prevStep);
+                    }
+
                     pipelineSteps.add(pluginStep);
 
                     tokenFilterFactories.clear();
@@ -429,14 +433,20 @@ public final class AnalysisRegistry implements Closeable {
         }
 
         if (tokenFilterFactories.isEmpty() == false) {
-            pipelineSteps.add(new CoreElasticAnalysisPipelineStep(
+            CoreElasticAnalysisPipelineStep lastStep = new CoreElasticAnalysisPipelineStep(
                 (pipelineSteps.size() > 0) ?  standardTokenizerFactory : tokenizerFactory,
                 charFilterFactories,
-                tokenFilterFactories)
-            );
+                tokenFilterFactories);
+
+            if (firstStep == null) {
+                firstStep = lastStep;
+            } else {
+                pipelineSteps.add(lastStep);
+            }
+
         }
 
-        return new AnalysisPipeline(pipelineSteps);
+        return new AnalysisPipeline(firstStep, pipelineSteps);
     }
 
     public AnalysisIteratorFactory getSimpleAnalyzeIterator(List<NameOrDefinition> filters)

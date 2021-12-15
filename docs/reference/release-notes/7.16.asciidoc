@@ -16,6 +16,12 @@ related
 https://discuss.elastic.co/t/apache-log4j2-remote-code-execution-rce-vulnerability-cve-2021-44228-esa-2021-31/291476[security
 announcement].
 
+[[known-issues-7.16.1]]
+[discrete]
+=== Known issues
+
+include::7.16.asciidoc[tag=painless-functional-interface-resolution-81696-known-issue]
+
 [[enhancement-7.16.1]]
 [float]
 === Enhancements
@@ -129,6 +135,36 @@ Monitoring::
 * Deprecate monitoring settings {es-pull}79499[#79499]
 * Deprecate `create_legacy_templates` setting on HTTP exporters {es-pull}78564[#78564]
 * Deprecate the monitoring ingest settings {es-pull}77659[#77659] (issue: {es-issue}77459[#77459])
+
+[[known-issues-7.16.0]]
+[discrete]
+=== Known issues
+
+// tag::painless-functional-interface-resolution-81696-known-issue[]
+* Painless: Any Painless script where a method call resolves a lambda argument
+to a `UnaryOperator` or a `BinaryOperator` type results in an 
+`IllegalArgumentException`. This exception results in a compilation error when 
+static types are used, or a runtime error for dynamic types. Use standard 
+procedural statements as a workaround, such as `if/else`, `while`, and `for`
+statements. 
++
+The following example is a `UnaryOperator` type that will result in a failure:
++
+[source,Java]
+----
+List l = ['abc', '123']; l.replaceAll(f -> f.replace('abc', 'doremi');
+----
++
+The following example is a possible workaround:
++
+[source,Java]
+----
+List l = ['abc', '123'];
+for (int i = 0; i < l.size(); ++i) {
+    l.set(i, l.get(i).replace('abc', 'doremi'));
+}
+----
+// end::painless-functional-interface-resolution-81696-known-issue[]
 
 [[feature-7.16.0]]
 [float]

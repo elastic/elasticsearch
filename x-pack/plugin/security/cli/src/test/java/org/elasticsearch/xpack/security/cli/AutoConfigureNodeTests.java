@@ -9,16 +9,20 @@ package org.elasticsearch.xpack.security.cli;
 
 import joptsimple.OptionParser;
 
+import org.apache.commons.io.FileUtils;
 import org.bouncycastle.asn1.x509.GeneralName;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -126,25 +130,30 @@ public class AutoConfigureNodeTests extends ESTestCase {
     }
 
     public void testGeneratedHTTPCertificateSANs() throws Exception {
-        final Path tempDir = createTempDir();
-        Files.createDirectory(tempDir.resolve("config"));
-        // empty yml file
-        Files.write(tempDir.resolve("config").resolve("elasticsearch.yml"), List.of(), CREATE_NEW);
-        X509Certificate httpCertificate = runAutoConfigAndReturnHTTPCertificate(tempDir);
 
-        AtomicBoolean sanContainsHostname = new AtomicBoolean(false);
-        AtomicBoolean sanContainsLocalhost = new AtomicBoolean(false);
-        httpCertificate.getSubjectAlternativeNames().forEach(subjectAltName -> {
-            if (subjectAltName.get(1).equals("dummy.test.hostname") && subjectAltName.get(0).equals(GeneralName.dNSName)) {
-                sanContainsHostname.set(true);
-            }
-            if (subjectAltName.get(1).equals("localhost") && subjectAltName.get(0).equals(GeneralName.dNSName)) {
-                sanContainsLocalhost.set(true);
-            }
-        });
+        Path tempDir = createTempDir();
+        try {
+            Files.createDirectory(tempDir.resolve("config"));
+            // empty yml file
+            Files.write(tempDir.resolve("config").resolve("elasticsearch.yml"), List.of(), CREATE_NEW);
+            X509Certificate httpCertificate = runAutoConfigAndReturnHTTPCertificate(tempDir);
 
-        assertThat(sanContainsHostname.get(), is(true));
-        assertThat(sanContainsLocalhost.get(), is(true));
+            AtomicBoolean sanContainsHostname = new AtomicBoolean(false);
+            AtomicBoolean sanContainsLocalhost = new AtomicBoolean(false);
+            httpCertificate.getSubjectAlternativeNames().forEach(subjectAltName -> {
+                if (subjectAltName.get(1).equals("dummy.test.hostname") && subjectAltName.get(0).equals(GeneralName.dNSName)) {
+                    sanContainsHostname.set(true);
+                }
+                if (subjectAltName.get(1).equals("localhost") && subjectAltName.get(0).equals(GeneralName.dNSName)) {
+                    sanContainsLocalhost.set(true);
+                }
+            });
+
+            assertThat(sanContainsHostname.get(), is(true));
+            assertThat(sanContainsLocalhost.get(), is(true));
+        } finally {
+            deleteDirectory(tempDir);
+        }
     }
 
     private X509Certificate runAutoConfigAndReturnHTTPCertificate(Path configDir) throws Exception {
@@ -166,7 +175,12 @@ public class AutoConfigureNodeTests extends ESTestCase {
             }
         }
 
-        KeyStore httpKeystore = KeyStoreUtil.readKeyStore(Path.of(httpKeystorePath), "PKCS12", httpKeystorePassword.getChars());
+        KeyStore httpKeystore = KeyStoreUtil.readKeyStore(PathUtils.get(httpKeystorePath), "PKCS12", httpKeystorePassword.getChars());
         return (X509Certificate) httpKeystore.getCertificate("http_local_node_key");
+    }
+
+    @SuppressForbidden(reason = "Uses File API because the commons io library does, which is useful for file manipulation")
+    private void deleteDirectory(Path directory) throws IOException {
+        FileUtils.deleteDirectory(directory.toFile());
     }
 }

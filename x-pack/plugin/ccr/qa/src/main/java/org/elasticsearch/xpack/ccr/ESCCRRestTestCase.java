@@ -345,13 +345,18 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         assertOK(client.performRequest(request));
     }
 
-    private static final LazyInitializable<Long, RuntimeException> time = new LazyInitializable<>(System::currentTimeMillis);
+    /**
+     * Fix point in time when data stream backing index is first time queried.
+     * This is required to avoid failures when running test at midnight.
+     * (index is created for day0, but assertions are executed for day1 assuming different time based index name that does not exist)
+     */
+    private final LazyInitializable<Long, RuntimeException> time = new LazyInitializable<>(System::currentTimeMillis);
 
-    protected static String backingIndexName(String dataStreamName, int generation) {
+    protected String backingIndexName(String dataStreamName, int generation) {
         return DataStream.getDefaultBackingIndexName(dataStreamName, generation, time.getOrCompute());
     }
 
-    protected static String backingIndexName(String dataStreamName, int generation, long epochMillis) {
+    protected String backingIndexName(String dataStreamName, int generation, long epochMillis) {
         return DataStream.getDefaultBackingIndexName(dataStreamName, generation, epochMillis);
     }
 

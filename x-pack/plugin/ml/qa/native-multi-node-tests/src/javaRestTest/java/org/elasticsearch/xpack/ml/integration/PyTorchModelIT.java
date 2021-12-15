@@ -527,8 +527,9 @@ public class PyTorchModelIT extends ESRestTestCase {
         startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
 
         String input = "once twice thrice";
+        var e = expectThrows(ResponseException.class, () -> EntityUtils.toString(infer("once twice thrice", modelId).getEntity()));
         assertThat(
-            EntityUtils.toString(infer("once twice thrice", modelId).getEntity()),
+            e.getMessage(),
             containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
         );
 
@@ -637,7 +638,8 @@ public class PyTorchModelIT extends ESRestTestCase {
             """;
 
         response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
-        assertThat(response, containsString("warning"));
+        assertThat(response, containsString("no value could be found for input field [input]"));
+        assertThat(response, containsString("status_exception"));
     }
 
     public void testDeleteModelWithDeploymentUsedByIngestProcessor() throws IOException {

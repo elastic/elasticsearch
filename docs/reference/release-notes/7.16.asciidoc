@@ -148,7 +148,7 @@ static types are used, or a runtime error for dynamic types. Use standard
 procedural statements as a workaround, such as `if/else`, `while`, and `for`
 statements. 
 +
-An example failure of a `UnaryOperator`:
+The following example is a `UnaryOperator` type that will result in a failure:
 +
 [source,Java]
 ----

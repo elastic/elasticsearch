@@ -36,7 +36,7 @@ run {es} on your own hardware, see <<remote-clusters>>.
 must be able to connect to seed and gateway nodes on the remote cluster.
 +
 We recommend using gateway nodes capable of serving as coordinating nodes.
-These seed nodes can be a subset of these gateway nodes.
+The seed nodes can be a subset of these gateway nodes.
 
 [[ccs-proxy-mode]]
 * If you use <<proxy-mode,proxy mode>>, the local coordinating node must be able

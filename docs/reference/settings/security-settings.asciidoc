@@ -1965,15 +1965,15 @@ fragment components. The value for this setting should be provided by your JWT
 Issuer.
 // end::jwt-allowed-issuer-tag[]
 
-// tag::jwt-allowed-audience-tag[]
-`allowed_audience` {ess-icon}::
+// tag::jwt-allowed-audiences-tag[]
+`allowed_audiences` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-A verifiable Identifier for your JWT client application.
+A list of verifiable Identifiers for your JWT client applications.
 
 The OAuth 2.0 Client Identifier that was assigned to the
 OpenID Connect Relying Party application during registration
 at the OpenID Connect Provider.
-// end::jwt-allowed-audience-tag[]
+// end::jwt-allowed-audiences-tag[]
 
 // tag::jwt-allowed-signature-algorithm-tag[]
 `allowed_clock_skew` {ess-icon}::

@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.security.authc.support.ClaimSetting;
 import org.elasticsearch.xpack.core.security.authc.support.DelegatedAuthorizationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -144,10 +145,10 @@ public class JwtRealmSettings {
         "allowed_issuer",
         Setting.Property.NodeScope
     );
-    public static final Setting.AffixSetting<String> ALLOWED_AUDIENCE = RealmSettings.simpleString(
-        TYPE,
-        "allowed_audience",
-        Setting.Property.NodeScope
+    public static final Setting.AffixSetting<List<String>> ALLOWED_AUDIENCES = Setting.affixKeySetting(
+        RealmSettings.realmSettingPrefix(TYPE),
+        "allowed_audiences",
+        key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), Setting.Property.NodeScope)
     );
     public static final Setting.AffixSetting<TimeValue> ALLOWED_CLOCK_SKEW = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
@@ -191,7 +192,7 @@ public class JwtRealmSettings {
             HTTP_PROXY_PORT,
             HTTP_PROXY_SCHEME,
             ALLOWED_ISSUER,
-            ALLOWED_AUDIENCE,
+            ALLOWED_AUDIENCES,
             ALLOWED_SIGNATURE_ALGORITHM,
             ALLOWED_CLOCK_SKEW,
             JWKSET_PATH,

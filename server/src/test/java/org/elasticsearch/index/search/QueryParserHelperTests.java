@@ -58,8 +58,10 @@ public class QueryParserHelperTests extends MapperServiceTestCase {
         int originalMaxClauseCount = IndexSearcher.getMaxClauseCount();
         try {
             IndexSearcher.setMaxClauseCount(4);
-            Exception e = expectThrows(IllegalArgumentException.class,
-                () -> QueryParserHelper.resolveMappingFields(context, Map.of("field*", 1.0f)));
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> QueryParserHelper.resolveMappingFields(context, Map.of("field*", 1.0f))
+            );
             assertThat(e.getMessage(), containsString("field expansion matches too many fields"));
 
             IndexSearcher.setMaxClauseCount(10);

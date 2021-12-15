@@ -129,6 +129,8 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -247,7 +249,12 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(properties.getProperty("appender.audit_rolling.layout.type"), is("PatternLayout"));
         final String patternLayoutFormat = properties.getProperty("appender.audit_rolling.layout.pattern");
         assertThat(patternLayoutFormat, is(notNullValue()));
-        patternLayout = PatternLayout.newBuilder().withPattern(patternLayoutFormat).withCharset(StandardCharsets.UTF_8).build();
+        patternLayout = AccessController.doPrivileged(
+            (PrivilegedAction<PatternLayout>) () -> PatternLayout.newBuilder()
+                .withPattern(patternLayoutFormat)
+                .withCharset(StandardCharsets.UTF_8)
+                .build()
+        );
         customAnonymousUsername = randomAlphaOfLength(8);
         reservedRealmEnabled = randomBoolean();
     }

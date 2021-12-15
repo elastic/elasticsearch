@@ -796,8 +796,12 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         // HOSTNAME should always be set by start-up scripts, and this code is always invoked only by the said startup scripts
         generalNameSet.add(new GeneralName(GeneralName.dNSName, System.getenv("HOSTNAME")));
         for (List<String> publishAddresses : List.of(
-            NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings),
-            HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST.get(settings)
+            NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.exists(settings)
+                ? NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.get(settings)
+                : List.<String>of(),
+            HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST.exists(settings)
+                ? HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST.get(settings)
+                : List.<String>of()
         )) {
             for (String publishAddress : publishAddresses) {
                 if (InetAddresses.isInetAddress(publishAddress)) {

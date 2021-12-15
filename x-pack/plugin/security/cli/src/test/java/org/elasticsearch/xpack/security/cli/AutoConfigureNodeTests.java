@@ -137,23 +137,43 @@ public class AutoConfigureNodeTests extends ESTestCase {
             // empty yml file
             Files.write(tempDir.resolve("config").resolve("elasticsearch.yml"), List.of(), CREATE_NEW);
             X509Certificate httpCertificate = runAutoConfigAndReturnHTTPCertificate(tempDir);
-
-            AtomicBoolean sanContainsHostname = new AtomicBoolean(false);
-            AtomicBoolean sanContainsLocalhost = new AtomicBoolean(false);
-            httpCertificate.getSubjectAlternativeNames().forEach(subjectAltName -> {
-                if (subjectAltName.get(1).equals("dummy.test.hostname") && subjectAltName.get(0).equals(GeneralName.dNSName)) {
-                    sanContainsHostname.set(true);
-                }
-                if (subjectAltName.get(1).equals("localhost") && subjectAltName.get(0).equals(GeneralName.dNSName)) {
-                    sanContainsLocalhost.set(true);
-                }
-            });
-
-            assertThat(sanContainsHostname.get(), is(true));
-            assertThat(sanContainsLocalhost.get(), is(true));
+            assertHostnameSAN(httpCertificate);
+            assertLocalhostSAN(httpCertificate);
         } finally {
             deleteDirectory(tempDir);
         }
+
+        tempDir = createTempDir();
+        try {
+            Files.createDirectory(tempDir.resolve("config"));
+            // empty yml file
+            Files.write(tempDir.resolve("config").resolve("elasticsearch.yml"), List.of(), CREATE_NEW);
+            X509Certificate httpCertificate = runAutoConfigAndReturnHTTPCertificate(tempDir);
+            assertHostnameSAN(httpCertificate);
+            assertLocalhostSAN(httpCertificate);
+        } finally {
+            deleteDirectory(tempDir);
+        }
+    }
+
+    private void assertHostnameSAN(X509Certificate httpCertificate) throws Exception {
+        AtomicBoolean sanContainsHostname = new AtomicBoolean(false);
+        httpCertificate.getSubjectAlternativeNames().forEach(subjectAltName -> {
+            if (subjectAltName.get(1).equals("dummy.test.hostname") && subjectAltName.get(0).equals(GeneralName.dNSName)) {
+                sanContainsHostname.set(true);
+            }
+        });
+        assertThat(sanContainsHostname.get(), is(true));
+    }
+
+    private void assertLocalhostSAN(X509Certificate httpCertificate) throws Exception {
+        AtomicBoolean sanContainsLocalhost = new AtomicBoolean(false);
+        httpCertificate.getSubjectAlternativeNames().forEach(subjectAltName -> {
+            if (subjectAltName.get(1).equals("localhost") && subjectAltName.get(0).equals(GeneralName.dNSName)) {
+                sanContainsLocalhost.set(true);
+            }
+        });
+        assertThat(sanContainsLocalhost.get(), is(true));
     }
 
     private X509Certificate runAutoConfigAndReturnHTTPCertificate(Path configDir) throws Exception {

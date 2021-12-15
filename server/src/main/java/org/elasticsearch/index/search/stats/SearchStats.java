@@ -116,7 +116,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
             this.suggestCurrent = suggestCurrent;
         }
 
-        private Stats(StreamInput in) throws IOException { // TODO older stream?
+        private Stats(StreamInput in) throws IOException {
             queryCount = in.readVLong();
             queryTimeInMillis = in.readVLong();
             queryCurrent = in.readVLong();
@@ -140,10 +140,12 @@ public class SearchStats implements Writeable, ToXContentFragment {
             queryCount += stats.queryCount;
             queryTimeInMillis += stats.queryTimeInMillis;
             queryCurrent += stats.queryCurrent;
+            queryFailureCount += stats.queryFailureCount;
 
             fetchCount += stats.fetchCount;
             fetchTimeInMillis += stats.fetchTimeInMillis;
             fetchCurrent += stats.fetchCurrent;
+            fetchFailureCount += stats.fetchFailureCount;
 
             scrollCount += stats.scrollCount;
             scrollTimeInMillis += stats.scrollTimeInMillis;
@@ -157,9 +159,11 @@ public class SearchStats implements Writeable, ToXContentFragment {
         public void addForClosingShard(Stats stats) {
             queryCount += stats.queryCount;
             queryTimeInMillis += stats.queryTimeInMillis;
+            queryFailureCount += stats.queryFailureCount;
 
             fetchCount += stats.fetchCount;
             fetchTimeInMillis += stats.fetchTimeInMillis;
+            fetchFailureCount += stats.fetchFailureCount;
 
             scrollCount += stats.scrollCount;
             scrollTimeInMillis += stats.scrollTimeInMillis;
@@ -260,7 +264,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException { // TODO
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.QUERY_TOTAL, queryCount);
             builder.humanReadableField(Fields.QUERY_TIME_IN_MILLIS, Fields.QUERY_TIME, getQueryTime());
             builder.field(Fields.QUERY_CURRENT, queryCurrent);
@@ -299,7 +303,7 @@ public class SearchStats implements Writeable, ToXContentFragment {
         this.groupStats = groupStats;
     }
 
-    public SearchStats(StreamInput in) throws IOException { // TODO migration
+    public SearchStats(StreamInput in) throws IOException {
         totalStats = Stats.readStats(in);
         openContexts = in.readVLong();
         if (in.readBoolean()) {

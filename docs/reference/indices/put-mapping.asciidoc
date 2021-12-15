@@ -33,6 +33,34 @@ please see <<removal-of-types>>.
 
 `PUT /<target>/_mapping`
 
+`POST /<target>/_mapping`
+
+deprecated:[7.0]
+`PUT /<target>/_mappings`
+
+deprecated:[7.0]
+`POST /<target>/_mappings`
+
+{type-dep} `PUT /<target>/<type>/_mapping`
+
+{type-dep} `POST /<target>/<type>/_mapping`
+
+{type-dep} `PUT /<target>/_mapping/<type>`
+
+{type-dep} `POST /<target>/_mapping/<type>`
+
+{type-dep} `PUT /<target>/<type>/_mappings`
+
+{type-dep} `POST /<target>/<type>/_mappings`
+
+{type-dep} `PUT /<target>/_mappings/<type>`
+
+{type-dep} `POST /<target>/_mappings/<type>`
+
+{type-dep} `PUT /_mappings/<type>`
+
+{type-dep} `POST /_mappings/<type>`
+
 [[put-mapping-api-prereqs]]
 ==== {api-prereq-title}
 
@@ -52,6 +80,9 @@ privilege.
 (Required, string) Comma-separated list of data streams, indices, and aliases
 used to limit the request. Supports wildcards (`*`). To target all data streams
 and indices, omit this parameter or use `*` or `_all`.
+
+`<type>`::
+{type-dep} (Optional, string) <<removal-of-types,Mapping type>>.
 
 [[put-mapping-api-query-params]]
 ==== {api-query-parms-title}

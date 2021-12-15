@@ -49,6 +49,8 @@ POST /my-index-000001/_delete_by_query
 
 `POST /<target>/_delete_by_query`
 
+`POST /<target>/<type>/_delete_by_query"`
+
 [[docs-delete-by-query-api-prereqs]]
 ==== {api-prereq-title}
 
@@ -171,6 +173,11 @@ documents being reindexed and cluster resources.
 (Optional, string) Comma-separated list of data streams, indices, and aliases to
 search. Supports wildcards (`*`). To search all data streams or indices, omit
 this parameter or use `* or `_all`.
+
+`<type>`::
+deprecated:[7.0, Mapping types are deprecated. See <<removal-of-types>>.]
+(Optional, string) Comma-separated list of <<removal-of-types,mapping types>> to
+search.
 
 [[docs-delete-by-query-api-query-params]]
 ==== {api-query-parms-title}

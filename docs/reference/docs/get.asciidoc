@@ -23,6 +23,14 @@ GET my-index-000001/_doc/0
 
 `HEAD <index>/_source/<_id>`
 
+`GET <index>/<type>/<_id>`
+
+`HEAD <index>/<type>/<_id>`
+
+`GET <index>/<type>/<_id>/_source`
+
+`HEAD <index>/<type>/<_id>/_source`
+
 [[docs-get-api-prereqs]]
 ==== {api-prereq-title}
 
@@ -158,6 +166,10 @@ deleted documents in the background as you continue to index more data.
 
 `<_id>`::
 (Required, string) Unique identifier of the document.
+
+`<type>`::
+deprecated:[7.0, Mapping types are deprecated. See <<removal-of-types>>.]
+(Optional, string) <<removal-of-types,Mapping type>> for the document.
 
 [[docs-get-api-query-params]]
 ==== {api-query-parms-title}

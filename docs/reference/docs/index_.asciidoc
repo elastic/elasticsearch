@@ -25,6 +25,17 @@ and <<update-delete-docs-in-a-backing-index>>.
 
 `POST /<target>/_create/<_id>`
 
+// TODO: Check references below.
+`PUT /<target>/<type>/<_id>`
+
+`POST /<target>/<type>/<_id>`
+
+`POST /<target>/<type>`
+
+`PUT /<target>/<type>/<_id>/_create`
+
+`POST /<target>/<type>/<_id>/_create`
+
 IMPORTANT: You cannot add new documents to a data stream using the
 `PUT /<target>/_doc/<_id>` request format. To specify a document ID, use the
 `PUT /<target>/_create/<_id>` format instead. See
@@ -81,7 +92,9 @@ To automatically generate a document ID, use the `POST /<target>/_doc/` request
 format and omit this parameter.
 --
 
-
+`<type>`::
+deprecated:[7.0, Mapping types are deprecated. See <<removal-of-types>>.]
+(Optional, string) <<removal-of-types,Mapping type>> for the document.
 
 [[docs-index-api-query-params]]
 ==== {api-query-parms-title}

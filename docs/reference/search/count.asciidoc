@@ -21,6 +21,8 @@ the <<search-search,search API>> works.
 
 `GET /<target>/_count`
 
+`GET /<target>/<type>/_count`
+
 [[search-count-api-prereqs]]
 ==== {api-prereq-title}
 
@@ -52,6 +54,11 @@ scalability of count.
 (Optional, string) Comma-separated list of data streams, indices, and aliases to
 search. Supports wildcards (`*`). To search all data streams and indices, omit
 this parameter or use `*` or `_all`.
+
+`<type>`::
+deprecated:[7.0, Mapping types are deprecated. See <<removal-of-types>>.]
+(Optional, string) Comma-separated list of <<removal-of-types,mapping types>>
+used to restrict the search.
 
 [[search-count-api-query-params]]
 ==== {api-query-parms-title}

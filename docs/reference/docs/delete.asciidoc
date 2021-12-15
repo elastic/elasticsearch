@@ -11,6 +11,8 @@ Removes a JSON document from the specified index.
 
 `DELETE /<index>/_doc/<_id>`
 
+`DELETE /<index>/<type>/<_id>`
+
 [[docs-delete-api-prereqs]]
 ==== {api-prereq-title}
 
@@ -148,6 +150,10 @@ DELETE /my-index-000001/_doc/1?timeout=5m
 
 `<_id>`::
 (Required, string) Unique identifier for the document.
+
+`<type>`::
+deprecated:[7.0, Mapping types are deprecated. See <<removal-of-types>>.]
+(Optional, string) <<removal-of-types,Mapping type>> for the document.
 
 [[docs-delete-api-query-params]]
 ==== {api-query-parms-title}

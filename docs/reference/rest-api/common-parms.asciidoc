@@ -425,7 +425,7 @@ end::include-segment-file-sizes[]
 
 tag::include-type-name[]
 `include_type_name`::
-deprecated:[7.0.0, Mapping types have been deprecated. See <<removal-of-types>>.]
+{type-dep}
 (Optional, boolean) If `true`, a mapping type is expected in the body of
 mappings. Defaults to `false`.
 end::include-type-name[]

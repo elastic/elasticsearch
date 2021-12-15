@@ -21,7 +21,13 @@ UI], add `xpack.graph.enabled: false` to `elasticsearch.yml`.
 [discrete]
 === Request
 
+`GET <index>/_graph/explore`
+
 `POST <index>/_graph/explore`
+
+`GET <index>/<type>/_graph/explore`
+
+`POST <index>/<type>/_graph/explore`
 
 [discrete]
 === Description
@@ -31,6 +37,19 @@ the documents of interest and specifies the fields that define the vertices
 and connections you want to include in the graph. Subsequent `_explore` requests
 enable you to _spider out_ from one more vertices of interest. You can exclude
 vertices that have already been returned.
+
+[discrete]
+[[graph-explore-api-path-params]]
+==== {api-path-parms-title}
+
+`<index>`::
+(Optional, string) Comma-separated list of indices to search. To search all
+indices, omit this parameter or use `*` or `_all`.
+
+`<type>`::
+deprecated:[7.0, Mapping types are deprecated. See <<removal-of-types>>.]
+(Optional, string) Comma-separated list of <<removal-of-types,napping types>> to
+search.
 
 [discrete]
 === Request Body

@@ -25,6 +25,10 @@ through the parameter `include_type_name`. For more details, please see <<remova
 
 `GET /<target>/_mapping`
 
+`GET /_mapping/<type>`
+
+`GET /<target>/_mapping/<type>`
+
 [[get-mapping-api-prereqs]]
 ==== {api-prereq-title}
 
@@ -39,6 +43,11 @@ for the target data stream, index, or alias.
 (Optional, string) Comma-separated list of data streams, indices, and aliases
 used to limit the request. Supports wildcards (`*`). To target all data streams
 and indices, omit this parameter or use `*` or `_all`.
+
+`<type>`::
+deprecated:[7.0, Mapping types are deprecated. See <<removal-of-types>>.]
+(Optional, string) Comma-separated list of <<removal-of-types,mapping types>>
+used to limit the request.
 
 [[get-mapping-api-query-params]]
 ==== {api-query-parms-title}

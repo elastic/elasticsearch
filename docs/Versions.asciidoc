@@ -54,6 +54,8 @@ endif::[]
 :javadoc-license: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/license
 :javadoc-watcher: {rest-high-level-client-javadoc}/org/elasticsearch/protocol/xpack/watcher
 
+:type-dep: deprecated:[7.0, Mapping types are deprecated. See <<removal-of-types>>.]
+
 ///////
 Shared attribute values are pulled from elastic/docs
 ///////

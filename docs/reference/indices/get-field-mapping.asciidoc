@@ -24,6 +24,10 @@ GET /my-index-000001/_mapping/field/user
 
 `GET /<target>/_mapping/field/<field>`
 
+`GET /_mapping/<type>/field/<fields>`
+
+`GET /<target>/_mapping/<type>/field/<field>`
+
 [[get-field-mapping-api-prereqs]]
 ==== {api-prereq-title}
 
@@ -43,6 +47,10 @@ and indices, omit this parameter or use `*` or `_all`.
 (Optional, string) Comma-separated list or wildcard expression of fields used to
 limit returned information.
 
+`<type>`::
+deprecated:[7.0, Mapping types are deprecated. See <<removal-of-types>>.]
+(Optional, string) Comma-separated list of <<removal-of-types,mapping types>>
+used to limit returned information.
 
 [[get-field-mapping-api-query-params]]
 ==== {api-query-parms-title}

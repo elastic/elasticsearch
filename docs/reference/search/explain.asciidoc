@@ -22,9 +22,13 @@ GET /my-index-000001/_explain/0
 [[search-explain-api-request]]
 ==== {api-request-title}
 
-`GET /<index>/_explain/<id>`
+`GET /<index>/_explain/<_id>`
 
-`POST /<index>/_explain/<id>`
+`POST /<index>/_explain/<_id>`
+
+`GET /<index>/<type>/<_id>/_explain`
+
+`POST /<index>/<type>/<_id>/_explain`
 
 [[search-explain-api-prereqs]]
 ==== {api-prereq-title}
@@ -43,9 +47,6 @@ didn't match a specific query.
 [[search-explain-api-path-params]]
 ==== {api-path-parms-title}
 
-`<id>`::
-  (Required, integer) Defines the document ID.
-  
 `<index>`::
 +
 --
@@ -55,7 +56,13 @@ Index names used to limit the request.
 Only a single index name can be provided to this parameter.
 --
 
+`<type>`::
+deprecated:[7.0, Mapping types are deprecated. See <<removal-of-types>>.]
+(Optional, string) <<removal-of-types,Mapping type>> for the document.
 
+`<_id>`::
+(Required, integer) Defines the document ID.
+  
 [[search-explain-api-query-params]]
 ==== {api-query-parms-title}
 

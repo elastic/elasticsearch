@@ -31,8 +31,6 @@
               - 6.8
             excluded-regions:
               - ^docs/.*
-            black-list-labels:
-              - '>test-mute'
             white-list-labels:
               - 'build-benchmark'
     builders:

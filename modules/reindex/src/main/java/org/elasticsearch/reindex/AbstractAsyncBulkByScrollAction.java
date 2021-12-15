@@ -182,7 +182,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
     }
 
-    //Visible for testing
+    // Visible for testing
     static <Request extends AbstractBulkByScrollRequest<Request>> Request prepareRequest(
         Request mainRequest,
         boolean needsSourceDocumentVersions,

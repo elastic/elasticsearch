@@ -47,6 +47,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import javax.inject.Inject;
+
 /**
  * A task to check licenses for dependencies.
  * <p>

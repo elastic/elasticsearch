@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.io.stream;
 
+import org.elasticsearch.Version;
+
 /**
  * A {@link Writeable} object identified by its name.
  * To be used for arbitrary serializable objects (e.g. queries); when reading them, their name tells
@@ -19,4 +21,8 @@ public interface NamedWriteable extends Writeable {
      * Returns the name of the writeable object
      */
     String getWriteableName();
+
+    default Version getReleasedVersion() {
+        return Version.CURRENT.minimumCompatibilityVersion();
+    }
 }

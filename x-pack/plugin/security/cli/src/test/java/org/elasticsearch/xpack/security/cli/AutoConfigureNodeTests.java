@@ -31,7 +31,6 @@ import java.nio.file.Path;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.nio.file.StandardOpenOption.CREATE_NEW;
 import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.removePreviousAutoconfiguration;
@@ -151,11 +150,13 @@ public class AutoConfigureNodeTests extends ESTestCase {
             Files.createDirectory(tempDir.resolve("config"));
             // empty yml file, it just has to exist
             Files.write(tempDir.resolve("config").resolve("elasticsearch.yml"), List.of(), CREATE_NEW);
-            X509Certificate httpCertificate = runAutoConfigAndReturnHTTPCertificate(tempDir,
+            X509Certificate httpCertificate = runAutoConfigAndReturnHTTPCertificate(
+                tempDir,
                 Settings.builder()
                     .put(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey(), "172.168.1.100")
                     .put(HttpTransportSettings.SETTING_HTTP_HOST.getKey(), "10.10.10.100")
-                    .build());
+                    .build()
+            );
             assertThat(checkGeneralNameSan(httpCertificate, "dummy.test.hostname", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "localhost", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "172.168.1.100", GeneralName.iPAddress), is(true));
@@ -170,11 +171,13 @@ public class AutoConfigureNodeTests extends ESTestCase {
             Files.createDirectory(tempDir.resolve("config"));
             // empty yml file, it just has to exist
             Files.write(tempDir.resolve("config").resolve("elasticsearch.yml"), List.of(), CREATE_NEW);
-            X509Certificate httpCertificate = runAutoConfigAndReturnHTTPCertificate(tempDir,
+            X509Certificate httpCertificate = runAutoConfigAndReturnHTTPCertificate(
+                tempDir,
                 Settings.builder()
                     .put(NetworkService.GLOBAL_NETWORK_HOST_SETTING.getKey(), "172.168.1.100")
                     .put(HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST.getKey(), "10.10.10.100")
-                    .build());
+                    .build()
+            );
             assertThat(checkGeneralNameSan(httpCertificate, "dummy.test.hostname", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "localhost", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "172.168.1.100", GeneralName.iPAddress), is(false));
@@ -189,13 +192,15 @@ public class AutoConfigureNodeTests extends ESTestCase {
             Files.createDirectory(tempDir.resolve("config"));
             // empty yml file, it just has to exist
             Files.write(tempDir.resolve("config").resolve("elasticsearch.yml"), List.of(), CREATE_NEW);
-            X509Certificate httpCertificate = runAutoConfigAndReturnHTTPCertificate(tempDir,
+            X509Certificate httpCertificate = runAutoConfigAndReturnHTTPCertificate(
+                tempDir,
                 Settings.builder()
                     .put(NetworkService.GLOBAL_NETWORK_PUBLISH_HOST_SETTING.getKey(), "172.168.1.110")
                     .put(NetworkService.GLOBAL_NETWORK_HOST_SETTING.getKey(), "172.168.1.100")
                     .put(HttpTransportSettings.SETTING_HTTP_PUBLISH_HOST.getKey(), "10.10.10.110")
                     .put(HttpTransportSettings.SETTING_HTTP_HOST.getKey(), "10.10.10.100")
-                    .build());
+                    .build()
+            );
             assertThat(checkGeneralNameSan(httpCertificate, "dummy.test.hostname", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "localhost", GeneralName.dNSName), is(true));
             assertThat(checkGeneralNameSan(httpCertificate, "172.168.1.110", GeneralName.iPAddress), is(true));

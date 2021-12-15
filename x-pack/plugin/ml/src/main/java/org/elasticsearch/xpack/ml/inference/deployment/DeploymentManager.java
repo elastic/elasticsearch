@@ -302,7 +302,7 @@ public class DeploymentManager {
 
         void onTimeout() {
             if (notified.compareAndSet(false, true)) {
-                processContext.getResultProcessor().ignoreResposeWithoutNotifying(String.valueOf(requestId));
+                processContext.getResultProcessor().ignoreResponseWithoutNotifying(String.valueOf(requestId));
                 listener.onFailure(
                     new ElasticsearchStatusException("timeout [{}] waiting for inference result", RestStatus.REQUEST_TIMEOUT, timeout)
                 );
@@ -329,7 +329,7 @@ public class DeploymentManager {
         public void onFailure(Exception e) {
             timeoutHandler.cancel();
             if (notified.compareAndSet(false, true)) {
-                processContext.getResultProcessor().ignoreResposeWithoutNotifying(String.valueOf(requestId));
+                processContext.getResultProcessor().ignoreResponseWithoutNotifying(String.valueOf(requestId));
                 listener.onFailure(e);
                 return;
             }
@@ -489,7 +489,7 @@ public class DeploymentManager {
             return reason -> {
                 logger.error("[{}] process crashed due to reason [{}]", task.getModelId(), reason);
                 resultProcessor.stop();
-                executorService.shutdown();
+                executorService.shutdownWithError(new IllegalStateException(reason));
                 processContextByAllocation.remove(task.getId());
                 task.setFailed("process crashed due to reason [" + reason + "]");
             };

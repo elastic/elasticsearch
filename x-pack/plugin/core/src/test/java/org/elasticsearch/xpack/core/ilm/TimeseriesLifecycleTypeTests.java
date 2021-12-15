@@ -180,8 +180,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Map<String, LifecycleAction> actions = randomSubsetOf(VALID_FROZEN_ACTIONS).stream()
             .map(this::getTestAction)
             .collect(Collectors.toMap(LifecycleAction::getWriteableName, Function.identity()));
-        // regardless of the randomised actions, we must have a SearchableSnapshotAction in frozen
-        actions.put(SearchableSnapshotAction.NAME, getTestAction(SearchableSnapshotAction.NAME));
+        // Frozen requires the searchable snapshot action to be present
+        actions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo", randomBoolean()));
         if (randomBoolean()) {
             invalidAction = getTestAction(randomFrom("rollover", "delete", "forcemerge", "shrink"));
             actions.put(invalidAction.getWriteableName(), invalidAction);

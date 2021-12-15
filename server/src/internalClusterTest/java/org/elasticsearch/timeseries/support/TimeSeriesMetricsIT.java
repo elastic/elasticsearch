@@ -428,7 +428,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
     ) {
         return withMetrics(
             bucketBatchSize,
-            between(0, 10000),  // Not used by this method
+            between(1, 10000),
             staleness,
             (future, metrics) -> metrics.range(List.of(eq("v")), List.of(), timeMillis, range, step, new CollectingListener(future))
         );
@@ -480,7 +480,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
         new TimeSeriesMetricsService(client(), bucketBatchSize, docBatchSize, staleness).newMetrics(
             new String[] { "tsdb" },
             IndicesOptions.STRICT_EXPAND_OPEN,
-            new ActionListener<TimeSeriesMetrics>() {
+            new ActionListener<>() {
                 @Override
                 public void onResponse(TimeSeriesMetrics metrics) {
                     handle.accept(result, metrics);
@@ -511,7 +511,7 @@ public class TimeSeriesMetricsIT extends ESIntegTestCase {
                 results.put(currentDimensions, currentValues);
             }
             currentDimensions = new Tuple<>(metric, dimensions);
-            currentValues = new ArrayList<>();
+            currentValues = results.getOrDefault(currentDimensions, new ArrayList<>());
         }
 
         @Override

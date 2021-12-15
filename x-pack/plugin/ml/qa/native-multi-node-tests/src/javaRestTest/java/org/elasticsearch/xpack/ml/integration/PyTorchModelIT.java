@@ -605,7 +605,8 @@ public class PyTorchModelIT extends ESRestTestCase {
             """;
 
         response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
-        assertThat(response, containsString("warning"));
+        assertThat(response, containsString("no value could be found for input field [input]"));
+        assertThat(response, containsString("status_exception"));
     }
 
     private int sumInferenceCountOnNodes(List<Map<String, Object>> nodes) {

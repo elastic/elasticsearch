@@ -76,6 +76,19 @@ public class BertTokenizer implements NlpTokenizer {
         this.neverSplit = Sets.union(neverSplit, NEVER_SPLIT);
         this.maxSequenceLength = maxSequenceLength;
         this.requestBuilder = requestBuilderFactory.apply(this);
+        if (vocab.containsKey(UNKNOWN_TOKEN) == false) {
+            throw ExceptionsHelper.conflictStatusException("stored vocabulary is missing required [{}] token", UNKNOWN_TOKEN);
+        }
+        if (vocab.containsKey(PAD_TOKEN) == false) {
+            throw ExceptionsHelper.conflictStatusException("stored vocabulary is missing required [{}] token", PAD_TOKEN);
+        }
+
+        if (withSpecialTokens) {
+            Set<String> missingSpecialTokens = Sets.difference(Set.of(SEPARATOR_TOKEN, CLASS_TOKEN), vocab.keySet());
+            if (missingSpecialTokens.isEmpty() == false) {
+                throw ExceptionsHelper.conflictStatusException("stored vocabulary is missing required {} token(s)", missingSpecialTokens);
+            }
+        }
     }
 
     @Override

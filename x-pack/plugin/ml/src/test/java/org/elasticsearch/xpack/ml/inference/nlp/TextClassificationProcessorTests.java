@@ -16,15 +16,15 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.VocabularyConfig;
-import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
-import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.NlpTokenizer;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizerTests.TEST_CASED_VOCAB;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -32,7 +32,7 @@ public class TextClassificationProcessorTests extends ESTestCase {
 
     public void testInvalidResult() {
         {
-            PyTorchResult torchResult = new PyTorchResult("foo", new double[][][] {}, 0L, null);
+            PyTorchInferenceResult torchResult = new PyTorchInferenceResult("foo", new double[][][] {}, 0L, null);
             InferenceResults inferenceResults = TextClassificationProcessor.processResult(
                 null,
                 torchResult,
@@ -44,7 +44,7 @@ public class TextClassificationProcessorTests extends ESTestCase {
             assertEquals("Text classification result has no data", ((WarningInferenceResults) inferenceResults).getWarning());
         }
         {
-            PyTorchResult torchResult = new PyTorchResult("foo", new double[][][] { { { 1.0 } } }, 0L, null);
+            PyTorchInferenceResult torchResult = new PyTorchInferenceResult("foo", new double[][][] { { { 1.0 } } }, 0L, null);
             InferenceResults inferenceResults = TextClassificationProcessor.processResult(
                 null,
                 torchResult,
@@ -63,17 +63,7 @@ public class TextClassificationProcessorTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testBuildRequest() throws IOException {
         NlpTokenizer tokenizer = NlpTokenizer.build(
-            new Vocabulary(
-                Arrays.asList(
-                    "Elastic",
-                    "##search",
-                    "fun",
-                    BertTokenizer.CLASS_TOKEN,
-                    BertTokenizer.SEPARATOR_TOKEN,
-                    BertTokenizer.PAD_TOKEN
-                ),
-                randomAlphaOfLength(10)
-            ),
+            new Vocabulary(TEST_CASED_VOCAB, randomAlphaOfLength(10)),
             new BertTokenization(null, null, 512, Tokenization.Truncate.NONE)
         );
 
@@ -94,7 +84,7 @@ public class TextClassificationProcessorTests extends ESTestCase {
 
         assertThat(jsonDocAsMap.keySet(), hasSize(5));
         assertEquals("request1", jsonDocAsMap.get("request_id"));
-        assertEquals(Arrays.asList(3, 0, 1, 2, 4), ((List<List<Integer>>) jsonDocAsMap.get("tokens")).get(0));
+        assertEquals(Arrays.asList(12, 0, 1, 3, 13), ((List<List<Integer>>) jsonDocAsMap.get("tokens")).get(0));
         assertEquals(Arrays.asList(1, 1, 1, 1, 1), ((List<List<Integer>>) jsonDocAsMap.get("arg_1")).get(0));
     }
 }

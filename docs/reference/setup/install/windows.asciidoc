@@ -434,6 +434,8 @@ for plugins not currently installed, to be downloaded and installed:
 [[msi-installer-upgrade-plugins]]
 image::images/msi_installer/msi_installer_upgrade_plugins.png[]
 
+include::connect-clients.asciidoc[]
+
 [[upgrade-msi-command-line]]
 ==== Upgrade using the command line
 

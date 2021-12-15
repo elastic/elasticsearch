@@ -141,12 +141,12 @@ Monitoring::
 === Known issues
 
 // tag::painless-functional-interface-resolution-81696-known-issue[]
-* Painless function interface resolution: Any Painless script
-where a method call resolves a lambda argument to a `UnaryOperator`
-or a `BinaryOperator` results in an `IllegalArgumentException` as either
-a compilation error when static types are used or a runtime error when
-dynamic types are used. Use standard procedural statements as a workaround
- (`if/else`, `while`, `for`, etc.).
+* Painless: Any Painless script where a method call resolves a lambda argument
+to a `UnaryOperator` or a `BinaryOperator` type results in an 
+`IllegalArgumentException`. This exception results in a compilation error when 
+static types are used, or a runtime error for dynamic types. Use standard 
+procedural statements as a workaround, such as `if/else`, `while`, and `for`
+statements. 
 +
 An example failure of a `UnaryOperator`:
 +

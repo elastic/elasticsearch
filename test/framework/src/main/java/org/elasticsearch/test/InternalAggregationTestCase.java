@@ -365,8 +365,9 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
     /**
      * Generate a list of inputs to reduce. Defaults to calling
      * {@link #createTestInstance(String)} and
-     * {@link #createUnmappedInstance(String)} but should be overridden
-     * if it isn't realistic to reduce test instances.
+     * {@link #createUnmappedInstance(String)} and {@link #mockBuilder(List)}
+     * but should be overridden if it isn't realistic to reduce test
+     * instances against mocked builders.
      */
     protected BuilderAndToReduce<T> randomResultsToReduce(String name, int size) {
         List<T> inputs = new ArrayList<>();

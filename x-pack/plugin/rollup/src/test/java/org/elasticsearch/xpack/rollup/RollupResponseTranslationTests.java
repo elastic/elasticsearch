@@ -47,6 +47,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -410,7 +411,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         SearchResponse response = RollupResponseTranslator.combineResponses(
             msearch,
-            InternalAggregationTestCase.emptyReduceContextBuilder()
+            InternalAggregationTestCase.emptyReduceContextBuilder(
+                new AggregatorFactories.Builder().addAggregator(new MaxAggregationBuilder("foo"))
+                    .addAggregator(new MaxAggregationBuilder("foo." + RollupField.COUNT_FIELD))
+            )
         );
         assertNotNull(response);
         Aggregations responseAggs = response.getAggregations();

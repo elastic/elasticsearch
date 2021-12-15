@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-configure(subprojects - project('elasticsearch-log4j')) {
+subprojects {
   /*
    * All subprojects are java projects using Elasticsearch's standard build
    * tools.

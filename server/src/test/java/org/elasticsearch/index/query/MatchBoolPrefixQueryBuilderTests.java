@@ -156,41 +156,44 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
     }
 
     public void testFromSimpleJson() throws IOException {
-        final String simple = "{" + "\"match_bool_prefix\": {" + "\"fieldName\": \"fieldValue\"" + "}" + "}";
-        final String expected = "{"
-            + "\"match_bool_prefix\": {"
-            + "\"fieldName\": {"
-            + "\"query\": \"fieldValue\","
-            + "\"operator\": \"OR\","
-            + "\"prefix_length\": 0,"
-            + "\"max_expansions\": 50,"
-            + "\"fuzzy_transpositions\": true,"
-            + "\"boost\": 1.0"
-            + "}"
-            + "}"
-            + "}";
+        final String simple = """
+            {"match_bool_prefix": {"fieldName": "fieldValue"}}""";
+        final String expected = """
+            {
+              "match_bool_prefix": {
+                "fieldName": {
+                  "query": "fieldValue",
+                  "operator": "OR",
+                  "prefix_length": 0,
+                  "max_expansions": 50,
+                  "fuzzy_transpositions": true,
+                  "boost": 1.0
+                }
+              }
+            }""";
 
         final MatchBoolPrefixQueryBuilder builder = (MatchBoolPrefixQueryBuilder) parseQuery(simple);
         checkGeneratedJson(expected, builder);
     }
 
     public void testFromJson() throws IOException {
-        final String expected = "{"
-            + "\"match_bool_prefix\": {"
-            + "\"fieldName\": {"
-            + "\"query\": \"fieldValue\","
-            + "\"analyzer\": \"simple\","
-            + "\"operator\": \"AND\","
-            + "\"minimum_should_match\": \"2\","
-            + "\"fuzziness\": \"1\","
-            + "\"prefix_length\": 1,"
-            + "\"max_expansions\": 10,"
-            + "\"fuzzy_transpositions\": false,"
-            + "\"fuzzy_rewrite\": \"constant_score\","
-            + "\"boost\": 2.0"
-            + "}"
-            + "}"
-            + "}";
+        final String expected = """
+            {
+              "match_bool_prefix": {
+                "fieldName": {
+                  "query": "fieldValue",
+                  "analyzer": "simple",
+                  "operator": "AND",
+                  "minimum_should_match": "2",
+                  "fuzziness": "1",
+                  "prefix_length": 1,
+                  "max_expansions": 10,
+                  "fuzzy_transpositions": false,
+                  "fuzzy_rewrite": "constant_score",
+                  "boost": 2.0
+                }
+              }
+            }""";
 
         final MatchBoolPrefixQueryBuilder builder = (MatchBoolPrefixQueryBuilder) parseQuery(expected);
         checkGeneratedJson(expected, builder);
@@ -198,16 +201,17 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
 
     public void testParseFailsWithMultipleFields() {
         {
-            final String json = "{"
-                + "\"match_bool_prefix\" : {"
-                + "\"field_name_1\" : {"
-                + "\"query\" : \"foo\""
-                + "},"
-                + "\"field_name_2\" : {"
-                + "\"query\" : \"foo\"\n"
-                + "}"
-                + "}"
-                + "}";
+            final String json = """
+                {
+                  "match_bool_prefix": {
+                    "field_name_1": {
+                      "query": "foo"
+                    },
+                    "field_name_2": {
+                      "query": "foo"
+                    }
+                  }
+                }""";
             final ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
             assertEquals(
                 "[match_bool_prefix] query doesn't support multiple fields, found [field_name_1] and [field_name_2]",
@@ -216,12 +220,8 @@ public class MatchBoolPrefixQueryBuilderTests extends AbstractQueryTestCase<Matc
         }
 
         {
-            final String simpleJson = "{"
-                + "\"match_bool_prefix\" : {"
-                + "\"field_name_1\" : \"foo\","
-                + "\"field_name_2\" : \"foo\""
-                + "}"
-                + "}";
+            final String simpleJson = """
+                {"match_bool_prefix" : {"field_name_1" : "foo","field_name_2" : "foo"}}""";
             final ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(simpleJson));
             assertEquals(
                 "[match_bool_prefix] query doesn't support multiple fields, found [field_name_1] and [field_name_2]",

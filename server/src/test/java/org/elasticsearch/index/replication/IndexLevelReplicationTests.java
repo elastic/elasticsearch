@@ -293,7 +293,9 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     }
 
     public void testConflictingOpsOnReplica() throws Exception {
-        String mappings = "{ \"_doc\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
+        String mappings = """
+            { "_doc": { "properties": { "f": { "type": "keyword"} }}}
+            """;
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(2, mappings))) {
             shards.startAll();
             List<IndexShard> replicas = shards.getReplicas();
@@ -320,7 +322,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     }
 
     public void testReplicaTermIncrementWithConcurrentPrimaryPromotion() throws Exception {
-        String mappings = "{ \"_doc\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
+        String mappings = """
+            { "_doc": { "properties": { "f": { "type": "keyword"} }}}""";
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(2, mappings))) {
             shards.startAll();
             long primaryPrimaryTerm = shards.getPrimary().getPendingPrimaryTerm();
@@ -370,7 +373,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
     }
 
     public void testReplicaOperationWithConcurrentPrimaryPromotion() throws Exception {
-        String mappings = "{ \"_doc\": { \"properties\": { \"f\": { \"type\": \"keyword\"} }}}";
+        String mappings = """
+            { "_doc": { "properties": { "f": { "type": "keyword"} }}}""";
         try (ReplicationGroup shards = new ReplicationGroup(buildIndexMetadata(1, mappings))) {
             shards.startAll();
             long primaryPrimaryTerm = shards.getPrimary().getPendingPrimaryTerm();

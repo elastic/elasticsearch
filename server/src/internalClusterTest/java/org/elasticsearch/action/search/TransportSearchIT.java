@@ -420,10 +420,8 @@ public class TransportSearchIT extends ESIntegTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 5))
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numOfReplicas)
             .put(IndexSettings.INDEX_SEARCH_IDLE_AFTER.getKey(), TimeValue.timeValueMillis(randomIntBetween(50, 500)));
-        assertAcked(
-            prepareCreate("test").setSettings(settings)
-                .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}")
-        );
+        assertAcked(prepareCreate("test").setSettings(settings).setMapping("""
+            {"properties":{"created_date":{"type": "date", "format": "yyyy-MM-dd"}}}"""));
         ensureGreen("test");
         assertBusy(() -> {
             for (String node : internalCluster().nodesInclude("test")) {

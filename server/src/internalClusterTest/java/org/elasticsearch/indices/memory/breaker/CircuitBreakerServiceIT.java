@@ -166,13 +166,22 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         final Client client = client();
 
         // Create an index where the mappings have a field data filter
-        assertAcked(
-            prepareCreate("ramtest").setSource(
-                "{\"mappings\": {\"type\": {\"properties\": {\"test\": "
-                    + "{\"type\": \"text\",\"fielddata\": true,\"fielddata_frequency_filter\": {\"max\": 10000}}}}}}",
-                XContentType.JSON
-            )
-        );
+        assertAcked(prepareCreate("ramtest").setSource("""
+            {
+              "mappings": {
+                "type": {
+                  "properties": {
+                    "test": {
+                      "type": "text",
+                      "fielddata": true,
+                      "fielddata_frequency_filter": {
+                        "max": 10000
+                      }
+                    }
+                  }
+                }
+              }
+            }""", XContentType.JSON));
 
         ensureGreen("ramtest");
 

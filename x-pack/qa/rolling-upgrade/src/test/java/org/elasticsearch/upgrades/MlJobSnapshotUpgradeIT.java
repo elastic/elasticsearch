@@ -97,7 +97,8 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
     public void testSnapshotUpgrader() throws Exception {
         hlrc = new HLRC(client()).machineLearning();
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
-        adjustLoggingLevels.setJsonEntity("{\"persistent\": {" + "\"logger.org.elasticsearch.xpack.ml\": \"trace\"" + "}}");
+        adjustLoggingLevels.setJsonEntity("""
+            {"persistent": {"logger.org.elasticsearch.xpack.ml": "trace"}}""");
         client().performRequest(adjustLoggingLevels);
         switch (CLUSTER_TYPE) {
             case OLD:

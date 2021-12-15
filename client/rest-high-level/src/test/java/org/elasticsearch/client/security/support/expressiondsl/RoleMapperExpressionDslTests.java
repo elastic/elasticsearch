@@ -13,6 +13,7 @@ import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRo
 import org.elasticsearch.client.security.support.expressiondsl.expressions.ExceptRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -43,41 +44,39 @@ public class RoleMapperExpressionDslTests extends ESTestCase {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         allExpression.toXContent(builder, ToXContent.EMPTY_PARAMS);
         final String output = Strings.toString(builder);
-        final String expected = "{"
-            + "\"all\":["
-            + "{"
-            + "\"any\":["
-            + "{"
-            + "\"field\":{"
-            + "\"dn\":[\"*,ou=admin,dc=example,dc=com\"]"
-            + "}"
-            + "},"
-            + "{"
-            + "\"field\":{"
-            + "\"username\":["
-            + "\"es-admin\","
-            + "\"es-system\""
-            + "]"
-            + "}"
-            + "}"
-            + "]"
-            + "},"
-            + "{"
-            + "\"field\":{"
-            + "\"groups\":[\"cn=people,dc=example,dc=com\"]"
-            + "}"
-            + "},"
-            + "{"
-            + "\"except\":{"
-            + "\"field\":{"
-            + "\"metadata.terminated_date\":[\"2018-09-17T00:50:01.027Z\"]"
-            + "}"
-            + "}"
-            + "}"
-            + "]"
-            + "}";
+        final String expected = """
+            {
+              "all": [
+                {
+                  "any": [
+                    {
+                      "field": {
+                        "dn": [ "*,ou=admin,dc=example,dc=com" ]
+                      }
+                    },
+                    {
+                      "field": {
+                        "username": [ "es-admin", "es-system" ]
+                      }
+                    }
+                  ]
+                },
+                {
+                  "field": {
+                    "groups": [ "cn=people,dc=example,dc=com" ]
+                  }
+                },
+                {
+                  "except": {
+                    "field": {
+                      "metadata.terminated_date": [ "2018-09-17T00:50:01.027Z" ]
+                    }
+                  }
+                }
+              ]
+            }""";
 
-        assertThat(output, equalTo(expected));
+        assertThat(output, equalTo(XContentHelper.stripWhitespace(expected)));
     }
 
     public void testFieldRoleMapperExpressionThrowsExceptionForMissingMetadataPrefix() {

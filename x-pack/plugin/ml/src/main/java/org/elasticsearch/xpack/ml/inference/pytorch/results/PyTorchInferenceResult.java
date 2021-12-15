@@ -5,11 +5,8 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.inference.deployment;
+package org.elasticsearch.xpack.ml.inference.pytorch.results;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -28,16 +25,16 @@ import java.util.Objects;
  * If the error field is not null the instance is an error result
  * so the inference and time_ms fields will be null.
  */
-public class PyTorchResult implements ToXContentObject, Writeable {
+public class PyTorchInferenceResult implements ToXContentObject {
 
     private static final ParseField REQUEST_ID = new ParseField("request_id");
     private static final ParseField INFERENCE = new ParseField("inference");
     private static final ParseField ERROR = new ParseField("error");
     private static final ParseField TIME_MS = new ParseField("time_ms");
 
-    public static final ConstructingObjectParser<PyTorchResult, Void> PARSER = new ConstructingObjectParser<>(
-        "pytorch_result",
-        a -> new PyTorchResult((String) a[0], (double[][][]) a[1], (Long) a[2], (String) a[3])
+    public static final ConstructingObjectParser<PyTorchInferenceResult, Void> PARSER = new ConstructingObjectParser<>(
+        "pytorch_inference_result",
+        a -> new PyTorchInferenceResult((String) a[0], (double[][][]) a[1], (Long) a[2], (String) a[3])
     );
 
     static {
@@ -52,7 +49,7 @@ public class PyTorchResult implements ToXContentObject, Writeable {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ERROR);
     }
 
-    public static PyTorchResult fromXContent(XContentParser parser) throws IOException {
+    public static PyTorchInferenceResult fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
@@ -61,23 +58,11 @@ public class PyTorchResult implements ToXContentObject, Writeable {
     private final Long timeMs;
     private final String error;
 
-    public PyTorchResult(String requestId, @Nullable double[][][] inference, @Nullable Long timeMs, @Nullable String error) {
+    public PyTorchInferenceResult(String requestId, @Nullable double[][][] inference, @Nullable Long timeMs, @Nullable String error) {
         this.requestId = Objects.requireNonNull(requestId);
         this.inference = inference;
         this.timeMs = timeMs;
         this.error = error;
-    }
-
-    public PyTorchResult(StreamInput in) throws IOException {
-        requestId = in.readString();
-        boolean hasInference = in.readBoolean();
-        if (hasInference) {
-            inference = in.readArray(in2 -> in2.readArray(StreamInput::readDoubleArray, double[][]::new), double[][][]::new);
-        } else {
-            inference = null;
-        }
-        timeMs = in.readOptionalLong();
-        error = in.readOptionalString();
     }
 
     public String getRequestId() {
@@ -130,19 +115,6 @@ public class PyTorchResult implements ToXContentObject, Writeable {
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(requestId);
-        if (inference == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeArray((out2, arr) -> out2.writeArray(StreamOutput::writeDoubleArray, arr), inference);
-        }
-        out.writeOptionalLong(timeMs);
-        out.writeOptionalString(error);
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(requestId, Arrays.deepHashCode(inference), error);
     }
@@ -152,7 +124,7 @@ public class PyTorchResult implements ToXContentObject, Writeable {
         if (this == other) return true;
         if (other == null || getClass() != other.getClass()) return false;
 
-        PyTorchResult that = (PyTorchResult) other;
+        PyTorchInferenceResult that = (PyTorchInferenceResult) other;
         return Objects.equals(requestId, that.requestId)
             && Arrays.deepEquals(inference, that.inference)
             && Objects.equals(error, that.error);

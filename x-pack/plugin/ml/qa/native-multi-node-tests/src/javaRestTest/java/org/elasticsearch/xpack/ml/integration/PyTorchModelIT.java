@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -73,6 +74,7 @@ import static org.hamcrest.Matchers.nullValue;
  * torch.jit.save(traced_model, "simplemodel.pt")
  * ## End Python
  */
+@AwaitsFix(bugUrl = "until https://github.com/elastic/ml-cpp/pull/2159 is merged")
 public class PyTorchModelIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE_SUPER_USER = UsernamePasswordToken.basicAuthHeaderValue(
@@ -525,8 +527,9 @@ public class PyTorchModelIT extends ESRestTestCase {
         startDeployment(modelId, AllocationStatus.State.FULLY_ALLOCATED.toString());
 
         String input = "once twice thrice";
+        var e = expectThrows(ResponseException.class, () -> EntityUtils.toString(infer("once twice thrice", modelId).getEntity()));
         assertThat(
-            EntityUtils.toString(infer("once twice thrice", modelId).getEntity()),
+            e.getMessage(),
             containsString("Input too large. The tokenized input length [3] exceeds the maximum sequence length [2]")
         );
 
@@ -635,7 +638,8 @@ public class PyTorchModelIT extends ESRestTestCase {
             """;
 
         response = EntityUtils.toString(client().performRequest(simulateRequest(source)).getEntity());
-        assertThat(response, containsString("warning"));
+        assertThat(response, containsString("no value could be found for input field [input]"));
+        assertThat(response, containsString("status_exception"));
     }
 
     public void testDeleteModelWithDeploymentUsedByIngestProcessor() throws IOException {

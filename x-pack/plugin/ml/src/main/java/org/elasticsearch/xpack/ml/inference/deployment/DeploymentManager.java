@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcess
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer;
+import org.elasticsearch.xpack.ml.inference.pytorch.results.PyTorchInferenceResult;
 import org.elasticsearch.xpack.ml.job.process.ProcessWorkerExecutorService;
 
 import java.io.IOException;
@@ -108,7 +109,9 @@ public class DeploymentManager {
                     processContext.startTime,
                     processContext.getResultProcessor().getTimingStats(),
                     processContext.getResultProcessor().getLastUsed(),
-                    processContext.executorService.queueSize() + processContext.getResultProcessor().numberOfPendingResults()
+                    processContext.executorService.queueSize() + processContext.getResultProcessor().numberOfPendingResults(),
+                    processContext.inferenceThreads,
+                    processContext.modelThreads
                 )
             );
     }
@@ -366,8 +369,8 @@ public class DeploymentManager {
                     .registerRequest(
                         requestIdStr,
                         ActionListener.wrap(
-                            pyTorchResult -> processResult(
-                                pyTorchResult,
+                            inferenceResult -> processResult(
+                                inferenceResult,
                                 processContext,
                                 request.tokenization,
                                 processor.getResultProcessor((NlpConfig) config),
@@ -401,14 +404,14 @@ public class DeploymentManager {
         }
 
         private void processResult(
-            PyTorchResult pyTorchResult,
+            PyTorchInferenceResult inferenceResult,
             ProcessContext context,
             TokenizationResult tokenization,
             NlpTask.ResultProcessor inferenceResultsProcessor,
             ActionListener<InferenceResults> resultsListener
         ) {
-            if (pyTorchResult.isError()) {
-                resultsListener.onFailure(new ElasticsearchStatusException(pyTorchResult.getError(), RestStatus.INTERNAL_SERVER_ERROR));
+            if (inferenceResult.isError()) {
+                resultsListener.onFailure(new ElasticsearchStatusException(inferenceResult.getError(), RestStatus.INTERNAL_SERVER_ERROR));
                 return;
             }
 
@@ -424,7 +427,7 @@ public class DeploymentManager {
                 );
                 return;
             }
-            InferenceResults results = inferenceResultsProcessor.processResult(tokenization, pyTorchResult);
+            InferenceResults results = inferenceResultsProcessor.processResult(tokenization, inferenceResult);
             logger.debug(() -> new ParameterizedMessage("[{}] processed result for request [{}]", context.task.getModelId(), requestId));
             resultsListener.onResponse(results);
         }
@@ -440,10 +443,15 @@ public class DeploymentManager {
         private final PyTorchStateStreamer stateStreamer;
         private final ProcessWorkerExecutorService executorService;
         private volatile Instant startTime;
+        private volatile Integer inferenceThreads;
+        private volatile Integer modelThreads;
 
         ProcessContext(TrainedModelDeploymentTask task, ExecutorService executorService) {
             this.task = Objects.requireNonNull(task);
-            resultProcessor = new PyTorchResultProcessor(task.getModelId());
+            resultProcessor = new PyTorchResultProcessor(task.getModelId(), threadSettings -> {
+                this.inferenceThreads = threadSettings.inferenceThreads();
+                this.modelThreads = threadSettings.modelThreads();
+            });
             this.stateStreamer = new PyTorchStateStreamer(client, executorService, xContentRegistry);
             this.executorService = new ProcessWorkerExecutorService(
                 threadPool.getThreadContext(),

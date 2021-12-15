@@ -8,10 +8,10 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
-import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -20,6 +20,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Locale;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.index.store.Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
@@ -44,10 +45,6 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
     public void testFloodStageExceeded() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
-
-        final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(
-            ClusterInfoService.class
-        );
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
@@ -78,5 +75,35 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
                 equalTo("true")
             );
         });
+
+        final String newDataNodeName = internalCluster().startDataOnlyNode();
+        final String newDataNodeId = client().admin().cluster().prepareNodesInfo(newDataNodeName).get().getNodes().get(0).getNode().getId();
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), newDataNodeName)
+                )
+        );
+
+        ensureGreen(indexName);
+        final ShardRouting primaryShard = client().admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setRoutingTable(true)
+            .setNodes(true)
+            .setIndices(indexName)
+            .get()
+            .getState()
+            .routingTable()
+            .index(indexName)
+            .shard(0)
+            .primaryShard();
+        assertThat(primaryShard.state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(primaryShard.currentNodeId(), equalTo(newDataNodeId));
     }
 }

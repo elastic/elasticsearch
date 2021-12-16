@@ -500,6 +500,9 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             }
         });
 
+        // Set the base for the scroll to wait - this is added to the figure we calculate below
+        firstSearchRequest.scroll(timeValueSeconds(10));
+
         DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction() {
             @Override
             protected RequestWrapper<?> buildRequest(Hit doc) {
@@ -507,9 +510,6 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
             }
         };
         action.setScroll(scrollId());
-
-        // Set the base for the scroll to wait - this is added to the figure we calculate below
-        firstSearchRequest.scroll(timeValueSeconds(10));
 
         // Set throttle to 1 request per second to make the math simpler
         worker.rethrottle(1f);

@@ -23,6 +23,7 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.Retry;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -188,6 +189,8 @@ public abstract class AbstractAsyncBulkByScrollAction<
         boolean needsSourceDocumentVersions,
         boolean needsSourceDocumentSeqNoAndPrimaryTerm
     ) {
+        var preparedSearchRequest = new SearchRequest(mainRequest.getSearchRequest());
+
         /*
          * Default to sorting by doc. We can't do this in the request itself because it is normal to *add* to the sorts rather than replace
          * them and if we add _doc as the first sort by default then sorts will never work.... So we add it here, only if there isn't
@@ -205,12 +208,12 @@ public abstract class AbstractAsyncBulkByScrollAction<
          * Do not open scroll if max docs <= scroll size and not resuming on version conflicts
          */
         if (mainRequest.getMaxDocs() != -1
-            && mainRequest.getMaxDocs() <= mainRequest.getSearchRequest().source().size()
+            && mainRequest.getMaxDocs() <= preparedSearchRequest.source().size()
             && mainRequest.isAbortOnVersionConflict()) {
-            mainRequest.getSearchRequest().scroll((Scroll) null);
+            preparedSearchRequest.scroll((Scroll) null);
         }
 
-        return mainRequest;
+        return mainRequest.setSearchRequest(preparedSearchRequest);
     }
 
     /**

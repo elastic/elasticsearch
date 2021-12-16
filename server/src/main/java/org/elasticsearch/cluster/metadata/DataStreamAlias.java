@@ -267,10 +267,10 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
                     );
                 }
             } else if (writeDataStream == null && previous.getWriteDataStream() != null) {
-                if (mergedDataStreams.contains(previous.getWriteDataStream())) {
-                    writeDataStream = previous.getWriteDataStream();
-                }
-                // else throw error?
+                // The write alias should exist in the set of merged data streams. It shouldn't be possible to construct an alias with
+                // a write data stream, that doesn't exist in the list of data streams.
+                assert mergedDataStreams.contains(previous.getWriteDataStream());
+                writeDataStream = previous.getWriteDataStream();
             }
         }
 

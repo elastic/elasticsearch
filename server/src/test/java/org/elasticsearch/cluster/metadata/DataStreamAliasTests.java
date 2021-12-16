@@ -260,4 +260,12 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
             assertThat(result.getWriteDataStream(), equalTo("ds-3"));
         }
     }
+
+    public void testRestoreDataStreamWithWriteDataStreamThatDoesNotExistInOriginalAlias() {
+        DataStreamAlias alias1 = new DataStreamAlias("my-alias", List.of("ds-1", "ds-2"), null, null);
+        DataStreamAlias alias2 = new DataStreamAlias("my-alias", List.of("ds-2", "ds-3"), "ds-3", null);
+        DataStreamAlias result = alias1.restore(alias2, "ds-3", null);
+        assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2", "ds-3"));
+        assertThat(result.getWriteDataStream(), equalTo("ds-3"));
+    }
 }

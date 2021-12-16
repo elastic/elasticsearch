@@ -210,7 +210,6 @@ public class ClientYamlTestExecutionContext {
 
     public void setNow(Instant now) {
         String nowFormatted = DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(now);
-        logger.info("stashed now: {}" , nowFormatted);
         stash.stashValue("now", nowFormatted);
     }
 

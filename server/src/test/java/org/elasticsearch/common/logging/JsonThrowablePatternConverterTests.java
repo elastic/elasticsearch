@@ -17,6 +17,7 @@ import org.hamcrest.Matchers;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 

@@ -189,6 +189,18 @@ public class RestSearchActionTests extends RestActionTestCase {
     public static class FailBeforeVersionQueryBuilder extends DummyQueryBuilder {
 
         static final String NAME = "fail_before_current_version";
+        private static Version previousMinor;
+
+        static {
+            List<Version> allVersions = VersionUtils.allVersions();
+            for (int i = allVersions.size() - 1; i >= 0; i--) {
+                Version v = allVersions.get(i);
+                if (v.minor < Version.CURRENT.minor || v.major < Version.CURRENT.major) {
+                    previousMinor = v;
+                    break;
+                }
+            }
+        }
 
         public FailBeforeVersionQueryBuilder(StreamInput in) throws IOException {
             super(in);
@@ -198,9 +210,9 @@ public class RestSearchActionTests extends RestActionTestCase {
 
         @Override
         protected void doWriteTo(StreamOutput out) {
-            if (out.getVersion().onOrBefore(VersionUtils.getPreviousMinorAllVersions())) {
+            if (out.getVersion().onOrBefore(previousMinor)) {
                 throw new IllegalArgumentException(
-                    "This query isn't serializable to nodes on or before " + VersionUtils.getPreviousMinorAllVersions()
+                    "This query isn't serializable to nodes on or before " + previousMinor
                 );
             }
         }

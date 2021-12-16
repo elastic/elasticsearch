@@ -42,8 +42,8 @@ public class VersionUtils {
         // this breaks b/c 5.x is still in version list but master doesn't care about it!
         // assert majorVersions.size() == 2;
         // TODO: remove oldVersions, we should only ever have 2 majors in Version
-        List<List<Version>> oldVersions = splitByMinor(majorVersions.getOrDefault(current.major - 2, Collections.emptyList()));
-        List<List<Version>> previousMajor = splitByMinor(majorVersions.get(current.major - 1));
+        List<List<Version>> oldVersions = splitByMinor(majorVersions.getOrDefault((int) current.major - 2, Collections.emptyList()));
+        List<List<Version>> previousMajor = splitByMinor(majorVersions.get((int) current.major - 1));
         List<List<Version>> currentMajor = splitByMinor(majorVersions.get((int) current.major));
 
         List<Version> unreleasedVersions = new ArrayList<>();
@@ -173,20 +173,6 @@ public class VersionUtils {
     public static Version getPreviousMinorVersion() {
         for (int i = RELEASED_VERSIONS.size() - 1; i >= 0; i--) {
             Version v = RELEASED_VERSIONS.get(i);
-            if (v.minor < Version.CURRENT.minor || v.major < Version.CURRENT.major) {
-                return v;
-            }
-        }
-        throw new IllegalArgumentException("couldn't find any released versions of the minor before [" + Version.CURRENT + "]");
-    }
-
-    /**
-     * Returns the {@link Version} before the {@link Version#CURRENT}
-     * where the minor version is less than the currents minor version.
-     */
-    public static Version getPreviousMinorAllVersions() {
-        for (int i = ALL_VERSIONS.size() - 1; i >= 0; i--) {
-            Version v = ALL_VERSIONS.get(i);
             if (v.minor < Version.CURRENT.minor || v.major < Version.CURRENT.major) {
                 return v;
             }

@@ -106,8 +106,9 @@ public class BytesRestResponseTests extends ESTestCase {
         Exception t = new UnknownException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
         BytesRestResponse response = new BytesRestResponse(channel, t);
         String text = response.content().utf8ToString();
+        // slight modification to exclude the last quotation mark because of https://bugs.eclipse.org/bugs/show_bug.cgi?id=577856
         assertThat(text, containsString("""
-            "type":"unknown_exception","reason":"an error occurred reading data\""""));
+            "type":"unknown_exception","reason":"an error occurred reading data"""));
         assertThat(text, containsString("""
             {"type":"file_not_found_exception\""""));
         assertThat(text, containsString("""

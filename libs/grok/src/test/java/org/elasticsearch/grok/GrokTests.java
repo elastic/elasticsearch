@@ -560,6 +560,7 @@ public class GrokTests extends ESTestCase {
 
         double[] rating = new double[1];
         GrokCaptureExtracter ratingExtracter = namedConfig(g, "rating").nativeExtracter(new ThrowingNativeExtracterMap() {
+            @Override
             public GrokCaptureExtracter forDouble(java.util.function.Function<DoubleConsumer, GrokCaptureExtracter> buildExtracter) {
                 return buildExtracter.apply(d -> rating[0] = d);
             }
@@ -654,10 +655,12 @@ public class GrokTests extends ESTestCase {
         Tuple<Map.Entry<String, GrokCaptureType>, Object> verb,
         List<Tuple<Map.Entry<String, GrokCaptureType>, Object>> additionalFields
     ) {
+        // slight modification to the test string made because of https://bugs.eclipse.org/bugs/show_bug.cgi?id=577856
         String logLine = """
             31.184.238.164 - - [24/Jul/2014:05:35:37 +0530] "GET /logs/access.log HTTP/1.0" 200 69849 "http://8rursodiol.enjin.com" \
             "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/30.0.1599.12785 YaBrowser/13.12.1599.12785 \
-            Safari/537.36" "www.dlwindianrailways.com\"""";
+            Safari/537.36" "www.dlwindianrailways.com"
+            """;
         Grok grok = new Grok(Grok.getBuiltinPatterns(ecsCompatibility), "%{COMBINEDAPACHELOG}", logger::warn);
 
         Map<String, GrokCaptureType> captureTypes = new HashMap<>();

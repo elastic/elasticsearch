@@ -254,16 +254,16 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
+    protected List<IndexTemplateConfig> getComposableTemplateConfigs() {
         if (monitoringTemplatesEnabled) {
-            return parseComposableTemplates(
+            return Arrays.asList(
                 BEATS_STACK_INDEX_TEMPLATE,
                 ES_STACK_INDEX_TEMPLATE,
                 KIBANA_STACK_INDEX_TEMPLATE,
                 LOGSTASH_STACK_INDEX_TEMPLATE
             );
         } else {
-            return Collections.emptyMap();
+            return Collections.emptyList();
         }
     }
 

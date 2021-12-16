@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -77,34 +78,47 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
             );
         });
 
-        final String newDataNodeName = internalCluster().startDataOnlyNode();
-        final String newDataNodeId = client().admin().cluster().prepareNodesInfo(newDataNodeName).get().getNodes().get(0).getNode().getId();
-
+        // Verify that we can adjust things like allocation filters even while blocked
         assertAcked(
             client().admin()
                 .indices()
                 .prepareUpdateSettings(indexName)
                 .setSettings(
-                    Settings.builder()
-                        .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), newDataNodeName)
+                    Settings.builder().putNull(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey())
                 )
         );
 
-        ensureGreen(indexName);
-        final ShardRouting primaryShard = client().admin()
-            .cluster()
-            .prepareState()
-            .clear()
-            .setRoutingTable(true)
-            .setNodes(true)
-            .setIndices(indexName)
-            .get()
-            .getState()
-            .routingTable()
-            .index(indexName)
-            .shard(0)
-            .primaryShard();
-        assertThat(primaryShard.state(), equalTo(ShardRoutingState.STARTED));
-        assertThat(primaryShard.currentNodeId(), equalTo(newDataNodeId));
+        // Verify that we can still move shards around even while blocked
+        final String newDataNodeName = internalCluster().startDataOnlyNode();
+        final String newDataNodeId = client().admin().cluster().prepareNodesInfo(newDataNodeName).get().getNodes().get(0).getNode().getId();
+        assertBusy(() -> {
+            final ShardRouting primaryShard = client().admin()
+                .cluster()
+                .prepareState()
+                .clear()
+                .setRoutingTable(true)
+                .setNodes(true)
+                .setIndices(indexName)
+                .get()
+                .getState()
+                .routingTable()
+                .index(indexName)
+                .shard(0)
+                .primaryShard();
+            assertThat(primaryShard.state(), equalTo(ShardRoutingState.STARTED));
+            assertThat(primaryShard.currentNodeId(), equalTo(newDataNodeId));
+        });
+
+        // Verify that the block is removed once the shard migration is complete
+        refreshClusterInfo();
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+        assertNull(
+            client().admin()
+                .indices()
+                .prepareGetSettings(indexName)
+                .setNames(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
+                .get()
+                .getSetting(indexName, IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE)
+        );
     }
 }

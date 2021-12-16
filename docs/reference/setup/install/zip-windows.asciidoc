@@ -256,6 +256,8 @@ It is also possible to configure the service after it's been installed using the
 
 Most changes (like JVM settings) made through the manager GUI will require a restart of the service to take affect.
 
+include::connect-clients.asciidoc[]
+
 [[windows-layout]]
 ==== Directory layout of `.zip` archive
 

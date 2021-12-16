@@ -175,14 +175,15 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         Request request = new Request("PUT", "/_bulk");
         request.addParameter("refresh", "true");
 
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_index\": \"test\", \"_id\":\"1\"}}\n");
-        bulk.append("{\"a\": 1, \"b\": 2, \"c\": 3}\n");
-        bulk.append("{\"index\":{\"_index\": \"test\", \"_id\":\"2\"}}\n");
-        bulk.append("{\"a\": 4, \"b\": 5, \"c\": 6}\n");
-        bulk.append("{\"index\":{\"_index\": \"bort\", \"_id\":\"1\"}}\n");
-        bulk.append("{\"a\": \"test\"}\n");
-        request.setJsonEntity(bulk.toString());
+        String bulk = """
+            {"index":{"_index": "test", "_id":"1"}}
+            {"a": 1, "b": 2, "c": 3}
+            {"index":{"_index": "test", "_id":"2"}}
+            {"a": 4, "b": 5, "c": 6}
+            {"index":{"_index": "bort", "_id":"1"}}
+            {"a": "test"}
+            """;
+        request.setJsonEntity(bulk);
         client().performRequest(request);
         oneTimeSetup = true;
     }

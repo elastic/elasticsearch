@@ -22,17 +22,11 @@ import java.util.stream.Stream;
 public class EsThreadPoolExecutor extends ThreadPoolExecutor {
 
     private final ThreadContext contextHolder;
-    private volatile ShutdownListener listener;
 
-    private final Object monitor = new Object();
     /**
      * Name used in error reporting.
      */
     private final String name;
-
-    final String getName() {
-        return name;
-    }
 
     EsThreadPoolExecutor(
         String name,
@@ -62,24 +56,6 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
         this.name = name;
         this.contextHolder = contextHolder;
-    }
-
-    @Override
-    protected synchronized void terminated() {
-        super.terminated();
-        synchronized (monitor) {
-            if (listener != null) {
-                try {
-                    listener.onTerminated();
-                } finally {
-                    listener = null;
-                }
-            }
-        }
-    }
-
-    public interface ShutdownListener {
-        void onTerminated();
     }
 
     @Override
@@ -153,9 +129,7 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
      *
      * @param sb the {@link StringBuilder} to append to
      */
-    protected void appendThreadPoolExecutorDetails(final StringBuilder sb) {
-
-    }
+    protected void appendThreadPoolExecutorDetails(final StringBuilder sb) {}
 
     protected Runnable wrapRunnable(Runnable command) {
         return contextHolder.preserveContext(command);

@@ -129,6 +129,8 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -247,7 +249,12 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(properties.getProperty("appender.audit_rolling.layout.type"), is("PatternLayout"));
         final String patternLayoutFormat = properties.getProperty("appender.audit_rolling.layout.pattern");
         assertThat(patternLayoutFormat, is(notNullValue()));
-        patternLayout = PatternLayout.newBuilder().withPattern(patternLayoutFormat).withCharset(StandardCharsets.UTF_8).build();
+        patternLayout = AccessController.doPrivileged(
+            (PrivilegedAction<PatternLayout>) () -> PatternLayout.newBuilder()
+                .withPattern(patternLayoutFormat)
+                .withCharset(StandardCharsets.UTF_8)
+                .build()
+        );
         customAnonymousUsername = randomAlphaOfLength(8);
         reservedRealmEnabled = randomBoolean();
     }
@@ -563,13 +570,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(keyName, keyRoleDescriptors, expiration);
         createApiKeyRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
         auditTrail.accessGranted(requestId, authentication, CreateApiKeyAction.NAME, createApiKeyRequest, authorizationInfo);
-        String expectedCreateKeyAuditEventString = "\"create\":{\"apikey\":{\"name\":\""
-            + keyName
-            + "\",\"expiration\":"
-            + (expiration != null ? "\"" + expiration.toString() + "\"" : "null")
-            + ","
-            + roleDescriptorsStringBuilder
-            + "}}";
+        String expectedCreateKeyAuditEventString = """
+            "create":{"apikey":{"name":"%s","expiration":%s,%s}}\
+            """.formatted(keyName, expiration != null ? "\"" + expiration + "\"" : "null", roleDescriptorsStringBuilder);
         List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedCreateKeyAuditEventString = output.get(1);
@@ -648,12 +651,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedPutRoleAuditEventString = output.get(1);
-        String expectedPutRoleAuditEventString = "\"put\":{\"role\":{\"name\":\""
-            + putRoleRequest.name()
-            + "\","
-            + "\"role_descriptor\":"
-            + auditedRolesMap.get(putRoleRequest.name())
-            + "}}";
+        String expectedPutRoleAuditEventString = """
+            "put":{"role":{"name":"%s","role_descriptor":%s}}\
+            """.formatted(putRoleRequest.name(), auditedRolesMap.get(putRoleRequest.name()));
         assertThat(generatedPutRoleAuditEventString, containsString(expectedPutRoleAuditEventString));
         generatedPutRoleAuditEventString = generatedPutRoleAuditEventString.replace(", " + expectedPutRoleAuditEventString, "");
         checkedFields = new MapBuilder<>(commonFields);
@@ -712,7 +712,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedInvalidateKeyAuditEventString = output.get(1);
-        StringBuilder invalidateKeyEventStringBuilder = new StringBuilder().append("\"invalidate\":{\"apikeys\":{");
+        StringBuilder invalidateKeyEventStringBuilder = new StringBuilder().append("""
+            "invalidate":{"apikeys":{""");
         if (invalidateApiKeyRequest.getIds() != null && invalidateApiKeyRequest.getIds().length > 0) {
             invalidateKeyEventStringBuilder.append("\"ids\":[");
             for (String apiKeyId : invalidateApiKeyRequest.getIds()) {
@@ -728,7 +729,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         invalidateKeyEventStringBuilder.append("\"owned_by_authenticated_user\":")
             .append(invalidateApiKeyRequest.ownedByAuthenticatedUser());
         if (Strings.hasLength(invalidateApiKeyRequest.getUserName()) || Strings.hasLength(invalidateApiKeyRequest.getRealmName())) {
-            invalidateKeyEventStringBuilder.append(",\"user\":{\"name\":");
+            invalidateKeyEventStringBuilder.append("""
+                ,"user":{"name":""");
             if (Strings.hasLength(invalidateApiKeyRequest.getUserName())) {
                 invalidateKeyEventStringBuilder.append("\"").append(invalidateApiKeyRequest.getUserName()).append("\"");
             } else {
@@ -769,11 +771,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
         if (randomBoolean()) {
             metadata.put("test", true);
             metadata.put("ans", 42);
-            serializedMetadata = ",\"metadata\":{\"ans\":42,\"test\":true}";
+            serializedMetadata = """
+                ,"metadata":{"ans":42,"test":true}""";
         } else {
             metadata.put("ans", List.of(42, true));
             metadata.put("other", Map.of("42", true));
-            serializedMetadata = ",\"metadata\":{\"ans\":[42,true],\"other\":{\"42\":true}}";
+            serializedMetadata = """
+                ,"metadata":{"ans":[42,true],"other":{"42":true}}""";
         }
 
         PutPrivilegesRequest putPrivilegesRequest = new PutPrivilegesRequest();
@@ -786,7 +790,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedPutPrivilegesAuditEventString = output.get(1);
-        StringBuilder putPrivilegesAuditEventStringBuilder = new StringBuilder().append("\"put\":{\"privileges\":[");
+        StringBuilder putPrivilegesAuditEventStringBuilder = new StringBuilder().append("""
+            "put":{"privileges":[""");
         if (false == putPrivilegesRequest.getPrivileges().isEmpty()) {
             for (ApplicationPrivilegeDescriptor appPriv : putPrivilegesRequest.getPrivileges()) {
                 putPrivilegesAuditEventStringBuilder.append("{\"application\":\"")
@@ -837,7 +842,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedDeletePrivilegesAuditEventString = output.get(1);
-        StringBuilder deletePrivilegesAuditEventStringBuilder = new StringBuilder().append("\"delete\":{\"privileges\":{\"application\":");
+        StringBuilder deletePrivilegesAuditEventStringBuilder = new StringBuilder().append("""
+            "delete":{"privileges":{"application":""");
         if (deletePrivilegesRequest.application() != null) {
             deletePrivilegesAuditEventStringBuilder.append("\"").append(deletePrivilegesRequest.application()).append("\"");
         } else {
@@ -940,7 +946,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedPutRoleMappingAuditEventString = output.get(1);
-        StringBuilder putRoleMappingAuditEventStringBuilder = new StringBuilder().append("\"put\":{\"role_mapping\":{\"name\":");
+        StringBuilder putRoleMappingAuditEventStringBuilder = new StringBuilder().append("""
+            "put":{"role_mapping":{"name":""");
         if (putRoleMappingRequest.getName() != null) {
             putRoleMappingAuditEventStringBuilder.append("\"").append(putRoleMappingRequest.getName()).append("\"");
         } else {
@@ -969,13 +976,17 @@ public class LoggingAuditTrailTests extends ESTestCase {
             putRoleMappingAuditEventStringBuilder.append("]");
         }
         if (hasRules) {
-            putRoleMappingAuditEventStringBuilder.append(",\"rules\":{\"mock\":\"A mock role mapper expression\"}");
+            putRoleMappingAuditEventStringBuilder.append("""
+                ,"rules":{"mock":"A mock role mapper expression"}""");
         } else {
-            putRoleMappingAuditEventStringBuilder.append(",\"rules\":null");
+            putRoleMappingAuditEventStringBuilder.append("""
+                ,"rules":null""");
         }
-        putRoleMappingAuditEventStringBuilder.append(",\"enabled\":").append(putRoleMappingRequest.isEnabled());
+        putRoleMappingAuditEventStringBuilder.append("""
+            ,"enabled":""").append(putRoleMappingRequest.isEnabled());
         if (hasMetadata) {
-            putRoleMappingAuditEventStringBuilder.append(",\"metadata\":{\"list\":[\"42\",13],\"smth\":42}}}");
+            putRoleMappingAuditEventStringBuilder.append("""
+                ,"metadata":{"list":["42",13],"smth":42}}}""");
         } else {
             putRoleMappingAuditEventStringBuilder.append("}}");
         }
@@ -1003,7 +1014,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedDeleteRoleMappingAuditEventString = output.get(1);
-        StringBuilder deleteRoleMappingStringBuilder = new StringBuilder().append("\"delete\":{\"role_mapping\":{\"name\":");
+        StringBuilder deleteRoleMappingStringBuilder = new StringBuilder().append("""
+            "delete":{"role_mapping":{"name":""");
         if (deleteRoleMappingRequest.getName() == null) {
             deleteRoleMappingStringBuilder.append("null");
         } else {
@@ -1060,7 +1072,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(output.size(), is(2));
         String generatedPutUserAuditEventString = output.get(1);
 
-        StringBuilder putUserAuditEventStringBuilder = new StringBuilder().append("\"put\":{\"user\":{\"name\":")
+        StringBuilder putUserAuditEventStringBuilder = new StringBuilder().append("""
+            "put":{"user":{"name":""")
             .append("\"")
             .append(putUserRequest.username())
             .append("\"")
@@ -1088,7 +1101,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
         putUserAuditEventStringBuilder.append(",\"has_password\":").append(putUserRequest.passwordHash() != null);
         if (hasMetadata) {
-            putUserAuditEventStringBuilder.append(",\"metadata\":{\"list\":[\"42\",13],\"smth\":42}}}");
+            putUserAuditEventStringBuilder.append("""
+                ,"metadata":{"list":["42",13],"smth":42}}}""");
         } else {
             putUserAuditEventStringBuilder.append("}}");
         }
@@ -1115,7 +1129,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedEnableUserAuditEventString = output.get(1);
-        String expectedEnableUserAuditEventString = "\"change\":{\"enable\":{\"user\":{\"name\":\"" + username + "\"}}}";
+        String expectedEnableUserAuditEventString = """
+            "change":{"enable":{"user":{"name":"%s"}}}\
+            """.formatted(username);
         assertThat(generatedEnableUserAuditEventString, containsString(expectedEnableUserAuditEventString));
         generatedEnableUserAuditEventString = generatedEnableUserAuditEventString.replace(", " + expectedEnableUserAuditEventString, "");
         checkedFields = new MapBuilder<>(commonFields);
@@ -1138,7 +1154,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedDisableUserAuditEventString = output.get(1);
-        String expectedDisableUserAuditEventString = "\"change\":{\"disable\":{\"user\":{\"name\":\"" + username + "\"}}}";
+        String expectedDisableUserAuditEventString = """
+            "change":{"disable":{"user":{"name":"%s"}}}\
+            """.formatted(username);
         assertThat(generatedDisableUserAuditEventString, containsString(expectedDisableUserAuditEventString));
         generatedDisableUserAuditEventString = generatedDisableUserAuditEventString.replace(", " + expectedDisableUserAuditEventString, "");
         checkedFields = new MapBuilder<>(commonFields);
@@ -1160,7 +1178,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedChangePasswordAuditEventString = output.get(1);
-        String expectedChangePasswordAuditEventString = "\"change\":{\"password\":{\"user\":{\"name\":\"" + username + "\"}}}";
+        String expectedChangePasswordAuditEventString = """
+            "change":{"password":{"user":{"name":"%s"}}}\
+            """.formatted(username);
         assertThat(generatedChangePasswordAuditEventString, containsString(expectedChangePasswordAuditEventString));
         generatedChangePasswordAuditEventString = generatedChangePasswordAuditEventString.replace(
             ", " + expectedChangePasswordAuditEventString,
@@ -1184,7 +1204,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));
         String generatedDeleteUserAuditEventString = output.get(1);
-        String expectedDeleteUserAuditEventString = "\"delete\":{\"user\":{\"name\":\"" + username + "\"}}";
+        String expectedDeleteUserAuditEventString = """
+            "delete":{"user":{"name":"%s"}}\
+            """.formatted(username);
         assertThat(generatedDeleteUserAuditEventString, containsString(expectedDeleteUserAuditEventString));
         generatedDeleteUserAuditEventString = generatedDeleteUserAuditEventString.replace(", " + expectedDeleteUserAuditEventString, "");
         checkedFields = new MapBuilder<>(commonFields);
@@ -1223,13 +1245,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(output.size(), is(2));
         String generatedCreateServiceAccountTokenAuditEventString = output.get(1);
 
-        final String expectedCreateServiceAccountTokenAuditEventString = String.format(
-            Locale.ROOT,
-            "\"create\":{\"service_token\":{\"namespace\":\"%s\",\"service\":\"%s\",\"name\":\"%s\"}}",
-            namespace,
-            serviceName,
-            tokenName
-        );
+        final String expectedCreateServiceAccountTokenAuditEventString = String.format(Locale.ROOT, """
+            "create":{"service_token":{"namespace":"%s","service":"%s","name":"%s"}}""", namespace, serviceName, tokenName);
         assertThat(generatedCreateServiceAccountTokenAuditEventString, containsString(expectedCreateServiceAccountTokenAuditEventString));
         generatedCreateServiceAccountTokenAuditEventString = generatedCreateServiceAccountTokenAuditEventString.replace(
             ", " + expectedCreateServiceAccountTokenAuditEventString,
@@ -1263,13 +1280,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(output.size(), is(2));
         String generatedDeleteServiceAccountTokenAuditEventString = output.get(1);
 
-        final String expectedDeleteServiceAccountTokenAuditEventString = String.format(
-            Locale.ROOT,
-            "\"delete\":{\"service_token\":{\"namespace\":\"%s\",\"service\":\"%s\",\"name\":\"%s\"}}",
-            namespace,
-            serviceName,
-            tokenName
-        );
+        final String expectedDeleteServiceAccountTokenAuditEventString = String.format(Locale.ROOT, """
+            "delete":{"service_token":{"namespace":"%s","service":"%s","name":"%s"}}""", namespace, serviceName, tokenName);
         assertThat(generatedDeleteServiceAccountTokenAuditEventString, containsString(expectedDeleteServiceAccountTokenAuditEventString));
         generatedDeleteServiceAccountTokenAuditEventString = generatedDeleteServiceAccountTokenAuditEventString.replace(
             ", " + expectedDeleteServiceAccountTokenAuditEventString,

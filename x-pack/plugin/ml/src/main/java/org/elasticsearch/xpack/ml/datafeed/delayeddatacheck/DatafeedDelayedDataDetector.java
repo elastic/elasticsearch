@@ -149,12 +149,12 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
     }
 
     private static long toHistogramKeyToEpoch(Object key) {
-        if (key instanceof ZonedDateTime) {
-            return ((ZonedDateTime) key).toInstant().toEpochMilli();
-        } else if (key instanceof Double) {
-            return ((Double) key).longValue();
-        } else if (key instanceof Long) {
-            return (Long) key;
+        if (key instanceof ZonedDateTime zdt) {
+            return zdt.toInstant().toEpochMilli();
+        } else if (key instanceof Double doubleValue) {
+            return doubleValue.longValue();
+        } else if (key instanceof Long longValue) {
+            return longValue;
         } else {
             return -1L;
         }

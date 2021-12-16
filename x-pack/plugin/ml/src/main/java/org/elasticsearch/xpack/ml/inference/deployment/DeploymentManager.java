@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -34,7 +33,6 @@ import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig;
@@ -374,7 +372,7 @@ public class DeploymentManager {
                                 processContext,
                                 request.tokenization,
                                 processor.getResultProcessor((NlpConfig) config),
-                                ActionListener.wrap(this::onSuccess, f -> handleFailure(f, this))
+                                this
                             ),
                             this::onFailure
                         )
@@ -382,24 +380,9 @@ public class DeploymentManager {
                 processContext.process.get().writeInferenceRequest(request.processInput);
             } catch (IOException e) {
                 logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.task.getModelId()), e);
-                handleFailure(ExceptionsHelper.serverError("error writing to process", e), this);
+                onFailure(ExceptionsHelper.serverError("error writing to process", e));
             } catch (Exception e) {
-                handleFailure(e, this);
-            }
-        }
-
-        private static void handleFailure(Exception e, ActionListener<InferenceResults> listener) {
-            Throwable unwrapped = org.elasticsearch.ExceptionsHelper.unwrapCause(e);
-            if (unwrapped instanceof ElasticsearchException ex) {
-                if (ex.status() == RestStatus.BAD_REQUEST) {
-                    listener.onResponse(new WarningInferenceResults(ex.getMessage()));
-                } else {
-                    listener.onFailure(ex);
-                }
-            } else if (unwrapped instanceof IllegalArgumentException) {
-                listener.onResponse(new WarningInferenceResults(e.getMessage()));
-            } else {
-                listener.onFailure(e);
+                onFailure(e);
             }
         }
 

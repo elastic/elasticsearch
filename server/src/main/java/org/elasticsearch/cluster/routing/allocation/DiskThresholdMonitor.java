@@ -36,6 +36,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -91,6 +92,14 @@ public class DiskThresholdMonitor {
      */
     private final Set<String> nodesOverHighThresholdAndRelocating = Sets.newConcurrentHashSet();
 
+    /**
+     * The IDs of the nodes in the last info received. Tracked because when a new node joins we consider its disk usage to be equal to
+     * the average disk usage in the cluster but we don't keep track of whether this puts it over any of the watermarks so when we receive
+     * its actual disk usage we may be able to move some more shards around. No need for synchronization, all access is protected by
+     * {@code checkInProgress}.
+     */
+    private Set<String> lastNodes = Collections.emptySet();
+
     public DiskThresholdMonitor(
         Settings settings,
         Supplier<ClusterState> clusterStateSupplier,
@@ -123,6 +132,7 @@ public class DiskThresholdMonitor {
         final ImmutableOpenMap<String, DiskUsage> usages = info.getNodeLeastAvailableDiskUsages();
         if (usages == null) {
             logger.trace("skipping monitor as no disk usage information is available");
+            lastNodes = Collections.emptySet();
             checkFinished();
             return;
         }
@@ -139,6 +149,14 @@ public class DiskThresholdMonitor {
         cleanUpRemovedNodes(nodes, nodesOverLowThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThresholdAndRelocating);
+
+        if (lastNodes.equals(nodes) == false) {
+            if (lastNodes.containsAll(nodes) == false) {
+                logger.debug("rerouting because disk usage info received from new nodes");
+                reroute = true;
+            }
+            lastNodes = Collections.unmodifiableSet(nodes);
+        }
 
         final ClusterState state = clusterStateSupplier.get();
         final Set<String> indicesToMarkReadOnly = new HashSet<>();

@@ -171,10 +171,11 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         Optional<InputStream> stream = extractor.next();
         assertThat(stream.isPresent(), is(true));
-        String expectedStream = "{\"airline\":\"a\",\"time\":1999,\"responsetime\":11.0,\"doc_count\":1} "
-            + "{\"airline\":\"b\",\"time\":1999,\"responsetime\":12.0,\"doc_count\":2} "
-            + "{\"airline\":\"c\",\"time\":3999,\"responsetime\":31.0,\"doc_count\":4} "
-            + "{\"airline\":\"b\",\"time\":3999,\"responsetime\":32.0,\"doc_count\":3}";
+        String expectedStream = """
+            {"airline":"a","time":1999,"responsetime":11.0,"doc_count":1} \
+            {"airline":"b","time":1999,"responsetime":12.0,"doc_count":2} \
+            {"airline":"c","time":3999,"responsetime":31.0,"doc_count":4} \
+            {"airline":"b","time":3999,"responsetime":32.0,"doc_count":3}""";
         assertThat(asString(stream.get()), equalTo(expectedStream));
         assertThat(capturedSearchRequests.size(), equalTo(1));
 

@@ -133,8 +133,9 @@ public class SnapshotClientDocumentationIT extends ESRestHighLevelClientTestCase
         }
         {
             // tag::create-repository-settings-source
-            request.settings("{\"location\": \".\", \"compress\": \"true\"}",
-                XContentType.JSON); // <1>
+            request.settings("""
+                {"location": ".", "compress": "true"}
+                """, XContentType.JSON); // <1>
             // end::create-repository-settings-source
         }
 

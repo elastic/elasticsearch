@@ -191,13 +191,14 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::put-stored-script-request
             PutStoredScriptRequest request = new PutStoredScriptRequest();
             request.id("id"); // <1>
-            request.content(new BytesArray(
-                "{\n" +
-                    "\"script\": {\n" +
-                    "\"lang\": \"painless\",\n" +
-                    "\"source\": \"Math.log(_score * 2) + params.multiplier\"" +
-                    "}\n" +
-                    "}\n"
+            request.content(new BytesArray("""
+                {
+                  "script": {
+                    "lang": "painless",
+                    "source": "Math.log(_score * 2) + params.multiplier"
+                  }
+                }
+                """
             ), XContentType.JSON); // <2>
             // end::put-stored-script-request
 
@@ -282,7 +283,8 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
                 builder.startObject("script");
                 {
                     builder.field("lang", "mustache");
-                    builder.field("source", "{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}");
+                    builder.field("source", """
+                        {"query":{"match":{"title":"{{query_string}}"}}}""");
                 }
                 builder.endObject();
             }
@@ -294,7 +296,8 @@ public class StoredScriptsDocumentationIT extends ESRestHighLevelClientTestCase 
 
             Map<String, Object> script = getAsMap("/_scripts/id");
             assertThat(extractValue("script.lang", script), equalTo("mustache"));
-            assertThat(extractValue("script.source", script), equalTo("{\"query\":{\"match\":{\"title\":\"{{query_string}}\"}}}"));
+            assertThat(extractValue("script.source", script), equalTo("""
+                {"query":{"match":{"title":"{{query_string}}"}}}"""));
         }
     }
 

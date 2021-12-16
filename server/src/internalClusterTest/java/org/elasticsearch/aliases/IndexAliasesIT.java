@@ -212,10 +212,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:kimchy]");
         ClusterState clusterState = admin().cluster().prepareState().get().getState();
         IndexMetadata indexMd = clusterState.metadata().index("test");
-        assertThat(
-            indexMd.getAliases().get("alias1").filter().string(),
-            equalTo("{\"term\":{\"user\":{\"value\":\"kimchy\",\"boost\":1.0}}}")
-        );
+        assertThat(indexMd.getAliases().get("alias1").filter().string(), equalTo("""
+            {"term":{"user":{"value":"kimchy","boost":1.0}}}"""));
 
     }
 
@@ -800,7 +798,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
         Metadata metadata = internalCluster().clusterService().state().metadata();
         IndexAbstraction ia = metadata.getIndicesLookup().get("alias1");
         AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(metadata, ia);
-        assertThat(aliasMetadata.getFilter().toString(), equalTo("{\"term\":{\"name\":{\"value\":\"bar\",\"boost\":1.0}}}"));
+        assertThat(aliasMetadata.getFilter().toString(), equalTo("""
+            {"term":{"name":{"value":"bar","boost":1.0}}}"""));
 
         logger.info("--> deleting alias1");
         stopWatch.start();
@@ -1050,35 +1049,27 @@ public class IndexAliasesIT extends ESIntegTestCase {
     }
 
     public void testCreateIndexWithAliasesInSource() throws Exception {
-        assertAcked(
-            prepareCreate("test").setSource(
-                "{\n"
-                    + "    \"aliases\" : {\n"
-                    + "        \"alias1\" : {},\n"
-                    + "        \"alias2\" : {\"filter\" : {\"match_all\": {}}},\n"
-                    + "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"},\n"
-                    + "        \"alias4\" : {\"is_hidden\":  true}\n"
-                    + "    }\n"
-                    + "}",
-                XContentType.JSON
-            )
-        );
+        assertAcked(prepareCreate("test").setSource("""
+            {
+                "aliases" : {
+                    "alias1" : {},
+                    "alias2" : {"filter" : {"match_all": {}}},
+                    "alias3" : { "index_routing" : "index", "search_routing" : "search"},
+                    "alias4" : {"is_hidden":  true}
+                }
+            }""", XContentType.JSON));
 
         checkAliases();
     }
 
     public void testCreateIndexWithAliasesSource() {
-        assertAcked(
-            prepareCreate("test").setMapping("field", "type=text")
-                .setAliases(
-                    "{\n"
-                        + "        \"alias1\" : {},\n"
-                        + "        \"alias2\" : {\"filter\" : {\"term\": {\"field\":\"value\"}}},\n"
-                        + "        \"alias3\" : { \"index_routing\" : \"index\", \"search_routing\" : \"search\"},\n"
-                        + "        \"alias4\" : {\"is_hidden\":  true}\n"
-                        + "}"
-                )
-        );
+        assertAcked(prepareCreate("test").setMapping("field", "type=text").setAliases("""
+            {
+                    "alias1" : {},
+                    "alias2" : {"filter" : {"term": {"field":"value"}}},
+                    "alias3" : { "index_routing" : "index", "search_routing" : "search"},
+                    "alias4" : {"is_hidden":  true}
+            }"""));
 
         checkAliases();
     }

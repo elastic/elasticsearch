@@ -368,17 +368,9 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         ensureGreen();
         refresh();
 
-        assertThat(
-            client().admin()
-                .indices()
-                .prepareValidateQuery("test")
-                .setQuery(
-                    QueryBuilders.wrapperQuery(new BytesArray("{\"foo\": \"bar\", \"query\": {\"term\" : { \"user\" : \"kimchy\" }}}"))
-                )
-                .get()
-                .isValid(),
-            equalTo(false)
-        );
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(new BytesArray("""
+            {"foo": "bar", "query": {"term" : { "user" : "kimchy" }}}
+            """))).get().isValid(), equalTo(false));
     }
 
     public void testIrrelevantPropertiesAfterQuery() {
@@ -386,17 +378,9 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         ensureGreen();
         refresh();
 
-        assertThat(
-            client().admin()
-                .indices()
-                .prepareValidateQuery("test")
-                .setQuery(
-                    QueryBuilders.wrapperQuery(new BytesArray("{\"query\": {\"term\" : { \"user\" : \"kimchy\" }}, \"foo\": \"bar\"}"))
-                )
-                .get()
-                .isValid(),
-            equalTo(false)
-        );
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(new BytesArray("""
+            {"query": {"term" : { "user" : "kimchy" }}, "foo": "bar"}
+            """))).get().isValid(), equalTo(false));
     }
 
     private static void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher, boolean withRewrite) {

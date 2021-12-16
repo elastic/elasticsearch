@@ -127,15 +127,12 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     protected Map<String, MatchQueryBuilder> getAlternateVersions() {
         Map<String, MatchQueryBuilder> alternateVersions = new HashMap<>();
         MatchQueryBuilder matchQuery = new MatchQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
-        String contentString = "{\n"
-            + "    \"match\" : {\n"
-            + "        \""
-            + matchQuery.fieldName()
-            + "\" : \""
-            + matchQuery.value()
-            + "\"\n"
-            + "    }\n"
-            + "}";
+        String contentString = """
+            {
+                "match" : {
+                    "%s" : "%s"
+                }
+            }""".formatted(matchQuery.fieldName(), matchQuery.value());
         alternateVersions.put(contentString, matchQuery);
         return alternateVersions;
     }
@@ -245,21 +242,22 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testSimpleMatchQuery() throws IOException {
-        String json = "{\n"
-            + "  \"match\" : {\n"
-            + "    \"message\" : {\n"
-            + "      \"query\" : \"to be or not to be\",\n"
-            + "      \"operator\" : \"AND\",\n"
-            + "      \"prefix_length\" : 0,\n"
-            + "      \"max_expansions\" : 50,\n"
-            + "      \"fuzzy_transpositions\" : true,\n"
-            + "      \"lenient\" : false,\n"
-            + "      \"zero_terms_query\" : \"ALL\",\n"
-            + "      \"auto_generate_synonyms_phrase_query\" : true,\n"
-            + "      \"boost\" : 1.0\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "match" : {
+                "message" : {
+                  "query" : "to be or not to be",
+                  "operator" : "AND",
+                  "prefix_length" : 0,
+                  "max_expansions" : 50,
+                  "fuzzy_transpositions" : true,
+                  "lenient" : false,
+                  "zero_terms_query" : "ALL",
+                  "auto_generate_synonyms_phrase_query" : true,
+                  "boost" : 1.0
+                }
+              }
+            }""";
         MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, qb);
 
@@ -309,40 +307,48 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testParseFailsWithMultipleFields() {
-        String json = "{\n"
-            + "  \"match\" : {\n"
-            + "    \"message1\" : {\n"
-            + "      \"query\" : \"this is a test\"\n"
-            + "    },\n"
-            + "    \"message2\" : {\n"
-            + "      \"query\" : \"this is a test\"\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "match" : {
+                "message1" : {
+                  "query" : "this is a test"
+                },
+                "message2" : {
+                  "query" : "this is a test"
+                }
+              }
+            }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
 
-        String shortJson = "{\n"
-            + "  \"match\" : {\n"
-            + "    \"message1\" : \"this is a test\",\n"
-            + "    \"message2\" : \"this is a test\"\n"
-            + "  }\n"
-            + "}";
+        String shortJson = """
+            {
+              "match" : {
+                "message1" : "this is a test",
+                "message2" : "this is a test"
+              }
+            }""";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
     public void testParseFailsWithTermsArray() {
-        String json1 = "{\n"
-            + "  \"match\" : {\n"
-            + "    \"message1\" : {\n"
-            + "      \"query\" : [\"term1\", \"term2\"]\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json1 = """
+            {
+              "match" : {
+                "message1" : {
+                  "query" : ["term1", "term2"]
+                }
+              }
+            }""";
         expectThrows(ParsingException.class, () -> parseQuery(json1));
 
-        String json2 = "{\n" + "  \"match\" : {\n" + "    \"message1\" : [\"term1\", \"term2\"]\n" + "  }\n" + "}";
+        String json2 = """
+            {
+              "match" : {
+                "message1" : ["term1", "term2"]
+              }
+            }""";
         expectThrows(IllegalStateException.class, () -> parseQuery(json2));
     }
 

@@ -102,46 +102,40 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
         for (String modelId : modelIds) {
             Request simulate = new Request("POST", "/_ingest/pipeline/" + modelId + "/_simulate");
             simulate.setJsonEntity(
-                ""
-                    + "{\n"
-                    + "  \"docs\": [\n"
-                    + "    {\n"
-                    + "      \"_index\": \"index\",\n"
-                    + "      \"_id\": \"id\",\n"
-                    + "      \"_source\": "
-                    + String.format(
-                        Locale.ROOT,
-                        "{\"%s\":%s,\"%s\":%f,\"%s\":%d,\"%s\":\"%s\"}",
-                        BOOLEAN_FIELD,
-                        BOOLEAN_FIELD_VALUES.get(0),
-                        NUMERICAL_FIELD,
-                        NUMERICAL_FIELD_VALUES.get(0),
-                        DISCRETE_NUMERICAL_FIELD,
-                        DISCRETE_NUMERICAL_FIELD_VALUES.get(0),
-                        KEYWORD_FIELD,
-                        KEYWORD_FIELD_VALUES.get(0)
-                    )
-                    + "    },\n"
-                    + "    {\n"
-                    + "      \"_index\": \"index\",\n"
-                    + "      \"_id\": \"id\",\n"
-                    + "      \"_source\": "
-                    + String.format(
-                        Locale.ROOT,
-                        "{\"%s\":%s,\"%s\":%f,\"%s\":%d,\"%s\":\"%s\"}",
-                        BOOLEAN_FIELD,
-                        BOOLEAN_FIELD_VALUES.get(1),
-                        NUMERICAL_FIELD,
-                        NUMERICAL_FIELD_VALUES.get(1),
-                        DISCRETE_NUMERICAL_FIELD,
-                        DISCRETE_NUMERICAL_FIELD_VALUES.get(1),
-                        KEYWORD_FIELD,
-                        KEYWORD_FIELD_VALUES.get(1)
-                    )
-                    + "    }\n"
-                    + "  ]\n"
-                    + "}"
-                    + ""
+                String.format(
+                    Locale.ROOT,
+                    """
+                        {
+                          "docs": [
+                            {
+                              "_index": "index",
+                              "_id": "id",
+                              "_source": {"%s":%s,"%s":%f,"%s":%s,"%s":"%s"}
+                            },
+                            {
+                              "_index": "index",
+                              "_id": "id",
+                              "_source": {"%s":%s,"%s":%f,"%s":%s,"%s":"%s"}
+                            }
+                          ]
+                        }""",
+                    BOOLEAN_FIELD,
+                    BOOLEAN_FIELD_VALUES.get(0),
+                    NUMERICAL_FIELD,
+                    NUMERICAL_FIELD_VALUES.get(0),
+                    DISCRETE_NUMERICAL_FIELD,
+                    DISCRETE_NUMERICAL_FIELD_VALUES.get(0),
+                    KEYWORD_FIELD,
+                    KEYWORD_FIELD_VALUES.get(0),
+                    BOOLEAN_FIELD,
+                    BOOLEAN_FIELD_VALUES.get(1),
+                    NUMERICAL_FIELD,
+                    NUMERICAL_FIELD_VALUES.get(1),
+                    DISCRETE_NUMERICAL_FIELD,
+                    DISCRETE_NUMERICAL_FIELD_VALUES.get(1),
+                    KEYWORD_FIELD,
+                    KEYWORD_FIELD_VALUES.get(1)
+                )
             );
             Response response = client().performRequest(simulate);
             String value = EntityUtils.toString(response.getEntity());
@@ -155,51 +149,40 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     void createAndRunRegressionJob() throws Exception {
-        String config = "{\n"
-            + "      \"source\" : {\n"
-            + "        \"index\" : [\n"
-            + "          \""
-            + INDEX_NAME
-            + "\"\n"
-            + "        ]\n"
-            + "      },\n"
-            + "      \"dest\" : {\n"
-            + "        \"index\" : \"regression\"\n"
-            + "      },\n"
-            + "      \"analysis\" : {\n"
-            + "        \"regression\" : {\n"
-            + "          \"dependent_variable\" : \""
-            + NUMERICAL_FIELD
-            + "\"\n"
-            + "        }\n"
-            + "      },\n"
-            + "      \"model_memory_limit\" : \"18mb\"\n"
-            + "    }";
+        String config = """
+            {
+              "source": {
+                "index": [ "%s" ]
+              },
+              "dest": {
+                "index": "regression"
+              },
+              "analysis": {
+                "regression": {
+                  "dependent_variable": "%s"
+                }
+              },
+              "model_memory_limit": "18mb"
+            }""".formatted(INDEX_NAME, NUMERICAL_FIELD);
         putAndStartDFAAndWaitForFinish(config, "regression");
     }
 
     void createAndRunClassificationJob() throws Exception {
-        String config = ""
-            + "{\n"
-            + "      \"source\" : {\n"
-            + "        \"index\" : [\n"
-            + "          \""
-            + INDEX_NAME
-            + "\"\n"
-            + "        ]\n"
-            + "      },\n"
-            + "      \"dest\" : {\n"
-            + "        \"index\" : \"classification\"\n"
-            + "      },\n"
-            + "      \"analysis\" : {\n"
-            + "        \"classification\" : {\n"
-            + "          \"dependent_variable\" : \""
-            + KEYWORD_FIELD
-            + "\"\n"
-            + "        }\n"
-            + "      },\n"
-            + "      \"model_memory_limit\" : \"18mb\"\n"
-            + "    }";
+        String config = """
+            {
+              "source": {
+                "index": [ "%s" ]
+              },
+              "dest": {
+                "index": "classification"
+              },
+              "analysis": {
+                "classification": {
+                  "dependent_variable": "%s"
+                }
+              },
+              "model_memory_limit": "18mb"
+            }""".formatted(INDEX_NAME, KEYWORD_FIELD);
         putAndStartDFAAndWaitForFinish(config, "classification");
     }
 
@@ -218,51 +201,41 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     void createPipeline(String id, String modelType, String modelId) throws Exception {
-        String body = ""
-            + "{\n"
-            + "  \"processors\": [\n"
-            + "    {\n"
-            + "      \"inference\": {\n"
-            + "        \"model_id\": \""
-            + modelId
-            + "\",\n"
-            + "        \"inference_config\": {\""
-            + modelType
-            + "\": {}},\n"
-            + "        \"field_map\": {}\n"
-            + "      }\n"
-            + "    }\n"
-            + "  ]\n"
-            + "}";
+        String body = """
+            {
+              "processors": [
+                {
+                  "inference": {
+                    "model_id": "%s",
+                    "inference_config": {
+                      "%s": {}
+                    },
+                    "field_map": {}
+                  }
+                }
+              ]
+            }""".formatted(modelId, modelType);
         Request putRequest = new Request("PUT", "_ingest/pipeline/" + id);
         putRequest.setJsonEntity(body);
         client().performRequest(putRequest);
     }
 
     void createIndex(String index) throws IOException {
-        String mapping = ""
-            + "      \"properties\": {\n"
-            + "        \""
-            + BOOLEAN_FIELD
-            + "\": {\n"
-            + "          \"type\": \"boolean\"\n"
-            + "        },"
-            + "        \""
-            + NUMERICAL_FIELD
-            + "\": {\n"
-            + "          \"type\": \"double\"\n"
-            + "        },"
-            + "        \""
-            + DISCRETE_NUMERICAL_FIELD
-            + "\": {\n"
-            + "          \"type\": \"integer\"\n"
-            + "        },"
-            + "        \""
-            + KEYWORD_FIELD
-            + "\": {\n"
-            + "          \"type\": \"keyword\"\n"
-            + "        }"
-            + "    }";
+        String mapping = """
+            "properties": {
+                "%s": {
+                  "type": "boolean"
+                },
+                "%s": {
+                  "type": "double"
+                },
+                "%s": {
+                  "type": "integer"
+                },
+                "%s": {
+                  "type": "keyword"
+                }
+            }""".formatted(BOOLEAN_FIELD, NUMERICAL_FIELD, DISCRETE_NUMERICAL_FIELD, KEYWORD_FIELD);
         createIndex(index, Settings.EMPTY, mapping);
     }
 
@@ -272,7 +245,9 @@ public class MlTrainedModelsUpgradeIT extends AbstractUpgradeTestCase {
             bulkRequests.add(
                 String.format(
                     Locale.ROOT,
-                    "{\"index\":{}}\n{\"%s\":%s,\"%s\":%f,\"%s\":%d,\"%s\":\"%s\"}",
+                    """
+                        {"index":{}}
+                        {"%s":%s,"%s":%f,"%s":%s,"%s":"%s"}""",
                     BOOLEAN_FIELD,
                     BOOLEAN_FIELD_VALUES.get(i % BOOLEAN_FIELD_VALUES.size()),
                     NUMERICAL_FIELD,

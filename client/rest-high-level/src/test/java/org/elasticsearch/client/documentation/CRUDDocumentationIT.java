@@ -145,11 +145,13 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
             //tag::index-request-string
             IndexRequest request = new IndexRequest("posts"); // <1>
             request.id("1"); // <2>
-            String jsonString = "{" +
-                    "\"user\":\"kimchy\"," +
-                    "\"postDate\":\"2013-01-30\"," +
-                    "\"message\":\"trying out Elasticsearch\"" +
-                    "}";
+            String jsonString = """
+                {
+                  "user": "kimchy",
+                  "postDate": "2013-01-30",
+                  "message": "trying out Elasticsearch"
+                }
+                """;
             request.source(jsonString, XContentType.JSON); // <3>
             //end::index-request-string
 
@@ -787,17 +789,19 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testReindex() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            String mapping = "  \"properties\": {\n"
-                + "    \"user\": {\n"
-                + "      \"type\": \"text\"\n"
-                + "    },\n"
-                + "    \"field1\": {\n"
-                + "      \"type\": \"integer\"\n"
-                + "    },\n"
-                + "    \"field2\": {\n"
-                + "      \"type\": \"integer\"\n"
-                + "    }\n"
-                + "  }";
+            String mapping = """
+                "properties": {
+                  "user": {
+                    "type": "text"
+                  },
+                  "field1": {
+                    "type": "integer"
+                  },
+                  "field2": {
+                    "type": "integer"
+                  }
+                }
+                """;
             createIndex("source1", Settings.EMPTY, mapping);
             createIndex("source2", Settings.EMPTY, mapping);
             createPipeline("my_pipeline");
@@ -987,17 +991,19 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testUpdateByQuery() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            String mapping = "  \"properties\": {\n"
-                + "    \"user\": {\n"
-                + "      \"type\": \"text\"\n"
-                + "    },\n"
-                + "    \"field1\": {\n"
-                + "      \"type\": \"integer\"\n"
-                + "    },\n"
-                + "    \"field2\": {\n"
-                + "      \"type\": \"integer\"\n"
-                + "    }\n"
-                + "  }";
+            String mapping = """
+                "properties": {
+                  "user": {
+                    "type": "text"
+                  },
+                  "field1": {
+                    "type": "integer"
+                  },
+                  "field2": {
+                    "type": "integer"
+                  }
+                }
+                """;
             createIndex("source1", Settings.EMPTY, mapping);
             createIndex("source2", Settings.EMPTY, mapping);
             createPipeline("my_pipeline");
@@ -1110,17 +1116,18 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testDeleteByQuery() throws Exception {
         RestHighLevelClient client = highLevelClient();
         {
-            String mapping = "  \"properties\": {\n"
-                + "    \"user\": {\n"
-                + "      \"type\": \"text\"\n"
-                + "    },\n"
-                + "    \"field1\": {\n"
-                + "      \"type\": \"integer\"\n"
-                + "    },\n"
-                + "    \"field2\": {\n"
-                + "      \"type\": \"integer\"\n"
-                + "    }\n"
-                + "  }";
+            String mapping = """
+                "properties": {
+                  "user": {
+                    "type": "text"
+                  },
+                  "field1": {
+                    "type": "integer"
+                  },
+                  "field2": {
+                    "type": "integer"
+                  }
+                }""";
             createIndex("source1", Settings.EMPTY, mapping);
             createIndex("source2", Settings.EMPTY, mapping);
         }
@@ -1222,18 +1229,17 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             Request createIndex = new Request("PUT", "/posts");
-            createIndex.setJsonEntity(
-                "{\n"
-                    + "    \"mappings\" : {\n"
-                    + "        \"properties\" : {\n"
-                    + "            \"message\" : {\n"
-                    + "                \"type\": \"text\",\n"
-                    + "                \"store\": true\n"
-                    + "            }\n"
-                    + "        }\n"
-                    + "    }\n"
-                    + "}"
-            );
+            createIndex.setJsonEntity("""
+                {
+                  "mappings": {
+                    "properties": {
+                      "message": {
+                        "type": "text",
+                        "store": true
+                      }
+                    }
+                  }
+                }""");
             Response response = client().performRequest(createIndex);
             assertEquals(200, response.getStatusLine().getStatusCode());
 
@@ -1394,18 +1400,17 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
         {
             Request createIndex = new Request("PUT", "/posts");
-            createIndex.setJsonEntity(
-                "{\n"
-                    + "    \"mappings\" : {\n"
-                    + "        \"properties\" : {\n"
-                    + "            \"message\" : {\n"
-                    + "                \"type\": \"text\",\n"
-                    + "                \"store\": true\n"
-                    + "            }\n"
-                    + "        }\n"
-                    + "    }\n"
-                    + "}"
-            );
+            createIndex.setJsonEntity("""
+                {
+                  "mappings": {
+                    "properties": {
+                      "message": {
+                        "type": "text",
+                        "store": true
+                      }
+                    }
+                  }
+                }""");
             Response response = client().performRequest(createIndex);
             assertEquals(200, response.getStatusLine().getStatusCode());
 
@@ -1845,18 +1850,17 @@ public class CRUDDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             Request createIndex = new Request("PUT", "/index");
-            createIndex.setJsonEntity(
-                "{\n"
-                    + "    \"mappings\" : {\n"
-                    + "        \"properties\" : {\n"
-                    + "            \"foo\" : {\n"
-                    + "                \"type\": \"text\",\n"
-                    + "                \"store\": true\n"
-                    + "            }\n"
-                    + "        }\n"
-                    + "    }\n"
-                    + "}"
-            );
+            createIndex.setJsonEntity("""
+                {
+                  "mappings": {
+                    "properties": {
+                      "foo": {
+                        "type": "text",
+                        "store": true
+                      }
+                    }
+                  }
+                }""");
             Response response = client().performRequest(createIndex);
             assertEquals(200, response.getStatusLine().getStatusCode());
         }

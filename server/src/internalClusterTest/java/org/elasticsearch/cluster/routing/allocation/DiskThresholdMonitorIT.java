@@ -53,6 +53,7 @@ public class DiskThresholdMonitorIT extends DiskUsageIntegTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
+                .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNodeName)
                 .build()
         );
         // ensure we have a system index on the data node too.

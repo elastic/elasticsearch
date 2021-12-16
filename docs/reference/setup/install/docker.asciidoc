@@ -82,7 +82,7 @@ output to the terminal, plus an enrollment token for enrolling {kib}.
 ifeval::["{release-state}"!="unreleased"]
 [source,sh,subs="attributes"]
 ----
-docker run --name es-01 --net elastic -p 9200:9200 -p 9300:9300 -it {docker-image}
+docker run --name es01 --net elastic -p 9200:9200 -p 9300:9300 -it {docker-image}
 ----
 
 endif::[]
@@ -103,7 +103,7 @@ For example:
 
 [source,sh]
 ----
-docker exec -it es-01 /usr/share/elasticsearch/bin/elasticsearch-reset-password
+docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-reset-password
 ----
 ====
 
@@ -112,7 +112,7 @@ your local machine.
 +
 [source,sh]
 ----
-docker cp es-01:/usr/share/elasticsearch/config/tls_auto_config_*/http_ca.crt .
+docker cp es01:/usr/share/elasticsearch/config/tls_auto_config_*/http_ca.crt .
 ----
 
 . Open a new terminal and verify that you can connect to your {es} cluster by
@@ -140,12 +140,12 @@ new enrollment token, run the
 existing node. This tool is available in the {es} `bin` directory of the Docker 
 container.
 
-For example, run the following command on the existing `es-01` node to
+For example, run the following command on the existing `es01` node to
 generate an enrollment token for new {es} nodes:
 
 [source,sh]
 ----
-docker exec -it es-01 /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s node
+docker exec -it es01 /usr/share/elasticsearch/bin/elasticsearch-create-enrollment-token -s node
 ----
 ****
 --
@@ -157,7 +157,7 @@ enrollment token for adding new {es} nodes.
 +
 [source,sh,subs="attributes"]
 ----
-docker run -e ENROLLMENT_TOKEN="<token>" --name es-02 --net elastic -it docker.elastic.co/elasticsearch/elasticsearch:{docker-image}
+docker run -e ENROLLMENT_TOKEN="<token>" --name es02 --net elastic -it docker.elastic.co/elasticsearch/elasticsearch:{docker-image}
 ----
 +
 {es} is now configured to join the existing cluster.
@@ -166,12 +166,12 @@ If you experience issues where the container where your first node is running
 exits when your second node starts, explicitly set values for the JVM heap size.
 To <<set-jvm-heap-size,manually configure the heap size>>, include the
 `ES_JAVA_OPTS` variable and set values for `-Xms` and `-Xmx` when starting each
-node. For example, the following command starts node `es-02` and sets the
+node. For example, the following command starts node `es02` and sets the
 minimum and maximum JVM heap size to 1 GB:
 
 [source,sh,subs="attributes"]
 ----
-docker run -e ES_JAVA_OPTS="-Xms1g -Xmx1g" -e ENROLLMENT_TOKEN="<token>" --name es-02 -p 9201:9200 --net elastic -it docker.elastic.co/elasticsearch/elasticsearch:{docker-image}
+docker run -e ES_JAVA_OPTS="-Xms1g -Xmx1g" -e ENROLLMENT_TOKEN="<token>" --name es02 -p 9201:9200 --net elastic -it docker.elastic.co/elasticsearch/elasticsearch:{docker-image}
 ----
 
 ===== Next steps

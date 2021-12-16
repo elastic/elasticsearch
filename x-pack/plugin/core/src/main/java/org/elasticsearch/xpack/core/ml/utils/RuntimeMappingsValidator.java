@@ -20,9 +20,9 @@ public final class RuntimeMappingsValidator {
         for (Map.Entry<String, Object> entry : runtimeMappings.entrySet()) {
             // top level objects are fields
             String fieldName = entry.getKey();
-            if (entry.getValue() instanceof Map value) {
+            if (entry.getValue() instanceof Map) {
                 @SuppressWarnings("unchecked")
-                Map<String, Object> propNode = new HashMap<>(((Map<String, Object>) value));
+                Map<String, Object> propNode = new HashMap<>(((Map<String, Object>) entry.getValue()));
                 Object typeNode = propNode.get("type");
                 if (typeNode == null) {
                     throw ExceptionsHelper.badRequestException("No type specified for runtime field [{}]", fieldName);

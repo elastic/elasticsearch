@@ -315,6 +315,29 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         return (DirectoryReader) reader;
     }
 
+    /**
+     * Returns the total hit count from index reader leaves and a query using the count function.
+     *
+     * @param reader an index reader.
+     * @param query the query to compute hit count.
+     * @return the total hit count of a given query.
+     * @throws IOException if there is a low-level I/O error
+     */
+    public int getTotalHitCount(IndexReader reader, Query query) throws IOException {
+        int hitCount = -1;
+        Weight weight = createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1f);
+        for (LeafReaderContext leaf : reader.leaves()) {
+            int count = weight.count(leaf);
+            if (count != -1) {
+                if(hitCount == -1){
+                    hitCount++;
+                }
+                hitCount += count;
+            }
+        }
+        return hitCount;
+    }
+
     private static class MutableQueryTimeout implements ExitableDirectoryReader.QueryCancellation {
 
         private final Set<Runnable> runnables = new HashSet<>();

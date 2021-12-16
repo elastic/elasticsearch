@@ -3074,16 +3074,16 @@ public class HighlighterSearchIT extends ESIntegTestCase {
      */
     private void phraseBoostTestCase(String highlighterType) {
         ensureGreen();
-        StringBuilder text = new StringBuilder();
-        text.append("words words junk junk junk junk junk junk junk junk highlight junk junk junk junk together junk\n");
-        for (int i = 0; i < 10; i++) {
-            text.append("junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk\n");
-        }
-        text.append("highlight words together\n");
-        for (int i = 0; i < 10; i++) {
-            text.append("junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk\n");
-        }
-        indexDoc("test", "1", "field1", text.toString());
+        String text = """
+            words words junk junk junk junk junk junk junk junk highlight junk junk junk junk together junk
+            """ + """
+            junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk
+            """.repeat(10) + """
+            highlight words together
+            """ + """
+            junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk junk
+            """.repeat(10);
+        indexDoc("test", "1", "field1", text);
         refresh();
 
         // Match queries

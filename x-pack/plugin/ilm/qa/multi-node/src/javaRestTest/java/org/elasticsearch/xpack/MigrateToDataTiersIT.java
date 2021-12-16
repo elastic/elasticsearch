@@ -180,7 +180,9 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         updateIndexSettings(indexWithDataWarmRouting, Settings.builder().putNull(DataTier.TIER_PREFERENCE));
 
         Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
-        migrateRequest.setJsonEntity("{\"legacy_template_to_delete\": \"" + templateName + "\", \"node_attribute\": \"data\"}");
+        migrateRequest.setJsonEntity("""
+            {"legacy_template_to_delete": "%s", "node_attribute": "data"}
+            """.formatted(templateName));
         Response migrateDeploymentResponse = client().performRequest(migrateRequest);
         assertOK(migrateDeploymentResponse);
 
@@ -360,22 +362,18 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
 
     private void createLegacyTemplate(String templateName) throws IOException {
         String indexPrefix = randomAlphaOfLengthBetween(5, 15).toLowerCase(Locale.ROOT);
-        final StringEntity template = new StringEntity(
-            "{\n"
-                + "  \"index_patterns\": \""
-                + indexPrefix
-                + "*\",\n"
-                + "  \"settings\": {\n"
-                + "    \"index\": {\n"
-                + "      \"lifecycle\": {\n"
-                + "        \"name\": \"does_not_exist\",\n"
-                + "        \"rollover_alias\": \"test_alias\"\n"
-                + "      }\n"
-                + "    }\n"
-                + "  }\n"
-                + "}",
-            ContentType.APPLICATION_JSON
-        );
+        final StringEntity template = new StringEntity("""
+            {
+              "index_patterns": "%s*",
+              "settings": {
+                "index": {
+                  "lifecycle": {
+                    "name": "does_not_exist",
+                    "rollover_alias": "test_alias"
+                  }
+                }
+              }
+            }""".formatted(indexPrefix), ContentType.APPLICATION_JSON);
         Request templateRequest = new Request("PUT", "_template/" + templateName);
         templateRequest.setEntity(template);
         templateRequest.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));

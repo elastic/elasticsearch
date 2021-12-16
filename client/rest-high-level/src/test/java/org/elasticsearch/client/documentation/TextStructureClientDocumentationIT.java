@@ -30,12 +30,12 @@ public class TextStructureClientDocumentationIT extends ESRestHighLevelClientTes
         RestHighLevelClient client = highLevelClient();
 
         Path anInterestingFile = createTempFile();
-        String contents = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\","
-            + "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\","
-            + "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n"
-            + "{\"logger\":\"controller\",\"timestamp\":1478261151445,"
-            + "\"level\":\"INFO\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 2\",\"class\":\"ml\","
-            + "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
+        String contents = """
+            {"logger":"controller","timestamp":1478261151445,"level":"INFO","pid":42,"thread":"0x7fff7d2a8000","message":"message 1",\
+            "class":"ml","method":"core::SomeNoiseMaker","file":"Noisemaker.cc","line":333}
+            {"logger":"controller","timestamp":1478261151445,"level":"INFO","pid":42,"thread":"0x7fff7d2a8000","message":"message 2",\
+            "class":"ml","method":"core::SomeNoiseMaker","file":"Noisemaker.cc","line":333}
+            """;
         Files.write(anInterestingFile, Collections.singleton(contents), StandardCharsets.UTF_8);
 
         {

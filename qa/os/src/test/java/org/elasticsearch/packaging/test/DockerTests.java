@@ -147,7 +147,9 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test012SecurityCanBeDisabled() throws Exception {
         // restart container with security disabled
-        runContainer(distribution(), builder().envVar("xpack.security.enabled", "false"));
+        // We need to set discovery to single-node as with security disabled, autoconfiguration won't run and we won't set
+        // cluster.initial_master_nodes
+        runContainer(distribution(), builder().envVar("xpack.security.enabled", "false").envVar("discovery.type", "single-node"));
         waitForElasticsearch(installation);
         final int unauthStatusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200"), null, null, null);
         assertThat(unauthStatusCode, equalTo(200));
@@ -373,7 +375,13 @@ public class DockerTests extends PackagingTestCase {
     public void test040JavaUsesTheOsProvidedKeystore() {
         final String path = sh.run("realpath jdk/lib/security/cacerts").stdout;
 
-        assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
+        if (distribution.packaging == Packaging.DOCKER_UBI || distribution.packaging == Packaging.DOCKER_IRON_BANK) {
+            // In these images, the `cacerts` file ought to be a symlink here
+            assertThat(path, equalTo("/etc/pki/ca-trust/extracted/java/cacerts"));
+        } else {
+            // Whereas on other images, it's a real file so the real path is the same
+            assertThat(path, equalTo("/usr/share/elasticsearch/jdk/lib/security/cacerts"));
+        }
     }
 
     /**
@@ -408,6 +416,17 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that the JDK uses the Cloudflare zlib, instead of the default one.
+     */
+    public void test060JavaUsesCloudflareZlib() {
+        waitForElasticsearch(installation, "elastic", PASSWORD);
+
+        final String output = sh.run("bash -c 'pmap -p $(pidof java)'").stdout;
+
+        assertThat("Expected java to be using cloudflare-zlib", output, containsString("cloudflare-zlib"));
+    }
+
+    /**
      * Check that the default config can be overridden using a bind mount, and that env vars are respected
      */
     public void test070BindMountCustomPathConfAndJvmOptions() throws Exception {
@@ -433,11 +452,15 @@ public class DockerTests extends PackagingTestCase {
         Files.setPosixFilePermissions(tempDir.resolve(autoConfigurationDirName), p750);
 
         // Restart the container
+        // We need to set discovery to single-node as autoconfiguration has already run when the node started the first time
+        // cluster.initial_master_nodes is set to the name of the original docker container
+        ServerUtils.removeSettingFromExistingConfiguration(tempDir, "cluster.initial_master_nodes");
         runContainer(
             distribution(),
             builder().volume(tempDir, "/usr/share/elasticsearch/config")
                 .envVar("ES_JAVA_OPTS", "-XX:-UseCompressedOops")
                 .envVar("ELASTIC_PASSWORD", PASSWORD)
+                .envVar("discovery.type", "single-node")
         );
 
         waitForElasticsearch(installation, "elastic", PASSWORD);
@@ -517,6 +540,9 @@ public class DockerTests extends PackagingTestCase {
 
         try {
             // Restart the container
+            // We need to set discovery to single-node as autoconfiguration has already run when the node started the first time
+            // cluster.initial_master_nodes is set to the name of the original docker container
+            ServerUtils.removeSettingFromExistingConfiguration(tempEsConfigDir, "cluster.initial_master_nodes");
             runContainer(
                 distribution(),
                 builder().envVar("ELASTIC_PASSWORD", PASSWORD)
@@ -524,6 +550,7 @@ public class DockerTests extends PackagingTestCase {
                     .volume(tempEsDataDir.toAbsolutePath(), installation.data)
                     .volume(tempEsConfigDir.toAbsolutePath(), installation.config)
                     .volume(tempEsLogsDir.toAbsolutePath(), installation.logs)
+                    .envVar("discovery.type", "single-node")
             );
 
             waitForElasticsearch(installation, "elastic", PASSWORD);
@@ -541,7 +568,12 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test073RunEsAsDifferentUserAndGroupWithoutBindMounting() {
         // Restart the container
-        runContainer(distribution(), builder().extraArgs("--group-add 0").uid(501, 501).envVar("ELASTIC_PASSWORD", PASSWORD));
+        // We need to set discovery to single-node as autoconfiguration won't run, and we won't set
+        // cluster.initial_master_nodes
+        runContainer(
+            distribution(),
+            builder().extraArgs("--group-add 0").uid(501, 501).envVar("ELASTIC_PASSWORD", PASSWORD).envVar("discovery.type", "single-node")
+        );
 
         waitForElasticsearch(installation, "elastic", PASSWORD);
     }

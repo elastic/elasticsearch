@@ -16,7 +16,6 @@ import org.bouncycastle.asn1.x509.GeneralName;
 import org.bouncycastle.asn1.x509.GeneralNames;
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
@@ -25,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -37,7 +37,6 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.discovery.SettingsBasedSeedHostsProvider;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
@@ -88,6 +87,7 @@ import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.common.ssl.PemUtils.parsePKCS8PemString;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.xpack.core.security.CommandLineHttpClient.createURL;
 
 /**
@@ -252,7 +252,8 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         final PrivateKey httpKey;
         final X509Certificate httpCert;
         final List<String> transportAddresses;
-        final X500Principal certificatePrincipal = new X500Principal("CN=" + System.getenv("HOSTNAME"));
+        final String cnValue = NODE_NAME_SETTING.exists(env.settings()) ? NODE_NAME_SETTING.get(env.settings()) : System.getenv("HOSTNAME");
+        final X500Principal certificatePrincipal = new X500Principal("CN=" + cnValue);
         final X500Principal caPrincipal = new X500Principal(AUTO_CONFIG_ALT_DN);
 
         if (inEnrollmentMode) {
@@ -284,16 +285,21 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             HttpResponse enrollResponse = null;
             URL enrollNodeUrl = null;
             for (String address : enrollmentToken.getBoundAddress()) {
-                enrollNodeUrl = createURL(new URL("https://" + address), "/_security/enroll/node", "");
-                enrollResponse = client.execute(
-                    "GET",
-                    enrollNodeUrl,
-                    new SecureString(enrollmentToken.getApiKey().toCharArray()),
-                    () -> null,
-                    CommandLineHttpClient::responseBuilder
-                );
-                if (enrollResponse.getHttpStatus() == 200) {
+                try {
+                    enrollNodeUrl = createURL(new URL("https://" + address), "/_security/enroll/node", "");
+                    enrollResponse = client.execute(
+                        "GET",
+                        enrollNodeUrl,
+                        new SecureString(enrollmentToken.getApiKey().toCharArray()),
+                        () -> null,
+                        CommandLineHttpClient::responseBuilder
+                    );
                     break;
+                } catch (Exception e) {
+                    terminal.errorPrint(
+                        Terminal.Verbosity.NORMAL,
+                        "Unable to communicate with the node on " + enrollNodeUrl + ". Error was " + e.getMessage()
+                    );
                 }
             }
             if (enrollResponse == null || enrollResponse.getHttpStatus() != 200) {
@@ -301,9 +307,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 throw new UserException(
                     ExitCodes.UNAVAILABLE,
                     "Aborting enrolling to cluster. "
-                        + "Could not communicate with the initial node in any of the addresses from the enrollment token. All of "
+                        + "Could not communicate with the node on any of the addresses from the enrollment token. All of "
                         + enrollmentToken.getBoundAddress()
-                        + "where attempted."
+                        + " were attempted."
                 );
             }
             final Map<String, Object> responseMap = enrollResponse.getResponseBody();
@@ -635,7 +641,11 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                             bw.newLine();
                             bw.write("# and all the subsequent nodes should be added via the node enrollment flow");
                             bw.newLine();
-                            bw.write(ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey() + ": [\"${HOSTNAME}\"]");
+                            bw.write(
+                                ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey()
+                                    + ": "
+                                    + initialMasterNodesSettingValue(localFinalEnv)
+                            );
                             bw.newLine();
                         }
                     }
@@ -654,7 +664,9 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                                 + "it's reasonable to serve requests on the local network too"
                         );
                         bw.newLine();
-                        bw.write(HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": [_local_, _site_]");
+                        bw.write(
+                            HttpTransportSettings.SETTING_HTTP_HOST.getKey() + ": " + httpHostSettingValue(NetworkUtils.getAllAddresses())
+                        );
                         bw.newLine();
                     }
                     bw.write(AUTO_CONFIGURATION_END_MARKER);
@@ -686,6 +698,21 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         }
         // only delete the backed up file if all went well
         Files.deleteIfExists(keystoreBackupPath);
+    }
+
+    private String initialMasterNodesSettingValue(Environment environment) {
+        if (NODE_NAME_SETTING.exists(environment.settings())) {
+            return "[\"" + NODE_NAME_SETTING.get(environment.settings()) + "\"]";
+        }
+        return "[\"${HOSTNAME}\"]";
+    }
+
+    protected String httpHostSettingValue(InetAddress[] allAddresses) {
+        if (Arrays.stream(allAddresses).anyMatch(InetAddress::isSiteLocalAddress)) {
+            return "[_local_, _site_]";
+        } else {
+            return "[_local_]";
+        }
     }
 
     private Environment possibleReconfigureNode(Environment env, Terminal terminal) throws UserException {
@@ -869,7 +896,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             || (ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings).isEmpty()
                 && SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING.get(settings).isEmpty()
                 && DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING.get(settings).isEmpty())
-            || ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings).equals(List.of(Node.NODE_NAME_SETTING.get(settings)));
+            || ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(settings).equals(List.of(NODE_NAME_SETTING.get(settings)));
     }
 
     private static void fullyWriteFile(Path basePath, String fileName, boolean replace, CheckedConsumer<OutputStream, Exception> writer)

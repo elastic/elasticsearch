@@ -66,7 +66,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
     }
 
     public void testInvalidMustacheTemplate() throws Exception {
-        RemoveProcessor.Factory factory = new RemoveProcessor.Factory(TestTemplateService.instance(true));
+        factory = new RemoveProcessor.Factory(TestTemplateService.instance(true));
         Map<String, Object> config = new HashMap<>();
         config.put("field", "{{field1}}");
         String processorTag = randomAlphaOfLength(10);

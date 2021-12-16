@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ccr.action;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -136,6 +137,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
         };
     }
 
+    @SuppressWarnings("HiddenField")
     void start(
         final String followerHistoryUUID,
         final long leaderGlobalCheckpoint,
@@ -357,8 +359,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 fetchExceptions.put(from, Tuple.tuple(retryCounter, ExceptionsHelper.convertToElastic(e)));
             }
             Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (cause instanceof ResourceNotFoundException) {
-                ResourceNotFoundException resourceNotFoundException = (ResourceNotFoundException) cause;
+            if (cause instanceof ResourceNotFoundException resourceNotFoundException) {
                 if (resourceNotFoundException.getMetadataKeys().contains(Ccr.REQUESTED_OPS_MISSING_METADATA_KEY)) {
                     handleFallenBehindLeaderShard(e, from, maxOperationCount, maxRequiredSeqNo, retryCounter);
                     return;
@@ -439,12 +440,12 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
 
     private void sendBulkShardOperationsRequest(
         List<Translog.Operation> operations,
-        long leaderMaxSeqNoOfUpdatesOrDeletes,
+        long leaderMaxSequenceNoOfUpdatesOrDeletes,
         AtomicInteger retryCounter
     ) {
-        assert leaderMaxSeqNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "mus is not replicated";
+        assert leaderMaxSequenceNoOfUpdatesOrDeletes != SequenceNumbers.UNASSIGNED_SEQ_NO : "mus is not replicated";
         final long startTime = relativeTimeProvider.getAsLong();
-        innerSendBulkShardOperationsRequest(followerHistoryUUID, operations, leaderMaxSeqNoOfUpdatesOrDeletes, response -> {
+        innerSendBulkShardOperationsRequest(followerHistoryUUID, operations, leaderMaxSequenceNoOfUpdatesOrDeletes, response -> {
             synchronized (ShardFollowNodeTask.this) {
                 totalWriteTimeMillis += TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTime);
                 successfulWriteRequests++;
@@ -459,7 +460,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             handleFailure(
                 e,
                 retryCounter,
-                () -> sendBulkShardOperationsRequest(operations, leaderMaxSeqNoOfUpdatesOrDeletes, retryCounter)
+                () -> sendBulkShardOperationsRequest(operations, leaderMaxSequenceNoOfUpdatesOrDeletes, retryCounter)
             );
         });
     }
@@ -619,9 +620,7 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
     }
 
     static boolean shouldRetry(final Exception e) {
-        if (NetworkExceptionHelper.isConnectException(e)) {
-            return true;
-        } else if (NetworkExceptionHelper.isCloseConnectionException(e)) {
+        if (NetworkExceptionHelper.isConnectException(e) || NetworkExceptionHelper.getCloseConnectionExceptionLevel(e) != Level.OFF) {
             return true;
         }
 
@@ -631,13 +630,10 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             || actual instanceof NoShardAvailableActionException
             || actual instanceof UnavailableShardsException
             || actual instanceof AlreadyClosedException
-            || actual instanceof ElasticsearchSecurityException
-            || // If user does not have sufficient privileges
-            actual instanceof ClusterBlockException
-            || // If leader index is closed or no elected master
-            actual instanceof IndexClosedException
-            || // If follow index is closed
-            actual instanceof ConnectTransportException
+            || actual instanceof ElasticsearchSecurityException // If user does not have sufficient privileges
+            || actual instanceof ClusterBlockException // If leader index is closed or no elected master
+            || actual instanceof IndexClosedException // If follow index is closed
+            || actual instanceof ConnectTransportException
             || actual instanceof NodeClosedException
             || actual instanceof NoSuchRemoteClusterException
             || actual instanceof NoSeedNodeLeftException

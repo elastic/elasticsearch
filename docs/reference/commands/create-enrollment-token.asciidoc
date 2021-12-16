@@ -12,7 +12,7 @@ The `elasticsearch-create-enrollment-token` command creates enrollment tokens fo
 [source,shell]
 ----
 bin/elasticsearch-create-enrollment-token
-[-f, --force] [-h, --help] [-E <KeyValuePair>] [-s, --scope]
+[-f, --force] [-h, --help] [-E <KeyValuePair>] [-s, --scope] [--url]
 ----
 
 [discrete]
@@ -23,7 +23,7 @@ Use this command to create enrollment tokens, which you can use to enroll new
 with an existing {es} cluster that has security features enabled.
 The command generates (and subsequently removes) a temporary user in the
 <<file-realm,file realm>> to run the request that creates enrollment tokens.
-IMPORTANT: You cannot use this tool if the file realm is disabled in your 
+IMPORTANT: You cannot use this tool if the file realm is disabled in your
 `elasticsearch.yml` file.
 
 This command uses an HTTP connection to connect to the cluster and run the user
@@ -42,11 +42,16 @@ option. For more information about debugging connection failures, see
 
 `-E <KeyValuePair>`:: Configures a standard {es} or {xpack} setting.
 
-`-f, --force`:: Forces the command to run against an unhealthy cluster. 
+`-f, --force`:: Forces the command to run against an unhealthy cluster.
 
 `-h, --help`:: Returns all of the command parameters.
 
 `-s, --scope`:: Specifies the scope of the generated token. Supported values are `node` and `kibana`.
+
+`--url`:: Specifies the base URL (hostname and port of the local node) that the tool uses to submit API
+requests to {es}. The default value is determined from the settings in your
+`elasticsearch.yml` file. If `xpack.security.http.ssl.enabled`  is set to `true`,
+you must specify an HTTPS URL.
 
 [discrete]
 === Examples
@@ -56,4 +61,13 @@ The following command creates an enrollment token for enrolling an {es} node int
 [source,shell]
 ----
 bin/elasticsearch-create-enrollment-token -s node
+----
+
+The following command creates an enrollment token for enrolling a {kib} instance into a cluster.
+The specified URL indicates where the elasticsearch-create-enrollment-token tool attempts to reach the
+local {es} node:
+
+[source,shell]
+----
+bin/elasticsearch-create-enrollment-token -s kibana --url "https://172.0.0.3:9200"
 ----

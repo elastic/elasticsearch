@@ -699,9 +699,9 @@ public class AzureBlobStore implements BlobStore {
         }
 
         private ByteBuf copyBuffer(ByteBuffer buffer) {
-            ByteBuf byteBuf = allocator.heapBuffer(buffer.remaining(), buffer.remaining());
-            byteBuf.writeBytes(buffer);
-            return byteBuf;
+            ByteBuf byteBuffer = allocator.heapBuffer(buffer.remaining(), buffer.remaining());
+            byteBuffer.writeBytes(buffer);
+            return byteBuffer;
         }
 
         @Override

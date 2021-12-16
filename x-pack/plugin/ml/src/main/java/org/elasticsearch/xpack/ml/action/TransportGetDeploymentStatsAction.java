@@ -129,9 +129,6 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
             }
         }
 
-        // check request has been satisfied
-        ExpandedIdsMatcher requiredIdsMatcher = new ExpandedIdsMatcher(tokenizedRequestIds, true);
-        requiredIdsMatcher.filterMatchedIds(matchedDeploymentIds);
         if (matchedDeploymentIds.isEmpty()) {
             listener.onResponse(
                 new GetDeploymentStatsAction.Response(Collections.emptyList(), Collections.emptyList(), Collections.emptyList(), 0L)
@@ -154,8 +151,7 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
                 .collect(Collectors.toList());
             // Set the allocation state and reason if we have it
             for (AllocationStats stats : updatedResponse.getStats().results()) {
-                Optional<TrainedModelAllocation> modelAllocation = Optional.ofNullable(allocation.getModelAllocation(stats.getModelId()));
-                TrainedModelAllocation trainedModelAllocation = modelAllocation.orElse(null);
+                TrainedModelAllocation trainedModelAllocation = allocation.getModelAllocation(stats.getModelId());
                 if (trainedModelAllocation != null) {
                     stats.setState(trainedModelAllocation.getAllocationState()).setReason(trainedModelAllocation.getReason().orElse(null));
                     if (trainedModelAllocation.getAllocationState().isAnyOf(AllocationState.STARTED, AllocationState.STARTING)) {
@@ -302,12 +298,14 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
             nodeStats.add(
                 AllocationStats.NodeStats.forStartedState(
                     clusterService.localNode(),
-                    stats.get().getTimingStats().getCount(),
+                    stats.get().timingStats().getCount(),
                     // avoid reporting the average time as 0 if count < 1
-                    (stats.get().getTimingStats().getCount() > 0) ? stats.get().getTimingStats().getAverage() : null,
-                    stats.get().getPendingCount(),
-                    stats.get().getLastUsed(),
-                    stats.get().getStartTime()
+                    (stats.get().timingStats().getCount() > 0) ? stats.get().timingStats().getAverage() : null,
+                    stats.get().pendingCount(),
+                    stats.get().lastUsed(),
+                    stats.get().startTime(),
+                    stats.get().inferenceThreads(),
+                    stats.get().modelThreads()
                 )
             );
         } else {

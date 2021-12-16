@@ -182,7 +182,7 @@ public final class MlIndexAndAlias {
         final String primaryIndex = descriptor.getPrimaryIndex();
 
         // The check for existence of the index is against the cluster state, so very cheap
-        if (hasIndex(clusterState, primaryIndex)) {
+        if (clusterState.getMetadata().hasIndexAbstraction(primaryIndex)) {
             finalListener.onResponse(true);
             return;
         }
@@ -381,9 +381,5 @@ public final class MlIndexAndAlias {
 
     public static boolean hasIndexTemplate(ClusterState state, String templateName) {
         return state.getMetadata().templatesV2().containsKey(templateName);
-    }
-
-    public static boolean hasIndex(ClusterState state, String index) {
-        return state.getMetadata().getIndicesLookup().containsKey(index);
     }
 }

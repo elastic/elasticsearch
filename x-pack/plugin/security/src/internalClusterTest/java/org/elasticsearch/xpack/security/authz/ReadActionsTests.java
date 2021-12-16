@@ -39,14 +39,15 @@ public class ReadActionsTests extends SecurityIntegTestCase {
 
     @Override
     protected String configRoles() {
-        return SecuritySettingsSource.TEST_ROLE
-            + ":\n"
-            + "  cluster: [ ALL ]\n"
-            + "  indices:\n"
-            + "    - names: '*'\n"
-            + "      privileges: [ manage, write ]\n"
-            + "    - names: ['/test.*/', '/-alias.*/']\n"
-            + "      privileges: [ read ]\n";
+        return """
+            %s:
+              cluster: [ ALL ]
+              indices:
+                - names: '*'
+                  privileges: [ manage, write ]
+                - names: ['/test.*/', '/-alias.*/']
+                  privileges: [ read ]
+            """.formatted(SecuritySettingsSource.TEST_ROLE);
     }
 
     public void testSearchForAll() {

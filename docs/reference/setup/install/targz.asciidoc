@@ -81,6 +81,7 @@ endif::include-xpack[]
 include::targz-start.asciidoc[]
 
 :os-dir:       $ES_HOME
+:slash:        /
 
 include::check-running.asciidoc[]
 
@@ -108,6 +109,8 @@ the command line, using the `-E` syntax as follows:
 TIP: Typically, any cluster-wide settings (like `cluster.name`) should be
 added to the `elasticsearch.yml` config file, while any node-specific settings
 such as `node.name` could be specified on the command line.
+
+include::connect-clients.asciidoc[]
 
 [[targz-layout]]
 ==== Directory layout of archives

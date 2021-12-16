@@ -47,7 +47,7 @@ public class DeploymentManagerTests extends ESTestCase {
     }
 
     public void testInferListenerOnlyCalledOnce() {
-        PyTorchResultProcessor resultProcessor = new PyTorchResultProcessor("1");
+        PyTorchResultProcessor resultProcessor = new PyTorchResultProcessor("1", threadSettings -> {});
         DeploymentManager.ProcessContext processContext = mock(DeploymentManager.ProcessContext.class);
         when(processContext.getResultProcessor()).thenReturn(resultProcessor);
 

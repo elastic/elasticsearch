@@ -547,13 +547,14 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
                 .put("index.number_of_shards", 3)
                 .put("index.number_of_replicas", 1)
                 .build();
-            String mappingJson = "{\n" +
-                "  \"properties\": {\n" +
-                "    \"message\": {\n" +
-                "      \"type\": \"text\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}";
+            String mappingJson = """
+                    {
+                      "properties": {
+                        "message": {
+                          "type": "text"
+                        }
+                      }
+                    }""";
             AliasMetadata twitterAlias = AliasMetadata.builder("twitter_alias").build();
             Template template = new Template(settings, new CompressedXContent(mappingJson), Map.of("twitter_alias", twitterAlias)); // <2>
 
@@ -626,13 +627,14 @@ public class ClusterClientDocumentationIT extends ESRestHighLevelClientTestCase 
             PutComponentTemplateRequest request = new PutComponentTemplateRequest().name("ct1");
 
             Settings settings = Settings.builder().put("index.number_of_shards", 3).put("index.number_of_replicas", 1).build();
-            String mappingJson = "{\n"
-                + "  \"properties\": {\n"
-                + "    \"message\": {\n"
-                + "      \"type\": \"text\"\n"
-                + "    }\n"
-                + "  }\n"
-                + "}";
+            String mappingJson = """
+                {
+                  "properties": {
+                    "message": {
+                      "type": "text"
+                    }
+                  }
+                }""";
             AliasMetadata twitterAlias = AliasMetadata.builder("twitter_alias").build();
             Template template = new Template(settings, new CompressedXContent(mappingJson), Map.of("twitter_alias", twitterAlias));
 

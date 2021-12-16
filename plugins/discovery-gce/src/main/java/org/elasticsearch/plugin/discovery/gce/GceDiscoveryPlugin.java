@@ -83,14 +83,14 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     }
 
     @Override
-    public NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
+    public NetworkService.CustomNameResolver getCustomNameResolver(Settings settingsToUse) {
         logger.debug("Register _gce_, _gce:xxx network names");
-        return new GceNameResolver(new GceMetadataService(settings));
+        return new GceNameResolver(new GceMetadataService(settingsToUse));
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        List<Setting<?>> settings = new ArrayList<>(
+        List<Setting<?>> settingList = new ArrayList<>(
             Arrays.asList(
                 // Register GCE settings
                 GceInstancesService.PROJECT_SETTING,
@@ -103,10 +103,10 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
         );
 
         if (ALLOW_REROUTE_GCE_SETTINGS) {
-            settings.add(GceMetadataService.GCE_HOST);
-            settings.add(GceInstancesServiceImpl.GCE_ROOT_URL);
+            settingList.add(GceMetadataService.GCE_HOST);
+            settingList.add(GceInstancesServiceImpl.GCE_ROOT_URL);
         }
-        return Collections.unmodifiableList(settings);
+        return Collections.unmodifiableList(settingList);
     }
 
     @Override

@@ -18,7 +18,9 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortOrder;
@@ -127,11 +129,21 @@ public final class IndexSortConfig {
     final FieldSortSpec[] sortSpecs;
     private final Version indexCreatedVersion;
     private final String indexName;
+    private final IndexMode indexMode;
 
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
         this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
         this.indexName = indexSettings.getIndex().getName();
+        this.indexMode = indexSettings.getMode();
+
+        if (this.indexMode == IndexMode.TIME_SERIES) {
+            this.sortSpecs = new FieldSortSpec[] {
+                new FieldSortSpec(TimeSeriesIdFieldMapper.NAME),
+                new FieldSortSpec(DataStreamTimestampFieldMapper.DEFAULT_PATH) };
+            return;
+        }
+
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
         this.sortSpecs = fields.stream().map((name) -> new FieldSortSpec(name)).toArray(FieldSortSpec[]::new);
 
@@ -198,7 +210,11 @@ public final class IndexSortConfig {
             FieldSortSpec sortSpec = sortSpecs[i];
             final MappedFieldType ft = fieldTypeLookup.apply(sortSpec.field);
             if (ft == null) {
-                throw new IllegalArgumentException("unknown index sort field:[" + sortSpec.field + "]");
+                String err = "unknown index sort field:[" + sortSpec.field + "]";
+                if (this.indexMode == IndexMode.TIME_SERIES) {
+                    err += " required by [" + IndexSettings.MODE.getKey() + "=time_series]";
+                }
+                throw new IllegalArgumentException(err);
             }
             if (Objects.equals(ft.name(), sortSpec.field) == false) {
                 if (this.indexCreatedVersion.onOrAfter(Version.V_7_13_0)) {

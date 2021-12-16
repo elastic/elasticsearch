@@ -150,20 +150,21 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     public void testIdsFromJson() throws IOException {
-        String query = "{"
-            + "\"pinned\" : {"
-            + "  \"organic\" : {"
-            + "    \"term\" : {"
-            + "      \"tag\" : {"
-            + "        \"value\" : \"tech\","
-            + "        \"boost\" : 1.0"
-            + "      }"
-            + "    }"
-            + "  }, "
-            + "  \"ids\" : [ \"1\",\"2\" ],"
-            + "  \"boost\":1.0 "
-            + "}"
-            + "}";
+        String query = """
+            {
+              "pinned": {
+                "organic": {
+                  "term": {
+                    "tag": {
+                      "value": "tech",
+                      "boost": 1.0
+                    }
+                  }
+                },
+                "ids": [ "1", "2" ],
+                "boost": 1.0
+              }
+            }""";
 
         PinnedQueryBuilder queryBuilder = (PinnedQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);
@@ -173,20 +174,21 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
     }
 
     public void testDocsFromJson() throws IOException {
-        String query = "{"
-            + "\"pinned\" : {"
-            + "  \"organic\" : {"
-            + "    \"term\" : {"
-            + "      \"tag\" : {"
-            + "        \"value\" : \"tech\","
-            + "        \"boost\" : 1.0"
-            + "      }"
-            + "    }"
-            + "  }, "
-            + "  \"docs\" : [{ \"_index\": \"test\", \"_id\": \"1\" }, { \"_index\": \"test\", \"_id\": \"2\" }],"
-            + "  \"boost\":1.0 "
-            + "}"
-            + "}";
+        String query = """
+            {
+              "pinned": {
+                "organic": {
+                  "term": {
+                    "tag": {
+                      "value": "tech",
+                      "boost": 1.0
+                    }
+                  }
+                },
+                "docs": [ { "_index": "test", "_id": "1" }, { "_index": "test", "_id": "2" } ],
+                "boost": 1.0
+              }
+            }""";
 
         PinnedQueryBuilder queryBuilder = (PinnedQueryBuilder) parseQuery(query);
         checkGeneratedJson(query, queryBuilder);

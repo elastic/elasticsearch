@@ -24,27 +24,31 @@ import static org.hamcrest.Matchers.is;
 
 public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase {
 
-    private static final String ROLES = "role_a:\n"
-        + "  cluster: [ all ]\n"
-        + "\n"
-        + "role_b:\n"
-        + "  cluster: [ monitor ]\n"
-        + "\n"
-        + "role_c:\n"
-        + "  indices:\n"
-        + "    - names: 'someindex'\n"
-        + "      privileges: [ all ]\n"
-        + "role_d:\n"
-        + "  cluster: [ create_snapshot ]\n"
-        + "\n"
-        + "role_e:\n"
-        + "  cluster: [ monitor_snapshot]\n";
+    private static final String ROLES = """
+        role_a:
+          cluster: [ all ]
 
-    private static final String USERS_ROLES = "role_a:user_a\n"
-        + "role_b:user_b\n"
-        + "role_c:user_c\n"
-        + "role_d:user_d\n"
-        + "role_e:user_e\n";
+        role_b:
+          cluster: [ monitor ]
+
+        role_c:
+          indices:
+            - names: 'someindex'
+              privileges: [ all ]
+        role_d:
+          cluster: [ create_snapshot ]
+
+        role_e:
+          cluster: [ monitor_snapshot]
+        """;
+
+    private static final String USERS_ROLES = """
+        role_a:user_a
+        role_b:user_b
+        role_c:user_c
+        role_d:user_d
+        role_e:user_e
+        """;
 
     private static Path repositoryLocation;
 

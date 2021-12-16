@@ -606,12 +606,12 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
     }
 
     private void fetchFollowerShardInfo(
-        final Client client,
+        final Client followerClient,
         final ShardId shardId,
         final FollowerStatsInfoHandler handler,
         final Consumer<Exception> errorHandler
     ) {
-        client.admin().indices().stats(new IndicesStatsRequest().indices(shardId.getIndexName()), ActionListener.wrap(r -> {
+        followerClient.admin().indices().stats(new IndicesStatsRequest().indices(shardId.getIndexName()), ActionListener.wrap(r -> {
             IndexStats indexStats = r.getIndex(shardId.getIndexName());
             if (indexStats == null) {
                 IndexMetadata indexMetadata = clusterService.state().metadata().index(shardId.getIndex());

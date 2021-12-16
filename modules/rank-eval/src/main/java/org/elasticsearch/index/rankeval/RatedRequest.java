@@ -234,8 +234,8 @@ public class RatedRequest implements Writeable, ToXContentObject {
         return Collections.unmodifiableList(summaryFields);
     }
 
-    public void addSummaryFields(List<String> summaryFields) {
-        this.summaryFields.addAll(Objects.requireNonNull(summaryFields, "no summary fields supplied"));
+    public void addSummaryFields(List<String> summaryFieldsToAdd) {
+        this.summaryFields.addAll(Objects.requireNonNull(summaryFieldsToAdd, "no summary fields supplied"));
     }
 
     private static final ParseField ID_FIELD = new ParseField("id");
@@ -282,7 +282,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params xContentParams) throws IOException {
         builder.startObject();
         builder.field(ID_FIELD.getPreferredName(), this.id);
         if (evaluationRequest != null) {
@@ -290,7 +290,7 @@ public class RatedRequest implements Writeable, ToXContentObject {
         }
         builder.startArray(RATINGS_FIELD.getPreferredName());
         for (RatedDocument doc : this.ratedDocs) {
-            doc.toXContent(builder, params);
+            doc.toXContent(builder, xContentParams);
         }
         builder.endArray();
         if (this.templateId != null) {

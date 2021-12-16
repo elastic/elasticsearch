@@ -159,7 +159,13 @@ public class ConstructingObjectParserTests extends ESTestCase {
             JsonXContent.jsonXContent,
             // The following JSON needs to include newlines, in order to affect the line numbers
             // included in the exception
-            "{\n" + "  \"animal\": \"cat\",\n" + "  \"vegetable\": 2,\n" + "  \"a\": \"supercalifragilisticexpialidocious\"\n" + "}"
+            """
+                {
+                  "animal": "cat",
+                  "vegetable": 2,
+                  "a": "supercalifragilisticexpialidocious"
+                }
+                """
         );
         XContentParseException e = expectThrows(
             XContentParseException.class,
@@ -178,7 +184,13 @@ public class ConstructingObjectParserTests extends ESTestCase {
             JsonXContent.jsonXContent,
             // The following JSON needs to include newlines, in order to affect the line numbers
             // included in the exception
-            "{\n" + "  \"a\": \"supercalifragilisticexpialidocious\",\n" + "  \"animal\": \"cat\"\n," + "  \"vegetable\": 2\n" + "}"
+            """
+                {
+                  "a": "supercalifragilisticexpialidocious",
+                  "animal": "cat",
+                  "vegetable": 2
+                }
+                """
         );
         XContentParseException e = expectThrows(
             XContentParseException.class,
@@ -264,7 +276,8 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testIgnoreUnknownFields() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"test\" : \"foo\", \"junk\" : 2 }");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            { "test" : "foo", "junk" : 2 }""");
         class TestStruct {
             public final String test;
 
@@ -283,7 +296,8 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testConstructObjectUsingContext() throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"animal\": \"dropbear\", \"mineral\": -8 }");
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            { "animal": "dropbear", "mineral": -8 }""");
         HasCtorArguments parsed = HasCtorArguments.PARSER_INT_CONTEXT.apply(parser, 42);
         assertEquals(Integer.valueOf(42), parsed.vegetable);
         assertEquals("dropbear", parsed.animal);
@@ -423,10 +437,8 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectInOrder() throws IOException {
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{\"named\": [ {\"a\": {}} ], \"named_in_constructor\": [ {\"b\": {}} ]}"
-        );
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {"named": [ {"a": {}} ], "named_in_constructor": [ {"b": {}} ]}""");
         NamedObjectHolder h = NamedObjectHolder.PARSER.apply(parser, null);
         assertThat(h.named, hasSize(1));
         assertEquals("a", h.named.get(0).name);
@@ -436,10 +448,8 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectTwoFieldsInArray() throws IOException {
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{\"named\": [ {\"a\": {}, \"b\": {}}], \"named_in_constructor\": [ {\"c\": {}} ]}"
-        );
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {"named": [ {"a": {}, "b": {}}], "named_in_constructor": [ {"c": {}} ]}""");
         XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
         assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named]"));
         assertThat(
@@ -452,10 +462,8 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectTwoFieldsInArrayConstructorArg() throws IOException {
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{\"named\": [ {\"a\": {}}], \"named_in_constructor\": [ {\"c\": {}, \"d\": {}} ]}"
-        );
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {"named": [ {"a": {}}], "named_in_constructor": [ {"c": {}, "d": {}} ]}""");
         XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
         assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named_in_constructor]"));
         assertThat(
@@ -494,10 +502,8 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectJunkInArray() throws IOException {
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{\"named\": [ \"junk\" ], \"named_in_constructor\": [ {\"a\": {}} ]}"
-        );
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {"named": [ "junk" ], "named_in_constructor": [ {"a": {}} ]}""");
         XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
         assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named]"));
         assertThat(
@@ -510,10 +516,8 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectJunkInArrayConstructorArg() throws IOException {
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{\"named\": [ {\"a\": {}} ], \"named_in_constructor\": [ \"junk\" ]}"
-        );
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {"named": [ {"a": {}} ], "named_in_constructor": [ "junk" ]}""");
         XContentParseException e = expectThrows(XContentParseException.class, () -> NamedObjectHolder.PARSER.apply(parser, null));
         assertThat(e.getMessage(), containsString("[named_object_holder] failed to parse field [named_in_constructor]"));
         assertThat(
@@ -526,10 +530,13 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectInOrderNotSupported() throws IOException {
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{\"named\": [\n" + "  {\"a\": {}}" + "],\"named_in_constructor\": {\"b\": {}}" + "}"
-        );
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {
+                "named": [ { "a": {} } ],
+                "named_in_constructor": {
+                  "b": {}
+                }
+              }""");
 
         // Create our own parser for this test so we can disable support for the "ordered" mode specified by the array above
         @SuppressWarnings("unchecked")
@@ -551,10 +558,13 @@ public class ConstructingObjectParserTests extends ESTestCase {
     }
 
     public void testParseNamedObjectInOrderNotSupportedConstructorArg() throws IOException {
-        XContentParser parser = createParser(
-            JsonXContent.jsonXContent,
-            "{\"named\": {\"a\": {}}, \"named_in_constructor\": [ {\"b\": {}} ]}"
-        );
+        XContentParser parser = createParser(JsonXContent.jsonXContent, """
+            {
+              "named": {
+                "a": {}
+              },
+              "named_in_constructor": [ { "b": {} } ]
+            }""");
 
         // Create our own parser for this test so we can disable support for the "ordered" mode specified by the array above
         @SuppressWarnings("unchecked")
@@ -800,21 +810,15 @@ public class ConstructingObjectParserTests extends ESTestCase {
     public void testRemovalOfField() throws IOException {
         {
             // old_name with NO compatibility is resulting in an exception
-            XContentParser parser = createParserWithCompatibilityFor(
-                JsonXContent.jsonXContent,
-                "{\"old_name\": 1, \"second_field\": \"someString\"}",
-                RestApiVersion.current()
-            );
+            XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, """
+                {"old_name": 1, "second_field": "someString"}""", RestApiVersion.current());
             expectThrows(XContentParseException.class, () -> StructRemovalField.PARSER.parse(parser, null));
         }
 
         {
             // old_name with compatibility is still parsed, but ignored and results in a warning
-            XContentParser parser = createParserWithCompatibilityFor(
-                JsonXContent.jsonXContent,
-                "{\"old_name\": 1, \"second_field\": \"someString\"}",
-                RestApiVersion.minimumSupported()
-            );
+            XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, """
+                {"old_name": 1, "second_field": "someString"}""", RestApiVersion.minimumSupported());
             StructRemovalField parse = StructRemovalField.PARSER.parse(parser, null);
 
             assertCriticalWarnings("The field old_name has been removed and is being ignored");

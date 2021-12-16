@@ -105,11 +105,11 @@ public final class ExternalTestCluster extends TestCluster {
         pluginClasses = new ArrayList<>(pluginClasses);
         pluginClasses.add(MockHttpTransport.TestPlugin.class);
         Settings clientSettings = clientSettingsBuilder.build();
-        MockNode node = new MockNode(clientSettings, pluginClasses);
-        Client client = clientWrapper.apply(node.client());
+        MockNode mockNode = new MockNode(clientSettings, pluginClasses);
+        Client wrappedClient = clientWrapper.apply(mockNode.client());
         try {
-            node.start();
-            NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
+            mockNode.start();
+            NodesInfoResponse nodeInfos = wrappedClient.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
             httpAddresses = new InetSocketAddress[nodeInfos.getNodes().size()];
             int dataNodes = 0;
             int masterAndDataNodes = 0;
@@ -125,20 +125,20 @@ public final class ExternalTestCluster extends TestCluster {
             }
             this.numDataNodes = dataNodes;
             this.numMasterAndDataNodes = masterAndDataNodes;
-            this.client = client;
-            this.node = node;
+            this.client = wrappedClient;
+            this.node = mockNode;
 
             logger.info("Setup ExternalTestCluster [{}] made of [{}] nodes", nodeInfos.getClusterName().value(), size());
         } catch (NodeValidationException e) {
             try {
-                IOUtils.close(client, node);
+                IOUtils.close(wrappedClient, mockNode);
             } catch (IOException e1) {
                 e.addSuppressed(e1);
             }
             throw new ElasticsearchException(e);
         } catch (Exception e) {
             try {
-                IOUtils.close(client, node);
+                IOUtils.close(wrappedClient, mockNode);
             } catch (IOException e1) {
                 e.addSuppressed(e1);
             }

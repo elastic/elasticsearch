@@ -145,10 +145,11 @@ public class AggregationDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         Optional<InputStream> stream = extractor.next();
         assertThat(stream.isPresent(), is(true));
-        String expectedStream = "{\"time\":1999,\"airline\":\"a\",\"responsetime\":11.0,\"doc_count\":1} "
-            + "{\"time\":1999,\"airline\":\"b\",\"responsetime\":12.0,\"doc_count\":2} "
-            + "{\"time\":3999,\"airline\":\"c\",\"responsetime\":31.0,\"doc_count\":4} "
-            + "{\"time\":3999,\"airline\":\"b\",\"responsetime\":32.0,\"doc_count\":3}";
+        String expectedStream = """
+            {"time":1999,"airline":"a","responsetime":11.0,"doc_count":1} \
+            {"time":1999,"airline":"b","responsetime":12.0,"doc_count":2} \
+            {"time":3999,"airline":"c","responsetime":31.0,"doc_count":4} \
+            {"time":3999,"airline":"b","responsetime":32.0,"doc_count":3}""";
         assertThat(asString(stream.get()), equalTo(expectedStream));
         assertThat(extractor.hasNext(), is(false));
         assertThat(capturedSearchRequests.size(), equalTo(1));
@@ -159,7 +160,7 @@ public class AggregationDataExtractorTests extends ESTestCase {
             searchRequest,
             containsString(
                 "\"query\":{\"bool\":{\"filter\":[{\"match_all\":{\"boost\":1.0}},"
-                    + "{\"range\":{\"time\":{\"from\":0,\"to\":4000,\"include_lower\":true,\"include_upper\":false,"
+                    + "{\"range\":{\"time\":{\"gte\":0,\"lt\":4000,"
                     + "\"format\":\"epoch_millis\",\"boost\":1.0}}}]"
             )
         );

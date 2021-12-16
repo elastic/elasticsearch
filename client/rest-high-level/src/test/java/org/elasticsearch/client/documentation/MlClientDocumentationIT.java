@@ -1207,11 +1207,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // Let us index a bucket
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source(
-            "{\"job_id\":\"test-get-buckets\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000,"
-                + "\"bucket_span\": 600,\"is_interim\": false, \"anomaly_score\": 80.0}",
-            XContentType.JSON
-        );
+        indexRequest.source("""
+            {
+              "job_id": "test-get-buckets",
+              "result_type": "bucket",
+              "timestamp": 1533081600000,
+              "bucket_span": 600,
+              "is_interim": false,
+              "anomaly_score": 80
+            }""", XContentType.JSON);
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {
@@ -1588,20 +1592,28 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
-            indexRequest.source(
-                "{\"job_id\":\"test-get-overall-buckets-1\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000,"
-                    + "\"bucket_span\": 600,\"is_interim\": false, \"anomaly_score\": 60.0}",
-                XContentType.JSON
-            );
+            indexRequest.source("""
+                {
+                  "job_id": "test-get-overall-buckets-1",
+                  "result_type": "bucket",
+                  "timestamp": 1533081600000,
+                  "bucket_span": 600,
+                  "is_interim": false,
+                  "anomaly_score": 60
+                }""", XContentType.JSON);
             bulkRequest.add(indexRequest);
         }
         {
             IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
-            indexRequest.source(
-                "{\"job_id\":\"test-get-overall-buckets-2\", \"result_type\":\"bucket\", \"timestamp\": 1533081600000,"
-                    + "\"bucket_span\": 3600,\"is_interim\": false, \"anomaly_score\": 100.0}",
-                XContentType.JSON
-            );
+            indexRequest.source("""
+                {
+                  "job_id": "test-get-overall-buckets-2",
+                  "result_type": "bucket",
+                  "timestamp": 1533081600000,
+                  "bucket_span": 3600,
+                  "is_interim": false,
+                  "anomaly_score": 100
+                }""", XContentType.JSON);
             bulkRequest.add(indexRequest);
         }
 
@@ -1689,11 +1701,15 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // Let us index a record
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source(
-            "{\"job_id\":\"test-get-records\", \"result_type\":\"record\", \"timestamp\": 1533081600000,"
-                + "\"bucket_span\": 600,\"is_interim\": false, \"record_score\": 80.0}",
-            XContentType.JSON
-        );
+        indexRequest.source("""
+            {
+              "job_id": "test-get-records",
+              "result_type": "record",
+              "timestamp": 1533081600000,
+              "bucket_span": 600,
+              "is_interim": false,
+              "record_score": 80
+            }""", XContentType.JSON);
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {
@@ -1858,12 +1874,17 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // Let us index a record
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source(
-            "{\"job_id\":\"test-get-influencers\", \"result_type\":\"influencer\", \"timestamp\": 1533081600000,"
-                + "\"bucket_span\": 600,\"is_interim\": false, \"influencer_score\": 80.0, \"influencer_field_name\": \"my_influencer\","
-                + "\"influencer_field_value\":\"foo\"}",
-            XContentType.JSON
-        );
+        indexRequest.source("""
+            {
+              "job_id": "test-get-influencers",
+              "result_type": "influencer",
+              "timestamp": 1533081600000,
+              "bucket_span": 600,
+              "is_interim": false,
+              "influencer_score": 80,
+              "influencer_field_name": "my_influencer",
+              "influencer_field_value": "foo"
+            }""", XContentType.JSON);
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {
@@ -2080,23 +2101,29 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // Let us index a snapshot
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source(
-            "{\"job_id\":\""
-                + jobId
-                + "\", \"timestamp\":1541587919000, "
-                + "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", "
-                + "\"snapshot_id\":\""
-                + snapshotId
-                + "\", \"snapshot_doc_count\":1, \"model_size_stats\":{"
-                + "\"job_id\":\""
-                + jobId
-                + "\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, "
-                + "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2,"
-                + "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, "
-                + "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000,"
-                + "\"latest_result_time_stamp\":1519930800000, \"retain\":false}",
-            XContentType.JSON
-        );
+        indexRequest.source("""
+            {
+              "job_id": "%s",
+              "timestamp": 1541587919000,
+              "description": "State persisted due to job close at 2018-11-07T10:51:59+0000",
+              "snapshot_id": "%s",
+              "snapshot_doc_count": 1,
+              "model_size_stats": {
+                "job_id": "%s",
+                "result_type": "model_size_stats",
+                "model_bytes": 51722,
+                "total_by_field_count": 3,
+                "total_over_field_count": 0,
+                "total_partition_field_count": 2,
+                "bucket_allocation_failures_count": 0,
+                "memory_status": "ok",
+                "log_time": 1541587919000,
+                "timestamp": 1519930800000
+              },
+              "latest_record_time_stamp": 1519931700000,
+              "latest_result_time_stamp": 1519930800000,
+              "retain": false
+            }""".formatted(jobId, snapshotId, jobId), XContentType.JSON);
         {
             client.index(indexRequest, RequestOptions.DEFAULT);
 
@@ -2155,17 +2182,29 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // Let us index a snapshot
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared");
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source(
-            "{\"job_id\":\"test-get-model-snapshots\", \"timestamp\":1541587919000, "
-                + "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", "
-                + "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{"
-                + "\"job_id\":\"test-get-model-snapshots\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, "
-                + "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2,"
-                + "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, "
-                + "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000,"
-                + "\"latest_result_time_stamp\":1519930800000, \"retain\":false}",
-            XContentType.JSON
-        );
+        indexRequest.source("""
+            {
+              "job_id": "test-get-model-snapshots",
+              "timestamp": 1541587919000,
+              "description": "State persisted due to job close at 2018-11-07T10:51:59+0000",
+              "snapshot_id": "1541587919",
+              "snapshot_doc_count": 1,
+              "model_size_stats": {
+                "job_id": "test-get-model-snapshots",
+                "result_type": "model_size_stats",
+                "model_bytes": 51722,
+                "total_by_field_count": 3,
+                "total_over_field_count": 0,
+                "total_partition_field_count": 2,
+                "bucket_allocation_failures_count": 0,
+                "memory_status": "ok",
+                "log_time": 1541587919000,
+                "timestamp": 1519930800000
+              },
+              "latest_record_time_stamp": 1519931700000,
+              "latest_result_time_stamp": 1519930800000,
+              "retain": false
+            }""", XContentType.JSON);
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {
@@ -2256,19 +2295,34 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String documentId = jobId + "_model_snapshot_" + snapshotId;
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source(
-            "{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, "
-                + "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", "
-                + "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{"
-                + "\"job_id\":\"test-revert-model-snapshot\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, "
-                + "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2,"
-                + "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, "
-                + "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000,"
-                + "\"latest_result_time_stamp\":1519930800000, \"retain\":false, "
-                + "\"quantiles\":{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, "
-                + "\"quantile_state\":\"state\"}}",
-            XContentType.JSON
-        );
+        indexRequest.source("""
+            {
+              "job_id": "test-revert-model-snapshot",
+              "timestamp": 1541587919000,
+              "description": "State persisted due to job close at 2018-11-07T10:51:59+0000",
+              "snapshot_id": "1541587919",
+              "snapshot_doc_count": 1,
+              "model_size_stats": {
+                "job_id": "test-revert-model-snapshot",
+                "result_type": "model_size_stats",
+                "model_bytes": 51722,
+                "total_by_field_count": 3,
+                "total_over_field_count": 0,
+                "total_partition_field_count": 2,
+                "bucket_allocation_failures_count": 0,
+                "memory_status": "ok",
+                "log_time": 1541587919000,
+                "timestamp": 1519930800000
+              },
+              "latest_record_time_stamp": 1519931700000,
+              "latest_result_time_stamp": 1519930800000,
+              "retain": false,
+              "quantiles": {
+                "job_id": "test-revert-model-snapshot",
+                "timestamp": 1541587919000,
+                "quantile_state": "state"
+              }
+            }""", XContentType.JSON);
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {
@@ -2334,19 +2388,34 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         String documentId = jobId + "_model_snapshot_" + snapshotId;
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source(
-            "{\"job_id\":\"test-upgrade-job-model-snapshot\", \"timestamp\":1541587919000, "
-                + "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", "
-                + "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{"
-                + "\"job_id\":\"test-revert-model-snapshot\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, "
-                + "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2,"
-                + "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, "
-                + "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000,"
-                + "\"latest_result_time_stamp\":1519930800000, \"retain\":false, "
-                + "\"quantiles\":{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, "
-                + "\"quantile_state\":\"state\"}}",
-            XContentType.JSON
-        );
+        indexRequest.source("""
+            {
+              "job_id": "test-upgrade-job-model-snapshot",
+              "timestamp": 1541587919000,
+              "description": "State persisted due to job close at 2018-11-07T10:51:59+0000",
+              "snapshot_id": "1541587919",
+              "snapshot_doc_count": 1,
+              "model_size_stats": {
+                "job_id": "test-revert-model-snapshot",
+                "result_type": "model_size_stats",
+                "model_bytes": 51722,
+                "total_by_field_count": 3,
+                "total_over_field_count": 0,
+                "total_partition_field_count": 2,
+                "bucket_allocation_failures_count": 0,
+                "memory_status": "ok",
+                "log_time": 1541587919000,
+                "timestamp": 1519930800000
+              },
+              "latest_record_time_stamp": 1519931700000,
+              "latest_result_time_stamp": 1519930800000,
+              "retain": false,
+              "quantiles": {
+                "job_id": "test-revert-model-snapshot",
+                "timestamp": 1541587919000,
+                "quantile_state": "state"
+              }
+            }""", XContentType.JSON);
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {
@@ -2415,17 +2484,29 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         // Let us index a snapshot
         IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
         indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        indexRequest.source(
-            "{\"job_id\":\"test-update-model-snapshot\", \"timestamp\":1541587919000, "
-                + "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", "
-                + "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{"
-                + "\"job_id\":\"test-update-model-snapshot\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, "
-                + "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2,"
-                + "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, "
-                + "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000,"
-                + "\"latest_result_time_stamp\":1519930800000, \"retain\":false}",
-            XContentType.JSON
-        );
+        indexRequest.source("""
+            {
+              "job_id": "test-update-model-snapshot",
+              "timestamp": 1541587919000,
+              "description": "State persisted due to job close at 2018-11-07T10:51:59+0000",
+              "snapshot_id": "1541587919",
+              "snapshot_doc_count": 1,
+              "model_size_stats": {
+                "job_id": "test-update-model-snapshot",
+                "result_type": "model_size_stats",
+                "model_bytes": 51722,
+                "total_by_field_count": 3,
+                "total_over_field_count": 0,
+                "total_partition_field_count": 2,
+                "bucket_allocation_failures_count": 0,
+                "memory_status": "ok",
+                "log_time": 1541587919000,
+                "timestamp": 1519930800000
+              },
+              "latest_record_time_stamp": 1519931700000,
+              "latest_result_time_stamp": 1519930800000,
+              "retain": false
+            }""", XContentType.JSON);
         client.index(indexRequest, RequestOptions.DEFAULT);
 
         {

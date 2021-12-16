@@ -236,7 +236,8 @@ public class NumbersTests extends ESTestCase {
         assertFalse(Numbers.isPositiveNumeric("test"));
         assertTrue(Numbers.isPositiveNumeric("9223372036854775807000000"));
         assertEquals(
-            "Cannot invoke \"String.length()\" because \"string\" is null",
+            """
+                Cannot invoke "String.length()" because "string" is null""",
             expectThrows(NullPointerException.class, () -> Numbers.isPositiveNumeric(null)).getMessage()
         );
     }

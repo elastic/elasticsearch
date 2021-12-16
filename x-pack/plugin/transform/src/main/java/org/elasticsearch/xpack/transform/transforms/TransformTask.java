@@ -16,9 +16,13 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
@@ -43,7 +47,11 @@ import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_START_FAILED_TRANSFORM;
 import static org.elasticsearch.xpack.core.transform.TransformMessages.CANNOT_STOP_FAILED_TRANSFORM;
@@ -452,7 +460,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         markAsCompleted();
     }
 
-    void persistStateToClusterState(TransformState state, ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener) {
+    void persistStateToClusterState(TransformState state, ActionListener<PersistentTask<?>> listener) {
         updatePersistentTaskState(state, ActionListener.wrap(success -> {
             logger.debug("[{}] successfully updated state for transform to [{}].", transform.getId(), state.toString());
             listener.onResponse(success);
@@ -568,4 +576,46 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         return context.getTaskState();
     }
 
+    public static PersistentTask<?> getTransformTask(String transformId, ClusterState clusterState) {
+        Collection<PersistentTask<?>> transformTasks = findTransformTasks(t -> t.getId().equals(transformId), clusterState);
+        if (transformTasks.isEmpty()) {
+            return null;
+        }
+        // Task ids are unique
+        assert (transformTasks.size() == 1) : "There were 2 or more transform tasks with the same id";
+        PersistentTask<?> pTask = transformTasks.iterator().next();
+        if (pTask.getParams() instanceof TransformTaskParams) {
+            return pTask;
+        }
+        throw new ElasticsearchStatusException(
+            "Found transform persistent task [{}] with incorrect params",
+            RestStatus.INTERNAL_SERVER_ERROR,
+            transformId
+        );
+    }
+
+    public static Collection<PersistentTask<?>> findAllTransformTasks(ClusterState clusterState) {
+        return findTransformTasks(task -> true, clusterState);
+    }
+
+    public static Collection<PersistentTask<?>> findTransformTasks(Set<String> transformIds, ClusterState clusterState) {
+        return findTransformTasks(task -> transformIds.contains(task.getId()), clusterState);
+    }
+
+    public static Collection<PersistentTask<?>> findTransformTasks(String transformIdPattern, ClusterState clusterState) {
+        Predicate<PersistentTasksCustomMetadata.PersistentTask<?>> taskMatcher = transformIdPattern == null
+            || Strings.isAllOrWildcard(transformIdPattern) ? t -> true : t -> {
+                TransformTaskParams transformParams = (TransformTaskParams) t.getParams();
+                return Regex.simpleMatch(transformIdPattern, transformParams.getId());
+            };
+        return findTransformTasks(taskMatcher, clusterState);
+    }
+
+    private static Collection<PersistentTask<?>> findTransformTasks(Predicate<PersistentTask<?>> predicate, ClusterState clusterState) {
+        PersistentTasksCustomMetadata pTasksMeta = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
+        if (pTasksMeta == null) {
+            return Collections.emptyList();
+        }
+        return pTasksMeta.findTasks(TransformTaskParams.NAME, predicate);
+    }
 }

@@ -104,7 +104,7 @@ A shrink operation:
   had just been re-opened.
 
 
-[[shrink-index]]
+[[_shrinking_an_index]]
 ===== Shrink an index
 
 To shrink `my_source_index` into a new index called `my_target_index`, issue

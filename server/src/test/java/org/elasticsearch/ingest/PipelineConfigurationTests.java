@@ -47,7 +47,8 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
     }
 
     public void testMetaSerialization() throws IOException {
-        String configJson = "{\"description\": \"blah\", \"_meta\" : {\"foo\": \"bar\"}}";
+        String configJson = """
+            {"description": "blah", "_meta" : {"foo": "bar"}}""";
         PipelineConfiguration configuration = new PipelineConfiguration(
             "1",
             new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),
@@ -85,7 +86,8 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
     public void testGetVersion() {
         {
             // missing version
-            String configJson = "{\"description\": \"blah\", \"_meta\" : {\"foo\": \"bar\"}}";
+            String configJson = """
+                {"description": "blah", "_meta" : {"foo": "bar"}}""";
             PipelineConfiguration configuration = new PipelineConfiguration(
                 "1",
                 new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),
@@ -96,7 +98,9 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         {
             // null version
             int version = randomInt();
-            String configJson = "{\"version\": " + version + ", \"description\": \"blah\", \"_meta\" : {\"foo\": \"bar\"}}";
+            String configJson = """
+                {"version": %d, "description": "blah", "_meta" : {"foo": "bar"}}
+                """.formatted(version);
             PipelineConfiguration configuration = new PipelineConfiguration(
                 "1",
                 new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),

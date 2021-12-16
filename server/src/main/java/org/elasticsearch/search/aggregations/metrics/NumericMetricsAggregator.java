@@ -33,14 +33,9 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
         @Override
         public BucketComparator bucketComparator(String key, SortOrder order) {
             if (key != null && false == "value".equals(key)) {
-                throw new IllegalArgumentException(
-                    "Ordering on a single-value metrics aggregation can only be done on its value. "
-                        + "Either drop the key (a la \""
-                        + name()
-                        + "\") or change it to \"value\" (a la \""
-                        + name()
-                        + ".value\")"
-                );
+                throw new IllegalArgumentException("""
+                    Ordering on a single-value metrics aggregation can only be done on its value. \
+                    Either drop the key (a la "%s") or change it to "value" (a la "%s.value")""".formatted(name(), name()));
             }
             return (lhs, rhs) -> Comparators.compareDiscardNaN(metric(lhs), metric(rhs), order == SortOrder.ASC);
         }

@@ -99,7 +99,7 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
             // null version
             int version = randomInt();
             String configJson = """
-                {"version": %d, "description": "blah", "_meta" : {"foo": "bar"}}
+                {"version": %s, "description": "blah", "_meta" : {"foo": "bar"}}
                 """.formatted(version);
             PipelineConfiguration configuration = new PipelineConfiguration(
                 "1",

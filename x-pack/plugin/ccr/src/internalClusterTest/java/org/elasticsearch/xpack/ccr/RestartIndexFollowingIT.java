@@ -78,10 +78,7 @@ public class RestartIndexFollowingIT extends CcrIntegTestCase {
         }
 
         assertBusy(
-            () -> assertThat(
-                followerClient().prepareSearch("index2").get().getHits().getTotalHits().value,
-                equalTo(firstBatchNumDocs)
-            )
+            () -> assertThat(followerClient().prepareSearch("index2").get().getHits().getTotalHits().value, equalTo(firstBatchNumDocs))
         );
 
         getFollowerCluster().fullRestart();

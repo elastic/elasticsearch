@@ -24,6 +24,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         String dataStreamName = "logs-app1";
 
         long now = Instant.now().toEpochMilli();
+        TimeValue lookAheadTime = TimeValue.timeValueHours(2); // default
         Settings settings = builder().put("index.mode", "time_series").build();
         var provider = new DataStreamIndexSettingsProvider();
         Settings result = provider.getAdditionalIndexSettings(
@@ -33,8 +34,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             now,
             settings
         );
-        assertThat(result.getAsLong(IndexSettings.TIME_SERIES_START_TIME.getKey(), -1L), equalTo(1L));
-        assertThat(result.getAsLong(IndexSettings.TIME_SERIES_END_TIME.getKey(), -1L), equalTo(now + TimeValue.timeValueHours(2).millis()));
+        assertThat(result.getAsLong(IndexSettings.TIME_SERIES_START_TIME.getKey(), -1L), equalTo(now - lookAheadTime.getMillis()));
+        assertThat(result.getAsLong(IndexSettings.TIME_SERIES_END_TIME.getKey(), -1L), equalTo(now + lookAheadTime.getMillis()));
     }
 
     public void testGetAdditionalIndexSettingsLookAheadTime() {
@@ -52,8 +53,8 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             settings
         );
         assertThat(result.size(), equalTo(2));
-        assertThat(result.getAsLong(IndexSettings.TIME_SERIES_START_TIME.getKey(), -1L), equalTo(1L));
-        assertThat(result.getAsLong(IndexSettings.TIME_SERIES_END_TIME.getKey(), -1L), equalTo(now + lookAheadTime.millis()));
+        assertThat(result.getAsLong(IndexSettings.TIME_SERIES_START_TIME.getKey(), -1L), equalTo(now - lookAheadTime.getMillis()));
+        assertThat(result.getAsLong(IndexSettings.TIME_SERIES_END_TIME.getKey(), -1L), equalTo(now + lookAheadTime.getMillis()));
     }
 
     public void testGetAdditionalIndexSettingsNoTimeSeries() {

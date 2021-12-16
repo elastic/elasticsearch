@@ -43,6 +43,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -447,6 +448,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140")
         );
 
+        Instant now = Instant.now();
+        restTestExecutionContext.setNow(now);
         if (testCandidate.getSetupSection().isEmpty() == false) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
             for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
@@ -456,6 +459,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         }
 
         restTestExecutionContext.clear();
+        restTestExecutionContext.setNow(now);
 
         try {
             for (ExecutableSection executableSection : testCandidate.getTestSection().getExecutableSections()) {

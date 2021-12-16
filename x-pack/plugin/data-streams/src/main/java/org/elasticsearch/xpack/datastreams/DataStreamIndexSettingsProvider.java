@@ -36,8 +36,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 IndexSettings.LOOK_AHEAD_TIME.getDefault(templateAndRequestSettings)
             );
             if (indexMode == IndexMode.TIME_SERIES) {
-                // 0 is the default and this is a required setting and b/c of that another value should be used than 0
-                Instant start = Instant.ofEpochMilli(1);
+                Instant start = Instant.ofEpochMilli(resolvedAt).minusMillis(lookAheadTime.getMillis());
                 Instant end = Instant.ofEpochMilli(resolvedAt).plusMillis(lookAheadTime.getMillis());
 
                 Settings.Builder builder = Settings.builder();

@@ -157,7 +157,7 @@ enrollment token for adding new {es} nodes.
 +
 [source,sh,subs="attributes"]
 ----
-docker run -e ENROLLMENT_TOKEN="<token>" --name es-node02 -p 9201:9200 --net elastic -it docker.elastic.co/elasticsearch/elasticsearch:{docker-image}
+docker run -e ENROLLMENT_TOKEN="<token>" --name es-node02 --net elastic -it docker.elastic.co/elasticsearch/elasticsearch:{docker-image}
 ----
 +
 {es} is now configured to join the existing cluster.

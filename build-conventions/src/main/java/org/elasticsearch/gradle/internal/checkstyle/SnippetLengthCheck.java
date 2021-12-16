@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
  * the page.
  */
 public class SnippetLengthCheck extends AbstractFileSetCheck {
-    private static final Pattern START = Pattern.compile("^( *)//\\s*tag::(.+?)\\s*$", Pattern.MULTILINE);
+    private static final Pattern START = Pattern.compile("^( *)//\\s*tag::(?!noformat)(.+?)\\s*$", Pattern.MULTILINE);
     private int max;
 
     /**

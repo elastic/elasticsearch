@@ -27,6 +27,9 @@ The following APIs support {ccs}:
 * {ccs-cap} requires remote clusters. To set up remote clusters on {ess},
 see link:{cloud}/ec-enable-ccs.html[configure remote clusters on {ess}]. If you
 run {es} on your own hardware, see <<remote-clusters>>.
++
+To ensure your remote cluster configuration supports {ccs}, see
+<<ccs-supported-configurations>>.
 
 * The local coordinating node must have the
 <<remote-node,`remote_cluster_client`>> node role.

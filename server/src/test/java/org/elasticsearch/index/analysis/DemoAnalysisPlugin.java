@@ -30,12 +30,17 @@ public class DemoAnalysisPlugin extends Plugin implements AnalysisPlugin {
     @Override
     public Map<String, AnalysisModule.AnalysisProvider<TokenFilterFactory>> getTokenFilters() {
         return Map.of(
-            "demo_legacy", DemoTokenFilterFactory::new);
+            "demo_legacy", DemoTokenFilterFactory::new,
+            "demo_legacy_normalizer", DemoNormalizerFactory::new
+        );
     }
 
     @Override
     public Map<String, AnalysisModule.AnalysisProvider<AnalysisIteratorFactory>> getIterators() {
-        return singletonMap("demo", DemoIteratorFactory::new);
+        return Map.of(
+            "demo", DemoIteratorFactory::new,
+            "demo_normalizer", DemoNormalizerIteratorFactory::new
+        );
     }
 
     @Override

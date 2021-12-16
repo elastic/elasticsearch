@@ -159,13 +159,36 @@ public class TestStableAnalysisPluginAPIIT extends ESIntegTestCase {
         }
     }
 
+    private AnalysisTestcases[] normalizerTestcases = new AnalysisTestcases[]{
+        new AnalysisTestcases(
+            new String[]{"Jag gillar att anvaanda elastiska produkter", "Jag gillar att anvaanda Elastic-produkter"},
+            new AnalyzeAction.AnalyzeToken[] {
+                new AnalyzeAction.AnalyzeToken(
+                    "JAG GILLAR ATT ANVÅNDA ELASTISKA PRODUKTER",
+                    0,
+                    0,
+                    43,
+                    1,
+                    "word",
+                    null),
+                new AnalyzeAction.AnalyzeToken(
+                    "JAG GILLAR ATT ANVÅNDA ELASTIC-PRODUKTER",
+                    101,
+                    44,
+                    85,
+                    1,
+                    "word",
+                    null)
+            }
+        )};
+
     public void testBasicUsageNormalizers() {
         String index = "foo";
 
         assertAcked(client().admin().indices().prepareCreate(index));
 
-        for (String filter : List.of("demo_legacy", "demo")) {
-            for (AnalysisTestcases testcase : testCases) {
+        for (String filter : List.of("demo_normalizer", "demo_legacy_normalizer")) {
+            for (AnalysisTestcases testcase : normalizerTestcases) {
                 AnalyzeAction.Request analyzeRequest = new AnalyzeAction.Request(index)
                     .addTokenFilter("lowercase")
                     .addTokenFilter(filter)

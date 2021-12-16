@@ -80,8 +80,8 @@ public class AnalysisPipeline {
 
         AnalysisPipelineStep firstStep = stepIterator.next();
 
-        if (firstStep instanceof AnalysisPipelineFirstStep) {
-            result = ((AnalysisPipelineFirstStep)firstStep).process(field, texts, maxTokenCount);
+        if (firstStep instanceof AnalysisPipelineFirstStep fs) {
+            result = fs.process(field, texts, maxTokenCount);
         } else {
             throw new IllegalStateException("The first step of the analysis pipeline must be of AnalysisPipelineFirstStep type");
         }

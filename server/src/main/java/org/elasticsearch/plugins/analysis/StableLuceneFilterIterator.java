@@ -14,7 +14,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 
-public class StableLuceneAnalyzeIterator implements PortableAnalyzeIterator {
+public class StableLuceneFilterIterator implements PortableAnalyzeIterator {
     private final Object stream;
     private final Object term;
     private final Object posIncr;
@@ -38,7 +38,7 @@ public class StableLuceneAnalyzeIterator implements PortableAnalyzeIterator {
 
     private final AnalyzeSettings settings;
 
-    public StableLuceneAnalyzeIterator(Object stream, AnalyzeState prevState, AnalyzeSettings settings) {
+    public StableLuceneFilterIterator(Object stream, AnalyzeState prevState, AnalyzeSettings settings) {
         StablePluginAPIUtil.ensureClassCompatibility(stream.getClass(), "org.apache.lucene.analysis.TokenStream");
         this.settings = settings;
         this.stream = stream;
@@ -176,5 +176,4 @@ public class StableLuceneAnalyzeIterator implements PortableAnalyzeIterator {
     public AnalyzeState state() {
         return new AnalyzeState(lastPosition, lastOffset);
     }
-
 }

@@ -16,7 +16,6 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionLengthAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -25,7 +24,7 @@ import org.elasticsearch.plugins.analysis.AnalyzeSettings;
 import org.elasticsearch.plugins.analysis.AnalyzeState;
 import org.elasticsearch.plugins.analysis.AnalyzeToken;
 import org.elasticsearch.plugins.analysis.PortableAnalyzeIterator;
-import org.elasticsearch.plugins.analysis.StableLuceneAnalyzeIterator;
+import org.elasticsearch.plugins.analysis.StableLuceneFilterIterator;
 
 import java.util.Iterator;
 import java.util.List;
@@ -38,7 +37,7 @@ public class DemoIteratorFactoryAdvanced extends AbstractAnalysisIteratorFactory
 
     @Override
     public PortableAnalyzeIterator newInstance(List<AnalyzeToken> tokens, AnalyzeState prevState) {
-        return new StableLuceneAnalyzeIterator(
+        return new StableLuceneFilterIterator(
             new ElasticWordOnlyTokenFilter(new AnalyzeTokenStream(tokens)),
             prevState,
             new AnalyzeSettings(100, 1));

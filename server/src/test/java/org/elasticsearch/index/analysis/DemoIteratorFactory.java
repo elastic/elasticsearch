@@ -22,7 +22,7 @@ import org.elasticsearch.plugins.analysis.AnalyzeSettings;
 import org.elasticsearch.plugins.analysis.AnalyzeState;
 import org.elasticsearch.plugins.analysis.AnalyzeToken;
 import org.elasticsearch.plugins.analysis.PortableAnalyzeIterator;
-import org.elasticsearch.plugins.analysis.StableLuceneAnalyzeIterator;
+import org.elasticsearch.plugins.analysis.StableLuceneFilterIterator;
 
 import java.util.List;
 
@@ -51,7 +51,7 @@ public class DemoIteratorFactory extends AbstractAnalysisIteratorFactory {
         });
         textBuilder.setLength(textBuilder.length() - 1);
 
-        return new StableLuceneAnalyzeIterator(
+        return new StableLuceneFilterIterator(
             analyzer.tokenStream(null, textBuilder.toString()),
             prevState,
             new AnalyzeSettings(100, 1));

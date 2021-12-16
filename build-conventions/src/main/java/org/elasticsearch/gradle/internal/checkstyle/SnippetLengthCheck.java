@@ -22,6 +22,9 @@ import java.util.regex.Pattern;
 /**
  * Checks the snippets included in the docs aren't too wide to fit on
  * the page.
+ * <p>
+ * Regions contained in the special <code>noformat</code> tag are exempt from the length
+ * check. This region is also exempt from automatic formatting.
  */
 public class SnippetLengthCheck extends AbstractFileSetCheck {
     private static final Pattern START = Pattern.compile("^( *)//\\s*tag::(?!noformat)(.+?)\\s*$", Pattern.MULTILINE);

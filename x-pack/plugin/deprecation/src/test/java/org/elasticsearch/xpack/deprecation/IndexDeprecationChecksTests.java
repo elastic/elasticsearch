@@ -316,6 +316,112 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         assertEquals(singletonList(expected), issues);
     }
 
+    public void testBoostedFields() throws IOException {
+        XContentBuilder xContent = XContentFactory.jsonBuilder();
+        xContent.startObject();
+        {
+            xContent.startObject("properties");
+            {
+                xContent.startObject("invalid-field");
+                {
+                    xContent.field("type", "keyword");
+                    xContent.field("boost", 5.0);
+                }
+                xContent.endObject();
+                xContent.startObject("valid-field");
+                {
+                    xContent.field("type", "keyword");
+                }
+                xContent.endObject();
+            }
+            xContent.endObject();
+        }
+        xContent.endObject();
+        String mapping = BytesReference.bytes(xContent).utf8ToString();
+
+        IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
+            .settings(settings(Version.V_7_3_0))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .putMapping("_doc", mapping)
+            .build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(ClusterState.EMPTY_STATE, simpleIndex)
+        );
+        assertEquals(1, issues.size());
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Configuring boost values in field mappings is deprecated",
+            "https://ela.st/es-deprecation-7-boost-fields",
+            "Remove boost fields from the \"invalid-field\" mapping. Configuring a boost value on mapping fields is not supported in 8.0.",
+            false,
+            null
+        );
+        assertEquals(singletonList(expected), issues);
+    }
+
+    public void testDynamicTemplateBoostedFields() throws IOException {
+        XContentBuilder xContent = XContentFactory.jsonBuilder();
+        xContent.startObject();
+        {
+            xContent.startObject("properties");
+            {
+                xContent.startObject("valid-field");
+                {
+                    xContent.field("type", "keyword");
+                }
+                xContent.endObject();
+            }
+            xContent.endObject();
+            xContent.startArray("dynamic_templates");
+            {
+                xContent.startObject();
+                {
+                    xContent.startObject("invalid_template");
+                    {
+                        xContent.field("match_mapping_type", "long");
+                        xContent.startObject("mapping");
+                        {
+                            xContent.field("type", "keyword");
+                            xContent.field("boost", 5.0);
+                        }
+                        xContent.endObject();
+                    }
+                    xContent.endObject();
+                }
+                xContent.endObject();
+            }
+            xContent.endArray();
+        }
+        xContent.endObject();
+        String mapping = BytesReference.bytes(xContent).utf8ToString();
+
+        IndexMetadata simpleIndex = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 10))
+            .settings(settings(Version.V_7_3_0))
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .putMapping("_doc", mapping)
+            .build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
+            INDEX_SETTINGS_CHECKS,
+            c -> c.apply(ClusterState.EMPTY_STATE, simpleIndex)
+        );
+        assertEquals(1, issues.size());
+
+        DeprecationIssue expected = new DeprecationIssue(
+            DeprecationIssue.Level.WARNING,
+            "Configuring boost values in field mappings is deprecated",
+            "https://ela.st/es-deprecation-7-boost-fields",
+            "Remove boost fields from the \"invalid_template\" dynamic template. "
+                + "Configuring a boost value on mapping fields is not supported in 8.0.",
+            false,
+            null
+        );
+        assertEquals(singletonList(expected), issues);
+    }
+
     public void testDefinedPatternsDoNotWarn() throws IOException {
         String simpleMapping = "{\n"
             + "\"properties\" : {\n"

@@ -1,3 +1,90 @@
+[[release-notes-7.16.1]]
+== {es} version 7.16.1
+
+[discrete]
+[[security-updates-7.16.1]]
+=== Security updates
+
+* A high severity vulnerability
+(https://cve.mitre.org/cgi-bin/cvename.cgi?name=2021-44228[CVE-2021-44228]) for
+https://logging.apache.org/log4j/2.x/[Apache Log4j 2] versions 2.0 to 2.14 was
+disclosed publicly on the project's
+https://github.com/apache/logging-log4j2/pull/608[GitHub] on December 9, 2021.
++
+For information about affected {es} versions and mitigation steps, see our
+related
+https://discuss.elastic.co/t/apache-log4j2-remote-code-execution-rce-vulnerability-cve-2021-44228-esa-2021-31/291476[security
+announcement].
+
+[[known-issues-7.16.1]]
+[discrete]
+=== Known issues
+
+include::7.16.asciidoc[tag=painless-functional-interface-resolution-81696-known-issue]
+
+[[enhancement-7.16.1]]
+[float]
+=== Enhancements
+
+Infra/Logging::
+* Disable JNDI lookups via the `log4j2.formatMsgNoLookups` system property {es-pull}81622[#81622]
+* Patch log4j jar to remove the `JndiLookup` class from the classpath {es-pull}81629[#81629]
+
+Infra/Core::
+* Allow plugins permission to register MBeans {es-pull}81508[#81508] (issue: {es-issue}76329[#76329])
+
+Other::
+* Deprecate multifield mappings templates {es-pull}81329[#81329] (issue: {es-issue}78445[#78445])
+
+[[bug-7.16.1]]
+[float]
+=== Bug fixes
+
+Autoscaling::
+* Calculate autoscaling capacity off the transport threads {es-pull}80499[#80499] (issue: {es-issue}79104[#79104])
+
+CCR::
+* Stop auto-followers when resetting metadata {es-pull}81290[#81290] (issues: {es-issue}81242[#81242], {es-issue}81247[#81247])
+
+ILM+SLM::
+* Allow the `unfollow` action in the frozen phase {es-pull}81434[#81434]
+
+Indices APIs::
+* Implement `getMinimalSupportedVersion` for all `NameDiffs` {es-pull}81374[#81374] (issue: {es-issue}81262[#81262])
+
+Infra/Core::
+* Allow configuration of `ThreadPool` warning times {es-pull}81487[#81487]
+
+Infra/Logging::
+* Add `trace.id` to indexed deprecation logs {es-pull}81524[#81524]
+
+Infra/Scripting::
+* Use the implicit context cache {es-pull}81552[#81552] (issue: {es-issue}81486[#81486])
+
+Machine Learning::
+* Make model snapshot upgrade autoscaling friendly {es-pull}81123[#81123] (issue: {es-issue}81012[#81012])
+
+Network::
+* Fail fast remote cluster requests when `skip_unavailable` is `true` {es-pull}80589[#80589] (issue: {es-issue}74773[#74773])
+* Fix channel open trace logging {es-pull}81308[#81308]
+
+Other::
+* Adding a deprecation info API check for `discovery.zen.minimum_master_nodes` {es-pull}81282[#81282] (issue: {es-issue}81260[#81260])
+
+SQL::
+* Fix metrics reporting when sorting on aggregated values {es-pull}81510[#81510] (issue: {es-issue}81502[#81502])
+* Fix rearranging columns in PIVOT queries {es-pull}81032[#81032] (issue: {es-issue}80952[#80952])
+* Only resolve aliases if asked for local cluster {es-pull}81158[#81158] (issue: {es-issue}81157[#81157])
+
+Search::
+* Handle partial search result with point in time {es-pull}81349[#81349] (issue: {es-issue}81256[#81256])
+
+Transform::
+* Fix wire compatibility version for transform cluster state {es-pull}81300[#81300] (issue: {es-issue}81292[#81292])
+* Handle `PIT index not found` error {es-pull}81368[#81368] (issues: {es-issue}81252[#81252], {es-issue}81256[#81256])
+
+
+
 [[release-notes-7.16.0]]
 == {es} version 7.16.0
 
@@ -48,6 +135,36 @@ Monitoring::
 * Deprecate monitoring settings {es-pull}79499[#79499]
 * Deprecate `create_legacy_templates` setting on HTTP exporters {es-pull}78564[#78564]
 * Deprecate the monitoring ingest settings {es-pull}77659[#77659] (issue: {es-issue}77459[#77459])
+
+[[known-issues-7.16.0]]
+[discrete]
+=== Known issues
+
+// tag::painless-functional-interface-resolution-81696-known-issue[]
+* Painless: Any Painless script where a method call resolves a lambda argument
+to a `UnaryOperator` or a `BinaryOperator` type results in an 
+`IllegalArgumentException`. This exception results in a compilation error when 
+static types are used, or a runtime error for dynamic types. Use standard 
+procedural statements as a workaround, such as `if/else`, `while`, and `for`
+statements. 
++
+The following example is a `UnaryOperator` type that will result in a failure:
++
+[source,Java]
+----
+List l = ['abc', '123']; l.replaceAll(f -> f.replace('abc', 'doremi');
+----
++
+The following example is a possible workaround:
++
+[source,Java]
+----
+List l = ['abc', '123'];
+for (int i = 0; i < l.size(); ++i) {
+    l.set(i, l.get(i).replace('abc', 'doremi'));
+}
+----
+// end::painless-functional-interface-resolution-81696-known-issue[]
 
 [[feature-7.16.0]]
 [float]

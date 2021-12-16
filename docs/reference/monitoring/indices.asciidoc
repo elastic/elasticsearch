@@ -28,7 +28,7 @@ and the number of replicas to two.
 ----------------------------------
 PUT /_template/custom_monitoring
 {
-  "index_patterns": [".monitoring-beats-7*", ".monitoring-es-7*", ".monitoring-kibana-7*", ".monitoring-logstash-7*"],
+  "index_patterns": [".monitoring-beats-7-*", ".monitoring-es-7-*", ".monitoring-kibana-7-*", ".monitoring-logstash-7-*"],
   "order": 1,
   "settings": {
     "number_of_shards": 5,

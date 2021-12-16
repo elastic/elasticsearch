@@ -11,6 +11,7 @@ package org.elasticsearch.packaging.util.docker;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.packaging.util.Shell;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -87,8 +88,8 @@ public class DockerShell extends Shell {
         try {
             p = pb.start();
             exitCode = p.waitFor();
-            stdout = new String(p.getInputStream().readAllBytes()).trim();
-            stderr = new String(p.getErrorStream().readAllBytes()).trim();
+            stdout = new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8).trim();
+            stderr = new String(p.getErrorStream().readAllBytes(), StandardCharsets.UTF_8).trim();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

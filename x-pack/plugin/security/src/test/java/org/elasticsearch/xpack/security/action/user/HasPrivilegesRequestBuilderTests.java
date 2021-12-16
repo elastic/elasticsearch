@@ -27,15 +27,20 @@ import static org.mockito.Mockito.mock;
 public class HasPrivilegesRequestBuilderTests extends ESTestCase {
 
     public void testParseValidJsonWithClusterAndIndexPrivileges() throws Exception {
-        String json = "{ "
-            + " \"cluster\":[ \"all\"],"
-            + " \"index\":[ "
-            + " { \"names\": [ \".kibana\", \".reporting\" ], "
-            + "   \"privileges\" : [ \"read\", \"write\" ] }, "
-            + " { \"names\": [ \".security\" ], "
-            + "   \"privileges\" : [ \"manage\" ] } "
-            + " ]"
-            + "}";
+        String json = """
+            {
+              "cluster": [ "all" ],
+              "index": [
+                {
+                  "names": [ ".kibana", ".reporting" ],
+                  "privileges": [ "read", "write" ]
+                },
+                {
+                  "names": [ ".security" ],
+                  "privileges": [ "manage" ]
+                }
+              ]
+            }""";
 
         final HasPrivilegesRequestBuilder builder = new HasPrivilegesRequestBuilder(mock(Client.class));
         builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
@@ -56,12 +61,19 @@ public class HasPrivilegesRequestBuilderTests extends ESTestCase {
     }
 
     public void testParseValidJsonWithJustIndexPrivileges() throws Exception {
-        String json = "{ \"index\":[ "
-            + "{ \"names\": [ \".kibana\", \".reporting\" ], "
-            + " \"privileges\" : [ \"read\", \"write\" ] }, "
-            + "{ \"names\": [ \".security\" ], "
-            + " \"privileges\" : [ \"manage\" ] } "
-            + "] }";
+        String json = """
+            {
+              "index": [
+                {
+                  "names": [ ".kibana", ".reporting" ],
+                  "privileges": [ "read", "write" ]
+                },
+                {
+                  "names": [ ".security" ],
+                  "privileges": [ "manage" ]
+                }
+              ]
+            }""";
 
         final HasPrivilegesRequestBuilder builder = new HasPrivilegesRequestBuilder(mock(Client.class));
         builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
@@ -80,15 +92,8 @@ public class HasPrivilegesRequestBuilderTests extends ESTestCase {
     }
 
     public void testParseValidJsonWithJustClusterPrivileges() throws Exception {
-        String json = "{ \"cluster\":[ "
-            + "\"manage\","
-            + "\""
-            + ClusterHealthAction.NAME
-            + "\","
-            + "\""
-            + ClusterStatsAction.NAME
-            + "\""
-            + "] }";
+        String json = """
+            { "cluster": [ "manage","%s","%s"] }""".formatted(ClusterHealthAction.NAME, ClusterStatsAction.NAME);
 
         final HasPrivilegesRequestBuilder builder = new HasPrivilegesRequestBuilder(mock(Client.class));
         builder.source("elastic", new BytesArray(json.getBytes(StandardCharsets.UTF_8)), XContentType.JSON);
@@ -99,12 +104,18 @@ public class HasPrivilegesRequestBuilderTests extends ESTestCase {
     }
 
     public void testUseOfFieldLevelSecurityThrowsException() throws Exception {
-        String json = "{ \"index\":[ "
-            + "{"
-            + " \"names\": [ \"employees\" ], "
-            + " \"privileges\" : [ \"read\", \"write\" ] ,"
-            + " \"field_security\": { \"grant\": [ \"name\", \"department\", \"title\" ] }"
-            + "} ] }";
+        String json = """
+            {
+              "index": [
+                {
+                  "names": [ "employees" ],
+                  "privileges": [ "read", "write" ],
+                  "field_security": {
+                    "grant": [ "name", "department", "title" ]
+                  }
+                }
+              ]
+            }""";
 
         final HasPrivilegesRequestBuilder builder = new HasPrivilegesRequestBuilder(mock(Client.class));
         final ElasticsearchParseException parseException = expectThrows(

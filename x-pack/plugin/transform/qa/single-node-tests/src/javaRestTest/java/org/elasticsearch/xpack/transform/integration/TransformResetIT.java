@@ -79,25 +79,31 @@ public class TransformResetIT extends TransformRestTestCase {
             getTransformEndpoint() + transformId,
             BASIC_AUTH_VALUE_TRANSFORM_ADMIN_1
         );
-        String config = "{ \"dest\": {\"index\":\""
-            + transformDest
-            + "\"},"
-            + " \"source\": {\"index\":\""
-            + REVIEWS_INDEX_NAME
-            + "\"},"
-            + " \"pivot\": {"
-            + "   \"group_by\": {"
-            + "     \"reviewer\": {"
-            + "       \"terms\": {"
-            + "         \"field\": \"user_id\""
-            + " } } },"
-            + "   \"aggregations\": {"
-            + "     \"avg_rating\": {"
-            + "       \"avg\": {"
-            + "         \"field\": \"stars\""
-            + " } } }"
-            + " }"
-            + "}";
+        String config = """
+            {
+              "dest": {
+                "index": "%s"
+              },
+              "source": {
+                "index": "%s"
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""".formatted(transformDest, REVIEWS_INDEX_NAME);
         createTransformRequest.setJsonEntity(config);
         Map<String, Object> createTransformResponse = entityAsMap(client().performRequest(createTransformRequest));
         assertThat(createTransformResponse.get("acknowledged"), equalTo(Boolean.TRUE));

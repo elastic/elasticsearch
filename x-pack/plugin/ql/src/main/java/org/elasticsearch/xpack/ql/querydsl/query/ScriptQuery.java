@@ -58,7 +58,7 @@ public class ScriptQuery extends LeafQuery {
         return script.toString();
     }
 
-    protected ScriptTemplate nullSafeScript(ScriptTemplate script) {
-        return Scripts.nullSafeFilter(script);
+    protected ScriptTemplate nullSafeScript(ScriptTemplate scriptTemplate) {
+        return Scripts.nullSafeFilter(scriptTemplate);
     }
 }

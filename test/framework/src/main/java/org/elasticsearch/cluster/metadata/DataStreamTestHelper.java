@@ -15,6 +15,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
@@ -98,22 +99,23 @@ public final class DataStreamTestHelper {
     }
 
     public static String generateMapping(String timestampFieldName) {
-        return "{"
-            + "     \"_doc\":{\n"
-            + "        \"properties\": {\n"
-            + "          \""
-            + timestampFieldName
-            + "\": {\n"
-            + "            \"type\": \"date\"\n"
-            + "          }\n"
-            + "      }\n"
-            + "    }"
-            + "}";
+        return """
+            {
+              "_doc":{
+                "properties": {
+                  "%s": {
+                    "type": "date"
+                  }
+                }
+              }
+            }""".formatted(timestampFieldName);
     }
 
     public static String generateMapping(String timestampFieldName, String type) {
         return "{\n"
-            + "      \"_data_stream_timestamp\": {\n"
+            + "      \""
+            + DataStreamTimestampFieldMapper.NAME
+            + "\": {\n"
             + "        \"enabled\": true\n"
             + "      },"
             + "      \"properties\": {\n"

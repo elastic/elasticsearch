@@ -211,6 +211,7 @@ class ScrollDataExtractor implements DataExtractor {
         searchHasShardFailure = true;
     }
 
+    @SuppressWarnings("HiddenField")
     protected SearchResponse executeSearchScrollRequest(String scrollId) {
         return ClientHelper.executeWithHeaders(
             context.headers,

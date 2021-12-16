@@ -920,51 +920,49 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     private String getWarmPhaseDef() {
-        return "{\n"
-            + "        \"policy\" : \""
-            + lifecycleName
-            + "\",\n"
-            + "        \"phase_definition\" : {\n"
-            + "          \"min_age\" : \"0m\",\n"
-            + "          \"actions\" : {\n"
-            + "            \"allocate\" : {\n"
-            + "              \"number_of_replicas\" : \"0\",\n"
-            + "              \"require\" : {\n"
-            + "                \"data\": \"cold\"\n"
-            + "              }\n"
-            + "            },\n"
-            + "            \"set_priority\": {\n"
-            + "              \"priority\": 100 \n"
-            + "            },\n"
-            + "            \"shrink\": {\n"
-            + "              \"number_of_shards\": 2 \n"
-            + "            }\n"
-            + "          }\n"
-            + "        },\n"
-            + "        \"version\" : 1,\n"
-            + "        \"modified_date_in_millis\" : 1578521007076\n"
-            + "      }";
+        return """
+            {
+              "policy": "%s",
+              "phase_definition": {
+                "min_age": "0m",
+                "actions": {
+                  "allocate": {
+                    "number_of_replicas": "0",
+                    "require": {
+                      "data": "cold"
+                    }
+                  },
+                  "set_priority": {
+                    "priority": 100
+                  },
+                  "shrink": {
+                    "number_of_shards": 2
+                  }
+                }
+              },
+              "version": 1,
+              "modified_date_in_millis": 1578521007076
+            }""".formatted(lifecycleName);
     }
 
     private String getColdPhaseDefinition() {
-        return "{\n"
-            + "        \"policy\" : \""
-            + lifecycleName
-            + "\",\n"
-            + "        \"phase_definition\" : {\n"
-            + "          \"min_age\" : \"0m\",\n"
-            + "          \"actions\" : {\n"
-            + "            \"allocate\" : {\n"
-            + "              \"number_of_replicas\" : \"0\",\n"
-            + "              \"require\" : {\n"
-            + "                \"data\": \"cold\"\n"
-            + "              }\n"
-            + "            }\n"
-            + "          }\n"
-            + "        },\n"
-            + "        \"version\" : 1,\n"
-            + "        \"modified_date_in_millis\" : 1578521007076\n"
-            + "      }";
+        return """
+            {
+              "policy": "%s",
+              "phase_definition": {
+                "min_age": "0m",
+                "actions": {
+                  "allocate": {
+                    "number_of_replicas": "0",
+                    "require": {
+                      "data": "cold"
+                    }
+                  }
+                }
+              },
+              "version": 1,
+              "modified_date_in_millis": 1578521007076
+            }""".formatted(lifecycleName);
     }
 
     @SuppressWarnings("unchecked")

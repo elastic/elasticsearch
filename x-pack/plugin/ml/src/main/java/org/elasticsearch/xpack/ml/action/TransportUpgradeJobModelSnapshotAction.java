@@ -45,18 +45,14 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.persistence.JobConfigProvider;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradePredicate;
-import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeAction<Request, Response> {
-
-    // If the snapshot is from any version other than the current major, we consider it for upgrade.
-    // This is to support upgrading to the NEXT major without worry
-    private static final byte UPGRADE_FROM_MAJOR = Version.CURRENT.major;
 
     private static final Logger logger = LogManager.getLogger(TransportUpgradeJobModelSnapshotAction.class);
 

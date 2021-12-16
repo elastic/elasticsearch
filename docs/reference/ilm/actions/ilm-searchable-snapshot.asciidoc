@@ -14,8 +14,8 @@ uses the
 <<tier-preference-allocation-filter,`index.routing.allocation.include._tier_preference`>>
 setting to mount the index directly to the phase's corresponding data tier. In
 the frozen phase, the action mounts a <<partially-mounted,partially mounted
-index>> to the frozen tier. In other phases, the action mounts a
-<<fully-mounted,fully mounted index>> to the corresponding data tier.
+index>> prefixed with `partial-` to the frozen tier. In other phases, the action mounts a
+<<fully-mounted,fully mounted index>> prefixed with `restored-` to the corresponding data tier.
 
 If the `searchable_snapshot` action is used in the hot phase the subsequent
 phases cannot include the `shrink` or `forcemerge` actions.

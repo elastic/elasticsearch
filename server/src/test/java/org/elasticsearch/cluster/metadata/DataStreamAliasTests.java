@@ -88,7 +88,8 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));
             assertThat(result.getWriteDataStream(), nullValue());
             assertThat(result.getFilter(), notNullValue());
-            assertThat(result.getFilter().string(), equalTo("{\"term\":{\"field\":\"value\"}}"));
+            assertThat(result.getFilter().string(), equalTo("""
+                {"term":{"field":"value"}}"""));
         }
         // noop update to filter:
         {
@@ -114,7 +115,8 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));
             assertThat(result.getWriteDataStream(), nullValue());
             assertThat(result.getFilter(), notNullValue());
-            assertThat(result.getFilter().string(), equalTo("{\"term\":{\"field\":\"value1\"}}"));
+            assertThat(result.getFilter().string(), equalTo("""
+                {"term":{"field":"value1"}}"""));
         }
         // Filter not specified, keep existing filter:
         {
@@ -128,7 +130,8 @@ public class DataStreamAliasTests extends AbstractSerializingTestCase<DataStream
             assertThat(result, sameInstance(alias));
             assertThat(result.getDataStreams(), containsInAnyOrder("ds-1", "ds-2"));
             assertThat(result.getWriteDataStream(), nullValue());
-            assertThat(result.getFilter().string(), equalTo("{\"term\":{\"field\":\"value\"}}"));
+            assertThat(result.getFilter().string(), equalTo("""
+                {"term":{"field":"value"}}"""));
         }
     }
 
